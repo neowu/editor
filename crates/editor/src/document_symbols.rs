@@ -111,7 +111,9 @@ impl Editor {
 
                     let Some(task) = project
                         .update(cx, |project, cx| {
-                            project.lsp_store().update(cx, |lsp_store, cx| lsp_store.fetch_document_symbols(&buffer, cx))
+                            project
+                                .lsp_store()
+                                .update(cx, |lsp_store, cx| lsp_store.fetch_document_symbols(&buffer, cx))
                         })
                         .ok()
                     else {

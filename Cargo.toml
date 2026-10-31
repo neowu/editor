@@ -10,7 +10,6 @@ edition = "2024"
 activity_indicator = { path = "crates/activity_indicator" }
 assets = { path = "crates/assets" }
 buffer_diff = { path = "crates/buffer_diff" }
-call_hierarchy = { path = "crates/call_hierarchy" }
 clock = { path = "crates/clock" }
 collections = { path = "crates/collections" }
 command_palette = { path = "crates/command_palette" }

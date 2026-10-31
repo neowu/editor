@@ -460,23 +460,6 @@ impl LspStore {
                         |capabilities| &mut capabilities.code_action_provider,
                     )?;
                 }
-                "textDocument/prepareCallHierarchy" => {
-                    let document_selector = parse_text_document_registration(reg.register_options.as_ref())?;
-                    let options = parse_register_capabilities(reg.register_options)?;
-                    let provider = match options {
-                        OneOf::Left(value) => lsp::CallHierarchyServerCapability::Simple(value),
-                        OneOf::Right(options) => lsp::CallHierarchyServerCapability::Options(options),
-                    };
-                    self.register_dynamic_text_document_capability(
-                        &server,
-                        &reg.method,
-                        reg.id,
-                        provider,
-                        document_selector,
-                        cx,
-                        |capabilities| &mut capabilities.call_hierarchy_provider,
-                    )?;
-                }
                 "textDocument/definition" => {
                     let document_selector = parse_text_document_registration(reg.register_options.as_ref())?;
                     let options = parse_register_capabilities(reg.register_options)?;
@@ -828,11 +811,6 @@ impl LspStore {
                 "textDocument/codeAction" => {
                     self.unregister_dynamic_text_document_capability(&server, unreg, cx, |capabilities| {
                         &mut capabilities.code_action_provider
-                    })?;
-                }
-                "textDocument/prepareCallHierarchy" => {
-                    self.unregister_dynamic_text_document_capability(&server, unreg, cx, |capabilities| {
-                        &mut capabilities.call_hierarchy_provider
                     })?;
                 }
                 "textDocument/definition" => {

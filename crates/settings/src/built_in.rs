@@ -9,7 +9,6 @@ use settings_content::AutosaveSetting;
 use settings_content::BottomDockLayout;
 use settings_content::BranchPickerSettingsContent;
 use settings_content::BufferLineHeight;
-use settings_content::CallHierarchySettingsContent;
 use settings_content::CenteredLayoutSettings;
 use settings_content::CenteredPaddingSettings;
 use settings_content::ClosePosition;
@@ -171,7 +170,6 @@ pub fn settings() -> SettingsContent {
             include_ignored: Some(IncludeIgnoredContent::Smart),
             prefill_query_from_selection: Some(true),
         }),
-        call_hierarchy: Some(CallHierarchySettingsContent { modal_max_width: Some(ModalWidthContent::Medium) }),
         git_panel: Some(GitPanelSettingsContent {
             button: Some(true),
             dock: Some(DockPosition::Left),

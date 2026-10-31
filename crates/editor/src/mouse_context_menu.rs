@@ -222,8 +222,6 @@ pub fn deploy_context_menu(
                 .action("Go to Type Definition", Box::new(GoToTypeDefinition::default()))
                 .action("Go to Implementation", Box::new(GoToImplementation::default()))
                 .action("Find All References", Box::new(FindAllReferences::default()))
-                .action("Show Incoming Calls", Box::new(ed_actions::ShowIncomingCalls))
-                .action("Show Outgoing Calls", Box::new(ed_actions::ShowOutgoingCalls))
                 .separator()
                 .action("Rename Symbol", Box::new(Rename))
                 .action("Format Buffer", Box::new(Format))

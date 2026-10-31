@@ -387,8 +387,6 @@ pub struct OpenRemote {
     pub create_new_window: Option<bool>,
 }
 
-actions!(call_hierarchy, [ShowIncomingCalls, ShowOutgoingCalls, ToggleDirection]);
-
 pub mod preview {
     pub mod markdown {
         use gpui::actions;

@@ -94,8 +94,6 @@ pub struct SettingsContent {
     /// Settings related to the file finder.
     pub file_finder: Option<FileFinderSettingsContent>,
 
-    pub call_hierarchy: Option<CallHierarchySettingsContent>,
-
     pub git_panel: Option<GitPanelSettingsContent>,
 
     pub tabs: Option<ItemSettingsContent>,
@@ -367,14 +365,6 @@ impl ModalWidthContent {
             ModalWidthContent::Medium => (window_width - gpui::px(1024.)).max(base_width),
         }
     }
-}
-
-#[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq)]
-pub struct CallHierarchySettingsContent {
-    /// Determines how much space the call hierarchy picker can take up in relation to the available window width.
-    ///
-    /// Default: medium
-    pub modal_max_width: Option<ModalWidthContent>,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq)]

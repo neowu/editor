@@ -383,7 +383,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("shift-f12", "editor::GoToImplementation"),
             KeyBindingSpec::new("alt-cmd-f12", "editor::GoToTypeDefinitionSplit"),
             KeyBindingSpec::new("alt-shift-f12", "editor::FindAllReferences"),
-            // KeyBindingSpec::new("cmd-k cmd-h", "call_hierarchy::ShowIncomingCalls"),
             KeyBindingSpec::new("cmd-|", "editor::MoveToEnclosingBracket"),
             KeyBindingSpec::new("ctrl-m", "editor::MoveToEnclosingBracket"),
             KeyBindingSpec::new("alt-cmd-[", "editor::Fold"),
@@ -801,16 +800,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("escape", "menu::Cancel"),
             KeyBindingSpec::new("cmd-enter", "git::Commit"),
             KeyBindingSpec::new("cmd-shift-enter", "git::Amend"),
-        ],
-    );
-    add_bindings(
-        &mut keymap,
-        Some("CallHierarchyPicker > Picker > Editor"),
-        true,
-        [
-            // KeyBindingSpec::new("cmd-k cmd-h", "call_hierarchy::ToggleDirection"),
-            // KeyBindingSpec::new("cmd-k right", "menu::SelectChild"),
-            // KeyBindingSpec::new("cmd-k left", "menu::SelectParent"),
         ],
     );
     add_bindings(

@@ -468,27 +468,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 
 [[package]]
-name = "call_hierarchy"
-version = "0.1.0"
-dependencies = [
- "ed_actions",
- "editor",
- "fuzzy",
- "gpui",
- "language",
- "log",
- "menu",
- "picker",
- "project",
- "proto",
- "settings",
- "theme_settings",
- "ui",
- "util",
- "workspace",
-]
-
-[[package]]
 name = "cbindgen"
 version = "0.29.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -904,7 +883,6 @@ dependencies = [
  "activity_indicator",
  "anyhow",
  "assets",
- "call_hierarchy",
  "clap",
  "collections",
  "command_palette",

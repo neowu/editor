@@ -129,6 +129,9 @@
 - No Tailwind CSS or Emmet support: the `tailwindcss-language-server` and
   `emmet-language-server` adapters, Emmet abbreviation actions and the
   editor's inline input block are removed.
+- No LSP call hierarchy: no Show Incoming/Outgoing Calls actions, menu items or
+  picker. The client does not advertise `callHierarchy` capability, so servers
+  never offer it.
 - Grammar configs cannot scope language servers to syntax regions
   (`scope_opt_in_language_servers` / `opt_into_language_servers` removed).
 - Which servers run for a language, and their order, is decided in code only:

@@ -443,11 +443,8 @@ fn state(window: &Window, cx: &mut App) -> control::State {
         }
     };
     let panes = workspace.panes().iter().map(|pane| pane_state(pane, workspace.active_pane())).collect();
-    let git_history_panes = workspace
-        .git_history_panes()
-        .into_iter()
-        .map(|pane| pane_state(pane, workspace.git_history_pane()))
-        .collect();
+    let git_history_panes =
+        workspace.git_history_panes().into_iter().map(|pane| pane_state(pane, workspace.git_history_pane())).collect();
     let mode = match workspace.mode() {
         WorkspaceMode::Editor => "editor",
         WorkspaceMode::GitHistory => "git_history",
@@ -498,6 +495,13 @@ fn state(window: &Window, cx: &mut App) -> control::State {
 
     control::State {
         window: window_id,
-        workspace: Some(control::WorkspaceState { roots, mode, panes, git_history_panes, active_editor, language_servers }),
+        workspace: Some(control::WorkspaceState {
+            roots,
+            mode,
+            panes,
+            git_history_panes,
+            active_editor,
+            language_servers,
+        }),
     }
 }

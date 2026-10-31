@@ -13,7 +13,6 @@ path = "src/main.rs"
 activity_indicator.workspace = true
 anyhow.workspace = true
 assets.workspace = true
-call_hierarchy.workspace = true
 clap.workspace = true
 collections.workspace = true
 command_palette.workspace = true
