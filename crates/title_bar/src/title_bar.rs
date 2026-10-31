@@ -596,7 +596,16 @@ impl TitleBar {
                     }
                 });
 
-        Some(h_flex().ml_2().gap_0p5().child(show_editor).child(show_history).into_any_element())
+        Some(
+            h_flex()
+                .h_full()
+                .ml_1()
+                .gap_0p5()
+                .child(Divider::vertical().h_4().mr_1())
+                .child(show_editor)
+                .child(show_history)
+                .into_any_element(),
+        )
     }
 
     /// Go Back / Go Forward over the workspace's one history, which spans every

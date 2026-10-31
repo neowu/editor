@@ -61,8 +61,8 @@ mode (docks, editor panes) or in Git History mode, which shows only
 one pane holding the git graph and commit tabs. Commit buffers are read-only
 blobs with no language server, so they are not mixed into editor panes.
 
-- Round "Workspace" / "Git History" tabs in the title bar, right after the
-  branch picker, switch modes. They are shown whenever the branch is. "Git
+- Round "Workspace" / "Git History" tabs in the title bar, after a divider
+  following the branch picker, switch modes. They are shown whenever the branch is. "Git
   History" returns to the open history tabs, or opens the repository graph if
   there are none. `workspace::ShowEditor` and `git_graph::Open` switch from the
   keyboard. The active tab has no fill: it shows full-contrast text and an
