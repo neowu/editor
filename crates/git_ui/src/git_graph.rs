@@ -1298,13 +1298,17 @@ impl GitGraph {
         }
     }
 
-    fn fetch_initial_graph_data(&mut self, cx: &mut App) {
+    /// Takes whatever commits the repository already has cached. A graph reopened
+    /// on a loaded repository gets no further load events, so the newest commit
+    /// is selected here too.
+    fn fetch_initial_graph_data(&mut self, cx: &mut Context<Self>) {
         if let Some(repository) = self.get_repository(cx) {
             repository.update(cx, |repository, cx| {
                 let commits = repository.graph_data(self.log_source.clone(), self.log_order, 0..usize::MAX, cx).commits;
                 self.graph_data.add_commits(commits);
             });
         }
+        self.select_newest_if_unselected(cx);
     }
 
     fn get_repository(&self, cx: &App) -> Option<Entity<Repository>> {
@@ -1496,8 +1500,9 @@ impl GitGraph {
             .collect()
     }
 
-    /// Selects the newest commit once commits arrive, so the details sidebar is
-    /// always shown. A pending selection (e.g. "Show in Git Graph") wins.
+    /// Selects the newest commit once commits arrive (cached on open, or from
+    /// load events), so the details sidebar is always shown. A pending selection
+    /// (e.g. "Show in Git Graph") wins.
     fn select_newest_if_unselected(&mut self, cx: &mut Context<Self>) {
         if let Some(idx) = newest_commit_to_select(
             self.selected_entry_idx,

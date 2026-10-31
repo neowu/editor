@@ -91,8 +91,10 @@ blobs with no language server, so they are not mixed into editor panes.
   history tabs to its right. Its width is shared by every history tab. It
   shows the active tab's commit: the graph's selected commit or the commit
   view's commit. It has no close button; the graph selects the newest commit
-  once commits load (unless a specific commit is being selected, e.g. "Show in
-  Git Graph"), so the sidebar is always shown except for an empty history.
+  whenever it has commits and nothing selected, whether they were already
+  loaded (graph reopened) or arrive later (unless a specific commit is being
+  selected, e.g. "Show in Git Graph"), so the sidebar is always shown except
+  for an empty history. One rule (`select_newest_if_unselected`) serves both.
 - In a file history graph (View History / File History), the sidebar reveals
   that file in each selected commit's changed files (folders expanded, row
   highlighted, scrolled into view once the files load).
