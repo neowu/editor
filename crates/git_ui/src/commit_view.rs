@@ -770,8 +770,12 @@ impl CommitView {
         let Some(active_item) = workspace.read(cx).git_history_pane().read(cx).active_item() else {
             return false;
         };
-        let side_card_id = active_item.side_card(cx).map(|side_card| side_card.entity_id());
-        shows_sidebar_beside_other_tab(active_item.item_id(), side_card_id, cx.entity_id(), self.details.entity_id())
+        shows_sidebar_beside_other_tab(
+            active_item.item_id(),
+            || active_item.side_card(cx).map(|side_card| side_card.entity_id()),
+            cx.entity_id(),
+            self.details.entity_id(),
+        )
     }
 
     /// Moves the diff's cursor to the first hunk of `repo_path`, returning
@@ -1425,14 +1429,16 @@ fn stash_matches_index(sha: &str, stash_index: usize, repo: &Repository) -> bool
 
 /// Whether a click on a file in the commit sidebar should open its revision
 /// rather than scroll the commit view: the active tab shows this commit's
-/// sidebar (`details_id`) but isn't the commit view itself.
+/// sidebar (`details_id`) but isn't the commit view itself. The side card is
+/// only asked for when the active tab is another item: the commit view is
+/// already being updated when its sidebar reports the click, so it can't be read.
 fn shows_sidebar_beside_other_tab(
     active_item_id: EntityId,
-    side_card_id: Option<EntityId>,
+    side_card_id: impl FnOnce() -> Option<EntityId>,
     commit_view_id: EntityId,
     details_id: EntityId,
 ) -> bool {
-    active_item_id != commit_view_id && side_card_id == Some(details_id)
+    active_item_id != commit_view_id && side_card_id() == Some(details_id)
 }
 
 #[cfg(test)]
@@ -1462,12 +1468,17 @@ mod tests {
     fn test_shows_sidebar_beside_other_tab() {
         let [commit_view, details, revision, other_details] = [1u64, 2, 3, 4].map(gpui::EntityId::from);
         // A revision or preview showing this commit's sidebar opens revisions.
-        assert!(shows_sidebar_beside_other_tab(revision, Some(details), commit_view, details));
-        // The commit view itself scrolls its diff.
-        assert!(!shows_sidebar_beside_other_tab(commit_view, Some(details), commit_view, details));
+        assert!(shows_sidebar_beside_other_tab(revision, || Some(details), commit_view, details));
+        // The commit view itself scrolls its diff, without reading its own side card.
+        assert!(!shows_sidebar_beside_other_tab(
+            commit_view,
+            || panic!("the active commit view must not be read"),
+            commit_view,
+            details
+        ));
         // Another commit's sidebar, or none, isn't this commit's.
-        assert!(!shows_sidebar_beside_other_tab(revision, Some(other_details), commit_view, details));
-        assert!(!shows_sidebar_beside_other_tab(revision, None, commit_view, details));
+        assert!(!shows_sidebar_beside_other_tab(revision, || Some(other_details), commit_view, details));
+        assert!(!shows_sidebar_beside_other_tab(revision, || None, commit_view, details));
     }
 
     #[test]
