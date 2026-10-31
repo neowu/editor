@@ -2,13 +2,8 @@ use gpui::App;
 use gpui::actions;
 use workspace::Workspace;
 
-mod preview_button;
+mod preview_provider;
 pub mod svg_preview_view;
-
-pub use ed_actions::preview::svg::OpenPreview;
-pub use ed_actions::preview::svg::OpenPreviewToTheSide;
-
-pub use crate::preview_button::SvgPreviewButton;
 
 actions!(
     svg,
@@ -19,6 +14,7 @@ actions!(
 );
 
 pub fn init(cx: &mut App) {
+    workspace::preview::register_preview_provider(preview_provider::PROVIDER, cx);
     cx.observe_new(|workspace: &mut Workspace, window, cx| {
         let Some(window) = window else {
             return;

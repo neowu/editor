@@ -14,8 +14,6 @@ use anyhow::Result;
 use anyhow::anyhow;
 use collections::HashMap;
 use collections::HashSet;
-use ed_actions::preview::markdown::OpenPreview as OpenMarkdownPreview;
-use ed_actions::preview::svg::OpenPreview as OpenSvgPreview;
 use file_icons::FileIcons;
 use fs::MTime;
 use futures::channel::oneshot;
@@ -522,7 +520,8 @@ impl Item for Editor {
                 f(ItemEvent::UpdateActivePath);
             }
 
-            EditorEvent::DirtyChanged | EditorEvent::CapabilityChanged => {
+            // The tab bar's preview button depends on the language.
+            EditorEvent::DirtyChanged | EditorEvent::CapabilityChanged | EditorEvent::LanguageChanged => {
                 f(ItemEvent::UpdateTab);
             }
 
@@ -536,36 +535,6 @@ impl Item for Editor {
 
             _ => {}
         }
-    }
-
-    fn tab_extra_context_menu_actions(
-        &self,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Vec<(SharedString, Box<dyn gpui::Action>)> {
-        let mut actions = Vec::new();
-
-        let is_markdown = self
-            .buffer()
-            .read(cx)
-            .as_singleton()
-            .and_then(|buffer| buffer.read(cx).language())
-            .is_some_and(|language| language.name().as_ref() == "Markdown");
-
-        let is_svg =
-            self.buffer().read(cx).as_singleton().and_then(|buffer| buffer.read(cx).file()).is_some_and(|file| {
-                std::path::Path::new(file.file_name(cx)).extension().is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
-            });
-
-        if is_markdown {
-            actions.push(("Open Markdown Preview".into(), Box::new(OpenMarkdownPreview) as Box<dyn gpui::Action>));
-        }
-
-        if is_svg {
-            actions.push(("Open SVG Preview".into(), Box::new(OpenSvgPreview) as Box<dyn gpui::Action>));
-        }
-
-        actions
     }
 
     fn preserve_preview(&self, cx: &App) -> bool {

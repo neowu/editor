@@ -411,31 +411,11 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
     );
     add_bindings(
         &mut keymap,
-        Some("Editor && extension == md"),
+        Some("Editor"),
         true,
         [
-            // KeyBindingSpec::new("cmd-k v", "markdown::OpenPreviewToTheSide"),
-            KeyBindingSpec::new("cmd-shift-v", "markdown::OpenPreview"),
-        ],
-    );
-    add_bindings(
-        &mut keymap,
-        Some("Editor && extension == svg"),
-        true,
-        [
-            // KeyBindingSpec::new("cmd-k v", "svg::OpenPreviewToTheSide"),
-            KeyBindingSpec::new("cmd-shift-v", "svg::OpenPreview"),
-        ],
-    );
-    add_bindings(
-        &mut keymap,
-        Some(
-            "Editor && (extension == csv || extension == tsv || extension == ssv || extension == psv || extension == jsonl || extension == ndjson)",
-        ),
-        true,
-        [
-            // KeyBindingSpec::new("cmd-k v", "tabular_data::OpenPreviewToTheSide"),
-            KeyBindingSpec::new("cmd-shift-v", "tabular_data::OpenPreview"),
+            // KeyBindingSpec::new("cmd-k v", "preview::OpenPreviewToTheSide"),
+            KeyBindingSpec::new("cmd-shift-v", "preview::OpenPreview"),
         ],
     );
     add_bindings(

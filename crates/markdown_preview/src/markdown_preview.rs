@@ -6,13 +6,9 @@ pub mod markdown_preview_settings;
 mod markdown_preview_style;
 pub mod markdown_preview_view;
 mod mermaid_diagrams;
-mod preview_button;
-
-pub use ed_actions::preview::markdown::OpenPreview;
-pub use ed_actions::preview::markdown::OpenPreviewToTheSide;
+mod preview_provider;
 
 use crate::markdown_preview_view::MarkdownPreviewView;
-pub use crate::preview_button::MarkdownPreviewButton;
 
 actions!(
     markdown,
@@ -42,6 +38,7 @@ actions!(
 
 pub fn init(cx: &mut App) {
     workspace::register_serializable_item::<MarkdownPreviewView>(cx);
+    workspace::preview::register_preview_provider(preview_provider::PROVIDER, cx);
 
     cx.observe_new(|workspace: &mut Workspace, window, cx| {
         let Some(window) = window else {

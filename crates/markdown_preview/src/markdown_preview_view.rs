@@ -105,8 +105,6 @@ use workspace::searchable::SearchableItemHandle;
 
 use crate::CloseAndReturnToEditor;
 use crate::OpenFollowingPreview;
-use crate::OpenPreview;
-use crate::OpenPreviewToTheSide;
 use crate::ScrollDown;
 use crate::ScrollDownByItem;
 use crate::ScrollPageDown;
@@ -240,23 +238,6 @@ impl MarkdownPreviewView {
             });
         })
         .detach();
-
-        workspace.register_action(move |workspace, _: &OpenPreview, window, cx| {
-            if let Some(item) = workspace.item_for_action(window, cx)
-                && let Some(editor) = item.act_as::<Editor>(cx)
-                && Self::is_previewable_file(&editor, cx)
-                && let Some(pane) = workspace.pane_for_item_id(item.item_id())
-            {
-                Self::open_preview_in_pane(workspace, editor, pane, window, cx);
-            }
-        });
-
-        workspace.register_action(move |workspace, _: &OpenPreviewToTheSide, window, cx| {
-            if let Some(editor) = Self::resolve_active_item_as_markdown_editor(workspace, cx) {
-                let pane = workspace.shown_pane().clone();
-                Self::open_preview_to_the_side_of_pane(workspace, editor, pane, window, cx);
-            }
-        });
 
         workspace.register_action(move |workspace, _: &OpenFollowingPreview, window, cx| {
             if let Some(editor) = Self::resolve_active_item_as_markdown_editor(workspace, cx) {

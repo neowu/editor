@@ -123,12 +123,21 @@ because it hurt readability; an opaque window is also cheaper to composite.
   panel clones the terminal. The split and zoom buttons come from one
   shared `pane::render_tab_bar_pane_buttons`, so every tab bar behaves the
   same. There is no search button: search is opened with `cmd-f`, the menu or
-  the action. Left of split, toolbar items can add a preview button
-  (`ToolbarItemView::tab_bar_preview_button`): an eye button opens the Markdown/HTML,
-  SVG or tabular data preview of the active file (Option-click opens it in a
-  split), shown only for files that have one. Each preview crate owns its
-  button (detection and opening) and draws it with the shared
-  `pane::render_tab_bar_preview_button`; `ed` only registers them.
+  the action. Left of split, an eye button opens the Markdown/HTML, SVG or
+  tabular data preview of the active file (Option-click opens it in a split),
+  shown only for files that have one.
+- Previews go through `workspace::preview`: each preview crate registers a
+  `PreviewProvider` (a tooltip for items it can preview, and how to open
+  one); the first that matches an item wins. One pair of actions,
+  `preview::OpenPreview` (`cmd-shift-v` in any editor) and
+  `preview::OpenPreviewToTheSide`, serves every file type, as do the tab bar
+  button and the "Open Preview" entries in the editor and tab context menus; a
+  new preview type only registers a provider. A pane handles the actions only
+  while its active item has a preview, so the shortcut falls through elsewhere
+  and menus just check whether the action is available. An editor's language
+  change updates its tab, so the button appears once a new file's language is
+  detected. Following previews (`markdown::OpenFollowingPreview`,
+  `svg::OpenFollowingPreview`) stay type-specific.
   Zoom stays rightmost. Multibuffers have no collapse/expand all files button:
   that is `editor::ToggleFoldAll` (cmd-shift-enter in search bars) or View >
   Fold All / Unfold All, so a multibuffer with nothing else to show (e.g. find

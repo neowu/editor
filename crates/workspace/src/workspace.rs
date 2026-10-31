@@ -13,6 +13,7 @@ pub mod path_list {
 }
 pub mod path_link;
 mod persistence;
+pub mod preview;
 pub mod searchable;
 pub mod security_modal;
 

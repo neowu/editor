@@ -1,4 +1,3 @@
-use gpui::AnyElement;
 use gpui::AnyView;
 use gpui::App;
 use gpui::Context;
@@ -36,12 +35,6 @@ pub trait ToolbarItemView: Render + EventEmitter<ToolbarItemEvent> {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> ToolbarItemLocation;
-
-    /// The preview button this item adds to the pane's tab bar for the active
-    /// pane item.
-    fn tab_bar_preview_button(&self, _cx: &App) -> Option<AnyElement> {
-        None
-    }
 }
 
 trait ToolbarItemViewHandle: Send {
@@ -53,7 +46,6 @@ trait ToolbarItemViewHandle: Send {
         window: &mut Window,
         cx: &mut App,
     ) -> ToolbarItemLocation;
-    fn tab_bar_preview_button(&self, cx: &App) -> Option<AnyElement>;
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -170,11 +162,11 @@ impl Toolbar {
         cx.subscribe(&item, |this, item, event, cx| {
             if let Some((_, current_location)) = this.items.iter_mut().find(|(i, _)| i.id() == item.entity_id()) {
                 match event {
-                    // Notify even when the location is unchanged: the pane's
-                    // tab bar shows the preview button.
                     ToolbarItemEvent::ChangeLocation(new_location) => {
-                        *current_location = *new_location;
-                        cx.notify();
+                        if new_location != current_location {
+                            *current_location = *new_location;
+                            cx.notify();
+                        }
                     }
                 }
             }
@@ -201,10 +193,6 @@ impl Toolbar {
         self.items.iter().find_map(|(item, _)| item.to_any().downcast().ok())
     }
 
-    pub fn tab_bar_preview_buttons(&self, cx: &App) -> impl Iterator<Item = AnyElement> {
-        self.items.iter().filter_map(|(item, _)| item.tab_bar_preview_button(cx))
-    }
-
     pub const fn hidden(&self) -> bool {
         self.hidden
     }
@@ -226,9 +214,5 @@ impl<T: ToolbarItemView> ToolbarItemViewHandle for Entity<T> {
         cx: &mut App,
     ) -> ToolbarItemLocation {
         self.update(cx, |this, cx| this.set_active_pane_item(active_pane_item, window, cx))
-    }
-
-    fn tab_bar_preview_button(&self, cx: &App) -> Option<AnyElement> {
-        self.read(cx).tab_bar_preview_button(cx)
     }
 }

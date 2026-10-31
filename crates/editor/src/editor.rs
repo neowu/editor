@@ -7512,6 +7512,7 @@ impl Editor {
                 jsx_tag_auto_close::refresh_enabled_in_any_buffer(self, multibuffer, cx);
                 self.refresh_spell_check(cx);
                 cx.emit(EditorEvent::Reparsed(*buffer_id));
+                cx.emit(EditorEvent::LanguageChanged);
 
                 cx.notify();
             }
@@ -9177,6 +9178,8 @@ pub enum EditorEvent {
         transaction_id: clock::Lamport,
     },
     Reparsed(BufferId),
+    /// A buffer's language changed, e.g. once a newly opened file is detected.
+    LanguageChanged,
     Focused,
     FocusedIn,
     Blurred,

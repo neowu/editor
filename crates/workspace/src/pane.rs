@@ -2272,6 +2272,20 @@ impl Pane {
         }
     }
 
+    /// Opens `item`'s preview in this pane or beside it. Deferred, since opening
+    /// one updates this pane.
+    fn open_preview(&self, item: Box<dyn ItemHandle>, to_the_side: bool, window: &Window, cx: &mut Context<Pane>) {
+        let workspace = self.workspace.clone();
+        let pane = cx.entity();
+        window.defer(cx, move |window, cx| {
+            workspace
+                .update(cx, |workspace, cx| {
+                    crate::preview::open_preview(workspace, item.as_ref(), pane, to_the_side, window, cx);
+                })
+                .ok();
+        });
+    }
+
     pub const fn toolbar(&self) -> &Entity<Toolbar> {
         &self.toolbar
     }
@@ -2703,6 +2717,8 @@ impl Pane {
             let pane = pane.clone();
             let menu_context = menu_context.clone();
             let extra_actions = item_handle.tab_extra_context_menu_actions(window, cx);
+            let has_preview = crate::preview::has_preview(item_handle.as_ref(), cx);
+            let item_handle = item_handle.boxed_clone();
             ContextMenu::build(window, cx, move |mut menu, window, cx| {
                 let close_active_item_action = CloseActiveItem { save_intent: None, close_pinned: true };
                 let close_inactive_items_action = CloseOtherItems { save_intent: None, close_pinned: false };
@@ -2932,11 +2948,21 @@ impl Pane {
                 };
 
                 // Add custom item-specific actions
-                if !extra_actions.is_empty() {
+                if !extra_actions.is_empty() || has_preview {
                     menu = menu.separator();
-                    for (label, action) in extra_actions {
-                        menu = menu.action(label, action);
-                    }
+                }
+                if has_preview && let Some(pane) = pane.upgrade() {
+                    let item_handle = item_handle.boxed_clone();
+                    menu = menu.entry(
+                        "Open Preview",
+                        Some(Box::new(crate::preview::OpenPreview)),
+                        window.handler_for(&pane, move |pane, window, cx| {
+                            pane.open_preview(item_handle.boxed_clone(), false, window, cx);
+                        }),
+                    );
+                }
+                for (label, action) in extra_actions {
+                    menu = menu.action(label, action);
                 }
 
                 menu.context(menu_context)
@@ -3612,39 +3638,7 @@ pub const fn tab_bar_split_mode(can_clone: bool, can_split_move: bool) -> Option
     }
 }
 
-/// The eye button a preview crate adds to the tab bar (from its
-/// `ToolbarItemView::tab_bar_preview_button`) for a file it can preview. `open` gets the
-/// item's pane and whether to open to the side (Option-click).
-pub fn render_tab_bar_preview_button(
-    tooltip: &'static str,
-    open_action: &'static dyn Action,
-    workspace: WeakEntity<Workspace>,
-    item: &dyn ItemHandle,
-    open: impl Fn(&mut Workspace, Entity<Pane>, bool, &mut Window, &mut Context<Workspace>) + 'static,
-) -> AnyElement {
-    let item = item.boxed_clone();
-    IconButton::new("toggle-preview", IconName::Eye)
-        .icon_size(IconSize::Small)
-        .tooltip(move |_window, cx| {
-            let split_hint =
-                format!("{} to open in a split", ui::text_for_keystroke(&gpui::Modifiers::alt(), "click", cx));
-            Tooltip::with_meta(tooltip, Some(open_action), split_hint, cx)
-        })
-        .on_click(move |_, window, cx| {
-            let to_the_side = window.modifiers().alt;
-            workspace
-                .update(cx, |workspace, cx| {
-                    if let Some(pane) = workspace.pane_for(item.as_ref()) {
-                        open(workspace, pane, to_the_side, window, cx);
-                    }
-                })
-                .ok();
-        })
-        .into_any_element()
-}
-
-/// Toolbar items' preview buttons, Search, Split Right, Split Down,
-/// toolbar items' collapse/expand all buttons and Zoom buttons,
+/// The preview button, Split Right, Split Down and Zoom buttons,
 /// shared by every pane tab bar so they look and behave the same everywhere.
 /// Zoom stays rightmost, so hiding the optional buttons doesn't move it. Content panes never clone
 /// (`clone_items` false): a tab lives in one pane, so splitting moves the active
@@ -3668,7 +3662,7 @@ pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Cont
                 .tooltip(Tooltip::for_action_title(label, action))
                 .into_any_element()
         };
-    let mut buttons: Vec<AnyElement> = pane.toolbar.read(cx).tab_bar_preview_buttons(cx).collect();
+    let mut buttons: Vec<AnyElement> = crate::preview::render_tab_bar_preview_button(pane, cx).into_iter().collect();
     buttons.extend([
         split_button("split-right", IconName::SplitRight, "Split Right", SplitDirection::Right, &SplitRight { mode }),
         split_button("split-down", IconName::SplitDown, "Split Down", SplitDirection::Down, &SplitDown { mode }),
@@ -3736,12 +3730,28 @@ impl Render for Pane {
             project.is_local()
         };
 
+        let has_preview = self.active_item().is_some_and(|item| crate::preview::has_preview(item.as_ref(), cx));
+
         v_flex()
             .key_context(key_context)
             .track_focus(&self.focus_handle(cx))
             .size_full()
             .flex_none()
             .overflow_hidden()
+            .when(has_preview, |this| {
+                this.on_action(cx.listener(|pane, _: &crate::preview::OpenPreview, window, cx| {
+                    if let Some(item) = pane.active_item() {
+                        pane.open_preview(item, false, window, cx);
+                    }
+                }))
+                .on_action(cx.listener(
+                    |pane, _: &crate::preview::OpenPreviewToTheSide, window, cx| {
+                        if let Some(item) = pane.active_item() {
+                            pane.open_preview(item, true, window, cx);
+                        }
+                    },
+                ))
+            })
             .on_action(cx.listener(|pane, split: &SplitLeft, window, cx| {
                 pane.split(SplitDirection::Left, split.mode, window, cx)
             }))
