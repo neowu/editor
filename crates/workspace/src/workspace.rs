@@ -462,6 +462,10 @@ actions!(
         CloseProject,
         /// Opens the feedback dialog.
         Feedback,
+        /// Navigates back in the workspace's shared history.
+        GoBack,
+        /// Navigates forward in the workspace's shared history.
+        GoForward,
         /// Moves the focused panel to the next position.
         MoveFocusedPanelToNextPosition,
         /// Creates a new file.
@@ -6018,6 +6022,12 @@ impl Workspace {
                 for action in &action_sequence.0 {
                     window.dispatch_action(action.boxed_clone(), cx);
                 }
+            }))
+            .on_action(
+                cx.listener(|workspace, _: &GoBack, window, cx| workspace.go_back(window, cx).detach_and_log_err(cx)),
+            )
+            .on_action(cx.listener(|workspace, _: &GoForward, window, cx| {
+                workspace.go_forward(window, cx).detach_and_log_err(cx)
             }))
             .on_action(cx.listener(Self::close_inactive_items_and_panes))
             .on_action(cx.listener(Self::close_all_items_and_panes))

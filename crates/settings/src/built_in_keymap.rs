@@ -464,8 +464,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("ctrl-8", "pane::ActivateItem").with_input(json!(7)),
             KeyBindingSpec::new("ctrl-9", "pane::ActivateItem").with_input(json!(8)),
             KeyBindingSpec::new("ctrl-0", "pane::ActivateLastItem"),
-            KeyBindingSpec::new("ctrl--", "pane::GoBack"),
-            KeyBindingSpec::new("ctrl-_", "pane::GoForward"),
             KeyBindingSpec::new("cmd-shift-f", "pane::DeploySearch"),
         ],
     );
@@ -474,6 +472,8 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
         Some("Workspace"),
         true,
         [
+            KeyBindingSpec::new("ctrl--", "workspace::GoBack"),
+            KeyBindingSpec::new("ctrl-_", "workspace::GoForward"),
             KeyBindingSpec::new("f6", "workspace::FocusNextPart"),
             KeyBindingSpec::new("shift-f6", "workspace::FocusPreviousPart"),
             KeyBindingSpec::new("cmd-f6", "workspace::FocusNextPart"),
@@ -1120,8 +1120,8 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
         None,
         false,
         [
-            KeyBindingSpec::new("cmd-[", "pane::GoBack").with_override(),
-            KeyBindingSpec::new("cmd-]", "pane::GoForward").with_override(),
+            KeyBindingSpec::new("cmd-[", "workspace::GoBack").with_override(),
+            KeyBindingSpec::new("cmd-]", "workspace::GoForward").with_override(),
         ],
     );
     add_bindings(

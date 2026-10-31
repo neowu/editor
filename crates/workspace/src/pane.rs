@@ -358,10 +358,6 @@ actions!(
         ActivateLastItem,
         /// Switches to the alternate file.
         AlternateFile,
-        /// Navigates back in history.
-        GoBack,
-        /// Navigates forward in history.
-        GoForward,
         /// Navigates back in the tag stack.
         GoToOlderTag,
         /// Navigates forward in the tag stack.
@@ -931,22 +927,6 @@ impl Pane {
 
     pub fn enable_history(&mut self) {
         self.nav_history.enable();
-    }
-
-    pub fn navigate_backward(&mut self, _: &GoBack, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(workspace) = self.workspace.upgrade() {
-            window.defer(cx, move |window, cx| {
-                workspace.update(cx, |workspace, cx| workspace.go_back(window, cx).detach_and_log_err(cx))
-            })
-        }
-    }
-
-    fn navigate_forward(&mut self, _: &GoForward, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(workspace) = self.workspace.upgrade() {
-            window.defer(cx, move |window, cx| {
-                workspace.update(cx, |workspace, cx| workspace.go_forward(window, cx).detach_and_log_err(cx))
-            })
-        }
     }
 
     pub fn go_to_older_tag(&mut self, _: &GoToOlderTag, window: &mut Window, cx: &mut Context<Self>) {
@@ -3810,8 +3790,6 @@ impl Render for Pane {
             .on_action(cx.listener(Pane::toggle_zoom))
             .on_action(cx.listener(Pane::zoom_in))
             .on_action(cx.listener(Pane::zoom_out))
-            .on_action(cx.listener(Self::navigate_backward))
-            .on_action(cx.listener(Self::navigate_forward))
             .on_action(cx.listener(Self::go_to_older_tag))
             .on_action(cx.listener(Self::go_to_newer_tag))
             .on_action(cx.listener(|pane: &mut Pane, action: &ActivateItem, window, cx| {
