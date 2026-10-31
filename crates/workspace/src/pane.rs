@@ -506,7 +506,6 @@ pub struct Pane {
     save_modals_spawned: HashSet<EntityId>,
     close_pane_if_empty: bool,
     pub new_item_context_menu_handle: PopoverMenuHandle<ContextMenu>,
-    pub split_item_context_menu_handle: PopoverMenuHandle<ContextMenu>,
     pinned_tab_count: usize,
     diagnostics: HashMap<ProjectPath, DiagnosticSeverity>,
     zoom_out_on_close: bool,
@@ -675,7 +674,6 @@ impl Pane {
             double_click_dispatch_action,
             save_modals_spawned: HashSet::default(),
             close_pane_if_empty: true,
-            split_item_context_menu_handle: PopoverMenuHandle::default(),
             new_item_context_menu_handle: PopoverMenuHandle::default(),
             pinned_tab_count: 0,
             diagnostics: HashMap::default(),
@@ -774,7 +772,6 @@ impl Pane {
 
     pub fn context_menu_focused(&self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         self.new_item_context_menu_handle.is_focused(window, cx)
-            || self.split_item_context_menu_handle.is_focused(window, cx)
     }
 
     fn focus_out(&mut self, _event: FocusOutEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -3802,9 +3799,55 @@ impl Pane {
     }
 }
 
-/// Items that can't be cloned into a new pane are moved there instead.
-const fn tab_bar_split_mode(can_split_move: bool) -> SplitMode {
-    if can_split_move { SplitMode::MovePane } else { SplitMode::ClonePane }
+/// Items that can't be cloned into a new pane are moved there instead; `None` when
+/// neither is possible.
+const fn tab_bar_split_mode(can_clone: bool, can_split_move: bool) -> Option<SplitMode> {
+    if can_clone {
+        Some(SplitMode::ClonePane)
+    } else if can_split_move {
+        Some(SplitMode::MovePane)
+    } else {
+        None
+    }
+}
+
+/// Split Right, Split Down and Zoom buttons, shared by every pane tab bar so they
+/// look and behave the same everywhere.
+pub fn render_tab_bar_pane_buttons(pane: &Pane, cx: &mut Context<Pane>) -> [AnyElement; 3] {
+    let split_mode = match pane.active_item() {
+        Some(active_item) => tab_bar_split_mode(active_item.can_split(cx), pane.items_len() > 1),
+        None => None,
+    };
+    let mode = split_mode.unwrap_or_default();
+    let split_button =
+        |id: &'static str, icon: IconName, label: &'static str, direction: SplitDirection, action: &dyn Action| {
+            IconButton::new(id, icon)
+                .icon_size(IconSize::Small)
+                .disabled(split_mode.is_none())
+                .on_click(cx.listener(move |pane, _, window, cx| {
+                    if let Some(mode) = split_mode {
+                        pane.split(direction, mode, window, cx);
+                    }
+                }))
+                .tooltip(Tooltip::for_action_title(label, action))
+                .into_any_element()
+        };
+    let zoomed = pane.is_zoomed();
+    [
+        split_button("split-right", IconName::SplitRight, "Split Right", SplitDirection::Right, &SplitRight { mode }),
+        split_button("split-down", IconName::SplitDown, "Split Down", SplitDirection::Down, &SplitDown { mode }),
+        IconButton::new("toggle_zoom", IconName::Maximize)
+            .icon_size(IconSize::Small)
+            .toggle_state(zoomed)
+            .selected_icon(IconName::Minimize)
+            .on_click(cx.listener(|pane, _, window, cx| {
+                pane.toggle_zoom(&ToggleZoom, window, cx);
+            }))
+            .tooltip(move |_window, cx| {
+                Tooltip::for_action(if zoomed { "Zoom Out" } else { "Zoom In" }, &ToggleZoom, cx)
+            })
+            .into_any_element(),
+    ]
 }
 
 fn default_render_tab_bar_buttons(
@@ -3815,11 +3858,6 @@ fn default_render_tab_bar_buttons(
     if !pane.has_focus(window, cx) && !pane.context_menu_focused(window, cx) {
         return (None, None);
     }
-    let (can_clone, can_split_move) = match pane.active_item() {
-        Some(active_item) if active_item.can_split(cx) => (true, false),
-        Some(_) => (false, pane.items_len() > 1),
-        None => (false, false),
-    };
     // Ideally we would return a vec of elements here to pass directly to the [TabBar]'s
     // `end_slot`, but due to needing a view here that isn't possible.
     let right_children = h_flex()
@@ -3846,43 +3884,7 @@ fn default_render_tab_bar_buttons(
                     }))
                 }),
         )
-        .child(
-            IconButton::new("split-right", IconName::SplitRight)
-                .icon_size(IconSize::Small)
-                .disabled(!can_clone && !can_split_move)
-                .on_click(cx.listener(move |pane, _, window, cx| {
-                    let mode = tab_bar_split_mode(can_split_move);
-                    pane.split(SplitDirection::Right, mode, window, cx);
-                }))
-                .tooltip(move |_window, cx| {
-                    Tooltip::for_action("Split Right", &SplitRight { mode: tab_bar_split_mode(can_split_move) }, cx)
-                }),
-        )
-        .child(
-            IconButton::new("split-down", IconName::SplitDown)
-                .icon_size(IconSize::Small)
-                .disabled(!can_clone && !can_split_move)
-                .on_click(cx.listener(move |pane, _, window, cx| {
-                    let mode = tab_bar_split_mode(can_split_move);
-                    pane.split(SplitDirection::Down, mode, window, cx);
-                }))
-                .tooltip(move |_window, cx| {
-                    Tooltip::for_action("Split Down", &SplitDown { mode: tab_bar_split_mode(can_split_move) }, cx)
-                }),
-        )
-        .child({
-            let zoomed = pane.is_zoomed();
-            IconButton::new("toggle_zoom", IconName::Maximize)
-                .icon_size(IconSize::Small)
-                .toggle_state(zoomed)
-                .selected_icon(IconName::Minimize)
-                .on_click(cx.listener(|pane, _, window, cx| {
-                    pane.toggle_zoom(&crate::ToggleZoom, window, cx);
-                }))
-                .tooltip(move |_window, cx| {
-                    Tooltip::for_action(if zoomed { "Zoom Out" } else { "Zoom In" }, &ToggleZoom, cx)
-                })
-        })
+        .children(render_tab_bar_pane_buttons(pane, cx))
         .into_any_element()
         .into();
     (None, right_children)
@@ -4514,8 +4516,10 @@ mod tests {
 
     #[test]
     fn test_tab_bar_split_mode() {
-        assert_eq!(tab_bar_split_mode(true), SplitMode::MovePane);
-        assert_eq!(tab_bar_split_mode(false), SplitMode::ClonePane);
+        assert_eq!(tab_bar_split_mode(true, true), Some(SplitMode::ClonePane));
+        assert_eq!(tab_bar_split_mode(true, false), Some(SplitMode::ClonePane));
+        assert_eq!(tab_bar_split_mode(false, true), Some(SplitMode::MovePane));
+        assert_eq!(tab_bar_split_mode(false, false), None);
     }
 
     #[test]

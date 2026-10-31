@@ -41,12 +41,9 @@ use task::SpawnInTerminal;
 use task::TaskId;
 use terminal::Terminal;
 use terminal::terminal_settings::TerminalSettings;
-use ui::Clickable;
 use ui::CommonAnimationExt;
 use ui::ContextMenu;
-use ui::FluentBuilder;
 use ui::PopoverMenu;
-use ui::Toggleable;
 use ui::Tooltip;
 use ui::prelude::*;
 use util::ResultExt;
@@ -70,16 +67,11 @@ use workspace::MovePaneUp;
 use workspace::Pane;
 use workspace::PaneGroup;
 use workspace::SplitDirection;
-use workspace::SplitDown;
-use workspace::SplitLeft;
 use workspace::SplitMode;
-use workspace::SplitRight;
-use workspace::SplitUp;
 use workspace::SwapPaneDown;
 use workspace::SwapPaneLeft;
 use workspace::SwapPaneRight;
 use workspace::SwapPaneUp;
-use workspace::ToggleZoom;
 use workspace::Workspace;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
@@ -144,10 +136,6 @@ impl TerminalPanel {
     pub(crate) fn apply_tab_bar_buttons(&self, terminal_pane: &Entity<Pane>, cx: &mut Context<Self>) {
         terminal_pane.update(cx, |pane, cx| {
             pane.set_render_tab_bar_buttons(cx, move |pane, window, cx| {
-                let split_context = pane
-                    .active_item()
-                    .and_then(|item| item.downcast::<TerminalView>())
-                    .map(|terminal_view| terminal_view.read(cx).focus_handle.clone());
                 let has_focused_rename_editor = pane
                     .active_item()
                     .and_then(|item| item.downcast::<TerminalView>())
@@ -176,42 +164,7 @@ impl TerminalPanel {
                                 Some(menu)
                             }),
                     )
-                    .child(
-                        PopoverMenu::new("terminal-pane-tab-bar-split")
-                            .trigger_with_tooltip(
-                                IconButton::new("terminal-pane-split", IconName::Split).icon_size(IconSize::Small),
-                                Tooltip::text("Split Pane"),
-                            )
-                            .anchor(Anchor::TopRight)
-                            .with_handle(pane.split_item_context_menu_handle.clone())
-                            .menu({
-                                move |window, cx| {
-                                    ContextMenu::build(window, cx, |menu, _, _| {
-                                        menu.when_some(split_context.clone(), |menu, split_context| {
-                                            menu.context(split_context)
-                                        })
-                                        .action("Split Right", SplitRight::default().boxed_clone())
-                                        .action("Split Left", SplitLeft::default().boxed_clone())
-                                        .action("Split Up", SplitUp::default().boxed_clone())
-                                        .action("Split Down", SplitDown::default().boxed_clone())
-                                    })
-                                    .into()
-                                }
-                            }),
-                    )
-                    .child({
-                        let zoomed = pane.is_zoomed();
-                        IconButton::new("toggle_zoom", IconName::Maximize)
-                            .icon_size(IconSize::Small)
-                            .toggle_state(zoomed)
-                            .selected_icon(IconName::Minimize)
-                            .on_click(cx.listener(|pane, _, window, cx| {
-                                pane.toggle_zoom(&workspace::ToggleZoom, window, cx);
-                            }))
-                            .tooltip(move |_window, cx| {
-                                Tooltip::for_action(if zoomed { "Zoom Out" } else { "Zoom In" }, &ToggleZoom, cx)
-                            })
-                    })
+                    .children(workspace::pane::render_tab_bar_pane_buttons(pane, cx))
                     .into_any_element()
                     .into();
                 (None, right_children)
