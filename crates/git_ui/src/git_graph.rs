@@ -237,7 +237,7 @@ impl QueryState {
 }
 
 struct SearchState {
-    /// The search row is hidden until opened from the tab bar or `cmd-f`.
+    /// The search row is hidden until opened with `cmd-f`.
     shown: bool,
     case_sensitive: bool,
     editor: Entity<Editor>,
@@ -1705,7 +1705,6 @@ impl GitGraph {
         if !was_shown {
             let query = self.search_state.editor.read(cx).text(cx).into();
             self.search(query, cx);
-            cx.emit(ItemEvent::UpdateTab);
         }
         cx.notify();
     }
@@ -1723,7 +1722,6 @@ impl GitGraph {
         if self.search_state.editor.focus_handle(cx).contains_focused(window, cx) {
             window.focus(&self.focus_handle, cx);
         }
-        cx.emit(ItemEvent::UpdateTab);
         cx.notify();
     }
 
@@ -3115,10 +3113,6 @@ impl Focusable for GitGraph {
 
 impl Item for GitGraph {
     type Event = ItemEvent;
-
-    fn search_shown(&self, _: &App) -> Option<bool> {
-        Some(self.search_state.shown)
-    }
 
     fn side_card(&self, _: &App) -> Option<AnyView> {
         self.selected_entry_idx.is_some().then(|| self.commit_details.clone().into())

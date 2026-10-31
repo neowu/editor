@@ -7,7 +7,6 @@ use gpui::Entity;
 use gpui::EntityId;
 use gpui::EventEmitter;
 use gpui::Global;
-use gpui::KeyContext;
 use gpui::ParentElement as _;
 use gpui::Render;
 use gpui::Styled;
@@ -38,18 +37,8 @@ pub trait ToolbarItemView: Render + EventEmitter<ToolbarItemEvent> {
         cx: &mut Context<Self>,
     ) -> ToolbarItemLocation;
 
-    fn pane_focus_update(&mut self, _pane_focused: bool, _window: &mut Window, _cx: &mut Context<Self>) {}
-
-    fn contribute_context(&self, _context: &mut KeyContext, _cx: &App) {}
-
-    /// Whether this item's search bar is shown for the active pane item;
-    /// `None` when it can't search that item.
-    fn search_shown(&self, _cx: &App) -> Option<bool> {
-        None
-    }
-
     /// The preview button this item adds to the pane's tab bar for the active
-    /// pane item, left of the search toggle.
+    /// pane item.
     fn tab_bar_preview_button(&self, _cx: &App) -> Option<AnyElement> {
         None
     }
@@ -64,9 +53,6 @@ trait ToolbarItemViewHandle: Send {
         window: &mut Window,
         cx: &mut App,
     ) -> ToolbarItemLocation;
-    fn focus_changed(&mut self, pane_focused: bool, window: &mut Window, cx: &mut App);
-    fn contribute_context(&self, context: &mut KeyContext, cx: &App);
-    fn search_shown(&self, cx: &App) -> Option<bool>;
     fn tab_bar_preview_button(&self, cx: &App) -> Option<AnyElement>;
 }
 
@@ -185,7 +171,7 @@ impl Toolbar {
             if let Some((_, current_location)) = this.items.iter_mut().find(|(i, _)| i.id() == item.entity_id()) {
                 match event {
                     // Notify even when the location is unchanged: the pane's
-                    // tab bar shows whether search is open and the preview button.
+                    // tab bar shows the preview button.
                     ToolbarItemEvent::ChangeLocation(new_location) => {
                         *current_location = *new_location;
                         cx.notify();
@@ -211,18 +197,8 @@ impl Toolbar {
         }
     }
 
-    pub fn focus_changed(&mut self, focused: bool, window: &mut Window, cx: &mut Context<Self>) {
-        for (toolbar_item, _) in &mut self.items {
-            toolbar_item.focus_changed(focused, window, cx);
-        }
-    }
-
     pub fn item_of_type<T: ToolbarItemView>(&self) -> Option<Entity<T>> {
         self.items.iter().find_map(|(item, _)| item.to_any().downcast().ok())
-    }
-
-    pub fn search_shown(&self, cx: &App) -> Option<bool> {
-        self.items.iter().find_map(|(item, _)| item.search_shown(cx))
     }
 
     pub fn tab_bar_preview_buttons(&self, cx: &App) -> impl Iterator<Item = AnyElement> {
@@ -231,14 +207,6 @@ impl Toolbar {
 
     pub const fn hidden(&self) -> bool {
         self.hidden
-    }
-
-    pub fn contribute_context(&self, context: &mut KeyContext, cx: &App) {
-        for (item, location) in &self.items {
-            if *location != ToolbarItemLocation::Hidden {
-                item.contribute_context(context, cx);
-            }
-        }
     }
 }
 
@@ -258,21 +226,6 @@ impl<T: ToolbarItemView> ToolbarItemViewHandle for Entity<T> {
         cx: &mut App,
     ) -> ToolbarItemLocation {
         self.update(cx, |this, cx| this.set_active_pane_item(active_pane_item, window, cx))
-    }
-
-    fn focus_changed(&mut self, pane_focused: bool, window: &mut Window, cx: &mut App) {
-        self.update(cx, |this, cx| {
-            this.pane_focus_update(pane_focused, window, cx);
-            cx.notify();
-        });
-    }
-
-    fn contribute_context(&self, context: &mut KeyContext, cx: &App) {
-        self.read(cx).contribute_context(context, cx)
-    }
-
-    fn search_shown(&self, cx: &App) -> Option<bool> {
-        self.read(cx).search_shown(cx)
     }
 
     fn tab_bar_preview_button(&self, cx: &App) -> Option<AnyElement> {

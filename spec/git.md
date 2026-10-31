@@ -127,7 +127,7 @@ blobs with no language server, so they are not mixed into editor panes.
 - The diff card has no header of its own; commit details are in the history
   sidebar. The toolbar has the multibuffer diff controls (collapse/expand all
   files, unified/split diff) on the left and the commit's +/- line counts and
-  "Show in Git History" on the right. Search is the tab bar's toggle. Hunk navigation and
+  "Show in Git History" on the right. Hunk navigation and
   staging buttons are left out: the diff is read-only.
 - Clicking a changed file in the sidebar scrolls the diff to it, bringing the
   commit view's tab and pane to the front and focusing it. In the graph,
@@ -160,8 +160,8 @@ view) offers:
 
 ## Git graph
 
-- The search row is hidden until opened with the tab bar's search toggle or
-  `cmd-f`, like buffer search. `escape` (or the toggle) hides it and clears
+- The search row is hidden until opened with `cmd-f`, like buffer search.
+  `escape` hides it and clears
   the matches and highlights; the query is kept and searched again on reopen.
   While hidden, the graph itself takes focus.
 - Search matches the whole commit message (`git log --grep --fixed-strings`)

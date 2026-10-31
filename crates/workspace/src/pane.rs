@@ -710,10 +710,6 @@ impl Pane {
             cx.notify();
         }
 
-        self.toolbar.update(cx, |toolbar, cx| {
-            toolbar.focus_changed(true, window, cx);
-        });
-
         if let Some(active_item) = self.active_item() {
             if self.focus_handle.is_focused(window) {
                 // Schedule a redraw next frame, so that the focus changes below take effect
@@ -742,12 +738,8 @@ impl Pane {
         }
     }
 
-    fn focus_out(&mut self, _event: FocusOutEvent, window: &mut Window, cx: &mut Context<Self>) {
+    fn focus_out(&mut self, _event: FocusOutEvent, _window: &mut Window, cx: &mut Context<Self>) {
         self.was_focused = false;
-        self.toolbar.update(cx, |toolbar, cx| {
-            toolbar.focus_changed(false, window, cx);
-        });
-
         cx.notify();
     }
 
@@ -2280,12 +2272,6 @@ impl Pane {
         }
     }
 
-    /// Whether search is open in the active item, `None` when it can't be searched.
-    pub fn search_shown(&self, cx: &App) -> Option<bool> {
-        let item = self.active_item()?;
-        item.search_shown(cx).or_else(|| self.toolbar.read(cx).search_shown(cx))
-    }
-
     pub const fn toolbar(&self) -> &Entity<Toolbar> {
         &self.toolbar
     }
@@ -3626,32 +3612,6 @@ pub const fn tab_bar_split_mode(can_clone: bool, can_split_move: bool) -> Option
     }
 }
 
-/// The tab bar search button's tooltip and action: open search when it is
-/// closed, close it when it is open.
-pub fn tab_bar_search_action(search_shown: bool) -> (&'static str, Box<dyn Action>) {
-    if search_shown {
-        ("Close Search", ed_actions::buffer_search::Dismiss.boxed_clone())
-    } else {
-        ("Search", ed_actions::buffer_search::Deploy::find().boxed_clone())
-    }
-}
-
-/// Toggles search in the active item, highlighted while search is open. Hidden
-/// for items that can't be searched.
-pub fn render_tab_bar_search_button(pane: &Pane, cx: &App) -> Option<AnyElement> {
-    let search_shown = pane.search_shown(cx)?;
-    let (label, action) = tab_bar_search_action(search_shown);
-    let tooltip_action = action.boxed_clone();
-    Some(
-        IconButton::new("toggle_search", IconName::MagnifyingGlass)
-            .icon_size(IconSize::Small)
-            .toggle_state(search_shown)
-            .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
-            .tooltip(move |_window, cx| Tooltip::for_action(label, tooltip_action.as_ref(), cx))
-            .into_any_element(),
-    )
-}
-
 /// The eye button a preview crate adds to the tab bar (from its
 /// `ToolbarItemView::tab_bar_preview_button`) for a file it can preview. `open` gets the
 /// item's pane and whether to open to the side (Option-click).
@@ -3709,7 +3669,6 @@ pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Cont
                 .into_any_element()
         };
     let mut buttons: Vec<AnyElement> = pane.toolbar.read(cx).tab_bar_preview_buttons(cx).collect();
-    buttons.extend(render_tab_bar_search_button(pane, cx));
     buttons.extend([
         split_button("split-right", IconName::SplitRight, "Split Right", SplitDirection::Right, &SplitRight { mode }),
         split_button("split-down", IconName::SplitDown, "Split Down", SplitDirection::Down, &SplitDown { mode }),
@@ -3764,8 +3723,6 @@ impl Render for Pane {
         if self.active_item().is_none() {
             key_context.add("EmptyPane");
         }
-
-        self.toolbar.read(cx).contribute_context(&mut key_context, cx);
 
         let should_display_tab_bar = self.should_display_tab_bar.clone();
         let display_tab_bar = should_display_tab_bar(window, cx);
@@ -4398,7 +4355,6 @@ mod tests {
     use super::Pane;
     use super::SplitMode;
     use super::TabDropSide;
-    use super::tab_bar_search_action;
     use super::tab_bar_split_mode;
     use super::tab_drop_side;
 
@@ -4408,16 +4364,6 @@ mod tests {
         assert_eq!(tab_drop_side(Some(4), 2), Some(TabDropSide::Before));
         assert_eq!(tab_drop_side(Some(0), 2), Some(TabDropSide::After));
         assert_eq!(tab_drop_side(Some(2), 2), None);
-    }
-
-    #[test]
-    fn test_tab_bar_search_action() {
-        let (label, action) = tab_bar_search_action(false);
-        assert_eq!(label, "Search");
-        assert_eq!(action.name(), "buffer_search::Deploy");
-        let (label, action) = tab_bar_search_action(true);
-        assert_eq!(label, "Close Search");
-        assert_eq!(action.name(), "buffer_search::Dismiss");
     }
 
     #[test]

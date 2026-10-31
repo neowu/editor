@@ -329,12 +329,6 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
         true
     }
 
-    /// Whether the item's own search field is shown, for items that search
-    /// without the buffer search bar (e.g. the git graph); `None` otherwise.
-    fn search_shown(&self, _: &App) -> Option<bool> {
-        None
-    }
-
     /// A view the pane shows as its own card to the left of the item's card,
     /// e.g. commit details beside the commit diff.
     fn side_card(&self, _: &App) -> Option<AnyView> {
@@ -493,7 +487,6 @@ pub trait ItemHandle: 'static + Send {
     fn on_release(&self, cx: &mut App, callback: Box<dyn FnOnce(&mut App) + Send>) -> gpui::Subscription;
     fn to_searchable_item_handle(&self, cx: &App) -> Option<Box<dyn SearchableItemHandle>>;
     fn show_toolbar(&self, cx: &App) -> bool;
-    fn search_shown(&self, cx: &App) -> Option<bool>;
     fn side_card(&self, cx: &App) -> Option<AnyView>;
     fn pixel_position_of_cursor(&self, cx: &App) -> Option<Point<Pixels>>;
     fn downgrade_item(&self) -> Box<dyn WeakItemHandle>;
@@ -890,10 +883,6 @@ impl<T: Item> ItemHandle for Entity<T> {
 
     fn show_toolbar(&self, cx: &App) -> bool {
         self.read(cx).show_toolbar()
-    }
-
-    fn search_shown(&self, cx: &App) -> Option<bool> {
-        self.read(cx).search_shown(cx)
     }
 
     fn side_card(&self, cx: &App) -> Option<AnyView> {

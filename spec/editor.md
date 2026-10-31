@@ -108,20 +108,18 @@
 - No breadcrumbs anywhere (no breadcrumbs toolbar item, `Item::breadcrumbs`
   API, `toolbar` settings block or `editor::ToggleBreadcrumb`), and no quick
   action bar (selections menu, editor controls, code actions): those stay
-  reachable through actions, keybindings and the command palette. Search and
-  preview moved to the tab bar (see ui-layout.md). With no other toolbar item, an editor's card starts right
+  reachable through actions, keybindings and the command palette. Preview
+  moved to the tab bar (see ui-layout.md). With no other toolbar item, an editor's card starts right
   at the text. No symbol path anywhere either: multibuffer headers show only
   the file name and its directory, so rendering them never waits on outlines
   or language servers.
-- Search is opened and closed from one place for every tab: a magnifying-glass
-  toggle in the tab bar (see ui-layout.md), accent-highlighted while search is
-  open. The search row has no close (✕) button. Normal files get no extra row:
+- Search has no button anywhere (no tab bar toggle, no toolbar button, no
+  close (✕) button on the search row): `cmd-f` (or the menu / action) opens
+  or refocuses it and `escape` closes it. Normal files get no extra row:
   the search row appears only while search is open. Multi-buffer views with
   their own controls (unified/split, staging) keep a toolbar row, and the
   search field joins it while open; collapse/expand all files is in the tab
-  bar (see ui-layout.md). `cmd-f` opens or refocuses search and `escape` closes
-  it. View toolbars (commit view, diagnostics) have no search button of their
-  own.
+  bar (see ui-layout.md).
 - Block rows (buffer headers, split-diff spacers) never get the current-line
   highlight: the split's left side draws no header of its own, so a cursor in
   a folded file would otherwise leave a stray band beside the header. A

@@ -1408,8 +1408,6 @@ impl ToolbarItemView for CommitViewToolbar {
         self._multibuffer_subscription = None;
         ToolbarItemLocation::Hidden
     }
-
-    fn pane_focus_update(&mut self, _pane_focused: bool, _window: &mut Window, _cx: &mut Context<Self>) {}
 }
 
 fn stash_matches_index(sha: &str, stash_index: usize, repo: &Repository) -> bool {

@@ -120,12 +120,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
   directions; left/up stay available as actions. Their icons are a rounded
   square divided vertically or horizontally. In center and Git History panes
   they move the active tab and are disabled with a single tab; the terminal
-  panel clones the terminal. The search, split and zoom buttons come from one
+  panel clones the terminal. The split and zoom buttons come from one
   shared `pane::render_tab_bar_pane_buttons`, so every tab bar behaves the
-  same. Search comes first and toggles search in the active tab (buffer search,
-  find in project search results, or the git graph's own search); it is hidden
-  for tabs that can't be searched, which leaves the other buttons in place.
-  Left of search, toolbar items can add a preview button
+  same. There is no search button: search is opened with `cmd-f`, the menu or
+  the action. Left of split, toolbar items can add a preview button
   (`ToolbarItemView::tab_bar_preview_button`): an eye button opens the Markdown/HTML,
   SVG or tabular data preview of the active file (Option-click opens it in a
   split), shown only for files that have one. Each preview crate owns its
