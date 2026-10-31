@@ -799,7 +799,8 @@ impl BufferSearchBar {
             }
             self.search_suggested(seed_query_override, window, cx);
             self.smartcase(window, cx);
-            self.replace_enabled |= deploy.replace_enabled;
+            let replace_enabled = deploy.replace_enabled && self.supported_options(cx).replacement;
+            self.replace_enabled |= replace_enabled;
             self.selection_search_enabled = self.selection_search_enabled.or(if deploy.selection_search_enabled {
                 Some(FilteredSearchRange::Default)
             } else {
@@ -810,7 +811,7 @@ impl BufferSearchBar {
                 let mut select_query = true;
 
                 let has_seed_text = self.query_suggestion(seed_query_override, window, cx).is_some();
-                if deploy.replace_enabled && has_seed_text {
+                if replace_enabled && has_seed_text {
                     handle = self.replacement_editor.focus_handle(cx);
                     select_query = false;
                 };

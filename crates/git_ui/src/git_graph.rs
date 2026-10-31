@@ -834,13 +834,17 @@ pub fn open_or_reuse_graph(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    let pane = workspace.git_history_pane().clone();
-    let existing = pane.read(cx).items_of_type::<GitGraph>().find(|graph| {
-        let graph = graph.read(cx);
-        graph.repo_id == repo_id && graph.log_source == log_source
+    // Reuse the graph in whichever history pane holds it.
+    let existing = workspace.git_history_panes().into_iter().find_map(|pane| {
+        let graph = pane.read(cx).items_of_type::<GitGraph>().find(|graph| {
+            let graph = graph.read(cx);
+            graph.repo_id == repo_id && graph.log_source == log_source
+        })?;
+        Some((pane.clone(), graph))
     });
 
-    let git_graph = if let Some(existing) = existing {
+    let git_graph = if let Some((pane, existing)) = existing {
+        workspace.set_active_git_history_pane(&pane, window, cx);
         pane.update(cx, |pane, cx| {
             if let Some(ix) = pane.index_for_item(&existing) {
                 pane.activate_item(ix, true, true, window, cx);
@@ -854,6 +858,7 @@ pub fn open_or_reuse_graph(
             cx.new(|cx| GitGraph::new(repo_id, git_store, workspace_handle, languages, Some(log_source), window, cx));
         // The repository-wide graph is always the first tab.
         let destination = (git_graph.read(cx).log_source == LogSource::All).then_some(0);
+        let pane = workspace.git_history_pane().clone();
         pane.update(cx, |pane, cx| pane.add_item(Box::new(git_graph.clone()), true, true, destination, window, cx));
         git_graph
     };

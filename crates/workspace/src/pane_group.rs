@@ -15,6 +15,7 @@ use gpui::StyleRefinement;
 use gpui::WeakEntity;
 use gpui::Window;
 use gpui::point;
+use gpui::px;
 use gpui::size;
 use parking_lot::Mutex;
 use project::Project;
@@ -254,20 +255,24 @@ impl PaneGroup {
             _ => bounding_box.center(),
         };
 
-        let distance_to_next = crate::HANDLE_HITBOX_SIZE;
-
-        let target = match direction {
-            SplitDirection::Left => Point::new(bounding_box.left() - distance_to_next.into(), center.y),
-            SplitDirection::Right => Point::new(bounding_box.right() + distance_to_next.into(), center.y),
-            SplitDirection::Up => Point::new(center.x, bounding_box.top() - distance_to_next.into()),
-            SplitDirection::Down => Point::new(center.x, bounding_box.bottom() + distance_to_next.into()),
-        };
-        self.pane_at_pixel_position(target)
+        self.pane_at_pixel_position(neighbor_probe(bounding_box, center, direction))
     }
 
     pub fn invert_axies(&mut self, cx: &mut App) {
         self.root.invert_pane_axies();
         self.mark_positions(cx);
+    }
+}
+
+/// A point just inside the pane next to `bounds` in `direction`, level with
+/// `center`. Split panes are cards `CARD_GAP` apart, so the probe crosses the gap.
+fn neighbor_probe(bounds: Bounds<Pixels>, center: Point<Pixels>, direction: SplitDirection) -> Point<Pixels> {
+    let distance_to_next = crate::CARD_GAP + px(crate::HANDLE_HITBOX_SIZE);
+    match direction {
+        SplitDirection::Left => Point::new(bounds.left() - distance_to_next, center.y),
+        SplitDirection::Right => Point::new(bounds.right() + distance_to_next, center.y),
+        SplitDirection::Up => Point::new(center.x, bounds.top() - distance_to_next),
+        SplitDirection::Down => Point::new(center.x, bounds.bottom() + distance_to_next),
     }
 }
 
@@ -1335,5 +1340,36 @@ mod element {
 
     fn flex_values_in_bounds(flexes: &[f32]) -> bool {
         (flexes.iter().copied().sum::<f32>() - flexes.len() as f32).abs() < 0.001
+    }
+}
+
+#[cfg(test)]
+mod neighbor_probe_tests {
+    use gpui::Bounds;
+    use gpui::point;
+    use gpui::px;
+    use gpui::size;
+
+    use super::SplitDirection;
+    use super::neighbor_probe;
+    use crate::CARD_GAP;
+
+    #[test]
+    fn test_neighbor_probe_lands_in_adjacent_card() {
+        let bounds = Bounds::new(point(px(100.), px(100.)), size(px(200.), px(200.)));
+        let center = point(px(150.), px(120.));
+        let next_card = |direction: SplitDirection| match direction {
+            SplitDirection::Left => Bounds::new(point(px(0.), px(100.)), size(px(100.) - CARD_GAP, px(200.))),
+            SplitDirection::Right => Bounds::new(point(px(300.) + CARD_GAP, px(100.)), size(px(200.), px(200.))),
+            SplitDirection::Up => Bounds::new(point(px(100.), px(0.)), size(px(200.), px(100.) - CARD_GAP)),
+            SplitDirection::Down => Bounds::new(point(px(100.), px(300.) + CARD_GAP), size(px(200.), px(200.))),
+        };
+
+        for direction in [SplitDirection::Left, SplitDirection::Right, SplitDirection::Up, SplitDirection::Down] {
+            let probe = neighbor_probe(bounds, center, direction);
+            assert!(next_card(direction).contains(&probe), "{direction:?} probe {probe:?}");
+        }
+        assert_eq!(neighbor_probe(bounds, center, SplitDirection::Right).y, center.y);
+        assert_eq!(neighbor_probe(bounds, center, SplitDirection::Down).x, center.x);
     }
 }

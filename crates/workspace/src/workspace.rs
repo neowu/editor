@@ -1236,13 +1236,29 @@ impl WorkspaceMode {
 pub enum Event {
     PaneAdded(Entity<Pane>),
     PaneRemoved,
-    ItemAdded { item: Box<dyn ItemHandle> },
+    ItemAdded {
+        item: Box<dyn ItemHandle>,
+    },
+    /// An item was added to one of the git history panes.
+    GitHistoryItemAdded {
+        item: Box<dyn ItemHandle>,
+    },
     ActiveItemChanged,
-    ItemRemoved { item_id: EntityId },
-    UserSavedItem { pane: WeakEntity<Pane>, item: Box<dyn WeakItemHandle>, save_intent: SaveIntent },
+    ItemRemoved {
+        item_id: EntityId,
+    },
+    UserSavedItem {
+        pane: WeakEntity<Pane>,
+        item: Box<dyn WeakItemHandle>,
+        save_intent: SaveIntent,
+    },
     ContactRequestedJoin(u64),
     WorkspaceCreated(WeakEntity<Workspace>),
-    OpenBundledFile { text: Cow<'static, str>, title: &'static str, language: &'static str },
+    OpenBundledFile {
+        text: Cow<'static, str>,
+        title: &'static str,
+        language: &'static str,
+    },
     ZoomChanged,
     ModalOpened,
     Activate,
@@ -1320,8 +1336,10 @@ pub struct Workspace {
     active_pane: Entity<Pane>,
     last_active_center_pane: Option<WeakEntity<Pane>>,
     mode: WorkspaceMode,
-    /// Hosts the git graph and commit views; never part of `center` or `panes`.
-    git_history_pane: Entity<Pane>,
+    /// Hosts the git graph and commit views; its panes are never part of
+    /// `center` or `panes`.
+    git_history_center: PaneGroup,
+    active_git_history_pane: Entity<Pane>,
     git_history_sidebar_width: Pixels,
 
     status_bar: Entity<StatusBar>,
@@ -1541,25 +1559,13 @@ impl Workspace {
 
         cx.emit(Event::PaneAdded(center_pane.clone()));
 
-        let git_history_pane = cx.new(|cx| {
-            let mut pane = Pane::new(
-                weak_handle.clone(),
-                project.clone(),
-                pane_history_timestamp.clone(),
-                None,
-                Box::new(gpui::NoAction),
-                false,
-                window,
-                cx,
-            );
-            pane.set_should_display_tab_bar(|_, _| true);
-            pane.set_can_toggle_zoom(false, cx);
-            pane.display_nav_history_buttons(None);
-            pane.set_render_tab_bar_buttons(cx, |_, _, _| (None, None));
-            pane
-        });
-        cx.subscribe_in(&git_history_pane, window, Self::handle_git_history_pane_event).detach();
-        cx.emit(Event::PaneAdded(git_history_pane.clone()));
+        let git_history_pane = Self::new_git_history_pane(
+            weak_handle.clone(),
+            project.clone(),
+            pane_history_timestamp.clone(),
+            window,
+            cx,
+        );
 
         let any_window_handle = window.window_handle();
         app_state.workspace_store.update(cx, |store, _| {
@@ -1676,7 +1682,8 @@ impl Workspace {
             active_pane: center_pane.clone(),
             last_active_center_pane: Some(center_pane.downgrade()),
             mode: WorkspaceMode::Editor,
-            git_history_pane,
+            git_history_center: PaneGroup::new(git_history_pane.clone()),
+            active_git_history_pane: git_history_pane,
             git_history_sidebar_width: GIT_HISTORY_SIDEBAR_WIDTH,
 
             status_bar,
@@ -2190,9 +2197,21 @@ impl Workspace {
         StatusBarSettings::get_global(cx).show && self.zoomed.is_none()
     }
 
-    fn render_git_history(&self, cx: &Context<Self>) -> Div {
-        let pane = self.git_history_pane.clone();
-        let side_card = pane.read(cx).active_item().and_then(|item| item.side_card(cx));
+    fn render_git_history(&self, window: &mut Window, cx: &mut Context<Self>) -> Div {
+        let pane = self.active_git_history_pane.clone();
+        // A zoomed history pane fills the area alone, without the sidebar, as
+        // zooming hides docks and other panes in Workspace mode.
+        let zoomed_pane = self.git_history_center.panes().into_iter().find(|pane| pane.read(cx).is_zoomed()).cloned();
+        let side_card =
+            if zoomed_pane.is_some() { None } else { pane.read(cx).active_item().and_then(|item| item.side_card(cx)) };
+        let panes = match zoomed_pane {
+            Some(zoomed_pane) => zoomed_pane.into_any_element(),
+            None => {
+                let weak_handle = self.weak_handle();
+                let decorator = ActivePaneDecorator::new(&pane, &weak_handle);
+                self.git_history_center.render(None, None, &decorator, window, cx).into_any_element()
+            }
+        };
         let content = h_flex()
             .size_full()
             .on_drag_move(cx.listener(|workspace, e: &DragMoveEvent<DraggedGitHistorySidebar>, _, cx| {
@@ -2235,7 +2254,7 @@ impl Workspace {
                         ),
                 )
             })
-            .child(div().flex_1().min_w_0().h_full().child(pane.clone()));
+            .child(div().id("git-history-panes").flex().flex_1().min_w_0().h_full().child(panes));
         match cx.try_global::<PaneSearchBarCallbacks>() {
             Some(callbacks) => (callbacks.wrap_div_with_search_actions)(content, pane),
             None => content,
@@ -2246,16 +2265,177 @@ impl Workspace {
         self.mode
     }
 
+    /// The active history pane, where the graph and commit views open.
     pub const fn git_history_pane(&self) -> &Entity<Pane> {
-        &self.git_history_pane
+        &self.active_git_history_pane
+    }
+
+    pub fn git_history_panes(&self) -> Vec<&Entity<Pane>> {
+        self.git_history_center.panes()
+    }
+
+    /// Whether no history pane has any tabs.
+    pub fn git_history_is_empty(&self, cx: &App) -> bool {
+        self.git_history_panes().iter().all(|pane| pane.read(cx).items_len() == 0)
+    }
+
+    fn new_git_history_pane(
+        workspace: WeakEntity<Self>,
+        project: Entity<Project>,
+        pane_history_timestamp: Arc<AtomicUsize>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<Pane> {
+        let pane = cx.new(|cx| {
+            let mut pane = Pane::new(
+                workspace,
+                project,
+                pane_history_timestamp,
+                None,
+                Box::new(gpui::NoAction),
+                false,
+                window,
+                cx,
+            );
+            pane.set_should_display_tab_bar(|_, _| true);
+            pane.set_can_split(Some(Arc::new(|_, _, _, _| true)));
+            // No New… menu: files and terminals belong to Workspace mode.
+            pane.set_render_tab_bar_buttons(cx, |pane, window, cx| {
+                if !pane.has_focus(window, cx) {
+                    return (None, None);
+                }
+                let buttons =
+                    h_flex().gap(DynamicSpacing::Base04.rems()).children(pane::render_tab_bar_pane_buttons(pane, cx));
+                (None, Some(buttons.into_any_element()))
+            });
+            pane
+        });
+        cx.subscribe_in(&pane, window, Self::handle_git_history_pane_event).detach();
+        cx.emit(Event::PaneAdded(pane.clone()));
+        pane
+    }
+
+    fn add_git_history_pane(&self, window: &mut Window, cx: &mut Context<Self>) -> Entity<Pane> {
+        Self::new_git_history_pane(
+            self.weak_handle(),
+            self.project.clone(),
+            self.pane_history_timestamp.clone(),
+            window,
+            cx,
+        )
+    }
+
+    fn split_git_history_pane(
+        &mut self,
+        pane: Entity<Pane>,
+        direction: SplitDirection,
+        mode: SplitMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // The new pane would be hidden behind a zoomed one.
+        self.zoom_git_history_pane(None, cx);
+        match mode {
+            SplitMode::EmptyPane => {
+                self.split_git_history_pane_empty(&pane, direction, window, cx);
+            }
+            SplitMode::MovePane => {
+                let Some(item) = pane.update(cx, |pane, cx| pane.take_active_item(window, cx)) else {
+                    return;
+                };
+                let new_pane = self.add_git_history_pane(window, cx);
+                new_pane.update(cx, |pane, cx| pane.add_item(item, true, true, None, window, cx));
+                self.git_history_center.split(&pane, &new_pane, direction, cx);
+                self.set_active_git_history_pane(&new_pane, window, cx);
+            }
+            SplitMode::ClonePane => {
+                let Some(item) = pane.read(cx).active_item() else {
+                    return;
+                };
+                if !item.can_split(cx) {
+                    return;
+                }
+                let task = item.clone_on_split(self.database_id(), window, cx);
+                cx.spawn_in(window, async move |this, cx| {
+                    let clone = task.await?;
+                    this.update_in(cx, |this, window, cx| {
+                        let new_pane = this.add_git_history_pane(window, cx);
+                        let nav_history = pane.read(cx).fork_nav_history();
+                        new_pane.update(cx, |new_pane, cx| {
+                            new_pane.set_nav_history(nav_history, cx);
+                            new_pane.add_item(clone, true, true, None, window, cx);
+                        });
+                        this.git_history_center.split(&pane, &new_pane, direction, cx);
+                        // Focus moves into the new pane before it is first rendered,
+                        // so its `Focus` event can't be relied on to activate it.
+                        this.set_active_git_history_pane(&new_pane, window, cx);
+                        cx.notify();
+                    })
+                    .ok()
+                })
+                .detach();
+            }
+        }
+        cx.notify();
+    }
+
+    fn split_git_history_pane_empty(
+        &mut self,
+        pane: &Entity<Pane>,
+        direction: SplitDirection,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<Pane> {
+        let new_pane = self.add_git_history_pane(window, cx);
+        self.git_history_center.split(pane, &new_pane, direction, cx);
+        self.set_active_git_history_pane(&new_pane, window, cx);
+        window.focus(&new_pane.focus_handle(cx), cx);
+        new_pane
+    }
+
+    /// Drops an emptied history pane, unless it is the last one.
+    fn remove_git_history_pane(&mut self, pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.git_history_center.remove(pane, cx).log_err().unwrap_or(false) {
+            return;
+        }
+        if self.active_git_history_pane == *pane {
+            let next_pane = self.git_history_center.first_pane();
+            self.set_active_git_history_pane(&next_pane, window, cx);
+            if self.mode == WorkspaceMode::GitHistory {
+                window.focus(&next_pane.focus_handle(cx), cx);
+            }
+        }
+        cx.notify();
+    }
+
+    pub fn set_active_git_history_pane(&mut self, pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
+        if self.active_git_history_pane == *pane {
+            return;
+        }
+        self.active_git_history_pane = pane.clone();
+        if self.mode == WorkspaceMode::GitHistory {
+            self.status_bar.update(cx, |status_bar, cx| status_bar.set_active_pane(pane, window, cx));
+        }
+        cx.notify();
+    }
+
+    /// Zooms `pane` (unzooming any other history pane), or unzooms all for `None`.
+    fn zoom_git_history_pane(&self, pane: Option<&Entity<Pane>>, cx: &mut Context<Self>) {
+        for history_pane in self.git_history_center.panes() {
+            let zoomed = pane == Some(history_pane);
+            if history_pane.read(cx).is_zoomed() != zoomed {
+                history_pane.update(cx, |history_pane, cx| history_pane.set_zoomed(zoomed, cx));
+            }
+        }
+        cx.notify();
     }
 
     /// The pane filling the window in the current mode: the active center
     /// pane, or the history pane.
-    pub fn shown_pane(&self) -> &Entity<Pane> {
+    pub const fn shown_pane(&self) -> &Entity<Pane> {
         match self.mode {
             WorkspaceMode::Editor => &self.active_pane,
-            WorkspaceMode::GitHistory => &self.git_history_pane,
+            WorkspaceMode::GitHistory => &self.active_git_history_pane,
         }
     }
 
@@ -2291,11 +2471,22 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         match event {
-            pane::Event::AddItem { item } => item.added_to_pane(self, pane.clone(), window, cx),
-            pane::Event::RemovedItem { .. } if pane.read(cx).items_len() == 0 => {
+            pane::Event::AddItem { item } => {
+                item.added_to_pane(self, pane.clone(), window, cx);
+                cx.emit(Event::GitHistoryItemAdded { item: item.boxed_clone() });
+            }
+            pane::Event::Split { direction, mode } => {
+                self.split_git_history_pane(pane.clone(), *direction, *mode, window, cx);
+            }
+            pane::Event::Remove { .. } => self.remove_git_history_pane(pane, window, cx),
+            pane::Event::RemovedItem { .. } if self.git_history_is_empty(cx) => {
+                self.zoom_git_history_pane(None, cx);
                 self.set_mode(WorkspaceMode::Editor, window, cx)
             }
+            pane::Event::ZoomIn => self.zoom_git_history_pane(Some(pane), cx),
+            pane::Event::ZoomOut => self.zoom_git_history_pane(None, cx),
             pane::Event::Focus => {
+                self.set_active_git_history_pane(pane, window, cx);
                 self.switch_mode(WorkspaceMode::GitHistory, window, cx);
             }
             pane::Event::ChangeItemTitle | pane::Event::ActivateItem { .. } | pane::Event::RemovedItem { .. } => {
@@ -4960,6 +5151,17 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<Pane> {
+        // History panes split within their own group, so a split started there
+        // (drag to split, open to the side) stays in Git History mode. Like an
+        // editor split, the new pane is neither activated nor focused: the
+        // caller decides where focus goes, and the focused pane becomes active.
+        if self.git_history_center.root.contains_pane(&pane_to_split) {
+            self.zoom_git_history_pane(None, cx);
+            let new_pane = self.add_git_history_pane(window, cx);
+            self.git_history_center.split(&pane_to_split, &new_pane, split_direction, cx);
+            cx.notify();
+            return new_pane;
+        }
         let new_pane = self.add_pane(window, cx);
         self.center.split(&pane_to_split, &new_pane, split_direction, cx);
         cx.notify();
@@ -5097,7 +5299,14 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<Pane> {
-        self.center
+        // Search the group holding `origin`: the other one isn't painted in
+        // this mode, so its layout is stale.
+        let pane_group = if self.git_history_center.root.contains_pane(origin) {
+            &mut self.git_history_center
+        } else {
+            &mut self.center
+        };
+        pane_group
             .find_pane_in_direction(origin, SplitDirection::Right, cx)
             .cloned()
             .unwrap_or_else(|| self.split_pane(origin.clone(), SplitDirection::Right, window, cx))
@@ -6923,7 +7132,7 @@ impl Render for Workspace {
                                 ))
                             })
                             .when(self.mode == WorkspaceMode::GitHistory, |this| {
-                                this.child(self.render_git_history(cx))
+                                this.child(self.render_git_history(window, cx))
                             })
                             .when(self.mode == WorkspaceMode::Editor, |this| {
                                 this.child({

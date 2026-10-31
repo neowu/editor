@@ -583,9 +583,8 @@ impl TitleBar {
                 .tooltip(|_window, cx| Tooltip::for_action("Git History", &ed_actions::git_graph::Open, cx))
                 .on_click(move |_, window, cx| {
                     // Return to the open history tabs; only an empty history opens the graph.
-                    let has_history = workspace
-                        .read_with(cx, |workspace, cx| workspace.git_history_pane().read(cx).items_len() > 0)
-                        .unwrap_or(false);
+                    let has_history =
+                        workspace.read_with(cx, |workspace, cx| !workspace.git_history_is_empty(cx)).unwrap_or(false);
                     if has_history {
                         workspace
                             .update(cx, |workspace, cx| workspace.set_mode(WorkspaceMode::GitHistory, window, cx))

@@ -54,6 +54,10 @@
 - No sticky scroll: enclosing outline items are never pinned to the top of
   the editor (removed with its `sticky_scroll` setting). Multibuffer sticky
   buffer headers are a separate feature and remain.
+- A multibuffer header's "Open File" button (or its addon label, e.g. "Open
+  Revision") only shows while the header is hovered, on every header alike,
+  including the one holding the cursor (whose button also shows the
+  `OpenExcerpts` key binding).
 - Smooth scrolling is always on, with no setting. Jumps (page/half-page
   scrolls and autoscroll to the cursor: search, go-to-definition, `G`) move
   the scroll anchor at once; only drawing trails it, easing out over 120ms.
@@ -97,6 +101,20 @@
 - The selections menu in the editor toolbar is always shown: there is no
   `toolbar.selections_menu` setting, `editor::ToggleSelectionMenu` action or
   quick action bar toggle.
+- Read-only editors (Git History revisions and commit diffs, read-only
+  buffers) share the editing UI but leave out what can only edit: controls
+  follow the editor's capability, not the mode it is shown in, and are hidden
+  rather than disabled since they can never apply there. The selections menu
+  drops its line-editing group (Move Line Up/Down, Duplicate Selection) but
+  keeps selection, cursor and navigation items. Navigation follows the same
+  rule: Next/Previous Problem only show when the editor has diagnostics and
+  is not a historic snapshot (a git revision never gets language-server
+  diagnostics), and Next/Previous Hunk only when a diff is tracked for its
+  buffer (disabled, not hidden, while that diff has no hunks). For the same
+  reason "Editor Controls" drops the Diagnostics and Git Blame toggles on a
+  historic snapshot. Buffer search offers no
+  replace (no toggle, row, or `ToggleReplace`/replace-deploy) on any search
+  item that is not editable.
 - The quick action bar's "Editor Controls" menu has three groups: display
   (Minimap, Diagnostics), editing toggles (Soft Wrap, room for more editor
   actions), and Git Blame last.

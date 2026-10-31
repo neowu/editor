@@ -258,7 +258,8 @@ pub(crate) fn render_buffer_header(
     let opaque_window = cx.theme().window_background_appearance() == WindowBackgroundAppearance::Opaque;
     let show_header_background = opaque_window || colors.editor_subheader_background.is_opaque();
 
-    let show_open_file_button = can_open_excerpts && relative_path.is_some() && (is_selected || header_hovered);
+    // Only on hover, so the header holding the cursor doesn't look different from the rest.
+    let show_open_file_button = can_open_excerpts && relative_path.is_some() && header_hovered;
     let open_file_label = editor_read.addons.values().find_map(|addon| addon.open_file_label()).unwrap_or("Open File");
 
     let header = div()

@@ -3830,22 +3830,25 @@ pub fn render_tab_bar_pane_buttons(pane: &Pane, cx: &mut Context<Pane>) -> [AnyE
                 .tooltip(Tooltip::for_action_title(label, action))
                 .into_any_element()
         };
-    let zoomed = pane.is_zoomed();
     [
         split_button("split-right", IconName::SplitRight, "Split Right", SplitDirection::Right, &SplitRight { mode }),
         split_button("split-down", IconName::SplitDown, "Split Down", SplitDirection::Down, &SplitDown { mode }),
-        IconButton::new("toggle_zoom", IconName::Maximize)
-            .icon_size(IconSize::Small)
-            .toggle_state(zoomed)
-            .selected_icon(IconName::Minimize)
-            .on_click(cx.listener(|pane, _, window, cx| {
-                pane.toggle_zoom(&ToggleZoom, window, cx);
-            }))
-            .tooltip(move |_window, cx| {
-                Tooltip::for_action(if zoomed { "Zoom Out" } else { "Zoom In" }, &ToggleZoom, cx)
-            })
-            .into_any_element(),
+        render_tab_bar_zoom_button(pane, cx),
     ]
+}
+
+/// The Zoom button alone, for panes that can zoom but never split.
+pub fn render_tab_bar_zoom_button(pane: &Pane, cx: &mut Context<Pane>) -> AnyElement {
+    let zoomed = pane.is_zoomed();
+    IconButton::new("toggle_zoom", IconName::Maximize)
+        .icon_size(IconSize::Small)
+        .toggle_state(zoomed)
+        .selected_icon(IconName::Minimize)
+        .on_click(cx.listener(|pane, _, window, cx| {
+            pane.toggle_zoom(&ToggleZoom, window, cx);
+        }))
+        .tooltip(move |_window, cx| Tooltip::for_action(if zoomed { "Zoom Out" } else { "Zoom In" }, &ToggleZoom, cx))
+        .into_any_element()
 }
 
 fn default_render_tab_bar_buttons(

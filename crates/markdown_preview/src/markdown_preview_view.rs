@@ -23,6 +23,7 @@ use editor::items::open_resolved_target;
 use editor::scroll::Autoscroll;
 use gpui::Action;
 use gpui::AnyElement;
+use gpui::AnyView;
 use gpui::App;
 use gpui::ClipboardItem;
 use gpui::Context;
@@ -252,7 +253,7 @@ impl MarkdownPreviewView {
 
         workspace.register_action(move |workspace, _: &OpenPreviewToTheSide, window, cx| {
             if let Some(editor) = Self::resolve_active_item_as_markdown_editor(workspace, cx) {
-                let pane = workspace.active_pane().clone();
+                let pane = workspace.shown_pane().clone();
                 Self::open_preview_to_the_side_of_pane(workspace, editor, pane, window, cx);
             }
         });
@@ -261,7 +262,7 @@ impl MarkdownPreviewView {
             if let Some(editor) = Self::resolve_active_item_as_markdown_editor(workspace, cx) {
                 // Check if there's already a following preview
                 let existing_follow_view_idx = {
-                    let active_pane = workspace.active_pane().read(cx);
+                    let active_pane = workspace.shown_pane().read(cx);
                     active_pane
                         .items_of_type::<MarkdownPreviewView>()
                         .find(|view| view.read(cx).mode == MarkdownPreviewMode::Follow)
@@ -269,13 +270,13 @@ impl MarkdownPreviewView {
                 };
 
                 if let Some(existing_follow_view_idx) = existing_follow_view_idx {
-                    workspace.active_pane().update(cx, |pane, cx| {
+                    workspace.shown_pane().update(cx, |pane, cx| {
                         pane.activate_item(existing_follow_view_idx, true, true, window, cx);
                     });
                 } else {
                     let view = Self::create_following_markdown_view(workspace, editor, window, cx);
                     workspace
-                        .active_pane()
+                        .shown_pane()
                         .update(cx, |pane, cx| pane.add_item(Box::new(view.clone()), true, true, None, window, cx));
                 }
                 cx.notify();
@@ -357,7 +358,7 @@ impl MarkdownPreviewView {
         workspace: &Workspace,
         cx: &mut Context<Workspace>,
     ) -> Option<Entity<Editor>> {
-        if let Some(editor) = workspace.active_item(cx).and_then(|item| item.act_as::<Editor>(cx))
+        if let Some(editor) = workspace.shown_pane().read(cx).active_item().and_then(|item| item.act_as::<Editor>(cx))
             && Self::is_previewable_file(&editor, cx)
         {
             return Some(editor);
@@ -517,7 +518,7 @@ impl MarkdownPreviewView {
                     let project = workspace.project().clone();
                     let editor = cx.new(|cx| Editor::for_buffer(buffer, Some(project), window, cx));
                     let preview = Self::create_markdown_view(workspace, editor, window, cx);
-                    workspace.active_pane().update(cx, |pane, cx| {
+                    workspace.shown_pane().update(cx, |pane, cx| {
                         pane.add_item(Box::new(preview), true, true, None, window, cx);
                     });
                 })
@@ -1267,7 +1268,7 @@ fn open_markdown_link_in_preview(
                 .as_ref()
                 .and_then(|view| view.upgrade())
                 .and_then(|view| workspace.pane_for(&view))
-                .unwrap_or_else(|| workspace.active_pane().clone());
+                .unwrap_or_else(|| workspace.shown_pane().clone());
             pane.update(cx, |pane, cx| {
                 pane.add_item(Box::new(preview.clone()), true, true, None, window, cx);
             });
@@ -1408,6 +1409,11 @@ impl Item for MarkdownPreviewView {
         } else {
             None
         }
+    }
+
+    /// A preview of a Git History revision keeps that commit's sidebar.
+    fn side_card(&self, cx: &App) -> Option<AnyView> {
+        Item::side_card(self.active_editor.as_ref()?.editor.read(cx), cx)
     }
 
     fn tab_icon(&self, _window: &Window, _cx: &App) -> Option<Icon> {

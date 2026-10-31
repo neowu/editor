@@ -70,24 +70,41 @@ blobs with no language server, so they are not mixed into editor panes.
   hover background, so the filled pill no longer pulls focus from the content.
 - Git History mode hides the docks and editor panes. The status bar stays and
   follows the active history tab (cursor position, language on revisions), but
-  hides the dock buttons since the docks are hidden. The history
-  pane is a normal pane (folder tabs, card, toolbar with buffer search) that
-  never splits or zooms. Its tabs are not restored after a restart.
-- The graph and every commit view open only in the history pane: the graph
+  hides the dock buttons since the docks are hidden. The history area is
+  its own pane group, apart from the editor panes: normal panes (folder tabs,
+  card, the same toolbar items as editor panes) that split like editor panes:
+  split buttons, dragging a tab to a pane edge, and "open to the side"
+  (Option-click on a preview button) all split within the history group and
+  stay in Git History mode. As in Workspace mode, splitting for "open to the
+  side" neither activates nor focuses the new pane: focus stays where it was,
+  and the focused pane is always the active one. Preview actions from the keyboard target the
+  history tab when Git History is shown.
+  Its tab bars have Go Back / Go Forward and, on the focused pane, Split Right,
+  Split Down and Zoom; there is no New… menu, since files and terminals belong
+  to Workspace mode. Zoom shows only that pane, without the commit sidebar (as
+  zooming hides docks and other panes in Workspace mode). History tabs and
+  splits are not restored after a restart, but survive switching modes.
+- The graph and commit views open in the active history pane (the last
+  focused one); reopening a graph or commit that is already open activates or
+  replaces its tab in whichever pane holds it. An emptied history pane closes
+  unless it is the last one.
+- The graph and every commit view open only in a history pane: the graph
   from `git_graph::Open` / File History, commits from the graph, blame, commit
   tooltips, the stash picker and the git panel. Opening one switches to Git
-  History mode. The repository-wide graph is always the first tab.
+  History mode. A new repository-wide graph is always the first tab of its pane.
 - "Open Revision" (the buffer header button, "Open File" elsewhere) on a
-  commit diff excerpt opens that revision as a read-only tab in the history
-  pane, since it can't use workspace features. Buffers that are
+  commit diff excerpt opens that revision as a read-only tab in the active
+  history pane, since it can't use workspace features. Buffers that are
   project files still open in the editor. The revision tab keeps its commit's
   sidebar, with the file revealed (folders expanded, row highlighted) whenever
   the tab is focused. It shows the minimap like any editor: "active editor"
-  means the active item of the pane shown in the current mode (the history
-  pane in Git History mode), not the last active editor pane.
+  means the active item of the pane shown in the current mode (the active
+  history pane in Git History mode), not the last active editor pane.
 - Focusing a dock panel or an editor pane (opening a file, Open File in Project
   from a commit, File Finder, …) switches back to Workspace mode. Closing the
-  last history tab does too.
+  last tab of the last history pane does too.
+- A preview (Markdown, tabular data) of a revision keeps its commit's sidebar,
+  since the sidebar follows the commit the active tab belongs to.
 - The commit details panel (author, refs, email, SHA, message, changed files)
   is a flat, resizable sidebar on the left, like the project panel, with the
   history tabs to its right. Its width is shared by every history tab. It
@@ -104,8 +121,12 @@ blobs with no language server, so they are not mixed into editor panes.
 ## Commit view
 
 - The diff card has no header of its own; commit details are in the history
-  sidebar. The toolbar keeps buffer search and "Show in Git Graph".
-- Clicking a changed file in the sidebar scrolls the diff to it. In the graph,
+  sidebar. The toolbar has the multibuffer diff controls (collapse/expand all
+  files, unified/split diff) on the left and the commit's +/- line counts,
+  buffer search and "Show in Git Graph" on the right. Hunk navigation and
+  staging buttons are left out: the diff is read-only.
+- Clicking a changed file in the sidebar scrolls the diff to it, bringing the
+  commit view's tab and pane to the front and focusing it. In the graph,
   it opens the whole commit view and scrolls to that file; there is no "View
   Commit" button, since clicking a file is the way in.
 - Opening from the graph reuses the diff the sidebar already loaded instead of
@@ -114,8 +135,8 @@ blobs with no language server, so they are not mixed into editor panes.
   ready, so it scrolls to the clicked file without waiting for the rest of the
   commit. The scroll puts the file's header at the top and is anchored inside
   that file, so files inserted above it while loading don't move it out of view.
-- While one of the commit's revision tabs is active, clicking a changed file
-  opens that file's revision instead (like "Open Revision" on its excerpt, so it
+- While one of the commit's revision tabs, or a preview of one, is active,
+  clicking a changed file opens that file's revision instead (like "Open Revision" on its excerpt, so it
   follows the preview-tab settings and lands on the first hunk). The click
   always acts on the visible tab's mode: diff stays diff, revision stays
   revision.

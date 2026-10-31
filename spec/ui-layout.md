@@ -25,16 +25,18 @@ because it hurt readability; an opaque window is also cheaper to composite.
   tab stands out: it takes the card colour and joins the card below it, like a
   browser tab. This replaced cards that wrapped the tab bar, where inactive tabs
   shared the card colour and looked continuous with the active one.
-- In Git History mode (`git.md`) the history sidebar and pane fill the area of
+- In Git History mode (`git.md`) the history sidebar and panes fill the area of
   the docks and center panes. The status bar stays, so the card's bottom edge
   doesn't move when switching modes. The sidebar shows the active history
   item's `Item::side_card` and is styled like a left dock (flat, resizable, 8px
-  gap before the pane), so the tab bar starts after it rather than above it.
+  gap before the panes), so the tab bars start after it rather than above it.
 - Docks have no border and blend into the chrome. Panes inside them (the
   terminal) draw their own cards; a non-pane panel docked at the bottom just
   sits on the chrome.
 - Split panes are separate cards with an 8px gap between them (the chrome shows
   through) instead of a divider line. The resize handle covers the gap.
+  Finding the neighbouring pane (pane navigation, "open to the side") looks
+  across the gap, so it reuses an existing pane rather than splitting again.
 - Inactive-pane dimming (`active_pane_modifiers.inactive_opacity`) and the
   active-pane border cover only the rounded card, never the tab bar, so tab
   bars stay the plain chrome colour in every pane.

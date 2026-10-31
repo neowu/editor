@@ -152,7 +152,7 @@ impl SvgPreviewView {
             workspace
                 .update_in(cx, |workspace, window, cx| {
                     let buffer = cx.new(|cx| MultiBuffer::singleton(buffer, cx));
-                    let pane = workspace.active_pane().clone();
+                    let pane = workspace.shown_pane().clone();
                     Self::open_preview_in_pane(workspace, buffer, pane, window, cx);
                 })
                 .ok();
@@ -183,7 +183,12 @@ impl SvgPreviewView {
         workspace: &Workspace,
         cx: &mut Context<Workspace>,
     ) -> Option<Entity<MultiBuffer>> {
-        workspace.active_item(cx)?.act_as::<MultiBuffer>(cx).filter(|buffer| Self::is_svg_file(buffer, cx))
+        workspace
+            .shown_pane()
+            .read(cx)
+            .active_item()?
+            .act_as::<MultiBuffer>(cx)
+            .filter(|buffer| Self::is_svg_file(buffer, cx))
     }
 
     fn create_svg_view(
@@ -272,7 +277,7 @@ impl SvgPreviewView {
 
         workspace.register_action(move |workspace, _: &OpenPreviewToTheSide, window, cx| {
             if let Some(buffer) = Self::resolve_active_item_as_svg_buffer(workspace, cx) {
-                let pane = workspace.active_pane().clone();
+                let pane = workspace.shown_pane().clone();
                 Self::open_preview_to_the_side_of_pane(workspace, buffer, pane, window, cx);
             }
         });
@@ -283,7 +288,7 @@ impl SvgPreviewView {
             {
                 let view = Self::create_svg_view(SvgPreviewMode::Follow, workspace, editor, window, cx);
                 workspace
-                    .active_pane()
+                    .shown_pane()
                     .update(cx, |pane, cx| pane.add_item(Box::new(view), true, true, None, window, cx));
                 cx.notify();
             }

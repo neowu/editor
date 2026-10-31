@@ -1,6 +1,7 @@
 use editor::Editor;
 use editor::EditorEvent;
 use gpui::Action;
+use gpui::AnyView;
 use gpui::AppContext;
 use gpui::Entity;
 use gpui::EventEmitter;
@@ -72,13 +73,13 @@ impl TabularDataPreviewPane {
         workspace.register_action_renderer(|div, _, _, cx| {
             div.on_action(cx.listener(|workspace, _: &OpenPreview, window, cx| {
                 if let Some(editor) = Self::resolve_active_item_as_tabular_data_editor(workspace, cx) {
-                    let pane = workspace.active_pane().clone();
+                    let pane = workspace.shown_pane().clone();
                     Self::open_preview_in_pane(editor, pane, window, cx);
                 }
             }))
             .on_action(cx.listener(|workspace, _: &OpenPreviewToTheSide, window, cx| {
                 if let Some(editor) = Self::resolve_active_item_as_tabular_data_editor(workspace, cx) {
-                    let pane = workspace.active_pane().clone();
+                    let pane = workspace.shown_pane().clone();
                     Self::open_preview_to_the_side_of_pane(workspace, editor, pane, window, cx);
                 }
             }))
@@ -171,7 +172,7 @@ impl TabularDataPreviewPane {
         workspace: &Workspace,
         cx: &mut Context<Workspace>,
     ) -> Option<Entity<Editor>> {
-        let editor = workspace.active_item(cx).and_then(|item| item.act_as::<Editor>(cx))?;
+        let editor = workspace.shown_pane().read(cx).active_item().and_then(|item| item.act_as::<Editor>(cx))?;
         Self::is_tabular_data_file(&editor, cx).then_some(editor)
     }
 
@@ -207,6 +208,11 @@ impl EventEmitter<()> for TabularDataPreviewPane {}
 
 impl Item for TabularDataPreviewPane {
     type Event = ();
+
+    /// A preview of a Git History revision keeps that commit's sidebar.
+    fn side_card(&self, cx: &App) -> Option<AnyView> {
+        Item::side_card(self.active_editor_state.editor.read(cx), cx)
+    }
 
     fn tab_icon(&self, _window: &Window, _cx: &App) -> Option<Icon> {
         Some(Icon::new(IconName::Table))

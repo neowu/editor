@@ -43,6 +43,7 @@ use gpui::Window;
 use gpui::anchored;
 use gpui::deferred;
 use gpui::point;
+use language::DiskState;
 use project::project_settings::DiagnosticSeverity;
 use search::BufferSearchBar;
 use search::buffer_search;
@@ -122,6 +123,10 @@ impl Render for QuickActionBar {
         let diagnostics_enabled =
             editor_value.diagnostics_enabled() && editor_value.diagnostics_max_severity != DiagnosticSeverity::Off;
         let show_git_blame_gutter = editor_value.show_git_blame_gutter();
+        let is_historic = editor_value.buffer().read(cx).all_buffers_iter().all(|buffer| {
+            buffer.read(cx).file().is_some_and(|file| matches!(file.disk_state(), DiskState::Historic { .. }))
+        });
+        let (show_diagnostics_toggle, show_git_blame_toggle) = editor_control_items(is_full, is_historic);
 
         let supports_minimap = editor_value.supports_minimap(cx);
         let minimap_enabled = supports_minimap && editor_value.minimap().is_some();
@@ -206,9 +211,11 @@ impl Render for QuickActionBar {
         });
 
         let editor_selections_dropdown = {
-            let has_diff_hunks = editor.read(cx).buffer().read(cx).snapshot(cx).has_diff_hunks();
-            let _has_selection =
-                editor.update(cx, |editor, cx| editor.has_non_empty_selection(&editor.display_snapshot(cx)));
+            let multibuffer = editor.read(cx).buffer().read(cx);
+            let has_diff_hunks = multibuffer.snapshot(cx).has_diff_hunks();
+            let tracks_diff = multibuffer.all_buffers_iter().any(|buffer| multibuffer.diff_for(buffer.read(cx).remote_id()).is_some());
+            let is_read_only = editor.read(cx).read_only(cx);
+            let (show_problems, show_hunks) = navigation_items(diagnostics_enabled, is_historic, tracks_diff);
 
             let focus = editor.focus_handle(cx);
 
@@ -235,16 +242,22 @@ impl Render for QuickActionBar {
                             .separator()
                             .action("Go to Symbol", Box::new(ToggleOutline))
                             .action("Go to Line/Column", Box::new(ToggleGoToLine))
-                            .separator()
-                            .action("Next Problem", Box::new(GoToDiagnostic::default()))
-                            .action("Previous Problem", Box::new(GoToPreviousDiagnostic::default()))
-                            .separator()
-                            .action_disabled_when(!has_diff_hunks, "Next Hunk", Box::new(GoToHunk))
-                            .action_disabled_when(!has_diff_hunks, "Previous Hunk", Box::new(GoToPreviousHunk))
-                            .separator()
-                            .action("Move Line Up", Box::new(MoveLineUp))
-                            .action("Move Line Down", Box::new(MoveLineDown))
-                            .action("Duplicate Selection", Box::new(DuplicateLineDown))
+                            .when(show_problems, |menu| {
+                                menu.separator()
+                                    .action("Next Problem", Box::new(GoToDiagnostic::default()))
+                                    .action("Previous Problem", Box::new(GoToPreviousDiagnostic::default()))
+                            })
+                            .when(show_hunks, |menu| {
+                                menu.separator()
+                                    .action_disabled_when(!has_diff_hunks, "Next Hunk", Box::new(GoToHunk))
+                                    .action_disabled_when(!has_diff_hunks, "Previous Hunk", Box::new(GoToPreviousHunk))
+                            })
+                            .when(!is_read_only, |menu| {
+                                menu.separator()
+                                    .action("Move Line Up", Box::new(MoveLineUp))
+                                    .action("Move Line Down", Box::new(MoveLineDown))
+                                    .action("Duplicate Selection", Box::new(DuplicateLineDown))
+                            })
                     });
                     Some(menu)
                 })
@@ -287,7 +300,7 @@ impl Render for QuickActionBar {
                                 )
                             }
 
-                            if is_full {
+                            if show_diagnostics_toggle {
                                 menu = menu.toggleable_entry(
                                     "Diagnostics",
                                     diagnostics_enabled,
@@ -325,22 +338,24 @@ impl Render for QuickActionBar {
                                 },
                             );
 
-                            menu = menu.separator();
+                            if show_git_blame_toggle {
+                                menu = menu.separator();
 
-                            menu = menu.toggleable_entry(
-                                "Git Blame",
-                                show_git_blame_gutter,
-                                IconPosition::Start,
-                                Some(git::Blame.boxed_clone()),
-                                {
-                                    let editor = editor.clone();
-                                    move |window, cx| {
-                                        editor
-                                            .update(cx, |editor, cx| editor.toggle_git_blame(&git::Blame, window, cx))
-                                            .ok();
-                                    }
-                                },
-                            );
+                                menu = menu.toggleable_entry(
+                                    "Git Blame",
+                                    show_git_blame_gutter,
+                                    IconPosition::Start,
+                                    Some(git::Blame.boxed_clone()),
+                                    {
+                                        let editor = editor.clone();
+                                        move |window, cx| {
+                                            editor
+                                                .update(cx, |editor, cx| editor.toggle_git_blame(&git::Blame, window, cx))
+                                                .ok();
+                                        }
+                                    },
+                                );
+                            }
 
                             menu
                         }
@@ -419,5 +434,59 @@ impl ToolbarItemView for QuickActionBar {
     ) -> ToolbarItemLocation {
         self.active_item = active_pane_item.map(ItemHandle::boxed_clone);
         self.get_toolbar_item_location()
+    }
+}
+
+/// Which navigation groups the selection menu offers, as `(problems, hunks)`.
+/// Problems need live diagnostics, which historic (git revision) snapshots never
+/// get; hunks need a diff tracked for the editor's buffers.
+const fn navigation_items(diagnostics_enabled: bool, is_historic: bool, tracks_diff: bool) -> (bool, bool) {
+    (diagnostics_enabled && !is_historic, tracks_diff)
+}
+
+/// Which "Editor Controls" toggles apply, as `(diagnostics, git_blame)`.
+/// Historic (git revision) snapshots get neither diagnostics nor blame.
+const fn editor_control_items(is_full: bool, is_historic: bool) -> (bool, bool) {
+    (is_full && !is_historic, !is_historic)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::editor_control_items;
+    use super::navigation_items;
+
+    #[test]
+    fn full_project_editor_offers_diagnostics_and_blame() {
+        assert_eq!(editor_control_items(true, false), (true, true));
+    }
+
+    #[test]
+    fn historic_revision_hides_diagnostics_and_blame() {
+        assert_eq!(editor_control_items(true, true), (false, false));
+    }
+
+    #[test]
+    fn non_full_editor_hides_diagnostics_only() {
+        assert_eq!(editor_control_items(false, false), (false, true));
+    }
+
+    #[test]
+    fn project_file_offers_problems_and_hunks() {
+        assert_eq!(navigation_items(true, false, true), (true, true));
+    }
+
+    #[test]
+    fn historic_revision_hides_problems_and_hunks() {
+        assert_eq!(navigation_items(true, true, false), (false, false));
+    }
+
+    #[test]
+    fn disabled_diagnostics_hide_problems() {
+        assert_eq!(navigation_items(false, false, true), (false, true));
+    }
+
+    #[test]
+    fn untracked_buffer_hides_hunks() {
+        assert_eq!(navigation_items(true, false, false), (true, false));
     }
 }

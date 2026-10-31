@@ -229,6 +229,9 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
         let workspace_handle = cx.entity();
         let center_pane = workspace.active_pane().clone();
         initialize_pane(workspace, &center_pane, window, cx);
+        // Created with the workspace too, before the `PaneAdded` subscription below.
+        let git_history_pane = workspace.git_history_pane().clone();
+        initialize_pane(workspace, &git_history_pane, window, cx);
 
         cx.subscribe_in(&workspace_handle, window, {
             move |workspace, _, event, window, cx| match event {
