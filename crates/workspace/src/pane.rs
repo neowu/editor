@@ -3653,7 +3653,7 @@ pub fn render_tab_bar_search_button(pane: &Pane, cx: &App) -> Option<AnyElement>
 }
 
 /// The eye button a preview crate adds to the tab bar (from its
-/// `ToolbarItemView::tab_bar_button`) for a file it can preview. `open` gets the
+/// `ToolbarItemView::tab_bar_preview_button`) for a file it can preview. `open` gets the
 /// item's pane and whether to open to the side (Option-click).
 pub fn render_tab_bar_preview_button(
     tooltip: &'static str,
@@ -3683,8 +3683,8 @@ pub fn render_tab_bar_preview_button(
         .into_any_element()
 }
 
-/// Toolbar items' buttons (e.g. preview), Search, Split Right, Split Down,
-/// toolbar items' view buttons (e.g. collapse/expand all) and Zoom buttons,
+/// Toolbar items' preview buttons, Search, Split Right, Split Down,
+/// toolbar items' collapse/expand all buttons and Zoom buttons,
 /// shared by every pane tab bar so they look and behave the same everywhere.
 /// Zoom stays rightmost, so hiding the optional buttons doesn't move it. Content panes never clone
 /// (`clone_items` false): a tab lives in one pane, so splitting moves the active
@@ -3708,13 +3708,13 @@ pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Cont
                 .tooltip(Tooltip::for_action_title(label, action))
                 .into_any_element()
         };
-    let mut buttons: Vec<AnyElement> = pane.toolbar.read(cx).tab_bar_buttons(cx).collect();
+    let mut buttons: Vec<AnyElement> = pane.toolbar.read(cx).tab_bar_preview_buttons(cx).collect();
     buttons.extend(render_tab_bar_search_button(pane, cx));
     buttons.extend([
         split_button("split-right", IconName::SplitRight, "Split Right", SplitDirection::Right, &SplitRight { mode }),
         split_button("split-down", IconName::SplitDown, "Split Down", SplitDirection::Down, &SplitDown { mode }),
     ]);
-    buttons.extend(pane.toolbar.read(cx).tab_bar_view_buttons(cx));
+    buttons.extend(pane.toolbar.read(cx).tab_bar_fold_all_buttons(cx));
     buttons.push(render_tab_bar_zoom_button(pane, cx));
     buttons
 }

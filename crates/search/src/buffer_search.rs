@@ -434,7 +434,7 @@ impl ToolbarItemView for BufferSearchBar {
         self.active_searchable_item.as_ref().map(|_| !self.dismissed)
     }
 
-    fn tab_bar_view_button(&self, cx: &App) -> Option<AnyElement> {
+    fn tab_bar_fold_all_button(&self, cx: &App) -> Option<AnyElement> {
         if !self.needs_expand_collapse_option(cx) {
             return None;
         }

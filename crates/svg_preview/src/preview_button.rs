@@ -43,7 +43,7 @@ impl ToolbarItemView for SvgPreviewButton {
         ToolbarItemLocation::Hidden
     }
 
-    fn tab_bar_button(&self, cx: &App) -> Option<AnyElement> {
+    fn tab_bar_preview_button(&self, cx: &App) -> Option<AnyElement> {
         let item = self.active_item.as_ref()?;
         let buffer = item.act_as::<MultiBuffer>(cx).filter(|buffer| SvgPreviewView::is_svg_file(buffer, cx))?;
         Some(workspace::pane::render_tab_bar_preview_button(

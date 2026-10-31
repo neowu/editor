@@ -77,7 +77,7 @@ impl ToolbarItemView for MarkdownPreviewButton {
         ToolbarItemLocation::Hidden
     }
 
-    fn tab_bar_button(&self, cx: &App) -> Option<AnyElement> {
+    fn tab_bar_preview_button(&self, cx: &App) -> Option<AnyElement> {
         let item = self.active_item.as_ref()?;
         let editor = MarkdownPreviewButton::previewable_editor(item.as_ref(), cx)?;
         let is_html = MarkdownPreviewView::is_html_file(&editor, cx);

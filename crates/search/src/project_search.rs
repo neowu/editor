@@ -2839,7 +2839,7 @@ impl ToolbarItemView for ProjectSearchBar {
         }
     }
 
-    fn tab_bar_view_button(&self, cx: &App) -> Option<AnyElement> {
+    fn tab_bar_fold_all_button(&self, cx: &App) -> Option<AnyElement> {
         let search = self.active_project_search.as_ref()?.read(cx);
         let (icon, tooltip_label) = fold_all_button_state(search.results_editor.read(cx).are_all_buffers_folded(cx));
         Some(

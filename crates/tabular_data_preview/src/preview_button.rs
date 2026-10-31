@@ -43,7 +43,7 @@ impl ToolbarItemView for TabularDataPreviewButton {
         ToolbarItemLocation::Hidden
     }
 
-    fn tab_bar_button(&self, cx: &App) -> Option<AnyElement> {
+    fn tab_bar_preview_button(&self, cx: &App) -> Option<AnyElement> {
         let item = self.active_item.as_ref()?;
         let editor =
             item.act_as::<Editor>(cx).filter(|editor| TabularDataPreviewPane::is_tabular_data_file(editor, cx))?;
