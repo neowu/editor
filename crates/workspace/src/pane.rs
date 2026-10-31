@@ -2690,11 +2690,7 @@ impl Pane {
             }))
             .start_slot::<Indicator>(indicator)
             .map(|this| {
-                let end_slot_action: &'static dyn Action;
-                let end_slot_tooltip_text: &'static str;
                 let end_slot = if is_pinned {
-                    end_slot_action = &TogglePinTab;
-                    end_slot_tooltip_text = "Unpin Tab";
                     IconButton::new("unpin tab", IconName::Pin)
                         .shape(IconButtonShape::Square)
                         .icon_color(Color::Muted)
@@ -2703,37 +2699,39 @@ impl Pane {
                         .on_click(cx.listener(move |pane, _, window, cx| {
                             pane.unpin_tab_at(ix, window, cx);
                         }))
+                        .map(|this| {
+                            if is_active {
+                                let focus_handle = focus_handle.clone();
+                                this.tooltip(move |window, cx| {
+                                    Tooltip::for_action_in(
+                                        "Unpin Tab",
+                                        &TogglePinTab,
+                                        &window.focused(cx).unwrap_or_else(|| focus_handle.clone()),
+                                        cx,
+                                    )
+                                })
+                            } else {
+                                this.tooltip(Tooltip::text("Unpin Tab"))
+                            }
+                        })
                 } else {
-                    end_slot_action = &CloseActiveItem { save_intent: None, close_pinned: false };
-                    end_slot_tooltip_text = "Close Tab";
+                    // Quiet close button: no fill and no tooltip, only the icon
+                    // brightening on hover.
                     match show_close_button {
                         ShowCloseButton::Always => IconButton::new("close tab", IconName::Close),
                         ShowCloseButton::Hover => IconButton::new("close tab", IconName::Close).visible_on_hover(""),
                         ShowCloseButton::Hidden => return this,
                     }
                     .shape(IconButtonShape::Square)
+                    .style(ButtonStyle::Transparent)
                     .icon_color(Color::Muted)
+                    .hover_color(Color::Default)
                     .size(ButtonSize::None)
                     .icon_size(IconSize::Small)
                     .on_click(cx.listener(move |pane, _, window, cx| {
                         pane.close_item_by_id(item_id, SaveIntent::Close, window, cx).detach_and_log_err(cx);
                     }))
-                }
-                .map(|this| {
-                    if is_active {
-                        let focus_handle = focus_handle.clone();
-                        this.tooltip(move |window, cx| {
-                            Tooltip::for_action_in(
-                                end_slot_tooltip_text,
-                                end_slot_action,
-                                &window.focused(cx).unwrap_or_else(|| focus_handle.clone()),
-                                cx,
-                            )
-                        })
-                    } else {
-                        this.tooltip(Tooltip::text(end_slot_tooltip_text))
-                    }
-                });
+                };
                 this.end_slot(end_slot)
             })
             .child(

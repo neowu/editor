@@ -59,6 +59,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
   bottoms. The tab bar has no bottom line and no borders between tabs. It is
   inset 10px on the left (the card radius), so the first tab meets the card's
   straight top edge rather than its rounded corner.
+- A tab's close button (editor and terminal tabs alike) is quiet: no fill on
+  hover or press and no tooltip; only the muted × brightens to full contrast
+  on hover. A filled hover chip plus a "Close" tooltip outweighed the tab
+  title.
 - The terminal panel's panes use pill tabs instead: the whole pane, tab bar
   included, is one card, and tabs are rounded buttons inside its top edge.
   Pills have no fill, the same as the title bar's Workspace / Git History
