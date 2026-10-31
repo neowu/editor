@@ -135,6 +135,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
 - Symbols in the outline panel and the editor's outline modal render in the UI
   font at the project panel's label size, not the buffer font. Syntax highlight
   colours are kept.
+- In multi-buffer views (search results, diffs) the outline panel always shows
+  excerpts, symbols and search matches under each file. The upstream
+  `ToggleSymbols` action, its filter-bar button and the
+  `outline_panel.multi_buffer_hide_symbols` setting are removed.
 - There is a single UI density. The upstream `unstable.ui_density` setting
   (compact/comfortable) is removed, and `DynamicSpacing` is a plain enum whose
   `BaseXX` variant is XX px at a 16px rem; `px()` scales it with the UI font

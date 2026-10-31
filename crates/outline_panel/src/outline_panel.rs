@@ -177,8 +177,6 @@ actions!(
         SelectParent,
         /// Toggles the pin status of the active editor.
         ToggleActiveEditorPin,
-        /// Toggles showing symbols, excerpts and search matches for multi-buffer views.
-        ToggleSymbols,
         /// Unfolds the selected directory.
         UnfoldDirectory,
         /// Toggles the outline panel.
@@ -231,7 +229,6 @@ pub struct OutlinePanel {
     pending_default_expansion_depth: Option<usize>,
     default_depth_applied_buffers: HashSet<BufferId>,
     outline_children_cache: HashMap<BufferId, OutlineChildren>,
-    hide_symbols_override: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -1000,16 +997,6 @@ pub fn init(cx: &mut App) {
                 workspace.close_panel::<OutlinePanel>(window, cx);
             }
         });
-        workspace.register_action(|workspace, _: &ToggleSymbols, window, cx| {
-            if let Some(outline_panel) = workspace.panel::<OutlinePanel>(cx) {
-                // Defer to avoid updating the panel while the workspace is still being updated.
-                window.defer(cx, move |window, cx| {
-                    outline_panel.update(cx, |outline_panel, cx| {
-                        outline_panel.toggle_symbols(&ToggleSymbols, window, cx);
-                    });
-                });
-            }
-        });
     })
     .detach();
 }
@@ -1116,16 +1103,9 @@ impl OutlinePanel {
                         outline_panel.update_contents(Some(UPDATE_DEBOUNCE), window, cx);
                     } else if &outline_panel_settings != new_settings {
                         let old_expansion_depth = outline_panel_settings.expand_outlines_with_depth;
-                        let old_hide_symbols = outline_panel_settings.multi_buffer_hide_symbols;
                         outline_panel_settings = *new_settings;
 
                         let mut update_cached_entries = false;
-                        if old_hide_symbols != outline_panel_settings.multi_buffer_hide_symbols {
-                            outline_panel.hide_symbols_override = None;
-                            outline_panel.update_non_fs_items(window, cx);
-                            outline_panel.remap_selection_for_hidden_symbols(window, cx);
-                            update_cached_entries = true;
-                        }
                         if old_expansion_depth != outline_panel_settings.expand_outlines_with_depth {
                             let old_collapsed_entries = outline_panel.collapsed_entries.clone();
                             outline_panel
@@ -1247,7 +1227,6 @@ impl OutlinePanel {
                     filter_update_subscription,
                 ],
                 outline_children_cache: HashMap::default(),
-                hide_symbols_override: None,
             };
             if let Some((item, editor)) = workspace_active_editor(workspace, cx) {
                 outline_panel.replace_active_editor(item, editor, window, cx);
@@ -2571,11 +2550,7 @@ impl OutlinePanel {
         let settings = OutlinePanelSettings::get_global(cx);
         let icon = icon
             .or_else(|| (settings.file_icons || settings.folder_indicator == FolderIndicator::Both).then(empty_icon));
-        let expand_collapse_icon = if self.hide_symbols_active(cx) {
-            empty_icon()
-        } else {
-            self.chevron_toggle(PanelEntry::Fs(entry.clone()), is_expanded, color, cx)
-        };
+        let expand_collapse_icon = self.chevron_toggle(PanelEntry::Fs(entry.clone()), is_expanded, color, cx);
         h_flex().flex_none().gap_0p5().child(expand_collapse_icon).children(icon).into_any_element()
     }
 
@@ -2927,7 +2902,7 @@ impl OutlinePanel {
                     outline_panel.fs_entries = fs_entries;
                     outline_panel.fs_children_count = children_count;
                     outline_panel.update_non_fs_items(window, cx);
-                    if outline_panel.buffers_to_fetch(cx).is_empty() {
+                    if outline_panel.buffers_to_fetch().is_empty() {
                         outline_panel.update_cached_entries(debounce, window, cx);
                     }
                     cx.notify();
@@ -3215,7 +3190,7 @@ impl OutlinePanel {
     }
 
     fn fetch_outdated_outlines(&mut self, debounce: Option<Duration>, window: &Window, cx: &Context<Self>) {
-        let buffers_to_fetch = self.buffers_to_fetch(cx);
+        let buffers_to_fetch = self.buffers_to_fetch();
         if buffers_to_fetch.is_empty() {
             return;
         }
@@ -3324,45 +3299,6 @@ impl OutlinePanel {
         self.active_editor().is_some_and(|active_editor| !active_editor.read(cx).buffer().read(cx).is_singleton())
     }
 
-    fn hide_symbols_active(&self, cx: &App) -> bool {
-        self.hide_symbols_override.unwrap_or(OutlinePanelSettings::get_global(cx).multi_buffer_hide_symbols)
-    }
-
-    fn remap_selection_for_hidden_symbols(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.multi_buffer_active(cx) || !self.hide_symbols_active(cx) {
-            return;
-        }
-        let buffer_id = match self.selected_entry() {
-            Some(PanelEntry::Outline(OutlineEntry::Excerpt(excerpt))) => Some(excerpt.context.start.buffer_id),
-            Some(PanelEntry::Outline(OutlineEntry::Outline(outline))) => Some(outline.range.start.buffer_id),
-            Some(PanelEntry::Search(search_entry)) => {
-                let match_start = search_entry.match_range.start;
-                self.active_editor().and_then(|editor| {
-                    let multi_buffer_snapshot = editor.read(cx).buffer().read(cx).snapshot(cx);
-                    multi_buffer_snapshot.anchor_to_buffer_anchor(match_start).map(|(anchor, _)| anchor.buffer_id)
-                })
-            }
-            Some(PanelEntry::Fs(_) | PanelEntry::FoldedDirs(_)) | None => None,
-        };
-        let Some(buffer_id) = buffer_id else {
-            return;
-        };
-        let file_entry = self
-            .fs_entries
-            .iter()
-            .find(|fs_entry| match fs_entry {
-                FsEntry::File(FsEntryFile { buffer_id: file_buffer_id, .. })
-                | FsEntry::ExternalFile(FsEntryExternalFile { buffer_id: file_buffer_id, .. }) => {
-                    *file_buffer_id == buffer_id
-                }
-                FsEntry::Directory(..) => false,
-            })
-            .cloned();
-        if let Some(file_entry) = file_entry {
-            self.select_entry(PanelEntry::Fs(file_entry), false, window, cx);
-        }
-    }
-
     fn invalidate_outlines(&mut self, ids: &[BufferId]) {
         if let Some(PanelEntry::Outline(outline)) = self.selected_entry()
             && ids.contains(&outline.buffer_id())
@@ -3377,13 +3313,7 @@ impl OutlinePanel {
         }
     }
 
-    fn buffers_to_fetch(&self, cx: &App) -> HashSet<BufferId> {
-        // Hide-symbols mode never renders outline rows, so fetching outlines would be wasted
-        // work; `update_fs_entries`'s completion only refreshes cached entries once this is
-        // empty, so the gate has to live here rather than in `fetch_outdated_outlines` alone.
-        if self.multi_buffer_active(cx) && self.hide_symbols_active(cx) {
-            return HashSet::default();
-        }
+    fn buffers_to_fetch(&self) -> HashSet<BufferId> {
         self.fs_entries.iter().fold(HashSet::default(), |mut buffers_to_fetch, fs_entry| {
             match fs_entry {
                 FsEntry::File(FsEntryFile { buffer_id, .. })
@@ -3584,7 +3514,6 @@ impl OutlinePanel {
 
             let Ok(()) = outline_panel.update(cx, |outline_panel, cx| {
                 let auto_fold_dirs = OutlinePanelSettings::get_global(cx).auto_fold_dirs;
-                let hide_symbols = !is_singleton && outline_panel.hide_symbols_active(cx);
                 let mut folded_dirs_entry = None::<(usize, FoldedDirsEntry)>;
                 let track_matches = query.is_some();
 
@@ -3597,9 +3526,7 @@ impl OutlinePanel {
                     worktree_id: WorktreeId,
                 }
 
-                let search_precomputed = if hide_symbols {
-                    None
-                } else if let ItemsDisplayMode::Search(search_state) = &outline_panel.mode {
+                let search_precomputed = if let ItemsDisplayMode::Search(search_state) = &outline_panel.mode {
                     let multi_buffer_snapshot = active_editor.read(cx).buffer().read(cx).snapshot(cx);
                     let mut folded_buffers = HashSet::default();
                     let mut not_folded_buffers = HashSet::default();
@@ -3837,49 +3764,47 @@ impl OutlinePanel {
                         );
                     }
 
-                    if !hide_symbols {
-                        match outline_panel.mode {
-                            ItemsDisplayMode::Search(_) => {
-                                if (is_singleton || query.is_some() || (should_add && is_expanded))
-                                    && let Some(search) = &search_precomputed
-                                {
-                                    outline_panel.add_search_entries(
-                                        &mut generation_state,
-                                        search,
-                                        &entry,
-                                        depth,
-                                        query.is_some(),
-                                        is_singleton,
-                                        cx,
-                                    );
-                                }
+                    match outline_panel.mode {
+                        ItemsDisplayMode::Search(_) => {
+                            if (is_singleton || query.is_some() || (should_add && is_expanded))
+                                && let Some(search) = &search_precomputed
+                            {
+                                outline_panel.add_search_entries(
+                                    &mut generation_state,
+                                    search,
+                                    &entry,
+                                    depth,
+                                    query.is_some(),
+                                    is_singleton,
+                                    cx,
+                                );
                             }
-                            ItemsDisplayMode::Outline => {
-                                let excerpts_to_consider =
-                                    if is_singleton || query.is_some() || (should_add && is_expanded) {
-                                        match &entry {
-                                            FsEntry::File(FsEntryFile { buffer_id, excerpts, .. })
-                                            | FsEntry::ExternalFile(FsEntryExternalFile {
-                                                buffer_id, excerpts, ..
-                                            }) => Some((*buffer_id, excerpts)),
-                                            _ => None,
-                                        }
-                                    } else {
-                                        None
-                                    };
-                                if let Some((buffer_id, _entry_excerpts)) = excerpts_to_consider
-                                    && !active_editor.read(cx).is_buffer_folded(buffer_id, cx)
-                                {
-                                    outline_panel.add_buffer_entries(
-                                        &mut generation_state,
-                                        buffer_id,
-                                        depth,
-                                        track_matches,
-                                        is_singleton,
-                                        query.as_deref(),
-                                        cx,
-                                    );
+                        }
+                        ItemsDisplayMode::Outline => {
+                            let excerpts_to_consider = if is_singleton || query.is_some() || (should_add && is_expanded)
+                            {
+                                match &entry {
+                                    FsEntry::File(FsEntryFile { buffer_id, excerpts, .. })
+                                    | FsEntry::ExternalFile(FsEntryExternalFile { buffer_id, excerpts, .. }) => {
+                                        Some((*buffer_id, excerpts))
+                                    }
+                                    _ => None,
                                 }
+                            } else {
+                                None
+                            };
+                            if let Some((buffer_id, _entry_excerpts)) = excerpts_to_consider
+                                && !active_editor.read(cx).is_buffer_folded(buffer_id, cx)
+                            {
+                                outline_panel.add_buffer_entries(
+                                    &mut generation_state,
+                                    buffer_id,
+                                    depth,
+                                    track_matches,
+                                    is_singleton,
+                                    query.as_deref(),
+                                    cx,
+                                );
                             }
                         }
                     }
@@ -4353,17 +4278,6 @@ impl OutlinePanel {
         cx.notify();
     }
 
-    pub fn toggle_symbols(&mut self, _: &ToggleSymbols, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.multi_buffer_active(cx) {
-            return;
-        }
-        self.hide_symbols_override = Some(!self.hide_symbols_active(cx));
-        self.update_non_fs_items(window, cx);
-        self.remap_selection_for_hidden_symbols(window, cx);
-        self.update_cached_entries(None, window, cx);
-        cx.notify();
-    }
-
     const fn selected_entry(&self) -> Option<&PanelEntry> {
         match &self.selected_entry {
             SelectedEntry::Invalidated(entry) => entry.as_ref(),
@@ -4590,10 +4504,6 @@ impl OutlinePanel {
         };
 
         let has_query = self.query(cx).is_some();
-        let show_symbols_toggle = self.multi_buffer_active(cx);
-        let hide_symbols = self.hide_symbols_active(cx);
-        let (hide_symbols_icon, hide_symbols_tooltip) =
-            if hide_symbols { (IconName::FileCodeOff, "Show Symbols") } else { (IconName::FileCode, "Hide Symbols") };
 
         h_flex()
             .p_2()
@@ -4620,20 +4530,6 @@ impl OutlinePanel {
                                         editor.set_text("", window, cx);
                                     });
                                     cx.notify();
-                                })),
-                        )
-                    })
-                    .when(show_symbols_toggle, |this| {
-                        this.child(
-                            IconButton::new("toggle_symbols", hide_symbols_icon)
-                                .shape(IconButtonShape::Square)
-                                .tooltip(Tooltip::for_action_title_in(
-                                    hide_symbols_tooltip,
-                                    &ToggleSymbols,
-                                    &self.focus_handle,
-                                ))
-                                .on_click(cx.listener(|outline_panel, _, window, cx| {
-                                    outline_panel.toggle_symbols(&ToggleSymbols, window, cx);
                                 })),
                         )
                     })
@@ -4833,7 +4729,6 @@ impl Render for OutlinePanel {
             .on_action(cx.listener(Self::copy_path))
             .on_action(cx.listener(Self::copy_relative_path))
             .on_action(cx.listener(Self::toggle_active_editor_pin))
-            .on_action(cx.listener(Self::toggle_symbols))
             .on_action(cx.listener(Self::unfold_directory))
             .on_action(cx.listener(Self::fold_directory))
             .on_action(cx.listener(Self::open_excerpts))

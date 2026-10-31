@@ -94,8 +94,6 @@ pub enum IconName {
     FastForward,
     FastForwardOff,
     File,
-    FileCode,
-    FileCodeOff,
     FileDiff,
     FileDoc,
     FileGeneric,

@@ -292,7 +292,6 @@ pub fn settings() -> SettingsContent {
             auto_fold_dirs: Some(true),
             indent_guides: Some(IndentGuidesSettingsContent { show: Some(ShowIndentGuides::Always) }),
             expand_outlines_with_depth: Some(100),
-            multi_buffer_hide_symbols: Some(false),
         }),
         project_panel: Some(ProjectPanelSettingsContent {
             button: Some(true),

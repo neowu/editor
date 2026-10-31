@@ -427,13 +427,6 @@ pub struct OutlinePanelSettingsContent {
     ///
     /// Default: 100
     pub expand_outlines_with_depth: Option<usize>,
-    /// Whether to hide symbols, excerpts and search matches in the outline panel
-    /// when a multi-buffer view (e.g. a diff or search results) is active,
-    /// showing only files and directories.
-    /// Does not affect single-file views.
-    ///
-    /// Default: false
-    pub multi_buffer_hide_symbols: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, strum::VariantArray, strum::VariantNames)]

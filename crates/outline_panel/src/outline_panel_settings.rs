@@ -18,7 +18,6 @@ pub struct OutlinePanelSettings {
     pub auto_reveal_entries: bool,
     pub auto_fold_dirs: bool,
     pub expand_outlines_with_depth: usize,
-    pub multi_buffer_hide_symbols: bool,
 }
 
 settings::register_setting!(OutlinePanelSettings);
@@ -44,7 +43,6 @@ impl Settings for OutlinePanelSettings {
             auto_reveal_entries: panel.auto_reveal_entries.unwrap(),
             auto_fold_dirs: panel.auto_fold_dirs.unwrap(),
             expand_outlines_with_depth: panel.expand_outlines_with_depth.unwrap(),
-            multi_buffer_hide_symbols: panel.multi_buffer_hide_symbols.unwrap(),
         }
     }
 }
