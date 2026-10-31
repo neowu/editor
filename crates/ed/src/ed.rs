@@ -93,12 +93,6 @@ use workspace::notifications::NotificationId;
 use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::open_new;
 use workspace::with_active_or_new_workspace;
-#[cfg(debug_assertions)]
-use workspace::workspace_error::ErrorAction;
-#[cfg(debug_assertions)]
-use workspace::workspace_error::ErrorSeverity;
-#[cfg(debug_assertions)]
-use workspace::workspace_error::WorkspaceError;
 
 actions!(
     ed,
@@ -117,15 +111,6 @@ actions!(
         ToggleFullScreen,
         /// Zooms the window.
         Zoom,
-    ]
-);
-
-#[cfg(debug_assertions)]
-actions!(
-    dev,
-    [
-        /// Show an error on the workspace level.
-        ShowWorkspaceError
     ]
 );
 
@@ -579,45 +564,6 @@ fn register_actions(app_state: Arc<AppState>, workspace: &mut Workspace, _: &mut
                 .detach_and_log_err(cx);
             }
         });
-
-    #[cfg(debug_assertions)]
-    workspace.register_action(|workspace, _: &ShowWorkspaceError, _, cx| {
-        struct DebugError;
-        struct SecondDebugError;
-
-        impl WorkspaceError for DebugError {
-            fn primary_message(&self) -> SharedString {
-                SharedString::new_static(
-                    "Error: Prepare rename via rust-analyzer failed: No references found at position",
-                )
-            }
-
-            fn severity(&self) -> ErrorSeverity {
-                ErrorSeverity::Warning
-            }
-
-            fn primary_action(&self) -> ErrorAction {
-                ErrorAction::dismiss()
-            }
-        }
-
-        impl WorkspaceError for SecondDebugError {
-            fn primary_message(&self) -> SharedString {
-                SharedString::new_static("This is some error to ignore.")
-            }
-
-            fn severity(&self) -> ErrorSeverity {
-                ErrorSeverity::Error
-            }
-
-            fn primary_action(&self) -> ErrorAction {
-                ErrorAction::dismiss()
-            }
-        }
-
-        workspace.show_error(DebugError, cx);
-        workspace.show_error(SecondDebugError, cx);
-    });
 }
 
 fn initialize_pane(workspace: &Workspace, pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Workspace>) {
