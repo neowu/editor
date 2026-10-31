@@ -442,7 +442,7 @@ impl SshRemoteConnection {
         /// These arguments exist for `ssh` but don't exist / don't have the same semantic for `scp`.
         const SSH_DENY_ARGS_FOR_SCP: &[&str] = &["-X", "-Y"];
 
-        let mut command = util::command::new_command("scp");
+        let mut command = util::command::new_disclaimed_command("scp");
         self.socket.ssh_options(&mut command, false, Some(SSH_DENY_ARGS_FOR_SCP)).args(
             self.socket
                 .connection_options
@@ -467,7 +467,7 @@ impl SshRemoteConnection {
         // these arguments exist for "ssh" but don't exist / don't have the same semantic for "sftp"
         const SSH_DENY_ARGS_FOR_SFTP: &[&str] = &["-X", "-Y"];
 
-        let mut command = util::command::new_command("sftp");
+        let mut command = util::command::new_disclaimed_command("sftp");
         self.socket.ssh_options(&mut command, false, Some(SSH_DENY_ARGS_FOR_SFTP)).args(
             self.socket
                 .connection_options
@@ -504,7 +504,7 @@ impl SshSocket {
         args: &[impl AsRef<str>],
         allow_pseudo_tty: bool,
     ) -> util::command::Command {
-        let mut command = util::command::new_command("ssh");
+        let mut command = util::command::new_disclaimed_command("ssh");
         let mut to_run = shell_kind.try_quote(program).expect("shell quoting").into_owned();
         for arg in args {
             // We're trying to work with: sh, bash, zsh, fish, tcsh, ...?

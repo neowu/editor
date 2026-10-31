@@ -136,9 +136,16 @@ fn fail_to_open_window(e: anyhow::Error, _cx: &mut App) {
 }
 
 fn main() {
+    // Must run before anything else: this process only re-execs a terminal shell.
+    util::disclaim::handle_exec_disclaimed_args();
     util::prevent_root_execution();
 
     let args = Args::parse();
+    if cfg!(target_os = "macos")
+        && let Ok(exe) = std::env::current_exe()
+    {
+        util::disclaim::set_trampoline(exe);
+    }
 
     // `ed --printenv` Outputs environment variables as JSON to stdout
     if args.printenv {

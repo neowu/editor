@@ -111,6 +111,21 @@ remote detection, command execution, and proxy startup are removed.
   spawns are denied without a prompt. It is only an `Alternate` handler for
   documents, never the default opener. AppKit defaults gpui needs are
   registered in memory, never written to `~/Library/Preferences`.
+- The app is never listed under Login Items → "Allow in the Background". It
+  registers no login items, launch agents or background tasks, and processes
+  that may outlive it disclaim macOS responsibility (`util::disclaim`), so they
+  are not charged to the app when they keep running after it quits:
+  terminal shells, `ssh`/`scp`/`sftp`, and `git` push/pull/fetch (an ssh
+  `ControlPersist` master forked by them would otherwise count as the app's).
+  Disclaimed processes face macOS privacy checks as themselves, not as the app.
+  - The child re-execs itself with `posix_spawn(POSIX_SPAWN_SETEXEC)` and the
+    disclaim attribute from a `pre_exec` hook
+    (`util::command::new_disclaimed_command`).
+  - The terminal PTY is spawned by alacritty, so its shell runs through the app
+    binary with a leading `--exec-disclaimed`, which `main` handles first.
+    The macOS default shell keeps alacritty's `login -flp` command.
+  - Short-lived commands (`git status`, language servers, …) stay on the plain
+    spawn path, which uses `posix_spawn` and avoids forking the app.
 - No `zed://` URL scheme: the bundle registers no URL types, there is no
   open-URL prompt or `OpenZedUrl` action, and terminal links don't match
   `zed://`. The app only accepts `file://` and `ssh://` URLs.

@@ -43,6 +43,7 @@ use thiserror::Error;
 use util::ResultExt;
 use util::command::Stdio;
 use util::command::new_command;
+use util::command::new_disclaimed_command;
 use util::paths;
 use util::paths::PathStyle;
 use util::rel_path::RelPath;
@@ -2372,7 +2373,7 @@ impl GitRepository for RealGitRepository {
         let is_trusted = self.is_trusted();
         async move {
             let git = GitBinary::new(git_binary_path, working_directory, is_trusted);
-            let mut command = git.build_command(&["push"]);
+            let mut command = git.build_remote_command(&["push"]);
             command
                 .envs(env.iter())
                 .args(options.map(|option| match option {
@@ -2403,7 +2404,7 @@ impl GitRepository for RealGitRepository {
         let is_trusted = self.is_trusted();
         async move {
             let git = GitBinary::new(git_binary_path, working_directory, is_trusted);
-            let mut command = git.build_command(&["pull"]);
+            let mut command = git.build_remote_command(&["pull"]);
             command.envs(env.iter());
 
             if rebase {
@@ -2429,7 +2430,7 @@ impl GitRepository for RealGitRepository {
         let is_trusted = self.is_trusted();
         async move {
             let git = GitBinary::new(git_binary_path, working_directory, is_trusted);
-            let mut command = git.build_command(&["fetch", &remote_name]);
+            let mut command = git.build_remote_command(&["fetch", &remote_name]);
             command.envs(env.iter()).stdout(Stdio::piped()).stderr(Stdio::piped());
 
             run_git_command(git, env, command).await
@@ -3042,7 +3043,22 @@ impl GitBinary {
     where
         S: AsRef<OsStr>,
     {
-        let mut command = new_command(&self.git_binary_path);
+        self.configure_command(new_command(&self.git_binary_path), args)
+    }
+
+    /// For commands that talk to a remote: the ssh connections they open
+    /// (and any ssh `ControlPersist` master) must not count as the editor's.
+    pub(crate) fn build_remote_command<S>(&self, args: &[S]) -> util::command::Command
+    where
+        S: AsRef<OsStr>,
+    {
+        self.configure_command(new_disclaimed_command(&self.git_binary_path), args)
+    }
+
+    fn configure_command<S>(&self, mut command: util::command::Command, args: &[S]) -> util::command::Command
+    where
+        S: AsRef<OsStr>,
+    {
         command.current_dir(&self.working_directory);
         // Disabled to stop malicious actors from running arbitrary commands via fsmonitor hooks
         command.args(["-c", "core.fsmonitor=false"]);
@@ -3277,4 +3293,20 @@ fn parse_upstream_track(upstream_track: &str) -> Result<UpstreamTracking> {
         }
     }
     Ok(UpstreamTracking::Tracked(UpstreamTrackingStatus { ahead, behind }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_remote_command_matches_build_command() {
+        for is_trusted in [true, false] {
+            let git = GitBinary::new(PathBuf::from("git"), PathBuf::from("/tmp"), is_trusted);
+            let local = git.build_command(&["fetch", "origin"]);
+            let remote = git.build_remote_command(&["fetch", "origin"]);
+            assert_eq!(remote.get_program(), local.get_program());
+            assert_eq!(remote.get_args().collect::<Vec<_>>(), local.get_args().collect::<Vec<_>>());
+        }
+    }
 }

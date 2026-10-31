@@ -1,4 +1,5 @@
 pub mod command;
+pub mod disclaim;
 
 pub mod fs;
 

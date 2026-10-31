@@ -209,13 +209,55 @@ pub(super) fn pty_options(
     #[cfg(windows)] escape_args: bool,
 ) -> tty::Options {
     tty::Options {
-        shell: shell.map(|(program, args)| tty::Shell::new(program, args)),
+        shell: disclaimed_shell(shell).map(|(program, args)| tty::Shell::new(program, args)),
         working_directory,
         drain_on_exit: true,
         env: env.into_iter().collect(),
         #[cfg(windows)]
         escape_args,
     }
+}
+
+/// Runs the shell through the editor's disclaim trampoline (see
+/// `util::disclaim`), so jobs left running in the terminal don't count as the
+/// editor's once it quits. Unchanged when no trampoline is registered.
+fn disclaimed_shell(shell: Option<(String, Vec<String>)>) -> Option<(String, Vec<String>)> {
+    let (program, args) = match &shell {
+        Some(shell) => shell.clone(),
+        None => match default_shell_command() {
+            Some(command) => command,
+            None => return shell,
+        },
+    };
+    util::disclaim::trampoline_command(program, args).or(shell)
+}
+
+/// What alacritty runs when no shell is given (`tty::unix::default_shell_command`).
+fn default_shell_command() -> Option<(String, Vec<String>)> {
+    let shell = std::env::var("SHELL").ok()?;
+    if cfg!(target_os = "macos") {
+        let user = std::env::var("USER").ok()?;
+        let home = std::env::var("HOME").ok()?;
+        Some(login_shell_command(&shell, &user, std::path::Path::new(&home)))
+    } else {
+        Some((shell, Vec::new()))
+    }
+}
+
+/// On macOS, `login` keeps the shell a tty session, and `exec -a -<name>` makes it a login shell.
+fn login_shell_command(shell: &str, user: &str, home: &std::path::Path) -> (String, Vec<String>) {
+    let shell_name = shell.rsplit('/').next().unwrap_or(shell);
+    let flags = if home.join(".hushlogin").exists() { "-qflp" } else { "-flp" };
+    (
+        "/usr/bin/login".to_string(),
+        vec![
+            flags.to_string(),
+            user.to_string(),
+            "/bin/zsh".to_string(),
+            "-fc".to_string(),
+            format!("exec -a -{shell_name} {shell}"),
+        ],
+    )
 }
 
 /// Spawns the PTY child with `child_signal_mask` instead of the calling thread's mask.
@@ -903,4 +945,29 @@ fn all_search_matches<'a, T>(term: &'a Term<T>, regex: &'a mut RegexSearch) -> i
     let start = AlacPoint::new(term.grid().topmost_line(), Column(0));
     let end = AlacPoint::new(term.grid().bottommost_line(), term.grid().last_column());
     RegexIter::new(start, end, AlacDirection::Right, term, regex)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_login_shell_command() {
+        let home = tempfile::tempdir().unwrap();
+        let (program, args) = login_shell_command("/opt/homebrew/bin/fish", "neo", home.path());
+        assert_eq!(program, "/usr/bin/login");
+        assert_eq!(args, vec!["-flp", "neo", "/bin/zsh", "-fc", "exec -a -fish /opt/homebrew/bin/fish"]);
+
+        std::fs::write(home.path().join(".hushlogin"), "").unwrap();
+        let (_, args) = login_shell_command("/bin/zsh", "neo", home.path());
+        assert_eq!(args[0], "-qflp");
+    }
+
+    #[test]
+    fn test_disclaimed_shell_without_trampoline() {
+        // Tests never register a trampoline, so shells pass through unchanged.
+        assert_eq!(disclaimed_shell(None), None);
+        let shell = Some(("bash".to_string(), vec!["-l".to_string()]));
+        assert_eq!(disclaimed_shell(shell.clone()), shell);
+    }
 }
