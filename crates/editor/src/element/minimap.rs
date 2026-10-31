@@ -85,7 +85,7 @@ impl EditorElement {
         if minimap_settings.on_active_editor() {
             let active_editor =
                 self.editor.read(cx).workspace().and_then(|ws| {
-                    ws.read(cx).active_pane().read(cx).active_item().and_then(|i| i.act_as::<Editor>(cx))
+                    ws.read(cx).shown_pane().read(cx).active_item().and_then(|i| i.act_as::<Editor>(cx))
                 });
             if active_editor.is_some_and(|e| e != self.editor) {
                 return None;

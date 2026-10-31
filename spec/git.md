@@ -82,7 +82,9 @@ blobs with no language server, so they are not mixed into editor panes.
   pane, since it can't use workspace features. Buffers that are
   project files still open in the editor. The revision tab keeps its commit's
   sidebar, with the file revealed (folders expanded, row highlighted) whenever
-  the tab is focused.
+  the tab is focused. It shows the minimap like any editor: "active editor"
+  means the active item of the pane shown in the current mode (the history
+  pane in Git History mode), not the last active editor pane.
 - Focusing a dock panel or an editor pane (opening a file, Open File in Project
   from a commit, File Finder, …) switches back to Workspace mode. Closing the
   last history tab does too.

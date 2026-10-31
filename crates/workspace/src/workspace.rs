@@ -2250,15 +2250,21 @@ impl Workspace {
         &self.git_history_pane
     }
 
+    /// The pane filling the window in the current mode: the active center
+    /// pane, or the history pane.
+    pub fn shown_pane(&self) -> &Entity<Pane> {
+        match self.mode {
+            WorkspaceMode::Editor => &self.active_pane,
+            WorkspaceMode::GitHistory => &self.git_history_pane,
+        }
+    }
+
     /// Switches what fills the window and moves focus into it.
     pub fn set_mode(&mut self, mode: WorkspaceMode, window: &mut Window, cx: &mut Context<Self>) {
         if !self.switch_mode(mode, window, cx) {
             return;
         }
-        match mode {
-            WorkspaceMode::Editor => window.focus(&self.active_pane.focus_handle(cx), cx),
-            WorkspaceMode::GitHistory => window.focus(&self.git_history_pane.focus_handle(cx), cx),
-        }
+        window.focus(&self.shown_pane().focus_handle(cx), cx);
     }
 
     /// Switches the mode without touching focus, for when focus already moved
@@ -2268,10 +2274,7 @@ impl Workspace {
             return false;
         }
         self.mode = mode;
-        let pane = match mode {
-            WorkspaceMode::Editor => self.active_pane.clone(),
-            WorkspaceMode::GitHistory => self.git_history_pane.clone(),
-        };
+        let pane = self.shown_pane().clone();
         self.status_bar.update(cx, |status_bar, cx| {
             status_bar.set_active_pane(&pane, window, cx);
             status_bar.set_dock_buttons_hidden(!mode.shows_dock_buttons(), cx);
@@ -3912,10 +3915,7 @@ impl Workspace {
                 let panel = dock.active_panel()?;
                 if panel.is_zoomed(window, cx) { Some(panel.activation_focus_handle(cx)) } else { None }
             })
-            .unwrap_or_else(|| match self.mode {
-                WorkspaceMode::Editor => self.active_pane.read(cx).focus_handle(cx),
-                WorkspaceMode::GitHistory => self.git_history_pane.read(cx).focus_handle(cx),
-            })
+            .unwrap_or_else(|| self.shown_pane().read(cx).focus_handle(cx))
     }
 
     fn dismiss_zoomed_items_to_reveal(
