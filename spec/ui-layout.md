@@ -63,6 +63,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
   The `zoomed_padding` setting is removed. The status bar is hidden while
   something is zoomed, so the zoomed view reaches down to the bottom gap. The
   title bar stays, since it holds the macOS window controls.
+- A zoomed dock (e.g. an expanded terminal) belongs to Workspace mode: Git
+  History mode hides it and shows the status bar, and switching back to
+  Workspace focuses it again, so it is still open and zoomed rather than
+  closed.
 - An 8px gap separates the cards from the window edges and from open docks.
   There is no gap under the title bar. When the status bar is shown, it replaces
   the bottom gap and pads its content evenly above and below, so the icons sit

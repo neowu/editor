@@ -2201,9 +2201,9 @@ impl Workspace {
     }
 
     /// The status bar is hidden while something is zoomed, so the zoomed view
-    /// extends down to the window edge.
+    /// extends down to the window edge. Zoomed views only show in Editor mode.
     pub fn status_bar_visible(&self, cx: &App) -> bool {
-        StatusBarSettings::get_global(cx).show && self.zoomed.is_none()
+        StatusBarSettings::get_global(cx).show && (self.zoomed.is_none() || self.mode != WorkspaceMode::Editor)
     }
 
     fn render_git_history(&self, window: &mut Window, cx: &mut Context<Self>) -> Div {
@@ -2419,12 +2419,13 @@ impl Workspace {
         }
     }
 
-    /// Switches what fills the window and moves focus into it.
+    /// Switches what fills the window and moves focus into it. A zoomed dock
+    /// panel takes focus back in Editor mode, so it is still zoomed on return.
     pub fn set_mode(&mut self, mode: WorkspaceMode, window: &mut Window, cx: &mut Context<Self>) {
         if !self.switch_mode(mode, window, cx) {
             return;
         }
-        window.focus(&self.shown_pane().focus_handle(cx), cx);
+        window.focus(&self.fallback_focus_handle(window, cx), cx);
     }
 
     /// Switches the mode without touching focus, for when focus already moved
@@ -4103,10 +4104,11 @@ impl Workspace {
 
     // If a dock panel is zoomed, focus it instead of the center pane.
     // Otherwise, focusing the center pane triggers dismiss_zoomed_items_to_reveal
-    // which closes the zoomed dock.
+    // which closes the zoomed dock. Docks are hidden in Git History mode.
     pub fn fallback_focus_handle(&self, window: &Window, cx: &App) -> FocusHandle {
         self.all_docks()
             .into_iter()
+            .filter(|_| self.mode == WorkspaceMode::Editor)
             .find_map(|dock| {
                 let dock = dock.read(cx);
                 if !dock.is_open() {
