@@ -6,11 +6,13 @@ pub mod markdown_preview_settings;
 mod markdown_preview_style;
 pub mod markdown_preview_view;
 mod mermaid_diagrams;
+mod preview_button;
 
 pub use ed_actions::preview::markdown::OpenPreview;
 pub use ed_actions::preview::markdown::OpenPreviewToTheSide;
 
 use crate::markdown_preview_view::MarkdownPreviewView;
+pub use crate::preview_button::MarkdownPreviewButton;
 
 actions!(
     markdown,

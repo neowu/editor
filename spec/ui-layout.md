@@ -117,6 +117,12 @@ because it hurt readability; an opaque window is also cheaper to composite.
   same. Search comes first and toggles search in the active tab (buffer search,
   find in project search results, or the git graph's own search); it is hidden
   for tabs that can't be searched, which leaves the other buttons in place.
+  Left of search, toolbar items can add their own button
+  (`ToolbarItemView::tab_bar_button`): an eye button opens the Markdown/HTML,
+  SVG or tabular data preview of the active file (Option-click opens it in a
+  split), shown only for files that have one. Each preview crate owns its
+  button (detection and opening) and draws it with the shared
+  `pane::render_tab_bar_preview_button`; `ed` only registers them.
   Only the terminal panel has a `+`: a plain button that opens a terminal in
   that pane. Center and Git History panes have no `+` or new-item menu; new
   files, project/symbol search and terminals come from their keybindings and

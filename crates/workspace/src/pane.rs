@@ -3652,9 +3652,41 @@ pub fn render_tab_bar_search_button(pane: &Pane, cx: &App) -> Option<AnyElement>
     )
 }
 
-/// Search, Split Right, Split Down and Zoom buttons, shared by every pane tab bar
-/// so they look and behave the same everywhere. Search comes first, so hiding it
-/// for an unsearchable item doesn't move the others. Content panes never clone
+/// The eye button a preview crate adds to the tab bar (from its
+/// `ToolbarItemView::tab_bar_button`) for a file it can preview. `open` gets the
+/// item's pane and whether to open to the side (Option-click).
+pub fn render_tab_bar_preview_button(
+    tooltip: &'static str,
+    open_action: &'static dyn Action,
+    workspace: WeakEntity<Workspace>,
+    item: &dyn ItemHandle,
+    open: impl Fn(&mut Workspace, Entity<Pane>, bool, &mut Window, &mut Context<Workspace>) + 'static,
+) -> AnyElement {
+    let item = item.boxed_clone();
+    IconButton::new("toggle-preview", IconName::Eye)
+        .icon_size(IconSize::Small)
+        .tooltip(move |_window, cx| {
+            let split_hint =
+                format!("{} to open in a split", ui::text_for_keystroke(&gpui::Modifiers::alt(), "click", cx));
+            Tooltip::with_meta(tooltip, Some(open_action), split_hint, cx)
+        })
+        .on_click(move |_, window, cx| {
+            let to_the_side = window.modifiers().alt;
+            workspace
+                .update(cx, |workspace, cx| {
+                    if let Some(pane) = workspace.pane_for(item.as_ref()) {
+                        open(workspace, pane, to_the_side, window, cx);
+                    }
+                })
+                .ok();
+        })
+        .into_any_element()
+}
+
+/// Toolbar items' buttons (e.g. preview), Search, Split Right, Split Down and
+/// Zoom buttons, shared by every pane tab bar so they look and behave the same
+/// everywhere. The optional buttons come first, so hiding them doesn't move the
+/// others. Content panes never clone
 /// (`clone_items` false): a tab lives in one pane, so splitting moves the active
 /// tab and needs another tab left behind.
 pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Context<Pane>) -> Vec<AnyElement> {
@@ -3676,7 +3708,8 @@ pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Cont
                 .tooltip(Tooltip::for_action_title(label, action))
                 .into_any_element()
         };
-    let mut buttons: Vec<AnyElement> = render_tab_bar_search_button(pane, cx).into_iter().collect();
+    let mut buttons: Vec<AnyElement> = pane.toolbar.read(cx).tab_bar_buttons(cx).collect();
+    buttons.extend(render_tab_bar_search_button(pane, cx));
     buttons.extend([
         split_button("split-right", IconName::SplitRight, "Split Right", SplitDirection::Right, &SplitRight { mode }),
         split_button("split-down", IconName::SplitDown, "Split Down", SplitDirection::Down, &SplitDown { mode }),

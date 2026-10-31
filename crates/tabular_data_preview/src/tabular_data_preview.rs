@@ -21,11 +21,14 @@ pub use crate::table_view::CellSelection;
 pub use crate::table_view::TableView;
 
 mod parser;
+mod preview_button;
 mod renderer;
 mod settings;
 mod table_data_engine;
 mod table_view;
 pub mod types;
+
+pub use crate::preview_button::TabularDataPreviewButton;
 
 actions!(tabular_data, [OpenPreview, OpenPreviewToTheSide]);
 

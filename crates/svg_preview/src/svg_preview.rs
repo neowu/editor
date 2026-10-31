@@ -2,10 +2,13 @@ use gpui::App;
 use gpui::actions;
 use workspace::Workspace;
 
+mod preview_button;
 pub mod svg_preview_view;
 
 pub use ed_actions::preview::svg::OpenPreview;
 pub use ed_actions::preview::svg::OpenPreviewToTheSide;
+
+pub use crate::preview_button::SvgPreviewButton;
 
 actions!(
     svg,

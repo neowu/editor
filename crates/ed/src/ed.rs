@@ -650,6 +650,14 @@ fn initialize_pane(workspace: &Workspace, pane: &Entity<Pane>, window: &mut Wind
             toolbar.add_item(commit_view_toolbar, window, cx);
             let image_view_toolbar = cx.new(|_| image_viewer::ImageViewToolbarControls::new());
             toolbar.add_item(image_view_toolbar, window, cx);
+            let markdown_preview_button =
+                cx.new(|_| markdown_preview::MarkdownPreviewButton::new(workspace.weak_handle()));
+            toolbar.add_item(markdown_preview_button, window, cx);
+            let svg_preview_button = cx.new(|_| svg_preview::SvgPreviewButton::new(workspace.weak_handle()));
+            toolbar.add_item(svg_preview_button, window, cx);
+            let tabular_data_preview_button =
+                cx.new(|_| tabular_data_preview::TabularDataPreviewButton::new(workspace.weak_handle()));
+            toolbar.add_item(tabular_data_preview_button, window, cx);
         })
     });
 }

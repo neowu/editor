@@ -107,9 +107,9 @@
   panel; the signature and docs below it use the shared hover markdown style.
 - No breadcrumbs anywhere (no breadcrumbs toolbar item, `Item::breadcrumbs`
   API, `toolbar` settings block or `editor::ToggleBreadcrumb`), and no quick
-  action bar (selections menu, editor controls, buffer search / code action /
-  preview buttons): those stay reachable through actions, keybindings and the
-  command palette. With no other toolbar item, an editor's card starts right
+  action bar (selections menu, editor controls, code actions): those stay
+  reachable through actions, keybindings and the command palette. Search and
+  preview moved to the tab bar (see ui-layout.md). With no other toolbar item, an editor's card starts right
   at the text. No symbol path anywhere either: multibuffer headers show only
   the file name and its directory, so rendering them never waits on outlines
   or language servers.

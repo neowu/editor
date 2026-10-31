@@ -1,3 +1,4 @@
+use gpui::AnyElement;
 use gpui::AnyView;
 use gpui::App;
 use gpui::Context;
@@ -46,6 +47,12 @@ pub trait ToolbarItemView: Render + EventEmitter<ToolbarItemEvent> {
     fn search_shown(&self, _cx: &App) -> Option<bool> {
         None
     }
+
+    /// A button this item adds to the pane's tab bar for the active pane item,
+    /// left of the search toggle.
+    fn tab_bar_button(&self, _cx: &App) -> Option<AnyElement> {
+        None
+    }
 }
 
 trait ToolbarItemViewHandle: Send {
@@ -60,6 +67,7 @@ trait ToolbarItemViewHandle: Send {
     fn focus_changed(&mut self, pane_focused: bool, window: &mut Window, cx: &mut App);
     fn contribute_context(&self, context: &mut KeyContext, cx: &App);
     fn search_shown(&self, cx: &App) -> Option<bool>;
+    fn tab_bar_button(&self, cx: &App) -> Option<AnyElement>;
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -176,7 +184,7 @@ impl Toolbar {
             if let Some((_, current_location)) = this.items.iter_mut().find(|(i, _)| i.id() == item.entity_id()) {
                 match event {
                     // Notify even when the location is unchanged: the pane's
-                    // tab bar shows whether search is open.
+                    // tab bar shows whether search is open and the preview button.
                     ToolbarItemEvent::ChangeLocation(new_location) => {
                         *current_location = *new_location;
                         cx.notify();
@@ -214,6 +222,10 @@ impl Toolbar {
 
     pub fn search_shown(&self, cx: &App) -> Option<bool> {
         self.items.iter().find_map(|(item, _)| item.search_shown(cx))
+    }
+
+    pub fn tab_bar_buttons(&self, cx: &App) -> impl Iterator<Item = AnyElement> {
+        self.items.iter().filter_map(|(item, _)| item.tab_bar_button(cx))
     }
 
     pub const fn hidden(&self) -> bool {
@@ -260,5 +272,9 @@ impl<T: ToolbarItemView> ToolbarItemViewHandle for Entity<T> {
 
     fn search_shown(&self, cx: &App) -> Option<bool> {
         self.read(cx).search_shown(cx)
+    }
+
+    fn tab_bar_button(&self, cx: &App) -> Option<AnyElement> {
+        self.read(cx).tab_bar_button(cx)
     }
 }
