@@ -118,7 +118,6 @@ pub struct ToggleCodeActions {
 pub enum CodeActionSource {
     Indicator(DisplayRow),
     RunMenu(DisplayRow),
-    QuickActionBar,
 }
 
 /// Confirms and accepts the currently selected completion suggestion.
@@ -702,10 +701,6 @@ actions!(
         NextSnippetTabstop,
         /// Opens the context menu at cursor position.
         OpenContextMenu,
-        /// Opens excerpts from the current file.
-        OpenExcerpts,
-        /// Opens excerpts in a split pane.
-        OpenExcerptsSplit,
         /// Opens the proposed changes editor.
         OpenProposedChangesEditor,
         /// Opens documentation for the symbol at cursor.
@@ -883,8 +878,6 @@ actions!(
         AlignSelections,
         /// Saves the current location to navigation history.
         SaveLocation,
-        /// Toggles breadcrumbs display.
-        ToggleBreadcrumb,
     ]
 );
 

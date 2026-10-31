@@ -216,8 +216,6 @@ pub(crate) use actions::NextScreen;
 pub(crate) use actions::NextSnippetTabstop;
 pub(crate) use actions::OpenContextMenu;
 pub(crate) use actions::OpenDocs;
-pub(crate) use actions::OpenExcerpts;
-pub(crate) use actions::OpenExcerptsSplit;
 pub(crate) use actions::OpenGitBlameCommit;
 pub(crate) use actions::OpenSelectedFilename;
 pub(crate) use actions::OpenSelectionsInMultibuffer;
@@ -293,7 +291,6 @@ pub(crate) use actions::Tab;
 pub(crate) use actions::ToggleAllDiffHunks;
 pub(crate) use actions::ToggleBlockComments;
 pub(crate) use actions::ToggleBlockQuote;
-pub(crate) use actions::ToggleBreadcrumb;
 pub(crate) use actions::ToggleCase;
 pub(crate) use actions::ToggleCodeActions;
 pub(crate) use actions::ToggleComments;
@@ -396,7 +393,6 @@ use element::LineWithInvisibles;
 pub use element::PointForPosition;
 use element::PositionMap;
 pub use element::file_status_label_color;
-pub use element::render_breadcrumb_text;
 use futures::FutureExt;
 use futures::future::Shared;
 use futures::future::{self};
@@ -496,7 +492,6 @@ use language::CodeLabel;
 use language::CursorShape;
 use language::DiagnosticEntryRef;
 use language::DiffOptions;
-use language::HighlightedText;
 use language::IndentKind;
 use language::IndentSize;
 use language::Language;
@@ -712,7 +707,6 @@ impl Navigated {
 
 pub fn init(cx: &mut App) {
     cx.set_global(GlobalBlameRenderer(Arc::new(())));
-    cx.set_global(breadcrumbs::RenderBreadcrumbText(render_breadcrumb_text));
 
     workspace::register_project_item::<Editor>(cx);
     workspace::register_serializable_item::<Editor>(cx);
@@ -1020,34 +1014,6 @@ impl MinimapVisibility {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-struct BreadcrumbsVisibility {
-    setting_configuration: bool,
-    toggle_override: bool,
-}
-
-impl BreadcrumbsVisibility {
-    fn from_settings(cx: &App) -> Self {
-        Self::new(EditorSettings::get_global(cx).toolbar.breadcrumbs)
-    }
-
-    const fn new(setting_configuration: bool) -> Self {
-        Self { setting_configuration, toggle_override: false }
-    }
-
-    const fn settings_visibility(&self) -> bool {
-        self.setting_configuration
-    }
-
-    const fn visible(&self) -> bool {
-        self.setting_configuration ^ self.toggle_override
-    }
-
-    const fn toggle_visibility(&self) -> Self {
-        Self { setting_configuration: self.setting_configuration, toggle_override: !self.toggle_override }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BufferSerialization {
     All,
@@ -1282,7 +1248,6 @@ pub struct Editor {
 
     pub show_local_selections: bool,
     mode: EditorMode,
-    breadcrumbs_visibility: BreadcrumbsVisibility,
     show_gutter: bool,
     show_horizontal_scrollbar: bool,
     minimap_visibility: MinimapVisibility,
@@ -1401,7 +1366,6 @@ pub struct Editor {
     pull_diagnostics_task: Task<()>,
     in_project_search: bool,
     previous_search_ranges: Option<Arc<[Range<Anchor>]>>,
-    breadcrumb_header: Option<String>,
     focused_block: Option<FocusedBlock>,
     next_scroll_position: NextScrollCursorCenterTopBottom,
     addons: TypeIdHashMap<Box<dyn Addon>>,
@@ -1436,11 +1400,10 @@ pub struct Editor {
     bracket_fetched_tree_sitter_chunks: HashMap<Range<text::Anchor>, HashSet<Range<BufferRow>>>,
     semantic_token_state: SemanticTokenState,
     pub(crate) refresh_matching_bracket_highlights_task: Task<()>,
-    refresh_document_symbols_task: Shared<Task<()>>,
+    /// One fetch per buffer, so refreshing one buffer never cancels another's.
+    refresh_document_symbols_tasks: HashMap<BufferId, Shared<Task<()>>>,
     lsp_document_links: LspDocumentLinks,
     lsp_document_symbols: HashMap<BufferId, Vec<OutlineItem<text::Anchor>>>,
-    refresh_outline_symbols_at_cursor_at_cursor_task: Task<()>,
-    outline_symbols_at_cursor: Option<(BufferId, Vec<OutlineItem<Anchor>>)>,
     pub(crate) colorize_brackets_task: Task<()>,
     spell_check: Option<spell_check::SpellCheckState>,
 }
@@ -2202,7 +2165,6 @@ impl Editor {
             show_horizontal_scrollbar: full_mode,
             minimap_visibility: MinimapVisibility::for_mode(&mode, cx),
             offset_content: !matches!(mode, EditorMode::SingleLine),
-            breadcrumbs_visibility: BreadcrumbsVisibility::from_settings(cx),
             show_gutter: full_mode,
             search_results_hold: None,
             show_line_numbers: full_mode,
@@ -2322,7 +2284,6 @@ impl Editor {
             linked_edit_ranges: linked_editing_ranges::LinkedEditingRanges::default(),
             in_project_search: false,
             previous_search_ranges: None,
-            breadcrumb_header: None,
             focused_block: None,
             next_scroll_position: NextScrollCursorCenterTopBottom::default(),
             addons: TypeIdHashMap::default(),
@@ -2351,11 +2312,9 @@ impl Editor {
             bracket_fetched_tree_sitter_chunks: HashMap::default(),
             number_deleted_lines: false,
             refresh_matching_bracket_highlights_task: Task::ready(()),
-            refresh_document_symbols_task: Task::ready(()).shared(),
+            refresh_document_symbols_tasks: HashMap::default(),
             lsp_document_links: LspDocumentLinks::new(cx),
             lsp_document_symbols: HashMap::default(),
-            refresh_outline_symbols_at_cursor_at_cursor_task: Task::ready(()),
-            outline_symbols_at_cursor: None,
             colorize_brackets_task: Task::ready(()),
             spell_check,
         };
@@ -3472,33 +3431,6 @@ impl Editor {
                 })
                 .log_err();
         })
-    }
-
-    fn refresh_outline_symbols_at_cursor(&mut self, cx: &mut Context<Editor>) {
-        if !self.lsp_data_enabled() {
-            return;
-        }
-        let cursor = self.selections.newest_anchor().head();
-        let multi_buffer_snapshot = self.buffer().read(cx).snapshot(cx);
-
-        if self.uses_lsp_document_symbols(cursor, &multi_buffer_snapshot, cx) {
-            self.outline_symbols_at_cursor = self.lsp_symbols_at_cursor(cursor, &multi_buffer_snapshot, cx);
-            cx.emit(EditorEvent::OutlineSymbolsChanged);
-            cx.notify();
-        } else {
-            let syntax = cx.theme().syntax().clone();
-            let background_task =
-                cx.background_spawn(async move { multi_buffer_snapshot.symbols_containing(cursor, Some(&syntax)) });
-            self.refresh_outline_symbols_at_cursor_at_cursor_task = cx.spawn(async move |this, cx| {
-                let symbols = background_task.await;
-                this.update(cx, |this, cx| {
-                    this.outline_symbols_at_cursor = symbols;
-                    cx.emit(EditorEvent::OutlineSymbolsChanged);
-                    cx.notify();
-                })
-                .ok();
-            });
-        }
     }
 
     pub(crate) fn refresh_selected_text_highlights(
@@ -7189,10 +7121,6 @@ impl Editor {
         )
     }
 
-    pub fn set_breadcrumb_header(&mut self, new_header: String) {
-        self.breadcrumb_header = Some(new_header);
-    }
-
     pub fn clear_search_within_ranges(&mut self, cx: &mut Context<Self>) {
         self.clear_background_highlights(HighlightKey::SearchWithinRange, cx);
     }
@@ -7476,7 +7404,6 @@ impl Editor {
                 self.refresh_single_line_folds(window, cx);
                 let snapshot = self.snapshot(window, cx);
                 self.refresh_matching_bracket_highlights(&snapshot, cx);
-                self.refresh_outline_symbols_at_cursor(cx);
                 self.refresh_spell_check(cx);
 
                 if let Some(buffer) = edited_buffer {
@@ -7688,23 +7615,15 @@ impl Editor {
         self.refresh_runnables(None, window, cx);
 
         let old_cursor_shape = self.cursor_shape;
-        let old_breadcrumbs_visible = self.breadcrumbs_visible();
 
         {
             let editor_settings = EditorSettings::get_global(cx);
             self.scroll_manager.vertical_scroll_margin = editor_settings.vertical_scroll_margin;
-            if self.breadcrumbs_visibility.settings_visibility() != editor_settings.toolbar.breadcrumbs {
-                self.breadcrumbs_visibility = BreadcrumbsVisibility::new(editor_settings.toolbar.breadcrumbs);
-            }
             self.cursor_shape = editor_settings.cursor_shape.unwrap_or_default();
         }
 
         if old_cursor_shape != self.cursor_shape {
             cx.emit(EditorEvent::CursorShapeChanged);
-        }
-
-        if old_breadcrumbs_visible != self.breadcrumbs_visible() {
-            cx.emit(EditorEvent::BreadcrumbsChanged);
         }
 
         let restore_unsaved_buffers = ProjectSettings::get_global(cx).session.restore_unsaved_buffers;
@@ -7730,7 +7649,6 @@ impl Editor {
             if language_settings_changed {
                 self.clear_disabled_lsp_folding_ranges(window, cx);
                 self.refresh_document_symbols(None, cx);
-                self.refresh_outline_symbols_at_cursor(cx);
             }
 
             if let Some(inlay_splice) = self
@@ -7790,7 +7708,6 @@ impl Editor {
 
         self.invalidate_semantic_tokens(None);
         self.refresh_semantic_tokens(None, false, cx);
-        self.refresh_outline_symbols_at_cursor(cx);
     }
 
     pub const fn set_searchable(&mut self, searchable: bool) {
@@ -7801,17 +7718,59 @@ impl Editor {
         self.searchable
     }
 
-    pub fn open_excerpts_in_split(&mut self, _: &OpenExcerptsSplit, window: &mut Window, cx: &mut Context<Self>) {
-        self.open_excerpts_common(None, true, window, cx)
+    /// Opens the buffer under the newest cursor at that cursor, e.g. when a
+    /// commit view opens a file's revision right after moving its cursor there.
+    pub fn open_excerpt_at_newest_cursor(&self, window: &Window, cx: &mut Context<Self>) {
+        let head = self.selections.newest::<Point>(&self.display_snapshot(cx)).head();
+        let mut new_selections_by_buffer = HashMap::default();
+        if let Some((buffer, buffer_point)) = self.buffer.read(cx).point_to_buffer_point(head, cx) {
+            let buffer_offset = BufferOffset(buffer.read(cx).point_to_offset(buffer_point));
+            new_selections_by_buffer.insert(buffer, (vec![buffer_offset..buffer_offset], None));
+        }
+        self.open_selections_by_buffer(new_selections_by_buffer, false, window, cx);
     }
 
-    pub fn open_excerpts(&mut self, _: &OpenExcerpts, window: &mut Window, cx: &mut Context<Self>) {
-        self.open_excerpts_common(None, false, window, cx)
-    }
-
+    /// Opens the single buffer `jump_data` points at, with one cursor there.
     pub(crate) fn open_excerpts_common(
         &self,
-        jump_data: Option<JumpData>,
+        jump_data: JumpData,
+        split: bool,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) {
+        let mut new_selections_by_buffer = HashMap::default();
+        match jump_data {
+            JumpData::MultiBufferPoint { anchor, position, line_offset_from_top } => {
+                if let Some(buffer) = self.buffer.read(cx).buffer(anchor.buffer_id) {
+                    let buffer_snapshot = buffer.read(cx).snapshot();
+                    let jump_to_point = if buffer_snapshot.can_resolve(&anchor) {
+                        language::ToPoint::to_point(&anchor, &buffer_snapshot)
+                    } else {
+                        buffer_snapshot.clip_point(position, Bias::Left)
+                    };
+                    let jump_to_offset = buffer_snapshot.point_to_offset(jump_to_point);
+                    new_selections_by_buffer.insert(
+                        buffer,
+                        (vec![BufferOffset(jump_to_offset)..BufferOffset(jump_to_offset)], Some(line_offset_from_top)),
+                    );
+                }
+            }
+            JumpData::MultiBufferRow { row, line_offset_from_top } => {
+                let point = MultiBufferPoint::new(row.0, 0);
+                if let Some((buffer, buffer_point)) = self.buffer.read(cx).point_to_buffer_point(point, cx) {
+                    let buffer_offset = BufferOffset(buffer.read(cx).point_to_offset(buffer_point));
+                    new_selections_by_buffer
+                        .insert(buffer, (vec![buffer_offset..buffer_offset], Some(line_offset_from_top)));
+                }
+            }
+        }
+        self.open_selections_by_buffer(new_selections_by_buffer, split, window, cx);
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn open_selections_by_buffer(
+        &self,
+        mut new_selections_by_buffer: HashMap<Entity<language::Buffer>, (Vec<Range<BufferOffset>>, Option<u32>)>,
         split: bool,
         window: &Window,
         cx: &mut Context<Self>,
@@ -7819,62 +7778,6 @@ impl Editor {
         if self.buffer.read(cx).is_singleton() {
             cx.propagate();
             return;
-        }
-
-        let mut new_selections_by_buffer = HashMap::default();
-        match &jump_data {
-            Some(JumpData::MultiBufferPoint { anchor, position, line_offset_from_top }) => {
-                if let Some(buffer) = self.buffer.read(cx).buffer(anchor.buffer_id) {
-                    let buffer_snapshot = buffer.read(cx).snapshot();
-                    let jump_to_point = if buffer_snapshot.can_resolve(anchor) {
-                        language::ToPoint::to_point(anchor, &buffer_snapshot)
-                    } else {
-                        buffer_snapshot.clip_point(*position, Bias::Left)
-                    };
-                    let jump_to_offset = buffer_snapshot.point_to_offset(jump_to_point);
-                    new_selections_by_buffer.insert(
-                        buffer,
-                        (vec![BufferOffset(jump_to_offset)..BufferOffset(jump_to_offset)], Some(*line_offset_from_top)),
-                    );
-                }
-            }
-            Some(JumpData::MultiBufferRow { row, line_offset_from_top }) => {
-                let point = MultiBufferPoint::new(row.0, 0);
-                if let Some((buffer, buffer_point)) = self.buffer.read(cx).point_to_buffer_point(point, cx) {
-                    let buffer_offset = buffer.read(cx).point_to_offset(buffer_point);
-                    new_selections_by_buffer
-                        .entry(buffer)
-                        .or_insert((Vec::new(), Some(*line_offset_from_top)))
-                        .0
-                        .push(BufferOffset(buffer_offset)..BufferOffset(buffer_offset))
-                }
-            }
-            None => {
-                let selections = self.selections.all::<MultiBufferOffset>(&self.display_snapshot(cx));
-                let multi_buffer = self.buffer.read(cx);
-                let multi_buffer_snapshot = multi_buffer.snapshot(cx);
-                for selection in selections {
-                    for (snapshot, range, anchor) in
-                        multi_buffer_snapshot.range_to_buffer_ranges_with_deleted_hunks(selection.range())
-                    {
-                        if let Some((text_anchor, _)) =
-                            anchor.and_then(|anchor| multi_buffer_snapshot.anchor_to_buffer_anchor(anchor))
-                        {
-                            let Some(buffer_handle) = multi_buffer.buffer(text_anchor.buffer_id) else {
-                                continue;
-                            };
-                            let offset = text::ToOffset::to_offset(&text_anchor, &buffer_handle.read(cx).snapshot());
-                            let range = BufferOffset(offset)..BufferOffset(offset);
-                            new_selections_by_buffer.entry(buffer_handle).or_insert((Vec::new(), None)).0.push(range)
-                        } else {
-                            let Some(buffer_handle) = multi_buffer.buffer(snapshot.remote_id()) else {
-                                continue;
-                            };
-                            new_selections_by_buffer.entry(buffer_handle).or_insert((Vec::new(), None)).0.push(range)
-                        }
-                    }
-                }
-            }
         }
 
         if self.delegate_open_excerpts {
@@ -8581,40 +8484,6 @@ impl Editor {
             unnecessary_code_fade: settings.unnecessary_code_fade,
             show_underlines: !self.mode.is_minimap(),
         }
-    }
-
-    fn breadcrumbs_inner(&self, cx: &App) -> Option<Vec<HighlightedText>> {
-        let multi_buffer = self.buffer().read(cx);
-        // In a multi-buffer layout, we don't want to include the filename in the breadcrumbs
-        let mut breadcrumbs = if let Some(buffer) = multi_buffer.as_singleton() {
-            let text = self.breadcrumb_header.clone().unwrap_or_else(|| {
-                buffer
-                    .read(cx)
-                    .snapshot()
-                    .resolve_file_path(
-                        self.project
-                            .as_ref()
-                            .map(|project| project.read(cx).visible_worktrees(cx).count() > 1)
-                            .unwrap_or_default(),
-                        cx,
-                    )
-                    .unwrap_or_else(|| multi_buffer.title(cx).to_string())
-            });
-            vec![HighlightedText { text: text.into(), highlights: vec![] }]
-        } else {
-            Vec::new()
-        };
-
-        if let Some((buffer_id, symbols)) = self.outline_symbols_at_cursor.as_ref()
-            && multi_buffer.buffer(*buffer_id).is_some()
-        {
-            breadcrumbs.extend(symbols.iter().map(|symbol| HighlightedText {
-                text: symbol.text.clone(),
-                highlights: symbol.highlight_ranges.clone(),
-            }));
-        }
-
-        if breadcrumbs.is_empty() { None } else { Some(breadcrumbs) }
     }
 
     const fn disable_lsp_data(&mut self) {
@@ -9330,8 +9199,8 @@ pub enum EditorEvent {
         transaction_id: clock::Lamport,
     },
     CursorShapeChanged,
-    BreadcrumbsChanged,
-    OutlineSymbolsChanged,
+    /// LSP document symbols for some buffer were fetched or dropped.
+    DocumentSymbolsChanged,
     PushedToNavHistory {
         anchor: Anchor,
         is_deactivate: bool,

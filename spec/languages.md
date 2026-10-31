@@ -6,10 +6,11 @@
   structure-aware features (auto-indent, brackets, outline, text objects,
   runnables, string/comment scopes).
 - Markdown uses the upstream `tree-sitter-md` crate from crates.io (no fork).
-  Outlines and breadcrumbs use LSP document symbols by default
+  Outlines use LSP document symbols by default
   (`document_symbols: "on"`), but Markdown overrides this to tree-sitter
   (`"off"`) because there is no Markdown language server; headings make up the
-  outline.
+  outline. LSP symbols are fetched per buffer, so in a multibuffer refreshing one
+  file never cancels another file's pending fetch.
 - C, C++, Diff, Git Commit, Go Mod, Go Work and TOML are still registered
   languages (file matching, comments, brackets, gopls for Go Mod/Work, tombi
   for TOML, Diff's keep-trailing-whitespace settings, the Git Commit editor)

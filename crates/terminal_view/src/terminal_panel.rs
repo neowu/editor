@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use breadcrumbs::Breadcrumbs;
 use collections::HashMap;
 use db::kvp::KeyValueStore;
 use futures::channel::oneshot;
@@ -1053,10 +1052,6 @@ pub fn new_terminal_pane(
         if let Some(callbacks) = cx.try_global::<workspace::PaneSearchBarCallbacks>() {
             (callbacks.setup_search_bar)(&toolbar, window, cx);
         }
-        let breadcrumbs = cx.new(|_| Breadcrumbs::new());
-        toolbar.update(cx, |toolbar, cx| {
-            toolbar.add_item(breadcrumbs, window, cx);
-        });
 
         pane
     });

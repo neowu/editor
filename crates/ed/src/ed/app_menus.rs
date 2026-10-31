@@ -147,7 +147,6 @@ pub fn app_menus(_cx: &mut App) -> Vec<Menu> {
                 MenuItem::separator(),
                 MenuItem::action("Go to File...", workspace::ToggleFileFinder::default()),
                 // MenuItem::action("Go to Symbol in Project", project_symbols::Toggle),
-                MenuItem::action("Go to Symbol in Editor...", ed_actions::outline::ToggleOutline),
                 MenuItem::action("Go to Line/Column...", editor::actions::ToggleGoToLine),
                 MenuItem::separator(),
                 MenuItem::action("Go to Definition", editor::actions::GoToDefinition::default()),

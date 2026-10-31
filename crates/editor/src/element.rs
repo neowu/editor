@@ -12,6 +12,7 @@ use std::fmt::{self};
 use std::iter;
 use std::mem;
 use std::ops::Range;
+use std::ops::RangeInclusive;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -45,7 +46,6 @@ use gpui::Entity;
 use gpui::Focusable as _;
 use gpui::Font;
 use gpui::FontId;
-use gpui::FontWeight;
 use gpui::GlobalElementId;
 use gpui::Hitbox;
 use gpui::HitboxBehavior;
@@ -64,10 +64,8 @@ use gpui::ScaledPixels;
 use gpui::ShapedLine;
 use gpui::SharedString;
 use gpui::Size;
-use gpui::StatefulInteractiveElement;
 use gpui::Style;
 use gpui::Styled;
-use gpui::StyledText;
 use gpui::TaskExt;
 use gpui::TextAlign;
 use gpui::TextRun;
@@ -91,7 +89,6 @@ pub(crate) use header::header_jump_data;
 pub(crate) use header::render_buffer_header;
 use itertools::Itertools;
 use language::Diagnostic;
-use language::HighlightedText;
 use language::IndentGuideSettings;
 use language::LanguageAwareStyling;
 use language::language_settings::ShowWhitespaceSetting;
@@ -120,7 +117,6 @@ use theme::ActiveTheme;
 use theme::Appearance;
 use theme::PlayerColor;
 use theme_settings::BufferLineHeight;
-use ui::ButtonLike;
 use ui::POPOVER_Y_PADDING;
 use ui::Tooltip;
 use ui::prelude::*;
@@ -129,7 +125,6 @@ use ui::utils::merge_highlight_backgrounds;
 use unicode_segmentation::UnicodeSegmentation;
 use util::ResultExt;
 use util::debug_panic;
-use workspace::ItemHandle;
 use workspace::Workspace;
 use workspace::item::Item;
 use workspace::item::ItemBufferKind;
@@ -445,6 +440,14 @@ impl EditorElement {
         self.split_side = Some(side);
     }
 
+    /// The editor corners that sit on the pane card's rounded corners: the
+    /// sides of a split diff meet at the divider, not at the card edge.
+    const fn card_corners(&self) -> Corners<bool> {
+        let left = !matches!(self.split_side, Some(SplitSide::Right));
+        let right = !matches!(self.split_side, Some(SplitSide::Left));
+        Corners { top_left: left, top_right: right, bottom_right: right, bottom_left: left }
+    }
+
     fn register_actions(&self, window: &mut Window, cx: &mut App) {
         let editor = &self.editor;
         editor.update(cx, |editor, cx| {
@@ -633,11 +636,8 @@ impl EditorElement {
         register_action(editor, window, Editor::show_completions);
         register_action(editor, window, Editor::show_word_completions);
         register_action(editor, window, Editor::toggle_code_actions);
-        register_action(editor, window, Editor::open_excerpts);
-        register_action(editor, window, Editor::open_excerpts_in_split);
         register_action(editor, window, Editor::toggle_soft_wrap);
         register_action(editor, window, Editor::toggle_tab_bar);
-        register_action(editor, window, Editor::toggle_breadcrumb);
         register_action(editor, window, Editor::toggle_indent_guides);
 
         if editor.read(cx).lsp_data_enabled() {
@@ -919,13 +919,13 @@ impl EditorElement {
                         newest_selection_head = Some(layout.head);
                     }
 
-                    for row in cmp::max(layout.active_rows.start.0, start_row.0)
-                        ..=cmp::min(layout.active_rows.end.0, end_row.0)
-                    {
-                        let contains_non_empty_selection =
-                            active_rows.entry(DisplayRow(row)).or_insert_with(LineHighlightSpec::default);
-                        contains_non_empty_selection.selection |= !is_empty;
-                    }
+                    mark_active_rows(
+                        &mut active_rows,
+                        cmp::max(layout.active_rows.start.0, start_row.0)
+                            ..=cmp::min(layout.active_rows.end.0, end_row.0),
+                        !is_empty,
+                        |row| snapshot.is_block_line(row),
+                    );
                     layouts.push(layout);
                 }
 
@@ -3706,7 +3706,15 @@ impl EditorElement {
                                     layout.position_map.line_height * (end_row - start_row.0 + 1) as f32,
                                 ),
                             };
-                            window.paint_quad(fill(bounds, active_line_bg));
+                            // A partly scrolled-out row is clipped to the editor, so round
+                            // the visible part where it meets the card's corners.
+                            let bounds = bounds.intersect(&layout.hitbox.bounds);
+                            let corners = if matches!(layout.mode, EditorMode::Full { .. }) {
+                                card_corner_radii(layout.hitbox.bounds, bounds, self.card_corners())
+                            } else {
+                                Corners::default()
+                            };
+                            window.paint_quad(fill(bounds, active_line_bg).corner_radii(corners));
                         }
                     }
                 }
@@ -4874,121 +4882,42 @@ impl Gutter<'_> {
     }
 }
 
-pub fn render_breadcrumb_text(
-    mut segments: Vec<HighlightedText>,
-    breadcrumb_font: Option<Font>,
-    prefix: Option<gpui::AnyElement>,
-    active_item: &dyn ItemHandle,
-    multibuffer_header: bool,
-    window: &mut Window,
-    cx: &App,
-) -> gpui::AnyElement {
-    const MAX_SEGMENTS: usize = 12;
-
-    let element = h_flex().flex_grow_1().text_ui(cx);
-
-    let prefix_end_ix = cmp::min(segments.len(), MAX_SEGMENTS / 2);
-    let suffix_start_ix = cmp::max(prefix_end_ix, segments.len().saturating_sub(MAX_SEGMENTS / 2));
-
-    if suffix_start_ix > prefix_end_ix {
-        segments.splice(prefix_end_ix..suffix_start_ix, Some(HighlightedText { text: "⋯".into(), highlights: vec![] }));
-    }
-
-    let highlighted_segments = segments.into_iter().enumerate().map(|(index, segment)| {
-        let mut text_style = window.text_style();
-        if let Some(font) = &breadcrumb_font {
-            text_style.font_family = font.family.clone();
-            text_style.font_features = font.features.clone();
-            text_style.font_style = font.style;
-            text_style.font_weight = font.weight;
-        }
-        text_style.color = Color::Muted.color(cx);
-
-        if index == 0
-            && !workspace::TabBarSettings::get_global(cx).show
-            && active_item.is_dirty(cx)
-            && let Some(styled_element) = apply_dirty_filename_style(&segment, &text_style, cx)
-        {
-            return styled_element;
-        }
-
-        StyledText::new(segment.text.replace('\n', " "))
-            .with_default_highlights(&text_style, segment.highlights)
-            .into_any()
-    });
-
-    let breadcrumbs = Itertools::intersperse_with(highlighted_segments, || {
-        Label::new("›").color(Color::Placeholder).into_any_element()
-    });
-
-    let breadcrumbs_stack = h_flex()
-        .gap_1()
-        .when(multibuffer_header, |this| this.pl_2().border_l_1().border_color(cx.theme().colors().border.opacity(0.6)))
-        .children(breadcrumbs);
-
-    let breadcrumbs = if let Some(prefix) = prefix {
-        h_flex().gap_1p5().child(prefix).child(breadcrumbs_stack)
-    } else {
-        breadcrumbs_stack
+/// Corner radii for a quad painted inside the editor so it follows the pane
+/// card's rounded corners: concentric with the card (card radius − card
+/// inset) where the quad touches a card corner, curving in as it moves away
+/// from the edges and square once it's a full radius away. Only `round`
+/// corners can curve.
+pub(super) fn card_corner_radii(editor: Bounds<Pixels>, quad: Bounds<Pixels>, round: Corners<bool>) -> Corners<Pixels> {
+    let radius = workspace::CARD_RADIUS - workspace::CARD_INSET;
+    let gap_top = quad.top() - editor.top();
+    let gap_bottom = editor.bottom() - quad.bottom();
+    let gap_left = quad.left() - editor.left();
+    let gap_right = editor.right() - quad.right();
+    let corner = |round: bool, gap_x: Pixels, gap_y: Pixels| {
+        if round { (radius - gap_x.max(gap_y)).max(Pixels::ZERO) } else { Pixels::ZERO }
     };
-
-    let editor = active_item.downcast::<Editor>().map(|editor| editor.downgrade());
-
-    match editor {
-        Some(editor) => element
-            .id("breadcrumb_container")
-            .when(!multibuffer_header, |this| this.overflow_x_scroll())
-            .child(
-                ButtonLike::new("toggle outline view")
-                    .child(breadcrumbs)
-                    .when(multibuffer_header, |this| this.style(ButtonStyle::Transparent))
-                    .when(!multibuffer_header, |this| {
-                        this.on_click(move |_, window, cx| {
-                            if let Some((editor, callback)) =
-                                editor.upgrade().zip(ed_actions::outline::TOGGLE_OUTLINE.get())
-                            {
-                                callback(editor.to_any_view(), window, cx);
-                            }
-                        })
-                    }),
-            )
-            .into_any_element(),
-        None => element
-            .h(rems_from_px(22_f32)) // Match the height and padding of the `ButtonLike` in the other arm.
-            .pl_1()
-            .child(breadcrumbs)
-            .into_any_element(),
+    Corners {
+        top_left: corner(round.top_left, gap_left, gap_top),
+        top_right: corner(round.top_right, gap_right, gap_top),
+        bottom_right: corner(round.bottom_right, gap_right, gap_bottom),
+        bottom_left: corner(round.bottom_left, gap_left, gap_bottom),
     }
+    .clamp_radii_for_quad_size(quad.size)
 }
 
-fn apply_dirty_filename_style(
-    segment: &HighlightedText,
-    text_style: &gpui::TextStyle,
-    cx: &App,
-) -> Option<gpui::AnyElement> {
-    let text = segment.text.replace('\n', " ");
-
-    let filename_position = std::path::Path::new(segment.text.as_ref()).file_name().and_then(|f| {
-        let filename_str = f.to_string_lossy();
-        segment.text.rfind(filename_str.as_ref())
-    })?;
-
-    let bold_weight = FontWeight::BOLD;
-    let default_color = Color::Default.color(cx);
-
-    if filename_position == 0 {
-        let mut filename_style = text_style.clone();
-        filename_style.font_weight = bold_weight;
-        filename_style.color = default_color;
-
-        return Some(StyledText::new(text).with_default_highlights(&filename_style, []).into_any());
+/// Marks `rows` as holding a selection head. Block rows (buffer headers,
+/// split spacers) are skipped: nothing on them can be "the current line", and
+/// the split's left side draws no header over them, so a highlight there would
+/// show as a stray band around a folded file's header.
+fn mark_active_rows(
+    active_rows: &mut BTreeMap<DisplayRow, LineHighlightSpec>,
+    rows: RangeInclusive<u32>,
+    has_selection: bool,
+    is_block_line: impl Fn(DisplayRow) -> bool,
+) {
+    for row in rows.map(DisplayRow).filter(|row| !is_block_line(*row)) {
+        active_rows.entry(row).or_default().selection |= has_selection;
     }
-
-    let highlight_style =
-        gpui::HighlightStyle { font_weight: Some(bold_weight), color: Some(default_color), ..Default::default() };
-
-    let highlight = vec![(filename_position..text.len(), highlight_style)];
-    Some(StyledText::new(text).with_default_highlights(text_style, highlight).into_any())
 }
 
 fn render_blame_entry(
@@ -8006,4 +7935,72 @@ fn compute_auto_height_layout(
     };
 
     Some(size(width, final_height))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn radius() -> Pixels {
+        workspace::CARD_RADIUS - workspace::CARD_INSET
+    }
+
+    fn editor_bounds() -> Bounds<Pixels> {
+        Bounds::new(point(px(0.), px(0.)), size(px(400.), px(300.)))
+    }
+
+    const ALL: Corners<bool> = Corners { top_left: true, top_right: true, bottom_right: true, bottom_left: true };
+
+    #[test]
+    fn line_on_first_row_rounds_top_corners() {
+        let line = Bounds::new(point(px(0.), px(0.)), size(px(400.), px(20.)));
+        let corners = card_corner_radii(editor_bounds(), line, ALL);
+        assert_eq!((corners.top_left, corners.top_right), (radius(), radius()));
+        assert_eq!((corners.bottom_left, corners.bottom_right), (Pixels::ZERO, Pixels::ZERO));
+    }
+
+    #[test]
+    fn line_on_last_row_rounds_bottom_corners() {
+        let line = Bounds::new(point(px(0.), px(280.)), size(px(400.), px(20.)));
+        let corners = card_corner_radii(editor_bounds(), line, ALL);
+        assert_eq!((corners.top_left, corners.top_right), (Pixels::ZERO, Pixels::ZERO));
+        assert_eq!((corners.bottom_left, corners.bottom_right), (radius(), radius()));
+    }
+
+    #[test]
+    fn line_in_the_middle_is_square() {
+        let line = Bounds::new(point(px(0.), px(100.)), size(px(400.), px(20.)));
+        assert_eq!(card_corner_radii(editor_bounds(), line, ALL), Corners::default());
+    }
+
+    #[test]
+    fn line_clear_of_an_edge_is_square_on_that_side() {
+        // Gutter-only highlight: the right edge is far from the card edge.
+        let line = Bounds::new(point(px(0.), px(0.)), size(px(60.), px(20.)));
+        let corners = card_corner_radii(editor_bounds(), line, ALL);
+        assert_eq!((corners.top_left, corners.top_right), (radius(), Pixels::ZERO));
+    }
+
+    #[test]
+    fn corners_not_on_the_card_stay_square() {
+        let line = Bounds::new(point(px(0.), px(0.)), size(px(400.), px(20.)));
+        let left_side = Corners { top_right: false, bottom_right: false, ..ALL };
+        let corners = card_corner_radii(editor_bounds(), line, left_side);
+        assert_eq!((corners.top_left, corners.top_right), (radius(), Pixels::ZERO));
+    }
+
+    #[test]
+    fn active_rows_skip_block_rows() {
+        let mut active_rows = BTreeMap::new();
+        mark_active_rows(&mut active_rows, 3..=6, false, |row| row.0 == 4 || row.0 == 5);
+        assert_eq!(active_rows.keys().map(|row| row.0).collect::<Vec<_>>(), [3, 6]);
+    }
+
+    #[test]
+    fn active_rows_keep_selection_flag() {
+        let mut active_rows = BTreeMap::new();
+        mark_active_rows(&mut active_rows, 2..=2, false, |_| false);
+        mark_active_rows(&mut active_rows, 2..=2, true, |_| false);
+        assert!(active_rows[&DisplayRow(2)].selection);
+    }
 }

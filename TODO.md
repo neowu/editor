@@ -1,6 +1,8 @@
 - no support for hard click touchpad (lookup), add or put right click menu
 
-- rethink cmd+J, terminal/central terminal behavior
+# rethink pane left/right short key
+  - cmd+J, terminal/central terminal behavior
+  - always use cmd+B cmd+R, or 
 
 - add webkit tab to render html? still need markdown html preview? or just use webkit to open html, then how to open remote html? 
 

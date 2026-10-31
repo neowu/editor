@@ -27,7 +27,6 @@ use gpui::Context;
 use gpui::Entity;
 use gpui::EntityId;
 use gpui::EventEmitter;
-use gpui::Font;
 use gpui::IntoElement;
 use gpui::ParentElement;
 use gpui::Pixels;
@@ -41,7 +40,6 @@ use language::Buffer;
 use language::BufferRow;
 use language::CharKind;
 use language::CharScopeContext;
-use language::HighlightedText;
 use language::LocalFile;
 use language::PLAIN_TEXT;
 use language::Point;
@@ -77,8 +75,6 @@ use workspace::ItemNavHistory;
 use workspace::OpenOptions;
 use workspace::OpenVisible;
 use workspace::Pane;
-use workspace::TabBarSettings;
-use workspace::ToolbarItemLocation;
 use workspace::Workspace;
 use workspace::WorkspaceId;
 use workspace::WorkspaceSettings;
@@ -484,33 +480,6 @@ impl Item for Editor {
         self.pixel_position_of_newest_cursor
     }
 
-    fn breadcrumb_location(&self, cx: &App) -> ToolbarItemLocation {
-        if self.breadcrumbs_visible() && self.buffer().read(cx).is_singleton() {
-            ToolbarItemLocation::PrimaryLeft
-        } else {
-            ToolbarItemLocation::Hidden
-        }
-    }
-
-    // In a non-singleton case, the breadcrumbs are actually shown on sticky file headers of the multibuffer.
-    fn breadcrumbs(&self, cx: &App) -> Option<(Vec<HighlightedText>, Option<Font>)> {
-        if self.buffer.read(cx).is_singleton() {
-            let font = theme_settings::ThemeSettings::get_global(cx).buffer_font.clone();
-            Some((self.breadcrumbs_inner(cx)?, Some(font)))
-        } else {
-            None
-        }
-    }
-
-    fn breadcrumb_prefix(&self, _window: &mut Window, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
-        (!TabBarSettings::get_global(cx).show && ItemSettings::get_global(cx).file_icons)
-            .then(|| {
-                path_for_buffer(&self.buffer, 0, true, cx).and_then(|path| FileIcons::get_icon(Path::new(&*path), cx))
-            })
-            .flatten()
-            .map(|icon_path| Icon::from_path(icon_path).into_any_element())
-    }
-
     fn added_to_workspace(&mut self, workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Self>) {
         self.workspace = Some((workspace.weak_handle(), workspace.database_id()));
         if let Some(workspace_entity) = &workspace.weak_handle().upgrade() {
@@ -546,19 +515,11 @@ impl Item for Editor {
         match event {
             EditorEvent::Saved | EditorEvent::TitleChanged => {
                 f(ItemEvent::UpdateTab);
-                f(ItemEvent::UpdateBreadcrumbs);
-            }
-
-            EditorEvent::Reparsed(_) => {
-                f(ItemEvent::UpdateBreadcrumbs);
+                f(ItemEvent::UpdateActivePath);
             }
 
             EditorEvent::SelectionsChanged { local } if *local => {
-                f(ItemEvent::UpdateBreadcrumbs);
-            }
-
-            EditorEvent::BreadcrumbsChanged | EditorEvent::OutlineSymbolsChanged => {
-                f(ItemEvent::UpdateBreadcrumbs);
+                f(ItemEvent::UpdateActivePath);
             }
 
             EditorEvent::DirtyChanged | EditorEvent::CapabilityChanged => {
@@ -567,7 +528,6 @@ impl Item for Editor {
 
             EditorEvent::BufferEdited => {
                 f(ItemEvent::Edit);
-                f(ItemEvent::UpdateBreadcrumbs);
             }
 
             EditorEvent::BufferRangesUpdated { .. } | EditorEvent::BuffersRemoved { .. } => {

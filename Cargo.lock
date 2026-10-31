@@ -393,15 +393,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "breadcrumbs"
-version = "0.1.0"
-dependencies = [
- "gpui",
- "ui",
- "workspace",
-]
-
-[[package]]
 name = "bstr"
 version = "1.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -908,12 +899,11 @@ dependencies = [
 
 [[package]]
 name = "ed"
-version = "1.51.0"
+version = "1.52.0"
 dependencies = [
  "activity_indicator",
  "anyhow",
  "assets",
- "breadcrumbs",
  "call_hierarchy",
  "clap",
  "collections",
@@ -927,7 +917,6 @@ dependencies = [
  "file_finder",
  "fs",
  "futures",
- "git",
  "git_ui",
  "git_ui_core",
  "go_to_line",
@@ -945,7 +934,6 @@ dependencies = [
  "markdown_preview",
  "menu",
  "mimalloc",
- "outline",
  "outline_panel",
  "paths",
  "project",
@@ -992,7 +980,6 @@ dependencies = [
  "aho-corasick",
  "anyhow",
  "base64 0.22.1",
- "breadcrumbs",
  "buffer_diff",
  "clock",
  "collections",
@@ -2081,7 +2068,6 @@ dependencies = [
  "menu",
  "project",
  "settings",
- "theme_settings",
  "ui",
  "util",
  "workspace",
@@ -3181,22 +3167,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "outline"
-version = "0.1.0"
-dependencies = [
- "ed_actions",
- "editor",
- "fuzzy_nucleo",
- "gpui",
- "language",
- "picker",
- "picker_preview",
- "theme",
- "ui",
- "workspace",
-]
-
-[[package]]
 name = "outline_panel"
 version = "0.1.0"
 dependencies = [
@@ -3213,7 +3183,6 @@ dependencies = [
  "language",
  "log",
  "menu",
- "outline",
  "project",
  "search",
  "serde",
@@ -4842,7 +4811,6 @@ name = "terminal_view"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "breadcrumbs",
  "collections",
  "db",
  "dirs",

@@ -1356,7 +1356,6 @@ impl Editor {
 
             self.refresh_selected_text_highlights(&display_map, false, window, cx);
             self.refresh_matching_bracket_highlights(&display_map, cx);
-            self.refresh_outline_symbols_at_cursor(cx);
         }
 
         self.blink_manager.update(cx, BlinkManager::pause_blinking);

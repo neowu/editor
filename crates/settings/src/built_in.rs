@@ -146,7 +146,6 @@ use settings_content::ThemeName;
 use settings_content::ThemeSelection;
 use settings_content::ThemeSettingsContent;
 use settings_content::TitleBarSettingsContent;
-use settings_content::ToolbarContent;
 use settings_content::WhitespaceMapContent;
 use settings_content::WindowDecorations;
 use settings_content::WordsCompletionMode;
@@ -400,7 +399,6 @@ const fn editor_settings() -> EditorSettingsContent {
         hover_popover_delay: Some(DelayMs(300)),
         hover_popover_sticky: Some(true),
         hover_popover_hiding_delay: Some(DelayMs(300)),
-        toolbar: Some(ToolbarContent { breadcrumbs: Some(true), quick_actions: Some(true), code_actions: Some(false) }),
         minimap: Some(MinimapContent {
             show: Some(ShowMinimap::Always),
             display_in: Some(DisplayIn::ActiveEditor),

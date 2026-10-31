@@ -1552,7 +1552,7 @@ impl Item for MarkdownPreviewView {
         match event {
             MarkdownPreviewEvent::SourceEditorChanged | MarkdownPreviewEvent::SourceFileHandleChanged => {
                 f(workspace::item::ItemEvent::UpdateTab);
-                f(workspace::item::ItemEvent::UpdateBreadcrumbs);
+                f(workspace::item::ItemEvent::UpdateActivePath);
             }
         }
     }

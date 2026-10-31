@@ -70,6 +70,7 @@ use gpui::SharedString;
 use gpui::Stateful;
 use gpui::StatefulInteractiveElement as _;
 use gpui::Styled;
+use gpui::StyledText;
 use gpui::Subscription;
 use gpui::Task;
 use gpui::UniformListScrollHandle;
@@ -128,6 +129,7 @@ use ui::Tab;
 use ui::Tooltip;
 use ui::WithScrollbar;
 use ui::prelude::*;
+use ui::utils::ui_text_style;
 use util::RangeExt;
 use util::ResultExt;
 use util::TryFutureExt;
@@ -1318,28 +1320,6 @@ impl OutlinePanel {
         }
     }
 
-    fn open_excerpts(&mut self, action: &editor::actions::OpenExcerpts, window: &mut Window, cx: &mut Context<Self>) {
-        if self.filter_editor.focus_handle(cx).is_focused(window) {
-            cx.propagate()
-        } else if let Some((active_editor, selected_entry)) = self.active_editor().zip(self.selected_entry().cloned()) {
-            self.scroll_editor_to_entry(&selected_entry, true, true, window, cx);
-            active_editor.update(cx, |editor, cx| editor.open_excerpts(action, window, cx));
-        }
-    }
-
-    fn open_excerpts_split(
-        &mut self,
-        action: &editor::actions::OpenExcerptsSplit,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if self.filter_editor.focus_handle(cx).is_focused(window) {
-            cx.propagate()
-        } else if let Some((active_editor, selected_entry)) = self.active_editor().zip(self.selected_entry().cloned()) {
-            self.scroll_editor_to_entry(&selected_entry, true, true, window, cx);
-            active_editor.update(cx, |editor, cx| editor.open_excerpts_in_split(action, window, cx));
-        }
-    }
 
     fn scroll_editor_to_entry(
         &mut self,
@@ -2188,7 +2168,7 @@ impl OutlinePanel {
     ) -> Stateful<Div> {
         let item_id = ElementId::from(SharedString::from(format!("{:?}|{:?}", outline.range, outline.text,)));
 
-        let label_element = outline::render_item(
+        let label_element = render_outline_item(
             outline,
             string_match.map(|string_match| string_match.ranges().collect::<Vec<_>>()).unwrap_or_default(),
             cx,
@@ -2434,7 +2414,7 @@ impl OutlinePanel {
         };
         let search_matches = string_match.iter().flat_map(|string_match| string_match.ranges()).collect::<Vec<_>>();
         let match_ranges = if search_matches.is_empty() { &search_data.search_match_indices } else { &search_matches };
-        let label_element = outline::render_item(
+        let label_element = render_outline_item(
             &OutlineItem {
                 depth,
                 annotation_range: None,
@@ -4731,8 +4711,6 @@ impl Render for OutlinePanel {
             .on_action(cx.listener(Self::toggle_active_editor_pin))
             .on_action(cx.listener(Self::unfold_directory))
             .on_action(cx.listener(Self::fold_directory))
-            .on_action(cx.listener(Self::open_excerpts))
-            .on_action(cx.listener(Self::open_excerpts_split))
             .when(is_local, |el| el.on_action(cx.listener(Self::reveal_in_finder)))
             .when(is_local || is_via_ssh, |el| el.on_action(cx.listener(Self::open_in_terminal)))
             .on_mouse_down(
@@ -4877,7 +4855,7 @@ fn subscribe_for_editor_events(
                 outline_panel.invalidate_outlines(&[*buffer_id]);
                 outline_panel.update_contents(debounce, window, cx);
             }
-            EditorEvent::OutlineSymbolsChanged => {
+            EditorEvent::DocumentSymbolsChanged => {
                 if outline_panel.lsp_outline_refresh_task.is_ready() {
                     outline_panel.lsp_outline_refresh_task = cx.spawn_in(window, async move |outline_panel, cx| {
                         cx.background_executor().timer(UPDATE_DEBOUNCE).await;
@@ -4910,6 +4888,24 @@ fn subscribe_for_editor_events(
             _ => {}
         }
     })
+}
+
+fn render_outline_item<T, M: IntoIterator<Item = Range<usize>>>(
+    outline_item: &OutlineItem<T>,
+    match_ranges: M,
+    cx: &App,
+) -> impl IntoElement + use<T, M> {
+    let highlight_style =
+        HighlightStyle { background_color: Some(cx.theme().colors().text_accent.alpha(0.3)), ..Default::default() };
+    let custom_highlights = match_ranges.into_iter().map(|range| (range, highlight_style));
+
+    let text_style = ui_text_style(cx);
+    let ui_font_size = text_style.font_size;
+    let highlights = gpui::combine_highlights(custom_highlights, outline_item.highlight_ranges.iter().cloned());
+
+    div()
+        .text_size(ui_font_size)
+        .child(StyledText::new(outline_item.text.clone()).with_default_highlights(&text_style, highlights))
 }
 
 fn empty_icon() -> AnyElement {

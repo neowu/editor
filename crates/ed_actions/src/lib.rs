@@ -387,25 +387,6 @@ pub struct OpenRemote {
     pub create_new_window: Option<bool>,
 }
 
-pub mod outline {
-    use std::sync::OnceLock;
-
-    use gpui::AnyView;
-    use gpui::App;
-    use gpui::Window;
-    use gpui::actions;
-
-    actions!(
-        outline,
-        [
-            #[action(name = "Toggle")]
-            ToggleOutline
-        ]
-    );
-    /// A pointer to outline::toggle function, exposed here to sewer the breadcrumbs <-> outline dependency.
-    pub static TOGGLE_OUTLINE: OnceLock<fn(AnyView, &mut Window, &mut App)> = OnceLock::new();
-}
-
 actions!(call_hierarchy, [ShowIncomingCalls, ShowOutgoingCalls, ToggleDirection]);
 
 pub mod preview {

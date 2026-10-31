@@ -40,10 +40,15 @@
   enabled); there are no editor `scrollbar` settings. In files longer than
   the minimap, off-screen markers scroll in with the minimap. Editors without
   a minimap have no vertical scroll widget.
-- The minimap runs the full card height. Its thumb's bottom-right corner is
-  concentric with the card (card radius − card inset), curving in as the
-  thumb nears the bottom, instead of shortening the minimap to dodge the
-  corner.
+- The minimap runs the full card height. Its thumb's top-right and
+  bottom-right corners are concentric with the card (card radius − card
+  inset), curving in as the thumb nears the top or bottom, instead of
+  shortening the minimap to dodge the corners.
+- The current-line highlight follows the card's corners the same way (one
+  shared `card_corner_radii` rule): square in the middle of the editor,
+  concentric with the card on the first/last visible row, curving in as it
+  moves away. A partly scrolled-out row is rounded on its visible part. In a
+  split diff, the sides that meet at the divider stay square.
 - The horizontal scrollbar matches the `ui` scrollbars (project panel): no
   track, a thin rounded thumb inset in a 14px hitbox.
   It auto-shows while scrolling or when the buffer has markers (git hunks,
@@ -56,8 +61,10 @@
   buffer headers are a separate feature and remain.
 - A multibuffer header's "Open File" button (or its addon label, e.g. "Open
   Revision") only shows while the header is hovered, on every header alike,
-  including the one holding the cursor (whose button also shows the
-  `OpenExcerpts` key binding).
+  with no key binding. Opening from a multibuffer is mouse-only (header
+  button/filename, gutter line number, double-click): there is no
+  `OpenExcerpts` action, and it always opens one buffer with one cursor at
+  the clicked spot, never the multibuffer's selections.
 - Smooth scrolling is always on, with no setting. Jumps (page/half-page
   scrolls and autoscroll to the cursor: search, go-to-definition, `G`) move
   the scroll anchor at once; only drawing trails it, easing out over 120ms.
@@ -74,7 +81,7 @@
 - The gutter has no settings: line numbers (with space reserved for 4
   digits), runnables, fold toggles and default-width git diff strips are
   always shown. There is no `gutter` settings block and no
-  `editor::ToggleLineNumbers` action, keybinding or quick action bar toggle.
+  `editor::ToggleLineNumbers` action or keybinding.
 - Gutter line numbers are always absolute. Relative line numbers are removed
   (no `relative_line_numbers` setting, no `editor::ToggleRelativeLineNumbers`).
 - No signature help: no popup, actions, keybindings or settings. The LSP
@@ -86,40 +93,40 @@
   (i.e. hovering a definition's name) show as a clickable row at the top of
   the LSP hover popover, above the signature and docs; they're fetched and
   resolved alongside the hover request. Always on whenever a language server
-  provides lenses: there is no `code_lens` setting, `editor::ToggleCodeLens`
-  action or quick action bar toggle.
+  provides lenses: there is no `code_lens` setting or `editor::ToggleCodeLens`
+  action.
 - Inlay hints and LSP semantic highlights are always on whenever a language
   server provides them; stop the server (or set `enable_language_server: false`)
   to get rid of them. Semantic tokens always layer on top of tree-sitter
   highlighting, never replace it. There is no `semantic_tokens` setting, no
   `inlay_hints.enabled` / `inlay_hints.toggle_on_modifiers_press`, no
-  `editor::ToggleInlayHints` / `editor::ToggleSemanticHighlights` action,
-  keybinding or quick action bar toggle. The per-kind `inlay_hints.show_*`
+  `editor::ToggleInlayHints` / `editor::ToggleSemanticHighlights` action or
+  keybinding. The per-kind `inlay_hints.show_*`
   filters, background and debounce settings remain.
 - The hover popover's code lens row renders in the UI font, like the outline
   panel; the signature and docs below it use the shared hover markdown style.
-- The selections menu in the editor toolbar is always shown: there is no
-  `toolbar.selections_menu` setting, `editor::ToggleSelectionMenu` action or
-  quick action bar toggle.
+- No breadcrumbs anywhere (no breadcrumbs toolbar item, `Item::breadcrumbs`
+  API, `toolbar` settings block or `editor::ToggleBreadcrumb`), and no quick
+  action bar (selections menu, editor controls, buffer search / code action /
+  preview buttons): those stay reachable through actions, keybindings and the
+  command palette. Buffer search is also in the tab bar's `+` menu. With no
+  other toolbar item, an editor's card starts right at the text. No symbol
+  path anywhere either: multibuffer headers show only the file name and its
+  directory, so rendering them never waits on outlines or language servers.
+- Block rows (buffer headers, split-diff spacers) never get the current-line
+  highlight: the split's left side draws no header of its own, so a cursor in
+  a folded file would otherwise leave a stray band beside the header. A
+  hovered buffer header stays opaque (hover tint flattened onto the header
+  background) so the split divider doesn't show through it.
+- No outline modal ("Go to Symbol in Editor", `outline::Toggle`,
+  `cmd-shift-o`): the outline panel is the way to browse a buffer's symbols.
 - Read-only editors (Git History revisions and commit diffs, read-only
   buffers) share the editing UI but leave out what can only edit: controls
   follow the editor's capability, not the mode it is shown in, and are hidden
-  rather than disabled since they can never apply there. The selections menu
-  drops its line-editing group (Move Line Up/Down, Duplicate Selection) but
-  keeps selection, cursor and navigation items. Navigation follows the same
-  rule: Next/Previous Problem only show when the editor has diagnostics and
-  is not a historic snapshot (a git revision never gets language-server
-  diagnostics), and Next/Previous Hunk only when a diff is tracked for its
-  buffer (disabled, not hidden, while that diff has no hunks). For the same
-  reason "Editor Controls" drops the Diagnostics and Git Blame toggles on a
-  historic snapshot. Buffer search offers no
+  rather than disabled since they can never apply there. Buffer search offers no
   replace (no toggle, row, or `ToggleReplace`/replace-deploy) on any search
   item that is not editable.
-- The quick action bar's "Editor Controls" menu has three groups: display
-  (Minimap, Diagnostics), editing toggles (Soft Wrap, room for more editor
-  actions), and Git Blame last.
-- Diagnostics have one per-editor switch, the quick action bar's
-  "Diagnostics" toggle (`editor::ToggleDiagnostics`), which turns underlines,
+- Diagnostics have one per-editor switch, `editor::ToggleDiagnostics`, which turns underlines,
   inline messages, problem navigation and LSP pulls on or off together. Inline
   messages always show while diagnostics are on: there is no
   `editor::ToggleInlineDiagnostics` action and no `diagnostics.inline.enabled`

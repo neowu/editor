@@ -222,10 +222,6 @@ impl Editor {
         Some((buffer_snapshot.remote_id(), range.start.row))
     }
 
-    pub fn code_actions_enabled_for_toolbar(&self, cx: &App) -> bool {
-        !self.code_action_providers.is_empty() && EditorSettings::get_global(cx).toolbar.code_actions
-    }
-
     pub fn has_available_code_actions_for_selection(&self) -> bool {
         if let CodeActionsForSelection::Ready(ready) = &self.code_actions_for_selection {
             !ready.actions.is_empty()

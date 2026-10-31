@@ -50,6 +50,7 @@ use super::EditorLayout;
 use super::EditorScrollbars;
 use super::ScrollbarLayout;
 use super::ScrollbarLayoutInformation;
+use super::card_corner_radii;
 use crate::DisplayRow;
 use crate::Editor;
 use crate::EditorSettings;
@@ -420,16 +421,7 @@ impl EditorElement {
                             MinimapThumbBorder::None => Edges::default(),
                         };
 
-                        // The minimap's bottom edge sits against the pane card's rounded
-                        // corner, so the thumb's bottom-right corner is concentric with it,
-                        // curving in as the thumb approaches the bottom.
-                        let concentric_radius = workspace::CARD_RADIUS - workspace::CARD_INSET;
-                        let gap_to_bottom = minimap_hitbox.bounds.bottom() - thumb_bounds.bottom();
-                        let thumb_corners = Corners {
-                            bottom_right: (concentric_radius - gap_to_bottom).max(Pixels::ZERO),
-                            ..Default::default()
-                        }
-                        .clamp_radii_for_quad_size(thumb_bounds.size);
+                        let thumb_corners = minimap_thumb_corners(minimap_hitbox.bounds, thumb_bounds);
 
                         window.paint_layer(minimap_hitbox.bounds, |window| {
                             window.paint_quad(quad(
@@ -667,6 +659,16 @@ pub(super) struct MinimapLayout {
     pub thumb_pixels_per_editor_line: Option<Pixels>,
 }
 
+/// The minimap's top and bottom edges sit against the pane card's rounded
+/// corners, so the thumb's right corners follow them.
+fn minimap_thumb_corners(minimap_bounds: Bounds<Pixels>, thumb_bounds: Bounds<Pixels>) -> Corners<Pixels> {
+    card_corner_radii(
+        minimap_bounds,
+        thumb_bounds,
+        Corners { top_right: true, bottom_right: true, ..Default::default() },
+    )
+}
+
 impl MinimapLayout {
     /// The minimum width of the minimap in columns. If the minimap is smaller than this, it will be hidden.
     const MINIMAP_MIN_WIDTH_COLUMNS: f32 = 20.;
@@ -714,5 +716,46 @@ impl MinimapLayout {
                 - minimap_scroll_per_editor_line * ScrollOffset::from(minimap_line_height),
         );
         (pixels_per_line > Pixels::ZERO).then_some(pixels_per_line)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn radius() -> Pixels {
+        workspace::CARD_RADIUS - workspace::CARD_INSET
+    }
+
+    fn minimap() -> Bounds<Pixels> {
+        Bounds::new(point(px(0.), px(0.)), size(px(100.), px(500.)))
+    }
+
+    #[test]
+    fn thumb_at_top_rounds_top_right_only() {
+        let corners = minimap_thumb_corners(minimap(), Bounds::new(point(px(0.), px(0.)), size(px(100.), px(50.))));
+        assert_eq!(corners.top_right, radius());
+        assert_eq!(corners.bottom_right, Pixels::ZERO);
+        assert_eq!(corners.top_left, Pixels::ZERO);
+    }
+
+    #[test]
+    fn thumb_at_bottom_rounds_bottom_right_only() {
+        let corners = minimap_thumb_corners(minimap(), Bounds::new(point(px(0.), px(450.)), size(px(100.), px(50.))));
+        assert_eq!(corners.top_right, Pixels::ZERO);
+        assert_eq!(corners.bottom_right, radius());
+    }
+
+    #[test]
+    fn thumb_near_top_curves_in_partially() {
+        let corners = minimap_thumb_corners(minimap(), Bounds::new(point(px(0.), px(2.)), size(px(100.), px(50.))));
+        assert_eq!(corners.top_right, (radius() - px(2.)).max(Pixels::ZERO));
+    }
+
+    #[test]
+    fn thumb_in_middle_is_square() {
+        let corners = minimap_thumb_corners(minimap(), Bounds::new(point(px(0.), px(200.)), size(px(100.), px(50.))));
+        assert_eq!(corners.top_right, Pixels::ZERO);
+        assert_eq!(corners.bottom_right, Pixels::ZERO);
     }
 }

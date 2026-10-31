@@ -80,7 +80,7 @@
   listed. Auto-reveal skips ignored files, but not library files, which are
   often gitignored on their host.
 - Outside the panel, a library file is labeled by its full path (multibuffer
-  headers, breadcrumbs), since a library-relative path like `src/lib.rs` reads
+  headers), since a library-relative path like `src/lib.rs` reads
   as a project file.
 - Library sources are read-only:
   - Buffers open with `Capability::ReadOnly`, including buffers a remote host

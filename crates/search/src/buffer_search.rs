@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use any_vec::AnyVec;
 use collections::HashMap;
-use ed_actions::outline::ToggleOutline;
 use ed_actions::workspace::CopyPath;
 use ed_actions::workspace::CopyRelativePath;
 use editor::DiffStyleControls;
@@ -464,11 +463,6 @@ impl Render for BufferSearchBar {
             .on_action(cx.listener(Self::dismiss))
             .on_action(cx.listener(Self::select_next_match))
             .on_action(cx.listener(Self::select_prev_match))
-            .on_action(cx.listener(|this, _: &ToggleOutline, window, cx| {
-                if let Some(active_searchable_item) = &mut this.active_searchable_item {
-                    active_searchable_item.relay_action(Box::new(ToggleOutline), window, cx);
-                }
-            }))
             .on_action(cx.listener(|this, _: &CopyPath, window, cx| {
                 if let Some(active_searchable_item) = &mut this.active_searchable_item {
                     active_searchable_item.relay_action(Box::new(CopyPath), window, cx);

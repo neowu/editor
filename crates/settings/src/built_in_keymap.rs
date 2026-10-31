@@ -224,7 +224,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("alt-enter", "search::SelectAllMatches"),
             KeyBindingSpec::new("cmd-f", "search::FocusSearch"),
             KeyBindingSpec::new("cmd-alt-l", "search::ToggleSelection"),
-            KeyBindingSpec::new("cmd-shift-o", "outline::Toggle"),
             KeyBindingSpec::new("alt-cmd-f", "text_finder::Toggle"),
         ],
     );
@@ -445,7 +444,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
         Some("Editor && mode == full"),
         true,
         [
-            KeyBindingSpec::new("cmd-shift-o", "outline::Toggle"),
             KeyBindingSpec::new("ctrl-g", "go_to_line::Toggle"),
             KeyBindingSpec::new("cmd-shift-backspace", "editor::GoToPreviousChange"),
             KeyBindingSpec::new("cmd-shift-alt-backspace", "editor::GoToNextChange"),
@@ -639,9 +637,7 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
         Some("Editor && mode == full"),
         true,
         [
-            KeyBindingSpec::new("alt-enter", "editor::OpenExcerpts"),
             KeyBindingSpec::new("shift-enter", "editor::ExpandExcerpts"),
-            KeyBindingSpec::new("cmd-alt-enter", "editor::OpenExcerptsSplit"),
             KeyBindingSpec::new("cmd-shift-e", "pane::RevealInProjectPanel"),
             KeyBindingSpec::new("cmd-f8", "editor::GoToHunk"),
             KeyBindingSpec::new("cmd-shift-f8", "editor::GoToPreviousHunk"),
@@ -667,8 +663,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("space", "outline_panel::OpenSelectedEntry"),
             KeyBindingSpec::new("shift-down", "menu::SelectNext"),
             KeyBindingSpec::new("shift-up", "menu::SelectPrevious"),
-            KeyBindingSpec::new("alt-enter", "editor::OpenExcerpts"),
-            KeyBindingSpec::new("cmd-alt-enter", "editor::OpenExcerptsSplit"),
         ],
     );
     add_bindings(

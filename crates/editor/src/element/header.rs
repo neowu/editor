@@ -38,13 +38,11 @@ use ui::ButtonLike;
 use ui::ContextMenu;
 use ui::DiffStat;
 use ui::Indicator;
-use ui::KeyBinding;
 use ui::Tooltip;
 use ui::prelude::*;
 use ui::right_click_menu;
 use ui::text_for_keystroke;
 use ui::utils::WithRemSize;
-use workspace::ItemHandle;
 use workspace::ItemSettings;
 use workspace::OpenInTerminal;
 use workspace::OpenTerminal;
@@ -52,7 +50,6 @@ use workspace::RevealInProjectPanel;
 
 use super::BlockLayout;
 use super::EditorElement;
-use super::render_breadcrumb_text;
 use crate::BUFFER_HEADER_PADDING;
 use crate::DisplayRow;
 use crate::Editor;
@@ -60,7 +57,6 @@ use crate::EditorSnapshot;
 use crate::FILE_HEADER_HEIGHT;
 use crate::JumpData;
 use crate::MULTI_BUFFER_EXCERPT_HEADER_HEIGHT;
-use crate::OpenExcerpts;
 use crate::StickyHeaderExcerpt;
 use crate::ToggleFold;
 use crate::ToggleFoldAll;
@@ -207,11 +203,8 @@ pub(crate) fn render_buffer_header(
     let editor_read = editor.read(cx);
     let multi_buffer = editor_read.buffer.read(cx);
     let is_read_only = editor_read.read_only(cx);
-    let editor_handle: &dyn ItemHandle = editor;
     let multibuffer_snapshot = multi_buffer.snapshot(cx);
     let buffer = for_excerpt.buffer(&multibuffer_snapshot);
-
-    let breadcrumbs = if is_selected { editor_read.breadcrumbs_inner(cx) } else { None };
 
     let file_status =
         multi_buffer.all_diff_hunks_expanded().then(|| editor_read.status_for_buffer_id(buffer_id, cx)).flatten();
@@ -295,7 +288,15 @@ pub(crate) fn render_buffer_header(
                 })
                 .when(is_sticky && opaque_window, |s| s.shadow_md())
                 .when(show_header_background, |s| s.bg(colors.editor_subheader_background))
-                .hover(|s| s.bg(colors.element_hover))
+                // Flatten the hover tint onto the header so it stays opaque and the
+                // split divider underneath doesn't show through.
+                .hover(|s| {
+                    s.bg(if show_header_background {
+                        colors.editor_subheader_background.blend(colors.element_hover)
+                    } else {
+                        colors.element_hover
+                    })
+                })
                 .map(|header| {
                     let editor = editor.clone();
                     let buffer_id = for_excerpt.buffer_id();
@@ -398,7 +399,7 @@ pub(crate) fn render_buffer_header(
                                             let jump_data = jump_data.clone();
                                             move |editor, e: &ClickEvent, window, cx| {
                                                 editor.open_excerpts_common(
-                                                    Some(jump_data.clone()),
+                                                    jump_data.clone(),
                                                     e.modifiers().secondary(),
                                                     window,
                                                     cx,
@@ -418,18 +419,6 @@ pub(crate) fn render_buffer_header(
                                 .when(!buffer.capability.editable(), |el| {
                                     el.child(Icon::new(IconName::FileLock).color(Color::Muted))
                                 })
-                                .when_some(breadcrumbs, |then, breadcrumbs| {
-                                    let font = theme_settings::ThemeSettings::get_global(cx).buffer_font.clone();
-                                    then.child(render_breadcrumb_text(
-                                        breadcrumbs,
-                                        Some(font),
-                                        None,
-                                        editor_handle,
-                                        true,
-                                        window,
-                                        cx,
-                                    ))
-                                })
                         }))
                         .child(
                             h_flex()
@@ -447,18 +436,11 @@ pub(crate) fn render_buffer_header(
                                         Button::new("open-file-button", open_file_label)
                                             .style(ButtonStyle::OutlinedCustom(cx.theme().colors().border.opacity(0.6)))
                                             .layer(ui::ElevationIndex::ElevatedSurface)
-                                            .when(is_selected, |this| {
-                                                this.key_binding(KeyBinding::for_action_in(
-                                                    &OpenExcerpts,
-                                                    &focus_handle,
-                                                    cx,
-                                                ))
-                                            })
                                             .on_click(window.listener_for(editor, {
                                                 let jump_data = jump_data.clone();
                                                 move |editor, e: &ClickEvent, window, cx| {
                                                     editor.open_excerpts_common(
-                                                        Some(jump_data.clone()),
+                                                        jump_data.clone(),
                                                         e.modifiers().secondary(),
                                                         window,
                                                         cx,
@@ -474,7 +456,7 @@ pub(crate) fn render_buffer_header(
                             move |editor, e: &ClickEvent, window, cx| {
                                 if e.modifiers().alt {
                                     editor.open_excerpts_common(
-                                        Some(jump_data.clone()),
+                                        jump_data.clone(),
                                         e.modifiers().secondary(),
                                         window,
                                         cx,

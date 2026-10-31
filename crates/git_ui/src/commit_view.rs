@@ -16,7 +16,6 @@ use editor::HiddenDiffHunkRenderer;
 use editor::MultiBuffer;
 use editor::SelectionEffects;
 use editor::SplittableEditor;
-use editor::actions::OpenExcerpts;
 use editor::multibuffer_context_lines;
 use editor::scroll::Autoscroll;
 use editor::scroll::ScrollAnchor;
@@ -861,7 +860,7 @@ impl CommitView {
             return;
         }
         self.editor.update(cx, |editor, cx| {
-            editor.rhs_editor().update(cx, |editor, cx| editor.open_excerpts(&OpenExcerpts, window, cx))
+            editor.rhs_editor().update(cx, |editor, cx| editor.open_excerpt_at_newest_cursor(window, cx))
         });
     }
 

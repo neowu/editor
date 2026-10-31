@@ -265,7 +265,6 @@ impl CodeContextMenu {
 pub enum ContextMenuOrigin {
     Cursor,
     GutterIndicator(DisplayRow),
-    QuickActionBar,
 }
 
 pub struct CompletionsMenu {
@@ -1810,7 +1809,6 @@ impl CodeActionsMenu {
             Some(CodeActionSource::Indicator(row)) | Some(CodeActionSource::RunMenu(row)) => {
                 ContextMenuOrigin::GutterIndicator(*row)
             }
-            Some(CodeActionSource::QuickActionBar) => ContextMenuOrigin::QuickActionBar,
             None => ContextMenuOrigin::Cursor,
         }
     }
@@ -1824,7 +1822,6 @@ impl CodeActionsMenu {
     ) -> AnyElement {
         let actions = self.actions.clone();
         let selected_item = self.selected_item;
-        let is_quick_action_bar = matches!(self.origin(), ContextMenuOrigin::QuickActionBar);
 
         let list = uniform_list(
             "code_actions_menu",
@@ -1850,7 +1847,6 @@ impl CodeActionsMenu {
                                     .max_w(CODE_ACTION_MENU_MAX_WIDTH)
                                     .overflow_hidden()
                                     .text_ellipsis()
-                                    .when(is_quick_action_bar, |this| this.text_ui(cx))
                                     .when(selected, |this| this.text_color(colors.text_accent))
                                     .child(action.menu_label()),
                             )

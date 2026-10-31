@@ -5,7 +5,6 @@ pub(crate) mod mac_only_instance;
 
 pub(crate) mod move_to_applications;
 mod open_listener;
-mod quick_action_bar;
 
 use std::borrow::Cow;
 use std::path::PathBuf;
@@ -15,7 +14,6 @@ use std::sync::atomic::{self};
 
 use anyhow::Context as _;
 pub use app_menus::*;
-use breadcrumbs::Breadcrumbs;
 use collections::VecDeque;
 use ed_actions::About;
 use ed_actions::OpenBrowser;
@@ -66,7 +64,6 @@ pub use open_listener::*;
 use outline_panel::OutlinePanel;
 use project::DirectoryLister;
 use project_panel::ProjectPanel;
-use quick_action_bar::QuickActionBar;
 use recent_projects::open_remote_project;
 use search::project_search::ProjectSearchBar;
 use settings::DefaultOpenBehavior;
@@ -627,12 +624,8 @@ fn initialize_pane(workspace: &Workspace, pane: &Entity<Pane>, window: &mut Wind
             toolbar.add_item(solo_diff_style_toolbar, window, cx);
             let file_diff_style_toolbar = cx.new(FileDiffStyleToolbar::new);
             toolbar.add_item(file_diff_style_toolbar, window, cx);
-            let breadcrumbs = cx.new(|_| Breadcrumbs::new());
-            toolbar.add_item(breadcrumbs, window, cx);
             let buffer_search_bar = cx.new(|cx| search::BufferSearchBar::new(window, cx));
-            toolbar.add_item(buffer_search_bar.clone(), window, cx);
-            let quick_action_bar = cx.new(|cx| QuickActionBar::new(buffer_search_bar, workspace, cx));
-            toolbar.add_item(quick_action_bar, window, cx);
+            toolbar.add_item(buffer_search_bar, window, cx);
             let diagnostic_editor_controls = cx.new(|_| diagnostics::ToolbarControls::new());
             toolbar.add_item(diagnostic_editor_controls, window, cx);
             let project_search_bar = cx.new(|_| ProjectSearchBar::new());
@@ -877,11 +870,6 @@ fn open_log_file(workspace: &Workspace, window: &Window, cx: &Context<Workspace>
                 .new_window_entity(|window, cx| {
                     let mut editor = Editor::for_multibuffer(buffer, Some(project), window, cx);
                     editor.set_read_only(true);
-                    editor.set_breadcrumb_header(format!(
-                        "Last {} lines in {}",
-                        MAX_LINES,
-                        paths::log_file().display()
-                    ));
                     let last_multi_buffer_offset = editor.buffer().read(cx).len(cx);
                     editor.change_selections(editor::SelectionEffects::default(), window, cx, |s| {
                         s.select_ranges(Some(last_multi_buffer_offset..last_multi_buffer_offset));
@@ -1035,7 +1023,6 @@ fn open_bundled_file(
                                 let mut editor = Editor::for_multibuffer(buffer, Some(project.clone()), window, cx);
                                 editor.set_read_only(true);
                                 editor.set_should_serialize(false, cx);
-                                editor.set_breadcrumb_header(title.into());
                                 editor
                             })),
                             None,

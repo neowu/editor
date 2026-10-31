@@ -17,7 +17,6 @@ use gpui::EntityId;
 use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;
-use gpui::Font;
 use gpui::Pixels;
 use gpui::Point;
 use gpui::Render;
@@ -48,7 +47,6 @@ use util::ResultExt;
 use crate::DelayedDebouncedEditAction;
 use crate::ItemNavHistory;
 use crate::SerializableItemRegistry;
-use crate::ToolbarItemLocation;
 use crate::Workspace;
 use crate::WorkspaceId;
 use crate::invalid_item_view::InvalidItemView;
@@ -133,7 +131,7 @@ impl Settings for PreviewTabsSettings {
 pub enum ItemEvent {
     CloseItem,
     UpdateTab,
-    UpdateBreadcrumbs,
+    UpdateActivePath,
     Edit,
 }
 
@@ -325,19 +323,6 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
         None
     }
 
-    fn breadcrumb_location(&self, _: &App) -> ToolbarItemLocation {
-        ToolbarItemLocation::Hidden
-    }
-
-    fn breadcrumbs(&self, _cx: &App) -> Option<(Vec<HighlightedText>, Option<Font>)> {
-        None
-    }
-
-    /// Returns optional elements to render to the left of the breadcrumb.
-    fn breadcrumb_prefix(&self, _window: &mut Window, _cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
-        None
-    }
-
     fn added_to_workspace(&mut self, _workspace: &mut Workspace, _window: &mut Window, _cx: &mut Context<Self>) {}
 
     fn show_toolbar(&self) -> bool {
@@ -501,9 +486,6 @@ pub trait ItemHandle: 'static + Send {
     fn to_serializable_item_handle(&self, cx: &App) -> Option<Box<dyn SerializableItemHandle>>;
     fn on_release(&self, cx: &mut App, callback: Box<dyn FnOnce(&mut App) + Send>) -> gpui::Subscription;
     fn to_searchable_item_handle(&self, cx: &App) -> Option<Box<dyn SearchableItemHandle>>;
-    fn breadcrumb_location(&self, cx: &App) -> ToolbarItemLocation;
-    fn breadcrumbs(&self, cx: &App) -> Option<(Vec<HighlightedText>, Option<Font>)>;
-    fn breadcrumb_prefix(&self, window: &mut Window, cx: &mut App) -> Option<gpui::AnyElement>;
     fn show_toolbar(&self, cx: &App) -> bool;
     fn side_card(&self, cx: &App) -> Option<AnyView>;
     fn pixel_position_of_cursor(&self, cx: &App) -> Option<Point<Pixels>>;
@@ -736,7 +718,7 @@ impl<T: Item> ItemHandle for Entity<T> {
                             }
                         }
 
-                        ItemEvent::UpdateBreadcrumbs => {
+                        ItemEvent::UpdateActivePath => {
                             if &pane == workspace.active_pane()
                                 && pane
                                     .read(cx)
@@ -897,18 +879,6 @@ impl<T: Item> ItemHandle for Entity<T> {
 
     fn to_searchable_item_handle(&self, cx: &App) -> Option<Box<dyn SearchableItemHandle>> {
         self.read(cx).as_searchable(self, cx)
-    }
-
-    fn breadcrumb_location(&self, cx: &App) -> ToolbarItemLocation {
-        self.read(cx).breadcrumb_location(cx)
-    }
-
-    fn breadcrumbs(&self, cx: &App) -> Option<(Vec<HighlightedText>, Option<Font>)> {
-        self.read(cx).breadcrumbs(cx)
-    }
-
-    fn breadcrumb_prefix(&self, window: &mut Window, cx: &mut App) -> Option<gpui::AnyElement> {
-        self.update(cx, |item, cx| item.breadcrumb_prefix(window, cx))
     }
 
     fn show_toolbar(&self, cx: &App) -> bool {

@@ -63,8 +63,6 @@ pub struct EditorSettingsContent {
     ///
     /// Default: 300
     pub hover_popover_hiding_delay: Option<DelayMs>,
-    /// Toolbar related settings
-    pub toolbar: Option<ToolbarContent>,
     /// Minimap related settings
     pub minimap: Option<MinimapContent>,
     /// Whether the editor will scroll beyond the last line.
@@ -261,23 +259,6 @@ pub struct CursorAnimationSettingsContent {
     ///
     /// Default: false
     pub enabled: Option<bool>,
-}
-
-// Toolbar related settings
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ToolbarContent {
-    /// Whether to display breadcrumbs in the editor toolbar.
-    ///
-    /// Default: true
-    pub breadcrumbs: Option<bool>,
-    /// Whether to display quick action buttons in the editor toolbar.
-    ///
-    /// Default: true
-    pub quick_actions: Option<bool>,
-    /// Whether to display code action buttons in the editor toolbar.
-    ///
-    /// Default: false
-    pub code_actions: Option<bool>,
 }
 
 /// Minimap related settings

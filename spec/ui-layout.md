@@ -117,10 +117,11 @@ because it hurt readability; an opaque window is also cheaper to composite.
   File, Search Project, …) has nothing to do with the terminal. Every terminal
   pane gets these buttons in `new_terminal_pane`, so panes restored from a
   session or created by moving a tab into a split get them too.
-- Pane toolbars (search bars, breadcrumbs) have no bottom line either; they sit
-  flat inside the card.
-- Breadcrumbs have no hover tooltip and no right-click action (no copy path);
-  clicking them still toggles the symbol outline.
+- The center pane `+` menu groups New File / Open File, then the searches
+  (Search Buffer, Search Project, Search Symbols), then terminals.
+- Pane toolbars (search bars, diff controls) have no bottom line either; they
+  sit flat inside the card. Editor panes have no breadcrumbs or quick action
+  bar (see editor.md).
 - An empty pane (hints or welcome page) leaves a blank strip of tab-bar height
   above its card, so the card does not jump when the first tab opens or the
   last one closes.
@@ -132,7 +133,7 @@ because it hurt readability; an opaque window is also cheaper to composite.
   side, keeping square content corners (editor background, scrollbars) inside
   the rounded edge. If the radius grows, the inset must grow so that
   inset >= radius × (1 − 1/√2).
-- Symbols in the outline panel and the editor's outline modal render in the UI
+- Symbols in the outline panel render in the UI
   font at the project panel's label size, not the buffer font. Syntax highlight
   colours are kept.
 - In multi-buffer views (search results, diffs) the outline panel always shows
