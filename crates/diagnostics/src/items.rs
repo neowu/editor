@@ -28,6 +28,7 @@ use ui::h_flex;
 use ui::prelude::*;
 use util::ResultExt;
 use workspace::StatusItemView;
+use workspace::status_item_color;
 use workspace::ToolbarItemEvent;
 use workspace::Workspace;
 use workspace::item::ItemHandle;
@@ -42,6 +43,8 @@ pub struct DiagnosticIndicator {
     workspace: WeakEntity<Workspace>,
     current_diagnostic: Option<Diagnostic>,
     active_editor: Option<WeakEntity<Editor>>,
+    /// Whether the project diagnostics view is the active pane item.
+    diagnostics_active: bool,
     _observe_active_editor: Option<Subscription>,
 
     diagnostics_update: Task<()>,
@@ -55,17 +58,20 @@ impl Render for DiagnosticIndicator {
             return indicator.hidden();
         }
 
+        // The error and warning icons keep their colours; the check icon and
+        // the counts take the accent while project diagnostics is active.
+        let color = status_item_color(self.diagnostics_active);
         let diagnostic_indicator = match (self.summary.error_count, self.summary.warning_count) {
-            (0, 0) => h_flex().child(Icon::new(IconName::Check).size(IconSize::Small).color(Color::Default)),
+            (0, 0) => h_flex().child(Icon::new(IconName::Check).size(IconSize::Small).color(color)),
             (error_count, warning_count) => h_flex()
                 .gap_1()
                 .when(error_count > 0, |this| {
                     this.child(Icon::new(IconName::XCircle).size(IconSize::Small).color(Color::Error))
-                        .child(Label::new(error_count.to_string()).size(LabelSize::Small))
+                        .child(Label::new(error_count.to_string()).size(LabelSize::Small).color(color))
                 })
                 .when(warning_count > 0, |this| {
                     this.child(Icon::new(IconName::Warning).size(IconSize::Small).color(Color::Warning))
-                        .child(Label::new(warning_count.to_string()).size(LabelSize::Small))
+                        .child(Label::new(warning_count.to_string()).size(LabelSize::Small).color(color))
                 }),
         };
 
@@ -142,6 +148,7 @@ impl DiagnosticIndicator {
         Self {
             summary: project.read(cx).diagnostic_summary(false, cx),
             active_editor: None,
+            diagnostics_active: false,
             workspace: workspace.weak_handle(),
             current_diagnostic: None,
             _observe_active_editor: None,
@@ -206,6 +213,8 @@ impl StatusItemView for DiagnosticIndicator {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.diagnostics_active =
+            active_pane_item.is_some_and(|item| item.downcast::<ProjectDiagnosticsEditor>().is_some());
         if let Some(editor) = active_pane_item.and_then(|item| item.downcast::<Editor>()) {
             self.active_editor = Some(editor.downgrade());
             self._observe_active_editor = Some(cx.observe_in(&editor, window, Self::update));

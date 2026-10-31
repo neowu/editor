@@ -29,6 +29,9 @@
   line, modeline) or a manual pick in the language selector. Untitled buffers
   are never detected from their contents (no ML detection, no
   `language_detection` setting) and stay Plain Text until saved or picked.
+- The status bar language button and the language selector follow the buffer
+  under the cursor, including in multi-buffer views (diffs, commits), and act
+  on the pane shown in the current mode (the history pane in Git History).
 - Fallback highlighting: any buffer whose language has no tree-sitter grammar
   (including plain text) is highlighted with the Sublime/TextMate syntaxes
   bundled by `two-face` (syntect, Oniguruma regex). The syntax is picked by

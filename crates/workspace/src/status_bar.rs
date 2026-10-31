@@ -1,4 +1,5 @@
 use std::any::TypeId;
+use std::ops::Deref;
 
 use gpui::Anchor;
 use gpui::AnyView;
@@ -26,7 +27,7 @@ use crate::MultiWorkspace;
 use crate::Pane;
 use crate::SidebarSide;
 use crate::ToggleWorkspaceSidebar;
-use crate::dock::PanelButtons;
+use crate::WorkspaceMode;
 use crate::sidebar_side_context_menu;
 
 pub trait StatusItemView: Render {
@@ -43,6 +44,43 @@ trait StatusItemViewHandle: Send {
     fn to_any(&self) -> AnyView;
     fn set_active_pane_item(&self, active_pane_item: Option<&dyn ItemHandle>, window: &mut Window, cx: &mut App);
     fn item_type(&self) -> TypeId;
+}
+
+/// The colour of a status bar button that opens a pane item: accent while
+/// that item is the active one, so every such button reads the same way.
+pub const fn status_item_color(active: bool) -> Color {
+    if active { Color::Accent } else { Color::Default }
+}
+
+/// The workspace modes a status bar item is shown in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StatusItemModes {
+    Editor,
+    GitHistory,
+    All,
+}
+
+impl StatusItemModes {
+    fn includes(self, mode: WorkspaceMode) -> bool {
+        match self {
+            StatusItemModes::Editor => mode == WorkspaceMode::Editor,
+            StatusItemModes::GitHistory => mode == WorkspaceMode::GitHistory,
+            StatusItemModes::All => true,
+        }
+    }
+}
+
+struct StatusItem {
+    view: Box<dyn StatusItemViewHandle>,
+    modes: StatusItemModes,
+}
+
+impl Deref for StatusItem {
+    type Target = dyn StatusItemViewHandle;
+
+    fn deref(&self) -> &Self::Target {
+        self.view.as_ref()
+    }
 }
 
 #[derive(Default)]
@@ -73,11 +111,11 @@ impl SidebarStatus {
 }
 
 pub struct StatusBar {
-    left_items: Vec<Box<dyn StatusItemViewHandle>>,
-    right_items: Vec<Box<dyn StatusItemViewHandle>>,
+    left_items: Vec<StatusItem>,
+    right_items: Vec<StatusItem>,
     active_pane: Entity<Pane>,
     multi_workspace: Option<WeakEntity<MultiWorkspace>>,
-    dock_buttons_hidden: bool,
+    mode: WorkspaceMode,
     focus_handle: FocusHandle,
     _observe_active_pane: Subscription,
 }
@@ -157,7 +195,7 @@ impl StatusBar {
             .when(sidebar.show_toggle && !sidebar.open && sidebar.side == SidebarSide::Left, |this| {
                 this.child(self.render_sidebar_toggle(sidebar, cx))
             })
-            .children(self.visible_items(&self.left_items).map(|item| item.to_any()))
+            .children(self.shown_items(&self.left_items).map(|item| item.to_any()))
     }
 
     fn render_right_tools(&self, sidebar: &SidebarStatus, cx: &Context<Self>) -> impl IntoElement {
@@ -165,7 +203,7 @@ impl StatusBar {
             .flex_shrink_0()
             .gap_1()
             .overflow_x_hidden()
-            .children(self.visible_items(&self.right_items).rev().map(|item| item.to_any()))
+            .children(self.shown_items(&self.right_items).rev().map(|item| item.to_any()))
             .when(sidebar.show_toggle && !sidebar.open && sidebar.side == SidebarSide::Right, |this| {
                 this.child(self.render_sidebar_toggle(sidebar, cx))
             })
@@ -219,7 +257,7 @@ impl StatusBar {
             right_items: Vec::default(),
             active_pane: active_pane.clone(),
             multi_workspace,
-            dock_buttons_hidden: false,
+            mode: WorkspaceMode::default(),
             focus_handle: cx.focus_handle(),
             _observe_active_pane: cx
                 .observe_in(active_pane, window, |this, _, window, cx| this.update_active_pane_item(window, cx)),
@@ -233,32 +271,42 @@ impl StatusBar {
         cx.notify();
     }
 
-    pub fn set_dock_buttons_hidden(&mut self, hidden: bool, cx: &mut Context<Self>) {
-        self.dock_buttons_hidden = hidden;
+    pub fn set_mode(&mut self, mode: WorkspaceMode, cx: &mut Context<Self>) {
+        self.mode = mode;
         cx.notify();
     }
 
-    fn visible_items<'a>(
-        &self,
-        items: &'a [Box<dyn StatusItemViewHandle>],
-    ) -> impl DoubleEndedIterator<Item = &'a Box<dyn StatusItemViewHandle>> {
-        let dock_buttons_hidden = self.dock_buttons_hidden;
-        items.iter().filter(move |item| is_item_visible(item.item_type(), dock_buttons_hidden))
+    fn shown_items<'a>(&self, items: &'a [StatusItem]) -> impl DoubleEndedIterator<Item = &'a StatusItem> {
+        let mode = self.mode;
+        items.iter().filter(move |item| item.modes.includes(mode))
     }
 
+    /// Adds an item shown only in Workspace mode.
     pub fn add_left_item<T>(&mut self, item: Entity<T>, window: &mut Window, cx: &mut Context<Self>)
     where
+        T: 'static + StatusItemView,
+    {
+        self.add_left_item_in(item, StatusItemModes::Editor, window, cx);
+    }
+
+    pub fn add_left_item_in<T>(
+        &mut self,
+        item: Entity<T>,
+        modes: StatusItemModes,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) where
         T: 'static + StatusItemView,
     {
         let active_pane_item = self.active_pane.read(cx).active_item();
         item.set_active_pane_item(active_pane_item.as_deref(), window, cx);
 
-        self.left_items.push(Box::new(item));
+        self.left_items.push(StatusItem { view: Box::new(item), modes });
         cx.notify();
     }
 
     pub fn item_of_type<T: StatusItemView>(&self) -> Option<Entity<T>> {
-        self.left_items.iter().chain(self.right_items.iter()).find_map(|item| item.to_any().downcast().ok())
+        self.left_items.iter().chain(&self.right_items).find_map(|item| item.to_any().downcast().ok())
     }
 
     pub fn position_of_item<T>(&self) -> Option<usize>
@@ -290,10 +338,11 @@ impl StatusBar {
         let active_pane_item = self.active_pane.read(cx).active_item();
         item.set_active_pane_item(active_pane_item.as_deref(), window, cx);
 
+        let item = StatusItem { view: Box::new(item), modes: StatusItemModes::Editor };
         if position < self.left_items.len() {
-            self.left_items.insert(position + 1, Box::new(item))
+            self.left_items.insert(position + 1, item)
         } else {
-            self.right_items.insert(position + 1 - self.left_items.len(), Box::new(item))
+            self.right_items.insert(position + 1 - self.left_items.len(), item)
         }
         cx.notify()
     }
@@ -307,14 +356,27 @@ impl StatusBar {
         cx.notify();
     }
 
+    /// Adds an item shown only in Workspace mode.
     pub fn add_right_item<T>(&mut self, item: Entity<T>, window: &mut Window, cx: &mut Context<Self>)
     where
+        T: 'static + StatusItemView,
+    {
+        self.add_right_item_in(item, StatusItemModes::Editor, window, cx);
+    }
+
+    pub fn add_right_item_in<T>(
+        &mut self,
+        item: Entity<T>,
+        modes: StatusItemModes,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) where
         T: 'static + StatusItemView,
     {
         let active_pane_item = self.active_pane.read(cx).active_item();
         item.set_active_pane_item(active_pane_item.as_deref(), window, cx);
 
-        self.right_items.push(Box::new(item));
+        self.right_items.push(StatusItem { view: Box::new(item), modes });
         cx.notify();
     }
 
@@ -351,9 +413,6 @@ impl StatusBar {
     }
 }
 
-fn is_item_visible(item_type: TypeId, dock_buttons_hidden: bool) -> bool {
-    !(dock_buttons_hidden && item_type == TypeId::of::<PanelButtons>())
-}
 
 impl<T: StatusItemView> StatusItemViewHandle for Entity<T> {
     fn to_any(&self) -> AnyView {
@@ -377,16 +436,25 @@ impl From<&dyn StatusItemViewHandle> for AnyView {
 
 #[cfg(test)]
 mod tests {
-    use std::any::TypeId;
+    use ui::Color;
 
-    use super::is_item_visible;
-    use crate::dock::PanelButtons;
+    use super::StatusItemModes;
+    use super::status_item_color;
+    use crate::WorkspaceMode;
 
     #[test]
-    fn test_is_item_visible() {
-        assert!(is_item_visible(TypeId::of::<PanelButtons>(), false));
-        assert!(!is_item_visible(TypeId::of::<PanelButtons>(), true));
-        assert!(is_item_visible(TypeId::of::<u8>(), true));
-        assert!(is_item_visible(TypeId::of::<u8>(), false));
+    fn test_status_item_color() {
+        assert_eq!(status_item_color(true), Color::Accent);
+        assert_eq!(status_item_color(false), Color::Default);
+    }
+
+    #[test]
+    fn test_status_item_modes_includes() {
+        assert!(StatusItemModes::Editor.includes(WorkspaceMode::Editor));
+        assert!(!StatusItemModes::Editor.includes(WorkspaceMode::GitHistory));
+        assert!(!StatusItemModes::GitHistory.includes(WorkspaceMode::Editor));
+        assert!(StatusItemModes::GitHistory.includes(WorkspaceMode::GitHistory));
+        assert!(StatusItemModes::All.includes(WorkspaceMode::Editor));
+        assert!(StatusItemModes::All.includes(WorkspaceMode::GitHistory));
     }
 }

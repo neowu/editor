@@ -217,6 +217,8 @@ use sqlez::bindable::Column;
 use sqlez::bindable::StaticColumnCount;
 use sqlez::statement::Statement;
 use status_bar::StatusBar;
+pub use status_bar::StatusItemModes;
+pub use status_bar::status_item_color;
 pub use status_bar::StatusItemView;
 use task::SpawnInTerminal;
 use theme::ActiveTheme;
@@ -1227,11 +1229,6 @@ impl WorkspaceMode {
     /// Buffers outside the project (commit revisions) stay in the history pane.
     pub fn opens_in_history_pane(self, is_project_file: bool) -> bool {
         self == WorkspaceMode::GitHistory && !is_project_file
-    }
-
-    /// Dock buttons are hidden while the docks are.
-    pub fn shows_dock_buttons(self) -> bool {
-        self == WorkspaceMode::Editor
     }
 }
 
@@ -2440,7 +2437,7 @@ impl Workspace {
         let pane = self.shown_pane().clone();
         self.status_bar.update(cx, |status_bar, cx| {
             status_bar.set_active_pane(&pane, window, cx);
-            status_bar.set_dock_buttons_hidden(!mode.shows_dock_buttons(), cx);
+            status_bar.set_mode(mode, cx);
         });
         cx.notify();
         true
@@ -8786,11 +8783,5 @@ mod tests {
         assert!(!WorkspaceMode::GitHistory.opens_in_history_pane(true));
         assert!(!WorkspaceMode::Editor.opens_in_history_pane(false));
         assert!(!WorkspaceMode::Editor.opens_in_history_pane(true));
-    }
-
-    #[test]
-    fn test_shows_dock_buttons() {
-        assert!(WorkspaceMode::Editor.shows_dock_buttons());
-        assert!(!WorkspaceMode::GitHistory.shows_dock_buttons());
     }
 }

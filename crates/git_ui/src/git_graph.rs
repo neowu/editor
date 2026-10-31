@@ -1510,7 +1510,7 @@ impl GitGraph {
 
     /// Selects the newest commit once commits arrive (cached on open, or from
     /// load events), so the details sidebar is always shown. A pending selection
-    /// (e.g. "Show in Git Graph") wins.
+    /// (e.g. "Show in Git History") wins.
     fn select_newest_if_unselected(&mut self, cx: &mut Context<Self>) {
         if let Some(idx) = newest_commit_to_select(
             self.selected_entry_idx,
@@ -3140,7 +3140,7 @@ impl Item for GitGraph {
         Some(TabTooltipContent::Custom(Box::new(Tooltip::element({
             move |_, _| {
                 v_flex()
-                    .child(Label::new(if path_history_path.is_some() { "Path History" } else { "Git Graph" }))
+                    .child(Label::new(if path_history_path.is_some() { "Path History" } else { "Git History" }))
                     .when_some(path_history_path.clone(), |this, path| {
                         this.child(Label::new(path).color(Color::Muted).size(LabelSize::Small))
                     })

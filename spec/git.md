@@ -69,8 +69,12 @@ blobs with no language server, so they are not mixed into editor panes.
   accent-coloured icon, while inactive tabs are muted. Both show the ghost
   hover background, so the filled pill no longer pulls focus from the content.
 - Git History mode hides the docks and editor panes. The status bar stays and
-  follows the active history tab (cursor position, language on revisions), but
-  hides the dock buttons since the docks are hidden. The history area is
+  follows the active history tab, but shows only what applies there: a Git
+  Graph button (`git_graph::Open`, returning to the repository graph),
+  accent-coloured while a graph is the active history tab, and the cursor
+  position and language of revisions. Editor tools (search, diagnostics, …)
+  and dock buttons are hidden. Each status item declares the modes it is shown
+  in. The history area is
   its own pane group, apart from the editor panes: normal panes (folder tabs,
   card, the same toolbar items as editor panes) that split like editor panes:
   split buttons, dragging a tab to a pane edge, and "open to the side"
@@ -112,7 +116,7 @@ blobs with no language server, so they are not mixed into editor panes.
   view's commit. It has no close button; the graph selects the newest commit
   whenever it has commits and nothing selected, whether they were already
   loaded (graph reopened) or arrive later (unless a specific commit is being
-  selected, e.g. "Show in Git Graph"), so the sidebar is always shown except
+  selected, e.g. "Show in Git History"), so the sidebar is always shown except
   for an empty history. One rule (`select_newest_if_unselected`) serves both.
 - In a file history graph (View History / File History), the sidebar reveals
   that file in each selected commit's changed files (folders expanded, row
@@ -123,7 +127,7 @@ blobs with no language server, so they are not mixed into editor panes.
 - The diff card has no header of its own; commit details are in the history
   sidebar. The toolbar has the multibuffer diff controls (collapse/expand all
   files, unified/split diff) on the left and the commit's +/- line counts and
-  "Show in Git Graph" on the right. Search is the tab bar's toggle. Hunk navigation and
+  "Show in Git History" on the right. Search is the tab bar's toggle. Hunk navigation and
   staging buttons are left out: the diff is read-only.
 - Clicking a changed file in the sidebar scrolls the diff to it, bringing the
   commit view's tab and pane to the front and focusing it. In the graph,

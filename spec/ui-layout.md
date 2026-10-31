@@ -71,6 +71,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
   through their settings. Items without other menu entries (search, cursor
   position, language, diagnostics, …) have no right-click menu at all; dock
   panel buttons keep theirs for dock position only.
+- Status bar buttons that open a pane item (project search, project
+  diagnostics, Git History's graph) turn accent while that item is the active
+  tab (`status_item_color`). Diagnostics keeps its error/warning icon colours;
+  its check icon and counts take the accent.
 - Docks always have a fixed size in pixels (width for left/right, height for
   bottom). There is no proportional "flex width" mode and no
   `terminal.flexible` setting. A side dock may shrink when space is tight but
