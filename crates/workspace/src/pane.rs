@@ -3714,7 +3714,6 @@ pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Cont
         split_button("split-right", IconName::SplitRight, "Split Right", SplitDirection::Right, &SplitRight { mode }),
         split_button("split-down", IconName::SplitDown, "Split Down", SplitDirection::Down, &SplitDown { mode }),
     ]);
-    buttons.extend(pane.toolbar.read(cx).tab_bar_fold_all_buttons(cx));
     buttons.push(render_tab_bar_zoom_button(pane, cx));
     buttons
 }

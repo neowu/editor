@@ -131,14 +131,11 @@ because it hurt readability; an opaque window is also cheaper to composite.
   split), shown only for files that have one. Each preview crate owns its
   button (detection and opening) and draws it with the shared
   `pane::render_tab_bar_preview_button`; `ed` only registers them.
-  Between Split Down and Zoom, toolbar items can add a collapse/expand all files
-  button (`ToolbarItemView::tab_bar_fold_all_button`) for
-  every multibuffer (references, commits, diffs, diagnostics from the buffer
-  search bar; project search from its own bar), so a multibuffer with nothing
-  else to show (e.g. find references) gets no toolbar row, and no search row
-  carries a fold button. It collapses all unless every file is already
-  folded, so a partly folded view collapses on the first click. Zoom stays
-  rightmost.
+  Zoom stays rightmost. Multibuffers have no collapse/expand all files button:
+  that is `editor::ToggleFoldAll` (cmd-shift-enter in search bars) or View >
+  Fold All / Unfold All, so a multibuffer with nothing else to show (e.g. find
+  references) gets no toolbar row. While a buffer or project search input has
+  focus, these fold actions go to the searched editor or results, not the input.
   Only the terminal panel has a `+`: a plain button that opens a terminal in
   that pane. Center and Git History panes have no `+` or new-item menu; new
   files, project/symbol search and terminals come from their keybindings and

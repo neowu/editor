@@ -53,12 +53,6 @@ pub trait ToolbarItemView: Render + EventEmitter<ToolbarItemEvent> {
     fn tab_bar_preview_button(&self, _cx: &App) -> Option<AnyElement> {
         None
     }
-
-    /// The collapse/expand all files button this item adds to the pane's tab
-    /// bar for the active pane item, between Split Down and Zoom.
-    fn tab_bar_fold_all_button(&self, _cx: &App) -> Option<AnyElement> {
-        None
-    }
 }
 
 trait ToolbarItemViewHandle: Send {
@@ -74,7 +68,6 @@ trait ToolbarItemViewHandle: Send {
     fn contribute_context(&self, context: &mut KeyContext, cx: &App);
     fn search_shown(&self, cx: &App) -> Option<bool>;
     fn tab_bar_preview_button(&self, cx: &App) -> Option<AnyElement>;
-    fn tab_bar_fold_all_button(&self, cx: &App) -> Option<AnyElement>;
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -236,10 +229,6 @@ impl Toolbar {
         self.items.iter().filter_map(|(item, _)| item.tab_bar_preview_button(cx))
     }
 
-    pub fn tab_bar_fold_all_buttons(&self, cx: &App) -> impl Iterator<Item = AnyElement> {
-        self.items.iter().filter_map(|(item, _)| item.tab_bar_fold_all_button(cx))
-    }
-
     pub const fn hidden(&self) -> bool {
         self.hidden
     }
@@ -288,9 +277,5 @@ impl<T: ToolbarItemView> ToolbarItemViewHandle for Entity<T> {
 
     fn tab_bar_preview_button(&self, cx: &App) -> Option<AnyElement> {
         self.read(cx).tab_bar_preview_button(cx)
-    }
-
-    fn tab_bar_fold_all_button(&self, cx: &App) -> Option<AnyElement> {
-        self.read(cx).tab_bar_fold_all_button(cx)
     }
 }

@@ -24,6 +24,7 @@ use editor::actions::Backtab;
 use editor::actions::FoldAll;
 use editor::actions::SelectAll;
 use editor::actions::Tab;
+use editor::actions::ToggleFoldAll;
 use editor::actions::UnfoldAll;
 use editor::items::active_match_index;
 use editor::multibuffer_context_lines;
@@ -123,7 +124,6 @@ use crate::buffer_search::Deploy;
 use crate::highlight_query_as_regex;
 use crate::search_bar::ActionButtonState;
 use crate::search_bar::HistoryNavigationDirection;
-use crate::search_bar::fold_all_button_state;
 use crate::search_bar::input_base_styles;
 use crate::search_bar::render_action_button;
 use crate::search_bar::render_text_input;
@@ -2262,6 +2262,27 @@ impl ProjectSearchBar {
         self.cycle_field(Direction::Prev, window, cx);
     }
 
+    // The query and filter inputs would otherwise fold themselves, so relay
+    // the fold-all actions to the results.
+    fn toggle_fold_all(&mut self, action: &ToggleFoldAll, window: &mut Window, cx: &mut Context<Self>) {
+        self.update_results_editor(cx, |editor, cx| editor.toggle_fold_all(action, window, cx));
+    }
+
+    fn fold_all(&mut self, action: &FoldAll, window: &mut Window, cx: &mut Context<Self>) {
+        self.update_results_editor(cx, |editor, cx| editor.fold_all(action, window, cx));
+    }
+
+    fn unfold_all(&mut self, action: &UnfoldAll, window: &mut Window, cx: &mut Context<Self>) {
+        self.update_results_editor(cx, |editor, cx| editor.unfold_all(action, window, cx));
+    }
+
+    fn update_results_editor(&self, cx: &mut Context<Self>, f: impl FnOnce(&mut Editor, &mut Context<Editor>)) {
+        if let Some(search_view) = &self.active_project_search {
+            let results_editor = search_view.read(cx).results_editor.clone();
+            results_editor.update(cx, f);
+        }
+    }
+
     fn focus_search(&self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(search_view) = self.active_project_search.as_ref() {
             search_view.update(cx, |search_view, cx| {
@@ -2777,6 +2798,9 @@ impl Render for ProjectSearchBar {
             }))
             .capture_action(cx.listener(Self::tab))
             .capture_action(cx.listener(Self::backtab))
+            .capture_action(cx.listener(Self::toggle_fold_all))
+            .capture_action(cx.listener(Self::fold_all))
+            .capture_action(cx.listener(Self::unfold_all))
             .on_action(cx.listener(|this, action, window, cx| this.confirm(action, window, cx)))
             .on_action(cx.listener(|this, action, window, cx| {
                 this.toggle_replace(action, window, cx);
@@ -2837,18 +2861,6 @@ impl ToolbarItemView for ProjectSearchBar {
         } else {
             ToolbarItemLocation::Hidden
         }
-    }
-
-    fn tab_bar_fold_all_button(&self, cx: &App) -> Option<AnyElement> {
-        let search = self.active_project_search.as_ref()?.read(cx);
-        let (icon, tooltip_label) = fold_all_button_state(search.results_editor.read(cx).are_all_buffers_folded(cx));
-        Some(
-            IconButton::new("toggle-fold-all", icon)
-                .icon_size(IconSize::Small)
-                .tooltip(Tooltip::for_action_title(tooltip_label, &ToggleAllSearchResults))
-                .on_click(|_, window, cx| window.dispatch_action(ToggleAllSearchResults.boxed_clone(), cx))
-                .into_any_element(),
-        )
     }
 }
 

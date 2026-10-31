@@ -20,8 +20,6 @@ use editor::actions::ToggleSoftWrap;
 use editor::actions::UnfoldAll;
 use editor::scroll::Autoscroll;
 use futures::channel::oneshot;
-use gpui::Action as _;
-use gpui::AnyElement;
 use gpui::App;
 use gpui::ClickEvent;
 use gpui::Context;
@@ -62,7 +60,6 @@ use workspace::ToolbarItemEvent;
 use workspace::ToolbarItemLocation;
 use workspace::ToolbarItemView;
 use workspace::Workspace;
-use workspace::item::ItemBufferKind;
 use workspace::item::ItemHandle;
 use workspace::searchable::Direction;
 use workspace::searchable::FilteredSearchRange;
@@ -94,7 +91,6 @@ use crate::search_bar::ActionButtonState;
 use crate::search_bar::HistoryNavigationDirection;
 use crate::search_bar::alignment_element;
 use crate::search_bar::filter_search_results_input;
-use crate::search_bar::fold_all_button_state;
 use crate::search_bar::input_base_styles;
 use crate::search_bar::render_action_button;
 use crate::search_bar::render_text_input;
@@ -385,6 +381,8 @@ impl Render for BufferSearchBar {
             .capture_action(cx.listener(Self::tab))
             .capture_action(cx.listener(Self::backtab))
             .capture_action(cx.listener(Self::toggle_fold_all))
+            .capture_action(cx.listener(Self::fold_all))
+            .capture_action(cx.listener(Self::unfold_all))
             .capture_action(cx.listener(Self::toggle_soft_wrap))
             .on_action(cx.listener(Self::previous_history_query))
             .on_action(cx.listener(Self::next_history_query))
@@ -432,26 +430,6 @@ impl ToolbarItemView for BufferSearchBar {
 
     fn search_shown(&self, _cx: &App) -> Option<bool> {
         self.active_searchable_item.as_ref().map(|_| !self.dismissed)
-    }
-
-    fn tab_bar_fold_all_button(&self, cx: &App) -> Option<AnyElement> {
-        if !self.needs_expand_collapse_option(cx) {
-            return None;
-        }
-        let is_collapsed = self
-            .active_searchable_item
-            .as_ref()
-            .and_then(|item| item.act_as_type(TypeId::of::<Editor>(), cx))
-            .and_then(|item| item.downcast::<Editor>().ok())
-            .is_some_and(|editor: Entity<Editor>| editor.read(cx).are_all_buffers_folded(cx));
-        let (icon, tooltip_label) = fold_all_button_state(is_collapsed);
-        Some(
-            IconButton::new("toggle-fold-all", icon)
-                .icon_size(IconSize::Small)
-                .tooltip(Tooltip::for_action_title(tooltip_label, &ToggleFoldAll))
-                .on_click(|_, window, cx| window.dispatch_action(ToggleFoldAll.boxed_clone(), cx))
-                .into_any_element(),
-        )
     }
 
     fn set_active_pane_item(
@@ -816,14 +794,6 @@ impl BufferSearchBar {
         if self.has_diff_style_controls() { ToolbarItemLocation::PrimaryLeft } else { ToolbarItemLocation::Secondary }
     }
 
-    fn uses_hidden_splittable_editor(&self, cx: &App) -> bool {
-        self.splittable_editor.is_none()
-            && self
-                .active_searchable_item
-                .as_ref()
-                .is_some_and(|item| item.act_as_type(TypeId::of::<SplittableEditor>(), cx).is_some())
-    }
-
     fn supported_options(&self, cx: &Context<Self>) -> workspace::searchable::SearchOptions {
         self.active_searchable_item.as_ref().map(|item| item.supported_options(cx)).unwrap_or_default()
     }
@@ -833,17 +803,27 @@ impl BufferSearchBar {
         self.splittable_editor.is_some()
     }
 
-    // We provide an expand/collapse button if we are in a multibuffer
-    // and not doing a project search.
-    fn needs_expand_collapse_option(&self, cx: &App) -> bool {
-        !self.uses_hidden_splittable_editor(cx)
-            && self.active_searchable_item.as_ref().is_some_and(|item| {
-                item.buffer_kind(cx) == ItemBufferKind::Multibuffer && !item.supported_options(cx).find_in_results
-            })
+    // The query editor would otherwise fold itself, so relay the fold-all
+    // actions to the searched editor while keeping the focus in the search bar.
+    fn toggle_fold_all(&mut self, action: &ToggleFoldAll, window: &mut Window, cx: &mut Context<Self>) {
+        self.update_searched_editor(cx, |editor, cx| editor.toggle_fold_all(action, window, cx));
     }
 
-    fn toggle_fold_all(&mut self, _: &ToggleFoldAll, window: &mut Window, cx: &mut Context<Self>) {
-        self.toggle_fold_all_in_item(window, cx);
+    fn fold_all(&mut self, action: &FoldAll, window: &mut Window, cx: &mut Context<Self>) {
+        self.update_searched_editor(cx, |editor, cx| editor.fold_all(action, window, cx));
+    }
+
+    fn unfold_all(&mut self, action: &UnfoldAll, window: &mut Window, cx: &mut Context<Self>) {
+        self.update_searched_editor(cx, |editor, cx| editor.unfold_all(action, window, cx));
+    }
+
+    fn update_searched_editor(&self, cx: &mut Context<Self>, f: impl FnOnce(&mut Editor, &mut Context<Editor>)) {
+        if let Some(item) = &self.active_searchable_item
+            && let Some(item) = item.act_as_type(TypeId::of::<Editor>(), cx)
+        {
+            let editor = item.downcast::<Editor>().expect("Is an editor");
+            editor.update(cx, f);
+        }
     }
 
     // The query editor is an editor itself and would otherwise swallow this
@@ -866,22 +846,6 @@ impl BufferSearchBar {
         if let Some(item) = item.act_as_type(TypeId::of::<Editor>(), cx) {
             let editor = item.downcast::<Editor>().expect("Is an editor");
             editor.update(cx, |editor, cx| editor.toggle_soft_wrap(action, window, cx));
-        }
-    }
-
-    fn toggle_fold_all_in_item(&self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(item) = &self.active_searchable_item
-            && let Some(item) = item.act_as_type(TypeId::of::<Editor>(), cx)
-        {
-            let editor = item.downcast::<Editor>().expect("Is an editor");
-            editor.update(cx, |editor, cx| {
-                let is_collapsed = editor.are_all_buffers_folded(cx);
-                if is_collapsed {
-                    editor.unfold_all(&UnfoldAll, window, cx);
-                } else {
-                    editor.fold_all(&FoldAll, window, cx);
-                }
-            })
         }
     }
 
