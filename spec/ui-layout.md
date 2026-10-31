@@ -112,7 +112,11 @@ because it hurt readability; an opaque window is also cheaper to composite.
   they move the active tab and are disabled with a single tab; the terminal
   panel clones the terminal. The split and zoom buttons come from one shared
   `pane::render_tab_bar_pane_buttons`, so every tab bar behaves the same; only
-  the `+` menu differs per tab bar.
+  the `+` differs per tab bar. In the terminal panel `+` is a plain button that
+  opens a terminal in that pane, not a menu: the generic new-item menu (New
+  File, Search Project, …) has nothing to do with the terminal. Every terminal
+  pane gets these buttons in `new_terminal_pane`, so panes restored from a
+  session or created by moving a tab into a split get them too.
 - Pane toolbars (search bars, breadcrumbs) have no bottom line either; they sit
   flat inside the card.
 - Breadcrumbs have no hover tooltip and no right-click action (no copy path);

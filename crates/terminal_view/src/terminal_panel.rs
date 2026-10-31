@@ -12,7 +12,6 @@ use db::kvp::KeyValueStore;
 use futures::channel::oneshot;
 use futures::future::join_all;
 use gpui::Action;
-use gpui::Anchor;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::AsyncWindowContext;
@@ -42,8 +41,6 @@ use task::TaskId;
 use terminal::Terminal;
 use terminal::terminal_settings::TerminalSettings;
 use ui::CommonAnimationExt;
-use ui::ContextMenu;
-use ui::PopoverMenu;
 use ui::Tooltip;
 use ui::prelude::*;
 use util::ResultExt;
@@ -133,50 +130,11 @@ pub struct TerminalPanel {
 }
 
 impl TerminalPanel {
-    pub(crate) fn apply_tab_bar_buttons(&self, terminal_pane: &Entity<Pane>, cx: &mut Context<Self>) {
-        terminal_pane.update(cx, |pane, cx| {
-            pane.set_render_tab_bar_buttons(cx, move |pane, window, cx| {
-                let has_focused_rename_editor = pane
-                    .active_item()
-                    .and_then(|item| item.downcast::<TerminalView>())
-                    .is_some_and(|view| view.read(cx).rename_editor_is_focused(window, cx));
-                if !pane.has_focus(window, cx) && !pane.context_menu_focused(window, cx) && !has_focused_rename_editor {
-                    return (None, None);
-                }
-                let focus_handle = pane.focus_handle(cx);
-                let right_children = h_flex()
-                    .gap(DynamicSpacing::Base02.rems())
-                    .child(
-                        PopoverMenu::new("terminal-tab-bar-popover-menu")
-                            .trigger_with_tooltip(
-                                IconButton::new("plus", IconName::Plus).icon_size(IconSize::Small),
-                                Tooltip::text("New…"),
-                            )
-                            .anchor(Anchor::TopRight)
-                            .with_handle(pane.new_item_context_menu_handle.clone())
-                            .menu(move |window, cx| {
-                                let focus_handle = focus_handle.clone();
-                                let menu = ContextMenu::build(window, cx, |menu, _, _| {
-                                    menu.context(focus_handle.clone())
-                                        .action("New Terminal", workspace::NewTerminal::default().boxed_clone())
-                                });
-
-                                Some(menu)
-                            }),
-                    )
-                    .children(workspace::pane::render_tab_bar_pane_buttons(pane, true, cx))
-                    .into_any_element()
-                    .into();
-                (None, right_children)
-            });
-        });
-    }
-
     pub fn new(workspace: &Workspace, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let project = workspace.project();
         let pane = new_terminal_pane(workspace.weak_handle(), project.clone(), false, window, cx);
         let center = PaneGroup::new(pane.clone());
-        let terminal_panel = Self {
+        Self {
             center,
             active_pane: pane,
             focus_handle: cx.focus_handle(),
@@ -188,9 +146,7 @@ impl TerminalPanel {
             _restoration: Task::ready(()),
             deferred_tasks: HashMap::default(),
             active: false,
-        };
-        terminal_panel.apply_tab_bar_buttons(&terminal_panel.active_pane, cx);
-        terminal_panel
+        }
     }
 
     fn serialization_key(workspace: &Workspace) -> Option<String> {
@@ -495,7 +451,7 @@ impl TerminalPanel {
                 .log_err()?;
 
             panel
-                .update_in(cx, move |terminal_panel, window, cx| {
+                .update_in(cx, move |_, window, cx| {
                     let terminal_view = Box::new(cx.new(|cx| {
                         TerminalView::new(
                             terminal.clone(),
@@ -507,7 +463,6 @@ impl TerminalPanel {
                         )
                     }));
                     let pane = new_terminal_pane(weak_workspace, project, is_zoomed, window, cx);
-                    terminal_panel.apply_tab_bar_buttons(&pane, cx);
                     pane.update(cx, |pane, cx| {
                         pane.add_item(terminal_view, true, true, None, window, cx);
                     });
@@ -1011,6 +966,34 @@ fn is_enabled_in_workspace(workspace: &Workspace, cx: &App) -> bool {
     workspace.project().read(cx).supports_terminal(cx)
 }
 
+/// The "+" opens a terminal right away: every entry of the generic new-item
+/// menu other than "New Terminal" is unrelated to the terminal panel.
+fn set_terminal_tab_bar_buttons(pane: &mut Pane, cx: &mut Context<Pane>) {
+    pane.set_render_tab_bar_buttons(cx, move |pane, window, cx| {
+        let has_focused_rename_editor = pane
+            .active_item()
+            .and_then(|item| item.downcast::<TerminalView>())
+            .is_some_and(|view| view.read(cx).rename_editor_is_focused(window, cx));
+        if !pane.has_focus(window, cx) && !has_focused_rename_editor {
+            return (None, None);
+        }
+        let right_children = h_flex()
+            .gap(DynamicSpacing::Base02.rems())
+            .child(
+                IconButton::new("plus", IconName::Plus)
+                    .icon_size(IconSize::Small)
+                    .on_click(|_, window, cx| {
+                        window.dispatch_action(workspace::NewTerminal::default().boxed_clone(), cx);
+                    })
+                    .tooltip(Tooltip::for_action_title("New Terminal", &workspace::NewTerminal::default())),
+            )
+            .children(workspace::pane::render_tab_bar_pane_buttons(pane, true, cx))
+            .into_any_element()
+            .into();
+        (None, right_children)
+    });
+}
+
 pub fn new_terminal_pane(
     workspace: WeakEntity<Workspace>,
     project: Entity<Project>,
@@ -1035,6 +1018,7 @@ pub fn new_terminal_pane(
         pane.set_should_display_tab_bar(|_, _| true);
         pane.set_tab_style(ui::TabStyle::Pill);
         pane.set_zoom_out_on_close(false);
+        set_terminal_tab_bar_buttons(&mut pane, cx);
 
         let split_closure_terminal_panel = terminal_panel.downgrade();
         pane.set_can_split(Some(Arc::new(move |pane, dragged_item, _window, cx| {
