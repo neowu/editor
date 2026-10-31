@@ -217,7 +217,6 @@ pub fn settings() -> SettingsContent {
         }),
         diagnostics: Some(DiagnosticsSettingsContent {
             button: Some(true),
-            include_warnings: Some(true),
             lsp_pull_diagnostics: Some(LspPullDiagnosticsSettingsContent {
                 enabled: Some(true),
                 debounce_ms: Some(DelayMs(50)),

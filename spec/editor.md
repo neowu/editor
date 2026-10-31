@@ -116,9 +116,10 @@
 - Search is opened and closed from one place for every tab: a magnifying-glass
   toggle in the tab bar (see ui-layout.md), accent-highlighted while search is
   open. The search row has no close (✕) button. Normal files get no extra row:
-  the search row appears only while search is open. Multi-buffer views keep
-  their toolbar (collapse/expand, unified/split, staging), and the search field
-  joins it while open. `cmd-f` opens or refocuses search and `escape` closes
+  the search row appears only while search is open. Multi-buffer views with
+  their own controls (unified/split, staging) keep a toolbar row, and the
+  search field joins it while open; collapse/expand all files is in the tab
+  bar (see ui-layout.md). `cmd-f` opens or refocuses search and `escape` closes
   it. View toolbars (commit view, diagnostics) have no search button of their
   own.
 - Block rows (buffer headers, split-diff spacers) never get the current-line
@@ -126,6 +127,11 @@
   a folded file would otherwise leave a stray band beside the header. A
   hovered buffer header stays opaque (hover tint flattened onto the header
   background) so the split divider doesn't show through it.
+- Diagnostics views (project and current file) have no toolbar: they always
+  show errors and warnings (no warnings toggle, `include_warnings` setting or
+  `ToggleWarnings`), and update live from language server events, so there is
+  no refresh/stop button or `ToggleDiagnosticsRefresh`; restarting a language
+  server clears and republishes its diagnostics.
 - No outline modal ("Go to Symbol in Editor", `outline::Toggle`,
   `cmd-shift-o`): the outline panel is the way to browse a buffer's symbols.
 - Read-only editors (Git History revisions and commit diffs, read-only

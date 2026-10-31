@@ -3683,10 +3683,10 @@ pub fn render_tab_bar_preview_button(
         .into_any_element()
 }
 
-/// Toolbar items' buttons (e.g. preview), Search, Split Right, Split Down and
-/// Zoom buttons, shared by every pane tab bar so they look and behave the same
-/// everywhere. The optional buttons come first, so hiding them doesn't move the
-/// others. Content panes never clone
+/// Toolbar items' buttons (e.g. preview), Search, Split Right, Split Down,
+/// toolbar items' view buttons (e.g. collapse/expand all) and Zoom buttons,
+/// shared by every pane tab bar so they look and behave the same everywhere.
+/// Zoom stays rightmost, so hiding the optional buttons doesn't move it. Content panes never clone
 /// (`clone_items` false): a tab lives in one pane, so splitting moves the active
 /// tab and needs another tab left behind.
 pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Context<Pane>) -> Vec<AnyElement> {
@@ -3713,8 +3713,9 @@ pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Cont
     buttons.extend([
         split_button("split-right", IconName::SplitRight, "Split Right", SplitDirection::Right, &SplitRight { mode }),
         split_button("split-down", IconName::SplitDown, "Split Down", SplitDirection::Down, &SplitDown { mode }),
-        render_tab_bar_zoom_button(pane, cx),
     ]);
+    buttons.extend(pane.toolbar.read(cx).tab_bar_view_buttons(cx));
+    buttons.push(render_tab_bar_zoom_button(pane, cx));
     buttons
 }
 

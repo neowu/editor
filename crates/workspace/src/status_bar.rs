@@ -413,7 +413,6 @@ impl StatusBar {
     }
 }
 
-
 impl<T: StatusItemView> StatusItemViewHandle for Entity<T> {
     fn to_any(&self) -> AnyView {
         self.clone().into()

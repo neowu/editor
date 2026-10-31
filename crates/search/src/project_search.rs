@@ -123,7 +123,7 @@ use crate::buffer_search::Deploy;
 use crate::highlight_query_as_regex;
 use crate::search_bar::ActionButtonState;
 use crate::search_bar::HistoryNavigationDirection;
-use crate::search_bar::alignment_element;
+use crate::search_bar::fold_all_button_state;
 use crate::search_bar::input_base_styles;
 use crate::search_bar::render_action_button;
 use crate::search_bar::render_text_input;
@@ -1270,9 +1270,9 @@ impl ProjectSearchView {
     }
 
     fn update_results_visibility(&self, window: &mut Window, cx: &mut Context<Self>) {
-        let has_any_folded = self.results_editor.read(cx).has_any_buffer_folded(cx);
+        let all_folded = self.results_editor.read(cx).are_all_buffers_folded(cx);
         self.results_editor.update(cx, |editor, cx| {
-            if has_any_folded {
+            if all_folded {
                 editor.unfold_all(&UnfoldAll, window, cx);
             } else {
                 editor.fold_all(&FoldAll, window, cx);
@@ -2622,7 +2622,7 @@ impl Render for ProjectSearchBar {
                 search.active_match_index.is_none().then_some(ActionButtonState::Disabled),
                 "Select Next Match",
                 &SelectNextMatch,
-                query_focus.clone(),
+                query_focus,
             ))
             .child(
                 div()
@@ -2686,29 +2686,7 @@ impl Render for ProjectSearchBar {
             ))
             .child(matches_column);
 
-        let is_collapsed = search.results_editor.read(cx).has_any_buffer_folded(cx);
-
-        let (icon, tooltip_label) = if is_collapsed {
-            (IconName::ChevronUpDown, "Expand All Search Results")
-        } else {
-            (IconName::ChevronDownUp, "Collapse All Search Results")
-        };
-
-        let expand_button = IconButton::new("project-search-collapse-expand", icon)
-            .shape(IconButtonShape::Square)
-            .tooltip(move |_, cx| {
-                Tooltip::for_action_in(tooltip_label, &ToggleAllSearchResults, &query_focus.clone(), cx)
-            })
-            .on_click(cx.listener(|this, _, window, cx| {
-                if let Some(active_view) = &this.active_project_search {
-                    active_view.update(cx, |active_view, cx| {
-                        active_view.toggle_all_search_results(&ToggleAllSearchResults, window, cx);
-                    })
-                }
-            }));
-
-        let search_line =
-            h_flex().pl_0p5().w_full().gap_2().child(expand_button).child(query_column).child(mode_column);
+        let search_line = h_flex().w_full().gap_2().child(query_column).child(mode_column);
 
         let replace_line = search.replace_enabled.then(|| {
             let replace_column = input_base_styles(InputPanel::Replacement)
@@ -2735,7 +2713,7 @@ impl Render for ProjectSearchBar {
                     focus_handle,
                 ));
 
-            h_flex().w_full().gap_2().child(alignment_element()).child(replace_column).child(replace_actions)
+            h_flex().w_full().gap_2().child(replace_column).child(replace_actions)
         });
 
         let filter_line = search.filters_enabled.then(|| {
@@ -2768,7 +2746,6 @@ impl Render for ProjectSearchBar {
             h_flex()
                 .w_full()
                 .gap_2()
-                .child(alignment_element())
                 .child(h_flex().w(input_width).gap_2().child(include).child(exclude))
                 .child(mode_column)
         });
@@ -2860,6 +2837,18 @@ impl ToolbarItemView for ProjectSearchBar {
         } else {
             ToolbarItemLocation::Hidden
         }
+    }
+
+    fn tab_bar_view_button(&self, cx: &App) -> Option<AnyElement> {
+        let search = self.active_project_search.as_ref()?.read(cx);
+        let (icon, tooltip_label) = fold_all_button_state(search.results_editor.read(cx).are_all_buffers_folded(cx));
+        Some(
+            IconButton::new("toggle-fold-all", icon)
+                .icon_size(IconSize::Small)
+                .tooltip(Tooltip::for_action_title(tooltip_label, &ToggleAllSearchResults))
+                .on_click(|_, window, cx| window.dispatch_action(ToggleAllSearchResults.boxed_clone(), cx))
+                .into_any_element(),
+        )
     }
 }
 

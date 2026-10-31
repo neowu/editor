@@ -28,13 +28,12 @@ use ui::h_flex;
 use ui::prelude::*;
 use util::ResultExt;
 use workspace::StatusItemView;
-use workspace::status_item_color;
 use workspace::ToolbarItemEvent;
 use workspace::Workspace;
 use workspace::item::ItemHandle;
+use workspace::status_item_color;
 
 use crate::Deploy;
-use crate::IncludeWarnings;
 use crate::ProjectDiagnosticsEditor;
 
 /// The status bar item that displays diagnostic counts.
@@ -102,11 +101,6 @@ impl Render for DiagnosticIndicator {
                     .tooltip(move |_window, cx| Tooltip::for_action("Project Diagnostics", &Deploy, cx))
                     .on_click(cx.listener(|this, _, window, cx| {
                         if let Some(workspace) = this.workspace.upgrade() {
-                            if this.summary.error_count == 0 && this.summary.warning_count > 0 {
-                                cx.update_default_global(|show_warnings: &mut IncludeWarnings, _| {
-                                    show_warnings.0 = true
-                                });
-                            }
                             workspace.update(cx, |workspace, cx| {
                                 ProjectDiagnosticsEditor::deploy(workspace, &Deploy, window, cx)
                             })

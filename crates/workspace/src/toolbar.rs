@@ -53,6 +53,13 @@ pub trait ToolbarItemView: Render + EventEmitter<ToolbarItemEvent> {
     fn tab_bar_button(&self, _cx: &App) -> Option<AnyElement> {
         None
     }
+
+    /// A button this item adds to the pane's tab bar for the active pane item,
+    /// between Split Down and Zoom, for controls over the whole view (e.g.
+    /// collapse/expand all files).
+    fn tab_bar_view_button(&self, _cx: &App) -> Option<AnyElement> {
+        None
+    }
 }
 
 trait ToolbarItemViewHandle: Send {
@@ -68,6 +75,7 @@ trait ToolbarItemViewHandle: Send {
     fn contribute_context(&self, context: &mut KeyContext, cx: &App);
     fn search_shown(&self, cx: &App) -> Option<bool>;
     fn tab_bar_button(&self, cx: &App) -> Option<AnyElement>;
+    fn tab_bar_view_button(&self, cx: &App) -> Option<AnyElement>;
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -131,7 +139,8 @@ impl Render for Toolbar {
                 this.child(
                     h_flex()
                         .items_start()
-                        .justify_between()
+                        // `justify_between` would put a lone right group on the left.
+                        .map(|this| if has_left_items { this.justify_between() } else { this.justify_end() })
                         .gap(DynamicSpacing::Base08.rems())
                         .when(has_left_items, |this| {
                             this.child(
@@ -228,6 +237,10 @@ impl Toolbar {
         self.items.iter().filter_map(|(item, _)| item.tab_bar_button(cx))
     }
 
+    pub fn tab_bar_view_buttons(&self, cx: &App) -> impl Iterator<Item = AnyElement> {
+        self.items.iter().filter_map(|(item, _)| item.tab_bar_view_button(cx))
+    }
+
     pub const fn hidden(&self) -> bool {
         self.hidden
     }
@@ -276,5 +289,9 @@ impl<T: ToolbarItemView> ToolbarItemViewHandle for Entity<T> {
 
     fn tab_bar_button(&self, cx: &App) -> Option<AnyElement> {
         self.read(cx).tab_bar_button(cx)
+    }
+
+    fn tab_bar_view_button(&self, cx: &App) -> Option<AnyElement> {
+        self.read(cx).tab_bar_view_button(cx)
     }
 }

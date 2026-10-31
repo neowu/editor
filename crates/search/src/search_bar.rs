@@ -130,3 +130,23 @@ pub(crate) fn render_text_input(editor: &Entity<Editor>, color_override: Option<
 pub(crate) fn alignment_element() -> Div {
     div().size_5().flex_none().ml_0p5()
 }
+
+/// Icon and tooltip for the tab bar's collapse/expand-all toggle.
+pub(crate) const fn fold_all_button_state(is_collapsed: bool) -> (IconName, &'static str) {
+    if is_collapsed {
+        (IconName::ChevronUpDown, "Expand All Files")
+    } else {
+        (IconName::ChevronDownUp, "Collapse All Files")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fold_all_button_state() {
+        assert_eq!(fold_all_button_state(true), (IconName::ChevronUpDown, "Expand All Files"));
+        assert_eq!(fold_all_button_state(false), (IconName::ChevronDownUp, "Collapse All Files"));
+    }
+}

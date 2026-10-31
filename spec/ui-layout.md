@@ -127,6 +127,14 @@ because it hurt readability; an opaque window is also cheaper to composite.
   split), shown only for files that have one. Each preview crate owns its
   button (detection and opening) and draws it with the shared
   `pane::render_tab_bar_preview_button`; `ed` only registers them.
+  Between Split Down and Zoom, toolbar items can add view-wide controls
+  (`ToolbarItemView::tab_bar_view_button`): collapse/expand all files for
+  every multibuffer (references, commits, diffs, diagnostics from the buffer
+  search bar; project search from its own bar), so a multibuffer with nothing
+  else to show (e.g. find references) gets no toolbar row, and no search row
+  carries a fold button. It collapses all unless every file is already
+  folded, so a partly folded view collapses on the first click. Zoom stays
+  rightmost.
   Only the terminal panel has a `+`: a plain button that opens a terminal in
   that pane. Center and Git History panes have no `+` or new-item menu; new
   files, project/symbol search and terminals come from their keybindings and
@@ -134,7 +142,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
   pane gets these buttons in `new_terminal_pane`, so panes restored from a
   session or created by moving a tab into a split get them too.
 - Pane toolbars (search bars, diff controls) have no bottom line either; they
-  sit flat inside the card. Editor panes have no breadcrumbs or quick action
+  sit flat inside the card. Right-side toolbar items (e.g. image viewer
+  controls) stay right-aligned even when nothing is on the left. Editor panes have no breadcrumbs or quick action
   bar (see editor.md).
 - An empty pane (hints or welcome page) leaves a blank strip of tab-bar height
   above its card, so the card does not jump when the first tab opens or the

@@ -20,6 +20,8 @@ use editor::actions::ToggleSoftWrap;
 use editor::actions::UnfoldAll;
 use editor::scroll::Autoscroll;
 use futures::channel::oneshot;
+use gpui::Action as _;
+use gpui::AnyElement;
 use gpui::App;
 use gpui::ClickEvent;
 use gpui::Context;
@@ -92,6 +94,7 @@ use crate::search_bar::ActionButtonState;
 use crate::search_bar::HistoryNavigationDirection;
 use crate::search_bar::alignment_element;
 use crate::search_bar::filter_search_results_input;
+use crate::search_bar::fold_all_button_state;
 use crate::search_bar::input_base_styles;
 use crate::search_bar::render_action_button;
 use crate::search_bar::render_text_input;
@@ -147,55 +150,11 @@ impl EventEmitter<workspace::ToolbarItemEvent> for BufferSearchBar {}
 impl Render for BufferSearchBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let focus_handle = self.focus_handle(cx);
-        let has_splittable_editor = self.splittable_editor.is_some();
-        let split_buttons = self.splittable_editor.as_ref().and_then(|weak| weak.upgrade()).map(DiffStyleControls::new);
-
-        let collapse_expand_button = if self.needs_expand_collapse_option(cx) {
-            let query_editor_focus = self.query_editor.focus_handle(cx);
-
-            let is_collapsed = self
-                .active_searchable_item
-                .as_ref()
-                .and_then(|item| item.act_as_type(TypeId::of::<Editor>(), cx))
-                .and_then(|item| item.downcast::<Editor>().ok())
-                .map(|editor: Entity<Editor>| editor.read(cx).has_any_buffer_folded(cx))
-                .unwrap_or_default();
-            let (icon, tooltip_label) = if is_collapsed {
-                (IconName::ChevronUpDown, "Expand All Files")
-            } else {
-                (IconName::ChevronDownUp, "Collapse All Files")
-            };
-
-            let collapse_expand_icon_button = |id| {
-                IconButton::new(id, icon)
-                    .icon_size(IconSize::Small)
-                    .tooltip(move |_, cx| {
-                        Tooltip::for_action_in(tooltip_label, &ToggleFoldAll, &query_editor_focus, cx)
-                    })
-                    .on_click(cx.listener(|this, _: &ClickEvent, window, cx| {
-                        this.toggle_fold_all(&ToggleFoldAll, window, cx);
-                    }))
-            };
-
-            if self.dismissed {
-                return h_flex()
-                    .pl_0p5()
-                    .gap_1()
-                    .child(collapse_expand_icon_button("multibuffer-collapse-expand-empty"))
-                    .when(has_splittable_editor, |this| this.children(split_buttons))
-                    .into_any_element();
-            }
-
-            Some(
-                h_flex()
-                    .gap_1()
-                    .child(collapse_expand_icon_button("multibuffer-collapse-expand"))
-                    .children(split_buttons)
-                    .into_any_element(),
-            )
-        } else {
-            None
-        };
+        let diff_style_controls =
+            self.splittable_editor.as_ref().and_then(|weak| weak.upgrade()).map(DiffStyleControls::new);
+        if self.dismissed {
+            return h_flex().pl_0p5().gap_1().children(diff_style_controls).into_any_element();
+        }
 
         let narrow_mode = self.scroll_handle.bounds().size.width / window.rem_size() < 340. / BASE_REM_SIZE_IN_PX;
 
@@ -363,13 +322,13 @@ impl Render for BufferSearchBar {
                 .child(matches_column)
             });
 
-        let has_collapse_button = collapse_expand_button.is_some();
+        let has_diff_style_controls = diff_style_controls.is_some();
 
         let search_line = h_flex()
             .w_full()
             .gap_2()
             .when(find_in_results, |el| el.child(alignment_element()))
-            .when_some(collapse_expand_button, |el, button| el.pl_0p5().child(button))
+            .when_some(diff_style_controls, |el, controls| el.pl_0p5().child(controls))
             .child(query_column)
             .child(mode_column);
 
@@ -401,7 +360,7 @@ impl Render for BufferSearchBar {
             h_flex()
                 .w_full()
                 .gap_2()
-                .when(has_collapse_button, |this| this.child(alignment_element()))
+                .when(has_diff_style_controls, |this| this.child(alignment_element()))
                 .child(replace_column)
                 .child(replace_actions)
         });
@@ -473,6 +432,26 @@ impl ToolbarItemView for BufferSearchBar {
 
     fn search_shown(&self, _cx: &App) -> Option<bool> {
         self.active_searchable_item.as_ref().map(|_| !self.dismissed)
+    }
+
+    fn tab_bar_view_button(&self, cx: &App) -> Option<AnyElement> {
+        if !self.needs_expand_collapse_option(cx) {
+            return None;
+        }
+        let is_collapsed = self
+            .active_searchable_item
+            .as_ref()
+            .and_then(|item| item.act_as_type(TypeId::of::<Editor>(), cx))
+            .and_then(|item| item.downcast::<Editor>().ok())
+            .is_some_and(|editor: Entity<Editor>| editor.read(cx).are_all_buffers_folded(cx));
+        let (icon, tooltip_label) = fold_all_button_state(is_collapsed);
+        Some(
+            IconButton::new("toggle-fold-all", icon)
+                .icon_size(IconSize::Small)
+                .tooltip(Tooltip::for_action_title(tooltip_label, &ToggleFoldAll))
+                .on_click(|_, window, cx| window.dispatch_action(ToggleFoldAll.boxed_clone(), cx))
+                .into_any_element(),
+        )
     }
 
     fn set_active_pane_item(
@@ -557,13 +536,13 @@ impl ToolbarItemView for BufferSearchBar {
             self.active_searchable_item = Some(searchable_item_handle);
             self.sync_select_search_options(cx);
             drop(self.update_matches(true, false, window, cx));
-            if self.needs_expand_collapse_option(cx) && self.is_dismissed() {
+            if self.has_diff_style_controls() && self.is_dismissed() {
                 return ToolbarItemLocation::PrimaryLeft;
             } else if !self.is_dismissed() {
                 if is_project_search {
                     self.dismiss(&Dismiss, window, cx);
                 } else {
-                    return self.deployed_toolbar_location(cx);
+                    return self.deployed_toolbar_location();
                 }
             }
         }
@@ -729,7 +708,7 @@ impl BufferSearchBar {
             }
         }
 
-        let needs_collapse_expand = self.needs_expand_collapse_option(cx);
+        let has_diff_style_controls = self.has_diff_style_controls();
 
         if let Some(active_editor) = self.active_searchable_item.as_mut() {
             self.selection_search_enabled = None;
@@ -740,7 +719,7 @@ impl BufferSearchBar {
             self.focus(&handle, window, cx);
         }
 
-        if needs_collapse_expand {
+        if has_diff_style_controls {
             cx.emit(Event::UpdateLocation);
             cx.emit(ToolbarItemEvent::ChangeLocation(ToolbarItemLocation::PrimaryLeft));
             cx.notify();
@@ -829,16 +808,12 @@ impl BufferSearchBar {
         handle.search_bar_visibility_changed(true, window, cx);
         cx.notify();
         cx.emit(Event::UpdateLocation);
-        cx.emit(ToolbarItemEvent::ChangeLocation(self.deployed_toolbar_location(cx)));
+        cx.emit(ToolbarItemEvent::ChangeLocation(self.deployed_toolbar_location()));
         true
     }
 
-    fn deployed_toolbar_location(&self, cx: &App) -> ToolbarItemLocation {
-        if self.needs_expand_collapse_option(cx) {
-            ToolbarItemLocation::PrimaryLeft
-        } else {
-            ToolbarItemLocation::Secondary
-        }
+    const fn deployed_toolbar_location(&self) -> ToolbarItemLocation {
+        if self.has_diff_style_controls() { ToolbarItemLocation::PrimaryLeft } else { ToolbarItemLocation::Secondary }
     }
 
     fn uses_hidden_splittable_editor(&self, cx: &App) -> bool {
@@ -851,6 +826,11 @@ impl BufferSearchBar {
 
     fn supported_options(&self, cx: &Context<Self>) -> workspace::searchable::SearchOptions {
         self.active_searchable_item.as_ref().map(|item| item.supported_options(cx)).unwrap_or_default()
+    }
+
+    // The unified/split controls keep a toolbar row even while search is closed.
+    const fn has_diff_style_controls(&self) -> bool {
+        self.splittable_editor.is_some()
     }
 
     // We provide an expand/collapse button if we are in a multibuffer
@@ -895,7 +875,7 @@ impl BufferSearchBar {
         {
             let editor = item.downcast::<Editor>().expect("Is an editor");
             editor.update(cx, |editor, cx| {
-                let is_collapsed = editor.has_any_buffer_folded(cx);
+                let is_collapsed = editor.are_all_buffers_folded(cx);
                 if is_collapsed {
                     editor.unfold_all(&UnfoldAll, window, cx);
                 } else {

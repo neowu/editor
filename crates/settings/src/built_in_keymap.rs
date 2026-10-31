@@ -928,12 +928,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
     );
     add_bindings(
         &mut keymap,
-        Some("Diagnostics"),
-        true,
-        [KeyBindingSpec::new("ctrl-r", "diagnostics::ToggleDiagnosticsRefresh")],
-    );
-    add_bindings(
-        &mut keymap,
         Some("MarkdownPreview"),
         false,
         [
