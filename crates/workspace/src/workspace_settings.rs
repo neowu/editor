@@ -26,7 +26,6 @@ pub struct WorkspaceSettings {
     pub restore_on_startup: settings::RestoreOnStartupBehavior,
     pub default_open_behavior: settings::DefaultOpenBehavior,
     pub restore_on_file_reopen: bool,
-    pub reveal_if_open: bool,
     pub drop_target_size: f32,
     pub use_system_path_prompts: bool,
     pub command_aliases: HashMap<String, CommandAliasTarget>,
@@ -74,7 +73,6 @@ pub struct ActivePanelModifiers {
 #[derive(Deserialize)]
 pub struct TabBarSettings {
     pub show: bool,
-    pub show_nav_history_buttons: bool,
     pub show_tab_bar_buttons: bool,
     pub show_pinned_tabs_in_separate_row: bool,
 }
@@ -98,7 +96,6 @@ impl Settings for WorkspaceSettings {
             restore_on_startup: workspace.restore_on_startup.unwrap(),
             default_open_behavior: workspace.default_open_behavior.unwrap(),
             restore_on_file_reopen: workspace.restore_on_file_reopen.unwrap(),
-            reveal_if_open: workspace.reveal_if_open.unwrap(),
             drop_target_size: workspace.drop_target_size.unwrap(),
             use_system_path_prompts: workspace.use_system_path_prompts.unwrap(),
             command_aliases: workspace.command_aliases.clone(),
@@ -132,7 +129,6 @@ impl Settings for TabBarSettings {
         let tab_bar = content.tab_bar.clone().unwrap();
         TabBarSettings {
             show: tab_bar.show.unwrap(),
-            show_nav_history_buttons: tab_bar.show_nav_history_buttons.unwrap(),
             show_tab_bar_buttons: tab_bar.show_tab_bar_buttons.unwrap(),
             show_pinned_tabs_in_separate_row: tab_bar.show_pinned_tabs_in_separate_row.unwrap(),
         }

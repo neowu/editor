@@ -33,6 +33,22 @@ because it hurt readability; an opaque window is also cheaper to composite.
 - Docks have no border and blend into the chrome. Panes inside them (the
   terminal) draw their own cards; a non-pane panel docked at the bottom just
   sits on the chrome.
+- Split panes are sections of one set of tabs, not separate editors: a tab
+  (a file, a commit, a revision) lives in exactly one pane, and the same file is
+  never open in two panes. Opening something already open reveals and focuses
+  its tab wherever it is; the pane passed by the caller (or the active pane)
+  only decides where new tabs go. "Open to the side" on an open file reveals it
+  rather than splitting. Splitting (Split Right/Down, `pane::Split*`, dragging
+  a tab to an edge) moves the active tab into the new pane, so it needs another
+  tab left behind; nothing is cloned.
+- One back/forward history covers every center and Git History pane. Going back
+  or forward reveals the entry's tab in whichever pane holds it, switching mode
+  if needed; a closed file reopens in the last active center pane. Moving focus
+  from one pane to another records where the user was in the pane they left,
+  so going back returns there. The Go Back / Go Forward buttons sit in the
+  title bar, after a divider following the Workspace / Git History tabs, not on
+  tab bars. The `tab_bar.show_nav_history_buttons` and `reveal_if_open`
+  settings are removed. The terminal panel keeps its own panes and history.
 - Split panes are separate cards with an 8px gap between them (the chrome shows
   through) instead of a divider line. The resize handle covers the gap.
   Finding the neighbouring pane (pane navigation, "open to the side") looks
@@ -92,8 +108,9 @@ because it hurt readability; an opaque window is also cheaper to composite.
 - Pane tab bars (center panes and the terminal panel) have two direct split
   buttons, Split Right and Split Down, instead of a split menu with four
   directions; left/up stay available as actions. Their icons are a rounded
-  square divided vertically or horizontally. Items that can't be cloned are
-  moved into the new pane. The split and zoom buttons come from one shared
+  square divided vertically or horizontally. In center and Git History panes
+  they move the active tab and are disabled with a single tab; the terminal
+  panel clones the terminal. The split and zoom buttons come from one shared
   `pane::render_tab_bar_pane_buttons`, so every tab bar behaves the same; only
   the `+` menu differs per tab bar.
 - Pane toolbars (search bars, breadcrumbs) have no bottom line either; they sit

@@ -545,12 +545,11 @@ pub struct ActivatePane(pub usize);
 pub struct MoveItemToPane {
     pub destination: usize,
     pub focus: bool,
-    pub clone: bool,
 }
 
 impl Default for MoveItemToPane {
     fn default() -> MoveItemToPane {
-        MoveItemToPane { destination: 1, focus: true, clone: false }
+        MoveItemToPane { destination: 1, focus: true }
     }
 }
 
@@ -561,12 +560,11 @@ impl Default for MoveItemToPane {
 pub struct MoveItemToPaneInDirection {
     pub direction: SplitDirection,
     pub focus: bool,
-    pub clone: bool,
 }
 
 impl Default for MoveItemToPaneInDirection {
     fn default() -> MoveItemToPaneInDirection {
-        MoveItemToPaneInDirection { direction: SplitDirection::Right, focus: true, clone: false }
+        MoveItemToPaneInDirection { direction: SplitDirection::Right, focus: true }
     }
 }
 
@@ -1368,6 +1366,11 @@ pub struct Workspace {
     _serialize_workspace_task: Option<Task<()>>,
     _schedule_serialize_ssh_paths: Option<Task<()>>,
     pane_history_timestamp: Arc<AtomicUsize>,
+    /// One back/forward history shared by every center and Git History pane.
+    nav_history: NavHistory,
+    /// The content (center or Git History) pane focused last: where the user is,
+    /// for the history. Docks never take it.
+    last_content_pane: WeakEntity<Pane>,
     bounds: Bounds<Pixels>,
     pub centered_layout: bool,
     bounds_save_task_queued: Option<Task<()>>,
@@ -1537,6 +1540,7 @@ impl Workspace {
 
         let weak_handle = cx.entity().downgrade();
         let pane_history_timestamp = Arc::new(AtomicUsize::new(0));
+        let nav_history = NavHistory::new(weak_handle.clone(), pane_history_timestamp.clone());
 
         let center_pane = cx.new(|cx| {
             let mut center_pane = Pane::new(
@@ -1551,6 +1555,7 @@ impl Workspace {
             );
             center_pane.set_can_split(Some(Arc::new(|_, _, _, _| true)));
             center_pane.set_should_display_welcome_page(true);
+            center_pane.set_nav_history(nav_history.clone());
             center_pane
         });
         cx.subscribe_in(&center_pane, window, Self::handle_pane_event).detach();
@@ -1563,6 +1568,7 @@ impl Workspace {
             weak_handle.clone(),
             project.clone(),
             pane_history_timestamp.clone(),
+            nav_history.clone(),
             window,
             cx,
         );
@@ -1714,6 +1720,8 @@ impl Workspace {
 
             _subscriptions: subscriptions,
             pane_history_timestamp,
+            nav_history,
+            last_content_pane: center_pane.downgrade(),
             workspace_actions: Vec::default(),
             // This data will be incorrect, but it will be overwritten by the time it needs to be used.
             bounds: Bounds::default(),
@@ -2283,6 +2291,7 @@ impl Workspace {
         workspace: WeakEntity<Self>,
         project: Entity<Project>,
         pane_history_timestamp: Arc<AtomicUsize>,
+        nav_history: NavHistory,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Entity<Pane> {
@@ -2299,13 +2308,15 @@ impl Workspace {
             );
             pane.set_should_display_tab_bar(|_, _| true);
             pane.set_can_split(Some(Arc::new(|_, _, _, _| true)));
+            pane.set_nav_history(nav_history);
             // No New… menu: files and terminals belong to Workspace mode.
             pane.set_render_tab_bar_buttons(cx, |pane, window, cx| {
                 if !pane.has_focus(window, cx) {
                     return (None, None);
                 }
-                let buttons =
-                    h_flex().gap(DynamicSpacing::Base04.rems()).children(pane::render_tab_bar_pane_buttons(pane, cx));
+                let buttons = h_flex()
+                    .gap(DynamicSpacing::Base04.rems())
+                    .children(pane::render_tab_bar_pane_buttons(pane, false, cx));
                 (None, Some(buttons.into_any_element()))
             });
             pane
@@ -2320,6 +2331,7 @@ impl Workspace {
             self.weak_handle(),
             self.project.clone(),
             self.pane_history_timestamp.clone(),
+            self.nav_history.clone(),
             window,
             cx,
         )
@@ -2339,7 +2351,11 @@ impl Workspace {
             SplitMode::EmptyPane => {
                 self.split_git_history_pane_empty(&pane, direction, window, cx);
             }
-            SplitMode::MovePane => {
+            // A tab lives in one pane, so splitting moves it and needs another tab left behind.
+            SplitMode::MovePane | SplitMode::ClonePane => {
+                if pane.read(cx).items_len() < 2 {
+                    return;
+                }
                 let Some(item) = pane.update(cx, |pane, cx| pane.take_active_item(window, cx)) else {
                     return;
                 };
@@ -2347,33 +2363,6 @@ impl Workspace {
                 new_pane.update(cx, |pane, cx| pane.add_item(item, true, true, None, window, cx));
                 self.git_history_center.split(&pane, &new_pane, direction, cx);
                 self.set_active_git_history_pane(&new_pane, window, cx);
-            }
-            SplitMode::ClonePane => {
-                let Some(item) = pane.read(cx).active_item() else {
-                    return;
-                };
-                if !item.can_split(cx) {
-                    return;
-                }
-                let task = item.clone_on_split(self.database_id(), window, cx);
-                cx.spawn_in(window, async move |this, cx| {
-                    let clone = task.await?;
-                    this.update_in(cx, |this, window, cx| {
-                        let new_pane = this.add_git_history_pane(window, cx);
-                        let nav_history = pane.read(cx).fork_nav_history();
-                        new_pane.update(cx, |new_pane, cx| {
-                            new_pane.set_nav_history(nav_history, cx);
-                            new_pane.add_item(clone, true, true, None, window, cx);
-                        });
-                        this.git_history_center.split(&pane, &new_pane, direction, cx);
-                        // Focus moves into the new pane before it is first rendered,
-                        // so its `Focus` event can't be relied on to activate it.
-                        this.set_active_git_history_pane(&new_pane, window, cx);
-                        cx.notify();
-                    })
-                    .ok()
-                })
-                .detach();
             }
         }
         cx.notify();
@@ -2486,6 +2475,7 @@ impl Workspace {
             pane::Event::ZoomIn => self.zoom_git_history_pane(Some(pane), cx),
             pane::Event::ZoomOut => self.zoom_git_history_pane(None, cx),
             pane::Event::Focus => {
+                self.content_pane_focused(pane, window, cx);
                 self.set_active_git_history_pane(pane, window, cx);
                 self.switch_mode(WorkspaceMode::GitHistory, window, cx);
             }
@@ -2775,169 +2765,197 @@ impl Workspace {
     }
 
     fn navigate_history(
-        &self,
-        pane: WeakEntity<Pane>,
+        &mut self,
         mode: NavigationMode,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) -> Task<Result<()>> {
-        self.navigate_history_impl(pane, mode, window, &mut |history, cx| history.pop(mode, cx), cx)
+        self.navigate_history_impl(mode, window, &mut |history, cx| history.pop(mode, cx), cx)
     }
 
     fn navigate_tag_history(
-        &self,
-        pane: WeakEntity<Pane>,
+        &mut self,
         mode: TagNavigationMode,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) -> Task<Result<()>> {
-        self.navigate_history_impl(pane, NavigationMode::Normal, window, &mut |history, _cx| history.pop_tag(mode), cx)
+        self.navigate_history_impl(NavigationMode::Normal, window, &mut |history, _cx| history.pop_tag(mode), cx)
     }
 
+    /// Walks the shared history to the next entry that moves the user, revealing
+    /// its tab in whichever pane (and mode) holds it, or reopening a closed file in
+    /// the last active center pane.
     fn navigate_history_impl(
-        &self,
-        pane: WeakEntity<Pane>,
+        &mut self,
         mode: NavigationMode,
         window: &mut Window,
         cb: &mut dyn FnMut(&mut NavHistory, &mut App) -> Option<NavigationEntry>,
         cx: &mut Context<Workspace>,
     ) -> Task<Result<()>> {
-        let to_load = if let Some(pane) = pane.upgrade() {
-            pane.update(cx, |pane, cx| {
-                window.focus(&pane.focus_handle(cx), cx);
-                loop {
-                    // Retrieve the weak item handle from the history.
-                    let entry = cb(pane.nav_history_mut(), cx)?;
+        let mut history = self.nav_history.clone();
+        // Where the user is now goes on the opposite stack (back <-> forward). Only
+        // this is recorded: activating the target must not record what its pane
+        // showed before, since the user was never there.
+        let current_item = self.last_content_pane.upgrade().and_then(|pane| pane.read(cx).active_item());
+        if let Some(current_item) = &current_item {
+            history.set_mode(mode);
+            current_item.deactivated(window, cx);
+            history.set_mode(NavigationMode::Normal);
+        }
 
-                    // If the item is still present in this pane, then activate it.
-                    if let Some(index) = entry.item.upgrade().and_then(|v| pane.index_for_item(v.as_ref())) {
-                        let prev_active_item_index = pane.active_item_index();
-                        pane.nav_history_mut().set_mode(mode);
-                        pane.activate_item(index, true, true, window, cx);
-                        pane.nav_history_mut().set_mode(NavigationMode::Normal);
-
-                        let mut navigated = prev_active_item_index != pane.active_item_index();
-                        if let Some(data) = entry.data {
-                            navigated |= pane.active_item()?.navigate(data, window, cx);
-                        }
-
-                        if navigated {
-                            break None;
-                        }
-                    } else {
-                        // If the item is no longer present in this pane, then retrieve its
-                        // path info in order to reopen it.
-                        if let Some((project_path, abs_path)) = pane.nav_history().path_for_item(entry.item.id()) {
-                            break Some((project_path, abs_path, entry));
-                        }
-                    }
+        let to_load = loop {
+            let Some(entry) = cb(&mut history, cx) else {
+                return Task::ready(Ok(()));
+            };
+            if let Some(item) = entry.item.upgrade()
+                && let Some(pane) = self.pane_for(item.as_ref())
+                && let Some(index) = pane.read(cx).index_for_item(item.as_ref())
+            {
+                history.disable();
+                self.reveal_pane(&pane, window, cx);
+                pane.update(cx, |pane, cx| pane.activate_item(index, true, true, window, cx));
+                let mut navigated = current_item.as_ref().map(|item| item.item_id()) != Some(item.item_id());
+                if let Some(data) = entry.data {
+                    navigated |= item.navigate(data, window, cx);
                 }
-            })
-        } else {
-            None
+                history.enable();
+                if navigated {
+                    return Task::ready(Ok(()));
+                }
+            } else if let Some((project_path, abs_path)) = history.path_for_item(entry.item.id()) {
+                break (project_path, abs_path, entry);
+            }
         };
 
-        if let Some((project_path, abs_path, entry)) = to_load {
-            // If the item was no longer present, then load it again from its previous path, first try the local path
-            let open_by_project_path = self.load_path(project_path.clone(), window, cx);
+        // A closed file reopens in the center, where project files live.
+        let (project_path, abs_path, entry) = to_load;
+        let pane = self
+            .last_active_center_pane
+            .clone()
+            .and_then(|pane| pane.upgrade())
+            .unwrap_or_else(|| self.active_pane.clone());
+        self.reveal_pane(&pane, window, cx);
+        let pane = pane.downgrade();
+        let open_by_project_path = self.load_path(project_path.clone(), window, cx);
+        cx.spawn_in(window, async move |workspace, cx| {
+            let open_by_project_path = open_by_project_path.await;
+            let mut navigated = false;
+            match open_by_project_path.with_context(|| format!("Navigating to {project_path:?}")) {
+                Ok((project_entry_id, build_item)) => {
+                    let prev_active_item_id = pane.update(cx, |pane, _| {
+                        pane.nav_history_mut().disable();
+                        pane.active_item().map(|p| p.item_id())
+                    })?;
 
-            cx.spawn_in(window, async move  |workspace, cx| {
-                let open_by_project_path = open_by_project_path.await;
-                let mut navigated = false;
-                match open_by_project_path
-                    .with_context(|| format!("Navigating to {project_path:?}"))
-                {
-                    Ok((project_entry_id, build_item)) => {
+                    pane.update_in(cx, |pane, window, cx| {
+                        let item = pane.open_item(
+                            project_entry_id,
+                            project_path,
+                            true,
+                            entry.is_preview,
+                            true,
+                            None,
+                            window,
+                            cx,
+                            build_item,
+                        );
+                        navigated |= Some(item.item_id()) != prev_active_item_id;
+                        if let Some(data) = entry.data {
+                            navigated |= item.navigate(data, window, cx);
+                        }
+                        pane.nav_history_mut().enable();
+                    })?;
+                }
+                Err(open_by_project_path_e) => {
+                    // Fall back to opening by abs path, in case an external file was opened and closed,
+                    // and its worktree is now dropped
+                    if let Some(abs_path) = abs_path {
                         let prev_active_item_id = pane.update(cx, |pane, _| {
-                            pane.nav_history_mut().set_mode(mode);
+                            pane.nav_history_mut().disable();
                             pane.active_item().map(|p| p.item_id())
                         })?;
-
-                        pane.update_in(cx, |pane, window, cx| {
-                            let item = pane.open_item(
-                                project_entry_id,
-                                project_path,
-                                true,
-                                entry.is_preview,
-                                true,
-                                None,
-                                window, cx,
-                                build_item,
-                            );
-                            navigated |= Some(item.item_id()) != prev_active_item_id;
-                            pane.nav_history_mut().set_mode(NavigationMode::Normal);
-                            if let Some(data) = entry.data {
-                                navigated |= item.navigate(data, window, cx);
-                            }
+                        let open_by_abs_path = workspace.update_in(cx, |workspace, window, cx| {
+                            workspace.open_abs_path(
+                                abs_path.clone(),
+                                OpenOptions { visible: Some(OpenVisible::None), ..Default::default() },
+                                window,
+                                cx,
+                            )
                         })?;
-                    }
-                    Err(open_by_project_path_e) => {
-                        // Fall back to opening by abs path, in case an external file was opened and closed,
-                        // and its worktree is now dropped
-                        if let Some(abs_path) = abs_path {
-                            let prev_active_item_id = pane.update(cx, |pane, _| {
-                                pane.nav_history_mut().set_mode(mode);
-                                pane.active_item().map(|p| p.item_id())
-                            })?;
-                            let open_by_abs_path = workspace.update_in(cx, |workspace, window, cx| {
-                                workspace.open_abs_path(abs_path.clone(), OpenOptions { visible: Some(OpenVisible::None), ..Default::default() }, window, cx)
-                            })?;
-                            match open_by_abs_path
-                                .await
-                                .with_context(|| format!("Navigating to {abs_path:?}"))
-                            {
-                                Ok(item) => {
-                                    pane.update_in(cx, |pane, window, cx| {
-                                        navigated |= Some(item.item_id()) != prev_active_item_id;
-                                        pane.nav_history_mut().set_mode(NavigationMode::Normal);
-                                        if let Some(data) = entry.data {
-                                            navigated |= item.navigate(data, window, cx);
-                                        }
-                                    })?;
-                                }
-                                Err(open_by_abs_path_e) => {
-                                    log::error!("Failed to navigate history: {open_by_project_path_e:#} and {open_by_abs_path_e:#}");
+                        let result = open_by_abs_path.await.with_context(|| format!("Navigating to {abs_path:?}"));
+                        pane.update_in(cx, |pane, window, cx| {
+                            if let Ok(item) = &result {
+                                navigated |= Some(item.item_id()) != prev_active_item_id;
+                                if let Some(data) = entry.data {
+                                    navigated |= item.navigate(data, window, cx);
                                 }
                             }
+                            pane.nav_history_mut().enable();
+                        })?;
+                        if let Err(open_by_abs_path_e) = result {
+                            log::error!(
+                                "Failed to navigate history: {open_by_project_path_e:#} and {open_by_abs_path_e:#}"
+                            );
                         }
                     }
                 }
+            }
 
-                if !navigated {
-                    workspace
-                        .update_in(cx, |workspace, window, cx| {
-                            Self::navigate_history(workspace, pane, mode, window, cx)
-                        })?
-                        .await?;
-                }
+            if !navigated {
+                workspace.update_in(cx, |workspace, window, cx| workspace.navigate_history(mode, window, cx))?.await?;
+            }
 
-                Ok(())
-            })
+            Ok(())
+        })
+    }
+
+    /// Shows `pane`'s group (switching mode if needed), makes it the active pane
+    /// there and the user's current pane. Focus is the caller's to move.
+    fn reveal_pane(&mut self, pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
+        self.last_content_pane = pane.downgrade();
+        if self.git_history_center.root.contains_pane(pane) {
+            if !pane.read(cx).is_zoomed() && self.git_history_center.panes().iter().any(|p| p.read(cx).is_zoomed()) {
+                self.zoom_git_history_pane(None, cx);
+            }
+            self.set_active_git_history_pane(pane, window, cx);
+            self.switch_mode(WorkspaceMode::GitHistory, window, cx);
         } else {
-            Task::ready(Ok(()))
+            self.switch_mode(WorkspaceMode::Editor, window, cx);
+            if self.active_pane != *pane {
+                self.set_active_pane(pane, window, cx);
+            }
         }
     }
 
-    pub fn go_back(
-        &mut self,
-        pane: WeakEntity<Pane>,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) -> Task<Result<()>> {
-        self.navigate_history(pane, NavigationMode::GoingBack, window, cx)
+    /// Focus moved into the content pane `pane`. Coming from another content
+    /// pane, records where the user was there, so going back returns to it.
+    fn content_pane_focused(&mut self, pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
+        let previous = std::mem::replace(&mut self.last_content_pane, pane.downgrade());
+        if previous.entity_id() != pane.entity_id()
+            && let Some(item) = previous.upgrade().and_then(|previous| previous.read(cx).active_item())
+        {
+            item.deactivated(window, cx);
+        }
     }
 
-    pub fn go_forward(
-        &mut self,
-        pane: WeakEntity<Pane>,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) -> Task<Result<()>> {
-        self.navigate_history(pane, NavigationMode::GoingForward, window, cx)
+    pub fn can_go_back(&self) -> bool {
+        self.nav_history.can_go_back()
+    }
+
+    pub fn can_go_forward(&self) -> bool {
+        self.nav_history.can_go_forward()
+    }
+
+    pub fn go_back(&mut self, window: &mut Window, cx: &mut Context<Workspace>) -> Task<Result<()>> {
+        self.navigate_history(NavigationMode::GoingBack, window, cx)
+    }
+
+    pub fn go_forward(&mut self, window: &mut Window, cx: &mut Context<Workspace>) -> Task<Result<()>> {
+        self.navigate_history(NavigationMode::GoingForward, window, cx)
     }
 
     pub fn reopen_closed_item(&mut self, window: &mut Window, cx: &mut Context<Workspace>) -> Task<Result<()>> {
-        self.navigate_history(self.active_pane().downgrade(), NavigationMode::ReopeningClosedItem, window, cx)
+        self.navigate_history(NavigationMode::ReopeningClosedItem, window, cx)
     }
 
     pub fn set_titlebar_item(&mut self, item: AnyView, _: &mut Window, cx: &mut Context<Self>) {
@@ -4162,6 +4180,7 @@ impl Workspace {
                 cx,
             );
             pane.set_can_split(Some(Arc::new(|_, _, _, _| true)));
+            pane.set_nav_history(self.nav_history.clone());
             pane
         });
         cx.subscribe_in(&pane, window, Self::handle_pane_event).detach();
@@ -4265,9 +4284,8 @@ impl Workspace {
         })
     }
 
-    /// Passing `None` for `pane` uses the default destination and honors
-    /// `reveal_if_open`. Passing a pane explicitly limits reuse and opening to
-    /// that pane.
+    /// A file lives in one pane: if it is open anywhere, that tab is revealed.
+    /// Otherwise it opens in `pane`, or the last active center pane for `None`.
     pub fn open_path(
         &mut self,
         path: impl Into<ProjectPath>,
@@ -4289,7 +4307,6 @@ impl Workspace {
         window: &mut Window,
         cx: &mut App,
     ) -> Task<anyhow::Result<Box<dyn ItemHandle>>> {
-        let reveal_if_open = pane.is_none() && WorkspaceSettings::get_global(cx).reveal_if_open;
         let requested_pane = pane.unwrap_or_else(|| {
             self.last_active_center_pane
                 .clone()
@@ -4301,18 +4318,14 @@ impl Workspace {
         let task = self.load_path(project_path.clone(), window, cx);
         window.spawn(cx, async move |cx| {
             let (project_entry_id, build_item) = task.await?;
-            let pane = if reveal_if_open {
-                workspace
-                    .read_with(cx, |workspace, cx| {
-                        workspace.pane_containing_project_item(&requested_pane, project_entry_id, &project_path, cx)
-                    })
-                    .ok()
-                    .flatten()
-                    .map(|pane| pane.downgrade())
-                    .unwrap_or(requested_pane)
-            } else {
-                requested_pane
-            };
+            let pane = workspace
+                .read_with(cx, |workspace, cx| {
+                    workspace.pane_containing_project_item(&requested_pane, project_entry_id, &project_path, cx)
+                })
+                .ok()
+                .flatten()
+                .map(|pane| pane.downgrade())
+                .unwrap_or(requested_pane);
 
             pane.update_in(cx, |pane, window, cx| {
                 pane.open_item(
@@ -4507,6 +4520,22 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             let (project_entry_id, build_item) = task.await?;
             this.update_in(cx, move |this, window, cx| -> Option<_> {
+                // Already open: reveal it where it is rather than splitting off a copy.
+                if let Some(open_pane) = this.pane_containing_project_item(&pane, project_entry_id, &project_path, cx) {
+                    return Some(open_pane.update(cx, |open_pane, cx| {
+                        open_pane.open_item(
+                            project_entry_id,
+                            project_path,
+                            true,
+                            allow_preview,
+                            true,
+                            None,
+                            window,
+                            cx,
+                            build_item,
+                        )
+                    }));
+                }
                 let pane = pane.upgrade()?;
                 let new_pane = this.split_pane(pane, split_direction.unwrap_or(SplitDirection::Right), window, cx);
                 new_pane.update(cx, |new_pane, cx| {
@@ -4571,9 +4600,8 @@ impl Workspace {
         self.find_project_item::<T>(pane, project_item, cx).is_some()
     }
 
-    /// Passing `None` for `pane` uses the active pane as the default destination
-    /// and honors `reveal_if_open`. Passing a pane explicitly limits reuse and
-    /// opening to that pane.
+    /// A file lives in one pane: if `project_item` is open anywhere, that tab is
+    /// revealed. Otherwise it opens in `pane`, or the active pane for `None`.
     pub fn open_project_item<T>(
         &mut self,
         pane: Option<Entity<Pane>>,
@@ -4588,23 +4616,18 @@ impl Workspace {
     where
         T: ProjectItem,
     {
-        let reveal_if_open = pane.is_none() && WorkspaceSettings::get_global(cx).reveal_if_open;
         let requested_pane = pane.unwrap_or_else(|| self.active_pane.clone());
         let existing_item = self
             .find_project_item(&requested_pane, &project_item, cx)
             .map(|item| (requested_pane.clone(), item))
             .or_else(|| {
-                if reveal_if_open {
-                    self.panes.iter().find_map(|pane| {
-                        if pane == &requested_pane {
-                            None
-                        } else {
-                            self.find_project_item(pane, &project_item, cx).map(|item| (pane.clone(), item))
-                        }
-                    })
-                } else {
-                    None
-                }
+                self.panes.iter().find_map(|pane| {
+                    if pane == &requested_pane {
+                        None
+                    } else {
+                        self.find_project_item(pane, &project_item, cx).map(|item| (pane.clone(), item))
+                    }
+                })
             });
         let pane = existing_item.as_ref().map(|(pane, _)| pane.clone()).unwrap_or(requested_pane);
         let old_item_id = pane.read(cx).active_item().map(|item| item.item_id());
@@ -4668,7 +4691,7 @@ impl Workspace {
         if let Some(pane) = panes.get(action.0).map(|p| (*p).clone()) {
             window.focus(&pane.focus_handle(cx), cx);
         } else {
-            self.split_and_clone(self.active_pane.clone(), SplitDirection::Right, window, cx).detach();
+            self.split_and_move(self.active_pane.clone(), SplitDirection::Right, window, cx);
         }
     }
 
@@ -4677,7 +4700,7 @@ impl Workspace {
         let destination = match panes.get(action.destination) {
             Some(&destination) => destination.clone(),
             None => {
-                if !action.clone && self.active_pane.read(cx).items_len() < 2 {
+                if self.active_pane.read(cx).items_len() < 2 {
                     return;
                 }
                 let direction = SplitDirection::Right;
@@ -4689,10 +4712,6 @@ impl Workspace {
             }
         };
 
-        if action.clone && self.active_pane.read(cx).active_item().is_some_and(|item| item.can_split(cx)) {
-            clone_active_item(self.database_id(), &self.active_pane, &destination, action.focus, window, cx);
-            return;
-        }
         move_active_item(&self.active_pane, &destination, action.focus, true, window, cx)
     }
 
@@ -4888,7 +4907,7 @@ impl Workspace {
         let destination = match self.find_pane_in_direction(action.direction, cx) {
             Some(destination) => destination,
             None => {
-                if !action.clone && self.active_pane.read(cx).items_len() < 2 {
+                if self.active_pane.read(cx).items_len() < 2 {
                     return;
                 }
                 let new_pane = self.add_pane(window, cx);
@@ -4897,10 +4916,6 @@ impl Workspace {
             }
         };
 
-        if action.clone && self.active_pane.read(cx).active_item().is_some_and(|item| item.can_split(cx)) {
-            clone_active_item(self.database_id(), &self.active_pane, &destination, action.focus, window, cx);
-            return;
-        }
         move_active_item(&self.active_pane, &destination, action.focus, true, window, cx);
     }
 
@@ -4951,6 +4966,10 @@ impl Workspace {
     }
 
     fn handle_pane_focused(&mut self, pane: Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
+        // Terminal panel panes come through here too, but aren't content panes.
+        if self.panes.contains(&pane) {
+            self.content_pane_focused(&pane, window, cx);
+        }
         self.switch_mode(WorkspaceMode::Editor, window, cx);
         self.flush_deferred_saves(window, cx);
 
@@ -5046,13 +5065,11 @@ impl Workspace {
             }
             pane::Event::Split { direction, mode } => {
                 match mode {
-                    SplitMode::ClonePane => {
-                        self.split_and_clone(pane.clone(), *direction, window, cx).detach();
-                    }
                     SplitMode::EmptyPane => {
                         self.split_pane(pane.clone(), *direction, window, cx);
                     }
-                    SplitMode::MovePane => {
+                    // A tab lives in one pane, so splitting moves it rather than cloning.
+                    SplitMode::MovePane | SplitMode::ClonePane => {
                         self.split_and_move(pane.clone(), *direction, window, cx);
                     }
                 };
@@ -5175,6 +5192,9 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if pane.read(cx).items_len() < 2 {
+            return;
+        }
         let Some(item) = pane.update(cx, |pane, cx| pane.take_active_item(window, cx)) else {
             return;
         };
@@ -5182,40 +5202,6 @@ impl Workspace {
         new_pane.update(cx, |pane, cx| pane.add_item(item, true, true, None, window, cx));
         self.center.split(&pane, &new_pane, direction, cx);
         cx.notify();
-    }
-
-    pub fn split_and_clone(
-        &mut self,
-        pane: Entity<Pane>,
-        direction: SplitDirection,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Option<Entity<Pane>>> {
-        let Some(item) = pane.read(cx).active_item() else {
-            return Task::ready(None);
-        };
-        if !item.can_split(cx) {
-            return Task::ready(None);
-        }
-        let task = item.clone_on_split(self.database_id(), window, cx);
-        cx.spawn_in(window, async move |this, cx| {
-            if let Some(clone) = task.await {
-                this.update_in(cx, |this, window, cx| {
-                    let new_pane = this.add_pane(window, cx);
-                    let nav_history = pane.read(cx).fork_nav_history();
-                    new_pane.update(cx, |pane, cx| {
-                        pane.set_nav_history(nav_history, cx);
-                        pane.add_item(clone, true, true, None, window, cx)
-                    });
-                    this.center.split(&pane, &new_pane, direction, cx);
-                    cx.notify();
-                    new_pane
-                })
-                .ok()
-            } else {
-                None
-            }
-        })
     }
 
     pub fn join_all_panes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -8662,46 +8648,6 @@ pub fn move_active_item(
             );
         });
     });
-}
-
-pub fn clone_active_item(
-    workspace_id: Option<WorkspaceId>,
-    source: &Entity<Pane>,
-    destination: &Entity<Pane>,
-    focus_destination: bool,
-    window: &mut Window,
-    cx: &mut App,
-) {
-    if source == destination {
-        return;
-    }
-    let Some(active_item) = source.read(cx).active_item() else {
-        return;
-    };
-    if !active_item.can_split(cx) {
-        return;
-    }
-    let destination = destination.downgrade();
-    let task = active_item.clone_on_split(workspace_id, window, cx);
-    window
-        .spawn(cx, async move |cx| {
-            let Some(clone) = task.await else {
-                return;
-            };
-            destination
-                .update_in(cx, |target_pane, window, cx| {
-                    target_pane.add_item(
-                        clone,
-                        focus_destination,
-                        focus_destination,
-                        Some(target_pane.items_len()),
-                        window,
-                        cx,
-                    );
-                })
-                .log_err();
-        })
-        .detach();
 }
 
 #[derive(Debug)]

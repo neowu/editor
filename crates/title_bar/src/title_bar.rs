@@ -36,6 +36,7 @@ use settings::Settings as _;
 use theme::ActiveTheme;
 use title_bar_settings::TitleBarSettings;
 use ui::ButtonLike;
+use ui::Divider;
 use ui::IconWithIndicator;
 use ui::Indicator;
 use ui::PopoverMenu;
@@ -188,6 +189,7 @@ impl Render for TitleBar {
                                 })
                         })
                 })
+                .children(self.render_nav_buttons(cx))
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .into_any_element(),
         );
@@ -595,6 +597,42 @@ impl TitleBar {
                 });
 
         Some(h_flex().ml_2().gap_0p5().child(show_editor).child(show_history).into_any_element())
+    }
+
+    /// Go Back / Go Forward over the workspace's one history, which spans every
+    /// pane in both modes, so they live here rather than on a pane's tab bar.
+    fn render_nav_buttons(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        let workspace = self.workspace.upgrade()?.read(cx);
+        let (can_go_back, can_go_forward) = (workspace.can_go_back(), workspace.can_go_forward());
+
+        let workspace = self.workspace.clone();
+        let go_back = IconButton::new("title-bar-go-back", IconName::ArrowLeft)
+            .icon_size(IconSize::Small)
+            .disabled(!can_go_back)
+            .tooltip(|_window, cx| Tooltip::for_action("Go Back", &workspace::GoBack, cx))
+            .on_click(move |_, window, cx| {
+                workspace.update(cx, |workspace, cx| workspace.go_back(window, cx).detach_and_log_err(cx)).ok();
+            });
+
+        let workspace = self.workspace.clone();
+        let go_forward = IconButton::new("title-bar-go-forward", IconName::ArrowRight)
+            .icon_size(IconSize::Small)
+            .disabled(!can_go_forward)
+            .tooltip(|_window, cx| Tooltip::for_action("Go Forward", &workspace::GoForward, cx))
+            .on_click(move |_, window, cx| {
+                workspace.update(cx, |workspace, cx| workspace.go_forward(window, cx).detach_and_log_err(cx)).ok();
+            });
+
+        Some(
+            h_flex()
+                .h_full()
+                .ml_1()
+                .gap_0p5()
+                .child(Divider::vertical().h_4().mr_1())
+                .child(go_back)
+                .child(go_forward)
+                .into_any_element(),
+        )
     }
 
     fn render_worktree_and_branch(

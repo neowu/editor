@@ -199,7 +199,6 @@ pub fn settings() -> SettingsContent {
         }),
         tab_bar: Some(TabBarSettingsContent {
             show: Some(true),
-            show_nav_history_buttons: Some(true),
             show_tab_bar_buttons: Some(true),
             show_pinned_tabs_in_separate_row: Some(false),
         }),
@@ -470,7 +469,6 @@ fn workspace_settings() -> WorkspaceSettingsContent {
         restore_on_startup: Some(RestoreOnStartupBehavior::LastSession),
         default_open_behavior: Some(DefaultOpenBehavior::ExistingWindow),
         restore_on_file_reopen: Some(true),
-        reveal_if_open: Some(false),
         drop_target_size: Some(0.2),
         when_closing_with_no_tabs: Some(CloseWindowWhenNoItems::PlatformDefault),
         use_system_path_prompts: Some(true),

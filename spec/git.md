@@ -79,8 +79,8 @@ blobs with no language server, so they are not mixed into editor panes.
   side" neither activates nor focuses the new pane: focus stays where it was,
   and the focused pane is always the active one. Preview actions from the keyboard target the
   history tab when Git History is shown.
-  Its tab bars have Go Back / Go Forward and, on the focused pane, Split Right,
-  Split Down and Zoom; there is no New… menu, since files and terminals belong
+  Its tab bars have, on the focused pane, Split Right, Split Down and Zoom
+  (back/forward is the title bar's, shared with Workspace mode); there is no New… menu, since files and terminals belong
   to Workspace mode. Zoom shows only that pane, without the commit sidebar (as
   zooming hides docks and other panes in Workspace mode). History tabs and
   splits are not restored after a restart, but survive switching modes.

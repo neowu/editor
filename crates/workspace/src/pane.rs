@@ -499,9 +499,6 @@ pub struct Pane {
     /// This is set to true if a user scroll has occurred more recently than a system scroll
     /// We want to suppress certain system scrolls when the user has intentionally scrolled
     suppress_scroll: bool,
-    /// Is None if navigation buttons are permanently turned off (and should not react to setting changes).
-    /// Otherwise, when `display_nav_history_buttons` is Some, it determines whether nav buttons should be displayed.
-    display_nav_history_buttons: Option<bool>,
     double_click_dispatch_action: Box<dyn Action>,
     save_modals_spawned: HashSet<EntityId>,
     close_pane_if_empty: bool,
@@ -541,9 +538,10 @@ struct NavHistoryState {
     tag_stack: VecDeque<TagStackEntry>,
     tag_stack_pos: usize,
     paths_by_item: HashMap<EntityId, (ProjectPath, Option<PathBuf>)>,
-    pane: WeakEntity<Pane>,
+    workspace: WeakEntity<Workspace>,
     next_timestamp: Arc<AtomicUsize>,
-    preview_item_id: Option<EntityId>,
+    /// The preview tab of every pane sharing this history.
+    preview_item_ids: HashSet<EntityId>,
 }
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -626,8 +624,6 @@ impl Pane {
             cx.subscribe(&project, Self::project_events),
         ];
 
-        let handle = cx.entity().downgrade();
-
         Self {
             alternate_file_items: (None, None),
             focus_handle,
@@ -641,18 +637,7 @@ impl Pane {
             max_tabs,
             use_max_tabs,
             last_focus_handle_by_item: HashMap::default(),
-            nav_history: NavHistory(Arc::new(Mutex::new(NavHistoryState {
-                mode: NavigationMode::Normal,
-                backward_stack: VecDeque::default(),
-                forward_stack: VecDeque::default(),
-                closed_stack: VecDeque::default(),
-                tag_stack: VecDeque::default(),
-                tag_stack_pos: Default::default(),
-                paths_by_item: HashMap::default(),
-                pane: handle,
-                next_timestamp,
-                preview_item_id: None,
-            }))),
+            nav_history: NavHistory::new(workspace.clone(), next_timestamp),
             toolbar: cx.new(|_| Toolbar::new()),
             tab_bar_scroll_handle: ScrollHandle::new(),
             suppress_scroll: false,
@@ -669,7 +654,6 @@ impl Pane {
             render_tab_bar_buttons: Rc::new(default_render_tab_bar_buttons),
             render_tab_bar: Rc::new(Self::render_tab_bar),
             show_tab_bar_buttons: TabBarSettings::get_global(cx).show_tab_bar_buttons,
-            display_nav_history_buttons: Some(TabBarSettings::get_global(cx).show_nav_history_buttons),
             _subscriptions: subscriptions,
             double_click_dispatch_action,
             save_modals_spawned: HashSet::default(),
@@ -828,15 +812,10 @@ impl Pane {
     fn settings_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let tab_bar_settings = TabBarSettings::get_global(cx);
 
-        if let Some(display_nav_history_buttons) = self.display_nav_history_buttons.as_mut() {
-            *display_nav_history_buttons = tab_bar_settings.show_nav_history_buttons;
-        }
-
         self.show_tab_bar_buttons = tab_bar_settings.show_tab_bar_buttons;
 
         if !PreviewTabsSettings::get_global(cx).enabled {
-            self.preview_item_id = None;
-            self.nav_history.0.lock().preview_item_id = None;
+            self.set_preview_item_id(None, cx);
         }
 
         let workspace_settings = WorkspaceSettings::get_global(cx);
@@ -941,14 +920,9 @@ impl Pane {
         &mut self.nav_history
     }
 
-    pub fn fork_nav_history(&self) -> NavHistory {
-        let history = self.nav_history.0.lock().clone();
-        NavHistory(Arc::new(Mutex::new(history)))
-    }
-
-    pub fn set_nav_history(&mut self, history: NavHistory, cx: &Context<Self>) {
+    /// Makes the pane record into `history`, shared with the workspace's other content panes.
+    pub fn set_nav_history(&mut self, history: NavHistory) {
         self.nav_history = history;
-        self.nav_history().0.lock().pane = cx.entity().downgrade();
     }
 
     pub fn disable_history(&mut self) {
@@ -959,38 +933,27 @@ impl Pane {
         self.nav_history.enable();
     }
 
-    pub fn can_navigate_backward(&self) -> bool {
-        !self.nav_history.0.lock().backward_stack.is_empty()
-    }
-
-    pub fn can_navigate_forward(&self) -> bool {
-        !self.nav_history.0.lock().forward_stack.is_empty()
-    }
-
     pub fn navigate_backward(&mut self, _: &GoBack, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(workspace) = self.workspace.upgrade() {
-            let pane = cx.entity().downgrade();
             window.defer(cx, move |window, cx| {
-                workspace.update(cx, |workspace, cx| workspace.go_back(pane, window, cx).detach_and_log_err(cx))
+                workspace.update(cx, |workspace, cx| workspace.go_back(window, cx).detach_and_log_err(cx))
             })
         }
     }
 
     fn navigate_forward(&mut self, _: &GoForward, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(workspace) = self.workspace.upgrade() {
-            let pane = cx.entity().downgrade();
             window.defer(cx, move |window, cx| {
-                workspace.update(cx, |workspace, cx| workspace.go_forward(pane, window, cx).detach_and_log_err(cx))
+                workspace.update(cx, |workspace, cx| workspace.go_forward(window, cx).detach_and_log_err(cx))
             })
         }
     }
 
     pub fn go_to_older_tag(&mut self, _: &GoToOlderTag, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(workspace) = self.workspace.upgrade() {
-            let pane = cx.entity().downgrade();
             window.defer(cx, move |window, cx| {
                 workspace.update(cx, |workspace, cx| {
-                    workspace.navigate_tag_history(pane, TagNavigationMode::Older, window, cx).detach_and_log_err(cx)
+                    workspace.navigate_tag_history(TagNavigationMode::Older, window, cx).detach_and_log_err(cx)
                 })
             })
         }
@@ -998,17 +961,12 @@ impl Pane {
 
     pub fn go_to_newer_tag(&mut self, _: &GoToNewerTag, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(workspace) = self.workspace.upgrade() {
-            let pane = cx.entity().downgrade();
             window.defer(cx, move |window, cx| {
                 workspace.update(cx, |workspace, cx| {
-                    workspace.navigate_tag_history(pane, TagNavigationMode::Newer, window, cx).detach_and_log_err(cx)
+                    workspace.navigate_tag_history(TagNavigationMode::Newer, window, cx).detach_and_log_err(cx)
                 })
             })
         }
-    }
-
-    fn history_updated(&self, cx: &mut Context<Self>) {
-        self.toolbar.update(cx, |_, cx| cx.notify());
     }
 
     pub const fn preview_item_id(&self) -> Option<EntityId> {
@@ -1035,8 +993,7 @@ impl Pane {
     /// This does nothing if it wasn't already a preview item.
     pub fn unpreview_item_if_preview(&mut self, item_id: EntityId) {
         if self.is_active_preview_item(item_id) {
-            self.preview_item_id = None;
-            self.nav_history.0.lock().preview_item_id = None;
+            self.nav_history.set_preview_item(self.preview_item_id.take(), None);
         }
     }
 
@@ -1061,8 +1018,8 @@ impl Pane {
     /// This is a low-level method. Prefer `unpreview_item_if_preview()` or `set_new_preview_item()`.
     pub(crate) fn set_preview_item_id(&mut self, item_id: Option<EntityId>, cx: &App) {
         if item_id.is_none() || PreviewTabsSettings::get_global(cx).enabled {
-            self.preview_item_id = item_id;
-            self.nav_history.0.lock().preview_item_id = item_id;
+            let old_item_id = mem::replace(&mut self.preview_item_id, item_id);
+            self.nav_history.set_preview_item(old_item_id, item_id);
         }
     }
 
@@ -1211,7 +1168,7 @@ impl Pane {
         if item_idx < prev_active_item_index {
             self.active_item_index -= 1;
         }
-        self.nav_history.0.lock().preview_item_id = None;
+        self.nav_history.set_preview_item(Some(id), None);
 
         if item_idx < self.items.len() { Some(item_idx) } else { None }
     }
@@ -2371,7 +2328,7 @@ impl Pane {
             return;
         }
         self.nav_history.remove_items(&item_ids);
-        self.history_updated(cx);
+        self.nav_history.0.lock().did_update(cx);
     }
 
     pub fn handle_deleted_project_item(
@@ -3086,44 +3043,6 @@ impl Pane {
 
         let focus_handle = self.focus_handle.clone();
 
-        let navigate_backward = IconButton::new("navigate_backward", IconName::ArrowLeft)
-            .icon_size(IconSize::Small)
-            .on_click({
-                let entity = cx.entity();
-                move |_, window, cx| entity.update(cx, |pane, cx| pane.navigate_backward(&GoBack, window, cx))
-            })
-            .disabled(!self.can_navigate_backward())
-            .tooltip({
-                let focus_handle = focus_handle.clone();
-                move |window, cx| {
-                    Tooltip::for_action_in(
-                        "Go Back",
-                        &GoBack,
-                        &window.focused(cx).unwrap_or_else(|| focus_handle.clone()),
-                        cx,
-                    )
-                }
-            });
-
-        let navigate_forward = IconButton::new("navigate_forward", IconName::ArrowRight)
-            .icon_size(IconSize::Small)
-            .on_click({
-                let entity = cx.entity();
-                move |_, window, cx| entity.update(cx, |pane, cx| pane.navigate_forward(&GoForward, window, cx))
-            })
-            .disabled(!self.can_navigate_forward())
-            .tooltip({
-                let focus_handle = focus_handle.clone();
-                move |window, cx| {
-                    Tooltip::for_action_in(
-                        "Go Forward",
-                        &GoForward,
-                        &window.focused(cx).unwrap_or_else(|| focus_handle.clone()),
-                        cx,
-                    )
-                }
-            });
-
         let mut tab_items = self
             .items
             .iter()
@@ -3151,49 +3070,20 @@ impl Pane {
         let use_separate_rows = tab_bar_settings.show_pinned_tabs_in_separate_row;
 
         if use_separate_rows && !pinned_tabs.is_empty() && !unpinned_tabs.is_empty() {
-            self.render_two_row_tab_bar(
-                pinned_tabs,
-                unpinned_tabs,
-                tab_count,
-                navigate_backward,
-                navigate_forward,
-                window,
-                cx,
-            )
+            self.render_two_row_tab_bar(pinned_tabs, unpinned_tabs, tab_count, window, cx)
         } else {
-            self.render_single_row_tab_bar(
-                pinned_tabs,
-                unpinned_tabs,
-                tab_count,
-                navigate_backward,
-                navigate_forward,
-                window,
-                cx,
-            )
+            self.render_single_row_tab_bar(pinned_tabs, unpinned_tabs, tab_count, window, cx)
         }
     }
 
-    fn configure_tab_bar_start(
-        &mut self,
-        tab_bar: TabBar,
-        navigate_backward: IconButton,
-        navigate_forward: IconButton,
-        window: &mut Window,
-        cx: &mut Context<Pane>,
-    ) -> TabBar {
-        tab_bar
-            .when(self.display_nav_history_buttons.unwrap_or_default(), |tab_bar| {
-                tab_bar.start_child(navigate_backward).start_child(navigate_forward)
-            })
-            .map(|tab_bar| {
-                if self.show_tab_bar_buttons {
-                    let render_tab_buttons = self.render_tab_bar_buttons.clone();
-                    let (left_children, right_children) = render_tab_buttons(self, window, cx);
-                    tab_bar.start_children(left_children).end_children(right_children)
-                } else {
-                    tab_bar
-                }
-            })
+    fn configure_tab_bar_start(&mut self, tab_bar: TabBar, window: &mut Window, cx: &mut Context<Pane>) -> TabBar {
+        if self.show_tab_bar_buttons {
+            let render_tab_buttons = self.render_tab_bar_buttons.clone();
+            let (left_children, right_children) = render_tab_buttons(self, window, cx);
+            tab_bar.start_children(left_children).end_children(right_children)
+        } else {
+            tab_bar
+        }
     }
 
     fn render_single_row_tab_bar(
@@ -3201,19 +3091,11 @@ impl Pane {
         pinned_tabs: Vec<AnyElement>,
         unpinned_tabs: Vec<AnyElement>,
         tab_count: usize,
-        navigate_backward: IconButton,
-        navigate_forward: IconButton,
         window: &mut Window,
         cx: &mut Context<Pane>,
     ) -> AnyElement {
         let tab_bar = self
-            .configure_tab_bar_start(
-                TabBar::new("tab_bar").style(self.tab_style),
-                navigate_backward,
-                navigate_forward,
-                window,
-                cx,
-            )
+            .configure_tab_bar_start(TabBar::new("tab_bar").style(self.tab_style), window, cx)
             .children(pinned_tabs.len().ne(&0).then(|| {
                 let max_scroll = self.tab_bar_scroll_handle.max_offset().x;
                 // We need to check both because offset returns delta values even when the scroll handle is not scrollable
@@ -3237,20 +3119,11 @@ impl Pane {
         pinned_tabs: Vec<AnyElement>,
         unpinned_tabs: Vec<AnyElement>,
         tab_count: usize,
-        navigate_backward: IconButton,
-        navigate_forward: IconButton,
         window: &mut Window,
         cx: &mut Context<Pane>,
     ) -> AnyElement {
-        let pinned_tab_bar = self
-            .configure_tab_bar_start(
-                TabBar::new("pinned_tab_bar").style(self.tab_style),
-                navigate_backward,
-                navigate_forward,
-                window,
-                cx,
-            )
-            .child(
+        let pinned_tab_bar =
+            self.configure_tab_bar_start(TabBar::new("pinned_tab_bar").style(self.tab_style), window, cx).child(
                 h_flex()
                     .id("pinned_tabs_row")
                     .overflow_x_scroll()
@@ -3462,8 +3335,6 @@ impl Pane {
         let item_id = dragged_tab.item.item_id();
         self.unpreview_item_if_preview(item_id);
 
-        let is_clone = true && window.modifiers().alt || false && window.modifiers().control;
-
         let from_pane = dragged_tab.pane.clone();
 
         self.workspace
@@ -3472,35 +3343,11 @@ impl Pane {
                     if let Some(split_direction) = split_direction {
                         to_pane = workspace.split_pane(to_pane, split_direction, window, cx);
                     }
-                    let database_id = workspace.database_id();
                     let was_pinned_in_from_pane = from_pane.read_with(cx, |pane, _| {
                         pane.index_for_item_id(item_id).is_some_and(|ix| pane.is_tab_pinned(ix))
                     });
                     let to_pane_old_length = to_pane.read(cx).items.len();
-                    if is_clone {
-                        let Some(item) = from_pane.read(cx).items().find(|item| item.item_id() == item_id).cloned()
-                        else {
-                            return;
-                        };
-                        if item.can_split(cx) {
-                            let task = item.clone_on_split(database_id, window, cx);
-                            let to_pane = to_pane.downgrade();
-                            cx.spawn_in(window, async move |_, cx| {
-                                if let Some(item) = task.await {
-                                    to_pane
-                                        .update_in(cx, |pane, window, cx| {
-                                            pane.add_item(item, true, true, None, window, cx)
-                                        })
-                                        .ok();
-                                }
-                            })
-                            .detach();
-                        } else {
-                            move_item(&from_pane, &to_pane, item_id, ix, true, window, cx);
-                        }
-                    } else {
-                        move_item(&from_pane, &to_pane, item_id, ix, true, window, cx);
-                    }
+                    move_item(&from_pane, &to_pane, item_id, ix, true, window, cx);
                     to_pane.update(cx, |this, _| {
                         if to_pane == from_pane {
                             let actual_ix = this.items.iter().position(|item| item.item_id() == item_id).unwrap_or(0);
@@ -3740,10 +3587,6 @@ impl Pane {
             .log_err();
     }
 
-    pub const fn display_nav_history_buttons(&mut self, display: Option<bool>) {
-        self.display_nav_history_buttons = display;
-    }
-
     fn pinned_item_ids(&self) -> Vec<EntityId> {
         self.items
             .iter()
@@ -3799,7 +3642,7 @@ impl Pane {
 
 /// Items that can't be cloned into a new pane are moved there instead; `None` when
 /// neither is possible.
-const fn tab_bar_split_mode(can_clone: bool, can_split_move: bool) -> Option<SplitMode> {
+pub const fn tab_bar_split_mode(can_clone: bool, can_split_move: bool) -> Option<SplitMode> {
     if can_clone {
         Some(SplitMode::ClonePane)
     } else if can_split_move {
@@ -3810,10 +3653,12 @@ const fn tab_bar_split_mode(can_clone: bool, can_split_move: bool) -> Option<Spl
 }
 
 /// Split Right, Split Down and Zoom buttons, shared by every pane tab bar so they
-/// look and behave the same everywhere.
-pub fn render_tab_bar_pane_buttons(pane: &Pane, cx: &mut Context<Pane>) -> [AnyElement; 3] {
+/// look and behave the same everywhere. Content panes never clone (`clone_items`
+/// false): a tab lives in one pane, so splitting moves the active tab and needs
+/// another tab left behind.
+pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Context<Pane>) -> [AnyElement; 3] {
     let split_mode = match pane.active_item() {
-        Some(active_item) => tab_bar_split_mode(active_item.can_split(cx), pane.items_len() > 1),
+        Some(active_item) => tab_bar_split_mode(clone_items && active_item.can_split(cx), pane.items_len() > 1),
         None => None,
     };
     let mode = split_mode.unwrap_or_default();
@@ -3885,7 +3730,7 @@ fn default_render_tab_bar_buttons(
                     }))
                 }),
         )
-        .children(render_tab_bar_pane_buttons(pane, cx))
+        .children(render_tab_bar_pane_buttons(pane, false, cx))
         .into_any_element()
         .into();
     (None, right_children)
@@ -4157,10 +4002,8 @@ impl Render for Pane {
                 MouseButton::Navigate(NavigationDirection::Back),
                 cx.listener(|pane, _, window, cx| {
                     if let Some(workspace) = pane.workspace.upgrade() {
-                        let pane = cx.entity().downgrade();
                         window.defer(cx, move |window, cx| {
-                            workspace
-                                .update(cx, |workspace, cx| workspace.go_back(pane, window, cx).detach_and_log_err(cx))
+                            workspace.update(cx, |workspace, cx| workspace.go_back(window, cx).detach_and_log_err(cx))
                         })
                     }
                 }),
@@ -4169,11 +4012,9 @@ impl Render for Pane {
                 MouseButton::Navigate(NavigationDirection::Forward),
                 cx.listener(|pane, _, window, cx| {
                     if let Some(workspace) = pane.workspace.upgrade() {
-                        let pane = cx.entity().downgrade();
                         window.defer(cx, move |window, cx| {
-                            workspace.update(cx, |workspace, cx| {
-                                workspace.go_forward(pane, window, cx).detach_and_log_err(cx)
-                            })
+                            workspace
+                                .update(cx, |workspace, cx| workspace.go_forward(window, cx).detach_and_log_err(cx))
                         })
                     }
                 }),
@@ -4183,7 +4024,7 @@ impl Render for Pane {
 
 impl ItemNavHistory {
     pub fn is_preview_item(&self) -> bool {
-        self.history.0.lock().preview_item_id == Some(self.item.id())
+        self.history.0.lock().preview_item_ids.contains(&self.item.id())
     }
 
     pub fn push<D: 'static + Any + Send + Sync>(&mut self, data: Option<D>, row: Option<u32>, cx: &mut App) {
@@ -4213,6 +4054,41 @@ impl ItemNavHistory {
 }
 
 impl NavHistory {
+    pub fn new(workspace: WeakEntity<Workspace>, next_timestamp: Arc<AtomicUsize>) -> NavHistory {
+        NavHistory(Arc::new(Mutex::new(NavHistoryState {
+            mode: NavigationMode::Normal,
+            backward_stack: VecDeque::default(),
+            forward_stack: VecDeque::default(),
+            closed_stack: VecDeque::default(),
+            tag_stack: VecDeque::default(),
+            tag_stack_pos: Default::default(),
+            paths_by_item: HashMap::default(),
+            workspace,
+            next_timestamp,
+            preview_item_ids: HashSet::default(),
+        })))
+    }
+
+    pub fn can_go_back(&self) -> bool {
+        !self.0.lock().backward_stack.is_empty()
+    }
+
+    pub fn can_go_forward(&self) -> bool {
+        !self.0.lock().forward_stack.is_empty()
+    }
+
+    /// Replaces one pane's preview tab, `old` with `new`, among the preview tabs of all
+    /// panes sharing this history.
+    fn set_preview_item(&self, old: Option<EntityId>, new: Option<EntityId>) {
+        let mut state = self.0.lock();
+        if let Some(old) = old {
+            state.preview_item_ids.remove(&old);
+        }
+        if let Some(new) = new {
+            state.preview_item_ids.insert(new);
+        }
+    }
+
     #[allow(clippy::type_complexity)]
     pub fn for_each_entry(&self, cx: &App, f: &mut dyn FnMut(&NavigationEntry, (ProjectPath, Option<PathBuf>))) {
         let borrowed_history = self.0.lock();
@@ -4420,11 +4296,10 @@ impl NavHistory {
 }
 
 impl NavHistoryState {
+    /// Redraws the workspace, whose title bar shows whether back and forward can go anywhere.
     pub fn did_update(&self, cx: &mut App) {
-        if let Some(pane) = self.pane.upgrade() {
-            cx.defer(move |cx| {
-                pane.update(cx, |pane, cx| pane.history_updated(cx));
-            });
+        if let Some(workspace) = self.workspace.upgrade() {
+            cx.defer(move |cx| workspace.update(cx, |_, cx| cx.notify()));
         }
     }
 
@@ -4496,11 +4371,17 @@ impl Render for DraggedTab {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicUsize;
+
+    use gpui::EntityId;
     use gpui::StyleRefinement;
     use gpui::Styled;
+    use gpui::WeakEntity;
     use gpui::px;
     use theme::ThemeColors;
 
+    use super::NavHistory;
     use super::Pane;
     use super::SplitMode;
     use super::TabDropSide;
@@ -4521,6 +4402,27 @@ mod tests {
         assert_eq!(tab_bar_split_mode(true, false), Some(SplitMode::ClonePane));
         assert_eq!(tab_bar_split_mode(false, true), Some(SplitMode::MovePane));
         assert_eq!(tab_bar_split_mode(false, false), None);
+    }
+
+    #[test]
+    fn test_shared_nav_history_tracks_each_panes_preview() {
+        let history = NavHistory::new(WeakEntity::new_invalid(), Arc::new(AtomicUsize::new(0)));
+        assert!(!history.can_go_back());
+        assert!(!history.can_go_forward());
+
+        let (left_preview, right_preview, next_left_preview) =
+            (EntityId::from(1), EntityId::from(2), EntityId::from(3));
+        history.set_preview_item(None, Some(left_preview));
+        history.set_preview_item(None, Some(right_preview));
+        // Replacing one pane's preview leaves the other pane's alone.
+        history.set_preview_item(Some(left_preview), Some(next_left_preview));
+        let preview_item_ids = history.0.lock().preview_item_ids.clone();
+        assert!(!preview_item_ids.contains(&left_preview));
+        assert!(preview_item_ids.contains(&right_preview));
+        assert!(preview_item_ids.contains(&next_left_preview));
+
+        history.set_preview_item(Some(right_preview), None);
+        assert!(!history.0.lock().preview_item_ids.contains(&right_preview));
     }
 
     #[test]
