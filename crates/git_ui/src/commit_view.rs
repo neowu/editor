@@ -1375,16 +1375,6 @@ impl Render for CommitViewToolbar {
                 this.child(DiffStat::new("commit-view-diff-stat", additions as usize, deletions as usize))
                     .child(Divider::vertical().mx_1())
             })
-            .child(
-                IconButton::new("buffer-search", IconName::MagnifyingGlass)
-                    .icon_size(IconSize::Small)
-                    .tooltip(move |_, cx| {
-                        Tooltip::for_action("Buffer Search", &ed_actions::buffer_search::Deploy::find(), cx)
-                    })
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(Box::new(ed_actions::buffer_search::Deploy::find()), cx);
-                    }),
-            )
             .when(!is_stash, |this| {
                 this.child(
                     IconButton::new("show-in-git-graph", IconName::GitGraph)

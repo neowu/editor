@@ -795,7 +795,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "collections",
- "ed_actions",
  "editor",
  "futures-lite",
  "gpui",

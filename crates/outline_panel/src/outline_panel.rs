@@ -1320,7 +1320,6 @@ impl OutlinePanel {
         }
     }
 
-
     fn scroll_editor_to_entry(
         &mut self,
         entry: &PanelEntry,

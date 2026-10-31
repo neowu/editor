@@ -237,6 +237,8 @@ impl QueryState {
 }
 
 struct SearchState {
+    /// The search row is hidden until opened from the tab bar or `cmd-f`.
+    shown: bool,
     case_sensitive: bool,
     editor: Entity<Editor>,
     state: QueryState,
@@ -1196,6 +1198,7 @@ impl GitGraph {
             focus_handle,
             git_store,
             search_state: SearchState {
+                shown: false,
                 case_sensitive: false,
                 editor: search_editor,
                 matches: IndexSet::default(),
@@ -1695,6 +1698,35 @@ impl GitGraph {
         self.search(query, cx);
     }
 
+    fn show_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let was_shown = std::mem::replace(&mut self.search_state.shown, true);
+        self.search_state.editor.update(cx, |editor, cx| editor.focus_handle(cx).focus(window, cx));
+        self.activate_search_editor_if_focused(window, cx);
+        if !was_shown {
+            let query = self.search_state.editor.read(cx).text(cx).into();
+            self.search(query, cx);
+            cx.emit(ItemEvent::UpdateTab);
+        }
+        cx.notify();
+    }
+
+    /// Hides the search row and its matches; the query is kept for next time.
+    fn hide_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.search_state.shown {
+            return;
+        }
+        self.search_state.shown = false;
+        self.search_state.matches.clear();
+        self.search_state.selected_index = None;
+        self.search_state.state = QueryState::Empty;
+        self.update_commit_message_search_highlights(cx);
+        if self.search_state.editor.focus_handle(cx).contains_focused(window, cx) {
+            window.focus(&self.focus_handle, cx);
+        }
+        cx.emit(ItemEvent::UpdateTab);
+        cx.notify();
+    }
+
     fn activate_search_editor_if_focused(&self, window: &mut Window, cx: &mut Context<Self>) {
         self.search_state.editor.update(cx, |editor, cx| {
             if editor.is_focused(window) {
@@ -2100,6 +2132,9 @@ impl GitGraph {
                     .rounded_md()
                     .bg(color.toolbar_background)
                     .on_action(cx.listener(Self::confirm_search))
+                    .on_action(cx.listener(|this, _: &editor::actions::Cancel, window, cx| {
+                        this.hide_search(window, cx);
+                    }))
                     .child(self.search_state.editor.clone())
                     .child({
                         let focus_handle = query_focus_handle.clone();
@@ -3020,10 +3055,7 @@ impl Render for GitGraph {
             }))
             .on_action(cx.listener(Self::copy_selected_commit_sha))
             .on_action(cx.listener(Self::copy_selected_commit_tag))
-            .on_action(cx.listener(|this, _: &FocusSearch, window, cx| {
-                this.search_state.editor.update(cx, |editor, cx| editor.focus_handle(cx).focus(window, cx));
-                this.activate_search_editor_if_focused(window, cx);
-            }))
+            .on_action(cx.listener(|this, _: &FocusSearch, window, cx| this.show_search(window, cx)))
             .on_action(cx.listener(Self::select_first))
             .on_action(cx.listener(Self::select_prev))
             .on_action(cx.listener(Self::select_next))
@@ -3046,15 +3078,24 @@ impl Render for GitGraph {
                 cx.emit(ItemEvent::Edit);
                 cx.notify();
             }))
-            .child(v_flex().size_full().child(self.render_search_bar(cx)).child(div().flex_1().child(content)))
+            .child(
+                v_flex()
+                    .size_full()
+                    .when(self.search_state.shown, |this| this.child(self.render_search_bar(cx)))
+                    .child(div().flex_1().child(content)),
+            )
             .children(self.context_menu.as_ref().map(|context_menu| {
                 deferred(
                     anchored().position(context_menu.position).anchor(Anchor::TopLeft).child(context_menu.menu.clone()),
                 )
                 .with_priority(1)
             }))
-            .on_action(cx.listener(|_, _: &buffer_search::Deploy, window, cx| {
-                window.dispatch_action(Box::new(FocusSearch), cx);
+            .on_action(cx.listener(|this, _: &buffer_search::Deploy, window, cx| {
+                this.show_search(window, cx);
+                cx.stop_propagation();
+            }))
+            .on_action(cx.listener(|this, _: &buffer_search::Dismiss, window, cx| {
+                this.hide_search(window, cx);
                 cx.stop_propagation();
             }))
     }
@@ -3064,12 +3105,20 @@ impl EventEmitter<ItemEvent> for GitGraph {}
 
 impl Focusable for GitGraph {
     fn focus_handle(&self, cx: &App) -> FocusHandle {
-        self.search_state.editor.read(cx).focus_handle(cx)
+        if self.search_state.shown {
+            self.search_state.editor.read(cx).focus_handle(cx)
+        } else {
+            self.focus_handle.clone()
+        }
     }
 }
 
 impl Item for GitGraph {
     type Event = ItemEvent;
+
+    fn search_shown(&self, _: &App) -> Option<bool> {
+        Some(self.search_state.shown)
+    }
 
     fn side_card(&self, _: &App) -> Option<AnyView> {
         self.selected_entry_idx.is_some().then(|| self.commit_details.clone().into())

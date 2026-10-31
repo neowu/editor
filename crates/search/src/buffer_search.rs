@@ -361,16 +361,6 @@ impl Render for BufferSearchBar {
                     ))
                 })
                 .child(matches_column)
-            })
-            .when(find_in_results, |el| {
-                el.child(render_action_button(
-                    "buffer-search",
-                    IconName::Close,
-                    Option::default(),
-                    "Close Search Bar",
-                    &Dismiss,
-                    focus_handle.clone(),
-                ))
             });
 
         let has_collapse_button = collapse_expand_button.is_some();
@@ -379,9 +369,7 @@ impl Render for BufferSearchBar {
             .w_full()
             .gap_2()
             .when(find_in_results, |el| el.child(alignment_element()))
-            .when(!find_in_results && has_collapse_button, |el| {
-                el.pl_0p5().child(collapse_expand_button.expect("button"))
-            })
+            .when_some(collapse_expand_button, |el, button| el.pl_0p5().child(button))
             .child(query_column)
             .child(mode_column);
 
@@ -428,25 +416,6 @@ impl Render for BufferSearchBar {
             .query_error
             .as_ref()
             .map(|error| Label::new(error).size(LabelSize::Small).color(Color::Error).mt_neg_1().ml_2());
-
-        let search_line = h_flex().relative().child(search_line).when(!narrow_mode && !find_in_results, |this| {
-            this.child(
-                h_flex()
-                    .absolute()
-                    .right_0()
-                    .when(has_collapse_button, |this| {
-                        this.pr_2().border_r_1().border_color(cx.theme().colors().border_variant)
-                    })
-                    .child(render_action_button(
-                        "buffer-search",
-                        IconName::Close,
-                        Option::default(),
-                        "Close Search Bar",
-                        &Dismiss,
-                        focus_handle.clone(),
-                    )),
-            )
-        });
 
         v_flex()
             .id("buffer_search")
@@ -500,6 +469,10 @@ impl ToolbarItemView for BufferSearchBar {
         if !self.dismissed {
             context.add("buffer_search_deployed");
         }
+    }
+
+    fn search_shown(&self, _cx: &App) -> Option<bool> {
+        self.active_searchable_item.as_ref().map(|_| !self.dismissed)
     }
 
     fn set_active_pane_item(

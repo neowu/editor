@@ -109,10 +109,18 @@
   API, `toolbar` settings block or `editor::ToggleBreadcrumb`), and no quick
   action bar (selections menu, editor controls, buffer search / code action /
   preview buttons): those stay reachable through actions, keybindings and the
-  command palette. Buffer search is also in the tab bar's `+` menu. With no
-  other toolbar item, an editor's card starts right at the text. No symbol
-  path anywhere either: multibuffer headers show only the file name and its
-  directory, so rendering them never waits on outlines or language servers.
+  command palette. With no other toolbar item, an editor's card starts right
+  at the text. No symbol path anywhere either: multibuffer headers show only
+  the file name and its directory, so rendering them never waits on outlines
+  or language servers.
+- Search is opened and closed from one place for every tab: a magnifying-glass
+  toggle in the tab bar (see ui-layout.md), accent-highlighted while search is
+  open. The search row has no close (✕) button. Normal files get no extra row:
+  the search row appears only while search is open. Multi-buffer views keep
+  their toolbar (collapse/expand, unified/split, staging), and the search field
+  joins it while open. `cmd-f` opens or refocuses search and `escape` closes
+  it. View toolbars (commit view, diagnostics) have no search button of their
+  own.
 - Block rows (buffer headers, split-diff spacers) never get the current-line
   highlight: the split's left side draws no header of its own, so a cursor in
   a folded file would otherwise leave a stray band beside the header. A

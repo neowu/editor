@@ -112,15 +112,17 @@ because it hurt readability; an opaque window is also cheaper to composite.
   directions; left/up stay available as actions. Their icons are a rounded
   square divided vertically or horizontally. In center and Git History panes
   they move the active tab and are disabled with a single tab; the terminal
-  panel clones the terminal. The split and zoom buttons come from one shared
-  `pane::render_tab_bar_pane_buttons`, so every tab bar behaves the same; only
-  the `+` differs per tab bar. In the terminal panel `+` is a plain button that
-  opens a terminal in that pane, not a menu: the generic new-item menu (New
-  File, Search Project, …) has nothing to do with the terminal. Every terminal
+  panel clones the terminal. The search, split and zoom buttons come from one
+  shared `pane::render_tab_bar_pane_buttons`, so every tab bar behaves the
+  same. Search comes first and toggles search in the active tab (buffer search,
+  find in project search results, or the git graph's own search); it is hidden
+  for tabs that can't be searched, which leaves the other buttons in place.
+  Only the terminal panel has a `+`: a plain button that opens a terminal in
+  that pane. Center and Git History panes have no `+` or new-item menu; new
+  files, project/symbol search and terminals come from their keybindings and
+  the command palette. Every terminal
   pane gets these buttons in `new_terminal_pane`, so panes restored from a
   session or created by moving a tab into a split get them too.
-- The center pane `+` menu groups New File / Open File, then the searches
-  (Search Buffer, Search Project, Search Symbols), then terminals.
 - Pane toolbars (search bars, diff controls) have no bottom line either; they
   sit flat inside the card. Editor panes have no breadcrumbs or quick action
   bar (see editor.md).

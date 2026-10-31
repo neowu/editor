@@ -75,8 +75,6 @@ use ui::IconDecoration;
 use ui::IconDecorationKind;
 use ui::Indicator;
 use ui::KeyBinding;
-use ui::PopoverMenu;
-use ui::PopoverMenuHandle;
 use ui::Tab;
 use ui::TabBar;
 use ui::TabPosition;
@@ -91,9 +89,6 @@ use util::paths::PathStyle;
 use util::truncate_and_remove_front;
 
 use crate::CloseWindow;
-use crate::NewCenterTerminal;
-use crate::NewFile;
-use crate::NewTerminal;
 use crate::Open;
 use crate::OpenInTerminal;
 use crate::OpenOptions;
@@ -101,7 +96,6 @@ use crate::OpenTerminal;
 use crate::OpenVisible;
 use crate::SplitDirection;
 use crate::ToggleFileFinder;
-use crate::ToggleProjectSymbols;
 use crate::ToggleZoom;
 use crate::Workspace;
 use crate::WorkspaceItemBuilder;
@@ -498,7 +492,6 @@ pub struct Pane {
     double_click_dispatch_action: Box<dyn Action>,
     save_modals_spawned: HashSet<EntityId>,
     close_pane_if_empty: bool,
-    pub new_item_context_menu_handle: PopoverMenuHandle<ContextMenu>,
     pinned_tab_count: usize,
     diagnostics: HashMap<ProjectPath, DiagnosticSeverity>,
     zoom_out_on_close: bool,
@@ -612,7 +605,9 @@ impl Pane {
         let focus_handle = cx.focus_handle();
         let max_tabs = if use_max_tabs { WorkspaceSettings::get_global(cx).max_tabs } else { None };
 
+        let toolbar = cx.new(|_| Toolbar::new());
         let subscriptions = vec![
+            cx.observe(&toolbar, |_, _, cx| cx.notify()),
             cx.on_focus(&focus_handle, window, Pane::focus_in),
             cx.on_focus_in(&focus_handle, window, Pane::focus_in),
             cx.on_focus_out(&focus_handle, window, Pane::focus_out),
@@ -634,7 +629,7 @@ impl Pane {
             use_max_tabs,
             last_focus_handle_by_item: HashMap::default(),
             nav_history: NavHistory::new(workspace.clone(), next_timestamp),
-            toolbar: cx.new(|_| Toolbar::new()),
+            toolbar,
             tab_bar_scroll_handle: ScrollHandle::new(),
             suppress_scroll: false,
             drag_split_direction: None,
@@ -654,7 +649,6 @@ impl Pane {
             double_click_dispatch_action,
             save_modals_spawned: HashSet::default(),
             close_pane_if_empty: true,
-            new_item_context_menu_handle: PopoverMenuHandle::default(),
             pinned_tab_count: 0,
             diagnostics: HashMap::default(),
             zoom_out_on_close: true,
@@ -737,9 +731,7 @@ impl Pane {
                 }
 
                 active_item.item_focus_handle(cx).focus(window, cx);
-            } else if let Some(focused) = window.focused(cx)
-                && !self.context_menu_focused(window, cx)
-            {
+            } else if let Some(focused) = window.focused(cx) {
                 self.last_focus_handle_by_item.insert(active_item.item_id(), focused.downgrade());
             }
         } else if self.should_display_welcome_page
@@ -748,10 +740,6 @@ impl Pane {
         {
             welcome_page.read(cx).focus_handle(cx).focus(window, cx);
         }
-    }
-
-    pub fn context_menu_focused(&self, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        self.new_item_context_menu_handle.is_focused(window, cx)
     }
 
     fn focus_out(&mut self, _event: FocusOutEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -2292,6 +2280,12 @@ impl Pane {
         }
     }
 
+    /// Whether search is open in the active item, `None` when it can't be searched.
+    pub fn search_shown(&self, cx: &App) -> Option<bool> {
+        let item = self.active_item()?;
+        item.search_shown(cx).or_else(|| self.toolbar.read(cx).search_shown(cx))
+    }
+
     pub const fn toolbar(&self) -> &Entity<Toolbar> {
         &self.toolbar
     }
@@ -3632,11 +3626,38 @@ pub const fn tab_bar_split_mode(can_clone: bool, can_split_move: bool) -> Option
     }
 }
 
-/// Split Right, Split Down and Zoom buttons, shared by every pane tab bar so they
-/// look and behave the same everywhere. Content panes never clone (`clone_items`
-/// false): a tab lives in one pane, so splitting moves the active tab and needs
-/// another tab left behind.
-pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Context<Pane>) -> [AnyElement; 3] {
+/// The tab bar search button's tooltip and action: open search when it is
+/// closed, close it when it is open.
+pub fn tab_bar_search_action(search_shown: bool) -> (&'static str, Box<dyn Action>) {
+    if search_shown {
+        ("Close Search", ed_actions::buffer_search::Dismiss.boxed_clone())
+    } else {
+        ("Search", ed_actions::buffer_search::Deploy::find().boxed_clone())
+    }
+}
+
+/// Toggles search in the active item, highlighted while search is open. Hidden
+/// for items that can't be searched.
+pub fn render_tab_bar_search_button(pane: &Pane, cx: &App) -> Option<AnyElement> {
+    let search_shown = pane.search_shown(cx)?;
+    let (label, action) = tab_bar_search_action(search_shown);
+    let tooltip_action = action.boxed_clone();
+    Some(
+        IconButton::new("toggle_search", IconName::MagnifyingGlass)
+            .icon_size(IconSize::Small)
+            .toggle_state(search_shown)
+            .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
+            .tooltip(move |_window, cx| Tooltip::for_action(label, tooltip_action.as_ref(), cx))
+            .into_any_element(),
+    )
+}
+
+/// Search, Split Right, Split Down and Zoom buttons, shared by every pane tab bar
+/// so they look and behave the same everywhere. Search comes first, so hiding it
+/// for an unsearchable item doesn't move the others. Content panes never clone
+/// (`clone_items` false): a tab lives in one pane, so splitting moves the active
+/// tab and needs another tab left behind.
+pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Context<Pane>) -> Vec<AnyElement> {
     let split_mode = match pane.active_item() {
         Some(active_item) => tab_bar_split_mode(clone_items && active_item.can_split(cx), pane.items_len() > 1),
         None => None,
@@ -3655,11 +3676,13 @@ pub fn render_tab_bar_pane_buttons(pane: &Pane, clone_items: bool, cx: &mut Cont
                 .tooltip(Tooltip::for_action_title(label, action))
                 .into_any_element()
         };
-    [
+    let mut buttons: Vec<AnyElement> = render_tab_bar_search_button(pane, cx).into_iter().collect();
+    buttons.extend([
         split_button("split-right", IconName::SplitRight, "Split Right", SplitDirection::Right, &SplitRight { mode }),
         split_button("split-down", IconName::SplitDown, "Split Down", SplitDirection::Down, &SplitDown { mode }),
         render_tab_bar_zoom_button(pane, cx),
-    ]
+    ]);
+    buttons
 }
 
 /// The Zoom button alone, for panes that can zoom but never split.
@@ -3681,7 +3704,7 @@ fn default_render_tab_bar_buttons(
     window: &mut Window,
     cx: &mut Context<Pane>,
 ) -> (Option<AnyElement>, Option<AnyElement>) {
-    if !pane.has_focus(window, cx) && !pane.context_menu_focused(window, cx) {
+    if !pane.has_focus(window, cx) {
         return (None, None);
     }
     // Ideally we would return a vec of elements here to pass directly to the [TabBar]'s
@@ -3689,28 +3712,6 @@ fn default_render_tab_bar_buttons(
     let right_children = h_flex()
         // Instead we need to replicate the spacing from the [TabBar]'s `end_slot` here.
         .gap(DynamicSpacing::Base04.rems())
-        .child(
-            PopoverMenu::new("pane-tab-bar-popover-menu")
-                .trigger_with_tooltip(
-                    IconButton::new("plus", IconName::Plus).icon_size(IconSize::Small),
-                    Tooltip::text("New…"),
-                )
-                .anchor(Anchor::TopRight)
-                .with_handle(pane.new_item_context_menu_handle.clone())
-                .menu(move |window, cx| {
-                    Some(ContextMenu::build(window, cx, |menu, _, _| {
-                        menu.action("New File", NewFile.boxed_clone())
-                            .action("Open File", ToggleFileFinder::default().boxed_clone())
-                            .separator()
-                            .action("Search Buffer", ed_actions::buffer_search::Deploy::find().boxed_clone())
-                            .action("Search Project", DeploySearch::default().boxed_clone())
-                            .action("Search Symbols", ToggleProjectSymbols.boxed_clone())
-                            .separator()
-                            .action("New Terminal", NewTerminal::default().boxed_clone())
-                            .action("New Center Terminal", NewCenterTerminal::default().boxed_clone())
-                    }))
-                }),
-        )
         .children(render_tab_bar_pane_buttons(pane, false, cx))
         .into_any_element()
         .into();
@@ -4364,6 +4365,7 @@ mod tests {
     use super::Pane;
     use super::SplitMode;
     use super::TabDropSide;
+    use super::tab_bar_search_action;
     use super::tab_bar_split_mode;
     use super::tab_drop_side;
 
@@ -4373,6 +4375,16 @@ mod tests {
         assert_eq!(tab_drop_side(Some(4), 2), Some(TabDropSide::Before));
         assert_eq!(tab_drop_side(Some(0), 2), Some(TabDropSide::After));
         assert_eq!(tab_drop_side(Some(2), 2), None);
+    }
+
+    #[test]
+    fn test_tab_bar_search_action() {
+        let (label, action) = tab_bar_search_action(false);
+        assert_eq!(label, "Search");
+        assert_eq!(action.name(), "buffer_search::Deploy");
+        let (label, action) = tab_bar_search_action(true);
+        assert_eq!(label, "Close Search");
+        assert_eq!(action.name(), "buffer_search::Dismiss");
     }
 
     #[test]

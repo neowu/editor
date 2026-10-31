@@ -40,6 +40,12 @@ pub trait ToolbarItemView: Render + EventEmitter<ToolbarItemEvent> {
     fn pane_focus_update(&mut self, _pane_focused: bool, _window: &mut Window, _cx: &mut Context<Self>) {}
 
     fn contribute_context(&self, _context: &mut KeyContext, _cx: &App) {}
+
+    /// Whether this item's search bar is shown for the active pane item;
+    /// `None` when it can't search that item.
+    fn search_shown(&self, _cx: &App) -> Option<bool> {
+        None
+    }
 }
 
 trait ToolbarItemViewHandle: Send {
@@ -53,6 +59,7 @@ trait ToolbarItemViewHandle: Send {
     ) -> ToolbarItemLocation;
     fn focus_changed(&mut self, pane_focused: bool, window: &mut Window, cx: &mut App);
     fn contribute_context(&self, context: &mut KeyContext, cx: &App);
+    fn search_shown(&self, cx: &App) -> Option<bool>;
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -168,11 +175,11 @@ impl Toolbar {
         cx.subscribe(&item, |this, item, event, cx| {
             if let Some((_, current_location)) = this.items.iter_mut().find(|(i, _)| i.id() == item.entity_id()) {
                 match event {
+                    // Notify even when the location is unchanged: the pane's
+                    // tab bar shows whether search is open.
                     ToolbarItemEvent::ChangeLocation(new_location) => {
-                        if new_location != current_location {
-                            *current_location = *new_location;
-                            cx.notify();
-                        }
+                        *current_location = *new_location;
+                        cx.notify();
                     }
                 }
             }
@@ -203,6 +210,10 @@ impl Toolbar {
 
     pub fn item_of_type<T: ToolbarItemView>(&self) -> Option<Entity<T>> {
         self.items.iter().find_map(|(item, _)| item.to_any().downcast().ok())
+    }
+
+    pub fn search_shown(&self, cx: &App) -> Option<bool> {
+        self.items.iter().find_map(|(item, _)| item.search_shown(cx))
     }
 
     pub const fn hidden(&self) -> bool {
@@ -245,5 +256,9 @@ impl<T: ToolbarItemView> ToolbarItemViewHandle for Entity<T> {
 
     fn contribute_context(&self, context: &mut KeyContext, cx: &App) {
         self.read(cx).contribute_context(context, cx)
+    }
+
+    fn search_shown(&self, cx: &App) -> Option<bool> {
+        self.read(cx).search_shown(cx)
     }
 }

@@ -2313,16 +2313,6 @@ impl Workspace {
             pane.set_should_display_tab_bar(|_, _| true);
             pane.set_can_split(Some(Arc::new(|_, _, _, _| true)));
             pane.set_nav_history(nav_history);
-            // No New… menu: files and terminals belong to Workspace mode.
-            pane.set_render_tab_bar_buttons(cx, |pane, window, cx| {
-                if !pane.has_focus(window, cx) {
-                    return (None, None);
-                }
-                let buttons = h_flex()
-                    .gap(DynamicSpacing::Base04.rems())
-                    .children(pane::render_tab_bar_pane_buttons(pane, false, cx));
-                (None, Some(buttons.into_any_element()))
-            });
             pane
         });
         cx.subscribe_in(&pane, window, Self::handle_git_history_pane_event).detach();

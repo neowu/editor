@@ -1,4 +1,3 @@
-use ed_actions::buffer_search;
 use gpui::Context;
 use gpui::EventEmitter;
 use gpui::ParentElement;
@@ -55,14 +54,6 @@ impl Render for ToolbarControls {
 
         h_flex()
             .gap_1()
-            .child({
-                IconButton::new("toggle_search", IconName::MagnifyingGlass)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::for_action_title("Buffer Search", &buffer_search::Deploy::find()))
-                    .on_click(|_, window, cx| {
-                        window.dispatch_action(Box::new(buffer_search::Deploy::find()), cx);
-                    })
-            })
             .map(|div| {
                 if is_updating {
                     div.child(
