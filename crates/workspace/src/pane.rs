@@ -3802,6 +3802,11 @@ impl Pane {
     }
 }
 
+/// Items that can't be cloned into a new pane are moved there instead.
+const fn tab_bar_split_mode(can_split_move: bool) -> SplitMode {
+    if can_split_move { SplitMode::MovePane } else { SplitMode::ClonePane }
+}
+
 fn default_render_tab_bar_buttons(
     pane: &mut Pane,
     window: &mut Window,
@@ -3842,31 +3847,27 @@ fn default_render_tab_bar_buttons(
                 }),
         )
         .child(
-            PopoverMenu::new("pane-tab-bar-split")
-                .trigger_with_tooltip(
-                    IconButton::new("split", IconName::Split)
-                        .icon_size(IconSize::Small)
-                        .disabled(!can_clone && !can_split_move),
-                    Tooltip::text("Split Pane"),
-                )
-                .anchor(Anchor::TopRight)
-                .with_handle(pane.split_item_context_menu_handle.clone())
-                .menu(move |window, cx| {
-                    ContextMenu::build(window, cx, |menu, _, _| {
-                        let mode = SplitMode::MovePane;
-                        if can_split_move {
-                            menu.action("Split Right", SplitRight { mode }.boxed_clone())
-                                .action("Split Left", SplitLeft { mode }.boxed_clone())
-                                .action("Split Up", SplitUp { mode }.boxed_clone())
-                                .action("Split Down", SplitDown { mode }.boxed_clone())
-                        } else {
-                            menu.action("Split Right", SplitRight::default().boxed_clone())
-                                .action("Split Left", SplitLeft::default().boxed_clone())
-                                .action("Split Up", SplitUp::default().boxed_clone())
-                                .action("Split Down", SplitDown::default().boxed_clone())
-                        }
-                    })
-                    .into()
+            IconButton::new("split-right", IconName::SplitRight)
+                .icon_size(IconSize::Small)
+                .disabled(!can_clone && !can_split_move)
+                .on_click(cx.listener(move |pane, _, window, cx| {
+                    let mode = tab_bar_split_mode(can_split_move);
+                    pane.split(SplitDirection::Right, mode, window, cx);
+                }))
+                .tooltip(move |_window, cx| {
+                    Tooltip::for_action("Split Right", &SplitRight { mode: tab_bar_split_mode(can_split_move) }, cx)
+                }),
+        )
+        .child(
+            IconButton::new("split-down", IconName::SplitDown)
+                .icon_size(IconSize::Small)
+                .disabled(!can_clone && !can_split_move)
+                .on_click(cx.listener(move |pane, _, window, cx| {
+                    let mode = tab_bar_split_mode(can_split_move);
+                    pane.split(SplitDirection::Down, mode, window, cx);
+                }))
+                .tooltip(move |_window, cx| {
+                    Tooltip::for_action("Split Down", &SplitDown { mode: tab_bar_split_mode(can_split_move) }, cx)
                 }),
         )
         .child({
@@ -4498,7 +4499,9 @@ mod tests {
     use theme::ThemeColors;
 
     use super::Pane;
+    use super::SplitMode;
     use super::TabDropSide;
+    use super::tab_bar_split_mode;
     use super::tab_drop_side;
 
     #[test]
@@ -4507,6 +4510,12 @@ mod tests {
         assert_eq!(tab_drop_side(Some(4), 2), Some(TabDropSide::Before));
         assert_eq!(tab_drop_side(Some(0), 2), Some(TabDropSide::After));
         assert_eq!(tab_drop_side(Some(2), 2), None);
+    }
+
+    #[test]
+    fn test_tab_bar_split_mode() {
+        assert_eq!(tab_bar_split_mode(true), SplitMode::MovePane);
+        assert_eq!(tab_bar_split_mode(false), SplitMode::ClonePane);
     }
 
     #[test]

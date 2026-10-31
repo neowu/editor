@@ -83,6 +83,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
   radius) with a 1px accent outline and a faint accent fill. Project panel
   rows under a dragged-over folder get the fill only, so they read as one
   block.
+- The center pane tab bar has two direct split buttons, Split Right and Split
+  Down, instead of a split menu with four directions; left/up stay available as
+  actions. Their icons are a rounded square divided vertically or horizontally.
+  Items that can't be cloned are moved into the new pane.
 - Pane toolbars (search bars, breadcrumbs) have no bottom line either; they sit
   flat inside the card.
 - Breadcrumbs have no hover tooltip and no right-click action (no copy path);
