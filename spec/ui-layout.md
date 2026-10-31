@@ -153,13 +153,13 @@ because it hurt readability; an opaque window is also cheaper to composite.
   sit flat inside the card. Right-side toolbar items (e.g. image viewer
   controls) stay right-aligned even when nothing is on the left. Editor panes have no breadcrumbs or quick action
   bar (see editor.md).
-- An empty pane (hints or welcome page) leaves a blank strip of tab-bar height
+- An empty pane leaves a blank strip of tab-bar height
   above its card, so the card does not jump when the first tab opens or the
   last one closes.
 - An empty pane keeps its card and shows centred keybinding hints (Open File,
   Go to File, Command Palette), styled like the project search landing page.
-  Bindings are read from the keymap, and the welcome page still takes
-  precedence when no project is open.
+  Bindings are read from the keymap. This applies to every empty pane, whether
+  or not a project is open (there is no welcome page).
 - GPUI only clips to rectangles, so the card insets its content by 3px on every
   side, keeping square content corners (editor background, scrollbars) inside
   the rounded edge. If the radius grows, the inset must grow so that

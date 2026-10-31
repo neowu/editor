@@ -90,7 +90,7 @@ migrator, or Vim/Helix mode.
 - The command palette has no "Add/Change Keybinding" flow; secondary confirm runs
   the selected command. It lists every available action as-is: there is no
   global action filter or query interceptor (`command_palette_hooks` is removed).
-- App-level actions (quit, about, font size, welcome, `NoAction`/`Unbind`, ...)
+- App-level actions (quit, about, font size, `NoAction`/`Unbind`, ...)
   use the `ed` namespace (`ed::Quit`, shown as "ed: quit"), not upstream's
   `zed`. Keymaps using `zed::*` names do not resolve.
 - Actions resolve only by their current names. Deprecated aliases and action
@@ -105,9 +105,10 @@ migrator, or Vim/Helix mode.
 - Onboarding is removed: no first-launch onboarding page, `ed::OpenOnboarding`,
   base keymap picker, or multibuffer hint toolbar. There is no VS Code/Cursor
   settings importer (actions or the underlying translation code). The first
-  launch opens an empty editor like any other launch. The welcome page
-  (`ed::ShowWelcome`) remains, without a "Return to Onboarding" button or a
-  logo/title header: just the centred Get Started and Recent Projects lists.
+  launch opens an empty editor like any other launch.
+- The welcome page is removed: no `ed::ShowWelcome` action, no Get Started /
+  Recent Projects page, and no `welcome::OpenRecentProject` (cmd-1…5) bindings.
+  Every empty pane shows the keybinding hints instead (see ui-layout.md).
 - Bookmarks are removed: no bookmark actions, labels, navigation, project view,
   bookmark gutter markers, or `gutter.bookmarks` setting (the gutter hover
   button now copies the file location; see editor.md).

@@ -23,7 +23,6 @@ pub mod tasks;
 mod theme_preview;
 mod toast_layer;
 mod toolbar;
-pub mod welcome;
 pub mod workspace_error;
 mod workspace_settings;
 
@@ -906,7 +905,6 @@ pub fn prompt_for_open_path_and_open(
 pub fn init(app_state: Arc<AppState>, cx: &mut App) {
     theme_preview::init(cx);
     toast_layer::init(cx);
-    welcome::init(cx);
     history_manager::init(app_state.fs.clone(), cx);
 
     cx.on_app_quit(flush_windows_serialization_on_quit).detach();
@@ -1556,7 +1554,6 @@ impl Workspace {
                 cx,
             );
             center_pane.set_can_split(Some(Arc::new(|_, _, _, _| true)));
-            center_pane.set_should_display_welcome_page(true);
             center_pane.set_nav_history(nav_history.clone());
             center_pane
         });

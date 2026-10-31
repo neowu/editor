@@ -475,7 +475,6 @@ pub struct Pane {
     /// Whether the last render showed the tab bar strip above the card.
     tab_bar_displayed: bool,
     tab_style: TabStyle,
-    should_display_welcome_page: bool,
     #[allow(clippy::type_complexity)]
     render_tab_bar_buttons:
         Rc<dyn Fn(&mut Pane, &mut Window, &mut Context<Pane>) -> (Option<AnyElement>, Option<AnyElement>)>,
@@ -499,7 +498,6 @@ pub struct Pane {
     diagnostic_summary_update: Task<()>,
     /// If a certain project item wants to get recreated with specific data, it can persist its data before the recreation here.
     pub project_item_restoration_data: HashMap<ProjectItemKind, Box<dyn Any + Send>>,
-    welcome_page: Option<Entity<crate::welcome::WelcomePage>>,
 
     pub in_center_group: bool,
 }
@@ -641,7 +639,6 @@ impl Pane {
             should_display_tab_bar: Rc::new(|_, cx| TabBarSettings::get_global(cx).show),
             tab_bar_displayed: false,
             tab_style: TabStyle::Folder,
-            should_display_welcome_page: false,
             render_tab_bar_buttons: Rc::new(default_render_tab_bar_buttons),
             render_tab_bar: Rc::new(Self::render_tab_bar),
             show_tab_bar_buttons: TabBarSettings::get_global(cx).show_tab_bar_buttons,
@@ -655,7 +652,6 @@ impl Pane {
             focus_follows_mouse: WorkspaceSettings::get_global(cx).focus_follows_mouse,
             diagnostic_summary_update: Task::ready(()),
             project_item_restoration_data: HashMap::default(),
-            welcome_page: None,
             in_center_group: false,
         }
     }
@@ -730,11 +726,6 @@ impl Pane {
             } else if let Some(focused) = window.focused(cx) {
                 self.last_focus_handle_by_item.insert(active_item.item_id(), focused.downgrade());
             }
-        } else if self.should_display_welcome_page
-            && let Some(welcome_page) = self.welcome_page.as_ref()
-            && self.focus_handle.is_focused(window)
-        {
-            welcome_page.read(cx).focus_handle(cx).focus(window, cx);
         }
     }
 
@@ -835,10 +826,6 @@ impl Pane {
     /// Pill tabs sit inside the card instead of on the chrome above it.
     pub const fn set_tab_style(&mut self, tab_style: TabStyle) {
         self.tab_style = tab_style;
-    }
-
-    pub const fn set_should_display_welcome_page(&mut self, should_display_welcome_page: bool) {
-        self.should_display_welcome_page = should_display_welcome_page;
     }
 
     #[allow(clippy::type_complexity)]
@@ -3881,7 +3868,6 @@ impl Render for Pane {
                 }
             })
             .child({
-                let has_worktrees = project.read(cx).visible_worktrees(cx).next().is_some();
                 // main content
                 let content = div()
                     .flex_1()
@@ -3905,25 +3891,17 @@ impl Render for Pane {
                                 .child(self.toolbar.clone())
                                 .child(item.to_any_view())
                         } else {
-                            let placeholder =
-                                div.id("pane_placeholder").h_flex().size_full().justify_center().on_click(cx.listener(
-                                    move |this, event: &ClickEvent, window, cx| {
-                                        if event.click_count() == 2 {
-                                            window.dispatch_action(this.double_click_dispatch_action.boxed_clone(), cx);
-                                        }
-                                    },
-                                ));
-                            if has_worktrees || !self.should_display_welcome_page {
-                                placeholder.items_center().child(self.render_empty_pane_hints(cx))
-                            } else {
-                                if self.welcome_page.is_none() {
-                                    let workspace = self.workspace.clone();
-                                    self.welcome_page = Some(
-                                        cx.new(|cx| crate::welcome::WelcomePage::new(workspace, true, window, cx)),
-                                    );
-                                }
-                                placeholder.child(self.welcome_page.clone().unwrap())
-                            }
+                            div.id("pane_placeholder")
+                                .h_flex()
+                                .size_full()
+                                .justify_center()
+                                .items_center()
+                                .on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
+                                    if event.click_count() == 2 {
+                                        window.dispatch_action(this.double_click_dispatch_action.boxed_clone(), cx);
+                                    }
+                                }))
+                                .child(self.render_empty_pane_hints(cx))
                         }
                         .focus_follows_mouse(self.focus_follows_mouse, cx)
                     })

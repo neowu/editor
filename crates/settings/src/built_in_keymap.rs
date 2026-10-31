@@ -925,23 +925,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
     );
     add_bindings(
         &mut keymap,
-        Some("Welcome"),
-        true,
-        [
-            KeyBindingSpec::new("cmd-n", "workspace::NewFile"),
-            KeyBindingSpec::new("cmd-=", "ed::IncreaseUiFontSize").with_input(json!({"persist": false})),
-            KeyBindingSpec::new("cmd-+", "ed::IncreaseUiFontSize").with_input(json!({"persist": false})),
-            KeyBindingSpec::new("cmd--", "ed::DecreaseUiFontSize").with_input(json!({"persist": false})),
-            KeyBindingSpec::new("cmd-0", "ed::ResetUiFontSize").with_input(json!({"persist": false})),
-            KeyBindingSpec::new("cmd-1", "welcome::OpenRecentProject").with_input(json!(0)),
-            KeyBindingSpec::new("cmd-2", "welcome::OpenRecentProject").with_input(json!(1)),
-            KeyBindingSpec::new("cmd-3", "welcome::OpenRecentProject").with_input(json!(2)),
-            KeyBindingSpec::new("cmd-4", "welcome::OpenRecentProject").with_input(json!(3)),
-            KeyBindingSpec::new("cmd-5", "welcome::OpenRecentProject").with_input(json!(4)),
-        ],
-    );
-    add_bindings(
-        &mut keymap,
         Some("InvalidBuffer"),
         true,
         [KeyBindingSpec::new("ctrl-shift-enter", "workspace::OpenWithSystem")],
