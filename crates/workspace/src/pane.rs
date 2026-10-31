@@ -64,6 +64,7 @@ use project::WorktreeId;
 use serde::Deserialize;
 use settings::Settings;
 use settings::SettingsStore;
+use theme::ThemeColors;
 use theme_settings::ThemeSettings;
 use ui::ContextMenu;
 use ui::ContextMenuEntry;
@@ -393,6 +394,23 @@ actions!(
 );
 
 const MAX_NAVIGATION_HISTORY_LEN: usize = 1024;
+const TAB_DROP_MARKER_WIDTH: Pixels = px(2.);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TabDropSide {
+    Before,
+    After,
+}
+
+/// Which side of the tab at `ix` a drop lands on; `dragged_ix` is the dragged tab's index when it
+/// comes from the same pane. `None` when the tab would stay where it is.
+fn tab_drop_side(dragged_ix: Option<usize>, ix: usize) -> Option<TabDropSide> {
+    match dragged_ix.map(|dragged_ix| dragged_ix.cmp(&ix)) {
+        None | Some(cmp::Ordering::Greater) => Some(TabDropSide::Before),
+        Some(cmp::Ordering::Less) => Some(TabDropSide::After),
+        Some(cmp::Ordering::Equal) => None,
+    }
+}
 
 pub enum Event {
     AddItem { item: Box<dyn ItemHandle> },
@@ -2654,25 +2672,12 @@ impl Pane {
                 pane.close_item_by_id(item_id, SaveIntent::Close, window, cx).detach_and_log_err(cx);
                 cx.stop_propagation();
             }))
+            .overlay(self.render_tab_drop_marker(TabDropSide::Before, Some(ix), cx))
+            .overlay(self.render_tab_drop_marker(TabDropSide::After, Some(ix), cx))
             .on_drag(
                 DraggedTab { item: item.boxed_clone(), pane: cx.entity(), detail, is_active, ix },
                 |tab, _, _, cx| cx.new(|_| tab.clone()),
             )
-            .drag_over::<DraggedTab>(move |tab, dragged_tab: &DraggedTab, _, cx| {
-                let mut styled_tab = tab
-                    .bg(cx.theme().colors().drop_target_background)
-                    .border_color(cx.theme().colors().drop_target_border)
-                    .border_0();
-
-                if ix < dragged_tab.ix {
-                    styled_tab = styled_tab.border_l_2();
-                } else if ix > dragged_tab.ix {
-                    styled_tab = styled_tab.border_r_2();
-                }
-
-                styled_tab
-            })
-            .drag_over::<DraggedSelection>(|tab, _, _, cx| tab.bg(cx.theme().colors().drop_target_background))
             .when_some(self.can_drop_predicate.clone(), |this, p| this.can_drop(move |a, window, cx| p(a, window, cx)))
             .on_drop(cx.listener(move |this, dragged_tab: &DraggedTab, window, cx| {
                 this.drag_split_direction = None;
@@ -3027,6 +3032,52 @@ impl Pane {
         })
     }
 
+    /// A thin accent bar in the gap on `side` of a tab (or tab-bar strip), shown while a drag that
+    /// would land there is over it. With `target_ix`, a dragged tab only shows the side it lands on.
+    fn render_tab_drop_marker(&self, side: TabDropSide, target_ix: Option<usize>, cx: &Context<Pane>) -> Div {
+        let pane_id = cx.entity_id();
+        let offset = -(Tab::spacing(self.tab_style, cx) + TAB_DROP_MARKER_WIDTH) / 2.;
+        div()
+            .absolute()
+            .inset_0()
+            .invisible()
+            .when_some(self.can_drop_predicate.clone(), |this, p| this.can_drop(move |a, window, cx| p(a, window, cx)))
+            .drag_over::<DraggedTab>(move |style, dragged_tab: &DraggedTab, _, _| {
+                let lands_here = match target_ix {
+                    Some(ix) => {
+                        let dragged_ix = (dragged_tab.pane.entity_id() == pane_id).then_some(dragged_tab.ix);
+                        tab_drop_side(dragged_ix, ix) == Some(side)
+                    }
+                    None => true,
+                };
+                if lands_here { style.visible() } else { style }
+            })
+            .drag_over::<DraggedSelection>(
+                move |style, _, _, _| {
+                    if side == TabDropSide::Before { style.visible() } else { style }
+                },
+            )
+            .child(
+                div()
+                    .absolute()
+                    .top(relative(0.2))
+                    .bottom(relative(0.2))
+                    .w(TAB_DROP_MARKER_WIDTH)
+                    .rounded_full()
+                    .bg(cx.theme().colors().drop_target_border())
+                    .map(|bar| match side {
+                        TabDropSide::Before => bar.left(offset),
+                        TabDropSide::After => bar.right(offset),
+                    }),
+            )
+    }
+
+    /// Outlined, filled box marking a drop target area; callers set the corner radius.
+    fn drop_target_style<E: Styled>(colors: &ThemeColors) -> impl FnOnce(E) -> E + use<E> {
+        let (border, background) = (colors.drop_target_border(), colors.drop_target_background());
+        move |el| el.border_1().border_color(border).bg(background)
+    }
+
     /// The floating card: rounded, card-coloured, with square content corners kept inside.
     fn card_style<E: Styled>(cx: &App) -> impl FnOnce(E) -> E + use<E> {
         let bg = cx.theme().colors().editor_background;
@@ -3251,8 +3302,8 @@ impl Pane {
             // HACK: This empty child is currently necessary to force the drop target to appear
             // despite us setting a min width above.
             .child("")
-            .drag_over::<DraggedTab>(|bar, _, _, cx| bar.bg(cx.theme().colors().drop_target_background))
-            .drag_over::<DraggedSelection>(|bar, _, _, cx| bar.bg(cx.theme().colors().drop_target_background))
+            .relative()
+            .child(self.render_tab_drop_marker(TabDropSide::Before, None, cx))
             .on_drop(cx.listener(move |this, dragged_tab: &DraggedTab, window, cx| {
                 this.drag_split_direction = None;
                 this.handle_tab_drop(dragged_tab, this.items.len(), false, window, cx)
@@ -3283,8 +3334,8 @@ impl Pane {
             // HACK: This empty child is currently necessary to force the drop target to appear
             // despite us setting a min width above.
             .child("")
-            .drag_over::<DraggedTab>(|bar, _, _, cx| bar.bg(cx.theme().colors().drop_target_background))
-            .drag_over::<DraggedSelection>(|bar, _, _, cx| bar.bg(cx.theme().colors().drop_target_background))
+            .relative()
+            .child(self.render_tab_drop_marker(TabDropSide::Before, None, cx))
             .on_drop(cx.listener(move |this, dragged_tab: &DraggedTab, window, cx| {
                 this.drag_split_direction = None;
                 this.handle_pinned_tab_bar_drop(dragged_tab, window, cx)
@@ -4052,7 +4103,8 @@ impl Render for Pane {
                         div()
                             .invisible()
                             .absolute()
-                            .bg(cx.theme().colors().drop_target_background)
+                            .rounded(crate::CARD_RADIUS)
+                            .map(Self::drop_target_style(cx.theme().colors()))
                             .group_drag_over::<DraggedTab>("", |style| style.visible())
                             .group_drag_over::<DraggedSelection>("", |style| style.visible())
                             .when(accepts_external_paths, |div| {
@@ -4435,5 +4487,37 @@ impl Render for DraggedTab {
         );
         let icon = self.pane.read(cx).tab_icon_element(self.item.as_ref(), self.is_active, window, cx);
         Tab::new("").toggle_state(self.is_active).children(icon).child(label).render(window, cx).font(ui_font)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::StyleRefinement;
+    use gpui::Styled;
+    use gpui::px;
+    use theme::ThemeColors;
+
+    use super::Pane;
+    use super::TabDropSide;
+    use super::tab_drop_side;
+
+    #[test]
+    fn test_tab_drop_side() {
+        assert_eq!(tab_drop_side(None, 2), Some(TabDropSide::Before));
+        assert_eq!(tab_drop_side(Some(4), 2), Some(TabDropSide::Before));
+        assert_eq!(tab_drop_side(Some(0), 2), Some(TabDropSide::After));
+        assert_eq!(tab_drop_side(Some(2), 2), None);
+    }
+
+    #[test]
+    fn test_drop_target_style() {
+        let colors = ThemeColors::dark();
+        let style = Pane::drop_target_style(&colors)(StyleRefinement::default().rounded(px(8.)));
+
+        assert_eq!(style.border_color, Some(colors.drop_target_border()));
+        assert_eq!(style.background, Some(colors.drop_target_background().into()));
+        assert_eq!(style.border_widths.top, Some(px(1.).into()));
+        assert_eq!(style.border_widths.left, Some(px(1.).into()));
+        assert_eq!(style.corner_radii.top_left, Some(px(8.).into()));
     }
 }

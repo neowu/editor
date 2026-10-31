@@ -51,6 +51,7 @@ pub struct Tab {
     start_slot: Option<AnyElement>,
     end_slot: Option<AnyElement>,
     children: SmallVec<[AnyElement; 2]>,
+    overlays: SmallVec<[AnyElement; 2]>,
 }
 
 impl Tab {
@@ -64,6 +65,7 @@ impl Tab {
             start_slot: None,
             end_slot: None,
             children: SmallVec::new(),
+            overlays: SmallVec::new(),
         }
     }
 
@@ -90,6 +92,21 @@ impl Tab {
     pub fn end_slot<E: IntoElement>(mut self, element: impl Into<Option<E>>) -> Self {
         self.end_slot = element.into().map(IntoElement::into_any_element);
         self
+    }
+
+    /// Positioned against the tab's shape (it is `relative`) and painted behind its content,
+    /// e.g. a drop indicator.
+    pub fn overlay(mut self, overlay: impl IntoElement) -> Self {
+        self.overlays.push(overlay.into_any_element());
+        self
+    }
+
+    /// The gap between neighbouring tabs of `style`.
+    pub fn spacing(style: TabStyle, cx: &App) -> Pixels {
+        match style {
+            TabStyle::Folder => px(2.),
+            TabStyle::Pill => DynamicSpacing::Base04.px(cx),
+        }
     }
 
     pub fn content_height(cx: &App) -> Pixels {
@@ -165,7 +182,7 @@ impl RenderOnce for Tab {
                 .h(Tab::container_height(cx))
                 .flex()
                 .items_center()
-                .pr(DynamicSpacing::Base04.px(cx))
+                .pr(Tab::spacing(TabStyle::Pill, cx))
                 .cursor_pointer()
                 .child(
                     h_flex()
@@ -177,6 +194,7 @@ impl RenderOnce for Tab {
                         .px(DynamicSpacing::Base08.px(cx))
                         .gap(DynamicSpacing::Base04.rems())
                         .text_color(text_color)
+                        .children(self.overlays)
                         .child(start_slot)
                         .children(self.children)
                         .child(end_slot),
@@ -184,19 +202,26 @@ impl RenderOnce for Tab {
         }
 
         // Tabs fill the tab bar height with rounded tops; the active one joins the card below.
-        self.div.h(Tab::container_height(cx)).flex().items_center().pr(px(2.)).cursor_pointer().child(
-            h_flex()
-                .group("")
-                .relative()
-                .h_full()
-                .rounded_t(px(8.))
-                .bg(tab_bg)
-                .px(DynamicSpacing::Base12.px(cx))
-                .gap(DynamicSpacing::Base04.rems())
-                .text_color(text_color)
-                .child(start_slot)
-                .children(self.children)
-                .child(end_slot),
-        )
+        self.div
+            .h(Tab::container_height(cx))
+            .flex()
+            .items_center()
+            .pr(Tab::spacing(TabStyle::Folder, cx))
+            .cursor_pointer()
+            .child(
+                h_flex()
+                    .group("")
+                    .relative()
+                    .h_full()
+                    .rounded_t(px(8.))
+                    .bg(tab_bg)
+                    .px(DynamicSpacing::Base12.px(cx))
+                    .gap(DynamicSpacing::Base04.rems())
+                    .text_color(text_color)
+                    .children(self.overlays)
+                    .child(start_slot)
+                    .children(self.children)
+                    .child(end_slot),
+            )
     }
 }

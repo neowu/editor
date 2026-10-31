@@ -71,6 +71,18 @@ because it hurt readability; an opaque window is also cheaper to composite.
   terminal, where there is nothing to tell it apart from. Split drop zones
   cover only the content below the pills, and inactive-pane dimming covers the
   whole card.
+- Drag-and-drop targets everywhere (panes, project panel) take their colours
+  from the theme's `text_accent`: `ThemeColors::drop_target_border()` is the
+  accent and `drop_target_background()` a faint wash of it. Themes cannot set
+  them separately; the old `drop_target.background` / `drop_target.border`
+  theme keys are gone, since the bundled themes set them to a flat grey. A position in the tab bar (onto a tab, or the
+  empty strip after the tabs or after the pinned tabs) shows a thin rounded
+  accent bar in the gap where the tab will land: after the target when a tab
+  moves right within its pane, before it otherwise, nothing when it would not
+  move. A content split zone is an area, so it shows a rounded box (card
+  radius) with a 1px accent outline and a faint accent fill. Project panel
+  rows under a dragged-over folder get the fill only, so they read as one
+  block.
 - Pane toolbars (search bars, breadcrumbs) have no bottom line either; they sit
   flat inside the card.
 - Breadcrumbs have no hover tooltip and no right-click action (no copy path);

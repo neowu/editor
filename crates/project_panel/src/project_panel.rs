@@ -722,7 +722,7 @@ fn get_item_color(is_sticky: bool, cx: &App) -> ItemColors {
         hover: if is_sticky { colors.panel_overlay_hover } else { colors.element_hover },
         marked: colors.element_selected,
         focused: colors.panel_focused_border,
-        drag_over: colors.drop_target_background,
+        drag_over: colors.drop_target_background(),
     }
 }
 
@@ -6672,7 +6672,7 @@ impl Render for ProjectPanel {
                                             .last_worktree_root_id
                                             .is_some_and(|root_id| *highlight_entry_id == root_id),
                                     }),
-                                    |div| div.bg(cx.theme().colors().drop_target_background),
+                                    |div| div.bg(cx.theme().colors().drop_target_background()),
                                 )
                                 .on_drag_move::<ExternalPaths>(cx.listener(
                                     move |this, event: &DragMoveEvent<ExternalPaths>, _, _| {
@@ -6823,7 +6823,7 @@ impl Render for ProjectPanel {
                 .when(is_local, |div| {
                     div.when(panel_settings.drag_and_drop, |div| {
                         div.drag_over::<ExternalPaths>(|style, _, _, cx| {
-                            style.bg(cx.theme().colors().drop_target_background)
+                            style.bg(cx.theme().colors().drop_target_background())
                         })
                         .on_drop(cx.listener(
                             move |this, external_paths: &ExternalPaths, window, cx| {

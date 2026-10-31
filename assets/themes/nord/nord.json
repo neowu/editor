@@ -25,7 +25,6 @@
         "border.disabled": "#4c566a",
         "debugger.accent": "#bf616a",
         "editor.debugger_active_line.background": "#384d67",
-        "drop_target.background": "#3b4252",
         "editor.foreground": "#eceff4",
         "editor.background": "#20242c",
         "editor.gutter.background": "#20242c",
