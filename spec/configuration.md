@@ -69,10 +69,10 @@ migrator, or Vim/Helix mode.
 - EditorConfig is not supported: `.editorconfig` files are ignored, and language
   settings come only from built-in settings and file modelines. There is no
   project-local settings layer or worktree-settings sync with remote peers.
-- The built-in keymap retains contexts, binding order, and keyboard-position
-  equivalents. The keymap, menu bar, and dock menu are built once at startup
-  against the keyboard layout active at launch; switching layouts mid-session
-  takes effect after a restart.
+- The built-in keymap retains contexts and binding order. Only the US/ABC QWERTY
+  layout is supported: macOS has no per-layout key-equivalent remapping, so
+  shortcuts always bind to the literal key. The keymap, menu bar, and dock menu
+  are built once at startup.
 - Keybindings should be simple single keystrokes. There is no UI for pending
   multi-stroke input (no which-key popup or status bar indicator).
 - Personal bindings are applied last: global `cmd-[`/`cmd-]` navigate backward/

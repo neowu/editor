@@ -31,7 +31,6 @@ pub(crate) use display::MacDisplay;
 pub(crate) use gpui_apple::AppleActivity;
 pub(crate) use gpui_apple::AppleDispatcher;
 pub(crate) use keyboard::MacKeyboardLayout;
-pub(crate) use keyboard::MacKeyboardMapper;
 use ns::NSNotFound;
 use ns::NSUInteger;
 use ns::id;

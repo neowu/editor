@@ -25,6 +25,7 @@ use gpui::AnyWindowHandle;
 use gpui::BackgroundExecutor;
 use gpui::ClipboardItem;
 use gpui::CursorStyle;
+use gpui::DummyKeyboardMapper;
 use gpui::ForegroundExecutor;
 use gpui::GraphicalEnvironment;
 use gpui::KeyContext;
@@ -86,7 +87,6 @@ use crate::AppleActivity;
 use crate::AppleDispatcher;
 use crate::MacDisplay;
 use crate::MacKeyboardLayout;
-use crate::MacKeyboardMapper;
 use crate::MacWindow;
 use crate::events::key_to_native;
 use crate::ns::NSInteger;
@@ -266,7 +266,6 @@ pub(crate) struct MacPlatformState {
     dock_menu: Option<id>,
     menus: Option<Vec<OwnedMenu>>,
     keyboard_layout_id: String,
-    keyboard_mapper: Rc<MacKeyboardMapper>,
     /// Mirrors `[NSCursor setHiddenUntilMouseMoves:]` state, which AppKit doesn't expose.
     cursor_visible: Arc<AtomicBool>,
 }
@@ -322,7 +321,6 @@ impl MacPlatform {
         let text_system = Arc::new(gpui_apple::AppleTextSystem::new());
 
         let keyboard_layout = MacKeyboardLayout::new();
-        let keyboard_mapper = Rc::new(MacKeyboardMapper::new(keyboard_layout.id()));
 
         let state = Mutex::new(MacPlatformState {
             headless,
@@ -351,7 +349,6 @@ impl MacPlatform {
             system_power_observers_registered: false,
             menus: None,
             keyboard_layout_id: keyboard_layout.id().to_string(),
-            keyboard_mapper,
             cursor_visible: Arc::new(AtomicBool::new(true)),
         });
         Self(state, marker)
@@ -1022,7 +1019,7 @@ impl Platform for MacPlatform {
     }
 
     fn keyboard_mapper(&self) -> Rc<dyn PlatformKeyboardMapper> {
-        self.0.lock().keyboard_mapper.clone()
+        Rc::new(DummyKeyboardMapper)
     }
 
     fn app_path(&self) -> Result<PathBuf> {
@@ -1268,7 +1265,6 @@ fn on_keyboard_layout_change(this: &AnyObject, _: id) {
         return;
     }
     lock.keyboard_layout_id = keyboard_layout.id().to_string();
-    lock.keyboard_mapper = Rc::new(MacKeyboardMapper::new(keyboard_layout.id()));
     if let Some(mut callback) = lock.on_keyboard_layout_change.take() {
         drop(lock);
         callback();
