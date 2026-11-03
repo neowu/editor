@@ -24,17 +24,17 @@ use crate::SplitDirection;
 use crate::SplitMode;
 use crate::Workspace;
 use crate::WorkspaceMode;
+use crate::dock::SIDEBAR_MIN_WIDTH;
 use crate::pane;
 
 pub(crate) const GIT_HISTORY_SIDEBAR_WIDTH: Pixels = px(320.);
-const GIT_HISTORY_SIDEBAR_MIN_WIDTH: Pixels = px(240.);
 
 #[derive(Clone)]
 struct DraggedGitHistorySidebar;
 
 /// Keeps the git history sidebar between its minimum and 60% of the window.
 fn clamp_git_history_sidebar_width(width: Pixels, available: Pixels) -> Pixels {
-    width.min(available * 0.6).max(GIT_HISTORY_SIDEBAR_MIN_WIDTH)
+    width.min(available * 0.6).max(SIDEBAR_MIN_WIDTH)
 }
 
 impl Workspace {
@@ -290,14 +290,14 @@ impl Workspace {
 mod tests {
     use gpui::px;
 
-    use super::GIT_HISTORY_SIDEBAR_MIN_WIDTH;
     use super::clamp_git_history_sidebar_width;
+    use crate::dock::SIDEBAR_MIN_WIDTH;
 
     #[test]
     fn test_clamp_git_history_sidebar_width() {
         assert_eq!(clamp_git_history_sidebar_width(px(400.), px(1000.)), px(400.));
         assert_eq!(clamp_git_history_sidebar_width(px(900.), px(1000.)), px(600.));
-        assert_eq!(clamp_git_history_sidebar_width(px(100.), px(1000.)), GIT_HISTORY_SIDEBAR_MIN_WIDTH);
-        assert_eq!(clamp_git_history_sidebar_width(px(300.), px(200.)), GIT_HISTORY_SIDEBAR_MIN_WIDTH);
+        assert_eq!(clamp_git_history_sidebar_width(px(100.), px(1000.)), SIDEBAR_MIN_WIDTH);
+        assert_eq!(clamp_git_history_sidebar_width(px(300.), px(200.)), SIDEBAR_MIN_WIDTH);
     }
 }

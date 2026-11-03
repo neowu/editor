@@ -177,6 +177,9 @@ because it hurt readability; an opaque window is also cheaper to composite.
   bottom). There is no proportional "flex width" mode and no
   `terminal.flexible` setting. A side dock may shrink when space is tight but
   springs back to its stored width.
+- The project, git (commit) and outline panels, and the Git History sidebar,
+  share a 240px minimum width (`dock::SIDEBAR_MIN_WIDTH`): dragging or the
+  dock-size actions stop there instead of storing a smaller width.
 - Tabs fill the tab bar's full height with rounded top corners. The active tab's
   base flares into the card with concave curves. Tab tops, flares and card
   corners share one 10px radius, so tab and card read as one shape rather than

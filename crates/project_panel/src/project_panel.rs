@@ -166,6 +166,7 @@ use workspace::WorkspaceSettings;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
 use workspace::dock::PanelEvent;
+use workspace::dock::SIDEBAR_MIN_WIDTH;
 use workspace::focus_follows_mouse::FocusFollowsMouse as _;
 use workspace::notifications::DetachAndPromptErr;
 use workspace::notifications::NotifyResultExt;
@@ -6959,6 +6960,10 @@ impl Panel for ProjectPanel {
 
     fn default_size(&self, _: &Window, cx: &App) -> Pixels {
         ProjectPanelSettings::get_global(cx).default_width
+    }
+
+    fn min_size(&self, _: &Window, _: &App) -> Option<Pixels> {
+        Some(SIDEBAR_MIN_WIDTH)
     }
 
     fn icon(&self, _: &Window, cx: &App) -> Option<IconName> {

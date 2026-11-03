@@ -158,6 +158,7 @@ use workspace::Workspace;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
 use workspace::dock::PanelEvent;
+use workspace::dock::SIDEBAR_MIN_WIDTH;
 use workspace::notifications::DetachAndPromptErr;
 use workspace::notifications::NotifyTaskExt;
 
@@ -6666,6 +6667,10 @@ impl Panel for GitPanel {
 
     fn default_size(&self, _: &Window, cx: &App) -> Pixels {
         GitPanelSettings::get_global(cx).default_width
+    }
+
+    fn min_size(&self, _: &Window, _: &App) -> Option<Pixels> {
+        Some(SIDEBAR_MIN_WIDTH)
     }
 
     fn icon(&self, _: &Window, cx: &App) -> Option<ui::IconName> {

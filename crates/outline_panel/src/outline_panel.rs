@@ -139,6 +139,7 @@ use workspace::Workspace;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
 use workspace::dock::PanelEvent;
+use workspace::dock::SIDEBAR_MIN_WIDTH;
 use workspace::item::ItemHandle;
 use workspace::searchable::SearchEvent;
 use workspace::searchable::SearchableItem;
@@ -4573,6 +4574,10 @@ impl Panel for OutlinePanel {
 
     fn default_size(&self, _: &Window, cx: &App) -> Pixels {
         OutlinePanelSettings::get_global(cx).default_width
+    }
+
+    fn min_size(&self, _: &Window, _: &App) -> Option<Pixels> {
+        Some(SIDEBAR_MIN_WIDTH)
     }
 
     fn icon(&self, _: &Window, cx: &App) -> Option<IconName> {

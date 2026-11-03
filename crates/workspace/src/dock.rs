@@ -55,6 +55,8 @@ use crate::persistence::model::DockData;
 use crate::status_bar::StatusItemView;
 
 pub(crate) const RESIZE_HANDLE_SIZE: Pixels = px(6.);
+/// Minimum width of sidebar-style panels (project, git, outline) and the Git History sidebar.
+pub const SIDEBAR_MIN_WIDTH: Pixels = px(240.);
 
 pub enum PanelEvent {
     ZoomIn,
@@ -363,13 +365,21 @@ pub struct PanelButtons {
 
 pub(crate) const PANEL_SIZE_STATE_KEY: &str = "dock_panel_size";
 
+/// Keeps a resized panel at least as large as the resize handle and the panel's minimum.
+fn clamp_resized_panel_size(size: Pixels, min_size: Option<Pixels>) -> Pixels {
+    size.max(RESIZE_HANDLE_SIZE).max(min_size.unwrap_or(Pixels::ZERO)).round()
+}
+
 fn resize_panel_entry(
     entry: &mut PanelEntry,
     size: Option<Pixels>,
+    axis: Axis,
     window: &mut Window,
     cx: &mut App,
 ) -> (&'static str, PanelSizeState) {
-    entry.size_state.size = size.map(|size| size.max(RESIZE_HANDLE_SIZE).round());
+    // `Panel::min_size` is a width; it doesn't apply to the bottom dock.
+    let min_size = if axis == Axis::Horizontal { entry.panel.min_size(window, cx) } else { None };
+    entry.size_state.size = size.map(|size| clamp_resized_panel_size(size, min_size));
     entry.panel.size_state_changed(window, cx);
     (entry.panel.panel_key(), entry.size_state)
 }
@@ -878,8 +888,9 @@ impl Dock {
     }
 
     fn resize_active_panel(&mut self, size: Option<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
+        let axis = self.position.axis();
         if let Some(entry) = self.active_panel_entry_mut() {
-            let (panel_key, size_state) = resize_panel_entry(entry, size, window, cx);
+            let (panel_key, size_state) = resize_panel_entry(entry, size, axis, window, cx);
 
             let workspace = self.workspace.clone();
             cx.defer(move |cx| {
@@ -934,8 +945,9 @@ impl Dock {
             return;
         }
 
+        let axis = self.position.axis();
         let size_states_to_persist: Vec<_> =
-            self.panel_entries.iter_mut().map(|entry| resize_panel_entry(entry, size, window, cx)).collect();
+            self.panel_entries.iter_mut().map(|entry| resize_panel_entry(entry, size, axis, window, cx)).collect();
 
         let workspace = self.workspace.clone();
         cx.defer(move |cx| {
@@ -1226,5 +1238,22 @@ impl StatusItemView for PanelButtons {
         _cx: &mut Context<Self>,
     ) {
         // Nothing to do, panel buttons don't depend on the active center item
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::px;
+
+    use super::RESIZE_HANDLE_SIZE;
+    use super::SIDEBAR_MIN_WIDTH;
+    use super::clamp_resized_panel_size;
+
+    #[test]
+    fn test_clamp_resized_panel_size() {
+        assert_eq!(clamp_resized_panel_size(px(300.4), Some(SIDEBAR_MIN_WIDTH)), px(300.));
+        assert_eq!(clamp_resized_panel_size(px(100.), Some(SIDEBAR_MIN_WIDTH)), SIDEBAR_MIN_WIDTH);
+        assert_eq!(clamp_resized_panel_size(px(100.), None), px(100.));
+        assert_eq!(clamp_resized_panel_size(px(1.), None), RESIZE_HANDLE_SIZE);
     }
 }
