@@ -62,19 +62,14 @@ from upstream in layout as well as in behaviour.
   already rendered screenshots offscreen). The rest of that range is either
   declined below or listed under Pending; the next full review still starts
   at `02d47bf64f`.
+- 2026-11-03 correctness pass over the same range: ported #66293, #55800,
+  #65951, #66364, #66289, #66360, #66283, #66299, #66404, #50882 and
+  #66264.
 
 ### Pending
 
 Fork-relevant commits from `02d47bf64f..504a7f2c` not yet decided:
 
-- Correctness: #66264 (invalidate LSP data for outdated excerpts), #66293
-  (arena `Rc` to fix UB), #55800 (standalone modifier sequences time out),
-  #65951 (cached views repaint on inherited opacity change), #66299 (active
-  repository after removing remote worktrees), #66289 (remote windows merging
-  on session restore), #66364 (second launch overwriting the session ID),
-  #66360 (shell-quoted ssh executable), #66404 (SVG in remote Markdown
-  previews), #66406 (C++ lambda specifier highlighting), #50882 (project
-  search focus/action context), #66283 (Spanish-ISO shortcut mappings).
 - UI: #66260 and #66187 (git graph refs column, author cell alignment),
   #66226 (keep open commit highlighted in History), #63909 (remote picker
   scrollbar), #65474 (Markdown images not rounded), #66358 (borrow and window
@@ -129,6 +124,8 @@ upstream change depends on them or the need changes.
   #65381, #65702 (extensions), #65280 and the Node/Wasmtime parts of #65956
   (managed Node, Wasm extensions), plus all agent/ACP, sidebar,
   language-model, collab, Linux/Windows backend and CI commits.
+- #66406 (C++ lambda specifier highlighting): the fork ships no C++
+  grammar or highlight queries.
 - Removed areas in `02d47bf64f..504a7f2c`: #66272 (livekit), #66165 (web
   GPUI), #55739, #66368, #66387 (Windows), #53746 (Linux), #66002 (wgpu),
   #55455 (helix/vim), #66182 (git hosting providers), #66430 (http_client),
