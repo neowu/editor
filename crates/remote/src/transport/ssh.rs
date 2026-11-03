@@ -661,7 +661,6 @@ fn parse_port_forward_spec(spec: &str) -> Result<SshPortForwardOption> {
 
 impl SshConnectionOptions {
     pub fn parse_command_line(input: &str) -> Result<Self> {
-        let input = input.trim_start_matches("ssh ");
         let mut hostname: Option<String> = None;
         let mut username: Option<String> = None;
         let mut port: Option<u16> = None;
@@ -673,7 +672,14 @@ impl SshConnectionOptions {
         const ALLOWED_ARGS: &[&str] =
             &["-B", "-b", "-c", "-D", "-F", "-I", "-i", "-J", "-l", "-m", "-o", "-P", "-p", "-R", "-w"];
 
-        let mut tokens = ShellKind::Posix.split(input).context("invalid input")?.into_iter();
+        let mut tokens = ShellKind::Posix.split(input).context("invalid input")?;
+        // The input may be a full command such as `ssh -p 2222 host`, possibly with
+        // shell-quoted tokens. Strip the executable after tokenizing so that `'ssh'`
+        // is recognized too, while a lone `ssh` is still treated as a hostname.
+        if tokens.len() > 1 && tokens[0] == "ssh" {
+            tokens.remove(0);
+        }
+        let mut tokens = tokens.into_iter();
 
         'outer: while let Some(arg) = tokens.next() {
             if ALLOWED_OPTS.contains(&(&arg as &str)) {
@@ -935,4 +941,50 @@ fn ssh_command_template(
     args.push(exec);
 
     CommandTemplate { program: "ssh".into(), args, env: ssh_env }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+
+    use super::SshConnectionOptions;
+
+    #[test]
+    fn parse_command_line_accepts_a_quoted_ssh_executable() -> Result<()> {
+        let opts = SshConnectionOptions::parse_command_line("ssh -p 2222 user@example.com")?;
+        assert_eq!(opts.host, "example.com".into());
+        assert_eq!(opts.username, Some("user".to_string()));
+        assert_eq!(opts.port, Some(2222));
+
+        let opts = SshConnectionOptions::parse_command_line(
+            "'ssh' '-i' '/Users/test/Library/Application Support/key' '-p' '64042' '-o' 'ControlMaster=auto' \
+             'user@127.0.0.1'",
+        )?;
+        assert_eq!(opts.host, "127.0.0.1".into());
+        assert_eq!(opts.username, Some("user".to_string()));
+        assert_eq!(opts.port, Some(64042));
+        assert_eq!(
+            opts.args,
+            Some(vec![
+                "-i".to_string(),
+                "/Users/test/Library/Application Support/key".to_string(),
+                "-o".to_string(),
+                "ControlMaster=auto".to_string(),
+            ])
+        );
+
+        let opts = SshConnectionOptions::parse_command_line("\"ssh\" user@example.com")?;
+        assert_eq!(opts.host, "example.com".into());
+        assert_eq!(opts.username, Some("user".to_string()));
+
+        // A bare `ssh` is a hostname, not the executable.
+        let opts = SshConnectionOptions::parse_command_line("ssh")?;
+        assert_eq!(opts.host, "ssh".into());
+        assert_eq!(opts.username, None);
+
+        let opts = SshConnectionOptions::parse_command_line("ssh user@ssh")?;
+        assert_eq!(opts.host, "ssh".into());
+        assert_eq!(opts.username, Some("user".to_string()));
+        Ok(())
+    }
 }
