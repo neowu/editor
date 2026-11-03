@@ -1225,28 +1225,28 @@ fn get_key_equivalents(layout_id: &str) -> Option<HashMap<char, char>> {
             ('~', '>'),
         ],
         "com.apple.keylayout.Spanish-ISO" => &[
-            ('"', '¨'),
+            ('"', '^'),
             ('#', '·'),
             ('&', '/'),
+            ('\'', '`'),
             ('(', ')'),
             (')', '='),
             ('*', '('),
-            ('.', 'ç'),
-            ('/', '.'),
-            (':', 'º'),
-            (';', '´'),
-            ('<', '¿'),
-            ('>', 'Ç'),
+            ('/', '\''),
+            (':', '¿'),
+            (';', '¡'),
+            ('<', ';'),
+            ('=', '*'),
+            ('>', ':'),
             ('@', '"'),
             ('[', 'ñ'),
-            ('\'', '`'),
-            ('\\', '\''),
-            (']', ';'),
+            ('\\', 'ç'),
+            (']', '´'),
             ('^', '&'),
             ('`', '<'),
             ('{', 'Ñ'),
-            ('|', '"'),
-            ('}', '`'),
+            ('|', 'Ç'),
+            ('}', '¨'),
             ('~', '>'),
         ],
         "com.apple.keylayout.Swedish" => &[
@@ -1489,4 +1489,19 @@ fn get_key_equivalents(layout_id: &str) -> Option<HashMap<char, char>> {
     };
 
     Some(HashMap::from_iter(mappings.iter().copied()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_key_equivalents;
+
+    #[test]
+    fn spanish_iso_maps_shortcuts_to_the_keys_that_type_them() {
+        let equivalents = get_key_equivalents("com.apple.keylayout.Spanish-ISO").unwrap();
+        for (shortcut, key) in [('"', '^'), ('/', '\''), (':', '¿'), (';', '¡'), ('=', '*'), ('\\', 'ç'), (']', '´')]
+        {
+            assert_eq!(equivalents.get(&shortcut), Some(&key), "{shortcut}");
+        }
+        assert!(!equivalents.contains_key(&'.'));
+    }
 }
