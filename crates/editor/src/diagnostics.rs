@@ -447,7 +447,36 @@ impl Editor {
         });
     }
 
-    pub(super) fn pull_diagnostics(&mut self, buffer_id: BufferId, _window: &Window, cx: &Context<Self>) -> Option<()> {
+    pub(super) fn remove_invalid_inline_diagnostics(
+        &mut self,
+        buffer_ids: &[BufferId],
+        buffers_removed: bool,
+        snapshot: &MultiBufferSnapshot,
+        cx: &mut Context<Self>,
+    ) {
+        if self.inline_diagnostics.is_empty() {
+            return;
+        }
+        let buffer_ids = buffer_ids.iter().copied().collect::<HashSet<BufferId>>();
+        let previous_len = self.inline_diagnostics.len();
+        self.inline_diagnostics.retain(|(anchor, _)| {
+            anchor.buffer_id().is_none_or(|buffer_id| !buffer_ids.contains(&buffer_id))
+                || !buffers_removed
+                    && anchor
+                        .raw_text_anchor()
+                        .is_none_or(|text_anchor| snapshot.anchor_in_excerpt(text_anchor).is_some())
+        });
+        if self.inline_diagnostics.len() != previous_len {
+            cx.notify();
+        }
+    }
+
+    pub(super) fn pull_diagnostics(
+        &mut self,
+        buffer_id: BufferId,
+        _window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Option<()> {
         // `ActiveDiagnostic::All` is a special mode where editor's diagnostics are managed by the external view,
         // skip any LSP updates for it.
 
@@ -462,20 +491,23 @@ impl Editor {
         let project = self.project()?.downgrade();
         let buffer = self.buffer().read(cx).buffer(buffer_id)?;
 
-        self.pull_diagnostics_task = cx.spawn(async move |_, cx| {
-            cx.background_executor().timer(debounce).await;
-            if let Ok(task) = project.update(cx, |project, cx| {
-                project.lsp_store().update(cx, |lsp_store, cx| lsp_store.pull_diagnostics_for_buffer(buffer, cx))
-            }) {
-                task.await.log_err();
-            }
-            project
-                .update(cx, |project, cx| {
-                    project.lsp_store().update(cx, |lsp_store, cx| {
-                        lsp_store.pull_document_diagnostics_for_buffer_edit(buffer_id, cx);
+        self.spawn_lsp_data_tasks(LspDataKind::PullDiagnostics, Some(buffer_id), vec![buffer], cx, |buffer, cx| {
+            let project = project.clone();
+            cx.spawn(async move |_, cx| {
+                cx.background_executor().timer(debounce).await;
+                if let Ok(task) = project.update(cx, |project, cx| {
+                    project.lsp_store().update(cx, |lsp_store, cx| lsp_store.pull_diagnostics_for_buffer(buffer, cx))
+                }) {
+                    task.await.log_err();
+                }
+                project
+                    .update(cx, |project, cx| {
+                        project.lsp_store().update(cx, |lsp_store, cx| {
+                            lsp_store.pull_document_diagnostics_for_buffer_edit(buffer_id, cx);
+                        })
                     })
-                })
-                .log_err();
+                    .log_err();
+            })
         });
 
         Some(())

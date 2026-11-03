@@ -3,7 +3,6 @@ use futures::future::join_all;
 use gpui::App;
 use gpui::Entity;
 use gpui::Task;
-use itertools::Itertools;
 use language::Buffer;
 use language::BufferSnapshot;
 use lsp::LanguageServerId;
@@ -16,21 +15,17 @@ use ui::Context;
 
 use crate::Editor;
 use crate::LSP_REQUEST_DEBOUNCE_TIMEOUT;
+use crate::LspDataKind;
 use crate::editor_settings::EditorSettings;
 
 pub(super) struct LspDocumentLinks {
     pub(super) enabled: bool,
     pub(super) per_buffer: HashMap<BufferId, BufferDocumentLinks>,
-    pub(super) refresh_task: Task<()>,
 }
 
 impl LspDocumentLinks {
     pub(super) fn new(cx: &App) -> Self {
-        Self {
-            enabled: EditorSettings::get_global(cx).lsp_document_links,
-            per_buffer: HashMap::default(),
-            refresh_task: Task::ready(()),
-        }
+        Self { enabled: EditorSettings::get_global(cx).lsp_document_links, per_buffer: HashMap::default() }
     }
 }
 
@@ -43,58 +38,31 @@ impl Editor {
             return;
         };
 
-        let buffers_to_query = self
-            .visible_buffers(cx)
-            .into_iter()
-            .filter(|buffer| self.is_lsp_relevant(buffer.read(cx).file(), cx))
-            .chain(for_buffer.and_then(|id| self.buffer.read(cx).buffer(id)))
-            .filter(|buffer| {
-                let id = buffer.read(cx).remote_id();
-                for_buffer.is_none_or(|target| target == id) && self.registered_buffers.contains_key(&id)
-            })
-            .unique_by(|buffer| buffer.read(cx).remote_id())
-            .collect::<Vec<_>>();
-        if buffers_to_query.is_empty() {
-            self.lsp_document_links.refresh_task = Task::ready(());
-            return;
-        }
+        let buffers_to_query = self.lsp_data_buffers(for_buffer, cx);
+        self.spawn_lsp_data_tasks(LspDataKind::DocumentLinks, for_buffer, buffers_to_query, cx, |buffer, cx| {
+            let project = project.clone();
+            let buffer_id = buffer.read(cx).remote_id();
+            cx.spawn(async move |editor, cx| {
+                cx.background_executor().timer(LSP_REQUEST_DEBOUNCE_TIMEOUT).await;
 
-        self.lsp_document_links.refresh_task = cx.spawn(async move |editor, cx| {
-            cx.background_executor().timer(LSP_REQUEST_DEBOUNCE_TIMEOUT).await;
-
-            let Some(tasks_for_buffers) = project
-                .update(cx, |project, cx| {
-                    project.lsp_store().update(cx, |lsp_store, cx| {
-                        buffers_to_query
-                            .into_iter()
-                            .map(|buffer| {
-                                let buffer_id = buffer.read(cx).remote_id();
-                                let task = lsp_store.fetch_document_links(&buffer, cx);
-                                async move { (buffer_id, task.await) }
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                })
-                .ok()
-            else {
-                return;
-            };
-
-            let new_links_for_buffers = join_all(tasks_for_buffers).await;
-            editor
-                .update(cx, |editor, _| {
-                    for (buffer_id, links) in new_links_for_buffers {
-                        let Some(links) = links else {
-                            continue;
-                        };
+                let Ok(task) = project.update(cx, |project, cx| {
+                    project.lsp_store().update(cx, |lsp_store, cx| lsp_store.fetch_document_links(&buffer, cx))
+                }) else {
+                    return;
+                };
+                let Some(links) = task.await else {
+                    return;
+                };
+                editor
+                    .update(cx, |editor, _| {
                         if links.is_empty() {
                             editor.lsp_document_links.per_buffer.remove(&buffer_id);
                         } else {
                             editor.lsp_document_links.per_buffer.insert(buffer_id, links);
                         }
-                    }
-                })
-                .ok();
+                    })
+                    .ok();
+            })
         });
     }
 
