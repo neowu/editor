@@ -23,7 +23,7 @@ objc2-app-kit = { workspace = true, features = ["NSDragging", "NSEvent", "NSText
 objc2-core-foundation = { workspace = true, features = ["CFBase", "CFData", "CFNumber", "CFRunLoop", "CFString", "CFUUID", "std"] }
 objc2-core-graphics = { workspace = true, features = ["CGDirectDisplay", "CGError", "CGRemoteOperation"] }
 objc2-foundation = { workspace = true, features = ["NSKeyedArchiver", "NSRunLoop"] }
-objc2-quartz-core = { workspace = true, features = ["CADisplayLink"] }
+objc2-quartz-core = { workspace = true, features = ["CAMetalDisplayLink", "objc2-metal"] }
 parking_lot.workspace = true
 raw-window-handle.workspace = true
 smallvec.workspace = true

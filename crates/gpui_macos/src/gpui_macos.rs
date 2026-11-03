@@ -5,6 +5,7 @@
 //! an origin at the bottom left of the main display.
 
 mod display;
+mod display_link;
 mod events;
 mod keyboard;
 mod ns;
