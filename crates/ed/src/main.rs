@@ -186,8 +186,6 @@ fn main() {
 
     let app_db = db::AppDatabase::new();
 
-    let session_id = Uuid::new_v4().to_string();
-    let session = app.background_executor().spawn(Session::new(session_id, KeyValueStore::from_app_db(&app_db)));
     let (open_listener, mut open_rx) = OpenListener::new();
 
     let failed_single_instance_check = if cfg!(debug_assertions) {
@@ -203,6 +201,11 @@ fn main() {
         println!("ed is already running");
         return;
     }
+
+    // Only the primary instance records a session ID; a second launch writing
+    // one would orphan the running session's workspaces on the next start.
+    let session_id = Uuid::new_v4().to_string();
+    let session = app.background_executor().spawn(Session::new(session_id, KeyValueStore::from_app_db(&app_db)));
 
     let fs = RealFs::new(app.background_executor());
     if !stdout_is_a_pty() {
