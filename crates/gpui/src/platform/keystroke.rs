@@ -220,6 +220,11 @@ impl Keystroke {
         }
         self
     }
+
+    /// Returns whether the key itself is a modifier
+    pub fn is_modifier_key(&self) -> bool {
+        matches!(self.key.as_str(), "shift" | "control" | "alt" | "platform" | "function")
+    }
 }
 
 impl KeybindingKeystroke {
@@ -641,4 +646,19 @@ fn unparse(modifiers: &Modifiers, key: &str) -> String {
     }
     result.push_str(key);
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Keystroke;
+
+    #[test]
+    fn is_modifier_key_matches_only_standalone_modifiers() {
+        for key in ["shift", "control", "alt", "platform", "function"] {
+            assert!(Keystroke::parse(key).unwrap().is_modifier_key(), "{key}");
+        }
+        for key in ["a", "cmd-shift-p", "space", "f1"] {
+            assert!(!Keystroke::parse(key).unwrap().is_modifier_key(), "{key}");
+        }
+    }
 }
