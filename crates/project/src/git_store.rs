@@ -1931,18 +1931,18 @@ impl GitStore {
                 }
 
                 if is_active_repo_removed {
-                    if let Some((&repo_id, _)) = self.repositories.iter().next() {
-                        self.active_repo_id = Some(repo_id);
-                        cx.emit(GitStoreEvent::ActiveRepositoryChanged(Some(repo_id)));
-                    } else {
-                        self.active_repo_id = None;
-                        cx.emit(GitStoreEvent::ActiveRepositoryChanged(None));
-                    }
+                    self.select_fallback_active_repository(cx);
                 }
             }
             _ => {}
         }
     }
+    /// Makes a remaining repository active, or none when the last one is gone.
+    fn select_fallback_active_repository(&mut self, cx: &mut Context<Self>) {
+        self.active_repo_id = self.repositories.keys().next().copied();
+        cx.emit(GitStoreEvent::ActiveRepositoryChanged(self.active_repo_id));
+    }
+
     fn on_repository_event(&mut self, repo: Entity<Repository>, event: &RepositoryEvent, cx: &mut Context<Self>) {
         let id = repo.read(cx).id;
         let repo_snapshot = repo.read(cx).snapshot.clone();
@@ -2681,9 +2681,10 @@ impl GitStore {
                 update.project_id = project_id.to_proto();
                 client.send(update).log_err();
             }
+            // Fall back to a remaining repository rather than none, so the git
+            // panel doesn't offer to initialize one while others are open.
             if this.active_repo_id == Some(id) {
-                this.active_repo_id = None;
-                cx.emit(GitStoreEvent::ActiveRepositoryChanged(None));
+                this.select_fallback_active_repository(cx);
             }
             cx.emit(GitStoreEvent::RepositoryRemoved(id));
         });
