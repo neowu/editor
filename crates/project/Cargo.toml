@@ -49,6 +49,7 @@ sum_tree.workspace = true
 task.workspace = true
 terminal.workspace = true
 text.workspace = true
+usvg.workspace = true
 util.workspace = true
 watch.workspace = true
 which.workspace = true

@@ -3490,6 +3490,7 @@ dependencies = [
  "task",
  "terminal",
  "text",
+ "usvg",
  "util",
  "watch",
  "which",

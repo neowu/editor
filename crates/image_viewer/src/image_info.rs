@@ -7,6 +7,7 @@ use gpui::Subscription;
 use gpui::div;
 use project::image_store::ImageFormat;
 use project::image_store::ImageMetadata;
+use project::image_store::RasterImageFormat;
 use settings::Settings;
 use ui::prelude::*;
 use util::size::format_file_size;
@@ -67,11 +68,14 @@ impl Render for ImageInfo {
 
         components.push(
             match metadata.format {
-                ImageFormat::Png => "PNG",
-                ImageFormat::Jpeg => "JPEG",
-                ImageFormat::Gif => "GIF",
-                ImageFormat::WebP => "WebP",
-                _ => "Unknown",
+                ImageFormat::Svg => "SVG",
+                ImageFormat::Raster(format) => match format {
+                    RasterImageFormat::Png => "PNG",
+                    RasterImageFormat::Jpeg => "JPEG",
+                    RasterImageFormat::Gif => "GIF",
+                    RasterImageFormat::WebP => "WebP",
+                    _ => "Unknown",
+                },
             }
             .to_string(),
         );
