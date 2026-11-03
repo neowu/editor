@@ -54,6 +54,35 @@ from upstream in layout as well as in behaviour.
   layout cache, hash-based layout cache removed; the fork never called it),
   #66156 (`SingleSubscriberSet` and the one-state subscriber lifecycle, the
   unused `ctor` re-export dropped; its lint fixes were already in the fork).
+- 2026-11-03 performance pass over `02d47bf64f..504a7f2c` (gpui
+  performance/efficiency only): ported #65952 (scoped entity-read tracking),
+  #65472 (`CAMetalDisplayLink` pacing with idle pause; the fork's NSView
+  `CADisplayLink` replaced, no `CVDisplayLink` fallback since the fork requires
+  macOS 15.3), and the path intermediate texture reuse from #66344 (the fork
+  already rendered screenshots offscreen). The rest of that range is either
+  declined below or listed under Pending; the next full review still starts
+  at `02d47bf64f`.
+
+### Pending
+
+Fork-relevant commits from `02d47bf64f..504a7f2c` not yet decided:
+
+- Correctness: #66264 (invalidate LSP data for outdated excerpts), #66293
+  (arena `Rc` to fix UB), #55800 (standalone modifier sequences time out),
+  #65951 (cached views repaint on inherited opacity change), #66299 (active
+  repository after removing remote worktrees), #66289 (remote windows merging
+  on session restore), #66364 (second launch overwriting the session ID),
+  #66360 (shell-quoted ssh executable), #66404 (SVG in remote Markdown
+  previews), #66406 (C++ lambda specifier highlighting), #50882 (project
+  search focus/action context), #66283 (Spanish-ISO shortcut mappings).
+- UI: #66260 and #66187 (git graph refs column, author cell alignment),
+  #66226 (keep open commit highlighted in History), #63909 (remote picker
+  scrollbar), #65474 (Markdown images not rounded), #66358 (borrow and window
+  error diagnostics).
+- Features: #64624 (UAX #14 line breaking), #53089 (git auto fetch), #66284
+  (no worktree hooks in restricted mode), #66423 (drag git panel files to the
+  terminal), #66296 (mouse wheel zoom in terminals and diffs), #66294
+  (remove unreferenced notification bits).
 
 ### Declined
 
@@ -75,6 +104,10 @@ upstream change depends on them or the need changes.
   #65863 (origin of conflicting app borrows), #61528 (recent commits for AI
   commit messages), #65389 (open README by default), #65531 (welcome-screen
   project action buttons), #65738 (Subsecond hot reload).
+- Performance work that doesn't apply: #66281 (configurable Low Power Mode
+  and thermal frame intervals; builds on declined #63477), #66316 (GPUI
+  benchmarks and comparison script; the fork has no benches), #66317
+  (animations on the executor clock; only matters for the test clock).
 - Churn or refactors with no fork benefit: #65715, #65714, #65713, #65932,
   #65933, #65934 (`gpui_macos` objc2 migration), #65792 and #65782 (`path`
   helpers / `PathStyle` normalization ahead of upstream's `join_path`),
@@ -96,6 +129,11 @@ upstream change depends on them or the need changes.
   #65381, #65702 (extensions), #65280 and the Node/Wasmtime parts of #65956
   (managed Node, Wasm extensions), plus all agent/ACP, sidebar,
   language-model, collab, Linux/Windows backend and CI commits.
+- Removed areas in `02d47bf64f..504a7f2c`: #66272 (livekit), #66165 (web
+  GPUI), #55739, #66368, #66387 (Windows), #53746 (Linux), #66002 (wgpu),
+  #55455 (helix/vim), #66182 (git hosting providers), #66430 (http_client),
+  #64133, #66435 (debugger), #64612, #66207, #66224, #66290, #66295, #66367,
+  #66425 (agent/ACP/language model), #66308 (collab), #66413 (docs site).
 
 ### Things to do on the next pass
 

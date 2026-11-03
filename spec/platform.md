@@ -194,12 +194,18 @@ from the installed app only resolve the panic location itself.
   (`core-foundation`, `core-graphics`, `core-text`, `foreign-types`) are not
   dependencies. Carbon text-input-source calls (`TIS*`, `UCKeyTranslate`) have
   no objc2 bindings and are declared locally.
-- Frames are paced by a per-window `CADisplayLink` from
-  `NSView.displayLinkWithTarget:selector:`, scheduled in the main run loop's
-  common modes so it keeps firing during live resize. It follows the view across
-  screens on its own, is paused while the window is occluded, and is
-  invalidated when the window is dropped (it retains the view until then).
-  The deprecated `CVDisplayLink` is not used.
+- Frames are paced by a per-window `CAMetalDisplayLink` on the window's
+  `CAMetalLayer`, scheduled in the main run loop's common modes so it keeps
+  firing during live resize. The renderer draws into the drawable each update
+  hands out and never calls `nextDrawable` while a link is attached, because
+  `nextDrawable` blocks ~33 ms per frame on base M-series Macs on macOS 26+.
+  The OS picks the rate (`preferredFrameRateRange` is left at its default).
+- An idle window does no per-refresh work: the link pauses after an update in
+  which GPUI neither drew, presented, nor asked for another frame, and GPUI's
+  `frame_waker`/`schedule_frame` resume it. Synchronous draws (activation,
+  `displayLayer:`) and occlusion detach the link; it is recreated afterwards,
+  on screen changes, and invalidated when the window is dropped. Neither
+  `CADisplayLink` nor the deprecated `CVDisplayLink` is used.
 - The Metal renderer and sprite atlas (`gpui_apple`) use `objc2-metal` and
   `objc2-quartz-core`'s `CAMetalLayer`; the `metal` (metal-rs) crate is not a
   dependency.
