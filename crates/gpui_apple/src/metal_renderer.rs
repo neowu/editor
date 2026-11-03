@@ -465,6 +465,14 @@ impl MetalRenderer {
             return;
         }
 
+        // The drawable size is set again on every resize callback and scale
+        // change, often to the size it already has.
+        if self.path_intermediate_texture.as_ref().is_some_and(|texture| {
+            texture.width() == size.width.0 as usize && texture.height() == size.height.0 as usize
+        }) {
+            return;
+        }
+
         let texture_descriptor = MTLTextureDescriptor::new();
         unsafe {
             texture_descriptor.setWidth(size.width.0 as usize);
@@ -1356,4 +1364,66 @@ enum PathRasterizationInputIndex {
 #[repr(C)]
 pub struct PathSprite {
     pub bounds: Bounds<ScaledPixels>,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use gpui::DevicePixels;
+    use gpui::Scene;
+    use gpui::size;
+    use objc2::rc::Retained;
+    use objc2_metal::MTLTexture as _;
+
+    use super::DisplayLinkMode;
+    use super::MetalRenderer;
+
+    #[test]
+    fn path_intermediate_textures_are_reused_until_resize() {
+        let mut renderer = MetalRenderer::new(Arc::default(), false);
+        let initial_size = size(DevicePixels(64), DevicePixels(64));
+        renderer.update_drawable_size(initial_size);
+        let initial = renderer.path_intermediate_texture.clone().expect("path intermediate texture");
+
+        renderer.update_drawable_size(initial_size);
+        let reused = renderer.path_intermediate_texture.as_ref().expect("reused texture");
+        assert_eq!(Retained::as_ptr(&initial), Retained::as_ptr(reused));
+
+        renderer.update_drawable_size(size(DevicePixels(128), DevicePixels(64)));
+        let resized = renderer.path_intermediate_texture.as_ref().expect("resized texture");
+        assert_eq!((resized.width(), resized.height()), (128, 64));
+        assert_ne!(Retained::as_ptr(&initial), Retained::as_ptr(resized));
+        if let Some(msaa) = &renderer.path_intermediate_msaa_texture {
+            assert_eq!((msaa.width(), msaa.height()), (128, 64));
+        }
+
+        renderer.update_drawable_size(size(DevicePixels(0), DevicePixels(64)));
+        assert!(renderer.path_intermediate_texture.is_none());
+        assert!(renderer.path_intermediate_msaa_texture.is_none());
+    }
+
+    #[test]
+    fn display_link_mode_consumes_and_clears_drawables() {
+        let mut renderer = MetalRenderer::new(Arc::default(), false);
+        renderer.update_drawable_size(size(DevicePixels(64), DevicePixels(64)));
+        let drawable = renderer.layer().and_then(|layer| layer.nextDrawable()).expect("window renderer drawable");
+
+        renderer.set_display_link_attached(true);
+        assert!(matches!(renderer.display_link_mode, DisplayLinkMode::Attached { drawable: None }));
+        assert!(renderer.set_frame_drawable(Some(drawable.clone())).is_none());
+        assert!(matches!(renderer.display_link_mode, DisplayLinkMode::Attached { drawable: Some(_) }));
+        renderer.draw(&Scene::default());
+        assert!(matches!(renderer.display_link_mode, DisplayLinkMode::Attached { drawable: None }));
+
+        // A frame that drew consumed its drawable; one that didn't hands it back.
+        assert!(renderer.set_frame_drawable(Some(drawable.clone())).is_none());
+        assert!(renderer.set_frame_drawable(None).is_some());
+
+        renderer.set_frame_drawable(Some(drawable));
+        renderer.set_display_link_attached(false);
+        assert!(matches!(renderer.display_link_mode, DisplayLinkMode::Detached));
+        // Detached, the renderer asks the layer for its own drawable again.
+        renderer.draw(&Scene::default());
+    }
 }
