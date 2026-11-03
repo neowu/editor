@@ -151,6 +151,7 @@ use util::ResultExt;
 use util::TryFutureExt;
 use util::markdown::MarkdownInlineCode;
 use util::paths::PathStyle;
+use workspace::CARD_RADIUS;
 use workspace::Item;
 use workspace::ModalView;
 use workspace::SERIALIZATION_THROTTLE_TIME;
@@ -5127,10 +5128,12 @@ impl GitPanel {
             .when(title_exceeds_limit, |this| {
                 this.child(
                     h_flex()
+                        .mb_1()
                         .px_2()
                         .py_1()
                         .gap_1()
-                        .border_t_1()
+                        .rounded(CARD_RADIUS)
+                        .border_1()
                         .border_color(cx.theme().status().warning_border)
                         .bg(cx.theme().status().warning_background.opacity(0.5))
                         .child(Icon::new(IconName::Warning).size(IconSize::XSmall).color(Color::Warning))
@@ -5143,14 +5146,11 @@ impl GitPanel {
             .child(
                 panel_editor_container(window, cx)
                     .id("commit-editor-container")
-                    .w_full()
                     .when(self.commit_editor_expanded, |this| this.flex_1().min_h_0())
-                    .border_t_1()
-                    .border_color(if title_exceeds_limit {
-                        cx.theme().status().warning_border
-                    } else {
-                        cx.theme().colors().border
-                    })
+                    // A floating card like the editor panes. It spans the dock, so the window edge and
+                    // the dock's gap to the center give it the same 8px gaps as every other card.
+                    .rounded(CARD_RADIUS)
+                    .overflow_hidden()
                     .when(!collapsed, |this| {
                         this.on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                             window.focus(&this.commit_editor.focus_handle(cx), cx);
@@ -5263,8 +5263,6 @@ impl GitPanel {
             .px_2()
             .gap_1p5()
             .justify_between()
-            .border_t_1()
-            .border_color(cx.theme().colors().border.opacity(0.8))
             .child(
                 div()
                     .flex_grow_1()
@@ -5292,8 +5290,6 @@ impl GitPanel {
                 .p_1p5()
                 .gap_1p5()
                 .justify_between()
-                .border_t_1()
-                .border_color(cx.theme().colors().border.opacity(0.8))
                 .child(
                     div()
                         .id("commit-msg-hover")
