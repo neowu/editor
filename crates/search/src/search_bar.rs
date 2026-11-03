@@ -5,11 +5,14 @@ use editor::MultiBufferOffset;
 use editor::ToOffset;
 use gpui::Action;
 use gpui::App;
+use gpui::ClickEvent;
+use gpui::Context;
 use gpui::Entity;
 use gpui::FocusHandle;
 use gpui::Hsla;
 use gpui::IntoElement;
 use gpui::TextStyle;
+use gpui::Window;
 use ui::IconButton;
 use ui::IconButtonShape;
 use ui::Tooltip;
@@ -47,25 +50,31 @@ pub(super) enum ActionButtonState {
     Toggled,
 }
 
-pub(super) fn render_action_button(
+/// A button that runs `handler` on the search bar that rendered it. Dispatching
+/// the action instead would reach workspace-level handlers, which resolve the
+/// active pane before a click in another pane has activated it.
+#[expect(clippy::too_many_arguments, reason = "mirrors the button's parts")]
+pub(super) fn render_local_action_button<T: 'static, A: Action>(
     id_prefix: &'static str,
     icon: ui::IconName,
     button_state: Option<ActionButtonState>,
     tooltip: &'static str,
-    action: &'static dyn Action,
+    action: &'static A,
     focus_handle: FocusHandle,
+    cx: &Context<T>,
+    handler: fn(&mut T, &A, &mut Window, &mut Context<T>),
 ) -> impl IntoElement {
     IconButton::new(SharedString::from(format!("{id_prefix}-{}", action.name())), icon)
         .shape(IconButtonShape::Square)
-        .on_click({
+        .on_click(cx.listener({
             let focus_handle = focus_handle.clone();
-            move |_, window, cx| {
+            move |this, _: &ClickEvent, window, cx| {
                 if !focus_handle.is_focused(window) {
                     window.focus(&focus_handle, cx);
                 }
-                window.dispatch_action(action.boxed_clone(), cx);
+                handler(this, action, window, cx);
             }
-        })
+        }))
         .tooltip(move |_window, cx| Tooltip::for_action_in(tooltip, action, &focus_handle, cx))
         .when_some(button_state, |this, state| match state {
             ActionButtonState::Toggled => this.toggle_state(true),
