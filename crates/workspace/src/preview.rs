@@ -5,9 +5,7 @@ use gpui::Entity;
 use gpui::Global;
 use gpui::Window;
 use gpui::actions;
-use ui::IconButton;
 use ui::IconName;
-use ui::IconSize;
 use ui::Tooltip;
 use ui::prelude::*;
 
@@ -77,8 +75,7 @@ pub(crate) fn render_tab_bar_preview_button(pane: &Pane, cx: &App) -> Option<Any
     let (_, label) = find_provider(item.as_ref(), cx)?;
     let workspace = pane.workspace.clone();
     Some(
-        IconButton::new("toggle-preview", IconName::Eye)
-            .icon_size(IconSize::Small)
+        crate::pane::top_row_icon_button("toggle-preview", IconName::Eye)
             .tooltip(move |_window, cx| {
                 Tooltip::with_meta(
                     label,

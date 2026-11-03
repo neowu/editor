@@ -3667,6 +3667,15 @@ impl Pane {
     }
 }
 
+/// Size of a top-row icon button's square target. The window header and the
+/// tab bar ends share it, so both sides of the window's top row match.
+pub const TOP_ROW_BUTTON_SIZE: Pixels = px(28.);
+
+/// An icon button for the window's top row: a 16px icon in a 28px square.
+pub fn top_row_icon_button(id: impl Into<ElementId>, icon: IconName) -> IconButton {
+    IconButton::new(id, icon).icon_size(IconSize::Medium).size(ButtonSize::Medium).width(TOP_ROW_BUTTON_SIZE)
+}
+
 /// The preview and Zoom buttons, shared by every pane tab bar so they look and
 /// behave the same everywhere. Zoom stays rightmost, so a hidden preview button
 /// doesn't move it. There are no split buttons: panes split by dragging a tab to an edge.
@@ -3679,8 +3688,7 @@ pub fn render_tab_bar_pane_buttons(pane: &Pane, cx: &mut Context<Pane>) -> Vec<A
 /// The Zoom button alone, for panes that can zoom but never split.
 pub fn render_tab_bar_zoom_button(pane: &Pane, cx: &mut Context<Pane>) -> AnyElement {
     let zoomed = pane.is_zoomed();
-    IconButton::new("toggle_zoom", IconName::Maximize)
-        .icon_size(IconSize::Small)
+    top_row_icon_button("toggle_zoom", IconName::Maximize)
         .toggle_state(zoomed)
         .selected_icon(IconName::Minimize)
         .on_click(cx.listener(|pane, _, window, cx| {
@@ -3715,10 +3723,9 @@ pub fn set_editor_tab_bar_buttons(pane: &mut Pane, cx: &mut Context<Pane>) {
             return (None, None);
         }
         let right_children = h_flex()
-            .gap(DynamicSpacing::Base02.rems())
+            .gap(DynamicSpacing::Base04.rems())
             .child(
-                IconButton::new("new_file", IconName::Plus)
-                    .icon_size(IconSize::Small)
+                top_row_icon_button("new_file", IconName::Plus)
                     .on_click(|_, window, cx| window.dispatch_action(NewFile.boxed_clone(), cx))
                     .tooltip(Tooltip::for_action_title("New File", &NewFile)),
             )

@@ -65,9 +65,17 @@ because it hurt readability; an opaque window is also cheaper to composite.
   empty room for the macOS traffic lights, the project name and alerts (such as
   restricted mode), Go Back / Go Forward, then an icon-only, segmented
   Workspace / Git History switch (shown only for a project in a git
-  repository). It is outlined like the branch picker's Branches / Stashes
-  switch: a thin border, a divider between segments, and the shown mode's icon
-  in the accent colour rather than a filled segment. It sits on a strip above the
+  repository). The switch groups its icon buttons on a faint, borderless
+  track (2px inset) so the modes read as one control as more are added; the
+  shown mode's button is filled with its icon in the accent colour. The
+  buttons keep the top-row size, so the track is 4px taller than them rather
+  than shrinking them; an outlined switch looked heavier. The project
+  name is regular weight at the tab label's size (semibold was too loud).
+  Every top-row icon button (Go Back / Go Forward, the switch, and the tab bar
+  ends' New File, preview and Zoom) is a 16px icon in a 28px square
+  (`workspace::pane::top_row_icon_button`), 4px apart, so both ends of the row
+  match; the header's controls are 8px from the project name and from each
+  other's group. It sits on a strip above the
   sidebar (the left dock, or the Git History sidebar), so sidebar content lines
   up with the cards and tab bars start straight with tabs. The header is drawn
   over the mode's content, never clipped by the sidebar: when the sidebar is

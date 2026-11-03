@@ -20,7 +20,6 @@ use project::Project;
 use project::git_store::GitStoreEvent;
 use project::project_settings::ProjectSettings;
 use settings::Settings as _;
-use ui::IconButtonShape;
 use ui::Tab;
 use ui::Tooltip;
 use ui::prelude::*;
@@ -36,6 +35,7 @@ use crate::ShowEditor;
 use crate::Workspace;
 use crate::WorkspaceMode;
 use crate::dock::Dock;
+use crate::pane::top_row_icon_button;
 
 /// Where tab bar start content begins, from the window's left edge, when the
 /// pane is not after a sidebar: `CARD_GAP`, the folder tab bar's 10px inset,
@@ -150,7 +150,8 @@ impl Render for WindowHeader {
             .children(workspace.render_titlebar_region())
             .child(
                 h_flex()
-                    .gap_1()
+                    .ml_1()
+                    .gap_2()
                     // Clicks on the controls must not move the window.
                     .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .child(render_nav_buttons(&self.workspace, self.shown))
@@ -189,8 +190,7 @@ impl WindowHeader {
 /// pane in both modes.
 fn render_nav_buttons(workspace: &WeakEntity<Workspace>, state: WindowHeaderState) -> impl IntoElement {
     let back_workspace = workspace.clone();
-    let go_back = IconButton::new("go-back", IconName::ArrowLeft)
-        .icon_size(IconSize::Small)
+    let go_back = top_row_icon_button("go-back", IconName::ArrowLeft)
         .disabled(!state.can_go_back)
         .tooltip(|_window, cx| Tooltip::for_action("Go Back", &GoBack, cx))
         .on_click(move |_, window, cx| {
@@ -198,8 +198,7 @@ fn render_nav_buttons(workspace: &WeakEntity<Workspace>, state: WindowHeaderStat
         });
 
     let forward_workspace = workspace.clone();
-    let go_forward = IconButton::new("go-forward", IconName::ArrowRight)
-        .icon_size(IconSize::Small)
+    let go_forward = top_row_icon_button("go-forward", IconName::ArrowRight)
         .disabled(!state.can_go_forward)
         .tooltip(|_window, cx| Tooltip::for_action("Go Forward", &GoForward, cx))
         .on_click(move |_, window, cx| {
@@ -208,19 +207,20 @@ fn render_nav_buttons(workspace: &WeakEntity<Workspace>, state: WindowHeaderStat
                 .log_err();
         });
 
-    h_flex().gap_0p5().child(go_back).child(go_forward)
+    h_flex().gap_1().child(go_back).child(go_forward)
 }
 
-/// Icon-only "Workspace" / "Git History" segmented switch, outlined like the
-/// branch picker's Branches / Stashes switch: a thin border with a divider
-/// between segments, and the shown mode's icon in the accent colour.
+/// Inset of the mode switch's buttons within its track.
+const MODE_SWITCH_PADDING: Pixels = px(2.);
+
+/// Icon-only mode switch ("Workspace" / "Git History"): top-row icon buttons
+/// grouped on a faint track, so the modes read as one control, with the shown
+/// mode's button filled and its icon in the accent colour.
 fn render_mode_switch(workspace: &WeakEntity<Workspace>, mode: WorkspaceMode, cx: &App) -> impl IntoElement {
-    let border_color = cx.theme().colors().border.opacity(0.6);
     let segment = |id: &'static str, icon: IconName, shown: bool| {
-        IconButton::new(id, icon)
-            .icon_size(IconSize::Small)
+        top_row_icon_button(id, icon)
             .icon_color(if shown { Color::Accent } else { Color::Muted })
-            .shape(IconButtonShape::Wide)
+            .when(shown, |this| this.style(ButtonStyle::Filled))
     };
 
     let editor_workspace = workspace.clone();
@@ -237,11 +237,11 @@ fn render_mode_switch(workspace: &WeakEntity<Workspace>, mode: WorkspaceMode, cx
         .on_click(|_, window, cx| window.dispatch_action(Box::new(ed_actions::git_graph::Show), cx));
 
     h_flex()
-        .rounded_md()
-        .overflow_hidden()
-        .border_1()
-        .border_color(border_color)
-        .child(div().border_r_1().border_color(border_color).child(show_editor))
+        .p(MODE_SWITCH_PADDING)
+        .gap(MODE_SWITCH_PADDING)
+        .rounded_lg()
+        .bg(cx.theme().colors().element_background.opacity(0.4))
+        .child(show_editor)
         .child(show_history)
 }
 

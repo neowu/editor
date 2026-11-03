@@ -391,7 +391,6 @@ impl TitleBar {
             })
             .trigger_with_tooltip(
                 Button::new("project_name_trigger", display_name)
-                    .label_size(LabelSize::Small)
                     .tab_index(0isize)
                     .when(self.worktree_count(cx) > 1, |this| {
                         this.end_icon(Icon::new(IconName::ChevronDown).size(IconSize::XSmall).color(Color::Muted))

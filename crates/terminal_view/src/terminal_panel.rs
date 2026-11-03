@@ -977,10 +977,9 @@ fn set_terminal_tab_bar_buttons(pane: &mut Pane, cx: &mut Context<Pane>) {
             return (None, None);
         }
         let right_children = h_flex()
-            .gap(DynamicSpacing::Base02.rems())
+            .gap(DynamicSpacing::Base04.rems())
             .child(
-                IconButton::new("plus", IconName::Plus)
-                    .icon_size(IconSize::Small)
+                workspace::pane::top_row_icon_button("plus", IconName::Plus)
                     .on_click(|_, window, cx| {
                         window.dispatch_action(workspace::NewTerminal::default().boxed_clone(), cx);
                     })
