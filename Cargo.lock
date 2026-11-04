@@ -1582,7 +1582,6 @@ dependencies = [
  "gpui",
  "language",
  "menu",
- "settings",
  "text",
  "theme",
  "ui",

@@ -51,9 +51,8 @@ impl LspAdapter for HtmlLspAdapter {
         _: Option<Uri>,
         cx: &mut AsyncApp,
     ) -> Result<serde_json::Value> {
-        let project_options = cx.update(|cx| {
-            language_server_settings(&self.name(), cx).and_then(|s| s.settings.clone())
-        });
+        let project_options =
+            cx.update(|cx| language_server_settings(&self.name(), cx).and_then(|s| s.settings.clone()));
 
         Ok(project_options.unwrap_or_else(|| json!({})))
     }

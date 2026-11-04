@@ -6,14 +6,12 @@ use editor::Editor;
 use editor::EditorEvent;
 use editor::MBTextSummary;
 use editor::MultiBufferSnapshot;
-use gpui::App;
 use gpui::Entity;
 use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::Subscription;
 use gpui::Task;
 use gpui::WeakEntity;
-use settings::Settings;
 use text::Point;
 use text::Selection;
 use ui::Button;
@@ -162,42 +160,13 @@ impl CursorPosition {
                 .flatten();
         });
     }
-
-    fn write_position(&self, text: &mut String, cx: &App) {
-        if self.selected_count <= (SelectionStats { selections: 1, ..Default::default() }) {
-            // Do not write out anything if we have just one empty selection.
-            return;
-        }
-        let SelectionStats { lines, characters, selections } = self.selected_count;
-        let format = LineIndicatorFormat::get_global(cx);
-        let is_short_format = format == &LineIndicatorFormat::Short;
-        let lines = (lines > 1).then_some((lines, "line"));
-        let selections = (selections > 1).then_some((selections, "selection"));
-        let characters = (characters > 0).then_some((characters, "character"));
-        if (None, None, None) == (characters, selections, lines) {
-            // Nothing to display.
-            return;
-        }
-        write!(text, " (").unwrap();
-        let mut wrote_once = false;
-        for (count, name) in [selections, lines, characters].into_iter().flatten() {
-            if wrote_once {
-                write!(text, ", ").unwrap();
-            }
-            let name = if is_short_format { &name[..1] } else { name };
-            let plural_suffix = if count > 1 && !is_short_format { "s" } else { "" };
-            write!(text, "{count} {name}{plural_suffix}").unwrap();
-            wrote_once = true;
-        }
-        text.push(')');
-    }
 }
 
 impl Render for CursorPosition {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div().when_some(self.position, |el, position| {
             let mut text = format!("{}{FILE_ROW_COLUMN_DELIMITER}{}", position.line, position.character,);
-            self.write_position(&mut text, cx);
+            write_selection_stats(self.selected_count, &mut text);
 
             let context = self.context.clone();
 
@@ -256,25 +225,51 @@ impl StatusItemView for CursorPosition {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum LineIndicatorFormat {
-    Short,
-    Long,
-}
-
-settings::register_setting!(LineIndicatorFormat);
-
-impl From<settings::LineIndicatorFormat> for LineIndicatorFormat {
-    fn from(format: settings::LineIndicatorFormat) -> Self {
-        match format {
-            settings::LineIndicatorFormat::Short => LineIndicatorFormat::Short,
-            settings::LineIndicatorFormat::Long => LineIndicatorFormat::Long,
-        }
+fn write_selection_stats(stats: SelectionStats, text: &mut String) {
+    if stats <= (SelectionStats { selections: 1, ..Default::default() }) {
+        // Do not write out anything if we have just one empty selection.
+        return;
     }
+    let SelectionStats { lines, characters, selections } = stats;
+    let lines = (lines > 1).then_some((lines, "line"));
+    let selections = (selections > 1).then_some((selections, "selection"));
+    let characters = (characters > 0).then_some((characters, "character"));
+    if (None, None, None) == (characters, selections, lines) {
+        // Nothing to display.
+        return;
+    }
+    write!(text, " (").unwrap();
+    let mut wrote_once = false;
+    for (count, name) in [selections, lines, characters].into_iter().flatten() {
+        if wrote_once {
+            write!(text, ", ").unwrap();
+        }
+        let plural_suffix = if count > 1 { "s" } else { "" };
+        write!(text, "{count} {name}{plural_suffix}").unwrap();
+        wrote_once = true;
+    }
+    text.push(')');
 }
 
-impl Settings for LineIndicatorFormat {
-    fn from_settings(content: &settings::SettingsContent) -> Self {
-        content.line_indicator_format.unwrap().into()
+#[cfg(test)]
+mod tests {
+    use super::SelectionStats;
+    use super::write_selection_stats;
+
+    fn written(stats: SelectionStats) -> String {
+        let mut text = String::new();
+        write_selection_stats(stats, &mut text);
+        text
+    }
+
+    #[test]
+    fn test_write_selection_stats() {
+        assert_eq!(written(SelectionStats { lines: 0, characters: 0, selections: 1 }), "");
+        assert_eq!(written(SelectionStats { lines: 1, characters: 1, selections: 1 }), " (1 character)");
+        assert_eq!(written(SelectionStats { lines: 3, characters: 12, selections: 1 }), " (3 lines, 12 characters)");
+        assert_eq!(
+            written(SelectionStats { lines: 2, characters: 5, selections: 2 }),
+            " (2 selections, 2 lines, 5 characters)"
+        );
     }
 }

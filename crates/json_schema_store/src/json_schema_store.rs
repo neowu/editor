@@ -46,10 +46,7 @@ fn resolve_static_schema(path: &str) -> Option<String> {
 
 const JSONC_LANGUAGE_NAME: &str = "JSONC";
 
-pub fn all_schema_file_associations(
-    languages: &Arc<LanguageRegistry>,
-    cx: &mut App,
-) -> serde_json::Value {
+pub fn all_schema_file_associations(languages: &Arc<LanguageRegistry>, cx: &mut App) -> serde_json::Value {
     let extension_globs = languages
         .available_language_for_name(JSONC_LANGUAGE_NAME)
         .map(|language| language.matcher().path_suffixes.clone())

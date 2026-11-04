@@ -173,8 +173,7 @@ impl LspAdapter for JsonLspAdapter {
         });
 
         let project_options = cx.update(|cx| {
-            language_server_settings(&self.name(), cx)
-                .and_then(|s| worktree_root(delegate, s.settings.clone()))
+            language_server_settings(&self.name(), cx).and_then(|s| worktree_root(delegate, s.settings.clone()))
         });
 
         if let Some(override_options) = project_options {

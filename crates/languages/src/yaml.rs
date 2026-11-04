@@ -41,8 +41,7 @@ impl LspAdapter for YamlLspAdapter {
         _: Option<Uri>,
         cx: &mut AsyncApp,
     ) -> Result<Value> {
-        let tab_size =
-            cx.update(|cx| AllLanguageSettings::get_global(cx).language(Some(&"YAML".into())).tab_size);
+        let tab_size = cx.update(|cx| AllLanguageSettings::get_global(cx).language(Some(&"YAML".into())).tab_size);
 
         let mut options = serde_json::json!({
             "[yaml]": {"editor.tabSize": tab_size},
@@ -50,8 +49,7 @@ impl LspAdapter for YamlLspAdapter {
         });
 
         let project_options = cx.update(|cx| {
-            language_server_settings(&Self::SERVER_NAME, cx)
-                .and_then(|s| worktree_root(delegate, s.settings.clone()))
+            language_server_settings(&Self::SERVER_NAME, cx).and_then(|s| worktree_root(delegate, s.settings.clone()))
         });
         if let Some(override_options) = project_options {
             merge_json_value_into(override_options, &mut options);

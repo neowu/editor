@@ -47,24 +47,6 @@ impl std::fmt::Display for PixelSetting {
 
 use std::hash::Hash;
 
-/// Determines when the mouse cursor should be hidden in response to keyboard
-/// input.
-///
-/// Default: on_typing_and_action
-#[derive(
-    Copy, Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum HideMouseMode {
-    /// Never hide the mouse cursor
-    Never,
-    /// Hide only when typing
-    OnTyping,
-    /// Hide on typing and on key bindings that resolve to an action
-    #[default]
-    OnTypingAndAction,
-}
-
 #[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct SettingsContent {
     #[serde(flatten)]
@@ -86,17 +68,6 @@ pub struct SettingsContent {
 
     /// The settings for the image viewer.
     pub image_viewer: Option<ImageViewerSettingsContent>,
-
-    /// Determines when the mouse cursor should be hidden in response to
-    /// keyboard input. Applies globally across all input surfaces (editors,
-    /// terminals, palettes, etc.).
-    ///
-    /// Default: on_typing_and_action
-    pub hide_mouse: Option<HideMouseMode>,
-
-    pub line_indicator_format: Option<LineIndicatorFormat>,
-
-    pub outline_panel: Option<OutlinePanelSettingsContent>,
 
     /// Configuration of the terminal in ed.
     pub terminal: Option<TerminalSettingsContent>,
@@ -183,86 +154,6 @@ impl ModalWidthContent {
             ModalWidthContent::Medium => (window_width - gpui::px(1024.)).max(base_width),
         }
     }
-}
-
-#[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq)]
-pub struct OutlinePanelSettingsContent {
-    /// Whether to show the outline panel button in the status bar.
-    ///
-    /// Default: true
-    pub button: Option<bool>,
-    /// Customize default width (in pixels) taken by outline panel
-    ///
-    /// Default: 240
-    pub default_width: Option<PixelSetting>,
-    /// The position of outline panel
-    ///
-    /// Default: right
-    pub dock: Option<DockSide>,
-    /// Whether to show file icons in the outline panel.
-    ///
-    /// Default: true
-    pub file_icons: Option<bool>,
-    /// What to show for directories in the outline panel.
-    ///
-    /// Default: icon
-    pub folder_indicator: Option<FolderIndicator>,
-    /// Whether to show the git status in the outline panel.
-    ///
-    /// Default: true
-    pub git_status: Option<bool>,
-    /// Amount of indentation (in pixels) for nested items.
-    ///
-    /// Default: 20
-    pub indent_size: Option<PixelSetting>,
-    /// Whether to reveal it in the outline panel automatically,
-    /// when a corresponding project entry becomes active.
-    /// Gitignored entries are never auto revealed.
-    ///
-    /// Default: true
-    pub auto_reveal_entries: Option<bool>,
-    /// Whether to fold directories automatically
-    /// when directory has only one directory inside.
-    ///
-    /// Default: true
-    pub auto_fold_dirs: Option<bool>,
-    /// Settings related to indent guides in the outline panel.
-    pub indent_guides: Option<IndentGuidesSettingsContent>,
-    /// Default depth to expand outline items in the current file.
-    /// The default depth to which outline entries are expanded on reveal.
-    /// - Set to 0 to collapse all items that have children
-    /// - Set to 1 or higher to collapse items at that depth or deeper
-    ///
-    /// Default: 100
-    pub expand_outlines_with_depth: Option<usize>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, strum::VariantArray, strum::VariantNames)]
-#[serde(rename_all = "snake_case")]
-pub enum DockSide {
-    Left,
-    Right,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Deserialize, Serialize, strum::VariantArray, strum::VariantNames)]
-#[serde(rename_all = "snake_case")]
-pub enum ShowIndentGuides {
-    Always,
-    Never,
-}
-
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct IndentGuidesSettingsContent {
-    /// When to show the scrollbar in the outline panel.
-    pub show: Option<ShowIndentGuides>,
-}
-
-#[derive(Clone, Copy, Default, PartialEq, Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum LineIndicatorFormat {
-    Short,
-    #[default]
-    Long,
 }
 
 /// The settings for the image viewer.

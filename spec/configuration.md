@@ -97,7 +97,13 @@ migrator, or Vim/Helix mode.
     there are no git panel settings (see `git.md`);
   - project panel: folder labels are not bold; there are no project panel
     settings (see `project-panel.md`);
-  - status bar: no active file name item;
+  - status bar: no active file name item; the cursor position item always
+    uses the long selection format (`2 selections, 3 lines, 12 characters`);
+  - outline panel: docked right only, 360px default width, 20px indent with
+    indent guides, file and folder icons (no folder chevrons), single-child
+    directories auto-fold, the active entry is always revealed, outlines are
+    not collapsed by default depth; there are no outline panel settings;
+  - mouse cursor hides on typing and on keystrokes that resolve to an action;
   - workspace: a panel's focus toggle never closes the panel; the window title
     is fixed to `<project names> — <active file name>` (no title template, so
     no settings or Git branch subscriptions drive title updates);

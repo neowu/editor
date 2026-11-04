@@ -62,9 +62,8 @@ impl LspAdapter for CssLspAdapter {
             }
         });
 
-        let project_options = cx.update(|cx| {
-            language_server_settings(&self.name(), cx).and_then(|s| s.settings.clone())
-        });
+        let project_options =
+            cx.update(|cx| language_server_settings(&self.name(), cx).and_then(|s| s.settings.clone()));
 
         if let Some(override_options) = project_options {
             merge_json_value_into(override_options, &mut default_config);

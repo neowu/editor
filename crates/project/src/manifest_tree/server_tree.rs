@@ -215,9 +215,7 @@ impl LanguageServerTree {
             .into_iter()
             .map(|adapter| {
                 let adapter_settings =
-                    crate::lsp_store::language_server_settings(&adapter.name, cx)
-                        .cloned()
-                        .unwrap_or_default();
+                    crate::lsp_store::language_server_settings(&adapter.name, cx).cloned().unwrap_or_default();
                 (adapter.name(), (adapter_settings, adapter))
             })
             .collect()

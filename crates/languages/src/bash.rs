@@ -58,9 +58,7 @@ impl LspAdapter for BashLspAdapter {
         _: Option<Uri>,
         cx: &mut AsyncApp,
     ) -> Result<Value> {
-        let settings = cx.update(|cx| {
-            language_server_settings(&self.name(), cx).and_then(|s| s.settings.clone())
-        });
+        let settings = cx.update(|cx| language_server_settings(&self.name(), cx).and_then(|s| s.settings.clone()));
 
         Ok(settings.unwrap_or_default())
     }

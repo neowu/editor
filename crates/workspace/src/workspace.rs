@@ -2292,8 +2292,7 @@ impl Workspace {
     }
 
     fn save_all(&mut self, action: &SaveAll, window: &mut Window, cx: &mut Context<Self>) {
-        self.save_all_internal(action.save_intent.unwrap_or(SaveIntent::SaveAll), window, cx)
-            .detach_and_log_err(cx);
+        self.save_all_internal(action.save_intent.unwrap_or(SaveIntent::SaveAll), window, cx).detach_and_log_err(cx);
     }
 
     fn send_keystrokes(&mut self, action: &SendKeystrokes, window: &mut Window, cx: &mut Context<Self>) {
@@ -2399,8 +2398,7 @@ impl Workspace {
 
                 if dirty_items.len() > 1 {
                     let answer = workspace.update_in(cx, |_, window, cx| {
-                        let detail =
-                            Pane::file_names_for_prompt(&mut dirty_items.iter().map(|(_, handle)| handle), cx);
+                        let detail = Pane::file_names_for_prompt(&mut dirty_items.iter().map(|(_, handle)| handle), cx);
                         window.prompt(
                             PromptLevel::Warning,
                             "Do you want to save all changes in the following files?",

@@ -81,9 +81,8 @@ impl LspAdapter for GoLspAdapter {
             "semanticTokens": true
         });
 
-        let project_initialization_options = cx.update(|cx| {
-            language_server_settings(&self.name(), cx).and_then(|s| s.initialization_options.clone())
-        });
+        let project_initialization_options =
+            cx.update(|cx| language_server_settings(&self.name(), cx).and_then(|s| s.initialization_options.clone()));
 
         if let Some(override_options) = project_initialization_options {
             merge_json_value_into(override_options, &mut default_config);
@@ -99,10 +98,7 @@ impl LspAdapter for GoLspAdapter {
         cx: &mut AsyncApp,
     ) -> Result<Value> {
         Ok(cx
-            .update(|cx| {
-                language_server_settings(&self.name(), cx)
-                    .and_then(|settings| settings.settings.clone())
-            })
+            .update(|cx| language_server_settings(&self.name(), cx).and_then(|settings| settings.settings.clone()))
             .unwrap_or_default())
     }
 

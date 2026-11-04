@@ -220,9 +220,10 @@ impl Project {
 
         let remote_client = if force_local { None } else { self.remote_client.clone() };
         let remote_shell_request = remote_client.as_ref().map(|remote_client| {
-            remote_client.read(cx).proto_client().request(proto::GetTerminalShell {
-                project_id: proto::REMOTE_SERVER_PROJECT_ID,
-            })
+            remote_client
+                .read(cx)
+                .proto_client()
+                .request(proto::GetTerminalShell { project_id: proto::REMOTE_SERVER_PROJECT_ID })
         });
         let env_shell = match &remote_client {
             Some(remote_client) => remote_client.read(cx).shell().unwrap_or_else(get_default_system_shell),

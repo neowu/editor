@@ -68,9 +68,8 @@ impl LspAdapter for BiomeLspAdapter {
         _: Option<Uri>,
         cx: &mut AsyncApp,
     ) -> Result<Value> {
-        let settings = cx.update(|cx| {
-            language_server_settings(&Self::SERVER_NAME, cx).and_then(|s| s.settings.clone())
-        });
+        let settings =
+            cx.update(|cx| language_server_settings(&Self::SERVER_NAME, cx).and_then(|s| s.settings.clone()));
         Ok(settings.unwrap_or_else(|| json!({})))
     }
 

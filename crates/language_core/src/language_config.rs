@@ -223,14 +223,12 @@ pub struct LanguageMatcher {
 
 impl Ord for LanguageMatcher {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.path_suffixes
-            .cmp(&other.path_suffixes)
-            .then_with(|| {
-                self.first_line_pattern
-                    .as_ref()
-                    .map(Regex::as_str)
-                    .cmp(&other.first_line_pattern.as_ref().map(Regex::as_str))
-            })
+        self.path_suffixes.cmp(&other.path_suffixes).then_with(|| {
+            self.first_line_pattern
+                .as_ref()
+                .map(Regex::as_str)
+                .cmp(&other.first_line_pattern.as_ref().map(Regex::as_str))
+        })
     }
 }
 

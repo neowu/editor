@@ -1,5 +1,3 @@
-mod outline_panel_settings;
-
 use std::cmp;
 use std::hash::Hash;
 use std::ops::Range;
@@ -95,17 +93,11 @@ use menu::SelectFirst;
 use menu::SelectLast;
 use menu::SelectNext;
 use menu::SelectPrevious;
-use outline_panel_settings::DockSide;
-use outline_panel_settings::FolderIndicator;
-use outline_panel_settings::OutlinePanelSettings;
-use outline_panel_settings::ShowIndentGuides;
 use project::File;
-use project::Fs;
 use project::Project;
 use project::ProjectPath;
 use search::BufferSearchBar;
 use search::ProjectSearchView;
-use settings::Settings;
 use settings::SettingsStore;
 use theme::SyntaxTheme;
 use ui::ContextMenu;
@@ -183,13 +175,14 @@ actions!(
 
 const OUTLINE_PANEL_KEY: &str = "OutlinePanel";
 const UPDATE_DEBOUNCE: Duration = Duration::from_millis(50);
+const DEFAULT_WIDTH: Pixels = px(360.);
+const INDENT_SIZE: Pixels = px(20.);
 
 type Outline = OutlineItem<language::Anchor>;
 type OutlineChildren = HashMap<(Range<Anchor>, usize), bool>;
 type HighlightStyleData = Arc<OnceLock<Vec<(Range<usize>, HighlightStyle)>>>;
 
 pub struct OutlinePanel {
-    fs: Arc<dyn Fs>,
     project: Entity<Project>,
     workspace: WeakEntity<Workspace>,
     active: bool,
@@ -220,8 +213,6 @@ pub struct OutlinePanel {
     mode: ItemsDisplayMode,
     max_width_item_index: Option<usize>,
     preserve_selection_on_buffer_fold_toggles: HashSet<BufferId>,
-    pending_default_expansion_depth: Option<usize>,
-    default_depth_applied_buffers: HashSet<BufferId>,
     outline_children_cache: HashMap<BufferId, OutlineChildren>,
 }
 
@@ -1041,69 +1032,9 @@ impl OutlinePanel {
                 cx.notify();
             });
 
-            let mut outline_panel_settings = *OutlinePanelSettings::get_global(cx);
             let mut document_symbols_by_buffer = HashMap::default();
             let settings_subscription =
                 cx.observe_global_in::<SettingsStore>(window, move |outline_panel, window, cx| {
-                    let new_settings = OutlinePanelSettings::get_global(cx);
-                    let auto_fold_dirs_changed = outline_panel_settings.auto_fold_dirs != new_settings.auto_fold_dirs;
-                    if &outline_panel_settings != new_settings {
-                        let old_expansion_depth = outline_panel_settings.expand_outlines_with_depth;
-                        outline_panel_settings = *new_settings;
-
-                        let mut update_cached_entries = false;
-                        if old_expansion_depth != outline_panel_settings.expand_outlines_with_depth {
-                            let old_collapsed_entries = outline_panel.collapsed_entries.clone();
-                            outline_panel
-                                .collapsed_entries
-                                .retain(|entry| !matches!(entry, CollapsedEntry::Outline(..)));
-
-                            let new_depth = outline_panel_settings.expand_outlines_with_depth;
-                            outline_panel.pending_default_expansion_depth = Some(new_depth);
-                            outline_panel.default_depth_applied_buffers = outline_panel
-                                .buffers
-                                .iter()
-                                .filter(|(_, buffer)| matches!(buffer.outlines, OutlineState::Outlines(_)))
-                                .map(|(buffer_id, _)| *buffer_id)
-                                .collect();
-
-                            for (buffer_id, buffer) in &outline_panel.buffers {
-                                if let OutlineState::Outlines(outlines) = &buffer.outlines {
-                                    for outline in outlines {
-                                        if outline_panel
-                                            .outline_children_cache
-                                            .get(buffer_id)
-                                            .and_then(|children_map| {
-                                                let key = (outline.range.clone(), outline.depth);
-                                                children_map.get(&key)
-                                            })
-                                            .copied()
-                                            .unwrap_or(false)
-                                            && (new_depth == 0 || outline.depth >= new_depth)
-                                        {
-                                            outline_panel
-                                                .collapsed_entries
-                                                .insert(CollapsedEntry::Outline(outline.range.clone()));
-                                        }
-                                    }
-                                }
-                            }
-
-                            if old_collapsed_entries != outline_panel.collapsed_entries {
-                                update_cached_entries = true;
-                            }
-                        }
-                        if update_cached_entries {
-                            outline_panel.update_cached_entries(Some(UPDATE_DEBOUNCE), window, cx);
-                        } else {
-                            cx.notify();
-                        }
-                    }
-
-                    if auto_fold_dirs_changed && let Some(editor) = outline_panel.active_editor() {
-                        outline_panel.update_fs_entries(editor, Some(UPDATE_DEBOUNCE), window, cx);
-                    }
-
                     let new_document_symbols = outline_panel
                         .buffers
                         .keys()
@@ -1135,7 +1066,6 @@ impl OutlinePanel {
                 pinned: false,
                 workspace: workspace_handle,
                 project,
-                fs: workspace.app_state().fs.clone(),
                 max_width_item_index: None,
                 scroll_handle,
                 rendered_entries_len: 0,
@@ -1150,8 +1080,6 @@ impl OutlinePanel {
                 active_item: None,
                 new_entries_for_fs_update: HashSet::default(),
                 preserve_selection_on_buffer_fold_toggles: HashSet::default(),
-                pending_default_expansion_depth: None,
-                default_depth_applied_buffers: HashSet::default(),
                 fs_entries_update_task: Task::ready(()),
                 fs_entries_update_pending: false,
                 cached_entries_update_task: Task::ready(()),
@@ -1518,9 +1446,8 @@ impl OutlinePanel {
                 return;
             }
         };
-        let auto_fold_dirs = OutlinePanelSettings::get_global(cx).auto_fold_dirs;
-        let is_foldable = auto_fold_dirs && !is_root && self.is_foldable(&entry);
-        let is_unfoldable = auto_fold_dirs && !is_root && self.is_unfoldable(&entry);
+        let is_foldable = !is_root && self.is_foldable(&entry);
+        let is_unfoldable = !is_root && self.is_unfoldable(&entry);
 
         let context_menu = ContextMenu::build(window, cx, |menu, _, _| {
             menu.context(self.focus_handle.clone())
@@ -1951,10 +1878,7 @@ impl OutlinePanel {
     }
 
     fn reveal_entry_for_selection(&mut self, editor: Entity<Editor>, window: &Window, cx: &Context<Self>) {
-        if !self.active
-            || !OutlinePanelSettings::get_global(cx).auto_reveal_entries
-            || self.focus_handle.contains_focused(window, cx)
-        {
+        if !self.active || self.focus_handle.contains_focused(window, cx) {
             return;
         }
         self.reveal_selection_task = cx.spawn_in(window, async move |outline_panel, cx| {
@@ -2135,7 +2059,6 @@ impl OutlinePanel {
         window: &Window,
         cx: &Context<Self>,
     ) -> Stateful<Div> {
-        let settings = OutlinePanelSettings::get_global(cx);
         let is_active = match self.selected_entry() {
             Some(PanelEntry::Fs(selected_entry)) => selected_entry == rendered_entry,
             _ => false,
@@ -2144,12 +2067,8 @@ impl OutlinePanel {
             FsEntry::File(FsEntryFile { worktree_id, entry, buffer_id, .. }) => {
                 let name = self.entry_name(worktree_id, entry, cx);
                 let color = entry_git_aware_label_color(entry.git_summary, entry.is_ignored, is_active);
-                let icon = if settings.file_icons {
-                    FileIcons::get_icon(Path::new(&name), cx)
-                        .map(|icon_path| Icon::from_path(icon_path).color(color).into_any_element())
-                } else {
-                    None
-                };
+                let icon = FileIcons::get_icon(Path::new(&name), cx)
+                    .map(|icon_path| Icon::from_path(icon_path).color(color).into_any_element());
                 (
                     ElementId::from(("buffer", buffer_id.to_proto())),
                     HighlightedLabel::new(
@@ -2175,13 +2094,7 @@ impl OutlinePanel {
                     .contains(&CollapsedEntry::Dir(directory.worktree_id, directory.entry.path.clone()));
                 let color =
                     entry_git_aware_label_color(directory.entry.git_summary, directory.entry.is_ignored, is_active);
-                let icon = self.folder_expand_collapse_icon(
-                    PanelEntry::Fs(rendered_entry.clone()),
-                    is_expanded,
-                    directory.entry.path.as_std_path(),
-                    color,
-                    cx,
-                );
+                let icon = self.folder_icon(is_expanded, directory.entry.path.as_std_path(), color, cx);
                 (
                     directory_element_id(directory.worktree_id, directory.first_buffer_id, &directory.entry.path),
                     HighlightedLabel::new(
@@ -2199,10 +2112,8 @@ impl OutlinePanel {
                     Some(buffer_snapshot) => match buffer_snapshot.file() {
                         Some(file) => {
                             let name = file.file_name(cx).to_string();
-                            let icon =
-                                if settings.file_icons { FileIcons::get_icon(Path::new(&name), cx) } else { None }
-                                    .map(Icon::from_path)
-                                    .map(|icon| icon.color(color).into_any_element());
+                            let icon = FileIcons::get_icon(Path::new(&name), cx)
+                                .map(|icon_path| Icon::from_path(icon_path).color(color).into_any_element());
                             (icon, name)
                         }
                         None => (None, "Untitled".to_string()),
@@ -2261,13 +2172,7 @@ impl OutlinePanel {
             let is_ignored = folded_dir.entries.iter().any(|entry| entry.is_ignored);
             let git_status = folded_dir.entries.first().map(|entry| entry.git_summary).unwrap_or_default();
             let color = entry_git_aware_label_color(git_status, is_ignored, is_active);
-            let icon = self.folder_expand_collapse_icon(
-                PanelEntry::FoldedDirs(folded_dir.clone()),
-                is_expanded,
-                Path::new(&name),
-                color,
-                cx,
-            );
+            let icon = self.folder_icon(is_expanded, Path::new(&name), color, cx);
             (
                 folded_dir
                     .entries
@@ -2405,28 +2310,11 @@ impl OutlinePanel {
             .into_any_element()
     }
 
-    fn folder_expand_collapse_icon(
-        &self,
-        entry: PanelEntry,
-        is_expanded: bool,
-        path: &Path,
-        color: Color,
-        cx: &Context<Self>,
-    ) -> AnyElement {
-        let settings = OutlinePanelSettings::get_global(cx);
-        let indicator = settings.folder_indicator;
-        let file_icons = settings.file_icons;
-        let indicators = FileIcons::get_folder_indicators(indicator, is_expanded, path, cx);
-        let chevron = indicators.chevron.map(|path| {
-            self.expand_collapse_icon(entry, is_expanded, Icon::from_path(path).color(color).into_any_element(), cx)
-        });
-        let icon = indicators.icon.map(|path| Icon::from_path(path).color(color).into_any_element());
-        let (leading, trailing) = if file_icons || indicator == FolderIndicator::Both {
-            (chevron.unwrap_or_else(empty_icon), Some(icon.unwrap_or_else(empty_icon)))
-        } else {
-            (chevron.or(icon).unwrap_or_else(empty_icon), None)
-        };
-        h_flex().flex_none().gap_0p5().child(leading).children(trailing).into_any_element()
+    fn folder_icon(&self, is_expanded: bool, path: &Path, color: Color, cx: &Context<Self>) -> AnyElement {
+        let icon = FileIcons::get_folder_icon(is_expanded, path, cx)
+            .map(|icon_path| Icon::from_path(icon_path).color(color).into_any_element())
+            .unwrap_or_else(empty_icon);
+        h_flex().flex_none().gap_0p5().child(empty_icon()).child(icon).into_any_element()
     }
 
     fn file_expand_collapse_icon(
@@ -2440,11 +2328,9 @@ impl OutlinePanel {
         if !self.multi_buffer_active(cx) {
             return icon.unwrap_or_else(empty_icon);
         }
-        let settings = OutlinePanelSettings::get_global(cx);
-        let icon = icon
-            .or_else(|| (settings.file_icons || settings.folder_indicator == FolderIndicator::Both).then(empty_icon));
+        let icon = icon.unwrap_or_else(empty_icon);
         let expand_collapse_icon = self.chevron_toggle(PanelEntry::Fs(entry.clone()), is_expanded, color, cx);
-        h_flex().flex_none().gap_0p5().child(expand_collapse_icon).children(icon).into_any_element()
+        h_flex().flex_none().gap_0p5().child(expand_collapse_icon).child(icon).into_any_element()
     }
 
     fn entry_element(
@@ -2458,7 +2344,6 @@ impl OutlinePanel {
         window: &Window,
         cx: &Context<OutlinePanel>,
     ) -> Stateful<Div> {
-        let settings = OutlinePanelSettings::get_global(cx);
         let is_deleted = match &rendered_entry {
             PanelEntry::Fs(FsEntry::File(file)) => file.is_deleted,
             _ => false,
@@ -2482,7 +2367,7 @@ impl OutlinePanel {
             .child(
                 ListItem::new(item_id)
                     .indent_level(depth)
-                    .indent_step_size(px(settings.indent_size))
+                    .indent_step_size(INDENT_SIZE)
                     .toggle_state(is_active)
                     .child(
                         h_flex().child(h_flex().min_w(px(16.)).justify_center().child(icon_element)).child(
@@ -2550,10 +2435,9 @@ impl OutlinePanel {
             }
 
             let mut new_buffers = HashMap::<BufferId, BufferOutlines>::default();
-            let Ok((buffer_excerpts, auto_fold_dirs, repo_snapshots, mut collapsed_entries, mut unfolded_dirs)) =
+            let Ok((buffer_excerpts, repo_snapshots, mut collapsed_entries, mut unfolded_dirs)) =
                 outline_panel.update(cx, |outline_panel, cx| {
                     outline_panel.fs_entries_update_pending = false;
-                    let auto_fold_dirs = OutlinePanelSettings::get_global(cx).auto_fold_dirs;
                     let git_store = outline_panel.project.read(cx).git_store().clone();
                     let repo_snapshots = git_store.read(cx).repo_snapshots(cx);
                     let editor = active_editor.read(cx);
@@ -2620,7 +2504,6 @@ impl OutlinePanel {
                     }
                     (
                         buffer_excerpts,
-                        auto_fold_dirs,
                         repo_snapshots,
                         outline_panel.collapsed_entries.clone(),
                         outline_panel.unfolded_dirs.clone(),
@@ -2761,25 +2644,20 @@ impl OutlinePanel {
                                 .files += 1;
                         }
                     }
-                    if auto_fold_dirs {
-                        for entry in &fs_entries {
-                            let FsEntry::Directory(directory) = entry else {
-                                continue;
-                            };
-                            let unfolded = unfolded_dirs.entry(directory.worktree_id).or_default();
-                            let path = &directory.entry.path;
-                            let children = children_count
-                                .get(&directory.worktree_id)
-                                .and_then(|children| children.get(path))
-                                .copied()
-                                .unwrap_or_default();
-                            let parent_unfolded = path.parent().is_none_or(|parent| unfolded.contains(parent));
-                            if path.is_empty()
-                                || !children.may_be_fold_part()
-                                || (children.dirs == 0 && parent_unfolded)
-                            {
-                                unfolded.insert(path.clone());
-                            }
+                    for entry in &fs_entries {
+                        let FsEntry::Directory(directory) = entry else {
+                            continue;
+                        };
+                        let unfolded = unfolded_dirs.entry(directory.worktree_id).or_default();
+                        let path = &directory.entry.path;
+                        let children = children_count
+                            .get(&directory.worktree_id)
+                            .and_then(|children| children.get(path))
+                            .copied()
+                            .unwrap_or_default();
+                        let parent_unfolded = path.parent().is_none_or(|parent| unfolded.contains(parent));
+                        if path.is_empty() || !children.may_be_fold_part() || (children.dirs == 0 && parent_unfolded) {
+                            unfolded.insert(path.clone());
                         }
                     }
                     (fs_entries, children_count, collapsed_entries, unfolded_dirs)
@@ -2812,10 +2690,6 @@ impl OutlinePanel {
         cx: &mut Context<Self>,
     ) {
         self.clear_previous(window, cx);
-
-        let default_expansion_depth = OutlinePanelSettings::get_global(cx).expand_outlines_with_depth;
-        // We'll apply the expansion depth after outlines are loaded
-        self.pending_default_expansion_depth = Some(default_expansion_depth);
 
         let buffer_search_subscription = cx.subscribe_in(
             &new_active_editor,
@@ -2864,8 +2738,6 @@ impl OutlinePanel {
         self.selected_entry = SelectedEntry::None;
         self.pinned = false;
         self.mode = ItemsDisplayMode::Outline;
-        self.pending_default_expansion_depth = None;
-        self.default_depth_applied_buffers.clear();
     }
 
     fn location_for_editor_selection(
@@ -3115,47 +2987,15 @@ impl OutlinePanel {
 
                     outline_panel
                         .update_in(cx, |outline_panel, window, cx| {
-                            let pending_default_depth = outline_panel
-                                .pending_default_expansion_depth
-                                .filter(|_| outline_panel.default_depth_applied_buffers.insert(buffer_id));
-
                             let mut entries_changed = false;
                             if let Some(buffer) = outline_panel.buffers.get_mut(&buffer_id) {
-                                entries_changed = pending_default_depth.is_some()
-                                    || match &buffer.outlines {
-                                        OutlineState::Outlines(outlines) | OutlineState::Invalidated(outlines) => {
-                                            outlines != &fetched_outlines
-                                        }
-                                        OutlineState::NotFetched => true,
-                                    };
+                                entries_changed = match &buffer.outlines {
+                                    OutlineState::Outlines(outlines) | OutlineState::Invalidated(outlines) => {
+                                        outlines != &fetched_outlines
+                                    }
+                                    OutlineState::NotFetched => true,
+                                };
                                 buffer.outlines = OutlineState::Outlines(fetched_outlines);
-
-                                if let Some(default_depth) = pending_default_depth
-                                    && let OutlineState::Outlines(outlines) = &buffer.outlines
-                                {
-                                    let outlines_with_children = outlines
-                                        .array_windows::<2>()
-                                        .filter_map(|[current, next]| {
-                                            if next.depth > current.depth {
-                                                Some((current.range.clone(), current.depth))
-                                            } else {
-                                                None
-                                            }
-                                        })
-                                        .collect::<HashSet<_>>();
-                                    outlines
-                                        .iter()
-                                        .filter(|outline| {
-                                            (default_depth == 0 || outline.depth >= default_depth)
-                                                && outlines_with_children
-                                                    .contains(&(outline.range.clone(), outline.depth))
-                                        })
-                                        .for_each(|outline| {
-                                            outline_panel
-                                                .collapsed_entries
-                                                .insert(CollapsedEntry::Outline(outline.range.clone()));
-                                        });
-                                }
                             }
 
                             if entries_changed
@@ -3406,7 +3246,6 @@ impl OutlinePanel {
             let mut generation_state = GenerationState::default();
 
             let Ok(()) = outline_panel.update(cx, |outline_panel, cx| {
-                let auto_fold_dirs = OutlinePanelSettings::get_global(cx).auto_fold_dirs;
                 let mut folded_dirs_entry = None::<(usize, FoldedDirsEntry)>;
                 let track_matches = query.is_some();
 
@@ -3470,8 +3309,7 @@ impl OutlinePanel {
                         FsEntry::Directory(directory_entry) => {
                             let mut should_add = true;
                             let is_root = directory_entry.entry.path.is_empty();
-                            let folded = auto_fold_dirs
-                                && !is_root
+                            let folded = !is_root
                                 && outline_panel
                                     .unfolded_dirs
                                     .get(&directory_entry.worktree_id)
@@ -4223,8 +4061,6 @@ impl OutlinePanel {
     fn render_main_contents(
         &self,
         query: Option<String>,
-        show_indent_guides: bool,
-        indent_size: f32,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
@@ -4329,48 +4165,46 @@ impl OutlinePanel {
                 .with_horizontal_sizing_behavior(ListHorizontalSizingBehavior::Unconstrained)
                 .with_width_from_item(self.max_width_item_index)
                 .track_scroll(&self.scroll_handle)
-                .when(show_indent_guides, |list| {
-                    list.with_decoration(
-                        ui::indent_guides(px(indent_size), IndentGuideColors::panel(cx))
-                            .with_compute_indents_fn(cx.entity(), |outline_panel, range, _, _| {
-                                let entries = outline_panel.cached_entries.get(range);
-                                if let Some(entries) = entries {
-                                    entries.iter().map(|item| item.depth).collect()
-                                } else {
-                                    smallvec::SmallVec::new()
-                                }
-                            })
-                            .with_render_fn(cx.entity(), move |outline_panel, params, _, _| {
-                                const LEFT_OFFSET: Pixels = ui::LIST_ITEM_INDENT_GUIDE_LEFT_OFFSET;
+                .with_decoration(
+                    ui::indent_guides(INDENT_SIZE, IndentGuideColors::panel(cx))
+                        .with_compute_indents_fn(cx.entity(), |outline_panel, range, _, _| {
+                            let entries = outline_panel.cached_entries.get(range);
+                            if let Some(entries) = entries {
+                                entries.iter().map(|item| item.depth).collect()
+                            } else {
+                                smallvec::SmallVec::new()
+                            }
+                        })
+                        .with_render_fn(cx.entity(), move |outline_panel, params, _, _| {
+                            const LEFT_OFFSET: Pixels = ui::LIST_ITEM_INDENT_GUIDE_LEFT_OFFSET;
 
-                                let indent_size = params.indent_size;
-                                let item_height = params.item_height;
-                                let active_indent_guide_ix =
-                                    find_active_indent_guide_ix(outline_panel, &params.indent_guides);
+                            let indent_size = params.indent_size;
+                            let item_height = params.item_height;
+                            let active_indent_guide_ix =
+                                find_active_indent_guide_ix(outline_panel, &params.indent_guides);
 
-                                params
-                                    .indent_guides
-                                    .into_iter()
-                                    .enumerate()
-                                    .map(|(ix, layout)| {
-                                        let bounds = Bounds::new(
-                                            point(
-                                                layout.offset.x * indent_size + LEFT_OFFSET,
-                                                layout.offset.y * item_height,
-                                            ),
-                                            size(px(1.), layout.length * item_height),
-                                        );
-                                        ui::RenderedIndentGuide {
-                                            bounds,
-                                            layout,
-                                            is_active: active_indent_guide_ix == Some(ix),
-                                            hitbox: None,
-                                        }
-                                    })
-                                    .collect()
-                            }),
-                    )
-                })
+                            params
+                                .indent_guides
+                                .into_iter()
+                                .enumerate()
+                                .map(|(ix, layout)| {
+                                    let bounds = Bounds::new(
+                                        point(
+                                            layout.offset.x * indent_size + LEFT_OFFSET,
+                                            layout.offset.y * item_height,
+                                        ),
+                                        size(px(1.), layout.length * item_height),
+                                    );
+                                    ui::RenderedIndentGuide {
+                                        bounds,
+                                        layout,
+                                        is_active: active_indent_guide_ix == Some(ix),
+                                        hitbox: None,
+                                    }
+                                })
+                                .collect()
+                        }),
+                )
             };
 
             v_flex().flex_shrink_1().size_full().child(list_contents.size_full().flex_shrink_1()).custom_scrollbars(
@@ -4490,37 +4324,26 @@ impl Panel for OutlinePanel {
         OUTLINE_PANEL_KEY
     }
 
-    fn position(&self, _: &Window, cx: &App) -> DockPosition {
-        match OutlinePanelSettings::get_global(cx).dock {
-            DockSide::Left => DockPosition::Left,
-            DockSide::Right => DockPosition::Right,
-        }
+    fn position(&self, _: &Window, _: &App) -> DockPosition {
+        DockPosition::Right
     }
 
     fn position_is_valid(&self, position: DockPosition) -> bool {
-        matches!(position, DockPosition::Left | DockPosition::Right)
+        position == DockPosition::Right
     }
 
-    fn set_position(&mut self, position: DockPosition, _: &mut Window, cx: &mut Context<Self>) {
-        settings::update_settings_file(self.fs.clone(), cx, move |settings, _| {
-            let dock = match position {
-                DockPosition::Left | DockPosition::Bottom => DockSide::Left,
-                DockPosition::Right => DockSide::Right,
-            };
-            settings.outline_panel.get_or_insert_default().dock = Some(dock);
-        });
-    }
+    fn set_position(&mut self, _: DockPosition, _: &mut Window, _: &mut Context<Self>) {}
 
-    fn default_size(&self, _: &Window, cx: &App) -> Pixels {
-        OutlinePanelSettings::get_global(cx).default_width
+    fn default_size(&self, _: &Window, _: &App) -> Pixels {
+        DEFAULT_WIDTH
     }
 
     fn min_size(&self, _: &Window, _: &App) -> Option<Pixels> {
         Some(SIDEBAR_MIN_WIDTH)
     }
 
-    fn icon(&self, _: &Window, cx: &App) -> Option<IconName> {
-        OutlinePanelSettings::get_global(cx).button.then_some(IconName::ListTree)
+    fn icon(&self, _: &Window, _: &App) -> Option<IconName> {
+        Some(IconName::ListTree)
     }
 
     fn icon_tooltip(&self, _window: &Window, _: &App) -> Option<&'static str> {
@@ -4589,9 +4412,6 @@ impl Render for OutlinePanel {
             self.project.read_with(cx, |project, _| (project.is_local(), project.is_via_remote_server()));
         let query = self.query(cx);
         let pinned = self.pinned;
-        let settings = OutlinePanelSettings::get_global(cx);
-        let indent_size = settings.indent_size;
-        let show_indent_guides = settings.indent_guides.show == ShowIndentGuides::Always;
 
         let search_query = match &self.mode {
             ItemsDisplayMode::Search(search_query) => Some(search_query),
@@ -4654,7 +4474,7 @@ impl Render for OutlinePanel {
                         .child(Label::new(query_text)),
                 )
             })
-            .child(self.render_main_contents(query, show_indent_guides, indent_size, window, cx))
+            .child(self.render_main_contents(query, window, cx))
     }
 }
 

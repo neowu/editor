@@ -8,13 +8,11 @@ use settings_content::CursorShapeContent;
 use settings_content::DelayMs;
 use settings_content::DiagnosticSeverityContent;
 use settings_content::DiagnosticsSettingsContent;
-use settings_content::DockSide;
 use settings_content::DocumentFoldingRanges;
 use settings_content::DocumentSymbols;
 use settings_content::FileDiffSettingsContent;
 use settings_content::FileFinderSettingsContent;
 use settings_content::FileTypeMap;
-use settings_content::FolderIndicator;
 use settings_content::FontWeightContent;
 use settings_content::FormatOnSave;
 use settings_content::Formatter;
@@ -25,14 +23,12 @@ use settings_content::GitHunkStyleSetting;
 use settings_content::GitPathStyle;
 use settings_content::GitSettings;
 use settings_content::GlobalLspSettingsContent;
-use settings_content::HideMouseMode;
 use settings_content::ImageFileSizeUnit;
 use settings_content::ImageViewerSettingsContent;
 use settings_content::IncludeIgnoredContent;
 use settings_content::IndentGuideBackgroundColoring;
 use settings_content::IndentGuideColoring;
 use settings_content::IndentGuideSettingsContent;
-use settings_content::IndentGuidesSettingsContent;
 use settings_content::InlayHintSettingsContent;
 use settings_content::InlineDiagnosticsSettingsContent;
 use settings_content::JsxTagAutoCloseSettingsContent;
@@ -41,14 +37,12 @@ use settings_content::LanguageSettingsContent;
 use settings_content::LanguageTaskSettingsContent;
 use settings_content::LanguageToSettingsMap;
 use settings_content::LineEndingSetting;
-use settings_content::LineIndicatorFormat;
 use settings_content::LspInsertMode;
 use settings_content::LspNotificationSettingsContent;
 use settings_content::LspPullDiagnosticsSettingsContent;
 use settings_content::LspSettings;
 use settings_content::LspSettingsMap;
 use settings_content::ModalWidthContent;
-use settings_content::OutlinePanelSettingsContent;
 use settings_content::PathHyperlinkRegex;
 use settings_content::PixelSetting;
 use settings_content::ProjectSettingsContent;
@@ -59,7 +53,6 @@ use settings_content::SemanticTokenRule;
 use settings_content::SemanticTokenRules;
 use settings_content::SettingsContent;
 use settings_content::Shell;
-use settings_content::ShowIndentGuides;
 use settings_content::ShowWhitespaceSetting;
 use settings_content::SoftWrap;
 use settings_content::SoftWrapIndent;
@@ -134,21 +127,6 @@ pub fn settings() -> SettingsContent {
             }),
         }),
         image_viewer: Some(ImageViewerSettingsContent { unit: Some(ImageFileSizeUnit::Binary) }),
-        hide_mouse: Some(HideMouseMode::OnTypingAndAction),
-        line_indicator_format: Some(LineIndicatorFormat::Long),
-        outline_panel: Some(OutlinePanelSettingsContent {
-            button: Some(true),
-            default_width: Some(PixelSetting(360.0)),
-            dock: Some(DockSide::Right),
-            file_icons: Some(true),
-            folder_indicator: Some(FolderIndicator::Icon),
-            git_status: Some(true),
-            indent_size: Some(PixelSetting(20.0)),
-            auto_reveal_entries: Some(true),
-            auto_fold_dirs: Some(true),
-            indent_guides: Some(IndentGuidesSettingsContent { show: Some(ShowIndentGuides::Always) }),
-            expand_outlines_with_depth: Some(100),
-        }),
         terminal: terminal_settings(),
     }
 }

@@ -11,7 +11,6 @@ editor.workspace = true
 gpui.workspace = true
 language.workspace = true
 menu.workspace = true
-settings.workspace = true
 text.workspace = true
 theme.workspace = true
 ui.workspace = true

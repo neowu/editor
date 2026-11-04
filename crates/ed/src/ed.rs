@@ -62,8 +62,6 @@ use project::DirectoryLister;
 use project_panel::ProjectPanel;
 use recent_projects::open_remote_project;
 use search::project_search::ProjectSearchBar;
-use settings::Settings;
-use settings::SettingsStore;
 use terminal_view::terminal_panel::TerminalPanel;
 use terminal_view::terminal_panel::{self};
 use theme::ActiveTheme;
@@ -165,7 +163,7 @@ pub fn build_window_options(display_uuid: Option<Uuid>, cx: &mut App) -> WindowO
 }
 
 pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
-    init_cursor_hide_mode(cx);
+    cx.set_cursor_hide_mode(gpui::CursorHideMode::OnTypingAndAction);
     init_app_appearance(cx);
 
     cx.observe_new(|_: &mut Workspace, window, cx| {
@@ -710,27 +708,6 @@ fn open_log_file(workspace: &Workspace, window: &Window, cx: &Context<Workspace>
         .await;
     })
     .detach();
-}
-
-#[derive(Copy, Clone, Debug)]
-struct CursorHideModeSetting(gpui::CursorHideMode);
-
-settings::register_setting!(CursorHideModeSetting);
-
-impl Settings for CursorHideModeSetting {
-    fn from_settings(content: &settings::SettingsContent) -> Self {
-        Self(match content.hide_mouse.unwrap_or_default() {
-            settings::HideMouseMode::Never => gpui::CursorHideMode::Never,
-            settings::HideMouseMode::OnTyping => gpui::CursorHideMode::OnTyping,
-            settings::HideMouseMode::OnTypingAndAction => gpui::CursorHideMode::OnTypingAndAction,
-        })
-    }
-}
-
-fn init_cursor_hide_mode(cx: &mut App) {
-    let apply = |cx: &mut App| cx.set_cursor_hide_mode(CursorHideModeSetting::get_global(cx).0);
-    apply(cx);
-    cx.observe_global::<SettingsStore>(apply).detach();
 }
 
 fn init_app_appearance(cx: &App) {
