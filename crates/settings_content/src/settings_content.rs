@@ -4,7 +4,6 @@ mod language;
 mod project;
 mod serde_helper;
 mod terminal;
-mod title_bar;
 mod workspace;
 
 use anyhow::Context;
@@ -18,7 +17,6 @@ use serde::Serialize;
 pub use serde_helper::serialize_f32_with_two_decimal_places;
 pub use serde_helper::serialize_optional_f32_with_two_decimal_places;
 pub use terminal::*;
-pub use title_bar::*;
 pub use workspace::*;
 
 /// A non-negative size in pixels.
@@ -102,8 +100,6 @@ pub struct SettingsContent {
 
     /// Configuration of the terminal in ed.
     pub terminal: Option<TerminalSettingsContent>,
-
-    pub title_bar: Option<TitleBarSettingsContent>,
 }
 
 impl SettingsContent {

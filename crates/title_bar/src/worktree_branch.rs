@@ -6,14 +6,12 @@ use gpui::Entity;
 use gpui::IntoElement;
 use gpui::ParentElement;
 use project::git_store::Repository;
-use settings::Settings as _;
 use ui::PopoverMenu;
 use ui::TintColor;
 use ui::Tooltip;
 use ui::prelude::*;
 
 use crate::TitleBar;
-use crate::title_bar_settings::TitleBarSettings;
 
 const MAX_BRANCH_NAME_LENGTH: usize = 40;
 const MAX_SHORT_SHA_LENGTH: usize = 8;
@@ -60,7 +58,7 @@ pub(crate) fn header_text_button(id: &'static str, label: impl Into<SharedString
 
 impl TitleBar {
     /// The worktree and branch pickers, after the project name, as
-    /// `worktree / branch`. `None` when both are hidden by settings.
+    /// `worktree / branch`. `None` when the workspace is gone.
     pub(crate) fn render_worktree_and_branch(
         &self,
         repository: Entity<Repository>,
@@ -68,7 +66,6 @@ impl TitleBar {
         cx: &Context<TitleBar>,
     ) -> Option<AnyElement> {
         let workspace = self.workspace.upgrade()?;
-        let settings = TitleBarSettings::get_global(cx);
 
         let (branch_name, status_icon, is_detached_head) = {
             let repo = repository.read(cx);
@@ -84,7 +81,7 @@ impl TitleBar {
             (branch_name, branch_status_icon(repo.status_summary()), repo.branch.is_none())
         };
 
-        let worktree_button = settings.show_worktree_name.then(|| {
+        let worktree_button = {
             let creation = workspace.read(cx).active_worktree_creation();
             let is_creating = creation.label.is_some();
             let worktree_label = linked_worktree_name.clone().unwrap_or_else(|| "main".into());
@@ -110,16 +107,15 @@ impl TitleBar {
                     },
                 )
                 .anchor(gpui::Anchor::TopLeft)
-        });
+        };
 
-        let branch_picker = branch_name.filter(|_| settings.show_branch_name).map(|branch_name| {
+        let branch_picker = branch_name.map(|branch_name| {
             let tooltip_meta = if is_detached_head {
                 format!("Detached HEAD: {branch_name}")
             } else {
                 format!("Currently Checked Out: {branch_name}")
             };
-            let (icon, icon_color) =
-                if settings.show_branch_status_icon { status_icon } else { (IconName::GitBranch, Color::Muted) };
+            let (icon, icon_color) = status_icon;
             let trigger = if is_detached_head {
                 header_text_button("project_branch_trigger", "Create Branch")
                     .start_icon(Icon::new(IconName::GitBranchPlus).size(IconSize::Small).color(Color::Muted))
@@ -138,16 +134,12 @@ impl TitleBar {
                 .anchor(gpui::Anchor::TopLeft)
         });
 
-        if worktree_button.is_none() && branch_picker.is_none() {
-            return None;
-        }
-        let show_separator = worktree_button.is_some() && branch_picker.is_some();
-
         Some(
             h_flex()
-                .children(worktree_button)
-                .when(show_separator, |this| this.child(Label::new("/").color(Color::Muted).alpha(0.4)))
-                .children(branch_picker)
+                .child(worktree_button)
+                .when_some(branch_picker, |this, branch_picker| {
+                    this.child(Label::new("/").color(Color::Muted).alpha(0.4)).child(branch_picker)
+                })
                 .into_any_element(),
         )
     }

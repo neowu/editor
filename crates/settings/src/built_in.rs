@@ -68,7 +68,6 @@ use settings_content::TerminalBlink;
 use settings_content::TerminalDockPosition;
 use settings_content::TerminalLineHeight;
 use settings_content::TerminalSettingsContent;
-use settings_content::TitleBarSettingsContent;
 use settings_content::WhitespaceMapContent;
 use settings_content::WordsCompletionMode;
 use settings_content::WorkingDirectory;
@@ -151,12 +150,6 @@ pub fn settings() -> SettingsContent {
             expand_outlines_with_depth: Some(100),
         }),
         terminal: terminal_settings(),
-        title_bar: Some(TitleBarSettingsContent {
-            show_branch_status_icon: Some(true),
-            show_branch_name: Some(true),
-            show_worktree_name: Some(true),
-            show_project_items: Some(true),
-        }),
     }
 }
 

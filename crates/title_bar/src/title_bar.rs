@@ -1,5 +1,4 @@
 mod application_menu;
-mod title_bar_settings;
 mod worktree_branch;
 
 use std::path::Path;
@@ -26,7 +25,6 @@ use project::repo_identity_path;
 use remote::RemoteConnectionOptions;
 use settings::Settings as _;
 use theme::ActiveTheme;
-use title_bar_settings::TitleBarSettings;
 use ui::ButtonLike;
 use ui::IconWithIndicator;
 use ui::Indicator;
@@ -82,8 +80,7 @@ pub struct TitleBar {
 
 impl Render for TitleBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let show_project_items = TitleBarSettings::get_global(cx).show_project_items
-            && !self.application_menu.as_ref().is_some_and(|menu| menu.read(cx).all_menus_shown());
+        let show_project_items = !self.application_menu.as_ref().is_some_and(|menu| menu.read(cx).all_menus_shown());
         let active = show_project_items.then(|| ActiveRepository::of(&self.project, cx));
 
         h_flex().h_full().children(self.application_menu.clone()).when_some(active, |title_bar, active| {
