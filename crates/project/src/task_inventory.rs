@@ -115,19 +115,14 @@ impl ContextProvider for BasicContextProvider {
 
         if let Some(worktree) = worktree {
             let worktree = worktree.read(cx);
-            let path_style = worktree.path_style();
             task_variables.insert(VariableName::WorktreeRoot, worktree.abs_path().to_string_lossy().into_owned());
             if let Some(current_file) = current_file.as_ref() {
                 let relative_path = current_file.path();
-                task_variables.insert(VariableName::RelativeFile, relative_path.display(path_style).to_string());
+                task_variables.insert(VariableName::RelativeFile, relative_path.display().to_string());
                 if let Some(relative_dir) = relative_path.parent() {
                     task_variables.insert(
                         VariableName::RelativeDir,
-                        if relative_dir.is_empty() {
-                            String::from(".")
-                        } else {
-                            relative_dir.display(path_style).to_string()
-                        },
+                        if relative_dir.is_empty() { String::from(".") } else { relative_dir.display().to_string() },
                     );
                 }
             }

@@ -89,7 +89,6 @@ use theme::ActiveTheme as _;
 use theme::SyntaxTheme;
 use util::RangeExt;
 use util::debug_panic;
-use util::paths::PathStyle;
 use util::rel_path::RelPath;
 
 pub use crate::CaptureId;
@@ -432,9 +431,6 @@ pub trait File: Send + Sync + Any {
     fn file_system_abs_path(&self, cx: &App) -> Option<PathBuf> {
         self.as_local().map(|file| file.abs_path(cx))
     }
-
-    /// Returns the path style of this file.
-    fn path_style(&self, cx: &App) -> PathStyle;
 
     /// Returns the last component of this handle's absolute path. If this handle refers to the root
     /// of its worktree, then this method will return the name of the worktree itself.
@@ -4780,7 +4776,7 @@ impl BufferSnapshot {
             if file.path().file_name().is_none() || include_root || !file.is_in_visible_worktree(cx) {
                 Some(file.full_path(cx).to_string_lossy().into_owned())
             } else {
-                Some(file.path().display(file.path_style(cx)).to_string())
+                Some(file.path().display().to_string())
             }
         } else {
             None

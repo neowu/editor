@@ -35,7 +35,6 @@ use rpc::proto::{self};
 use text::ReplicaId;
 use util::ResultExt;
 use util::path_list::PathList;
-use util::paths::PathStyle;
 use util::paths::RemotePathBuf;
 use util::paths::SanitizedPath;
 use util::rel_path::RelPath;
@@ -112,7 +111,7 @@ impl WorktreePaths {
 
 enum WorktreeStoreState {
     Local { fs: Arc<dyn Fs> },
-    Remote { upstream_client: AnyProtoClient, upstream_project_id: u64, path_style: PathStyle },
+    Remote { upstream_client: AnyProtoClient, upstream_project_id: u64 },
 }
 
 #[derive(Clone)]
@@ -224,7 +223,6 @@ impl WorktreeStore {
         retain_worktrees: bool,
         upstream_client: AnyProtoClient,
         upstream_project_id: u64,
-        path_style: PathStyle,
         next_worktree_id: WorktreeIdCounter,
     ) -> Self {
         Self {
@@ -237,7 +235,7 @@ impl WorktreeStore {
             scanning_enabled: true,
             retain_worktrees,
             initial_scan_complete: watch::channel(true),
-            state: WorktreeStoreState::Remote { upstream_client, upstream_project_id, path_style },
+            state: WorktreeStoreState::Remote { upstream_client, upstream_project_id },
         }
     }
 
@@ -386,11 +384,11 @@ impl WorktreeStore {
     pub fn find_worktree(&self, abs_path: impl AsRef<Path>, cx: &App) -> Option<(Entity<Worktree>, Arc<RelPath>)> {
         let abs_path = SanitizedPath::new(abs_path.as_ref());
         for tree in self.worktrees() {
-            let path_style = tree.read(cx).path_style();
-            if let Some(relative_path) = path_style
-                .strip_prefix(abs_path.as_ref(), tree.read(cx).abs_path().as_ref())
+            if let Some(relative_path) = abs_path
+                .as_ref()
+                .strip_prefix(tree.read(cx).abs_path().as_ref())
                 .ok()
-                .and_then(|path| RelPath::new(path, path_style).ok())
+                .and_then(|path| RelPath::new(path).ok())
             {
                 return Some((tree.clone(), relative_path.into_arc()));
             }
@@ -406,13 +404,6 @@ impl WorktreeStore {
     pub fn absolutize(&self, project_path: &ProjectPath, cx: &App) -> Option<PathBuf> {
         let worktree = self.worktree_for_id(project_path.worktree_id, cx)?;
         Some(worktree.read(cx).absolutize(&project_path.path))
-    }
-
-    pub const fn path_style(&self) -> PathStyle {
-        match &self.state {
-            WorktreeStoreState::Local { .. } => PathStyle::local(),
-            WorktreeStoreState::Remote { path_style, .. } => *path_style,
-        }
     }
 
     pub fn find_or_create_worktree(
@@ -431,11 +422,10 @@ impl WorktreeStore {
                 let worktree = worktree.await?;
                 // A library worktree is rooted at the library, not at `abs_path`.
                 let relative_path = worktree.read_with(cx, |worktree, _| {
-                    let path_style = worktree.path_style();
-                    path_style
-                        .strip_prefix(&abs_path, worktree.abs_path().as_ref())
+                    abs_path
+                        .strip_prefix(worktree.abs_path().as_ref())
                         .ok()
-                        .and_then(|path| RelPath::new(path, path_style).ok())
+                        .and_then(|path| RelPath::new(path).ok())
                         .map(|path| path.into_arc())
                         .context("path is outside of the created worktree")
                 })?;
@@ -668,8 +658,8 @@ impl WorktreeStore {
         let library_name: Option<Arc<str>> = library.map(|library| library.name.into());
         if !self.loading_worktrees.contains_key(&abs_path) {
             let task = match &self.state {
-                WorktreeStoreState::Remote { upstream_client, path_style, .. } => {
-                    let abs_path = RemotePathBuf::new(abs_path.to_string(), *path_style);
+                WorktreeStoreState::Remote { upstream_client, .. } => {
+                    let abs_path = RemotePathBuf::new(abs_path.to_string());
                     self.create_remote_worktree(upstream_client.clone(), abs_path, visible, library_name, cx)
                 }
                 WorktreeStoreState::Local { fs } => {
@@ -720,7 +710,6 @@ impl WorktreeStore {
         library_name: Option<Arc<str>>,
         cx: &Context<Self>,
     ) -> Task<Result<Entity<Worktree>, Arc<anyhow::Error>>> {
-        let path_style = abs_path.path_style();
         let mut abs_path = abs_path.to_string();
         // If we start with `/~` that means the ssh path was something like `ssh://user@host/~/home-dir-folder/`
         // in which case want to strip the leading the `/`.
@@ -736,7 +725,7 @@ impl WorktreeStore {
         cx.spawn(async move |this, cx| {
             let this = this.upgrade().context("Dropped worktree store")?;
 
-            let path = RemotePathBuf::new(abs_path, path_style);
+            let path = RemotePathBuf::new(abs_path);
             let response = client
                 .request(proto::AddWorktree { project_id: REMOTE_SERVER_PROJECT_ID, path: path.to_proto(), visible })
                 .await?;
@@ -767,7 +756,6 @@ impl WorktreeStore {
                         root_repo_is_linked_worktree: response.root_repo_is_linked_worktree,
                     },
                     client,
-                    path_style,
                     cx,
                 )
             });
@@ -960,10 +948,7 @@ impl WorktreeStore {
                 };
                 self.worktrees.push(handle);
             } else {
-                self.add(
-                    &Worktree::remote(project_id, replica_id, worktree, client.clone(), self.path_style(), cx),
-                    cx,
-                );
+                self.add(&Worktree::remote(project_id, replica_id, worktree, client.clone(), cx), cx);
             }
         }
         self.send_project_updates(cx);
@@ -1271,7 +1256,7 @@ impl WorktreeStore {
                 let main_path = snapshot
                     .root_repo_common_dir()
                     .filter(|dir| !crate::git_store::is_submodule_git_dir(dir))
-                    .map(|dir| crate::git_store::repo_identity_path(dir, snapshot.path_style()))
+                    .map(|dir| crate::git_store::repo_identity_path(dir))
                     .filter(|repo_path| {
                         snapshot.root_repo_is_linked_worktree()
                             || *repo_path == folder_path.as_path()

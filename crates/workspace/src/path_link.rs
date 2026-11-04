@@ -9,7 +9,6 @@ use gpui::WeakEntity;
 use itertools::Itertools;
 use project::Entry;
 use project::Worktree;
-use util::paths::PathStyle;
 use util::paths::PathWithPosition;
 use util::paths::normalize_lexically;
 use util::rel_path::RelPath;
@@ -158,7 +157,7 @@ fn resolve_open_target_internal(
         let mut paths_to_check = Vec::with_capacity(potential_paths.len());
         let relative_cwd = cwd
             .and_then(|cwd| cwd.strip_prefix(&worktree_root).ok())
-            .and_then(|cwd| RelPath::new(cwd, PathStyle::local()).ok())
+            .and_then(|cwd| RelPath::new(cwd).ok())
             .and_then(|cwd_stripped| {
                 (cwd_stripped.as_ref() != RelPath::empty()).then(|| {
                     is_cwd_in_worktree = true;
@@ -197,12 +196,12 @@ fn resolve_open_target_internal(
                     let joined = relative_cwd.as_ref().as_std_path().join(&path_to_check.path);
                     normalize_lexically(&joined)
                         .ok()
-                        .and_then(|path| RelPath::new(&path, PathStyle::local()).ok().map(std::borrow::Cow::into_owned))
+                        .and_then(|path| RelPath::new(&path).ok().map(std::borrow::Cow::into_owned))
                 })
             } else {
                 None
             };
-            let original_path = RelPath::new(&path_to_check.path, PathStyle::local()).ok();
+            let original_path = RelPath::new(&path_to_check.path).ok();
 
             if !worktree.read(cx).is_single_file()
                 && let Some(entry) = normalized_path
@@ -316,7 +315,7 @@ fn resolve_open_target_internal(
                 let paths_to_check = paths_to_check
                     .into_iter()
                     .filter_map(|path_with_position| {
-                        let path = RelPath::new(&path_with_position.path, PathStyle::local()).ok()?.into_owned();
+                        let path = RelPath::new(&path_with_position.path).ok()?.into_owned();
                         Some((path_with_position, path))
                     })
                     .collect::<Vec<_>>();

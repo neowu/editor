@@ -935,14 +935,9 @@ impl Delegate {
                 Some(div().py(DynamicSpacing::Base04.rems()).child(Divider::horizontal()).into_any_element())
             }
             Entry::Header(path) => {
-                let path_style = self.project(cx).read(cx).path_style(cx);
                 let file_name = path.path.file_name().map(|name| name.to_string()).unwrap_or_default();
-                let directory = path
-                    .path
-                    .parent()
-                    .map(|parent| parent.display(path_style))
-                    .map(SharedString::new)
-                    .unwrap_or_default();
+                let directory =
+                    path.path.parent().map(|parent| parent.display()).map(SharedString::new).unwrap_or_default();
                 let file_icon = ItemSettings::get_global(cx)
                     .file_icons
                     .then(|| FileIcons::get_icon(path.path.as_std_path(), cx))

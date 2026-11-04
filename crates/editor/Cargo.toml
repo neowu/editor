@@ -32,6 +32,7 @@ markdown.workspace = true
 multi_buffer.workspace = true
 ordered-float.workspace = true
 parking_lot.workspace = true
+path.workspace = true
 project.workspace = true
 rand.workspace = true
 regex.workspace = true

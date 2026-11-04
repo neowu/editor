@@ -14,13 +14,11 @@ globset.workspace = true
 gpui_util.workspace = true
 itertools.workspace = true
 path = { workspace = true, features = ["serde"] }
-percent-encoding.workspace = true
 regex = { workspace = true, features = ["unicode-bool", "unicode-gencat"] }
 rust-embed.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 unicase.workspace = true
-url.workspace = true
 
 dirs.workspace = true
 futures-lite.workspace = true

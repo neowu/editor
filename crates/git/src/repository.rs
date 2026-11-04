@@ -43,7 +43,6 @@ use util::ResultExt;
 use util::command::Stdio;
 use util::command::new_command;
 use util::paths;
-use util::paths::PathStyle;
 use util::rel_path::RelPath;
 
 use crate::Oid;
@@ -3112,8 +3111,8 @@ impl RepoPath {
         Ok(Self::from_rel_path(rel_path))
     }
 
-    pub fn from_std_path(path: &Path, path_style: PathStyle) -> Result<Self> {
-        let rel_path = RelPath::new(path, path_style)?;
+    pub fn from_std_path(path: &Path) -> Result<Self> {
+        let rel_path = RelPath::new(path)?;
         Ok(Self::from_rel_path(&rel_path))
     }
 

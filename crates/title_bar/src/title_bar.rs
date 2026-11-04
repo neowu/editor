@@ -23,7 +23,6 @@ use project::git_store::GitStoreEvent;
 use project::linked_worktree_short_name;
 use project::project_settings::ProjectSettings;
 use project::repo_identity_path;
-use project::repo_identity_path_if_local;
 use remote::RemoteConnectionOptions;
 use settings::Settings as _;
 use theme::ActiveTheme;
@@ -122,19 +121,18 @@ impl ActiveRepository {
             return active;
         };
         let repo = repo.read(cx);
-        let identity = repo_identity_path(&repo.common_dir_abs_path, repo.path_style);
-        let identity_fallback = repo_identity_path_if_local(&repo.common_dir_abs_path, repo.path_style);
+        let identity = repo_identity_path(&repo.common_dir_abs_path);
         active.linked_worktree_name =
-            linked_worktree_name_anchor(repo.main_worktree_abs_path(), identity_fallback, repo.is_linked_worktree())
+            linked_worktree_name_anchor(repo.main_worktree_abs_path(), Some(identity), repo.is_linked_worktree())
                 .and_then(|name_anchor_path| {
-                    linked_worktree_short_name(name_anchor_path, repo.work_directory_abs_path.as_ref(), repo.path_style)
+                    linked_worktree_short_name(name_anchor_path, repo.work_directory_abs_path.as_ref())
                 })
                 .or_else(|| repo.is_linked_worktree().then_some(active.project_name.clone()).flatten());
 
         let display_name = if identity.extension() == Some(std::ffi::OsStr::new("git")) {
             identity.file_stem()
         } else {
-            repo.path_style.file_name(identity)
+            identity.file_name()
         };
 
         if let Some(repo_name) = display_name.and_then(|n| n.to_str()) {

@@ -2,7 +2,10 @@
 //!
 //! Provides [`RelPath`] and [`RelPathBuf`] — path types that are guaranteed to be
 //! relative, normalized, and valid unicode. Internally stored in POSIX (`/`-delimited)
-//! format regardless of host platform.
+//! format.
+//!
+//! Only Unix paths are supported (local and remote): `/`-separated, with no
+//! drive or UNC prefixes, so `std::path::Path` semantics apply everywhere.
 //!
 //! Adapted from Zed's `util::rel_path` module.
 
@@ -11,18 +14,12 @@ use std::os::unix::prelude::OsStrExt;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::path_component::Component;
-use crate::path_component::Components;
-use crate::path_component::Prefix;
-use crate::path_component::PrefixExt;
-use crate::path_component::iter_after;
+use anyhow::Context as _;
+
 use crate::rel_path::RelPath;
-use crate::rel_path::StripPrefixError;
 
 pub mod abs_path;
-mod path_component;
 pub mod rel_path;
-mod windows_prefix;
 
 pub fn try_from_bytes<'a, T>(bytes: &'a [u8]) -> anyhow::Result<T>
 where
@@ -37,259 +34,73 @@ pub trait PathExt {
 
 impl<T: AsRef<Path> + ?Sized> PathExt for T {
     fn to_rel_path_buf(&self) -> anyhow::Result<rel_path::RelPathBuf> {
-        Ok(RelPath::new(self.as_ref(), PathStyle::local())?.into_owned())
+        Ok(RelPath::new(self.as_ref())?.into_owned())
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum PathStyle {
-    Unix,
-    Windows,
+/// Joins `right` onto `left` with a `/`, without normalizing. Returns `None`
+/// when `right` is absolute or either side isn't valid UTF-8.
+pub fn join(left: impl AsRef<Path>, right: impl AsRef<Path>) -> Option<String> {
+    let right = right.as_ref();
+    if right.has_root() {
+        return None;
+    }
+    let right = right.to_str()?;
+    let left = left.as_ref().to_str()?;
+    if left.is_empty() {
+        Some(right.into())
+    } else {
+        Some(format!("{left}{}{right}", if left.ends_with('/') { "" } else { "/" }))
+    }
 }
 
-impl PathStyle {
-    pub const fn local() -> Self {
-        PathStyle::Unix
-    }
+/// Like [`join`], then lexically [`normalize`]s the result.
+pub fn join_path(left: impl AsRef<Path>, right: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
+    Ok(PathBuf::from(normalize(&join_checked(left.as_ref(), right.as_ref())?)))
+}
 
-    #[inline]
-    pub const fn primary_separator(&self) -> &'static str {
-        match self {
-            PathStyle::Unix => "/",
-            PathStyle::Windows => "\\",
-        }
-    }
+/// Like [`join`], but errors instead of returning `None`, and keeps `.`/`..`.
+pub fn join_path_preserving_components(left: impl AsRef<Path>, right: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
+    Ok(PathBuf::from(join_checked(left.as_ref(), right.as_ref())?))
+}
 
-    pub const fn separators(&self) -> &'static [&'static str] {
-        match self {
-            PathStyle::Unix => &["/"],
-            PathStyle::Windows => &["\\", "/"],
-        }
-    }
+fn join_checked(left: &Path, right: &Path) -> anyhow::Result<String> {
+    left.to_str().context("Path contains invalid UTF-8")?;
+    right.to_str().context("Path contains invalid UTF-8")?;
+    join(left, right).with_context(|| format!("Path must be relative: {right:?}"))
+}
 
-    pub const fn separators_ch(&self) -> &'static [char] {
-        match self {
-            PathStyle::Unix => &['/'],
-            PathStyle::Windows => &['\\', '/'],
-        }
-    }
+/// Lexically resolves `.`, `..` and repeated separators in a `/`-separated
+/// string. Leading `..` is kept for relative paths and dropped for absolute ones.
+pub fn normalize(path_like: &str) -> String {
+    let is_absolute = path_like.starts_with('/');
+    let remainder = if is_absolute { path_like.trim_start_matches('/') } else { path_like };
 
-    pub fn is_absolute(&self, path: &Path) -> bool {
-        match self {
-            PathStyle::Unix => self.has_root(path),
-            PathStyle::Windows => self.has_root(path) && self.components(path).prefix().is_some(),
-        }
-    }
-
-    pub fn has_root(&self, path: &Path) -> bool {
-        self.components(path).has_root()
-    }
-
-    pub fn is_windows(&self) -> bool {
-        *self == PathStyle::Windows
-    }
-
-    pub fn is_posix(&self) -> bool {
-        *self == PathStyle::Unix
-    }
-
-    pub fn join(self, left: impl AsRef<Path>, right: impl AsRef<Path>) -> Option<String> {
-        let right = right.as_ref();
-        if self.has_root(right) {
-            return None;
-        }
-        let right = right.to_str()?;
-        let left = left.as_ref().to_str()?;
-        if left.is_empty() {
-            Some(right.into())
-        } else {
-            Some(format!(
-                "{left}{}{right}",
-                if left.ends_with(self.primary_separator()) { "" } else { self.primary_separator() }
-            ))
-        }
-    }
-
-    pub fn join_path(self, left: impl AsRef<Path>, right: impl AsRef<Path>) -> anyhow::Result<PathBuf> {
-        let left = left.as_ref().to_str().ok_or_else(|| anyhow::anyhow!("Path contains invalid UTF-8"))?;
-        let right = right.as_ref();
-        let right_string = right.to_str().ok_or_else(|| anyhow::anyhow!("Path contains invalid UTF-8"))?;
-        let joined =
-            self.join(left, right_string).ok_or_else(|| anyhow::anyhow!("Path must be relative: {right:?}"))?;
-        Ok(PathBuf::from(self.normalize(&joined)))
-    }
-
-    pub fn join_path_preserving_components(
-        self,
-        left: impl AsRef<Path>,
-        right: impl AsRef<Path>,
-    ) -> anyhow::Result<PathBuf> {
-        let left = left.as_ref().to_str().ok_or_else(|| anyhow::anyhow!("Path contains invalid UTF-8"))?;
-        let right = right.as_ref();
-        let right_string = right.to_str().ok_or_else(|| anyhow::anyhow!("Path contains invalid UTF-8"))?;
-        let joined =
-            self.join(left, right_string).ok_or_else(|| anyhow::anyhow!("Path must be relative: {right:?}"))?;
-        Ok(PathBuf::from(&joined))
-    }
-
-    pub fn normalize(self, path_like: &str) -> String {
-        match self {
-            PathStyle::Windows => {
-                let drive_and_remainder = path_like.split_once(':').filter(|(drive, _)| {
-                    let mut characters = drive.chars();
-                    characters.next().is_some_and(|character| character.is_ascii_alphabetic())
-                        && characters.next().is_none()
-                });
-                let unc_remainder = path_like.strip_prefix("\\\\").or_else(|| path_like.strip_prefix("//"));
-
-                let (prefix, remainder) = if let Some((drive, remainder)) = drive_and_remainder {
-                    if let Some(remainder) = remainder.strip_prefix('\\').or_else(|| remainder.strip_prefix('/')) {
-                        (format!("{drive}:\\"), remainder)
-                    } else {
-                        (format!("{drive}:"), remainder)
-                    }
-                } else if let Some(remainder) = unc_remainder {
-                    let (server, remainder) = match remainder.split_once(['\\', '/']) {
-                        Some(parts) => parts,
-                        None => return path_like.to_string(),
-                    };
-                    let (share, remainder) = match remainder.split_once(['\\', '/']) {
-                        Some(parts) => parts,
-                        None => return format!("\\\\{server}\\{remainder}"),
-                    };
-                    (format!("\\\\{server}\\{share}\\"), remainder)
-                } else if let Some(remainder) = path_like.strip_prefix('\\').or_else(|| path_like.strip_prefix('/')) {
-                    ("\\".to_string(), remainder)
-                } else {
-                    (String::new(), path_like)
-                };
-
-                let mut components: Vec<&str> = Vec::new();
-                for component in remainder.split(['\\', '/']) {
-                    match component {
-                        "" | "." => {}
-                        ".." => {
-                            if components.last().is_some_and(|c| *c != "..") {
-                                components.pop();
-                            } else if prefix.is_empty() {
-                                components.push(component);
-                            }
-                        }
-                        component => components.push(component),
-                    }
-                }
-
-                let normalized = components.join("\\");
-                if prefix.is_empty() { normalized } else { format!("{prefix}{normalized}") }
-            }
-            PathStyle::Unix => {
-                let is_absolute = path_like.starts_with('/');
-                let remainder = if is_absolute { path_like.trim_start_matches('/') } else { path_like };
-
-                let mut components = Vec::new();
-                for component in remainder.split(self.separators_ch()) {
-                    match component {
-                        "" | "." => {}
-                        ".." => {
-                            if components.last().is_some_and(|component| *component != "..") {
-                                components.pop();
-                            } else if !is_absolute {
-                                components.push(component);
-                            }
-                        }
-                        component => components.push(component),
-                    }
-                }
-
-                let normalized = components.join(self.primary_separator());
-                if is_absolute && normalized.is_empty() {
-                    "/".to_string()
-                } else if is_absolute {
-                    format!("/{normalized}")
-                } else {
-                    normalized
+    let mut components = Vec::new();
+    for component in remainder.split('/') {
+        match component {
+            "" | "." => {}
+            ".." => {
+                if components.last().is_some_and(|component| *component != "..") {
+                    components.pop();
+                } else if !is_absolute {
+                    components.push(component);
                 }
             }
+            component => components.push(component),
         }
     }
 
-    pub fn split(self, path_like: &str) -> (Option<&str>, &str) {
-        let Some(pos) = path_like.rfind(self.primary_separator()) else {
-            return (None, path_like);
-        };
-        let filename_start = pos + self.primary_separator().len();
-        (Some(&path_like[..filename_start]), &path_like[filename_start..])
-    }
-
-    pub fn file_name<'a>(&self, path: &'a Path) -> Option<&'a OsStr> {
-        self.components(path).next_back().and_then(|p| match p {
-            Component::Normal(p) => Some(p),
-            _ => None,
-        })
-    }
-
-    pub fn parent<'a>(&self, path: &'a Path) -> Option<&'a Path> {
-        let mut comps = self.components(path);
-        let comp = comps.next_back();
-        comp.and_then(|p| match p {
-            Component::Normal(_) | Component::CurDir | Component::ParentDir => Some(comps.as_path()),
-            _ => None,
-        })
-    }
-
-    pub fn starts_with<P: AsRef<Path>>(&self, path: P, prefix: P) -> bool {
-        iter_after(self.components(path.as_ref()), self.components(prefix.as_ref())).is_some()
-    }
-
-    pub fn strip_prefix<'a>(
-        &self,
-        path: &'a (impl AsRef<Path> + ?Sized),
-        prefix: impl AsRef<Path>,
-    ) -> Result<&'a Path, StripPrefixError> {
-        iter_after(self.components(path.as_ref()), self.components(prefix.as_ref()))
-            .map(|c| c.as_path())
-            .ok_or(StripPrefixError)
-    }
+    let normalized = components.join("/");
+    if is_absolute { format!("/{normalized}") } else { normalized }
 }
 
-// This part contains the methods adopted from the std lib
-// to make the pub api of `PathStyle` compatible with `Path`
-impl PathStyle {
-    fn components<'a>(&self, path: &'a Path) -> Components<'a> {
-        Components::new(*self, path)
-    }
-
-    fn parse_prefix<'a>(&self, path: &'a OsStr) -> Option<Prefix<'a>> {
-        match self {
-            PathStyle::Unix => None,
-            PathStyle::Windows => windows_prefix::parse_prefix(path),
-        }
-    }
-
-    const fn has_prefixes(&self) -> bool {
-        match self {
-            PathStyle::Unix => false,
-            PathStyle::Windows => true,
-        }
-    }
-
-    const fn is_sep_byte(&self, b: u8) -> bool {
-        match self {
-            Self::Unix => b == b'/',
-            Self::Windows => b == b'\\' || b == b'/',
-        }
-    }
-
-    const fn is_verbatim_sep(&self, b: u8) -> bool {
-        match self {
-            Self::Unix => self.is_sep_byte(b),
-            Self::Windows => b == b'\\',
-        }
-    }
-
-    fn has_physical_root(&self, s: &[u8], prefix: Option<Prefix<'_>>) -> bool {
-        let path = if let Some(p) = prefix { &s[p.len()..] } else { s };
-        !path.is_empty() && self.is_sep_byte(path[0])
+/// Splits a `/`-separated string at its last separator into the directory
+/// (including the trailing `/`) and the file name.
+pub fn split(path_like: &str) -> (Option<&str>, &str) {
+    match path_like.rfind('/') {
+        Some(pos) => (Some(&path_like[..=pos]), &path_like[pos + 1..]),
+        None => (None, path_like),
     }
 }
 
@@ -297,17 +108,10 @@ impl PathStyle {
 /// requiring the path to exist on disk (unlike `canonicalize`).
 pub fn normalize_path(path: &Path) -> PathBuf {
     use std::path::Component;
-    let mut components = path.components().peekable();
-    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().copied() {
-        components.next();
-        PathBuf::from(c.as_os_str())
-    } else {
-        PathBuf::new()
-    };
-
-    for component in components {
+    let mut ret = PathBuf::new();
+    for component in path.components() {
         match component {
-            Component::Prefix(..) => unreachable!(),
+            Component::Prefix(..) => unreachable!("no path prefixes on unix"),
             Component::RootDir => {
                 ret.push(component.as_os_str());
             }
@@ -321,4 +125,51 @@ pub fn normalize_path(path: &Path) -> PathBuf {
         }
     }
     ret
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_join() {
+        assert_eq!(join("a", "b").as_deref(), Some("a/b"));
+        assert_eq!(join("a/", "b").as_deref(), Some("a/b"));
+        assert_eq!(join("", "b").as_deref(), Some("b"));
+        assert_eq!(join("/a", "../b").as_deref(), Some("/a/../b"));
+        assert_eq!(join("a", "/b"), None);
+    }
+
+    #[test]
+    fn test_join_path() {
+        assert_eq!(join_path("/a/b", "../c").unwrap(), PathBuf::from("/a/c"));
+        assert_eq!(join_path("a", "./b/").unwrap(), PathBuf::from("a/b"));
+        assert!(join_path("a", "/b").is_err());
+        assert_eq!(join_path_preserving_components("/a/b", "../c").unwrap(), PathBuf::from("/a/b/../c"));
+        assert!(join_path_preserving_components("a", "/b").is_err());
+    }
+
+    #[test]
+    fn test_normalize() {
+        assert_eq!(normalize("/"), "/");
+        assert_eq!(normalize("//a//./b/"), "/a/b");
+        assert_eq!(normalize("/../a/../../b"), "/b");
+        assert_eq!(normalize("../a/./../../b"), "../../b");
+        assert_eq!(normalize("a/b/.."), "a");
+        assert_eq!(normalize(""), "");
+    }
+
+    #[test]
+    fn test_split() {
+        assert_eq!(split("a/b/c"), (Some("a/b/"), "c"));
+        assert_eq!(split("/c"), (Some("/"), "c"));
+        assert_eq!(split("c"), (None, "c"));
+        assert_eq!(split("a/"), (Some("a/"), ""));
+    }
+
+    #[test]
+    fn test_normalize_path() {
+        assert_eq!(normalize_path(Path::new("/a/./b/../c")), PathBuf::from("/a/c"));
+        assert_eq!(normalize_path(Path::new("a/../../b")), PathBuf::from("b"));
+    }
 }

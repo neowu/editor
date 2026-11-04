@@ -159,7 +159,6 @@ use rpc::ErrorExt as _;
 use rpc::RpcError;
 use ui::App;
 use ui::TextSize;
-use util::paths::PathStyle;
 use util::rel_path::RelPath;
 use workspace::Pane;
 use workspace::SaveIntent;
@@ -410,15 +409,10 @@ impl UndoMessage {
     }
 }
 
-pub(crate) fn project_path_display(
-    project: &Project,
-    project_path: &ProjectPath,
-    path_style: PathStyle,
-    cx: &App,
-) -> String {
+pub(crate) fn project_path_display(project: &Project, project_path: &ProjectPath, cx: &App) -> String {
     project
         .short_full_path_for_project_path(project_path, cx)
-        .unwrap_or_else(|| project_path.path.display(path_style).to_string())
+        .unwrap_or_else(|| project_path.path.display().to_string())
 }
 
 pub(crate) fn already_exists_error(err: &anyhow::Error) -> bool {
@@ -609,9 +603,8 @@ impl Inner {
 
         let (from_name, to_name) = workspace.update(cx, |workspace, cx| {
             let project = workspace.project().read(cx);
-            let path_style = project.path_style(cx);
 
-            (project_path_display(project, from, path_style, cx), project_path_display(project, to, path_style, cx))
+            (project_path_display(project, from, cx), project_path_display(project, to, cx))
         });
 
         // Since the Project Panel's rename operation is used for both renaming
@@ -706,9 +699,8 @@ impl Inner {
 
         let name = workspace.update(cx, |workspace, cx| {
             let project = workspace.project().read(cx);
-            let path_style = project.path_style(cx);
 
-            project_path_display(project, project_path, path_style, cx)
+            project_path_display(project, project_path, cx)
         });
 
         if !self.confirm_trash(project_path, &name, cx).await? {
@@ -727,9 +719,8 @@ impl Inner {
 
         let name = workspace.update(cx, |workspace, cx| {
             let project = workspace.project().read(cx);
-            let path_style = project.path_style(cx);
 
-            project_path_display(project, project_path, path_style, cx)
+            project_path_display(project, project_path, cx)
         });
 
         let task = workspace.update(cx, |workspace, cx| {
@@ -754,30 +745,28 @@ impl Inner {
             return Err(anyhow!("Failed to obtain workspace."));
         };
 
-        let name =
-            workspace
-                .update(cx, |workspace, cx| {
-                    let project = workspace.project().read(cx);
-                    let path_style = project.path_style(cx);
-                    let original_path = project.fs().original_path_for_trash_id(trash_id)?;
-                    let original_name = original_path
-                        .file_name()
-                        .map(|name| name.to_string_lossy().into_owned())
-                        .unwrap_or_else(|| original_path.display().to_string());
+        let name = workspace
+            .update(cx, |workspace, cx| {
+                let project = workspace.project().read(cx);
+                let original_path = project.fs().original_path_for_trash_id(trash_id)?;
+                let original_name = original_path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| original_path.display().to_string());
 
-                    let project_path = (|| {
-                        let worktree = project.worktree_for_id(worktree_id, cx)?;
-                        let worktree_abs_path = worktree.read(cx).abs_path();
-                        let relative_path = original_path.strip_prefix(worktree_abs_path.as_ref()).ok()?;
-                        let relative_path = RelPath::new(relative_path, path_style).ok()?;
-                        Some(ProjectPath { worktree_id, path: relative_path.into_arc() })
-                    })();
+                let project_path = (|| {
+                    let worktree = project.worktree_for_id(worktree_id, cx)?;
+                    let worktree_abs_path = worktree.read(cx).abs_path();
+                    let relative_path = original_path.strip_prefix(worktree_abs_path.as_ref()).ok()?;
+                    let relative_path = RelPath::new(relative_path).ok()?;
+                    Some(ProjectPath { worktree_id, path: relative_path.into_arc() })
+                })();
 
-                    Some(project_path.map_or(original_name, |project_path| {
-                        project_path_display(project, &project_path, path_style, cx)
-                    }))
-                })
-                .unwrap_or_else(|| "item".to_string());
+                Some(
+                    project_path.map_or(original_name, |project_path| project_path_display(project, &project_path, cx)),
+                )
+            })
+            .unwrap_or_else(|| "item".to_string());
 
         workspace
             .update(cx, |workspace, cx| {
@@ -853,12 +842,11 @@ impl Inner {
     async fn confirm_batch_trash(&self, trash_paths: Vec<&ProjectPath>, cx: &mut AsyncApp) -> Result<bool> {
         let (names, dirty_buffers) = self.workspace.update(cx, |workspace, cx| {
             let project = workspace.project().read(cx);
-            let path_style = project.path_style(cx);
             let dirty_buffers =
                 project.dirty_buffers(cx).filter(|dirty_path| trash_paths.contains(&dirty_path)).count();
             let names = trash_paths
                 .iter()
-                .map(|project_path| project_path_display(project, project_path, path_style, cx))
+                .map(|project_path| project_path_display(project, project_path, cx))
                 .collect::<Vec<_>>();
 
             (names, dirty_buffers)

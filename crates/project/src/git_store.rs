@@ -144,7 +144,6 @@ use text::Rope;
 use text::ToOffset;
 use util::ResultExt;
 use util::debug_panic;
-use util::paths::PathStyle;
 use util::paths::SanitizedPath;
 use util::post_inc;
 use util::rel_path::RelPath;
@@ -413,7 +412,6 @@ impl DiffOperations for GitDiffOperations {
 struct IndexTextFile {
     path: Arc<RelPath>,
     full_path: PathBuf,
-    path_style: PathStyle,
     file_name: String,
     worktree_id: WorktreeId,
 }
@@ -423,7 +421,6 @@ impl IndexTextFile {
         Self {
             path: file.path().clone(),
             full_path: file.full_path(cx),
-            path_style: file.path_style(cx),
             file_name: file.file_name(cx).to_string(),
             worktree_id: file.worktree_id(cx),
         }
@@ -445,10 +442,6 @@ impl language::File for IndexTextFile {
 
     fn full_path(&self, _: &App) -> PathBuf {
         self.full_path.clone()
-    }
-
-    fn path_style(&self, _: &App) -> PathStyle {
-        self.path_style
     }
 
     fn file_name<'a>(&'a self, _: &'a App) -> &'a str {
@@ -621,7 +614,6 @@ pub struct RepositorySnapshot {
     /// that common directory is a bare repository, there may be no main
     /// worktree path to derive from it.
     pub common_dir_abs_path: Arc<Path>,
-    pub path_style: PathStyle,
     pub branch: Option<Branch>,
     pub branch_list: Arc<[Branch]>,
     pub branch_list_error: Option<SharedString>,
@@ -2538,7 +2530,6 @@ impl GitStore {
         mut cx: AsyncApp,
     ) -> Result<()> {
         this.update(&mut cx, |this, cx| {
-            let path_style = this.worktree_store.read(cx).path_style();
             let mut update = envelope.payload;
 
             let id = RepositoryId::from_proto(update.id);
@@ -2559,7 +2550,6 @@ impl GitStore {
                         Path::new(&update.abs_path).into(),
                         repository_dir_abs_path.clone(),
                         common_dir_abs_path.clone(),
-                        path_style,
                         ProjectId(update.project_id),
                         client,
                         git_store,
@@ -3787,7 +3777,6 @@ impl GitStore {
         updated_entries: &[(Arc<RelPath>, ProjectEntryId, PathChange)],
         cx: &App,
     ) -> Task<HashMap<Entity<Repository>, Vec<RepoPath>>> {
-        let path_style = worktree.read(cx).path_style();
         let mut repo_paths = self
             .repositories
             .values()
@@ -3816,8 +3805,7 @@ impl GitStore {
                     let mut paths = Vec::new();
                     // All paths prefixed by a given repo will constitute a continuous range.
                     while let Some(path) = entries.get(ix)
-                        && let Some(repo_path) =
-                            RepositorySnapshot::abs_path_to_repo_path_inner(&repo_path, path, path_style)
+                        && let Some(repo_path) = RepositorySnapshot::abs_path_to_repo_path_inner(&repo_path, path)
                     {
                         paths.push((repo_path, ix));
                         ix += 1;
@@ -4486,7 +4474,6 @@ impl RepositorySnapshot {
         repository_dir_abs_path: Option<Arc<Path>>,
         dot_git_abs_path: Option<Arc<Path>>,
         common_dir_abs_path: Option<Arc<Path>>,
-        path_style: PathStyle,
     ) -> Self {
         let repository_dir_abs_path =
             repository_dir_abs_path.unwrap_or_else(|| work_directory_abs_path.join(".git").into());
@@ -4510,7 +4497,6 @@ impl RepositorySnapshot {
             remote_upstream_url: None,
             stash_entries: GitStash::default(),
             linked_worktrees: Arc::from([]),
-            path_style,
         }
     }
 
@@ -4620,8 +4606,8 @@ impl RepositorySnapshot {
     /// common Git directory is the main worktree's `.git` directory.
     pub fn main_worktree_abs_path(&self) -> Option<&Path> {
         if self.is_linked_worktree() {
-            if self.path_style.file_name(self.common_dir_abs_path.as_ref()) == Some(std::ffi::OsStr::new(".git")) {
-                self.path_style.parent(self.common_dir_abs_path.as_ref())
+            if self.common_dir_abs_path.file_name() == Some(std::ffi::OsStr::new(".git")) {
+                self.common_dir_abs_path.parent()
             } else {
                 None
             }
@@ -4632,11 +4618,9 @@ impl RepositorySnapshot {
 
     /// The path that anchors a linked worktree's location: the main worktree
     /// when one exists, otherwise the repository's identity path (relevant for
-    /// bare repositories), falling back to the common Git directory.
+    /// bare repositories).
     fn linked_worktree_anchor_path(&self) -> &Path {
-        self.main_worktree_abs_path()
-            .or_else(|| repo_identity_path_if_local(&self.common_dir_abs_path, self.path_style))
-            .unwrap_or(self.common_dir_abs_path.as_ref())
+        self.main_worktree_abs_path().unwrap_or_else(|| repo_identity_path(&self.common_dir_abs_path))
     }
 
     /// Computes the path where a new linked worktree for this repository
@@ -4647,13 +4631,11 @@ impl RepositorySnapshot {
         worktree_directory_setting: &str,
     ) -> Result<PathBuf> {
         let repository_anchor = self.linked_worktree_anchor_path();
-        let project_name = self
-            .path_style
-            .file_name(repository_anchor)
-            .ok_or_else(|| anyhow!("git repo must have a directory name"))?;
-        let directory = worktrees_directory_for_repo(repository_anchor, worktree_directory_setting, self.path_style)?;
-        let directory = self.path_style.join_path(&directory, worktree_name)?;
-        self.path_style.join_path(&directory, project_name)
+        let project_name =
+            repository_anchor.file_name().ok_or_else(|| anyhow!("git repo must have a directory name"))?;
+        let directory = worktrees_directory_for_repo(repository_anchor, worktree_directory_setting)?;
+        let directory = path::join_path(&directory, worktree_name)?;
+        path::join_path(&directory, project_name)
     }
 
     /// Returns true if this repository is a linked worktree, that is, one that
@@ -4685,24 +4667,16 @@ impl RepositorySnapshot {
     }
 
     pub fn abs_path_to_repo_path(&self, abs_path: &Path) -> Option<RepoPath> {
-        Self::abs_path_to_repo_path_inner(&self.work_directory_abs_path, abs_path, self.path_style)
+        Self::abs_path_to_repo_path_inner(&self.work_directory_abs_path, abs_path)
     }
 
     pub fn repo_path_to_abs_path(&self, repo_path: &RepoPath) -> PathBuf {
-        let repo_path = repo_path.display(self.path_style);
-        PathBuf::from(self.path_style.join(&self.work_directory_abs_path, repo_path.as_ref()).unwrap())
+        PathBuf::from(path::join(&self.work_directory_abs_path, repo_path.display()).unwrap())
     }
 
     #[inline]
-    fn abs_path_to_repo_path_inner(
-        work_directory_abs_path: &Path,
-        abs_path: &Path,
-        path_style: PathStyle,
-    ) -> Option<RepoPath> {
-        let rel_path = path_style
-            .strip_prefix(abs_path, work_directory_abs_path)
-            .ok()
-            .and_then(|path| RelPath::new(path, path_style).ok())?;
+    fn abs_path_to_repo_path_inner(work_directory_abs_path: &Path, abs_path: &Path) -> Option<RepoPath> {
+        let rel_path = abs_path.strip_prefix(work_directory_abs_path).ok().and_then(|path| RelPath::new(path).ok())?;
         Some(RepoPath::from_rel_path(&rel_path))
     }
 
@@ -4869,7 +4843,6 @@ impl Repository {
             Some(repository_dir_abs_path),
             Some(dot_git_abs_path),
             Some(common_dir_abs_path),
-            PathStyle::local(),
         );
 
         let mut repo = Repository {
@@ -4900,21 +4873,14 @@ impl Repository {
         work_directory_abs_path: Arc<Path>,
         repository_dir_abs_path: Option<Arc<Path>>,
         common_dir_abs_path: Option<Arc<Path>>,
-        path_style: PathStyle,
         project_id: ProjectId,
         client: AnyProtoClient,
         git_store: WeakEntity<GitStore>,
         object_read_limiter: Arc<Semaphore>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let snapshot = RepositorySnapshot::empty(
-            id,
-            work_directory_abs_path,
-            repository_dir_abs_path,
-            None,
-            common_dir_abs_path,
-            path_style,
-        );
+        let snapshot =
+            RepositorySnapshot::empty(id, work_directory_abs_path, repository_dir_abs_path, None, common_dir_abs_path);
 
         let repository_state = RemoteRepositoryState { project_id, client };
         let (job_sender, worker_task) = Self::spawn_remote_git_worker(repository_state.clone(), cx);
@@ -6399,7 +6365,7 @@ impl Repository {
     pub fn add_path_to_gitignore(&mut self, repo_path: &RepoPath, is_dir: bool) -> oneshot::Receiver<Result<()>> {
         let id = self.id;
         let work_dir = self.snapshot.work_directory_abs_path.clone();
-        let path_display = repo_path.as_ref().display(PathStyle::Unix);
+        let path_display = repo_path.as_ref().display();
         let path = repo_path.as_unix_str().to_owned();
         let file_path_str = if is_dir { format!("{}/", path_display) } else { path_display.to_string() };
 
@@ -6431,7 +6397,7 @@ impl Repository {
     ) -> oneshot::Receiver<Result<()>> {
         let id = self.id;
         let repository_dir = self.snapshot.common_dir_abs_path.clone();
-        let path_display = repo_path.as_ref().display(PathStyle::Unix);
+        let path_display = repo_path.as_ref().display();
         let path = repo_path.as_unix_str().to_owned();
         let file_path_str = if is_dir { format!("{}/", path_display) } else { path_display.to_string() };
 
@@ -7209,7 +7175,7 @@ impl Repository {
 
                     let managed_worktree_base = cx.update(|cx| {
                         let setting = &ProjectSettings::get_global(cx).git.worktree_directory;
-                        worktrees_directory_for_repo(&repository_anchor_path, setting, PathStyle::local()).log_err()
+                        worktrees_directory_for_repo(&repository_anchor_path, setting).log_err()
                     });
 
                     if let Some(managed_worktree_base) = managed_worktree_base {
@@ -8063,7 +8029,7 @@ pub async fn resolve_git_worktree_to_main_repo(fs: &dyn Fs, path: &Path) -> Opti
     // Read commondir to find the main .git directory
     let commondir_content = fs.load(&gitdir_abs.join("commondir")).await.ok()?;
     let common_dir = fs.canonicalize(&gitdir_abs.join(commondir_content.trim())).await.ok()?;
-    Some(repo_identity_path(&common_dir, PathStyle::local()).to_path_buf())
+    Some(repo_identity_path(&common_dir).to_path_buf())
 }
 
 /// Validates that the resolved worktree directory is acceptable:
@@ -8075,12 +8041,11 @@ pub async fn resolve_git_worktree_to_main_repo(fs: &dyn Fs, path: &Path) -> Opti
 pub fn worktrees_directory_for_repo(
     repository_anchor_path: &Path,
     worktree_directory_setting: &str,
-    path_style: PathStyle,
 ) -> Result<PathBuf> {
     // Check the original setting before trimming, since a path like "///"
     // is absolute but becomes "" after stripping trailing separators.
     // Use `has_root` here because `/tmp/worktrees` is also not a relative path
-    if path_style.has_root(Path::new(worktree_directory_setting)) {
+    if Path::new(worktree_directory_setting).has_root() {
         anyhow::bail!("git.worktree_directory must be a relative path, got: {worktree_directory_setting:?}");
     }
 
@@ -8093,19 +8058,19 @@ pub fn worktrees_directory_for_repo(
         anyhow::bail!("git.worktree_directory must not be \"..\" (use \"../some-name\" instead)");
     }
 
-    let joined = path_style.join_path(repository_anchor_path, trimmed)?;
-    let resolved = if path_style.is_posix() { joined } else { path::normalize_path(&joined) };
-    let resolved = if path_style.starts_with(resolved.as_path(), repository_anchor_path) {
+    let joined = path::join_path(repository_anchor_path, trimmed)?;
+    let resolved = joined;
+    let resolved = if resolved.as_path().starts_with(repository_anchor_path) {
         resolved
-    } else if let Some(repo_dir_name) = path_style.file_name(repository_anchor_path).and_then(|name| name.to_str()) {
-        path_style.join_path(&resolved, repo_dir_name)?
+    } else if let Some(repo_dir_name) = repository_anchor_path.file_name().and_then(|name| name.to_str()) {
+        path::join_path(&resolved, repo_dir_name)?
     } else {
         resolved
     };
 
-    let parent = path_style.parent(repository_anchor_path).unwrap_or(repository_anchor_path);
+    let parent = repository_anchor_path.parent().unwrap_or(repository_anchor_path);
 
-    if !path_style.starts_with(resolved.as_path(), parent) {
+    if !resolved.as_path().starts_with(parent) {
         anyhow::bail!(
             "git.worktree_directory resolved to {resolved:?}, which is outside \
              the project root and its parent directory. It must resolve to a \
@@ -8154,17 +8119,9 @@ async fn remove_empty_managed_worktree_ancestors(fs: &dyn Fs, child_path: &Path,
 ///   meaningful project root.
 /// - Otherwise (e.g. `zed.git` for a bare clone), `common_dir` itself is
 ///   returned — it is already a meaningful on-disk path.
-pub fn repo_identity_path(common_dir: &Path, path_style: PathStyle) -> &Path {
-    let is_dot_entry = path_style.file_name(common_dir).is_some_and(|n| n.to_string_lossy().starts_with('.'));
-    if is_dot_entry { path_style.parent(common_dir).unwrap_or(common_dir) } else { common_dir }
-}
-
-/// Returns the repository identity only when `std::path` can interpret the path correctly.
-///
-/// Callers whose downstream path operations are not yet `PathStyle`-aware use this to preserve
-/// their existing behavior for foreign path styles.
-pub fn repo_identity_path_if_local(common_dir: &Path, path_style: PathStyle) -> Option<&Path> {
-    (path_style == PathStyle::local()).then(|| repo_identity_path(common_dir, path_style))
+pub fn repo_identity_path(common_dir: &Path) -> &Path {
+    let is_dot_entry = common_dir.file_name().is_some_and(|n| n.to_string_lossy().starts_with('.'));
+    if is_dot_entry { common_dir.parent().unwrap_or(common_dir) } else { common_dir }
 }
 
 /// Returns true if `git_dir` is a Git submodule's git directory.
@@ -8193,22 +8150,18 @@ pub fn is_submodule_git_dir(git_dir: &Path) -> bool {
 ///
 /// Uses the main worktree path to come up with a short name that disambiguates
 /// the linked worktree from the main worktree.
-pub fn linked_worktree_short_name(
-    main_worktree_path: &Path,
-    linked_worktree_path: &Path,
-    path_style: PathStyle,
-) -> Option<SharedString> {
+pub fn linked_worktree_short_name(main_worktree_path: &Path, linked_worktree_path: &Path) -> Option<SharedString> {
     if main_worktree_path == linked_worktree_path {
         return None;
     }
 
-    let project_name = path_style.file_name(main_worktree_path)?.to_str()?;
-    let directory_name = path_style.file_name(linked_worktree_path)?.to_str()?;
+    let project_name = main_worktree_path.file_name()?.to_str()?;
+    let directory_name = linked_worktree_path.file_name()?.to_str()?;
     let name = if directory_name != project_name {
         directory_name.to_string()
     } else {
-        let parent = path_style.parent(linked_worktree_path)?;
-        path_style.file_name(parent)?.to_str()?.to_string()
+        let parent = linked_worktree_path.parent()?;
+        parent.file_name()?.to_str()?.to_string()
     };
     Some(name.into())
 }
@@ -8595,7 +8548,7 @@ async fn compute_snapshot(
         let backend = backend.clone();
         async move {
             backend
-                .status(&[RepoPath::from_rel_path(&RelPath::new(".".as_ref(), PathStyle::local()).unwrap())])
+                .status(&[RepoPath::from_rel_path(&RelPath::new(".".as_ref()).unwrap())])
                 .await
                 .log_err()
                 .unwrap_or_default()

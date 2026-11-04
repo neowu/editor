@@ -12,6 +12,7 @@ file_icons.workspace = true
 futures.workspace = true
 fuzzy.workspace = true
 gpui.workspace = true
+path.workspace = true
 picker.workspace = true
 project.workspace = true
 serde.workspace = true

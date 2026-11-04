@@ -10,6 +10,11 @@ remote server supports macOS and Linux.
 SSH remotes support only macOS and Linux, using Unix paths and shells. Windows
 remote detection, command execution, and proxy startup are removed.
 
+Paths are Unix-only everywhere, local and remote: `/`-separated with no drive
+or UNC prefixes. There is no path-style abstraction; code uses
+`std::path::Path` semantics directly, plus the `/`-string helpers in the
+`path` crate (`join`, `join_path`, `normalize`, `split`).
+
 ## Behaviour
 
 - The editor uses native macOS windows, Metal rendering, and system menus.

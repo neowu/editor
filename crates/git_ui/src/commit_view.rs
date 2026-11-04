@@ -77,7 +77,6 @@ use ui::Divider;
 use ui::Tooltip;
 use ui::prelude::*;
 use util::ResultExt;
-use util::paths::PathStyle;
 use util::rel_path::RelPath;
 use util::truncate_and_trailoff;
 use workspace::Item;
@@ -184,7 +183,7 @@ pub(crate) fn open_file_in_project(
 struct ProjectFileNotFound;
 
 fn project_file_not_found_message(repo_path: &RepoPath) -> String {
-    format!("{} is not in the project. It may have been moved or deleted.", repo_path.display(PathStyle::local()))
+    format!("{} is not in the project. It may have been moved or deleted.", repo_path.display())
 }
 
 /// The changed file a commit view shows once its diff loads.
@@ -1059,10 +1058,6 @@ impl language::File for GitBlob {
         DiskState::Historic { was_deleted: self.is_deleted }
     }
 
-    fn path_style(&self, _: &App) -> PathStyle {
-        PathStyle::local()
-    }
-
     fn path(&self) -> &Arc<RelPath> {
         self.path.as_ref()
     }
@@ -1105,11 +1100,8 @@ async fn load_commit_file(
     let worktree_id = repository
         .read_with(&cx, |repository, cx| worktree_id_for_repo_path(repository, project.read(cx), &file.path, cx))
         .context("project has no worktrees")?;
-    let file_name = file
-        .path
-        .file_name()
-        .map(|name| name.to_string())
-        .unwrap_or_else(|| file.path.display(PathStyle::local()).to_string());
+    let file_name =
+        file.path.file_name().map(|name| name.to_string()).unwrap_or_else(|| file.path.display().to_string());
     let blob = Arc::new(GitBlob {
         path: file.path.clone(),
         is_deleted: file.new_text.is_none(),

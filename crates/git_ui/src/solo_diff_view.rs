@@ -58,7 +58,6 @@ use ui::Divider;
 use ui::Tooltip;
 use ui::prelude::*;
 use util::paths::PathExt as _;
-use util::paths::PathStyle;
 use workspace::Item;
 use workspace::ItemHandle;
 use workspace::ItemNavHistory;
@@ -373,7 +372,7 @@ impl Item for SoloDiffView {
             .read(cx)
             .file()
             .and_then(|file| Some(file.full_path(cx).file_name()?.to_string_lossy().to_string()))
-            .unwrap_or_else(|| self.repo_path.as_ref().display(PathStyle::local()).into_owned())
+            .unwrap_or_else(|| self.repo_path.as_ref().display().to_string())
             .into()
     }
 
@@ -383,7 +382,7 @@ impl Item for SoloDiffView {
                 .read(cx)
                 .file()
                 .map(|file| file.full_path(cx).compact().to_string_lossy().into_owned())
-                .unwrap_or_else(|| self.repo_path.as_ref().display(PathStyle::local()).into_owned())
+                .unwrap_or_else(|| self.repo_path.as_ref().display().to_string())
                 .into(),
         )
     }

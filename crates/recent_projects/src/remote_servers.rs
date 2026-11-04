@@ -58,7 +58,6 @@ use ui::NavigableEntry;
 use ui::Tooltip;
 use ui::prelude::*;
 use util::ResultExt;
-use util::paths::PathStyle;
 use util::paths::RemotePathBuf;
 use workspace::DismissDecision;
 use workspace::ModalView;
@@ -843,18 +842,15 @@ impl RemoteServerProjects {
                     info!("ssh server connected");
                     // Go straight to picking a folder: the server is remembered
                     // once a project on it opens.
-                    let (path_style, project) = this
+                    let project = this
                         .update(cx, |this, cx| {
                             let app_state =
                                 this.workspace.read_with(cx, |workspace, _| workspace.app_state().clone())?;
-                            anyhow::Ok((
-                                client.read(cx).path_style(),
-                                Project::remote(client, app_state.languages.clone(), app_state.fs.clone(), cx),
-                            ))
+                            anyhow::Ok(Project::remote(client, app_state.languages.clone(), app_state.fs.clone(), cx))
                         })
                         .ok()?
                         .log_err()?;
-                    let home_dir = remote_home_dir(&project, path_style, cx).await;
+                    let home_dir = remote_home_dir(&project, cx).await;
                     this.update_in(cx, |this, window, cx| {
                         this.mode = Mode::ProjectPicker(ProjectPicker::new(
                             this.create_new_window,
@@ -961,14 +957,11 @@ impl RemoteServerProjects {
                         });
                     };
 
-                    let (path_style, project) = cx.update(|_, cx| {
-                        (
-                            session.read(cx).path_style(),
-                            project::Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), cx),
-                        )
+                    let project = cx.update(|_, cx| {
+                        project::Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), cx)
                     })?;
 
-                    let home_dir = remote_home_dir(&project, path_style, cx).await;
+                    let home_dir = remote_home_dir(&project, cx).await;
 
                     workspace
                         .update_in(cx, |workspace, window, cx| {
@@ -1342,16 +1335,13 @@ impl RemoteServerProjects {
 
 /// The remote user's home folder, where the folder picker starts, falling back
 /// to the filesystem root.
-async fn remote_home_dir(project: &Entity<Project>, path_style: PathStyle, cx: &AsyncApp) -> RemotePathBuf {
+async fn remote_home_dir(project: &Entity<Project>, cx: &AsyncApp) -> RemotePathBuf {
     project
         .read_with(cx, |project, cx| project.resolve_abs_path("~", cx))
         .await
         .and_then(|path| path.into_abs_path())
-        .map(|path| RemotePathBuf::new(path, path_style))
-        .unwrap_or_else(|| match path_style {
-            PathStyle::Unix => RemotePathBuf::from_str("/", PathStyle::Unix),
-            PathStyle::Windows => RemotePathBuf::from_str("C:\\", PathStyle::Windows),
-        })
+        .map(RemotePathBuf::new)
+        .unwrap_or_else(|| RemotePathBuf::new("/".to_string()))
 }
 
 fn get_text(element: &Entity<Editor>, cx: &App) -> String {

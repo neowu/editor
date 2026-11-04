@@ -15,7 +15,6 @@ use globset::GlobBuilder;
 use globset::GlobSet;
 use globset::GlobSetBuilder;
 use itertools::Itertools;
-pub use path::PathStyle;
 use path::rel_path::RelPath;
 use path::rel_path::RelPathBuf;
 use regex::Regex;
@@ -242,21 +241,12 @@ impl AsRef<Path> for SanitizedPath {
 
 #[derive(Debug, Clone)]
 pub struct RemotePathBuf {
-    style: PathStyle,
     string: String,
 }
 
 impl RemotePathBuf {
-    pub const fn new(string: String, style: PathStyle) -> Self {
-        Self { style, string }
-    }
-
-    pub fn from_str(path: &str, style: PathStyle) -> Self {
-        Self::new(path.to_string(), style)
-    }
-
-    pub const fn path_style(&self) -> PathStyle {
-        self.style
+    pub const fn new(string: String) -> Self {
+        Self { string }
     }
 
     pub fn to_proto(self) -> String {
@@ -305,8 +295,6 @@ pub fn normalize_lexically(path: &Path) -> Result<PathBuf, NormalizeError> {
     let mut iter = path.components().peekable();
 
     // Find the root, if any, and add it to the lexical path.
-    // Here we treat the Windows path "C:\" as a single "root" even though
-    // `components` splits it into two: (Prefix, RootDir).
     let root = match iter.peek() {
         Some(Component::ParentDir) => return Err(NormalizeError),
         Some(p @ Component::RootDir) | Some(p @ Component::CurDir) => {
@@ -314,15 +302,7 @@ pub fn normalize_lexically(path: &Path) -> Result<PathBuf, NormalizeError> {
             iter.next();
             lexical.as_os_str().len()
         }
-        Some(Component::Prefix(prefix)) => {
-            lexical.push(prefix.as_os_str());
-            iter.next();
-            if let Some(p @ Component::RootDir) = iter.peek() {
-                lexical.push(p);
-                iter.next();
-            }
-            lexical.as_os_str().len()
-        }
+        Some(Component::Prefix(_)) => unreachable!("no path prefixes on unix"),
         None => return Ok(PathBuf::new()),
         Some(Component::Normal(_)) => 0,
     };
@@ -330,7 +310,7 @@ pub fn normalize_lexically(path: &Path) -> Result<PathBuf, NormalizeError> {
     for component in iter {
         match component {
             Component::RootDir => unreachable!(),
-            Component::Prefix(_) => return Err(NormalizeError),
+            Component::Prefix(_) => unreachable!("no path prefixes on unix"),
             Component::CurDir => continue,
             Component::ParentDir => {
                 // It's an error if ParentDir causes us to go above the "root".
@@ -585,12 +565,11 @@ impl PathWithPosition {
 pub struct PathMatcher {
     sources: Vec<(String, RelPathBuf, /*trailing separator*/ bool)>,
     glob: GlobSet,
-    path_style: PathStyle,
 }
 
 impl std::fmt::Debug for PathMatcher {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PathMatcher").field("sources", &self.sources).field("path_style", &self.path_style).finish()
+        f.debug_struct("PathMatcher").field("sources", &self.sources).finish()
     }
 }
 
@@ -603,54 +582,48 @@ impl PartialEq for PathMatcher {
 impl Eq for PathMatcher {}
 
 impl PathMatcher {
-    pub fn new(
-        globs: impl IntoIterator<Item = impl AsRef<str>>,
-        path_style: PathStyle,
-    ) -> Result<Self, globset::Error> {
+    pub fn new(globs: impl IntoIterator<Item = impl AsRef<str>>) -> Result<Self, globset::Error> {
         let globs = globs
             .into_iter()
-            .map(|as_str| GlobBuilder::new(as_str.as_ref()).backslash_escape(path_style.is_posix()).build())
+            .map(|as_str| GlobBuilder::new(as_str.as_ref()).backslash_escape(true).build())
             .collect::<Result<Vec<_>, _>>()?;
-        Self::from_globs(globs, path_style)
+        Self::from_globs(globs)
     }
 
     /// Skips invalid globs, reporting each error to `on_error`.
     /// If the combined set cannot be built, reports the error and matches nothing.
     pub fn new_lenient(
         globs: impl IntoIterator<Item = impl AsRef<str>>,
-        path_style: PathStyle,
         mut on_error: impl FnMut(globset::Error),
     ) -> Self {
         let globs = globs
             .into_iter()
-            .filter_map(|pattern| {
-                match GlobBuilder::new(pattern.as_ref()).backslash_escape(path_style.is_posix()).build() {
-                    Ok(glob) => Some(glob),
-                    Err(error) => {
-                        on_error(error);
-                        None
-                    }
+            .filter_map(|pattern| match GlobBuilder::new(pattern.as_ref()).backslash_escape(true).build() {
+                Ok(glob) => Some(glob),
+                Err(error) => {
+                    on_error(error);
+                    None
                 }
             })
             .collect();
-        match Self::from_globs(globs, path_style) {
+        match Self::from_globs(globs) {
             Ok(matcher) => matcher,
             Err(error) => {
                 on_error(error);
-                Self { path_style, ..Self::default() }
+                Self::default()
             }
         }
     }
 
-    fn from_globs(globs: Vec<Glob>, path_style: PathStyle) -> Result<Self, globset::Error> {
+    fn from_globs(globs: Vec<Glob>) -> Result<Self, globset::Error> {
         let sources = globs
             .iter()
             .filter_map(|glob| {
                 let glob = glob.glob();
                 Some((
                     glob.to_string(),
-                    RelPath::new(glob.as_ref(), path_style).ok().map(std::borrow::Cow::into_owned)?,
-                    glob.ends_with(path_style.separators_ch()),
+                    RelPath::new(glob.as_ref()).ok().map(std::borrow::Cow::into_owned)?,
+                    glob.ends_with('/'),
                 ))
             })
             .collect();
@@ -659,7 +632,7 @@ impl PathMatcher {
             glob_builder.add(single_glob);
         }
         let glob = glob_builder.build()?;
-        Ok(PathMatcher { glob, sources, path_style })
+        Ok(PathMatcher { glob, sources })
     }
 
     pub fn sources(&self) -> impl Iterator<Item = &str> + Clone {
@@ -671,13 +644,13 @@ impl PathMatcher {
         if self.sources.iter().any(|(_, source, _)| other.starts_with(source) || other.ends_with(source)) {
             return true;
         }
-        let other_path = other.display(self.path_style);
+        let other_path = other.display();
 
-        if self.glob.is_match(&*other_path) {
+        if self.glob.is_match(other_path) {
             return true;
         }
 
-        self.glob.is_match(other_path.into_owned() + self.path_style.primary_separator())
+        self.glob.is_match(format!("{other_path}/"))
     }
 
     pub fn is_match_std_path<P: AsRef<Path>>(&self, other: P) -> bool {
@@ -695,7 +668,7 @@ impl PathMatcher {
 
 impl Default for PathMatcher {
     fn default() -> Self {
-        Self { path_style: PathStyle::local(), glob: GlobSet::empty(), sources: vec![] }
+        Self { glob: GlobSet::empty(), sources: vec![] }
     }
 }
 
@@ -1066,133 +1039,5 @@ pub fn compare_paths((path_a, a_is_file): (&Path, bool), (path_b, b_is_file): (&
             (None, Some(_)) => break Ordering::Less,
             (None, None) => break Ordering::Equal,
         }
-    }
-}
-
-pub trait UrlExt {
-    /// A version of `url::Url::to_file_path` that does platform handling based on the provided `PathStyle` instead of the host platform.
-    ///
-    /// Prefer using this over `url::Url::to_file_path` when you need to handle paths in a cross-platform way as is the case for remoting interactions.
-    #[allow(clippy::result_unit_err, reason = "mirrors `url::Url::to_file_path`")]
-    fn to_file_path_ext(&self, path_style: PathStyle) -> Result<PathBuf, ()>;
-}
-
-impl UrlExt for url::Url {
-    // Copied from `url::Url::to_file_path`, but the `cfg` handling is replaced with runtime branching on `PathStyle`
-    fn to_file_path_ext(&self, source_path_style: PathStyle) -> Result<PathBuf, ()> {
-        if let Some(segments) = self.path_segments() {
-            let host = match self.host() {
-                None | Some(url::Host::Domain("localhost")) => None,
-                Some(_) if source_path_style.is_windows() && self.scheme() == "file" => self.host_str(),
-                _ => return Err(()),
-            };
-
-            let str_len = self.as_str().len();
-            let estimated_capacity = if source_path_style.is_windows() {
-                // remove scheme: - has possible \\ for hostname
-                str_len.saturating_sub(self.scheme().len() + 1)
-            } else {
-                // remove scheme://
-                str_len.saturating_sub(self.scheme().len() + 3)
-            };
-            return match source_path_style {
-                PathStyle::Unix => file_url_segments_to_pathbuf_posix(estimated_capacity, host, segments),
-                PathStyle::Windows => file_url_segments_to_pathbuf_windows(estimated_capacity, host, segments),
-            };
-        }
-
-        fn file_url_segments_to_pathbuf_posix(
-            estimated_capacity: usize,
-            host: Option<&str>,
-            segments: std::str::Split<'_, char>,
-        ) -> Result<PathBuf, ()> {
-            use percent_encoding::percent_decode;
-
-            if host.is_some() {
-                return Err(());
-            }
-
-            let mut bytes = Vec::new();
-            bytes.try_reserve(estimated_capacity).map_err(|_| ())?;
-
-            for segment in segments {
-                bytes.push(b'/');
-                bytes.extend(percent_decode(segment.as_bytes()));
-            }
-
-            // A windows drive letter must end with a slash.
-            if bytes.len() > 2
-                && bytes[bytes.len() - 2].is_ascii_alphabetic()
-                && matches!(bytes[bytes.len() - 1], b':' | b'|')
-            {
-                bytes.push(b'/');
-            }
-
-            let path = String::from_utf8(bytes).map_err(|_| ())?;
-            debug_assert!(
-                PathStyle::Unix.is_absolute(Path::new(&path)),
-                "to_file_path() failed to produce an absolute Path"
-            );
-
-            Ok(PathBuf::from(path))
-        }
-
-        fn file_url_segments_to_pathbuf_windows(
-            estimated_capacity: usize,
-            host: Option<&str>,
-            mut segments: std::str::Split<'_, char>,
-        ) -> Result<PathBuf, ()> {
-            use percent_encoding::percent_decode_str;
-            let mut string = String::new();
-            string.try_reserve(estimated_capacity).map_err(|_| ())?;
-            if let Some(host) = host {
-                string.push_str(r"\\");
-                string.push_str(host);
-            } else {
-                let first = segments.next().ok_or(())?;
-
-                match first.len() {
-                    2 => {
-                        if !first.starts_with(|c| char::is_ascii_alphabetic(&c)) || first.as_bytes()[1] != b':' {
-                            return Err(());
-                        }
-
-                        string.push_str(first);
-                    }
-
-                    4 => {
-                        if !first.starts_with(|c| char::is_ascii_alphabetic(&c)) {
-                            return Err(());
-                        }
-                        let bytes = first.as_bytes();
-                        if bytes[1] != b'%' || bytes[2] != b'3' || (bytes[3] != b'a' && bytes[3] != b'A') {
-                            return Err(());
-                        }
-
-                        string.push_str(&first[0..1]);
-                        string.push(':');
-                    }
-
-                    _ => return Err(()),
-                }
-            };
-
-            for segment in segments {
-                string.push('\\');
-
-                // Currently non-unicode windows paths cannot be represented
-                match percent_decode_str(segment).decode_utf8() {
-                    Ok(s) => string.push_str(&s),
-                    Err(..) => return Err(()),
-                }
-            }
-            debug_assert!(
-                PathStyle::Windows.is_absolute(Path::new(&string)),
-                "to_file_path() failed to produce an absolute Path"
-            );
-            let path = PathBuf::from(string);
-            Ok(path)
-        }
-        Err(())
     }
 }

@@ -10,18 +10,12 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 
-use crate::PathStyle;
 use crate::abs_path::AbsPath;
 use crate::abs_path::AbsPathBuf;
 
 /// A file system path that is guaranteed to be relative and normalized.
 ///
-/// This type can be used to represent paths in a uniform way, regardless of
-/// whether they refer to Windows or POSIX file systems, and regardless of
-/// the host platform.
-///
-/// Internally, paths are stored in POSIX ('/'-delimited) format, but they can
-/// be displayed in either POSIX or Windows format.
+/// Paths are stored in POSIX ('/'-delimited) format.
 ///
 /// Relative paths are also guaranteed to be valid unicode.
 #[repr(transparent)]
@@ -49,7 +43,7 @@ impl RelPath {
         EMPTY.get_or_init(|| Arc::from(Self::empty())).clone()
     }
 
-    /// Converts a path with a given style into a [`RelPath`].
+    /// Converts a path into a [`RelPath`].
     ///
     /// Returns an error if the path is absolute, or is not valid unicode.
     ///
@@ -57,36 +51,23 @@ impl RelPath {
     /// processing `..` components, and removing trailing separators. It does
     /// not allocate unless it's necessary to reformat the path.
     #[track_caller]
-    pub fn new(path: &Path, path_style: PathStyle) -> Result<Cow<'_, Self>> {
+    pub fn new(path: &Path) -> Result<Cow<'_, Self>> {
         let mut path = path.to_str().context("non utf-8 path")?;
 
-        let (prefixes, suffixes): (&[_], &[_]) = match path_style {
-            PathStyle::Unix => (&["./"], &['/']),
-            PathStyle::Windows => (&["./", ".\\"], &['/', '\\']),
-        };
-
-        while prefixes.iter().any(|prefix| path.starts_with(prefix)) {
-            path = &path[prefixes[0].len()..];
+        while let Some(rest) = path.strip_prefix("./") {
+            path = rest;
         }
-        while let Some(prefix) = path.strip_suffix(suffixes)
+        while let Some(prefix) = path.strip_suffix('/')
             && !prefix.is_empty()
         {
             path = prefix;
         }
 
-        if path_style.has_root(Path::new(&path)) {
+        if path.starts_with('/') {
             return Err(anyhow!("absolute path not allowed: {path:?}"));
         }
 
-        let mut string = Cow::Borrowed(path);
-        if path_style == PathStyle::Windows && path.contains('\\') {
-            string = Cow::Owned(string.as_ref().replace('\\', "/"))
-        }
-
-        let mut result = match string {
-            Cow::Borrowed(string) => Cow::Borrowed(Self::from_str(string)),
-            Cow::Owned(string) => Cow::Owned(RelPathBuf(string)),
-        };
+        let mut result = Cow::Borrowed(Self::from_str(path));
 
         if result.components().any(|component| component.is_empty() || component == "." || component == "..") {
             let mut normalized = RelPathBuf::new();
@@ -110,7 +91,7 @@ impl RelPath {
 
     #[track_caller]
     pub fn new_test(path: &str) -> Cow<'_, Self> {
-        Self::new(Path::new(path), PathStyle::Unix).unwrap()
+        Self::new(Path::new(path)).unwrap()
     }
 
     /// Converts a path that is already normalized and uses '/' separators
@@ -120,7 +101,7 @@ impl RelPath {
     #[track_caller]
     pub fn from_unix_str<S: AsRef<Path> + ?Sized>(path: &S) -> anyhow::Result<&Self> {
         let path = path.as_ref();
-        match Self::new(path, PathStyle::Unix)? {
+        match Self::new(path)? {
             Cow::Borrowed(path) => Ok(path),
             Cow::Owned(_) => Err(anyhow!("invalid relative path {path:?}")),
         }
@@ -238,16 +219,9 @@ impl RelPath {
         Arc::from(self)
     }
 
-    /// Convert the path into a string with the given path style.
-    ///
-    /// Whenever a path is presented to the user, it should be converted to
-    /// a string via this method.
-    pub fn display(&self, style: PathStyle) -> Cow<'_, str> {
-        match style {
-            PathStyle::Unix => Cow::Borrowed(&self.0),
-            PathStyle::Windows if self.0.contains('/') => Cow::Owned(self.0.replace('/', "\\")),
-            PathStyle::Windows => Cow::Borrowed(&self.0),
-        }
+    /// Convert the path into a string for presenting to the user.
+    pub const fn display(&self) -> &str {
+        &self.0
     }
 
     /// Get the internal unix-style representation of the path.
@@ -258,9 +232,6 @@ impl RelPath {
     }
 
     /// Interprets the path as a [`std::path::Path`], suitable for file system calls.
-    ///
-    /// This is guaranteed to be a valid path regardless of the host platform, because
-    /// the `/` is accepted as a path separator on windows.
     ///
     /// This should not be shown to the user.
     pub fn as_std_path(&self) -> &Path {
@@ -453,7 +424,7 @@ impl TryFrom<&str> for RelPathBuf {
     type Error = anyhow::Error;
 
     fn try_from(s: &str) -> Result<Self> {
-        RelPath::new(Path::new(s), PathStyle::Unix).map(|cow| cow.into_owned())
+        RelPath::new(Path::new(s)).map(|cow| cow.into_owned())
     }
 }
 
@@ -582,7 +553,7 @@ impl<'de> serde::Deserialize<'de> for RelPathBuf {
         D: serde::Deserializer<'de>,
     {
         let path = String::deserialize(deserializer)?;
-        let rel_path = RelPath::new(Path::new(&path), PathStyle::local()).map_err(serde::de::Error::custom)?;
+        let rel_path = RelPath::new(Path::new(&path)).map_err(serde::de::Error::custom)?;
         Ok(rel_path.into_owned())
     }
 }

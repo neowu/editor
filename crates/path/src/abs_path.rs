@@ -10,7 +10,6 @@ use std::sync::Arc;
 
 use anyhow::Context;
 
-use crate::PathStyle;
 use crate::rel_path::RelPath;
 
 // An absolute path on the user's local filesystem.
@@ -89,7 +88,7 @@ impl AbsPath {
 
     pub fn strip_prefix<'a>(&'a self, prefix: &AbsPath) -> Option<Cow<'a, RelPath>> {
         let prefix = self.0.strip_prefix(&prefix.0).ok()?;
-        RelPath::new(prefix, PathStyle::local()).ok()
+        RelPath::new(prefix).ok()
     }
 }
 

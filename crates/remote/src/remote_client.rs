@@ -55,7 +55,6 @@ use rpc::proto::RequestMessage;
 use rpc::proto::build_typed_envelope;
 use rpc::proto::{self};
 use util::ResultExt;
-use util::paths::PathStyle;
 use util::paths::RemotePathBuf;
 
 use crate::SshConnectionOptions;
@@ -289,7 +288,6 @@ pub struct RemoteClient {
     client: Arc<ChannelClient>,
     unique_identifier: String,
     connection_options: RemoteConnectionOptions,
-    path_style: PathStyle,
     platform: RemotePlatform,
     os_version: Option<String>,
     state: Option<State>,
@@ -377,8 +375,6 @@ impl RemoteClient {
                 let (connection_activity_tx, connection_activity_rx) = mpsc::channel::<()>(1);
 
                 let client = cx.update(|cx| ChannelClient::new(incoming_rx, outgoing_tx, cx, "client"));
-
-                let path_style = remote_connection.path_style();
                 let platform = remote_connection.remote_platform();
                 let os_version = remote_connection.remote_os_version();
                 let connection_options = remote_connection.connection_options();
@@ -387,7 +383,6 @@ impl RemoteClient {
                     client: client.clone(),
                     unique_identifier: unique_identifier.clone(),
                     connection_options,
-                    path_style,
                     platform,
                     os_version: os_version.clone(),
                     state: Some(State::Connecting),
@@ -887,10 +882,6 @@ impl RemoteClient {
         self.connection_state() == ConnectionState::Disconnected
     }
 
-    pub const fn path_style(&self) -> PathStyle {
-        self.path_style
-    }
-
     /// The platform (OS and architecture) of the remote host, detected during
     /// connection setup.
     pub const fn remote_platform(&self) -> RemotePlatform {
@@ -1114,7 +1105,6 @@ pub trait RemoteConnection: Send + Sync {
     }
     fn build_forward_ports_command(&self, forwards: Vec<(u16, String, u16)>) -> Result<CommandTemplate>;
     fn connection_options(&self) -> RemoteConnectionOptions;
-    fn path_style(&self) -> PathStyle;
     /// The remote platform (OS and architecture), detected during connection setup.
     fn remote_platform(&self) -> RemotePlatform;
     /// The remote host's OS version (e.g. `"ubuntu 24.04"` or `"15.6.1"`),

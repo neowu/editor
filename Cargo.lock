@@ -954,6 +954,7 @@ dependencies = [
  "multi_buffer",
  "ordered-float",
  "parking_lot",
+ "path",
  "project",
  "rand",
  "regex",
@@ -2648,6 +2649,7 @@ dependencies = [
  "log",
  "markdown",
  "mermaid",
+ "path",
  "project",
  "serde",
  "serde_json",
@@ -3074,6 +3076,7 @@ dependencies = [
  "futures",
  "fuzzy",
  "gpui",
+ "path",
  "picker",
  "project",
  "serde",
@@ -5226,7 +5229,6 @@ dependencies = [
  "libc",
  "log",
  "path",
- "percent-encoding",
  "regex",
  "rust-embed",
  "serde",
@@ -5234,7 +5236,6 @@ dependencies = [
  "shlex",
  "smol",
  "unicase",
- "url",
 ]
 
 [[package]]

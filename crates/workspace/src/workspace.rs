@@ -189,7 +189,6 @@ use ui::Window;
 use ui::prelude::*;
 use url::Url;
 use util::ResultExt;
-use util::paths::PathStyle;
 use util::paths::SanitizedPath;
 use util::rel_path::RelPath;
 use uuid::Uuid;
@@ -1744,10 +1743,6 @@ impl Workspace {
         &self.project
     }
 
-    pub fn path_style(&self, cx: &App) -> PathStyle {
-        self.project.read(cx).path_style(cx)
-    }
-
     pub fn recently_activated_items(&self, cx: &App) -> HashMap<EntityId, usize> {
         let mut history: HashMap<EntityId, usize> = HashMap::default();
 
@@ -2728,7 +2723,7 @@ impl Workspace {
                             worktree.root_entry()
                         } else {
                             winner_abs_path.strip_prefix(worktree_abs_path.as_ref()).ok().and_then(|relative_path| {
-                                let relative_path = RelPath::new(relative_path, PathStyle::local()).log_err()?;
+                                let relative_path = RelPath::new(relative_path).log_err()?;
                                 worktree.entry_for_path(&relative_path)
                             })
                         }?;
@@ -3533,11 +3528,10 @@ impl Workspace {
 
         // Not a valid URL - treat as a file path
         let project = self.project();
-        let path_style = project.read(cx).path_style(cx);
         let project_is_local = project.read(cx).is_local();
 
         // If it's an absolute path, open it directly
-        if path_style.has_root(Path::new(url_or_path)) {
+        if Path::new(url_or_path).has_root() {
             open_abs_path(self, PathBuf::from(url_or_path), cx);
             return;
         }
@@ -3545,7 +3539,7 @@ impl Workspace {
         let path = Path::new(url_or_path);
         // Try to resolve relative path against base_path first
         let path_from_base = if let Some(base) = base_path {
-            let resolved_path = path_style.join(base, path).map(PathBuf::from);
+            let resolved_path = Some(base.join(path));
             if project_is_local {
                 if let Some(resolved_path) = resolved_path
                     && resolved_path.exists()

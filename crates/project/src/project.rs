@@ -62,7 +62,6 @@ pub use git_store::git_traversal::GitTraversal;
 pub use git_store::is_submodule_git_dir;
 pub use git_store::linked_worktree_short_name;
 pub use git_store::repo_identity_path;
-pub use git_store::repo_identity_path_if_local;
 pub use git_store::worktrees_directory_for_repo;
 use gpui::App;
 use gpui::AppContext;
@@ -159,7 +158,6 @@ use text::Anchor;
 use text::BufferId;
 use text::Rope;
 use util::ResultExt as _;
-use util::paths::PathStyle;
 use util::paths::SanitizedPath;
 use util::rel_path::RelPath;
 use worktree::CreatedEntry;
@@ -909,17 +907,16 @@ impl DirectoryLister {
             DirectoryLister::Local(project, _) => project,
         }
         .read(cx);
-        let path_style = project.path_style(cx);
         project
             .visible_worktrees(cx)
             .next()
             .map(|worktree| worktree.read(cx).abs_path().to_string_lossy().into_owned())
             .or_else(|| std::env::home_dir().map(|dir| dir.to_string_lossy().into_owned()))
             .map(|mut s| {
-                s.push_str(path_style.primary_separator());
+                s.push('/');
                 s
             })
-            .unwrap_or_else(|| if path_style.is_windows() { "C:\\" } else { "~/" }.to_string())
+            .unwrap_or_else(|| "~/".to_string())
     }
 
     pub fn list_directory(&self, path: String, cx: &mut App) -> Task<Result<Vec<DirectoryItem>>> {
@@ -944,12 +941,6 @@ impl DirectoryLister {
                     Ok(results)
                 })
             }
-        }
-    }
-
-    pub fn path_style(&self, cx: &App) -> PathStyle {
-        match self {
-            Self::Local(project, ..) | Self::Project(project, ..) => project.read(cx).path_style(cx),
         }
     }
 }
@@ -1069,16 +1060,9 @@ impl Project {
         cx: &mut App,
     ) -> Entity<Self> {
         cx.new(|cx: &mut Context<Self>| {
-            let (remote_proto, path_style) =
-                remote.read_with(cx, |remote, _| (remote.proto_client(), remote.path_style()));
+            let remote_proto = remote.read_with(cx, |remote, _| remote.proto_client());
             let worktree_store = cx.new(|cx| {
-                WorktreeStore::remote(
-                    false,
-                    remote_proto.clone(),
-                    REMOTE_SERVER_PROJECT_ID,
-                    path_style,
-                    WorktreeIdCounter::get(cx),
-                )
+                WorktreeStore::remote(false, remote_proto.clone(), REMOTE_SERVER_PROJECT_ID, WorktreeIdCounter::get(cx))
             });
 
             cx.subscribe(&worktree_store, Self::on_worktree_store_event).detach();
@@ -1394,15 +1378,12 @@ impl Project {
     /// Matches worktree roots and files inside worktrees, but not subdirectories.
     fn visibility_for_path(&self, path: &Path, cx: &App) -> Option<bool> {
         let path = SanitizedPath::new(path).as_path();
-        let path_style = self.path_style(cx);
         self.worktrees(cx)
             .filter_map(|worktree| {
                 let worktree = worktree.read(cx);
                 let abs_path = worktree.abs_path();
-                let relative_path = path_style
-                    .strip_prefix(path, abs_path.as_ref())
-                    .ok()
-                    .and_then(|path| RelPath::new(path, path_style).ok())?;
+                let relative_path =
+                    path.strip_prefix(abs_path.as_ref()).ok().and_then(|path| RelPath::new(path).ok())?;
                 // Don't exclude the worktree root itself, only actual subdirectories
                 let is_subpath = !relative_path.is_empty();
                 // Gitignored subtrees aren't scanned, so their contents don't
@@ -1425,15 +1406,12 @@ impl Project {
 
     fn visibility_for_subpath(&self, path: &Path, cx: &App) -> Option<bool> {
         let path = SanitizedPath::new(path).as_path();
-        let path_style = self.path_style(cx);
         self.worktrees(cx)
             .filter_map(|worktree| {
                 let worktree = worktree.read(cx);
                 let abs_path = worktree.abs_path();
-                let relative_path = path_style
-                    .strip_prefix(path, abs_path.as_ref())
-                    .ok()
-                    .and_then(|path| RelPath::new(path, path_style).ok())?;
+                let relative_path =
+                    path.strip_prefix(abs_path.as_ref()).ok().and_then(|path| RelPath::new(path).ok())?;
                 let is_subpath = !relative_path.is_empty() && !worktree.is_path_ignored(&relative_path);
                 is_subpath.then(|| worktree.is_visible())
             })
@@ -2655,7 +2633,7 @@ impl Project {
         buffer: &Entity<Buffer>,
         cx: &mut Context<Self>,
     ) -> Task<Option<ResolvedPath>> {
-        if self.path_style(cx).has_root(Path::new(path)) || path.starts_with("~") {
+        if Path::new(path).has_root() || path.starts_with("~") {
             self.resolve_abs_path(path, cx)
         } else {
             self.resolve_path_in_worktrees(path, buffer, cx)
@@ -2708,15 +2686,14 @@ impl Project {
         cx: &Context<Self>,
     ) -> Task<Option<ResolvedPath>> {
         let mut candidates = vec![];
-        let path_style = self.path_style(cx);
-        if let Ok(path) = RelPath::new(path.as_ref(), path_style) {
+        if let Ok(path) = RelPath::new(path.as_ref()) {
             candidates.push(path.into_arc());
         }
 
         if let Some(file) = buffer.read(cx).file()
             && let Some(dir) = file.path().parent()
-            && let Some(joined) = path_style.join(&*dir.display(path_style), path)
-            && let Some(joined) = RelPath::new(joined.as_ref(), path_style).ok()
+            && let Some(joined) = path::join(dir.display(), path)
+            && let Some(joined) = RelPath::new(joined.as_ref()).ok()
         {
             candidates.push(joined.into_arc());
         }
@@ -2884,16 +2861,15 @@ impl Project {
     ///
     /// Returns `Some(ProjectPath)` if a matching worktree is found, otherwise `None`.
     pub fn find_project_path(&self, path: impl AsRef<Path>, cx: &App) -> Option<ProjectPath> {
-        let path_style = self.path_style(cx);
         let path = path.as_ref();
         let worktree_store = self.worktree_store.read(cx);
 
-        if path_style.has_root(path) {
+        if path.has_root() {
             for worktree in worktree_store.visible_worktrees(cx) {
                 let worktree_abs_path = worktree.read(cx).abs_path();
 
                 if let Ok(relative_path) = path.strip_prefix(worktree_abs_path)
-                    && let Ok(path) = RelPath::new(relative_path, path_style)
+                    && let Ok(path) = RelPath::new(relative_path)
                 {
                     return Some(ProjectPath { worktree_id: worktree.read(cx).id(), path: path.into_arc() });
                 }
@@ -2906,12 +2882,12 @@ impl Project {
             for worktree in worktree_store.visible_worktrees(cx) {
                 let worktree = worktree.read(cx);
                 if let Ok(relative_path) = path.strip_prefix(worktree.root_name().as_std_path())
-                    && let Ok(rel_path) = RelPath::new(relative_path, path_style)
+                    && let Ok(rel_path) = RelPath::new(relative_path)
                     && let Some(entry) = worktree.entry_for_path(&rel_path)
                 {
                     return Some(ProjectPath { worktree_id: worktree.id(), path: entry.path.clone() });
                 }
-                if let Ok(rel_path) = RelPath::new(path, path_style)
+                if let Ok(rel_path) = RelPath::new(path)
                     && let Some(entry) = worktree.entry_for_path(&rel_path)
                 {
                     return Some(ProjectPath { worktree_id: worktree.id(), path: entry.path.clone() });
@@ -2923,7 +2899,7 @@ impl Project {
             for worktree in worktree_store.visible_worktrees(cx) {
                 let worktree_root_name = worktree.read(cx).root_name();
                 if let Ok(relative_path) = path.strip_prefix(worktree_root_name.as_std_path())
-                    && let Ok(path) = RelPath::new(relative_path, path_style)
+                    && let Ok(path) = RelPath::new(relative_path)
                 {
                     return Some(ProjectPath { worktree_id: worktree.read(cx).id(), path: path.into_arc() });
                 }
@@ -2937,13 +2913,12 @@ impl Project {
     ///
     /// Otherwise, returns the full path for the project path (obtained by prefixing the worktree-relative path with the name of the worktree).
     pub fn short_full_path_for_project_path(&self, project_path: &ProjectPath, cx: &App) -> Option<String> {
-        let path_style = self.path_style(cx);
         if self.visible_worktrees(cx).take(2).count() < 2 {
-            return Some(project_path.path.display(path_style).to_string());
+            return Some(project_path.path.display().to_string());
         }
         self.worktree_for_id(project_path.worktree_id, cx).map(|worktree| {
             let worktree_name = worktree.read(cx).root_name();
-            worktree_name.join(&project_path.path).display(path_style).to_string()
+            worktree_name.join(&project_path.path).display().to_string()
         })
     }
 
@@ -3435,10 +3410,6 @@ impl Project {
         self.git_store.read(cx).status_for_buffer_id(buffer_id, cx)
     }
 
-    pub fn path_style(&self, cx: &App) -> PathStyle {
-        self.worktree_store.read(cx).path_style()
-    }
-
     pub fn worktree_paths(&self, cx: &App) -> WorktreePaths {
         self.worktree_store.read(cx).paths(cx)
     }
@@ -3521,10 +3492,6 @@ impl<'a> fuzzy::PathMatchCandidateSet<'a> for PathMatchCandidateSet {
         self.snapshot.root_entry().is_some_and(|f| f.is_file())
     }
 
-    fn path_style(&self) -> PathStyle {
-        self.snapshot.path_style()
-    }
-
     fn candidates(&'a self, start: usize) -> Self::Candidates {
         PathMatchCandidateSetIter {
             traversal: match self.candidates {
@@ -3591,9 +3558,6 @@ impl<'a> fuzzy_nucleo::PathMatchCandidateSet<'a> for PathMatchCandidateSet {
     }
     fn root_is_file(&self) -> bool {
         self.snapshot.root_entry().is_some_and(|f| f.is_file())
-    }
-    fn path_style(&self) -> PathStyle {
-        self.snapshot.path_style()
     }
     fn candidates(&'a self, start: usize) -> Self::Candidates {
         PathMatchCandidateSetNucleoIter {

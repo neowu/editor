@@ -22,7 +22,6 @@ use rpc::proto;
 use smol::future::yield_now;
 use text::Anchor;
 use util::paths::PathMatcher;
-use util::paths::PathStyle;
 use util::rel_path::RelPath;
 
 #[derive(Debug)]
@@ -274,7 +273,7 @@ impl SearchQuery {
         is_case_sensitive.map(|c| (c, new_query))
     }
 
-    pub fn from_proto(message: proto::SearchQuery, path_style: PathStyle) -> Result<Self> {
+    pub fn from_proto(message: proto::SearchQuery) -> Result<Self> {
         let files_to_include = if message.files_to_include.is_empty() {
             message
                 .files_to_include_legacy
@@ -306,8 +305,8 @@ impl SearchQuery {
                 message.case_sensitive,
                 message.include_ignored,
                 false,
-                PathMatcher::new(files_to_include, path_style)?,
-                PathMatcher::new(files_to_exclude, path_style)?,
+                PathMatcher::new(files_to_include)?,
+                PathMatcher::new(files_to_exclude)?,
                 message.match_full_paths,
                 None, // search opened only don't need search remote
             )
@@ -317,8 +316,8 @@ impl SearchQuery {
                 message.whole_word,
                 message.case_sensitive,
                 message.include_ignored,
-                PathMatcher::new(files_to_include, path_style)?,
-                PathMatcher::new(files_to_exclude, path_style)?,
+                PathMatcher::new(files_to_include)?,
+                PathMatcher::new(files_to_exclude)?,
                 message.match_full_paths,
                 None, // search opened only don't need search remote
             )

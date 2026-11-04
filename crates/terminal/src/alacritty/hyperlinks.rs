@@ -18,8 +18,6 @@ use log::info;
 use log::warn;
 use regex::Regex;
 use url::Url;
-use util::paths::PathStyle;
-use util::paths::UrlExt;
 
 use crate::Range;
 
@@ -89,7 +87,6 @@ pub(crate) fn find_from_grid_point<T: EventListener>(
     term: &Term<T>,
     point: AlacPoint,
     regex_searches: &mut RegexSearches,
-    path_style: PathStyle,
 ) -> Option<HyperlinkMatch> {
     let grid = term.grid();
     let link = grid.index(point).hyperlink();
@@ -144,33 +141,24 @@ pub(crate) fn find_from_grid_point<T: EventListener>(
         }
     };
 
-    found_word.map(|found_word| normalize_found_word(found_word, path_style))
+    found_word.map(normalize_found_word)
 }
 
-fn normalize_found_word(found_word: (String, bool, Match), path_style: PathStyle) -> HyperlinkMatch {
+fn normalize_found_word(found_word: (String, bool, Match)) -> HyperlinkMatch {
     let (maybe_url_or_path, is_url, word_match) = found_word;
-    normalize_hyperlink_match(maybe_url_or_path, is_url, Range::from_alacritty(word_match), path_style)
+    normalize_hyperlink_match(maybe_url_or_path, is_url, Range::from_alacritty(word_match))
 }
 
-fn normalize_hyperlink_match(
-    maybe_url_or_path: String,
-    is_url: bool,
-    range: Range,
-    path_style: PathStyle,
-) -> HyperlinkMatch {
+fn normalize_hyperlink_match(maybe_url_or_path: String, is_url: bool, range: Range) -> HyperlinkMatch {
     if is_url {
         // Treat "file://" IRIs like file paths to ensure
         // that line numbers at the end of the path are
         // handled correctly.
-        // Use Url::to_file_path() to properly handle Windows drive letters
-        // (e.g., file:///C:/path -> C:\path)
         if maybe_url_or_path.starts_with("file://") {
             if let Ok(url) = Url::parse(&maybe_url_or_path) {
-                if let Ok(path) = url.to_file_path_ext(path_style) {
+                if let Ok(path) = url.to_file_path() {
                     return HyperlinkMatch { text: path.to_string_lossy().into_owned(), is_url: false, range };
-                } else if let Some(path) = try_osc8_url_to_path(url)
-                    && path_style.is_posix()
-                {
+                } else if let Some(path) = try_osc8_url_to_path(url) {
                     return HyperlinkMatch { text: path, is_url: false, range };
                 }
             }

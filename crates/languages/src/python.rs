@@ -34,7 +34,6 @@ use settings::SemanticTokenRules;
 use task::TaskTemplate;
 use task::TaskTemplates;
 use task::VariableName;
-use util::paths::PathStyle;
 use util::rel_path::RelPath;
 
 pub(crate) fn semantic_token_rules() -> SemanticTokenRules {
@@ -403,7 +402,7 @@ impl PythonContextProvider {
 }
 
 fn python_module_name_from_relative_path(relative_path: &str) -> Option<String> {
-    let rel_path = RelPath::new(relative_path.as_ref(), PathStyle::local()).ok()?;
-    let path_with_dots = rel_path.display(PathStyle::Unix).replace('/', ".");
+    let rel_path = RelPath::new(relative_path.as_ref()).ok()?;
+    let path_with_dots = rel_path.display().replace('/', ".");
     Some(path_with_dots.strip_suffix(".py").map(ToOwned::to_owned).unwrap_or(path_with_dots))
 }

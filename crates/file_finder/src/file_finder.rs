@@ -62,7 +62,6 @@ use ui::ListItemSpacing;
 use ui::Tooltip;
 use ui::prelude::*;
 use util::ResultExt;
-use util::paths::PathStyle;
 use util::paths::PathWithPosition;
 use util::post_inc;
 use util::rel_path::RelPath;
@@ -516,7 +515,6 @@ impl Matches {
         query: Option<&FileSearchQuery>,
         new_search_matches: impl Iterator<Item = ProjectPanelOrdMatch>,
         extend_old_matches: bool,
-        path_style: PathStyle,
     ) {
         let Some(query) = query else {
             // assuming that if there's no query, then there's no search matches.
@@ -528,8 +526,7 @@ impl Matches {
         };
 
         let worktree_name_by_id = worktree_names_for_history_matching(&worktree_store, cx);
-        let new_history_matches =
-            matching_history_items(history_items, currently_opened, worktree_name_by_id, query, path_style);
+        let new_history_matches = matching_history_items(history_items, currently_opened, worktree_name_by_id, query);
         let new_search_matches: Vec<Match> = new_search_matches
             .filter(|path_match| {
                 !new_history_matches.contains_key(&ProjectPath {
@@ -629,7 +626,6 @@ fn matching_history_items<'a>(
     currently_opened: Option<&'a FoundPath>,
     worktree_name_by_id: Option<HashMap<WorktreeId, Arc<RelPath>>>,
     query: &FileSearchQuery,
-    path_style: PathStyle,
 ) -> HashMap<ProjectPath, Match> {
     let mut candidates_paths = HashMap::default();
 
@@ -669,7 +665,6 @@ fn matching_history_items<'a>(
                 query.path_query(),
                 fuzzy_nucleo::Case::Ignore,
                 max_results,
-                path_style,
             )
             .into_iter()
             // filter matches where at least one matched position is in filename portion, to prevent directory matches, nucleo scores them higher as history items are matched against their full path
@@ -1080,8 +1075,6 @@ impl FileFinderDelegate {
             } else {
                 self.matches.get(self.selected_index).cloned()
             };
-
-            let path_style = self.project.read(cx).path_style(cx);
             self.matches.push_new_matches(
                 self.project.read(cx).worktree_store(),
                 cx,
@@ -1090,13 +1083,12 @@ impl FileFinderDelegate {
                 Some(&query),
                 matches.into_iter(),
                 extend_old_matches,
-                path_style,
             );
 
             // Add channel matches
 
             let query_path = query.path_query();
-            if let Ok(mut query_path) = RelPath::new(Path::new(query_path), path_style) {
+            if let Ok(mut query_path) = RelPath::new(Path::new(query_path)) {
                 let available_worktree = self
                     .project
                     .read(cx)
@@ -1128,10 +1120,7 @@ impl FileFinderDelegate {
 
                 if let Some(worktree) = expect_worktree {
                     let worktree = worktree.read(cx);
-                    if worktree.entry_for_path(&query_path).is_none()
-                        && !query.path_query().ends_with('/')
-                        && !(path_style.is_windows() && query.path_query().ends_with('\\'))
-                    {
+                    if worktree.entry_for_path(&query_path).is_none() && !query.path_query().ends_with('/') {
                         self.matches.matches.push(Match::CreateNew(ProjectPath {
                             worktree_id: worktree.id(),
                             path: query_path.into_arc(),
@@ -1165,7 +1154,6 @@ impl FileFinderDelegate {
         window: &mut Window,
         cx: &App,
     ) -> (HighlightedLabel, HighlightedLabel) {
-        let path_style = self.project.read(cx).path_style(cx);
         let (file_name, file_name_positions, mut full_path, mut full_path_positions) = match &path_match {
             Match::History { path: entry_path, panel_match } => {
                 let worktree_id = entry_path.project.worktree_id;
@@ -1176,7 +1164,7 @@ impl FileFinderDelegate {
                     .filter(|worktree| worktree.read(cx).is_visible());
 
                 if let Some(panel_match) = panel_match {
-                    self.labels_for_path_match(&panel_match.0, path_style)
+                    self.labels_for_path_match(&panel_match.0)
                 } else if let Some(worktree) = worktree {
                     let worktree_store = self.project.read(cx).worktree_store();
                     let full_path = if should_hide_root_in_entry_path(&worktree_store, cx) {
@@ -1187,26 +1175,22 @@ impl FileFinderDelegate {
                     let mut components = full_path.components();
                     let filename = components.next_back().unwrap_or("");
                     let prefix = components.rest();
-                    (
-                        filename.to_string(),
-                        Vec::new(),
-                        prefix.display(path_style).to_string() + path_style.primary_separator(),
-                        Vec::new(),
-                    )
+                    (filename.to_string(), Vec::new(), prefix.display().to_string() + "/", Vec::new())
                 } else {
                     (
                         entry_path.absolute.file_name().map_or(String::new(), |f| f.to_string_lossy().into_owned()),
                         Vec::new(),
-                        entry_path.absolute.parent().map_or(String::new(), |path| {
-                            path.to_string_lossy().into_owned() + path_style.primary_separator()
-                        }),
+                        entry_path
+                            .absolute
+                            .parent()
+                            .map_or(String::new(), |path| path.to_string_lossy().into_owned() + "/"),
                         Vec::new(),
                     )
                 }
             }
-            Match::Search(path_match) => self.labels_for_path_match(&path_match.0, path_style),
+            Match::Search(path_match) => self.labels_for_path_match(&path_match.0),
             Match::CreateNew(project_path) => {
-                (format!("Create File: {}", project_path.path.display(path_style)), vec![], String::from(""), vec![])
+                (format!("Create File: {}", project_path.path.display()), vec![], String::from(""), vec![])
             }
         };
 
@@ -1269,11 +1253,7 @@ impl FileFinderDelegate {
         )
     }
 
-    fn labels_for_path_match(
-        &self,
-        path_match: &PathMatch,
-        path_style: PathStyle,
-    ) -> (String, Vec<usize>, String, Vec<usize>) {
+    fn labels_for_path_match(&self, path_match: &PathMatch) -> (String, Vec<usize>, String, Vec<usize>) {
         let full_path = path_match.path_prefix.join(&path_match.path);
         let mut path_positions = path_match.positions.clone();
 
@@ -1284,7 +1264,7 @@ impl FileFinderDelegate {
             .filter_map(|pos| if pos >= &file_name_start { Some(pos - file_name_start) } else { None })
             .collect::<Vec<_>>();
 
-        let full_path = full_path.display(path_style).trim_end_matches(&file_name).to_string();
+        let full_path = full_path.display().trim_end_matches(&file_name).to_string();
         path_positions.retain(|idx| *idx < full_path.len());
 
         debug_assert!(
@@ -1638,7 +1618,6 @@ impl PickerDelegate for FileFinderDelegate {
                 self.latest_search_id = post_inc(&mut self.search_count);
                 self.latest_search_query = None;
                 self.matches = Matches { separate_history: self.separate_history, ..Matches::default() };
-                let path_style = self.project.read(cx).path_style(cx);
 
                 self.matches.push_new_matches(
                     project.worktree_store(),
@@ -1652,7 +1631,6 @@ impl PickerDelegate for FileFinderDelegate {
                     None,
                     None.into_iter(),
                     false,
-                    path_style,
                 );
 
                 self.first_update = false;
@@ -1753,12 +1731,11 @@ impl PickerDelegate for FileFinderDelegate {
         let m = self.matches.get(self.selected_index)?;
         match m {
             Match::CreateNew(project_path) => {
-                let path_style = self.project.read(cx).path_style(cx);
                 let path_highlight =
                     gpui::HighlightStyle { color: Some(cx.theme().colors().text_accent), ..Default::default() };
                 let mut message = picker::HighlightedTextBuilder::default();
                 message.push_plain("Create file ");
-                message.push_styled(project_path.path.display(path_style), path_highlight);
+                message.push_styled(project_path.path.display(), path_highlight);
                 message.push_plain("?");
                 Some(picker::PreviewUpdate::message(message.build()))
             }

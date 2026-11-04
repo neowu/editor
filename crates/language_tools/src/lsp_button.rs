@@ -24,7 +24,6 @@ use language::ServerHealth;
 use lsp::LanguageServerId;
 use lsp::LanguageServerName;
 use lsp::LanguageServerSelector;
-use path::PathStyle;
 use project::LspStore;
 use project::LspStoreEvent;
 use project::Worktree;
@@ -238,9 +237,6 @@ impl LanguageServerState {
             return menu;
         };
 
-        let path_style =
-            self.workspace.upgrade().map(|workspace| workspace.read(cx).path_style(cx)).unwrap_or(PathStyle::local());
-
         let server_metadata = self
             .lsp_store
             .update(cx, |lsp_store, _| {
@@ -254,7 +250,7 @@ impl LanguageServerState {
                                 binary_display_path: status
                                     .binary
                                     .as_ref()
-                                    .map(|binary| tooltip_for_server_binary(binary, path_style)),
+                                    .map(tooltip_for_server_binary),
                                 process_id: status.process_id,
                             },
                         )
@@ -431,7 +427,6 @@ impl LanguageServerState {
                         };
 
                         let project = workspace.read(cx).project().clone();
-                        let path_style = project.read(cx).path_style(cx);
                         let buffer_store = project.read(cx).buffer_store().clone();
 
                         let buffers = state_for_restart
@@ -454,7 +449,7 @@ impl LanguageServerState {
                                         let worktree = servers.worktree.as_ref()?.upgrade()?;
                                         let worktree_ref = worktree.read(cx);
                                         let relative_path = abs_path.strip_prefix(worktree_ref.abs_path()).ok()?;
-                                        let relative_path = RelPath::new(relative_path, path_style).log_err()?;
+                                        let relative_path = RelPath::new(relative_path).log_err()?;
                                         let entry = worktree_ref.entry_for_path(&relative_path)?;
                                         let project_path = project.read(cx).path_for_entry(entry.id, cx)?;
 
@@ -570,9 +565,10 @@ impl LanguageServerState {
     }
 }
 
-fn tooltip_for_server_binary(server_binary: &lsp::LanguageServerBinary, path_style: PathStyle) -> SharedString {
-    let runtime = path_style
-        .file_name(&server_binary.path)
+fn tooltip_for_server_binary(server_binary: &lsp::LanguageServerBinary) -> SharedString {
+    let runtime = server_binary
+        .path
+        .file_name()
         .and_then(|name| ["node", "python"].into_iter().find(|runtime| name.to_string_lossy().starts_with(runtime)));
 
     let target_path = runtime
@@ -580,7 +576,7 @@ fn tooltip_for_server_binary(server_binary: &lsp::LanguageServerBinary, path_sty
         .map(Path::new)
         .unwrap_or(&server_binary.path);
 
-    let display_path = path_style.normalize(&target_path.compact().to_string_lossy());
+    let display_path = path::normalize(&target_path.compact().to_string_lossy());
 
     match runtime {
         Some(runtime) => format!("{display_path} ({runtime})").into(),

@@ -26,7 +26,6 @@ use settings::SettingsLocation;
 use task::TaskTemplate;
 use task::TaskTemplates;
 use task::VariableName;
-use util::paths::PathStyle;
 use util::rel_path::RelPath;
 use util::union_json_value_into;
 
@@ -163,7 +162,7 @@ impl LspAdapter for JsonLspAdapter {
             .as_ref()
             .and_then(|abs_path| {
                 let rel_path = abs_path.strip_prefix(delegate.worktree_root_path()).ok()?;
-                RelPath::new(rel_path, PathStyle::local()).ok()
+                RelPath::new(rel_path).ok()
             })
             .unwrap_or_else(|| Cow::Borrowed(RelPath::empty()));
         let mut config = cx.update(|cx| {

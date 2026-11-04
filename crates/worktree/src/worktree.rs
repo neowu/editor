@@ -119,7 +119,6 @@ use text::LineEnding;
 use text::Rope;
 use util::ResultExt;
 use util::paths::PathMatcher;
-use util::paths::PathStyle;
 use util::paths::SanitizedPath;
 use util::paths::home_dir;
 use util::rel_path::RelPath;
@@ -232,7 +231,6 @@ pub struct Snapshot {
     id: WorktreeId,
     /// The absolute path of the worktree root.
     abs_path: Arc<SanitizedPath>,
-    path_style: PathStyle,
     root_name: Arc<RelPath>,
     root_char_bag: CharBag,
     entries_by_path: SumTree<Entry>,
@@ -553,7 +551,6 @@ impl Worktree {
                         .and_then(|f| f.to_str())
                         .map_or(RelPath::empty_arc(), |f| RelPath::from_unix_str(f).unwrap().into()),
                     abs_path.clone(),
-                    PathStyle::local(),
                 ),
                 root_file_handle,
             };
@@ -624,7 +621,6 @@ impl Worktree {
         replica_id: ReplicaId,
         worktree: proto::WorktreeMetadata,
         client: AnyProtoClient,
-        path_style: PathStyle,
         cx: &mut App,
     ) -> Entity<Self> {
         cx.new(|cx: &mut Context<Self>| {
@@ -632,7 +628,6 @@ impl Worktree {
                 WorktreeId::from_proto(worktree.id),
                 RelPath::from_unix_str(&worktree.root_name).map_or_else(|_| RelPath::empty_arc(), Into::into),
                 Path::new(&worktree.abs_path).into(),
-                path_style,
             );
 
             snapshot.root_repo_common_dir =
@@ -1167,20 +1162,20 @@ impl Worktree {
     /// Otherwise, returns an absolute path.
     pub fn full_path(&self, worktree_relative_path: &RelPath) -> PathBuf {
         if self.is_visible() {
-            self.root_name().join(worktree_relative_path).display(self.path_style).to_string().into()
+            self.root_name().join(worktree_relative_path).display().to_string().into()
         } else {
             let full_path = self.abs_path();
             let mut full_path_string = if self.is_local()
                 && let Ok(stripped) = full_path.strip_prefix(home_dir())
             {
-                self.path_style.join("~", &*stripped.to_string_lossy()).unwrap()
+                format!("~/{}", stripped.to_string_lossy())
             } else {
                 full_path.to_string_lossy().into_owned()
             };
 
             if worktree_relative_path.components().next().is_some() {
-                full_path_string.push_str(self.path_style.primary_separator());
-                full_path_string.push_str(&worktree_relative_path.display(self.path_style));
+                full_path_string.push('/');
+                full_path_string.push_str(worktree_relative_path.display());
             }
 
             full_path_string.into()
@@ -1725,12 +1720,11 @@ impl LocalWorktree {
     pub fn restore_entry(&mut self, trash_id: TrashId, cx: &mut Context<'_, Worktree>) -> Task<Result<Entry>> {
         let fs = self.fs.clone();
         let worktree_abs_path = self.abs_path().clone();
-        let path_style = self.path_style();
 
         cx.spawn(async move |this, cx| {
             let path_buf = fs.restore(trash_id).await?;
             let path = path_buf.strip_prefix(worktree_abs_path).context("Could not strip prefix")?;
-            let path = Arc::from(RelPath::new(path, path_style)?.as_ref());
+            let path = Arc::from(RelPath::new(path)?.as_ref());
 
             let entry = this
                 .update(cx, |this, cx| this.as_local_mut().unwrap().refresh_entry(path, None, cx))?
@@ -1765,9 +1759,7 @@ impl LocalWorktree {
         let paths_to_refresh = paths
             .iter()
             .filter_map(|(_, target)| {
-                RelPath::new(target.strip_prefix(&worktree_path).ok()?, PathStyle::local())
-                    .ok()
-                    .map(|path| path.into_arc())
+                RelPath::new(target.strip_prefix(&worktree_path).ok()?).ok().map(|path| path.into_arc())
             })
             .collect::<Vec<_>>();
 
@@ -2122,7 +2114,7 @@ impl RemoteWorktree {
                     let Some(relative_path) = abs_path
                         .strip_prefix(&root_path_to_copy)
                         .map_err(anyhow::Error::from)
-                        .and_then(|relative_path| RelPath::new(relative_path, PathStyle::local()))
+                        .and_then(|relative_path| RelPath::new(relative_path))
                         .log_err()
                     else {
                         continue;
@@ -2158,11 +2150,10 @@ impl RemoteWorktree {
 }
 
 impl Snapshot {
-    pub fn new(id: WorktreeId, root_name: Arc<RelPath>, abs_path: Arc<Path>, path_style: PathStyle) -> Self {
+    pub fn new(id: WorktreeId, root_name: Arc<RelPath>, abs_path: Arc<Path>) -> Self {
         Snapshot {
             id,
             abs_path: SanitizedPath::from_arc(abs_path),
-            path_style,
             root_char_bag: root_name.as_unix_str().chars().map(|c| c.to_ascii_lowercase()).collect(),
             root_name,
             entries_by_path: SumTree::default(),
@@ -2234,8 +2225,8 @@ impl Snapshot {
         if path.file_name().is_some() {
             let mut abs_path = self.abs_path.to_string();
             for component in path.components() {
-                if !abs_path.ends_with(self.path_style.primary_separator()) {
-                    abs_path.push_str(self.path_style.primary_separator());
+                if !abs_path.ends_with('/') {
+                    abs_path.push('/');
                 }
                 abs_path.push_str(component);
             }
@@ -2508,7 +2499,7 @@ impl Snapshot {
             }
         }
 
-        if let Ok(rel_path) = RelPath::new(&path, self.path_style)
+        if let Ok(rel_path) = RelPath::new(&path)
             && (path.components().count() > 1 || self.entry_for_path(&rel_path).is_some())
         {
             self.abs_path().join(path)
@@ -2520,10 +2511,6 @@ impl Snapshot {
     pub fn entry_for_id(&self, id: ProjectEntryId) -> Option<&Entry> {
         let entry = self.entries_by_id.get(&id, ())?;
         self.entry_for_path(&entry.path)
-    }
-
-    pub const fn path_style(&self) -> PathStyle {
-        self.path_style
     }
 }
 
@@ -2538,7 +2525,7 @@ impl LocalSnapshot {
                 .range::<Path, _>((Bound::Unbounded, Bound::Included(query)))
                 .next_back()?;
             if let Ok(suffix) = abs_path.strip_prefix(canonical) {
-                let suffix = RelPath::new(suffix, PathStyle::local()).ok()?;
+                let suffix = RelPath::new(suffix).ok()?;
                 return Some(relative.join(&suffix));
             }
             // Keys are nested, so the nearest smaller key can be under a sibling
@@ -2963,9 +2950,10 @@ impl BackgroundScannerState {
         fs: &dyn Fs,
         watcher: &dyn Watcher,
     ) -> Result<LocalRepositoryEntry> {
-        let work_dir_entry = self.snapshot.entry_for_path(&work_directory.path_key().0).with_context(|| {
-            format!("working directory `{}` not indexed", work_directory.path_key().0.display(self.snapshot.path_style))
-        })?;
+        let work_dir_entry = self
+            .snapshot
+            .entry_for_path(&work_directory.path_key().0)
+            .with_context(|| format!("working directory `{}` not indexed", work_directory.path_key().0.display()))?;
         let work_directory_abs_path = self.snapshot.work_directory_abs_path(&work_directory);
 
         let (repository_dir_abs_path, common_dir_abs_path) = discover_git_paths(&dot_git_abs_path, fs).await;
@@ -3201,10 +3189,6 @@ impl language::File for File {
             is_deleted: self.disk_state.is_deleted(),
             is_historic: matches!(self.disk_state, DiskState::Historic { .. }),
         }
-    }
-
-    fn path_style(&self, cx: &App) -> PathStyle {
-        self.worktree.read(cx).path_style()
     }
 
     fn can_open(&self) -> bool {
@@ -4242,11 +4226,11 @@ impl BackgroundScanner {
                 // `Fs` trait, with a per-volume cache + `FakeFs` support), fold this
                 // comparison on case-insensitive volumes.
                 let relative_path = if let Ok(path) = abs_path.strip_prefix(root_canonical_path)
-                    && let Ok(path) = RelPath::new(path, PathStyle::local())
+                    && let Ok(path) = RelPath::new(path)
                 {
                     path
                 } else if let Ok(path) = abs_path.strip_prefix(&root_path)
-                    && let Ok(path) = RelPath::new(path, PathStyle::local())
+                    && let Ok(path) = RelPath::new(path)
                 {
                     path
                 } else if let Some(path) = snapshot.relative_path_for_external_abs_path(abs_path.as_path()) {
@@ -4970,7 +4954,7 @@ impl BackgroundScanner {
 
             snapshot.ignores_by_parent_abs_path.retain(|parent_abs_path, (_, needs_update)| {
                 if let Ok(parent_path) = parent_abs_path.strip_prefix(abs_path.as_path())
-                    && let Some(parent_path) = RelPath::new(parent_path, PathStyle::local()).log_err()
+                    && let Some(parent_path) = RelPath::new(parent_path).log_err()
                 {
                     if *needs_update {
                         *needs_update = false;
@@ -5056,7 +5040,7 @@ impl BackgroundScanner {
             return;
         };
 
-        let Some(path) = RelPath::new(path, PathStyle::local()).log_err() else {
+        let Some(path) = RelPath::new(path).log_err() else {
             return;
         };
 
@@ -5191,7 +5175,7 @@ impl BackgroundScanner {
                 affected_repo_roots.push(dot_git_dir.parent().unwrap().into());
                 state
                     .insert_git_repository(
-                        RelPath::new(relative, PathStyle::local()).unwrap().into_arc(),
+                        RelPath::new(relative).unwrap().into_arc(),
                         self.fs.as_ref(),
                         self.watcher.as_ref(),
                     )

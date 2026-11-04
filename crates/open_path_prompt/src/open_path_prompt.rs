@@ -2,7 +2,6 @@ pub mod file_finder_settings;
 
 use std::path::Path;
 use std::path::PathBuf;
-use std::path::{self};
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{self};
@@ -31,7 +30,6 @@ use ui::ListItemSpacing;
 use ui::Window;
 use ui::prelude::*;
 use util::ResultExt;
-use util::paths::PathStyle;
 use util::paths::compare_paths;
 use workspace::Workspace;
 
@@ -46,7 +44,6 @@ pub struct OpenPathDelegate {
     cancel_flag: Arc<AtomicBool>,
     should_dismiss: bool,
     prompt_root: String,
-    path_style: PathStyle,
     replace_prompt: Task<()>,
     #[allow(clippy::type_complexity)]
     render_footer: Arc<dyn Fn(&mut Window, &mut Context<Picker<Self>>) -> Option<AnyElement> + 'static>,
@@ -61,7 +58,6 @@ impl OpenPathDelegate {
         creating_path: bool,
         cx: &App,
     ) -> Self {
-        let path_style = lister.path_style(cx);
         let sort_mode = cx
             .try_global::<SettingsStore>()
             .and_then(|store| store.merged_settings().project_panel.as_ref()?.sort_mode)
@@ -74,11 +70,7 @@ impl OpenPathDelegate {
             string_matches: Vec::new(),
             cancel_flag: Arc::new(AtomicBool::new(false)),
             should_dismiss: true,
-            prompt_root: match path_style {
-                PathStyle::Unix => "/".to_string(),
-                PathStyle::Windows => "C:\\".to_string(),
-            },
-            path_style,
+            prompt_root: "/".to_string(),
             replace_prompt: Task::ready(()),
             render_footer: Arc::new(|_, _| None),
             hidden_entries: false,
@@ -124,10 +116,7 @@ impl OpenPathDelegate {
     }
 
     const fn current_dir(&self) -> &'static str {
-        match self.path_style {
-            PathStyle::Unix => "./",
-            PathStyle::Windows => ".\\",
-        }
+        "./"
     }
 }
 
@@ -225,7 +214,7 @@ impl PickerDelegate for OpenPathDelegate {
     fn update_matches(&mut self, query: String, window: &mut Window, cx: &mut Context<Picker<Self>>) -> Task<()> {
         let lister = &self.lister;
         let input_is_empty = query.is_empty();
-        let (dir, suffix) = get_dir_and_suffix(query, self.path_style);
+        let (dir, suffix) = get_dir_and_suffix(query);
 
         let query = match &self.directory_state {
             DirectoryState::List { parent_path, .. } => {
@@ -475,10 +464,9 @@ impl PickerDelegate for OpenPathDelegate {
         if candidate.path.string.is_empty() || !candidate.is_dir {
             return None;
         }
-        let path_style = self.path_style;
         match &self.directory_state {
             DirectoryState::List { parent_path, .. } | DirectoryState::Create { parent_path, .. } => {
-                Some(format!("{}{}{}", parent_path, candidate.path.string, path_style.primary_separator()))
+                Some(format!("{}{}{}", parent_path, candidate.path.string, "/"))
             }
             DirectoryState::None { .. } => None,
         }
@@ -493,7 +481,7 @@ impl PickerDelegate for OpenPathDelegate {
             return None;
         }
         let trimmed = parent_path.trim_end_matches(['/', '\\']);
-        let (dir, _) = get_dir_and_suffix(trimmed.to_string(), self.path_style);
+        let (dir, _) = get_dir_and_suffix(trimmed.to_string());
         Some(dir)
     }
     fn confirm_completion(
@@ -507,14 +495,10 @@ impl PickerDelegate for OpenPathDelegate {
             return None;
         }
 
-        let path_style = self.path_style;
         Some(match &self.directory_state {
-            DirectoryState::Create { parent_path, .. } | DirectoryState::List { parent_path, .. } => format!(
-                "{}{}{}",
-                parent_path,
-                candidate.path.string,
-                if candidate.is_dir { path_style.primary_separator() } else { "" }
-            ),
+            DirectoryState::Create { parent_path, .. } | DirectoryState::List { parent_path, .. } => {
+                format!("{}{}{}", parent_path, candidate.path.string, if candidate.is_dir { "/" } else { "" })
+            }
             DirectoryState::None { .. } => query,
         })
     }
@@ -530,14 +514,11 @@ impl PickerDelegate for OpenPathDelegate {
                 let confirmed_path = if parent_path == &self.prompt_root && candidate.path.string.is_empty() {
                     PathBuf::from(&self.prompt_root)
                 } else {
-                    let Some(confirmed_path) = self
-                        .path_style
-                        .join_path_preserving_components(
-                            Path::new(self.lister.resolve_tilde(parent_path, cx).as_ref()),
-                            &candidate.path.string,
-                        )
-                        .log_err()
-                    else {
+                    let Some(confirmed_path) = path::join_path_preserving_components(
+                        Path::new(self.lister.resolve_tilde(parent_path, cx).as_ref()),
+                        &candidate.path.string,
+                    )
+                    .log_err() else {
                         return;
                     };
                     confirmed_path
@@ -555,14 +536,11 @@ impl PickerDelegate for OpenPathDelegate {
                     let prompted_path = if parent_path == &self.prompt_root && user_input.file.string.is_empty() {
                         PathBuf::from(&self.prompt_root)
                     } else {
-                        let Some(prompted_path) = self
-                            .path_style
-                            .join_path_preserving_components(
-                                Path::new(self.lister.resolve_tilde(parent_path, cx).as_ref()),
-                                &user_input.file.string,
-                            )
-                            .log_err()
-                        else {
+                        let Some(prompted_path) = path::join_path_preserving_components(
+                            Path::new(self.lister.resolve_tilde(parent_path, cx).as_ref()),
+                            &user_input.file.string,
+                        )
+                        .log_err() else {
                             return;
                         };
                         prompted_path
@@ -657,7 +635,7 @@ impl PickerDelegate for OpenPathDelegate {
                 return None;
             }
 
-            let path = path::Path::new(&candidate.path.string);
+            let path = Path::new(&candidate.path.string);
             let icon = if candidate.is_dir {
                 if is_current_dir_candidate {
                     return Some(Icon::new(IconName::ReplyArrowRight).color(Color::Muted));
@@ -756,7 +734,7 @@ impl PickerDelegate for OpenPathDelegate {
     }
 
     fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> Arc<str> {
-        Arc::from(format!("[directory{}]filename.ext", self.path_style.primary_separator()).as_str())
+        Arc::from("[directory/]filename.ext")
     }
 
     fn separators_after_indices(&self) -> Vec<usize> {
@@ -794,30 +772,14 @@ fn path_candidates(
         .collect()
 }
 
-fn get_dir_and_suffix(query: String, path_style: PathStyle) -> (String, String) {
-    match path_style {
-        PathStyle::Unix => {
-            let (mut dir, suffix) = if let Some(index) = query.rfind('/') {
-                (query[..index].to_string(), query[index + 1..].to_string())
-            } else {
-                (query, String::new())
-            };
-            if !dir.ends_with('/') {
-                dir.push('/');
-            }
-            (dir, suffix)
-        }
-        PathStyle::Windows => {
-            let last_sep = query.rfind('\\').into_iter().chain(query.rfind('/')).max();
-            let (mut dir, suffix) = if let Some(index) = last_sep {
-                (query[..index + 1].to_string(), query[index + 1..].to_string())
-            } else {
-                (query, String::new())
-            };
-            if dir.len() < 3 {
-                dir = "C:\\".to_string();
-            }
-            (dir, suffix)
-        }
+fn get_dir_and_suffix(query: String) -> (String, String) {
+    let (mut dir, suffix) = if let Some(index) = query.rfind('/') {
+        (query[..index].to_string(), query[index + 1..].to_string())
+    } else {
+        (query, String::new())
+    };
+    if !dir.ends_with('/') {
+        dir.push('/');
     }
+    (dir, suffix)
 }

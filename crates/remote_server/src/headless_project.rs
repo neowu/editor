@@ -54,7 +54,6 @@ use settings::Settings as _;
 use settings::SettingsLocation;
 use terminal::terminal_settings::TerminalSettings;
 use util::ResultExt;
-use util::paths::PathStyle;
 use util::rel_path::RelPath;
 use worktree::Worktree;
 
@@ -660,7 +659,7 @@ impl HeadlessProject {
     ) -> Result<proto::Ack> {
         let peer_id = envelope.original_sender_id.unwrap_or(envelope.sender_id);
         let message = envelope.payload;
-        let query = SearchQuery::from_proto(message.query.context("missing query field")?, PathStyle::local())?;
+        let query = SearchQuery::from_proto(message.query.context("missing query field")?)?;
 
         let project_id = message.project_id;
         let buffer_store = this.read_with(&cx, |this, _| this.buffer_store.clone());

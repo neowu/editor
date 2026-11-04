@@ -5,7 +5,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{self};
 
 use gpui::BackgroundExecutor;
-use path::PathStyle;
 use path::rel_path::RelPath;
 
 use crate::CharBag;
@@ -43,7 +42,6 @@ pub trait PathMatchCandidateSet<'a>: Send + Sync {
     fn root_is_file(&self) -> bool;
     fn prefix(&self) -> Arc<RelPath>;
     fn candidates(&'a self, start: usize) -> Self::Candidates;
-    fn path_style(&self) -> PathStyle;
 }
 
 impl MatchCandidate for PathMatchCandidate<'_> {
@@ -88,7 +86,6 @@ pub fn match_fixed_path_set(
     query: &str,
     smart_case: bool,
     max_results: usize,
-    path_style: PathStyle,
 ) -> Vec<PathMatch> {
     let lowercase_query = query.chars().map(simple_lowercase).collect::<Vec<_>>();
     let query = query.chars().collect::<Vec<_>>();
@@ -99,8 +96,8 @@ pub fn match_fixed_path_set(
     let mut results = Vec::with_capacity(candidates.len());
     let (path_prefix, path_prefix_chars, lowercase_prefix) = match worktree_root_name {
         Some(worktree_root_name) => {
-            let mut path_prefix_chars = worktree_root_name.display(path_style).chars().collect::<Vec<_>>();
-            path_prefix_chars.extend(path_style.primary_separator().chars());
+            let mut path_prefix_chars = worktree_root_name.display().chars().collect::<Vec<_>>();
+            path_prefix_chars.extend("/".chars());
             let lowercase_pfx = path_prefix_chars.iter().map(|c| simple_lowercase(*c)).collect::<Vec<_>>();
 
             (worktree_root_name, path_prefix_chars, lowercase_pfx)
@@ -142,10 +139,7 @@ pub async fn match_path_sets<'a, Set: PathMatchCandidateSet<'a>>(
         return Vec::new();
     }
 
-    let path_style = candidate_sets[0].path_style();
-
-    let query =
-        query.chars().map(|char| if path_style.is_windows() && char == '\\' { '/' } else { char }).collect::<Vec<_>>();
+    let query = query.chars().collect::<Vec<_>>();
 
     let lowercase_query = query.iter().map(|query| simple_lowercase(*query)).collect::<Vec<_>>();
 

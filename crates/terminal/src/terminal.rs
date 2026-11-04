@@ -83,7 +83,6 @@ use theme::ActiveTheme;
 use theme::Theme;
 use thiserror::Error;
 use util::ResultExt as _;
-use util::paths::PathStyle;
 use util::truncate_and_trailoff;
 use vte::ansi::Attr;
 pub use vte::ansi::Color;
@@ -924,7 +923,6 @@ impl TerminalBuilder {
         max_scroll_history_lines: Option<usize>,
         window_id: u64,
         background_executor: &BackgroundExecutor,
-        path_style: PathStyle,
     ) -> TerminalBuilder {
         Self::new_display_only_with_bounds(
             cursor_shape,
@@ -932,7 +930,6 @@ impl TerminalBuilder {
             max_scroll_history_lines,
             window_id,
             background_executor,
-            path_style,
             TerminalBounds::default(),
         )
     }
@@ -943,7 +940,6 @@ impl TerminalBuilder {
         max_scroll_history_lines: Option<usize>,
         window_id: u64,
         background_executor: &BackgroundExecutor,
-        path_style: PathStyle,
         terminal_bounds: TerminalBounds,
     ) -> TerminalBuilder {
         let terminal_bounds = normalize_terminal_bounds(terminal_bounds);
@@ -1000,7 +996,6 @@ impl TerminalBuilder {
             init_command_startup_tx: None,
             event_loop_task: Task::ready(Ok(())),
             background_executor: background_executor.clone(),
-            path_style,
             cwd_history: Vec::new(),
             pending_cwd_boundary: None,
         };
@@ -1021,7 +1016,6 @@ impl TerminalBuilder {
         is_remote_terminal: bool,
         window_id: u64,
         cx: &App,
-        path_style: PathStyle,
     ) -> Task<Result<TerminalBuilder>> {
         let background_executor = cx.background_executor().clone();
         // Headless hosts (e.g. the eval CLI) have no controlling TTY, so PTY
@@ -1198,7 +1192,6 @@ impl TerminalBuilder {
                 init_command_startup_tx: None,
                 event_loop_task: Task::ready(Ok(())),
                 background_executor,
-                path_style,
                 cwd_history: if is_remote_terminal {
                     Vec::new()
                 } else {
@@ -1332,7 +1325,6 @@ pub struct Terminal {
     init_command_startup_tx: Option<Sender<()>>,
     event_loop_task: Task<Result<(), anyhow::Error>>,
     background_executor: BackgroundExecutor,
-    path_style: PathStyle,
     cwd_history: Vec<CwdHistoryEntry>,
     pending_cwd_boundary: Option<i32>,
 }
@@ -1576,7 +1568,7 @@ impl Terminal {
 
                 let point = grid_point(*position, self.last_content.terminal_bounds, display_offset(term));
 
-                match find_from_terminal_point(term, point, &mut self.hyperlink_regex_searches, self.path_style) {
+                match find_from_terminal_point(term, point, &mut self.hyperlink_regex_searches) {
                     Some(hyperlink) => {
                         let history_size = term.history_size();
                         self.process_hyperlink(hyperlink, *open, history_size, cx);
@@ -1635,7 +1627,7 @@ impl Terminal {
 
     fn find_hyperlink_at_point(&mut self, point: Point) -> Option<HyperlinkMatch> {
         let term_lock = self.term.lock();
-        find_from_terminal_point(&term_lock, point, &mut self.hyperlink_regex_searches, self.path_style)
+        find_from_terminal_point(&term_lock, point, &mut self.hyperlink_regex_searches)
     }
 
     fn update_selected_word(
@@ -2751,7 +2743,6 @@ impl Terminal {
             self.is_remote_terminal,
             self.template.window_id,
             cx,
-            self.path_style,
         )
     }
 }

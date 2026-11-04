@@ -22,7 +22,6 @@ use gpui::prelude::*;
 use project::git_store::Repository;
 use ui::ContextMenu;
 use ui::prelude::*;
-use util::paths::PathStyle;
 use workspace::Workspace;
 use workspace::notifications::NotifyTaskExt as _;
 
@@ -238,10 +237,8 @@ fn open_buffer_blame_at_revision(
                 })?;
                 let worktree_id = worktree_id.context("project has no worktrees")?;
 
-                let file_name = path
-                    .file_name()
-                    .map(|name| name.to_string())
-                    .unwrap_or_else(|| path.display(PathStyle::local()).to_string());
+                let file_name =
+                    path.file_name().map(|name| name.to_string()).unwrap_or_else(|| path.display().to_string());
                 let display_name = format!("{file_name} @ {}", revision.display_short());
 
                 let activated_existing = workspace.update_in(cx, |workspace, window, cx| {

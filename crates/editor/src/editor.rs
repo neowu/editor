@@ -6619,13 +6619,8 @@ impl Editor {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(path) = self.active_buffer(cx).and_then(|buffer| {
-            let project = self.project()?.read(cx);
-            let path = buffer.read(cx).file()?.path();
-            let path = path.display(project.path_style(cx));
-            Some(path)
-        }) {
-            cx.write_to_clipboard(ClipboardItem::new_string(path.to_string()));
+        if let Some(path) = self.active_buffer(cx).and_then(|buffer| Some(buffer.read(cx).file()?.path().clone())) {
+            cx.write_to_clipboard(ClipboardItem::new_string(path.display().to_string()));
         } else {
             cx.propagate();
         }
@@ -6704,9 +6699,7 @@ impl Editor {
 
         let end_line = if range.end.column == 0 && end_line > start_line { end_line - 1 } else { end_line };
 
-        let project = self.project()?.read(cx);
-        let file = buffer.file()?;
-        let path = file.path().display(project.path_style(cx));
+        let path = buffer.file()?.path().display();
 
         Some(if start_line == end_line {
             format!("{path}:{start_line}")

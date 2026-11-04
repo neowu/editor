@@ -69,7 +69,6 @@ use ui::utils::WithRemSize;
 use util::ResultExt;
 use util::markdown::source_position_from_fragment;
 use util::markdown::split_local_url_fragment;
-use util::paths::PathStyle;
 use util::paths::PathWithPosition;
 use util::rel_path::RelPath;
 use workspace::ItemNavHistory;
@@ -820,7 +819,6 @@ impl MarkdownPreviewView {
                         workspace_directory.as_deref(),
                         project.as_ref(),
                         source_project_path.as_ref(),
-                        PathStyle::local(),
                         cx,
                     )
                 }
@@ -1146,7 +1144,6 @@ fn resolve_preview_image(
     workspace_directory: Option<&Path>,
     project: Option<&Entity<Project>>,
     source_project_path: Option<&ProjectPath>,
-    client_path_style: PathStyle,
     cx: &App,
 ) -> Option<ImageSource> {
     // Remote images are not loaded: there is no HTTP client.
@@ -1178,11 +1175,11 @@ fn resolve_preview_image(
     }
 
     let path = if let (Some(stripped), Some(root)) = (workspace_relative_path, workspace_directory) {
-        client_path_style.join_path(root, stripped).ok()?
-    } else if client_path_style.has_root(Path::new(&decoded)) {
+        path::join_path(root, stripped).ok()?
+    } else if Path::new(&decoded).has_root() {
         PathBuf::from(decoded)
     } else {
-        client_path_style.join_path(base_directory?, decoded).ok()?
+        path::join_path(base_directory?, decoded).ok()?
     };
 
     path.exists().then(|| ImageSource::Resource(Resource::Path(Arc::from(path.as_path()))))
@@ -1195,19 +1192,18 @@ fn resolve_project_path_for_preview_image(
     project: &Entity<Project>,
     cx: &App,
 ) -> Option<ProjectPath> {
-    let worktree = project.read(cx).worktree_for_id(source_project_path.worktree_id, cx)?;
-    let path_style = worktree.read(cx).path_style();
+    project.read(cx).worktree_for_id(source_project_path.worktree_id, cx)?;
 
-    if workspace_relative_path.is_none() && path_style.is_absolute(Path::new(decoded_path)) {
+    if workspace_relative_path.is_none() && Path::new(decoded_path).is_absolute() {
         return project.read(cx).project_path_for_absolute_path(Path::new(decoded_path), cx);
     }
 
     let source_directory = source_project_path.path.parent()?;
     let path = if let Some(workspace_relative_path) = workspace_relative_path {
-        RelPath::new(Path::new(workspace_relative_path), path_style).ok()?.into_owned()
+        RelPath::new(Path::new(workspace_relative_path)).ok()?.into_owned()
     } else {
-        let joined_path = path_style.join_path(source_directory.as_std_path(), decoded_path).ok()?;
-        RelPath::new(&joined_path, path_style).ok()?.into_owned()
+        let joined_path = path::join_path(source_directory.as_std_path(), decoded_path).ok()?;
+        RelPath::new(&joined_path).ok()?.into_owned()
     };
 
     Some(ProjectPath { worktree_id: source_project_path.worktree_id, path: path.into() })

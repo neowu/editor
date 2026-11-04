@@ -29,7 +29,6 @@ use terminal::insert_ed_terminal_env;
 use terminal::terminal_settings::TerminalSettings;
 use util::get_default_system_shell;
 use util::get_system_shell;
-use util::paths::PathStyle;
 use util::rel_path::RelPath;
 
 use crate::Project;
@@ -117,7 +116,6 @@ impl Project {
             Some(remote_client) => remote_client.read(cx).shell().unwrap_or_else(get_default_system_shell),
             None => get_system_shell(),
         };
-        let path_style = self.path_style(cx);
 
         // Prepare a task for resolving the environment
         let env_task = self.resolve_directory_environment(&shell, path.clone(), remote_client.clone(), cx);
@@ -127,7 +125,7 @@ impl Project {
             env.extend(settings.env);
 
             if let Some(venv) = &venv {
-                add_venv_to_env(&mut env, venv, path_style);
+                add_venv_to_env(&mut env, venv);
             }
 
             let builder = project
@@ -165,7 +163,6 @@ impl Project {
                         is_via_remote,
                         cx.entity_id().as_u64(),
                         cx,
-                        path_style,
                     ))
                 })??
                 .await?;
@@ -246,8 +243,6 @@ impl Project {
             None => get_system_shell(),
         };
 
-        let path_style = self.path_style(cx);
-
         // Prepare a task for resolving the environment
         let env_task = self.resolve_directory_environment(&env_shell, path.clone(), remote_client.clone(), cx);
 
@@ -267,7 +262,7 @@ impl Project {
             env.extend(settings.env);
 
             if let Some(venv) = &venv {
-                add_venv_to_env(&mut env, venv, path_style);
+                add_venv_to_env(&mut env, venv);
             }
 
             let builder = project
@@ -299,7 +294,6 @@ impl Project {
                         is_via_remote,
                         cx.entity_id().as_u64(),
                         cx,
-                        path_style,
                     ))
                 })??
                 .await?;
@@ -430,8 +424,8 @@ fn create_remote_shell(
 
 /// Puts the project `.venv` in front of `PATH` and sets `VIRTUAL_ENV`, so its
 /// executables win in any shell without sourcing an activation script.
-fn add_venv_to_env(env: &mut HashMap<String, String>, venv: &Path, path_style: PathStyle) {
-    let (bin_dir, separator) = if path_style.is_windows() { ("Scripts", ";") } else { ("bin", ":") };
+fn add_venv_to_env(env: &mut HashMap<String, String>, venv: &Path) {
+    let (bin_dir, separator) = ("bin", ":");
     let bin = venv.join(bin_dir).to_string_lossy().into_owned();
     let path = match env.get("PATH") {
         Some(path) if !path.is_empty() => format!("{bin}{separator}{path}"),

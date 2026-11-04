@@ -149,7 +149,6 @@ use util::ResultExt;
 use util::TryFutureExt;
 use util::markdown::MarkdownInlineCode;
 use util::paths::PathExt;
-use util::paths::PathStyle;
 use util::paths::compare_paths;
 use util::rel_path::RelPath;
 use util::rel_path::RelPathBuf;
@@ -2010,31 +2009,14 @@ impl ProjectPanel {
         let edit_state = self.state.edit_state.as_mut()?;
         let worktree_id = edit_state.worktree_id;
         let is_new_entry = edit_state.is_new_entry();
-        let mut filename = self.filename_editor.read(cx).text(cx);
-        let path_style = self.project.read(cx).path_style(cx);
-        if path_style.is_windows() {
-            // on windows, trailing dots are ignored in paths
-            // this can cause project panel to create a new entry with a trailing dot
-            // while the actual one without the dot gets populated by the file watcher
-            while let Some(trimmed) = filename.strip_suffix('.') {
-                filename = trimmed.to_string();
-            }
-        }
+        let filename = self.filename_editor.read(cx).text(cx);
         if filename.trim().is_empty() {
             return None;
         }
 
-        let filename_indicates_dir = if path_style.is_windows() {
-            filename.ends_with('/') || filename.ends_with('\\')
-        } else {
-            filename.ends_with('/')
-        };
-        let filename = if path_style.is_windows() {
-            filename.trim_start_matches(['/', '\\'])
-        } else {
-            filename.trim_start_matches('/')
-        };
-        let filename = RelPath::new(filename.as_ref(), path_style).ok()?.into_arc();
+        let filename_indicates_dir = filename.ends_with('/');
+        let filename = filename.trim_start_matches('/');
+        let filename = RelPath::new(filename.as_ref()).ok()?.into_arc();
 
         edit_state.is_dir = edit_state.is_dir || (edit_state.is_new_entry() && filename_indicates_dir);
         let is_dir = edit_state.is_dir;
@@ -3493,14 +3475,11 @@ impl ProjectPanel {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let path_style = self.project.read(cx).path_style(cx);
         let file_paths = {
             let project = self.project.read(cx);
             self.effective_entries()
                 .into_iter()
-                .filter_map(|entry| {
-                    Some(project.path_for_entry(entry.entry_id, cx)?.path.display(path_style).into_owned())
-                })
+                .filter_map(|entry| Some(project.path_for_entry(entry.entry_id, cx)?.path.display().to_string()))
                 .collect::<Vec<_>>()
         };
         if !file_paths.is_empty() {
@@ -3605,7 +3584,7 @@ impl ProjectPanel {
             let dir_path =
                 if include_root { worktree.read(cx).root_name().join(&dir_path) } else { dir_path.to_rel_path_buf() };
 
-            let directory = dir_path.display(self.project.read(cx).path_style(cx)).into_owned();
+            let directory = dir_path.display().to_string();
             window.dispatch_action(Box::new(ed_actions::search::NewSearchInDirectory { directory }), cx);
         }
     }
@@ -4595,8 +4574,6 @@ impl ProjectPanel {
             let destination_worktree_id =
                 self.project.read(cx).worktree_for_entry(target_entry_id, cx).map(|wt| wt.read(cx).id());
 
-            let path_style = self.project.read(cx).path_style(cx);
-
             // Collect move tasks paired with their source entry ID so we can correlate
             // results with folded selections that need refreshing, plus the display
             // names used to explain a failed move.
@@ -4607,10 +4584,7 @@ impl ProjectPanel {
                 {
                     let names = old_paths.get(&entry.entry_id).map(|from| {
                         let project = self.project.read(cx);
-                        (
-                            project_path_display(project, from, path_style, cx),
-                            project_path_display(project, &destination, path_style, cx),
-                        )
+                        (project_path_display(project, from, cx), project_path_display(project, &destination, cx))
                     });
                     move_tasks.push((entry.entry_id, names, task));
                 }
@@ -5229,7 +5203,6 @@ impl ProjectPanel {
         let item_colors = get_item_color(is_sticky, cx);
 
         let canonical_path = details.canonical_path.clone();
-        let path_style = self.project.read(cx).path_style(cx);
         let path = details.path.clone();
 
         let depth = details.depth;
@@ -5733,7 +5706,6 @@ impl ProjectPanel {
                                 folded_ancestors,
                                 entry_id,
                                 file_name,
-                                path_style,
                                 is_sticky,
                                 kind.is_file(),
                                 is_active || is_marked,
@@ -5827,7 +5799,6 @@ impl ProjectPanel {
         folded_ancestors: &FoldedAncestors,
         entry_id: ProjectEntryId,
         file_name: String,
-        path_style: PathStyle,
         is_sticky: bool,
         is_file: bool,
         is_active_or_marked: bool,
@@ -5843,7 +5814,7 @@ impl ProjectPanel {
             .collect::<Vec<_>>();
         let active_index = folded_ancestors.active_index();
         let components_len = components.len();
-        let delimiter = SharedString::new(path_style.primary_separator());
+        let delimiter = SharedString::new("/");
 
         let path_component_elements = components.into_iter().enumerate().map(move |(index, component)| {
             div()
@@ -6024,8 +5995,6 @@ impl ProjectPanel {
         let is_expanded = expanded_entry_ids.binary_search(&entry.id).is_ok();
 
         let (chevron, mut icon) = Self::entry_icons(entry, is_expanded, cx);
-
-        let path_style = self.project.read(cx).path_style(cx);
         let (depth, difference) = ProjectPanel::calculate_depth_and_difference(entry, entries_paths);
         let depth = depth
             + self
@@ -6050,10 +6019,7 @@ impl ProjectPanel {
         let filename = if let Some(library_name) = library_name {
             library_name.to_string()
         } else if difference > 1 {
-            entry
-                .path
-                .last_n_components(difference)
-                .map_or(String::new(), |suffix| suffix.display(path_style).to_string())
+            entry.path.last_n_components(difference).map_or(String::new(), |suffix| suffix.display().to_string())
         } else {
             entry_file_name(entry, root_name).to_string()
         };

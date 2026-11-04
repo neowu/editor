@@ -66,7 +66,6 @@ use util::ResultExt;
 use util::TryFutureExt;
 use util::debug_panic;
 use util::paths::PathExt;
-use util::paths::UrlExt as _;
 use workspace::ItemNavHistory;
 use workspace::OpenOptions;
 use workspace::OpenVisible;
@@ -1361,7 +1360,7 @@ fn path_for_file<'a>(
         if !include_filename {
             path = path.parent()?;
         }
-        Some(path.display(file.path_style(cx)))
+        Some(path.display().into())
     }
 }
 
@@ -1522,7 +1521,7 @@ pub(crate) fn handle_lsp_show_document(
         request.respond(true);
         return Task::ready(());
     }
-    let Ok(abs_path) = request.uri.to_file_path_ext(workspace.path_style(cx)) else {
+    let Ok(abs_path) = request.uri.to_file_path() else {
         log::error!("language server requested to show document with unsupported uri {}", request.uri.as_str());
         request.respond(false);
         return Task::ready(());

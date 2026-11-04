@@ -38,7 +38,6 @@ use settings::Settings;
 use ui::Color;
 use ui::Icon;
 use ui::IconName;
-use util::paths::PathStyle;
 use util::rel_path::RelPath;
 use workspace::Item;
 use workspace::ItemHandle as _;
@@ -104,20 +103,18 @@ fn register_entry(
         .as_ref()
         .and_then(|root| entry.new_path.strip_prefix(root).ok())
         .map(|rel| {
-            RelPath::new(rel, PathStyle::local()).map(|r| r.into_owned().into()).unwrap_or_else(|_| {
-                RelPath::new(Path::new(MultiBuffer::DEFAULT_TITLE), PathStyle::Unix).unwrap().into_owned().into()
-            })
+            RelPath::new(rel)
+                .map(|r| r.into_owned().into())
+                .unwrap_or_else(|_| RelPath::new(Path::new(MultiBuffer::DEFAULT_TITLE)).unwrap().into_owned().into())
         })
         .unwrap_or_else(|| {
             entry
                 .new_path
                 .file_name()
                 .and_then(|n| n.to_str())
-                .and_then(|s| RelPath::new(Path::new(s), PathStyle::Unix).ok())
+                .and_then(|s| RelPath::new(Path::new(s)).ok())
                 .map(|r| r.into_owned().into())
-                .unwrap_or_else(|| {
-                    RelPath::new(Path::new(MultiBuffer::DEFAULT_TITLE), PathStyle::Unix).unwrap().into_owned().into()
-                })
+                .unwrap_or_else(|| RelPath::new(Path::new(MultiBuffer::DEFAULT_TITLE)).unwrap().into_owned().into())
         });
 
     let path_key = PathKey::with_sort_prefix(entry.index as u64, display_rel);

@@ -233,11 +233,10 @@ pub(crate) fn render_buffer_header(
         .unwrap_or_default();
     let file = buffer.file();
     let can_open_excerpts = file.is_none_or(|file| file.can_open());
-    let path_style = file.map(|file| file.path_style(cx));
     let relative_path = buffer.resolve_file_path(include_root, cx);
     let (parent_path, filename) = if let Some(path) = &relative_path {
-        if let Some(path_style) = path_style {
-            let (dir, file_name) = path_style.split(path);
+        if file.is_some() {
+            let (dir, file_name) = path::split(path);
             (dir.map(|dir| dir.to_owned()), Some(file_name.to_owned()))
         } else {
             (None, Some(path.clone()))
@@ -495,7 +494,6 @@ pub(crate) fn render_buffer_header(
                     && let Some(worktree) = project.read(cx).worktree_for_id(file.worktree_id(cx), cx)
                 {
                     has_file_entries = true;
-                    let path_style = file.path_style(cx);
                     let worktree = worktree.read(cx);
                     let relative_path = file.path();
                     let entry_for_path = worktree.entry_for_path(relative_path);
@@ -532,7 +530,7 @@ pub(crate) fn render_buffer_header(
                                 Some(Box::new(ed_actions::workspace::CopyRelativePath)),
                                 window.handler_for(&editor, move |_, _, cx| {
                                     cx.write_to_clipboard(ClipboardItem::new_string(
-                                        relative_path.display(path_style).to_string(),
+                                        relative_path.display().to_string(),
                                     ));
                                 }),
                             )

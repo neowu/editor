@@ -24,7 +24,6 @@ use gpui::Task;
 use rpc::proto::Envelope;
 pub use settings_content::SshPortForwardOption;
 use util::command::Stdio;
-use util::paths::PathStyle;
 use util::paths::RemotePathBuf;
 use util::rel_path::RelPath;
 use util::shell::ShellKind;
@@ -240,7 +239,7 @@ impl RemoteConnection for SshRemoteConnection {
         exec.push_str(&home_stdio_launcher_command(
             self.ssh_shell_kind,
             self.ssh_home_dir.as_deref(),
-            &remote_binary_path.display(PathStyle::Unix),
+            remote_binary_path.display(),
         )?);
         let template = ssh_command_template(
             self.socket.ssh_command_options(),
@@ -335,7 +334,7 @@ impl RemoteConnection for SshRemoteConnection {
         if let Ok(value) = std::env::var("RUST_BACKTRACE") {
             proxy_args.push(format!("RUST_BACKTRACE={value}"));
         }
-        proxy_args.push(remote_binary_path.display(self.path_style()).into_owned());
+        proxy_args.push(remote_binary_path.display().to_string());
         proxy_args.push("proxy".to_owned());
         proxy_args.push("--identifier".to_owned());
         proxy_args.push(unique_identifier);
@@ -363,10 +362,6 @@ impl RemoteConnection for SshRemoteConnection {
             connection_activity_tx,
             cx,
         )
-    }
-
-    fn path_style(&self) -> PathStyle {
-        PathStyle::Unix
     }
 
     fn remote_platform(&self) -> RemotePlatform {
@@ -423,13 +418,10 @@ impl SshRemoteConnection {
 
     async fn check_server_binary(&self) -> Result<Arc<RelPath>> {
         let path = RelPath::from_unix_str(".local/bin/ed_server").unwrap();
-        self.socket
-            .run_command(self.ssh_shell_kind, &path.display(self.path_style()), &["version"], false)
-            .await
-            .context(
-                "Could not run SSH remote server at ~/.local/bin/ed_server. \
+        self.socket.run_command(self.ssh_shell_kind, path.display(), &["version"], false).await.context(
+            "Could not run SSH remote server at ~/.local/bin/ed_server. \
                  Ensure the binary exists and is executable on the target server",
-            )?;
+        )?;
         Ok(path.into())
     }
 
@@ -887,7 +879,7 @@ fn build_command_posix(
 fn posix_working_dir_prefix(working_dir: Option<String>, ssh_shell_kind: ShellKind) -> Result<String> {
     let mut exec = String::new();
     if let Some(working_dir) = working_dir {
-        let working_dir = RemotePathBuf::new(working_dir, PathStyle::Unix).to_string();
+        let working_dir = RemotePathBuf::new(working_dir).to_string();
 
         // For paths starting with ~/, we need $HOME to expand, but the remainder
         // must be properly quoted to prevent command injection.

@@ -939,7 +939,7 @@ impl PathInclusionMatcher {
             let (prefix_matches_entry, entry_matches_prefix) = if prefix.is_absolute() {
                 (prefix.starts_with(&**as_abs_path), as_abs_path.starts_with(prefix))
             } else {
-                RelPath::new(prefix, snapshot.path_style())
+                RelPath::new(prefix)
                     .map_or((false, false), |prefix| (prefix.starts_with(entry_path), entry_path.starts_with(&prefix)))
             };
 

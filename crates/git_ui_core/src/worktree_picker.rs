@@ -38,7 +38,7 @@ use picker::PickerDelegate;
 use picker::PickerEditorPosition;
 use project::Project;
 use project::git_store::RepositoryEvent;
-use project::repo_identity_path_if_local;
+use project::repo_identity_path;
 use ui::Button;
 use ui::CommonAnimationExt as _;
 use ui::Divider;
@@ -115,9 +115,9 @@ impl WorktreePicker {
 
         let has_multiple_repositories = project_ref.repositories(cx).len() > 1;
         let repository = project_ref.active_repository(cx);
-        let repository_identity_path = repository.as_ref().and_then(|repository| {
+        let repository_identity_path = repository.as_ref().map(|repository| {
             let repository = repository.read(cx);
-            repo_identity_path_if_local(&repository.common_dir_abs_path, repository.path_style).map(Path::to_path_buf)
+            repo_identity_path(&repository.common_dir_abs_path).to_path_buf()
         });
 
         let current_branch_name =

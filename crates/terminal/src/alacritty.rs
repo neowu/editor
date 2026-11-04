@@ -55,7 +55,6 @@ use anyhow::Result;
 use futures::channel::mpsc::UnboundedSender;
 pub(super) use hyperlinks::HyperlinkMatch;
 pub(super) use hyperlinks::RegexSearches;
-use util::paths::PathStyle;
 use vte::ansi::Handler;
 
 use crate::Cell;
@@ -857,10 +856,9 @@ pub(super) fn find_from_terminal_point(
     term: &AlacrittyTerm,
     point: Point,
     regex_searches: &mut RegexSearches,
-    path_style: PathStyle,
 ) -> Option<HyperlinkMatch> {
     let point = point.to_alacritty().grid_clamp(term, Boundary::Grid);
-    hyperlinks::find_from_grid_point(term, point, regex_searches, path_style)
+    hyperlinks::find_from_grid_point(term, point, regex_searches)
 }
 
 fn logical_line_for_row(grid: &Grid<AlacCell>, current: i32, topmost: i32) -> (i32, String) {
