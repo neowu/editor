@@ -613,7 +613,7 @@ impl SerializableItem for ImageView {
         })
     }
 
-    fn serialize(&self, _workspace: &Workspace, _closing: bool, cx: &App) -> Option<serde_json::Value> {
+    fn serialize(&self, _workspace: &Workspace, cx: &App) -> Option<serde_json::Value> {
         let abs_path = self.image_item.read(cx).abs_path(cx)?;
         serde_json::to_value(SerializedImageView { abs_path }).log_err()
     }

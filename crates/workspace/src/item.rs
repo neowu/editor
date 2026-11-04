@@ -306,9 +306,8 @@ pub trait SerializableItem: Item {
     ) -> Task<Result<Entity<Self>>>;
 
     /// The state `.ed/workspace.json` keeps for this tab, or `None` to leave the
-    /// tab out. `closing` is set when the item's window is closing, so an item
-    /// that only keeps unsaved text in some modes can opt out.
-    fn serialize(&self, workspace: &Workspace, closing: bool, cx: &App) -> Option<serde_json::Value>;
+    /// tab out.
+    fn serialize(&self, workspace: &Workspace, cx: &App) -> Option<serde_json::Value>;
 
     /// Whether `event` changed state that `serialize` saves.
     fn should_serialize(&self, event: &Self::Event) -> bool;
@@ -316,7 +315,7 @@ pub trait SerializableItem: Item {
 
 pub trait SerializableItemHandle: ItemHandle {
     fn serialized_item_kind(&self) -> &'static str;
-    fn serialize(&self, workspace: &Workspace, closing: bool, cx: &App) -> Option<serde_json::Value>;
+    fn serialize(&self, workspace: &Workspace, cx: &App) -> Option<serde_json::Value>;
     fn should_serialize(&self, event: &dyn Any, cx: &App) -> bool;
 }
 
@@ -328,8 +327,8 @@ where
         T::serialized_item_kind()
     }
 
-    fn serialize(&self, workspace: &Workspace, closing: bool, cx: &App) -> Option<serde_json::Value> {
-        self.read(cx).serialize(workspace, closing, cx)
+    fn serialize(&self, workspace: &Workspace, cx: &App) -> Option<serde_json::Value> {
+        self.read(cx).serialize(workspace, cx)
     }
 
     fn should_serialize(&self, event: &dyn Any, cx: &App) -> bool {

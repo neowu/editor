@@ -53,11 +53,9 @@ use project::ProjectPath;
 use project::git_store::GitStore;
 use project::lsp_store::FormatTrigger;
 use project::lsp_store::LanguageServerShowDocumentRequest;
-use project::project_settings::ProjectSettings;
 use project::search::SearchQuery;
 use rope::TextSummary;
 use settings::SeedQuerySetting;
-use settings::Settings;
 use text::BufferSnapshot;
 use text::OffsetRangeExt;
 use text::ToPoint as _;
@@ -92,7 +90,6 @@ use workspace::searchable::SelectSearchOptions;
 
 use crate::Anchor;
 use crate::Autoscroll;
-use crate::BufferSerialization;
 use crate::Capability;
 use crate::Editor;
 use crate::EditorEvent;
@@ -520,108 +517,54 @@ impl SerializableItem for Editor {
             Err(error) => return Task::ready(Err(anyhow!(error).context("deserializing editor state"))),
         };
 
-        let build_editor = |buffer: Entity<Buffer>, project: Entity<Project>, cx: &mut AsyncWindowContext| {
+        let abs_path = serialized_editor.abs_path;
+        let opened_buffer = project.update(cx, |project, cx| {
+            let (worktree, path) = project.find_worktree(&abs_path, cx)?;
+            let project_path = ProjectPath { worktree_id: worktree.read(cx).id(), path };
+            Some(project.open_path(project_path, cx))
+        });
+
+        window.spawn(cx, async move |cx| {
+            let buffer = match opened_buffer {
+                Some(opened_buffer) => opened_buffer.await.context("Failed to open path in project")?.1,
+                // The file is not in any worktree (e.g., opened as a standalone file). Open the
+                // buffer directly rather than through `workspace.open_abs_path()`, which would also
+                // add it to a pane; the caller adds the returned item to the right pane.
+                None => project
+                    .update(cx, |project, cx| project.open_local_buffer(&abs_path, cx))
+                    .await
+                    .with_context(|| format!("Failed to open buffer for {abs_path:?}"))?,
+            };
+
             cx.update(|window, cx| cx.new(|cx| Editor::for_buffer(buffer, Some(project), window, cx)))
-        };
-
-        match serialized_editor.abs_path {
-            None => {
-                let contents = serialized_editor
-                    .contents
-                    .filter(|_| ProjectSettings::get_global(cx).session.restore_unsaved_buffers);
-                window.spawn(cx, async move |cx| {
-                    let buffer = project
-                        .update(cx, |project, cx| project.create_buffer(None, true, cx))
-                        .await
-                        .context("Failed to create buffer while deserializing editor")?;
-
-                    if let Some(contents) = contents {
-                        // Set the text after creating the buffer so that the dirty bit is set correctly.
-                        buffer.update(cx, |buffer, cx| {
-                            buffer.set_text(contents, cx);
-                            if let Some(entry) = buffer.peek_undo_stack() {
-                                buffer.forget_transaction(entry.transaction_id());
-                            }
-                        });
-                    }
-
-                    build_editor(buffer, project, cx)
-                })
-            }
-            Some(abs_path) => {
-                let opened_buffer = project.update(cx, |project, cx| {
-                    let (worktree, path) = project.find_worktree(&abs_path, cx)?;
-                    let project_path = ProjectPath { worktree_id: worktree.read(cx).id(), path };
-                    Some(project.open_path(project_path, cx))
-                });
-
-                window.spawn(cx, async move |cx| {
-                    let buffer = match opened_buffer {
-                        Some(opened_buffer) => opened_buffer.await.context("Failed to open path in project")?.1,
-                        // The file is not in any worktree (e.g., opened as a standalone file). Open the
-                        // buffer directly rather than through `workspace.open_abs_path()`, which would also
-                        // add it to a pane; the caller adds the returned item to the right pane.
-                        None => project
-                            .update(cx, |project, cx| project.open_local_buffer(&abs_path, cx))
-                            .await
-                            .with_context(|| format!("Failed to open buffer for {abs_path:?}"))?,
-                    };
-
-                    build_editor(buffer, project, cx)
-                })
-            }
-        }
+        })
     }
 
-    fn serialize(&self, _workspace: &Workspace, closing: bool, cx: &App) -> Option<serde_json::Value> {
-        let buffer_serialization = self.buffer_serialization?;
+    fn serialize(&self, _workspace: &Workspace, cx: &App) -> Option<serde_json::Value> {
+        if !self.serialize_buffer {
+            return None;
+        }
         let project = self.project.clone()?;
         let buffer = self.buffer().read(cx).as_singleton()?.read(cx);
-
-        let editor = match buffer.file() {
-            // Files are reloaded from disk. A dirty one isn't kept on close, so the
-            // workspace saves it (or asks) instead.
-            Some(file) => {
-                if closing && buffer.is_dirty() {
-                    return None;
-                }
-                let worktree_id = file.worktree_id(cx);
-                let abs_path = project
-                    .read(cx)
-                    .worktree_for_id(worktree_id, cx)
-                    .map(|worktree| worktree.read(cx).absolutize(file.path()))
-                    .or_else(|| {
-                        let full_path = file.full_path(cx);
-                        let project_path = project.read(cx).find_project_path(&full_path, cx)?;
-                        project.read(cx).absolute_path(&project_path, cx)
-                    })?;
-                SerializedEditor { abs_path: Some(abs_path), contents: None }
-            }
-            None => {
-                let keep_contents = match buffer_serialization {
-                    BufferSerialization::All => true,
-                    BufferSerialization::NonDirtyBuffers => false,
-                };
-                if closing && !keep_contents {
-                    return None;
-                }
-                let contents = (keep_contents && buffer.is_dirty()).then(|| buffer.text());
-                SerializedEditor { abs_path: None, contents }
-            }
-        };
-        serde_json::to_value(editor).log_err()
+        // Untitled buffers aren't kept: closing the window prompts to save them.
+        let file = buffer.file()?;
+        let worktree_id = file.worktree_id(cx);
+        let abs_path = project
+            .read(cx)
+            .worktree_for_id(worktree_id, cx)
+            .map(|worktree| worktree.read(cx).absolutize(file.path()))
+            .or_else(|| {
+                let full_path = file.full_path(cx);
+                let project_path = project.read(cx).find_project_path(&full_path, cx)?;
+                project.read(cx).absolute_path(&project_path, cx)
+            })?;
+        serde_json::to_value(SerializedEditor { abs_path }).log_err()
     }
 
     fn should_serialize(&self, event: &Self::Event) -> bool {
-        if !self.should_serialize_buffer() {
-            return false;
-        }
-        // A file tab always serializes to the same path, so edits to it don't
-        // change `workspace.json`; only an untitled buffer's text does.
-        matches!(
-            event,
-            EditorEvent::Saved | EditorEvent::DirtyChanged | EditorEvent::BufferEdited | EditorEvent::FileHandleChanged
-        )
+        // A tab serializes to its file's path, so only gaining or changing a file
+        // (an untitled buffer saved, a file renamed) changes `workspace.json`.
+        self.serialize_buffer && matches!(event, EditorEvent::Saved | EditorEvent::FileHandleChanged)
     }
 }
 

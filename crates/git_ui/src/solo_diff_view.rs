@@ -153,7 +153,7 @@ impl SoloDiffView {
                 cx,
             );
             editor.rhs_editor().update(cx, |editor, cx| {
-                editor.set_should_serialize(false, cx);
+                editor.set_should_serialize(false);
                 editor.set_allow_git_diff_scrollbar_markers(showing_full_file, cx);
                 let snapshot = editor.snapshot(window, cx);
                 editor.go_to_hunk_before_or_after_position(

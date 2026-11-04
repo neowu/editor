@@ -380,7 +380,7 @@ impl SerializableItem for StagedDiff {
         })
     }
 
-    fn serialize(&self, _: &Workspace, _: bool, _: &App) -> Option<serde_json::Value> {
+    fn serialize(&self, _: &Workspace, _: &App) -> Option<serde_json::Value> {
         Some(serde_json::Value::Null)
     }
 

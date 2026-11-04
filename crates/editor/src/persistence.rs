@@ -3,15 +3,11 @@ use std::path::PathBuf;
 use serde::Deserialize;
 use serde::Serialize;
 
-/// What `.ed/workspace.json` keeps for an editor tab: the path of a file, or the
-/// text of an untitled buffer. Files are always reloaded from disk.
-#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+/// What `.ed/workspace.json` keeps for an editor tab: the path of its file,
+/// always reloaded from disk. Untitled buffers aren't kept.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct SerializedEditor {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) abs_path: Option<PathBuf>,
-    /// Unsaved text of an untitled buffer, kept so it survives a restart (hot exit).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) contents: Option<String>,
+    pub(crate) abs_path: PathBuf,
 }
 
 #[cfg(test)]
@@ -20,14 +16,10 @@ mod tests {
 
     #[test]
     fn test_serialized_editor_round_trip() {
-        for editor in [
-            SerializedEditor { abs_path: Some("/p/a.rs".into()), contents: None },
-            SerializedEditor { abs_path: None, contents: Some("unsaved".into()) },
-        ] {
-            let json = serde_json::to_value(&editor).unwrap();
-            assert_eq!(serde_json::from_value::<SerializedEditor>(json).unwrap(), editor);
-        }
-        assert_eq!(serde_json::to_value(SerializedEditor::default()).unwrap(), serde_json::json!({}));
+        let editor = SerializedEditor { abs_path: "/p/a.rs".into() };
+        let json = serde_json::to_value(&editor).unwrap();
+        assert_eq!(json, serde_json::json!({ "abs_path": "/p/a.rs" }));
+        assert_eq!(serde_json::from_value::<SerializedEditor>(json).unwrap(), editor);
     }
 
     #[test]
@@ -41,6 +33,12 @@ mod tests {
             "selections": [[1, 2]],
         });
         let editor = serde_json::from_value::<SerializedEditor>(json).unwrap();
-        assert_eq!(editor.abs_path, Some("/p/a.rs".into()));
+        assert_eq!(editor.abs_path, std::path::PathBuf::from("/p/a.rs"));
+    }
+
+    #[test]
+    fn test_serialized_editor_rejects_legacy_untitled_buffer() {
+        let json = serde_json::json!({ "contents": "unsaved" });
+        assert!(serde_json::from_value::<SerializedEditor>(json).is_err());
     }
 }

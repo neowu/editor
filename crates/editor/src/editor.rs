@@ -964,18 +964,6 @@ impl MinimapVisibility {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BufferSerialization {
-    All,
-    NonDirtyBuffers,
-}
-
-impl BufferSerialization {
-    const fn new(restore_unsaved_buffers: bool) -> Self {
-        if restore_unsaved_buffers { Self::All } else { Self::NonDirtyBuffers }
-    }
-}
-
 /// Addons allow storing per-editor state in other crates (e.g. Vim)
 pub trait Addon: 'static {
     fn render_buffer_header_controls(
@@ -1276,7 +1264,7 @@ pub struct Editor {
     auto_replace_emoji_shortcode: bool,
     jsx_tag_auto_close_enabled_in_any_buffer: bool,
     show_git_blame_gutter: bool,
-    buffer_serialization: Option<BufferSerialization>,
+    serialize_buffer: bool,
     blame: Option<Entity<GitBlame>>,
     blame_subscription: Option<Subscription>,
     #[allow(clippy::type_complexity)]
@@ -2171,9 +2159,7 @@ impl Editor {
             in_leading_whitespace: false,
             custom_context_menu: None,
             show_git_blame_gutter: false,
-            buffer_serialization: is_minimap
-                .not()
-                .then(|| BufferSerialization::new(ProjectSettings::get_global(cx).session.restore_unsaved_buffers)),
+            serialize_buffer: !is_minimap,
             blame: None,
             blame_subscription: None,
 
@@ -2803,13 +2789,8 @@ impl Editor {
         self.use_selection_highlight = highlight;
     }
 
-    pub fn set_should_serialize(&mut self, should_serialize: bool, cx: &App) {
-        self.buffer_serialization = should_serialize
-            .then(|| BufferSerialization::new(ProjectSettings::get_global(cx).session.restore_unsaved_buffers))
-    }
-
-    const fn should_serialize_buffer(&self) -> bool {
-        self.buffer_serialization.is_some()
+    pub const fn set_should_serialize(&mut self, should_serialize: bool) {
+        self.serialize_buffer = should_serialize;
     }
 
     pub const fn set_use_modal_editing(&mut self, to: bool) {
@@ -7258,10 +7239,6 @@ impl Editor {
         self.accent_data = new_accents;
 
         self.refresh_runnables(None, window, cx);
-
-        let restore_unsaved_buffers = ProjectSettings::get_global(cx).session.restore_unsaved_buffers;
-        self.buffer_serialization =
-            self.should_serialize_buffer().then(|| BufferSerialization::new(restore_unsaved_buffers));
 
         if self.mode.is_full() {
             if language_settings_changed || accents_changed {

@@ -57,7 +57,6 @@ use settings_content::RewrapBehavior;
 use settings_content::ScanSymlinksSetting;
 use settings_content::SemanticTokenRule;
 use settings_content::SemanticTokenRules;
-use settings_content::SessionSettingsContent;
 use settings_content::SettingsContent;
 use settings_content::Shell;
 use settings_content::ShowIndentGuides;
@@ -151,7 +150,6 @@ pub fn settings() -> SettingsContent {
             indent_guides: Some(IndentGuidesSettingsContent { show: Some(ShowIndentGuides::Always) }),
             expand_outlines_with_depth: Some(100),
         }),
-        session: Some(SessionSettingsContent { restore_unsaved_buffers: Some(true) }),
         terminal: terminal_settings(),
         title_bar: Some(TitleBarSettingsContent {
             show_branch_status_icon: Some(true),

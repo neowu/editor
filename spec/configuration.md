@@ -43,15 +43,14 @@ migrator, or Vim/Helix mode.
 - Tabs persist only their own state. An editor tab on a file keeps only its
   path: on restore the file is read from disk, and nothing else (scroll,
   selections, folds, unsaved edits) is kept, so editing or scrolling a file
-  doesn't rewrite `workspace.json`. A dirty file isn't kept on close: it is
-  saved by autosave-on-close, or prompted for. Only an untitled buffer keeps its
-  unsaved text, for hot exit when `restore_unsaved_buffers` is on.
+  doesn't rewrite `workspace.json`. Untitled buffers aren't persisted at all.
   Image and markdown-preview tabs keep their path (and preview mode), branch
   diffs their base, and other git diff tabs nothing. Tabs on files inside a
   root folder's `.ed/` aren't persisted at all: it's project config, and
   recording a tab on `workspace.json` would rewrite the file it shows.
-- Hot exit (untitled buffers only) is only offered for windows with a root
-  folder; other windows prompt to save dirty buffers on close.
+- No hot exit: unsaved edits are never persisted. Closing a window (with or
+  without a root folder) or quitting prompts to save its dirty buffers,
+  untitled ones included.
 - Restore on startup (not configurable) reopens the projects flagged open at
   quit (closing a window clears its flag; quitting keeps it; removing a
   project from the recents drops it), most recent on top, falling back to the

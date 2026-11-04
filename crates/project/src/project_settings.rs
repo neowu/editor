@@ -34,23 +34,9 @@ pub struct ProjectSettings {
 
     /// Configuration for Git-related features
     pub git: GitSettings,
-
-    /// Configuration for session-related features
-    pub session: SessionSettings,
 }
 
 settings::register_setting!(ProjectSettings);
-
-#[derive(Copy, Clone, Debug)]
-pub struct SessionSettings {
-    /// Whether or not to restore unsaved buffers on restart.
-    ///
-    /// If this is true, user won't be prompted whether to save/discard
-    /// dirty files when closing the application.
-    ///
-    /// Default: true
-    pub restore_unsaved_buffers: bool,
-}
 
 /// Common language server settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -416,9 +402,6 @@ impl Settings for ProjectSettings {
                 },
             },
             git: git_settings,
-            session: SessionSettings {
-                restore_unsaved_buffers: content.session.unwrap().restore_unsaved_buffers.unwrap(),
-            },
         }
     }
 }

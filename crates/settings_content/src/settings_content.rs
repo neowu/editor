@@ -100,9 +100,6 @@ pub struct SettingsContent {
 
     pub outline_panel: Option<OutlinePanelSettingsContent>,
 
-    /// Configuration for session-related features
-    pub session: Option<SessionSettingsContent>,
-
     /// Configuration of the terminal in ed.
     pub terminal: Option<TerminalSettingsContent>,
 

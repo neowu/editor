@@ -5,9 +5,7 @@ use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::Render;
 use gpui::WeakEntity;
-use project::project_settings::ProjectSettings;
 use remote::RemoteConnectionOptions;
-use settings::Settings;
 use ui::ElevationIndex;
 use ui::Modal;
 use ui::ModalFooter;
@@ -118,14 +116,9 @@ impl DisconnectedOverlay {
 
 impl Render for DisconnectedOverlay {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let autosave = if ProjectSettings::get_global(cx).session.restore_unsaved_buffers {
-            "\nUnsaved changes are stored locally."
-        } else {
-            ""
-        };
         let reason = if self.server_not_running { "process exiting unexpectedly" } else { "not responding" };
         let message = format!(
-            "Your connection to {} has been lost due to the server {reason}.{autosave}",
+            "Your connection to {} has been lost due to the server {reason}.",
             self.connection_options.display_name(),
         );
 

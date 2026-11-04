@@ -319,17 +319,6 @@ pub enum SemanticTokenFontStyle {
     Italic,
 }
 
-#[derive(Default, Copy, Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
-pub struct SessionSettingsContent {
-    /// Whether or not to restore unsaved buffers on restart.
-    ///
-    /// If this is true, user won't be prompted whether to save/discard
-    /// dirty files when closing the application.
-    ///
-    /// Default: true
-    pub restore_unsaved_buffers: Option<bool>,
-}
-
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct GitSettings {
     /// Whether or not to enable git integration.

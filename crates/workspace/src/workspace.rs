@@ -2289,20 +2289,12 @@ impl Workspace {
                 }
             })?;
 
-            // Hot exit keeps dirty buffers in `.ed/workspace.json`, which only a
-            // workspace with root folders has. Otherwise prompt, so the buffers
-            // aren't lost.
-            let allow_hot_exit_serialization =
-                this.read_with(cx, |workspace, cx| workspace.project_location(cx).is_some()).unwrap_or(false);
-            this.update_in(cx, |this, window, cx| {
-                this.save_all_internal(SaveIntent::Close, allow_hot_exit_serialization, window, cx)
-            })?
-            .await
+            this.update_in(cx, |this, window, cx| this.save_all_internal(SaveIntent::Close, window, cx))?.await
         })
     }
 
     fn save_all(&mut self, action: &SaveAll, window: &mut Window, cx: &mut Context<Self>) {
-        self.save_all_internal(action.save_intent.unwrap_or(SaveIntent::SaveAll), true, window, cx)
+        self.save_all_internal(action.save_intent.unwrap_or(SaveIntent::SaveAll), window, cx)
             .detach_and_log_err(cx);
     }
 
@@ -2381,7 +2373,6 @@ impl Workspace {
     fn save_all_internal(
         &self,
         mut save_intent: SaveIntent,
-        allow_hot_exit_serialization: bool,
         window: &Window,
         cx: &Context<Self>,
     ) -> Task<Result<bool>> {
@@ -2405,37 +2396,13 @@ impl Workspace {
 
         let project = self.project.clone();
         cx.spawn_in(window, async move |workspace, cx| {
-            let dirty_items = if save_intent == SaveIntent::Close && !dirty_items.is_empty() {
-                let mut remaining_dirty_items = Vec::new();
-                if allow_hot_exit_serialization {
-                    let flush = workspace.update_in(cx, |workspace, window, cx| {
-                        for (pane, item) in dirty_items {
-                            let kept = item
-                                .to_serializable_item_handle(cx)
-                                .and_then(|handle| handle.serialize(workspace, true, cx))
-                                .is_some();
-                            if !kept {
-                                remaining_dirty_items.push((pane, item));
-                            }
-                        }
-                        workspace.flush_serialization(window, cx)
-                    })?;
-                    flush.await;
-                } else {
-                    remaining_dirty_items = dirty_items;
-                }
+            if save_intent == SaveIntent::Close && !dirty_items.is_empty() {
+                workspace.update(cx, |_, cx| cx.emit(Event::Activate))?;
 
-                if !remaining_dirty_items.is_empty() {
-                    workspace.update(cx, |_, cx| cx.emit(Event::Activate))?;
-                }
-
-                if remaining_dirty_items.len() > 1 {
+                if dirty_items.len() > 1 {
                     let answer = workspace.update_in(cx, |_, window, cx| {
-                        cx.emit(Event::Activate);
-                        let detail = Pane::file_names_for_prompt(
-                            &mut remaining_dirty_items.iter().map(|(_, handle)| handle),
-                            cx,
-                        );
+                        let detail =
+                            Pane::file_names_for_prompt(&mut dirty_items.iter().map(|(_, handle)| handle), cx);
                         window.prompt(
                             PromptLevel::Warning,
                             "Do you want to save all changes in the following files?",
@@ -2451,11 +2418,7 @@ impl Workspace {
                         _ => {}
                     }
                 }
-
-                remaining_dirty_items
-            } else {
-                dirty_items
-            };
+            }
 
             for (pane, item) in dirty_items {
                 let (singleton, project_entry_ids) =
@@ -5734,7 +5697,7 @@ fn serialize_pane_handle(
                 let serialized = serializable.and_then(|serializable| {
                     Some(SerializedItem {
                         kind: serializable.serialized_item_kind().to_string(),
-                        state: serializable.serialize(workspace, false, cx)?,
+                        state: serializable.serialize(workspace, cx)?,
                         active: Some(handle.item_id()) == active_item_id,
                         preview: pane.is_active_preview_item(handle.item_id()),
                     })

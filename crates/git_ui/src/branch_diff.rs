@@ -451,7 +451,7 @@ impl SerializableItem for BranchDiff {
         })
     }
 
-    fn serialize(&self, _: &Workspace, _: bool, cx: &App) -> Option<serde_json::Value> {
+    fn serialize(&self, _: &Workspace, cx: &App) -> Option<serde_json::Value> {
         let DiffBase::Merge { base_ref } = self.diff_base(cx).clone() else {
             return None;
         };

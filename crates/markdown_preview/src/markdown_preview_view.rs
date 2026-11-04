@@ -1702,7 +1702,7 @@ impl SerializableItem for MarkdownPreviewView {
         })
     }
 
-    fn serialize(&self, workspace: &Workspace, _closing: bool, cx: &App) -> Option<serde_json::Value> {
+    fn serialize(&self, workspace: &Workspace, cx: &App) -> Option<serde_json::Value> {
         let editor = self.active_editor.as_ref()?.editor.clone();
         let buffer = editor.read(cx).buffer().read(cx).as_singleton()?;
         let file = buffer.read(cx).file()?;

@@ -822,7 +822,7 @@ fn open_bundled_file(
                             Box::new(cx.new(|cx| {
                                 let mut editor = Editor::for_multibuffer(buffer, Some(project.clone()), window, cx);
                                 editor.set_read_only(true);
-                                editor.set_should_serialize(false, cx);
+                                editor.set_should_serialize(false);
                                 editor
                             })),
                             None,
