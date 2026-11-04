@@ -153,7 +153,6 @@ use rpc::proto::ErrorCode;
 use rpc::proto::{self};
 use serde::Deserialize;
 use settings::Settings;
-use settings::SettingsLocation;
 use status_bar::StatusBar;
 pub use status_bar::StatusItemModes;
 pub use status_bar::StatusItemView;
@@ -1806,8 +1805,7 @@ impl Workspace {
 
     /// Whether `path` is gone from the worktree, as opposed to excluded or inside a directory that isn't loaded.
     fn history_path_is_removed(worktree: &Worktree, path: &RelPath, cx: &App) -> bool {
-        let settings =
-            WorktreeSettings::get(Some(SettingsLocation { worktree_id: worktree.id(), path: RelPath::empty() }), cx);
+        let settings = WorktreeSettings::get_global(cx);
         worktree.entry_for_path(path).is_none()
             && !settings.is_path_excluded(path)
             && !path
@@ -2733,8 +2731,7 @@ impl Workspace {
             if !worktree.read(cx).is_visible() {
                 return None;
             }
-            let settings_location = SettingsLocation { worktree_id: path.worktree_id, path: &path.path };
-            if WorktreeSettings::get(Some(settings_location), cx).is_path_read_only(&path.path) {
+            if WorktreeSettings::get_global(cx).is_path_read_only(&path.path) {
                 return None;
             }
             abs_path

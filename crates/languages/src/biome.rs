@@ -64,12 +64,12 @@ impl LspAdapter for BiomeLspAdapter {
 
     async fn workspace_configuration(
         self: Arc<Self>,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<dyn LspAdapterDelegate>,
         _: Option<Uri>,
         cx: &mut AsyncApp,
     ) -> Result<Value> {
         let settings = cx.update(|cx| {
-            language_server_settings(delegate.as_ref(), &Self::SERVER_NAME, cx).and_then(|s| s.settings.clone())
+            language_server_settings(&Self::SERVER_NAME, cx).and_then(|s| s.settings.clone())
         });
         Ok(settings.unwrap_or_else(|| json!({})))
     }

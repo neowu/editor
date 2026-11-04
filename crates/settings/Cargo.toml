@@ -20,4 +20,3 @@ inventory.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 settings_content.workspace = true
-util.workspace = true

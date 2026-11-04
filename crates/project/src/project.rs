@@ -146,7 +146,6 @@ use search::SearchQuery;
 use search::SearchResult;
 use search_history::SearchHistory;
 use settings::Settings;
-use settings::SettingsLocation;
 use snippet::Snippet;
 pub use task_inventory::BasicContextProvider;
 pub use task_inventory::ContextProviderWithTasks;
@@ -3586,12 +3585,6 @@ impl<'a> Iterator for PathMatchCandidateSetNucleoIter<'a> {
 }
 
 impl EventEmitter<Event> for Project {}
-
-impl<'a> From<&'a ProjectPath> for SettingsLocation<'a> {
-    fn from(val: &'a ProjectPath) -> Self {
-        SettingsLocation { worktree_id: val.worktree_id, path: val.path.as_ref() }
-    }
-}
 
 impl<P: Into<Arc<RelPath>>> From<(WorktreeId, P)> for ProjectPath {
     fn from((worktree_id, path): (WorktreeId, P)) -> Self {

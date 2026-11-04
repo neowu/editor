@@ -64,7 +64,7 @@ impl LspAdapter for GoLspAdapter {
 
     async fn initialization_options(
         self: Arc<Self>,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<dyn LspAdapterDelegate>,
         cx: &mut AsyncApp,
     ) -> Result<Option<serde_json::Value>> {
         let mut default_config = json!({
@@ -82,7 +82,7 @@ impl LspAdapter for GoLspAdapter {
         });
 
         let project_initialization_options = cx.update(|cx| {
-            language_server_settings(delegate.as_ref(), &self.name(), cx).and_then(|s| s.initialization_options.clone())
+            language_server_settings(&self.name(), cx).and_then(|s| s.initialization_options.clone())
         });
 
         if let Some(override_options) = project_initialization_options {
@@ -94,13 +94,13 @@ impl LspAdapter for GoLspAdapter {
 
     async fn workspace_configuration(
         self: Arc<Self>,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<dyn LspAdapterDelegate>,
         _: Option<lsp::Uri>,
         cx: &mut AsyncApp,
     ) -> Result<Value> {
         Ok(cx
             .update(|cx| {
-                language_server_settings(delegate.as_ref(), &self.name(), cx)
+                language_server_settings(&self.name(), cx)
                     .and_then(|settings| settings.settings.clone())
             })
             .unwrap_or_default())

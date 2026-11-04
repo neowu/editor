@@ -4137,7 +4137,6 @@ dependencies = [
  "serde",
  "serde_json",
  "settings_content",
- "util",
 ]
 
 [[package]]

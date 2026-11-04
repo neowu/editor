@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -22,7 +21,6 @@ use lsp::Uri;
 use project::lsp_store::language_server_settings;
 use serde_json::Value;
 use serde_json::json;
-use settings::SettingsLocation;
 use task::TaskTemplate;
 use task::TaskTemplates;
 use task::VariableName;
@@ -153,24 +151,11 @@ impl LspAdapter for JsonLspAdapter {
     async fn workspace_configuration(
         self: Arc<Self>,
         delegate: &Arc<dyn LspAdapterDelegate>,
-        requested_uri: Option<Uri>,
+        _: Option<Uri>,
         cx: &mut AsyncApp,
     ) -> Result<Value> {
-        let requested_path =
-            requested_uri.as_ref().and_then(|uri| (uri.scheme() == "file").then(|| uri.to_file_path().ok()).flatten());
-        let path_in_worktree = requested_path
-            .as_ref()
-            .and_then(|abs_path| {
-                let rel_path = abs_path.strip_prefix(delegate.worktree_root_path()).ok()?;
-                RelPath::new(rel_path).ok()
-            })
-            .unwrap_or_else(|| Cow::Borrowed(RelPath::empty()));
         let mut config = cx.update(|cx| {
-            let schemas = json_schema_store::all_schema_file_associations(
-                &self.languages,
-                Some(SettingsLocation { worktree_id: delegate.worktree_id(), path: path_in_worktree.as_ref() }),
-                cx,
-            );
+            let schemas = json_schema_store::all_schema_file_associations(&self.languages, cx);
 
             // This can be viewed via `dev: open language server logs` -> `json-language-server` ->
             // `Server Info`
@@ -188,7 +173,7 @@ impl LspAdapter for JsonLspAdapter {
         });
 
         let project_options = cx.update(|cx| {
-            language_server_settings(delegate.as_ref(), &self.name(), cx)
+            language_server_settings(&self.name(), cx)
                 .and_then(|s| worktree_root(delegate, s.settings.clone()))
         });
 

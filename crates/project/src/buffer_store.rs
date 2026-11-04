@@ -663,7 +663,7 @@ impl LocalBufferStore {
                     let entry_id = file.entry_id;
 
                     // Check if the file should be read-only based on settings
-                    let settings = WorktreeSettings::get(Some((&project_path).into()), cx);
+                    let settings = WorktreeSettings::get_global(cx);
                     let is_read_only = if project_path.path.is_empty() {
                         settings.is_std_path_read_only(&file.full_path(cx))
                     } else {
@@ -1563,11 +1563,8 @@ fn apply_initial_line_ending(buffer: &mut Buffer, cx: &mut Context<Buffer>) {
     if buffer.max_point().row > 0 {
         return;
     }
-    let location = buffer
-        .file()
-        .map(|file| settings::SettingsLocation { worktree_id: file.worktree_id(cx), path: file.path().as_ref() });
     let language = buffer.language().map(|l| l.name());
-    let settings = AllLanguageSettings::get(location, cx).language(language.as_ref());
+    let settings = AllLanguageSettings::get_global(cx).language(language.as_ref());
     let desired = match settings.line_ending {
         LineEndingSetting::Detect => return,
         LineEndingSetting::PreferLf | LineEndingSetting::EnforceLf => LineEnding::Unix,

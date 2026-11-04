@@ -33,12 +33,12 @@ impl LspAdapter for TombiLspAdapter {
 
     async fn workspace_configuration(
         self: Arc<Self>,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<dyn LspAdapterDelegate>,
         _: Option<Uri>,
         cx: &mut AsyncApp,
     ) -> Result<Value> {
         let settings = cx.update(|cx| {
-            language_server_settings(delegate.as_ref(), &self.name(), cx).and_then(|s| s.settings.clone())
+            language_server_settings(&self.name(), cx).and_then(|s| s.settings.clone())
         });
 
         Ok(settings.unwrap_or_default())

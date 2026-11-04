@@ -12,9 +12,7 @@ use lsp::Uri;
 use project::lsp_store::language_server_settings;
 use serde_json::Value;
 use settings::Settings;
-use settings::SettingsLocation;
 use util::merge_json_value_into;
-use util::rel_path::RelPath;
 
 pub struct YamlLspAdapter;
 
@@ -43,10 +41,8 @@ impl LspAdapter for YamlLspAdapter {
         _: Option<Uri>,
         cx: &mut AsyncApp,
     ) -> Result<Value> {
-        let location = SettingsLocation { worktree_id: delegate.worktree_id(), path: RelPath::empty() };
-
         let tab_size =
-            cx.update(|cx| AllLanguageSettings::get(Some(location), cx).language(Some(&"YAML".into())).tab_size);
+            cx.update(|cx| AllLanguageSettings::get_global(cx).language(Some(&"YAML".into())).tab_size);
 
         let mut options = serde_json::json!({
             "[yaml]": {"editor.tabSize": tab_size},
@@ -54,7 +50,7 @@ impl LspAdapter for YamlLspAdapter {
         });
 
         let project_options = cx.update(|cx| {
-            language_server_settings(delegate.as_ref(), &Self::SERVER_NAME, cx)
+            language_server_settings(&Self::SERVER_NAME, cx)
                 .and_then(|s| worktree_root(delegate, s.settings.clone()))
         });
         if let Some(override_options) = project_options {

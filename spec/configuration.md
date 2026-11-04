@@ -122,6 +122,9 @@ migrator, or Vim/Helix mode.
 - EditorConfig and file modelines (vim/emacs `vim:`/`-*-` comments) are not
   supported, so language settings come only from built-in settings. There is no
   project-local settings layer or worktree-settings sync with remote peers.
+  Settings lookups are global only (`Settings::get_global`); there is no
+  per-file/worktree location argument, and the remote terminal-shell request
+  carries no worktree id.
 - The built-in keymap retains contexts and binding order. Only the US/ABC QWERTY
   layout is supported: macOS has no per-layout key-equivalent remapping, so
   shortcuts always bind to the literal key. The keymap, menu bar, and dock menu

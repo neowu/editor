@@ -261,7 +261,7 @@ impl LanguageRegistry {
         content: Option<&Rope>,
         cx: &App,
     ) -> Option<LanguageId> {
-        let user_file_types = all_language_settings(Some(file), cx);
+        let user_file_types = all_language_settings(cx);
         let filename = file.path().file_name().unwrap_or_else(|| file.file_name(cx));
         let paths = [Some(file.full_path(cx)), file.file_system_abs_path(cx)];
         let paths = paths.iter().filter_map(Option::as_deref).collect::<SmallVec<[_; 4]>>();

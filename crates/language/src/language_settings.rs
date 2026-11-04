@@ -24,7 +24,6 @@ pub use settings::LineEndingSetting;
 pub use settings::LspInsertMode;
 pub use settings::RewrapBehavior;
 use settings::Settings;
-use settings::SettingsLocation;
 pub use settings::ShowWhitespaceSetting;
 pub use settings::SoftWrap;
 pub use settings::SoftWrapIndent;
@@ -33,13 +32,11 @@ use text::ToOffset;
 
 use crate::Buffer;
 use crate::BufferSnapshot;
-use crate::File;
 use crate::LanguageName;
 
-/// Returns the settings for all languages from the provided file.
-pub fn all_language_settings<'a>(file: Option<&'a Arc<dyn File>>, cx: &'a App) -> &'a AllLanguageSettings {
-    let location = file.map(|f| SettingsLocation { worktree_id: f.worktree_id(cx), path: f.path().as_ref() });
-    AllLanguageSettings::get(location, cx)
+/// Returns the settings for all languages.
+pub fn all_language_settings(cx: &App) -> &AllLanguageSettings {
+    AllLanguageSettings::get_global(cx)
 }
 
 /// The settings for all languages.
@@ -254,10 +251,7 @@ impl LanguageSettings {
             return Arc::clone(resolved);
         }
 
-        let location =
-            buffer.file().map(|f| SettingsLocation { worktree_id: f.worktree_id(cx), path: f.path().as_ref() });
-
-        AllLanguageSettings::get(location, cx).language(language.map(|l| l.name()).as_ref())
+        AllLanguageSettings::get_global(cx).language(language.map(|l| l.name()).as_ref())
     }
 
     pub fn resolve(
@@ -266,7 +260,7 @@ impl LanguageSettings {
         cx: &App,
     ) -> Arc<LanguageSettings> {
         let Some(buffer) = buffer else {
-            return AllLanguageSettings::get(None, cx).language(override_language);
+            return AllLanguageSettings::get_global(cx).language(override_language);
         };
 
         if let Some(resolved) = buffer.resolved_settings()
@@ -283,11 +277,9 @@ impl LanguageSettings {
         override_language: Option<&LanguageName>,
         cx: &App,
     ) -> Arc<LanguageSettings> {
-        let location =
-            buffer.file().map(|f| SettingsLocation { worktree_id: f.worktree_id(cx), path: f.path().as_ref() });
         let buffer_language = buffer.language().map(|l| l.name());
         let language_name = override_language.or(buffer_language.as_ref());
-        AllLanguageSettings::get(location, cx).language(language_name)
+        AllLanguageSettings::get_global(cx).language(language_name)
     }
 }
 

@@ -14,10 +14,8 @@ use gpui::BorrowAppContext;
 use gpui::Global;
 use gpui::SharedString;
 use gpui::UpdateGlobal;
-use util::rel_path::RelPath;
 
 use crate::SemanticTokenRules;
-use crate::WorktreeId;
 use crate::settings_content::LanguageDefaultsContent;
 use crate::settings_content::SettingsContent;
 
@@ -40,19 +38,11 @@ pub trait Settings: 'static + Send + Sync + Sized {
     }
 
     #[track_caller]
-    fn get<'a>(path: Option<SettingsLocation>, cx: &'a App) -> &'a Self
-    where
-        Self: Sized,
-    {
-        cx.global::<SettingsStore>().get(path)
-    }
-
-    #[track_caller]
     fn get_global(cx: &App) -> &Self
     where
         Self: Sized,
     {
-        cx.global::<SettingsStore>().get(None)
+        cx.global::<SettingsStore>().get()
     }
 
     #[track_caller]
@@ -60,7 +50,7 @@ pub trait Settings: 'static + Send + Sync + Sized {
     where
         Self: Sized,
     {
-        if cx.has_global::<SettingsStore>() { cx.global::<SettingsStore>().try_get(None) } else { None }
+        if cx.has_global::<SettingsStore>() { cx.global::<SettingsStore>().try_get() } else { None }
     }
 
     #[track_caller]
@@ -68,7 +58,7 @@ pub trait Settings: 'static + Send + Sync + Sized {
     where
         Self: Sized,
     {
-        cx.try_read_global(|s: &SettingsStore, _| f(s.get(None)))
+        cx.try_read_global(|s: &SettingsStore, _| f(s.get()))
     }
 
     #[track_caller]
@@ -90,12 +80,6 @@ pub fn setting_value<T: Settings>() -> Box<dyn AnySettingValue> {
 }
 
 inventory::collect!(RegisteredSetting);
-
-#[derive(Clone, Copy, Debug)]
-pub struct SettingsLocation<'a> {
-    pub worktree_id: WorktreeId,
-    pub path: &'a RelPath,
-}
 
 /// One complete application-wide configuration, with language conventions filled
 /// in from registered language metadata and no file-based settings layers.
@@ -123,7 +107,7 @@ struct SettingValue<T> {
 pub trait AnySettingValue: 'static + Send + Sync {
     fn setting_type_name(&self) -> &'static str;
     fn value_from_settings(&self, s: &SettingsContent) -> Box<dyn Any>;
-    fn value_for_path(&self, path: Option<SettingsLocation>) -> &dyn Any;
+    fn global_value(&self) -> &dyn Any;
     fn set_global_value(&mut self, value: Box<dyn Any>);
 }
 
@@ -185,11 +169,11 @@ impl SettingsStore {
     ///
     /// Panics if the given setting type has not been registered, or if there is no
     /// value for this setting.
-    pub fn get<T: Settings>(&self, path: Option<SettingsLocation>) -> &T {
+    pub fn get<T: Settings>(&self) -> &T {
         self.setting_values
             .get(&TypeId::of::<T>())
             .unwrap_or_else(|| panic!("unregistered setting type {}", type_name::<T>()))
-            .value_for_path(path)
+            .global_value()
             .downcast_ref::<T>()
             .expect("no default value for setting type")
     }
@@ -197,10 +181,10 @@ impl SettingsStore {
     /// Get the value of a setting.
     ///
     /// Does not panic
-    pub fn try_get<T: Settings>(&self, path: Option<SettingsLocation>) -> Option<&T> {
+    pub fn try_get<T: Settings>(&self) -> Option<&T> {
         self.setting_values
             .get(&TypeId::of::<T>())
-            .map(|value| value.value_for_path(path))
+            .map(|value| value.global_value())
             .and_then(|value| value.downcast_ref::<T>())
     }
 
@@ -283,7 +267,7 @@ impl<T: Settings> AnySettingValue for SettingValue<T> {
         type_name::<T>()
     }
 
-    fn value_for_path(&self, _path: Option<SettingsLocation>) -> &dyn Any {
+    fn global_value(&self) -> &dyn Any {
         self.global_value
             .as_ref()
             .unwrap_or_else(|| panic!("no default value for setting {}", self.setting_type_name()))

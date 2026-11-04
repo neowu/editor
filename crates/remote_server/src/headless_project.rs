@@ -51,7 +51,6 @@ use rpc::proto::REMOTE_SERVER_PEER_ID;
 use rpc::proto::REMOTE_SERVER_PROJECT_ID;
 use rpc::proto::{self};
 use settings::Settings as _;
-use settings::SettingsLocation;
 use terminal::terminal_settings::TerminalSettings;
 use util::ResultExt;
 use util::rel_path::RelPath;
@@ -827,15 +826,10 @@ impl HeadlessProject {
 
     async fn handle_get_terminal_shell(
         _this: Entity<Self>,
-        envelope: TypedEnvelope<proto::GetTerminalShell>,
+        _: TypedEnvelope<proto::GetTerminalShell>,
         cx: AsyncApp,
     ) -> Result<proto::GetTerminalShellResponse> {
-        let worktree_id = envelope.payload.worktree_id.map(WorktreeId::from_proto);
-        let shell = cx.update(|cx| {
-            let settings_location =
-                worktree_id.map(|worktree_id| SettingsLocation { worktree_id, path: RelPath::empty() });
-            TerminalSettings::get(settings_location, cx).shell.clone()
-        });
+        let shell = cx.update(|cx| TerminalSettings::get_global(cx).shell.clone());
         log::debug!("handle_get_terminal_shell: resolved remote terminal shell setting: {shell:?}");
 
         Ok(proto::GetTerminalShellResponse { shell: Some(task::shell_to_proto(shell)) })

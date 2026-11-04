@@ -190,7 +190,6 @@ pub use semantic_tokens::TokenType;
 use serde::Serialize;
 use serde_json::Value;
 use settings::Settings;
-use settings::SettingsLocation;
 use settings::SettingsStore;
 use sha2::Digest;
 use sha2::Sha256;
@@ -8214,12 +8213,9 @@ impl LspStore {
                 })?
                 .await?;
             // we want to adhere to the read-only settings of the worktree we came from in case we opened an invisible one
-            if let Some((source_ws, worktree_root)) = source_ws {
+            if let Some((_, worktree_root)) = source_ws {
                 buffer.update(cx, |buffer, cx| {
-                    let settings = WorktreeSettings::get(
-                        Some((&ProjectPath { worktree_id: source_ws, path: Arc::from(RelPath::empty()) }).into()),
-                        cx,
-                    );
+                    let settings = WorktreeSettings::get_global(cx);
                     let is_read_only = settings.is_std_path_read_only(&worktree_root);
                     if is_read_only {
                         buffer.set_capability(Capability::ReadOnly, cx);
@@ -12877,24 +12873,8 @@ impl LspAdapter for SshLspAdapter {
     }
 }
 
-pub fn language_server_settings<'a>(
-    delegate: &'a dyn LspAdapterDelegate,
-    language: &LanguageServerName,
-    cx: &'a App,
-) -> Option<&'a LspSettings> {
-    language_server_settings_for(
-        SettingsLocation { worktree_id: delegate.worktree_id(), path: RelPath::empty() },
-        language,
-        cx,
-    )
-}
-
-pub fn language_server_settings_for<'a>(
-    location: SettingsLocation<'a>,
-    language: &LanguageServerName,
-    cx: &'a App,
-) -> Option<&'a LspSettings> {
-    ProjectSettings::get(Some(location), cx).lsp.get(language)
+pub fn language_server_settings<'a>(language: &LanguageServerName, cx: &'a App) -> Option<&'a LspSettings> {
+    ProjectSettings::get_global(cx).lsp.get(language)
 }
 
 pub struct LocalLspAdapterDelegate {

@@ -10,7 +10,6 @@ use language::LanguageRegistry;
 use language::language_settings::AllLanguageSettings;
 use project::LspStore;
 use settings::Settings as _;
-use settings::SettingsLocation;
 
 const SCHEMA_URI_PREFIX: &str = "ed://schemas/";
 
@@ -49,7 +48,6 @@ const JSONC_LANGUAGE_NAME: &str = "JSONC";
 
 pub fn all_schema_file_associations(
     languages: &Arc<LanguageRegistry>,
-    path: Option<SettingsLocation<'_>>,
     cx: &mut App,
 ) -> serde_json::Value {
     let extension_globs = languages
@@ -59,7 +57,7 @@ pub fn all_schema_file_associations(
         .flatten()
         // Path suffixes can be entire file names or just their extensions.
         .flat_map(|path_suffix| [format!("*.{path_suffix}").into(), path_suffix]);
-    let override_globs = AllLanguageSettings::get(path, cx)
+    let override_globs = AllLanguageSettings::get_global(cx)
         .file_types
         .get(JSONC_LANGUAGE_NAME)
         .into_iter()

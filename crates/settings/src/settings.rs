@@ -3,7 +3,6 @@ mod built_in;
 mod built_in_keymap;
 mod built_in_semantic_token_rules;
 mod content_into_gpui;
-mod granted_write_path;
 mod keymap;
 mod settings_file;
 mod settings_store;
@@ -40,13 +39,11 @@ pub use action_sequence::ActionSequence;
 pub use built_in_keymap::keymap as built_in_keymap;
 pub use content_into_gpui::IntoGpui;
 use gpui::App;
-pub use granted_write_path::GrantedWritePath;
 pub use keymap::KeyBindingSpec;
 pub use keymap::built_in_key_bindings;
 pub use settings_file::*;
 pub use settings_store::DefaultSemanticTokenRules;
 pub use settings_store::Settings;
-pub use settings_store::SettingsLocation;
 pub use settings_store::SettingsStore;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, PartialOrd, Ord, serde::Serialize)]

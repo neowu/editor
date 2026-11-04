@@ -30,7 +30,6 @@ use project::Project;
 use project::ProjectEntryId;
 use project::ProjectPath;
 pub use settings::Settings;
-pub use settings::SettingsLocation;
 use smallvec::SmallVec;
 use ui::Color;
 use ui::Icon;

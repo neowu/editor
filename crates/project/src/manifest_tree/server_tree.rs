@@ -24,7 +24,6 @@ use language::ManifestName;
 use language::language_settings::AllLanguageSettings;
 use lsp::LanguageServerName;
 use settings::Settings;
-use settings::SettingsLocation;
 use settings::WorktreeId;
 use util::rel_path::RelPath;
 
@@ -128,7 +127,7 @@ impl LanguageServerTree {
         cx: &mut App,
     ) -> impl Iterator<Item = LanguageServerId> + 'a {
         let manifest_location = self.manifest_location_for_path(&path, manifest_name, delegate, cx);
-        let adapters = self.adapters_for_language(&manifest_location, &language_name, cx);
+        let adapters = self.adapters_for_language(&language_name, cx);
         self.get_with_adapters(manifest_location, adapters)
     }
 
@@ -142,7 +141,7 @@ impl LanguageServerTree {
         cx: &'a mut App,
     ) -> impl Iterator<Item = LanguageServerTreeNode> + 'a {
         let manifest_location = self.manifest_location_for_path(&path, manifest_name, delegate, cx);
-        let adapters = self.adapters_for_language(&manifest_location, &language_name, cx);
+        let adapters = self.adapters_for_language(&language_name, cx);
         self.init_with_adapters(manifest_location, language_name, adapters)
     }
 
@@ -204,13 +203,10 @@ impl LanguageServerTree {
 
     fn adapters_for_language(
         &self,
-        manifest_location: &ProjectPath,
         language_name: &LanguageName,
         cx: &App,
     ) -> IndexMap<LanguageServerName, (LspSettings, Arc<CachedLspAdapter>)> {
-        let settings_location =
-            SettingsLocation { worktree_id: manifest_location.worktree_id, path: &manifest_location.path };
-        let settings = AllLanguageSettings::get(Some(settings_location), cx).language(Some(language_name));
+        let settings = AllLanguageSettings::get_global(cx).language(Some(language_name));
         if !settings.enable_language_server {
             return IndexMap::default();
         }
@@ -219,7 +215,7 @@ impl LanguageServerTree {
             .into_iter()
             .map(|adapter| {
                 let adapter_settings =
-                    crate::lsp_store::language_server_settings_for(settings_location, &adapter.name, cx)
+                    crate::lsp_store::language_server_settings(&adapter.name, cx)
                         .cloned()
                         .unwrap_or_default();
                 (adapter.name(), (adapter_settings, adapter))
@@ -310,7 +306,7 @@ impl ServerTreeRebase {
         cx: &'a mut App,
     ) -> impl Iterator<Item = LanguageServerTreeNode> + 'a {
         let manifest = self.new_tree.manifest_location_for_path(&path, manifest_name, &delegate, cx);
-        let adapters = self.new_tree.adapters_for_language(&manifest, &language_name, cx);
+        let adapters = self.new_tree.adapters_for_language(&language_name, cx);
 
         self.new_tree.init_with_adapters(manifest, language_name, adapters).filter_map(|node| {
             // Inspect result of the query and initialize it ourselves before

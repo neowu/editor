@@ -18,7 +18,6 @@ use remote::Interactive;
 use remote::RemoteClient;
 use rpc::proto;
 use settings::Settings;
-use settings::SettingsLocation;
 use task::Shell;
 use task::ShellBuilder;
 use task::SpawnInTerminal;
@@ -94,13 +93,7 @@ impl Project {
             self.active_project_directory(cx)
         };
 
-        let mut settings_location = None;
-        if let Some(path) = path.as_ref()
-            && let Some((worktree, _)) = self.find_worktree(path, cx)
-        {
-            settings_location = Some(SettingsLocation { worktree_id: worktree.read(cx).id(), path: RelPath::empty() });
-        }
-        let settings = TerminalSettings::get(settings_location, cx).clone();
+        let settings = TerminalSettings::get_global(cx).clone();
         let venv = self.project_venv(path.as_deref(), &settings, cx);
 
         // The terminal keeps the task as requested so a rerun wraps it in the shell afresh.
@@ -221,13 +214,7 @@ impl Project {
         let path = cwd.map(|p| Arc::from(&*p));
         let is_via_remote = !force_local && self.remote_client.is_some();
 
-        let mut settings_location = None;
-        if let Some(path) = path.as_ref()
-            && let Some((worktree, _)) = self.find_worktree(path, cx)
-        {
-            settings_location = Some(SettingsLocation { worktree_id: worktree.read(cx).id(), path: RelPath::empty() });
-        }
-        let settings = TerminalSettings::get(settings_location, cx).clone();
+        let settings = TerminalSettings::get_global(cx).clone();
         let venv = self.project_venv(path.as_deref(), &settings, cx);
         let local_path = if is_via_remote { None } else { path.clone() };
 
@@ -235,7 +222,6 @@ impl Project {
         let remote_shell_request = remote_client.as_ref().map(|remote_client| {
             remote_client.read(cx).proto_client().request(proto::GetTerminalShell {
                 project_id: proto::REMOTE_SERVER_PROJECT_ID,
-                worktree_id: settings_location.map(|settings_location| settings_location.worktree_id.to_proto()),
             })
         });
         let env_shell = match &remote_client {
@@ -353,16 +339,6 @@ impl Project {
                 terminal_handle
             })
         })
-    }
-
-    pub fn terminal_settings<'a>(&'a self, path: &'a Option<PathBuf>, cx: &'a App) -> &'a TerminalSettings {
-        let mut settings_location = None;
-        if let Some(path) = path.as_ref()
-            && let Some((worktree, _)) = self.find_worktree(path, cx)
-        {
-            settings_location = Some(SettingsLocation { worktree_id: worktree.read(cx).id(), path: RelPath::empty() });
-        }
-        TerminalSettings::get(settings_location, cx)
     }
 
     fn resolve_directory_environment(

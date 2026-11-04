@@ -42,7 +42,7 @@ message DirectoryEnvironment {
 
 message GetTerminalShell {
   uint64 project_id = 1;
-  optional uint64 worktree_id = 2;
+  reserved 2;
 }
 
 message GetTerminalShellResponse {

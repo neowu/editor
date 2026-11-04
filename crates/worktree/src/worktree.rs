@@ -101,7 +101,6 @@ use rpc::AnyProtoClient;
 use rpc::proto::split_worktree_update;
 use rpc::proto::{self};
 use settings::Settings;
-use settings::SettingsLocation;
 use settings::SettingsStore;
 pub use settings::WorktreeId;
 use smallvec::SmallVec;
@@ -557,13 +556,10 @@ impl Worktree {
             snapshot.root_repo_common_dir = root_repo_common_dir;
             snapshot.root_repo_is_linked_worktree = root_repo_is_linked_worktree;
 
-            let worktree_id = snapshot.id();
-            let settings_location = Some(SettingsLocation { worktree_id, path: RelPath::empty() });
-
-            let settings = WorktreeSettings::get(settings_location, cx).clone();
+            let settings = WorktreeSettings::get_global(cx).clone();
             cx.observe_global::<SettingsStore>(move |this, cx| {
                 if let Self::Local(this) = this {
-                    let settings = WorktreeSettings::get(settings_location, cx).clone();
+                    let settings = WorktreeSettings::get_global(cx).clone();
                     if this.settings != settings {
                         this.settings = settings;
                         this.restart_background_scanners(cx);
@@ -638,10 +634,7 @@ impl Worktree {
             let (background_updates_tx, mut background_updates_rx) = mpsc::unbounded::<proto::UpdateWorktree>();
             let (mut snapshot_updated_tx, mut snapshot_updated_rx) = watch::channel(());
 
-            let worktree_id = snapshot.id();
-            let settings_location = Some(SettingsLocation { worktree_id, path: RelPath::empty() });
-
-            let settings = WorktreeSettings::get(settings_location, cx).clone();
+            let settings = WorktreeSettings::get_global(cx).clone();
             let worktree = RemoteWorktree {
                 client,
                 project_id,
@@ -758,10 +751,6 @@ impl Worktree {
 
     pub const fn is_remote(&self) -> bool {
         !self.is_local()
-    }
-
-    pub fn settings_location(&self, _: &Context<Self>) -> SettingsLocation<'static> {
-        SettingsLocation { worktree_id: self.id(), path: RelPath::empty() }
     }
 
     pub fn snapshot(&self) -> Snapshot {
