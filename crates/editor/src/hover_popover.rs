@@ -50,7 +50,6 @@ use multi_buffer::ToPoint;
 use project::HoverBlock;
 use project::HoverBlockKind;
 use project::InlayHintLabelPart;
-use settings::Settings;
 use ui::CopyButton;
 use ui::ScrollAxes;
 use ui::Scrollbars;
@@ -68,7 +67,6 @@ use crate::AnchorRangeExt;
 use crate::DisplayPoint;
 use crate::DisplayRow;
 use crate::Editor;
-use crate::EditorSettings;
 use crate::EditorSnapshot;
 use crate::GlobalDiagnosticRenderer;
 use crate::HighlightKey;
@@ -86,6 +84,8 @@ pub const MIN_POPOVER_LINE_HEIGHT: f32 = 4.;
 pub const POPOVER_RIGHT_OFFSET: Pixels = px(8.0);
 pub const HOVER_POPOVER_GAP: Pixels = px(10.);
 const MAX_HOVER_BYTES: usize = 100_000;
+const HOVER_POPOVER_DELAY: Duration = Duration::from_millis(300);
+const HOVER_POPOVER_HIDING_DELAY: Duration = Duration::from_millis(300);
 
 /// Bindable action which uses the most recent selection head to trigger a hover
 pub fn hover(editor: &mut Editor, _: &Hover, window: &mut Window, cx: &mut Context<Editor>) {
@@ -103,45 +103,36 @@ pub fn hover_at(
     cx: &mut Context<Editor>,
 ) {
     editor.hover_state.hint_hover_task = None;
-    if EditorSettings::get_global(cx).hover_popover_enabled {
-        if show_keyboard_hover(editor, window, cx) {
+    if show_keyboard_hover(editor, window, cx) {
+        return;
+    }
+
+    if let Some(anchor) = anchor {
+        editor.hover_state.hiding_delay_task = None;
+        editor.hover_state.closest_mouse_distance = None;
+        show_hover(editor, anchor, false, window, cx);
+    } else if !editor.hover_state.visible() {
+        editor.hover_state.info_task = None;
+    } else {
+        let mut getting_closer = false;
+        if let Some(mouse_position) = mouse_position {
+            getting_closer = editor.hover_state.is_mouse_getting_closer(mouse_position);
+        }
+
+        // If we are moving away and a timer is already running, just let it count down.
+        if !getting_closer && editor.hover_state.hiding_delay_task.is_some() {
             return;
         }
 
-        if let Some(anchor) = anchor {
-            editor.hover_state.hiding_delay_task = None;
-            editor.hover_state.closest_mouse_distance = None;
-            show_hover(editor, anchor, false, window, cx);
-        } else if !editor.hover_state.visible() {
-            editor.hover_state.info_task = None;
-        } else {
-            let settings = EditorSettings::get_global(cx);
-            if !settings.hover_popover_sticky {
-                hide_hover(editor, cx);
-                return;
-            }
-
-            let mut getting_closer = false;
-            if let Some(mouse_position) = mouse_position {
-                getting_closer = editor.hover_state.is_mouse_getting_closer(mouse_position);
-            }
-
-            // If we are moving away and a timer is already running, just let it count down.
-            if !getting_closer && editor.hover_state.hiding_delay_task.is_some() {
-                return;
-            }
-
-            // If we are moving closer, or if no timer is running at all, start/restart the timer.
-            let delay = Duration::from_millis(settings.hover_popover_hiding_delay.0);
-            let task = cx.spawn(async move |this, cx| {
-                cx.background_executor().timer(delay).await;
-                this.update(cx, |editor, cx| {
-                    hide_popovers(editor, cx);
-                })
-                .ok();
-            });
-            editor.hover_state.hiding_delay_task = Some(task);
-        }
+        // If we are moving closer, or if no timer is running at all, start/restart the timer.
+        let task = cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(HOVER_POPOVER_HIDING_DELAY).await;
+            this.update(cx, |editor, cx| {
+                hide_popovers(editor, cx);
+            })
+            .ok();
+        });
+        editor.hover_state.hiding_delay_task = Some(task);
     }
 }
 
@@ -192,7 +183,7 @@ pub fn hover_at_inlay(
     window: &mut Window,
     cx: &mut Context<Editor>,
 ) -> Option<Task<()>> {
-    if !EditorSettings::get_global(cx).hover_popover_enabled || editor.pending_rename.is_some() {
+    if editor.pending_rename.is_some() {
         return None;
     }
     let project = editor.project.clone()?;
@@ -203,14 +194,12 @@ pub fn hover_at_inlay(
         return Some(Task::ready(()));
     }
 
-    let hover_popover_delay = EditorSettings::get_global(cx).hover_popover_delay.0;
-
     editor.hover_state.info_task = None;
     editor.hover_state.hiding_delay_task = None;
     editor.hover_state.closest_mouse_distance = None;
 
     Some(cx.spawn_in(window, async move |editor, cx| {
-        cx.background_executor().timer(Duration::from_millis(hover_popover_delay)).await;
+        cx.background_executor().timer(HOVER_POPOVER_DELAY).await;
         let language_registry = project.read_with(cx, |project, _| project.languages().clone());
         let parsed_content = parse_blocks(&[inlay_hover.tooltip], Some(&language_registry), None, cx);
 
@@ -282,7 +271,6 @@ fn show_hover(
         }
     }
 
-    let hover_popover_delay = EditorSettings::get_global(cx).hover_popover_delay.0;
     let all_diagnostics_active = editor.all_diagnostics_active();
     let active_group_id = editor.active_diagnostic_group_id();
 
@@ -293,12 +281,12 @@ fn show_hover(
             let delay = if ignore_timeout {
                 None
             } else {
-                let lsp_request_early = hover_popover_delay / 2;
-                cx.background_executor().timer(Duration::from_millis(hover_popover_delay - lsp_request_early)).await;
+                let lsp_request_early = HOVER_POPOVER_DELAY / 2;
+                cx.background_executor().timer(HOVER_POPOVER_DELAY - lsp_request_early).await;
 
                 // Construct delay task to wait for later
 
-                Some(cx.background_executor().timer(Duration::from_millis(lsp_request_early)))
+                Some(cx.background_executor().timer(lsp_request_early))
             };
 
             let hover_request = cx.update(|_, cx| provider.hover(&buffer, buffer_position, cx))?;

@@ -1,6 +1,4 @@
-use editor::EditorSettings;
 use gpui::FocusHandle;
-use settings::Settings as _;
 use ui::ButtonCommon;
 use ui::Clickable;
 use ui::Context;
@@ -36,10 +34,6 @@ impl Default for SearchButton {
 impl Render for SearchButton {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl ui::IntoElement {
         let button = div();
-
-        if !EditorSettings::get_global(cx).search.button {
-            return button.hidden();
-        }
 
         let focus_handle = self.pane_item_focus_handle.clone();
         button.child(

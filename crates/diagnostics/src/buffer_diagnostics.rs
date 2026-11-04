@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use collections::HashMap;
+use editor::EXCERPT_CONTEXT_LINES;
 use editor::Editor;
 use editor::EditorEvent;
 use editor::ExcerptRange;
@@ -16,7 +17,6 @@ use editor::display_map::BlockPlacement;
 use editor::display_map::BlockProperties;
 use editor::display_map::BlockStyle;
 use editor::display_map::CustomBlockId;
-use editor::multibuffer_context_lines;
 use gpui::AnyElement;
 use gpui::App;
 use gpui::AppContext;
@@ -301,7 +301,7 @@ impl BufferDiagnosticsEditor {
     /// buffer.
     fn update_excerpts(&self, buffer: Entity<Buffer>, window: &Window, cx: &Context<Self>) -> Task<Result<()>> {
         let was_empty = self.multibuffer.read(cx).is_empty();
-        let multibuffer_context = multibuffer_context_lines(cx);
+        let multibuffer_context = EXCERPT_CONTEXT_LINES;
         let buffer_snapshot = buffer.read(cx).snapshot();
         let buffer_snapshot_max = buffer_snapshot.max_point();
         let max_severity = lsp::DiagnosticSeverity::WARNING;

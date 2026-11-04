@@ -27,7 +27,6 @@ use std::ops::{self};
 use std::rc::Rc;
 use std::str;
 use std::sync::Arc;
-use std::sync::OnceLock;
 use std::time::Duration;
 
 pub use anchor::Anchor;
@@ -112,11 +111,8 @@ use unicode_segmentation::UnicodeSegmentation;
 pub use self::path_key::PathKey;
 use self::transaction::History;
 
-pub static EXCERPT_CONTEXT_LINES: OnceLock<fn(&App) -> u32> = OnceLock::new();
-
-pub fn excerpt_context_lines(cx: &App) -> u32 {
-    EXCERPT_CONTEXT_LINES.get().map(|f| f(cx)).unwrap_or(2)
-}
+/// Lines of context shown around each multibuffer excerpt.
+pub const EXCERPT_CONTEXT_LINES: u32 = 5;
 
 /// One or more [`Buffers`](Buffer) being edited in a single view.
 ///

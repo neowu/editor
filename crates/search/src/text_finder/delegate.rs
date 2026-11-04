@@ -31,10 +31,10 @@ use std::time::Duration;
 
 use collections::HashMap;
 use collections::HashSet;
+use editor::EXCERPT_CONTEXT_LINES;
 use editor::Editor;
 use editor::MultiBufferSnapshot;
 use editor::PathKey;
-use editor::multibuffer_context_lines;
 use file_icons::FileIcons;
 use futures::StreamExt;
 use gpui::AnyElement;
@@ -605,7 +605,7 @@ pub(crate) async fn matches_to_multibuffer(
         })
     });
 
-    let context_lines = cx.update(|cx| multibuffer_context_lines(cx));
+    let context_lines = EXCERPT_CONTEXT_LINES;
 
     let still_current =
         |cx: &mut AsyncApp| project_search_view.update(cx, |view, cx| view.entity.read(cx).search_id == search_id);

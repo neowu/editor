@@ -10,9 +10,9 @@ use std::time::Duration;
 
 use anyhow::Result;
 use buffer_diff::BufferDiff;
+use editor::DiffViewStyle;
 use editor::Editor;
 use editor::EditorEvent;
-use editor::EditorSettings;
 use editor::HiddenUnstagedDiffHunkRenderer;
 use editor::MultiBuffer;
 use editor::SplittableEditor;
@@ -39,7 +39,6 @@ use language::Point;
 use language::{self};
 use project::Project;
 use project::ProjectPath;
-use settings::Settings;
 use ui::Color;
 use ui::Icon;
 use ui::IconName;
@@ -193,14 +192,8 @@ impl TextDiffView {
             multibuffer
         });
         let diff_editor = cx.new(|cx| {
-            let splittable = SplittableEditor::new(
-                EditorSettings::get_global(cx).diff_view_style,
-                multibuffer,
-                project,
-                workspace,
-                window,
-                cx,
-            );
+            let splittable =
+                SplittableEditor::new(DiffViewStyle::global(cx), multibuffer, project, workspace, window, cx);
             splittable.set_diff_hunk_renderer(Some(Arc::new(HiddenUnstagedDiffHunkRenderer)), cx);
             splittable
         });

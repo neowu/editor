@@ -19,6 +19,7 @@ use collections::HashSet;
 use diagnostic_renderer::DiagnosticBlock;
 use diagnostic_renderer::DiagnosticsEditor;
 use editor::Anchor;
+use editor::EXCERPT_CONTEXT_LINES;
 use editor::Editor;
 use editor::EditorEvent;
 use editor::ExcerptRange;
@@ -28,7 +29,6 @@ use editor::display_map::BlockPlacement;
 use editor::display_map::BlockProperties;
 use editor::display_map::BlockStyle;
 use editor::display_map::CustomBlockId;
-use editor::multibuffer_context_lines;
 use gpui::AnyElement;
 use gpui::App;
 use gpui::AsyncApp;
@@ -456,7 +456,7 @@ impl ProjectDiagnosticsEditor {
             })?;
 
             let mut result_blocks = vec![None; excerpt_ranges.len()];
-            let context_lines = cx.update(|_, cx| multibuffer_context_lines(cx))?;
+            let context_lines = EXCERPT_CONTEXT_LINES;
             for b in blocks {
                 let excerpt_range =
                     context_range_for_entry(b.initial_range.clone(), context_lines, buffer_snapshot.clone(), cx).await;

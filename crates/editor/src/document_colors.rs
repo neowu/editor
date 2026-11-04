@@ -3,7 +3,6 @@ use std::ops::Range;
 
 use collections::HashMap;
 use gpui::Entity;
-use gpui::Hsla;
 use gpui::Rgba;
 use gpui::Task;
 use gpui::WeakEntity;
@@ -14,29 +13,21 @@ use multi_buffer::MultiBufferSnapshot;
 use project::DocumentColor;
 use project::InlayId;
 use project::Project;
-use settings::Settings as _;
 use text::Bias;
 use text::BufferId;
-use ui::App;
 use ui::Context;
 use ui::Window;
 use util::post_inc;
 
-use crate::DisplayPoint;
 use crate::Editor;
-use crate::EditorSettings;
-use crate::EditorSnapshot;
 use crate::InlaySplice;
 use crate::LSP_REQUEST_DEBOUNCE_TIMEOUT;
 use crate::LspDataKind;
-use crate::RangeToAnchorExt;
-use crate::editor_settings::DocumentColorsRenderMode;
 use crate::inlays::Inlay;
 
 #[derive(Debug)]
 pub(super) struct LspColorData {
     buffer_colors: HashMap<BufferId, BufferColors>,
-    render_mode: DocumentColorsRenderMode,
 }
 
 #[derive(Debug, Default)]
@@ -46,55 +37,8 @@ struct BufferColors {
 }
 
 impl LspColorData {
-    pub fn new(cx: &App) -> Self {
-        Self { buffer_colors: HashMap::default(), render_mode: EditorSettings::get_global(cx).lsp_document_colors }
-    }
-
-    pub fn render_mode_updated(&mut self, new_render_mode: DocumentColorsRenderMode) -> Option<InlaySplice> {
-        if self.render_mode == new_render_mode {
-            return None;
-        }
-        self.render_mode = new_render_mode;
-        match new_render_mode {
-            DocumentColorsRenderMode::Inlay => Some(InlaySplice {
-                to_remove: Vec::new(),
-                to_insert: self
-                    .buffer_colors
-                    .values()
-                    .flat_map(|buffer_colors| buffer_colors.colors.iter())
-                    .map(|(range, color, id)| {
-                        Inlay::color(
-                            id.id(),
-                            range.start,
-                            Rgba {
-                                r: color.color.red,
-                                g: color.color.green,
-                                b: color.color.blue,
-                                a: color.color.alpha,
-                            },
-                        )
-                    })
-                    .collect(),
-            }),
-            DocumentColorsRenderMode::None => Some(InlaySplice {
-                to_remove: self
-                    .buffer_colors
-                    .drain()
-                    .flat_map(|(_, buffer_colors)| buffer_colors.inlay_colors)
-                    .map(|(id, _)| id)
-                    .collect(),
-                to_insert: Vec::new(),
-            }),
-            DocumentColorsRenderMode::Border | DocumentColorsRenderMode::Background => Some(InlaySplice {
-                to_remove: self
-                    .buffer_colors
-                    .iter_mut()
-                    .flat_map(|(_, buffer_colors)| buffer_colors.inlay_colors.drain())
-                    .map(|(id, _)| id)
-                    .collect(),
-                to_insert: Vec::new(),
-            }),
-        }
+    pub fn new() -> LspColorData {
+        LspColorData { buffer_colors: HashMap::default() }
     }
 
     fn set_colors(&mut self, buffer_id: BufferId, colors: Vec<(Range<Anchor>, DocumentColor, InlayId)>) -> bool {
@@ -138,33 +82,6 @@ impl LspColorData {
         }
         invalid_colors.into_iter().map(|(_, _, inlay_id)| inlay_id).collect()
     }
-
-    pub fn editor_display_highlights(
-        &self,
-        snapshot: &EditorSnapshot,
-    ) -> (DocumentColorsRenderMode, Vec<(Range<DisplayPoint>, Hsla)>) {
-        let render_mode = self.render_mode;
-        let highlights =
-            if render_mode == DocumentColorsRenderMode::None || render_mode == DocumentColorsRenderMode::Inlay {
-                Vec::new()
-            } else {
-                self.buffer_colors
-                    .values()
-                    .flat_map(|buffer_colors| &buffer_colors.colors)
-                    .map(|(range, color, _)| {
-                        let display_range = range.clone().to_display_points(snapshot);
-                        let color = Hsla::from(Rgba {
-                            r: color.color.red,
-                            g: color.color.green,
-                            b: color.color.blue,
-                            a: color.color.alpha,
-                        });
-                        (display_range, color)
-                    })
-                    .collect()
-            };
-        (render_mode, highlights)
-    }
 }
 
 impl Editor {
@@ -175,7 +92,7 @@ impl Editor {
         let Some(project) = self.project.as_ref() else {
             return;
         };
-        if self.colors.as_ref().is_none_or(|colors| colors.render_mode == DocumentColorsRenderMode::None) {
+        if self.colors.is_none() {
             return;
         }
 
@@ -203,9 +120,7 @@ impl Editor {
         if invalid_inlays.is_empty() {
             return;
         }
-        if colors.render_mode == DocumentColorsRenderMode::Inlay {
-            self.splice_inlays(&invalid_inlays, Vec::new(), cx);
-        }
+        self.splice_inlays(&invalid_inlays, Vec::new(), cx);
         cx.notify();
     }
 
@@ -356,7 +271,7 @@ impl Editor {
                         updated |= colors.set_colors(buffer_id, new_buffer_color_inlays);
                     }
 
-                    if colors.render_mode == DocumentColorsRenderMode::Inlay && !colors_splice.is_empty() {
+                    if !colors_splice.is_empty() {
                         editor.splice_inlays(&colors_splice.to_remove, colors_splice.to_insert, cx);
                         updated = true;
                     }

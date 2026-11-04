@@ -494,8 +494,6 @@ impl Editor {
             }))
         };
 
-        let snippet_sort_order = EditorSettings::get_global(cx).snippet_sort_order;
-
         let id = post_inc(&mut self.next_completion_id);
         let task = cx.spawn_in(window, async move |editor, cx| {
             let Ok(()) = editor.update(cx, |this, _| {
@@ -577,7 +575,6 @@ impl Editor {
                         completions.into(),
                         editor.context_menu().borrow_mut().as_ref().map(|menu| menu.primary_scroll_handle()),
                         display_options,
-                        snippet_sort_order,
                         languages,
                         language,
                         cx,

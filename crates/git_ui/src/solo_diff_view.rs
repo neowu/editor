@@ -7,10 +7,12 @@ use anyhow::Context as _;
 use anyhow::Result;
 use buffer_diff::DiffHunkSecondaryStatus;
 use editor::DiffStyleControls;
+use editor::DiffViewStyle;
 use editor::Direction;
 use editor::Editor;
 use editor::EditorEvent;
 use editor::EditorSettings;
+use editor::GlobalDiffViewStyle;
 use editor::SplittableEditor;
 use editor::ToggleSplitDiff;
 use editor::actions::GoToHunk;
@@ -43,15 +45,14 @@ use language::Anchor;
 use language::Buffer;
 use language::OffsetRangeExt as _;
 use language::Point;
+use multi_buffer::EXCERPT_CONTEXT_LINES;
 use multi_buffer::MultiBuffer;
 use multi_buffer::PathKey;
-use multi_buffer::excerpt_context_lines;
 use project::Project;
 use project::ProjectPath;
 use project::git_store::Repository;
 use project::git_store::RepositoryId;
 use settings::Settings;
-use settings::SettingsStore;
 use settings::StatusStyle;
 use ui::DiffStat;
 use ui::Divider;
@@ -146,7 +147,7 @@ impl SoloDiffView {
         let multibuffer = cx.new(|cx| Self::build_multibuffer(buffer.clone(), diff.clone(), showing_full_file, cx));
         let editor = cx.new(|cx| {
             let editor = SplittableEditor::new(
-                EditorSettings::get_global(cx).diff_view_style,
+                DiffViewStyle::global(cx),
                 multibuffer,
                 project.clone(),
                 workspace.clone(),
@@ -169,9 +170,9 @@ impl SoloDiffView {
             editor
         });
 
-        let mut previous_diff_view_style = EditorSettings::get_global(cx).diff_view_style;
-        let settings_subscription = cx.observe_global_in::<SettingsStore>(window, move |this, window, cx| {
-            let diff_view_style = EditorSettings::get_global(cx).diff_view_style;
+        let mut previous_diff_view_style = DiffViewStyle::global(cx);
+        let settings_subscription = cx.observe_global_in::<GlobalDiffViewStyle>(window, move |this, window, cx| {
+            let diff_view_style = DiffViewStyle::global(cx);
             if diff_view_style != previous_diff_view_style {
                 this.editor.update(cx, |editor, cx| {
                     if editor.diff_view_style() != diff_view_style {
@@ -219,7 +220,7 @@ impl SoloDiffView {
         if showing_full_file {
             (vec![Point::zero()..buffer.read(cx).max_point()], 0)
         } else {
-            (Self::hunk_ranges(buffer, diff, cx), excerpt_context_lines(cx))
+            (Self::hunk_ranges(buffer, diff, cx), EXCERPT_CONTEXT_LINES)
         }
     }
 

@@ -751,21 +751,15 @@ impl Editor {
         cx: &mut Context<Self>,
     ) -> Task<Result<Navigated>> {
         let definition = self.go_to_definition_of_kind(GotoDefinitionKind::Symbol, false, window, cx);
-        let fallback_strategy = EditorSettings::get_global(cx).go_to_definition_fallback;
         cx.spawn_in(window, async move |editor, cx| {
             if definition.await? == Navigated::Yes {
                 return Ok(Navigated::Yes);
             }
-            match fallback_strategy {
-                GoToDefinitionFallback::None => Ok(Navigated::No),
-                GoToDefinitionFallback::FindAllReferences => {
-                    match editor.update_in(cx, |editor, window, cx| {
-                        editor.find_all_references(&FindAllReferences::default(), window, cx)
-                    })? {
-                        Some(references) => references.await,
-                        None => Ok(Navigated::No),
-                    }
-                }
+            match editor.update_in(cx, |editor, window, cx| {
+                editor.find_all_references(&FindAllReferences::default(), window, cx)
+            })? {
+                Some(references) => references.await,
+                None => Ok(Navigated::No),
             }
         })
     }
@@ -979,8 +973,7 @@ impl Editor {
             let Range { start, end } = locations[destination_location_index];
 
             editor.update_in(cx, |editor, window, cx| {
-                let effects =
-                    SelectionEffects::scroll(Autoscroll::for_go_to_definition(editor.cursor_top_offset(cx), cx));
+                let effects = SelectionEffects::scroll(Autoscroll::center());
 
                 editor.unfold_ranges(&[start..end], false, false, cx);
                 editor.change_selections(effects, window, cx, |s| {
@@ -1233,7 +1226,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let lines_to_expand = EditorSettings::get_global(cx).expand_excerpt_lines;
+        let lines_to_expand = EXPAND_EXCERPT_LINES;
 
         if self.delegate_expand_excerpts {
             cx.emit(EditorEvent::ExpandExcerptsRequested {
@@ -1334,7 +1327,6 @@ impl Editor {
 
         let workspace = self.workspace();
 
-        let excerpt_context_lines = multi_buffer::excerpt_context_lines(cx);
         cx.spawn_in(window, async move |editor, cx| {
             let locations: Vec<Location> = future::join_all(definitions)
                 .await
@@ -1370,7 +1362,7 @@ impl Editor {
                     }
                 }
                 let fits_in_one_excerpt =
-                    ranges.iter().tuple_windows().all(|(a, b)| b.start.row - a.end.row <= 2 * excerpt_context_lines);
+                    ranges.iter().tuple_windows().all(|(a, b)| b.start.row - a.end.row <= 2 * EXCERPT_CONTEXT_LINES);
                 num_locations += if fits_in_one_excerpt { 1 } else { ranges.len() };
             }
 
@@ -1488,12 +1480,7 @@ impl Editor {
                         }
 
                         editor.change_selections(
-                            SelectionEffects::scroll(Autoscroll::for_go_to_definition(
-                                editor.cursor_top_offset(cx),
-                                cx,
-                            ))
-                            .nav_history(true)
-                            .unfold(),
+                            SelectionEffects::scroll(Autoscroll::center()).nav_history(true).unfold(),
                             window,
                             cx,
                             |s| s.select_anchor_ranges(target_ranges),
@@ -1508,7 +1495,6 @@ impl Editor {
                             return Navigated::No;
                         };
                         let pane = workspace.read(cx).active_pane().clone();
-                        let offset = editor.cursor_top_offset(cx);
 
                         window.defer(cx, move |window, cx| {
                             let (target_editor, target_pane): (Entity<Self>, Entity<Pane>) =
@@ -1566,9 +1552,7 @@ impl Editor {
                                 }
 
                                 target_editor.change_selections(
-                                    SelectionEffects::scroll(Autoscroll::for_go_to_definition(offset, cx))
-                                        .nav_history(true)
-                                        .unfold(),
+                                    SelectionEffects::scroll(Autoscroll::center()).nav_history(true).unfold(),
                                     window,
                                     cx,
                                     |s| s.select_anchor_ranges(target_ranges),
@@ -1751,7 +1735,7 @@ impl Editor {
                     PathKey::for_buffer(&buffer, cx),
                     buffer.clone(),
                     ranges_for_buffer.clone(),
-                    multibuffer_context_lines(cx),
+                    EXCERPT_CONTEXT_LINES,
                     cx,
                 );
                 let snapshot = multibuffer.snapshot(cx);
@@ -1844,7 +1828,7 @@ impl Editor {
     fn expand_excerpts_for_direction(&self, lines: u32, direction: ExpandExcerptDirection, cx: &mut Context<Self>) {
         let selections = self.selections.disjoint_anchors_arc();
 
-        let lines = if lines == 0 { EditorSettings::get_global(cx).expand_excerpt_lines } else { lines };
+        let lines = if lines == 0 { EXPAND_EXCERPT_LINES } else { lines };
 
         let snapshot = self.buffer.read(cx).snapshot(cx);
         let excerpt_anchors = selections
@@ -1961,9 +1945,7 @@ impl Editor {
             return;
         };
         self.change_selections(
-            SelectionEffects::scroll(Autoscroll::for_go_to_definition(self.cursor_top_offset(cx), cx))
-                .nav_history(record_nav_history)
-                .unfold(),
+            SelectionEffects::scroll(Autoscroll::center()).nav_history(record_nav_history).unfold(),
             window,
             cx,
             |s| s.select_anchor_ranges([start..end]),

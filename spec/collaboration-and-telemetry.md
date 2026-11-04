@@ -21,8 +21,7 @@ and the call-status-icon and public-channel-sharing settings are removed.
 
 The theme has a single local player color (cursor and selection). The theme
 JSON keeps the `players` array format, but only the first entry is read. Places that need several distinct colors (git blame, Mermaid diagrams, debug
-ranges) use the theme's `accents` palette. The drag-and-drop cursor is the local
-cursor at half opacity.
+ranges) use the theme's `accents` palette.
 
 No usage events, activity metrics, machine identifiers, remote telemetry forwarding,
 hang reports, or automatic crash uploads are collected or sent. Telemetry settings,

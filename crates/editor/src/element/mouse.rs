@@ -1,6 +1,5 @@
 use std::ops::Range;
 use std::time::Duration;
-use std::time::Instant;
 
 use collections::HashMap;
 use gpui::AnyElement;
@@ -27,11 +26,8 @@ use gpui::deferred;
 use gpui::point;
 use gpui::px;
 use multi_buffer::MultiBufferRow;
-use settings::Settings;
 use sum_tree::Bias;
-use text::SelectionGoal;
 use util::RangeExt;
-use util::debug_panic;
 
 use super::EditorElement;
 use super::EditorLayout;
@@ -43,19 +39,20 @@ use crate::DisplayDiffHunk;
 use crate::DisplayPoint;
 use crate::DisplayRow;
 use crate::Editor;
-use crate::EditorSettings;
 use crate::EditorSnapshot;
 use crate::GutterHoverButton;
 use crate::JumpData;
 use crate::SelectPhase;
-use crate::Selection;
-use crate::SelectionDragState;
 use crate::display_map::ToDisplayPoint;
-use crate::editor_settings::DoubleClickInMultibuffer;
 use crate::hover_popover::hover_at;
 use crate::inlays::inlay_hints::HintTarget;
 use crate::mouse_context_menu;
 use crate::scroll::ScrollPixelOffset;
+
+/// Scroll speed multiplier while alt is held.
+const FAST_SCROLL_SENSITIVITY: f32 = 4.0;
+/// Columns kept clear on either side when a selection drag autoscrolls horizontally.
+const HORIZONTAL_SCROLL_MARGIN: f32 = 5.0;
 
 impl EditorElement {
     pub(crate) fn mouse_moved(
@@ -241,12 +238,12 @@ impl EditorElement {
         Some(element)
     }
 
-    pub(super) fn paint_mouse_listeners(&self, layout: &EditorLayout, window: &mut Window, cx: &App) {
+    pub(super) fn paint_mouse_listeners(&self, layout: &EditorLayout, window: &mut Window) {
         if layout.mode.is_minimap() {
             return;
         }
 
-        self.paint_scroll_wheel_listener(layout, window, cx);
+        self.paint_scroll_wheel_listener(layout, window);
 
         window.on_mouse_event({
             let position_map = layout.position_map.clone();
@@ -278,11 +275,10 @@ impl EditorElement {
 
         window.on_mouse_event({
             let editor = self.editor.clone();
-            let position_map = layout.position_map.clone();
 
-            move |event: &MouseUpEvent, phase, window, cx| {
+            move |_: &MouseUpEvent, phase, window, cx| {
                 if phase == DispatchPhase::Bubble {
-                    editor.update(cx, |editor, cx| Self::mouse_up(editor, event, &position_map, window, cx));
+                    editor.update(cx, |editor, cx| Self::mouse_up(editor, window, cx));
                 }
             }
         });
@@ -352,26 +348,18 @@ impl EditorElement {
         });
     }
 
-    fn paint_scroll_wheel_listener(&self, layout: &EditorLayout, window: &mut Window, cx: &App) {
+    fn paint_scroll_wheel_listener(&self, layout: &EditorLayout, window: &mut Window) {
         window.on_mouse_event({
             let position_map = layout.position_map.clone();
             let editor = self.editor.clone();
             let hitbox = layout.hitbox.clone();
             let mut delta = ScrollDelta::default();
 
-            // Set a minimum scroll_sensitivity of 0.01 to make sure the user doesn't
-            // accidentally turn off their scrolling.
-            let base_scroll_sensitivity = EditorSettings::get_global(cx).scroll_sensitivity.max(0.01);
-
-            // Use a minimum fast_scroll_sensitivity for same reason above
-            let fast_scroll_sensitivity = EditorSettings::get_global(cx).fast_scroll_sensitivity.max(0.01);
-
             move |event: &ScrollWheelEvent, phase, window, cx| {
                 if phase == DispatchPhase::Bubble && hitbox.should_handle_scroll(window) {
                     delta = delta.coalesce(event.delta);
 
-                    let scroll_sensitivity =
-                        { if event.modifiers.alt { fast_scroll_sensitivity } else { base_scroll_sensitivity } };
+                    let scroll_sensitivity = if event.modifiers.alt { FAST_SCROLL_SENSITIVITY } else { 1.0 };
 
                     editor.update(cx, |editor, cx| {
                         let line_height = position_map.line_height;
@@ -428,7 +416,7 @@ impl EditorElement {
         let gutter_hitbox = &position_map.gutter_hitbox;
         let point_for_position = position_map.point_for_position(event.position);
         let mut click_count = event.click_count;
-        let mut modifiers = event.modifiers;
+        let modifiers = event.modifiers;
 
         if let Some(hovered_hunk) = position_map.display_hunks.iter().find_map(|(hunk, hunk_hitbox)| match hunk {
             DisplayDiffHunk::Folded { .. } => None,
@@ -459,11 +447,7 @@ impl EditorElement {
         }
 
         let is_singleton = editor.buffer().read(cx).is_singleton();
-        let double_click_selects = is_singleton
-            || EditorSettings::get_global(cx).double_click_in_multibuffer == DoubleClickInMultibuffer::Select;
-
         if click_count == 2
-            && double_click_selects
             && !modifiers.modified()
             && let Some((hint, offset_in_hint)) =
                 hint_glyph.and_then(|glyph| position_map.snapshot.inlay_hint_at(glyph))
@@ -479,54 +463,6 @@ impl EditorElement {
             if accepting && resolved {
                 cx.stop_propagation();
                 return;
-            }
-        }
-
-        if EditorSettings::get_global(cx).drag_and_drop_selection.enabled && click_count == 1 && !modifiers.shift {
-            let newest_anchor = editor.selections.newest_anchor();
-            let snapshot = editor.snapshot(window, cx);
-            let selection = newest_anchor.map(|anchor| anchor.to_display_point(&snapshot));
-            if point_for_position.intersects_selection(&selection) {
-                editor.selection_drag_state = SelectionDragState::ReadyToDrag {
-                    selection: *newest_anchor,
-                    click_position: event.position,
-                    mouse_down_time: Instant::now(),
-                };
-                cx.stop_propagation();
-                return;
-            }
-        }
-
-        if click_count == 2 && !is_singleton {
-            match EditorSettings::get_global(cx).double_click_in_multibuffer {
-                DoubleClickInMultibuffer::Select => {
-                    // do nothing special on double click, all selection logic is below
-                }
-                DoubleClickInMultibuffer::Open => {
-                    if modifiers.alt {
-                        // if double click is made with alt, pretend it's a regular double click without opening and alt,
-                        // and run the selection logic.
-                        modifiers.alt = false;
-                    } else {
-                        let scroll_position_row = position_map.scroll_position.y;
-                        let display_row = (((event.position - gutter_hitbox.bounds.origin).y / position_map.line_height)
-                            as f64
-                            + position_map.scroll_position.y) as u32;
-                        let multi_buffer_row = position_map
-                            .snapshot
-                            .display_point_to_point(DisplayPoint::new(DisplayRow(display_row), 0), Bias::Right)
-                            .row;
-                        let line_offset_from_top = display_row - scroll_position_row as u32;
-                        // if double click is made without alt, open the corresponding excerp
-                        editor.open_excerpts_common(
-                            JumpData::MultiBufferRow { row: MultiBufferRow(multi_buffer_row), line_offset_from_top },
-                            false,
-                            window,
-                            cx,
-                        );
-                        return;
-                    }
-                }
             }
         }
 
@@ -558,7 +494,7 @@ impl EditorElement {
         }
 
         let position = point_for_position.nearest_valid;
-        if let Some(mode) = Editor::columnar_selection_mode(&modifiers, cx) {
+        if let Some(mode) = Editor::columnar_selection_mode(&modifiers) {
             editor.select(
                 SelectPhase::BeginColumnar {
                     position,
@@ -575,11 +511,7 @@ impl EditorElement {
         } else if modifiers.shift && !modifiers.control && !modifiers.alt && !modifiers.secondary() {
             editor.select(SelectPhase::Extend { position, click_count }, window, cx);
         } else {
-            editor.select(
-                SelectPhase::Begin { position, add: Editor::is_alt_pressed(&modifiers, cx), click_count },
-                window,
-                cx,
-            );
+            editor.select(SelectPhase::Begin { position, add: modifiers.alt, click_count }, window, cx);
         }
         cx.stop_propagation();
     }
@@ -649,57 +581,9 @@ impl EditorElement {
         );
     }
 
-    fn mouse_up(
-        editor: &mut Editor,
-        event: &MouseUpEvent,
-        position_map: &PositionMap,
-        window: &mut Window,
-        cx: &mut Context<Editor>,
-    ) {
-        let text_hitbox = &position_map.text_hitbox;
+    fn mouse_up(editor: &mut Editor, window: &mut Window, cx: &mut Context<Editor>) {
         let end_selection = editor.has_pending_selection();
         let pending_nonempty_selections = editor.has_pending_nonempty_selection();
-        let point_for_position = position_map.point_for_position(event.position);
-
-        match editor.selection_drag_state {
-            SelectionDragState::ReadyToDrag { selection: _, ref click_position, mouse_down_time: _ } => {
-                if event.position == *click_position {
-                    editor.select(
-                        SelectPhase::Begin {
-                            position: point_for_position.nearest_valid,
-                            add: false,
-                            click_count: 1, // ready to drag state only occurs on click count 1
-                        },
-                        window,
-                        cx,
-                    );
-                    editor.selection_drag_state = SelectionDragState::None;
-                    cx.stop_propagation();
-                    return;
-                } else {
-                    debug_panic!("drag state can never be in ready state after drag")
-                }
-            }
-            SelectionDragState::Dragging { ref selection, .. } => {
-                let snapshot = editor.snapshot(window, cx);
-                let selection_display = selection.map(|anchor| anchor.to_display_point(&snapshot));
-                if !point_for_position.intersects_selection(&selection_display) && text_hitbox.is_hovered(window) {
-                    let is_cut = !(true && event.modifiers.alt || false && event.modifiers.control);
-                    editor.move_selection_on_drop(
-                        &selection.clone(),
-                        point_for_position.nearest_valid,
-                        is_cut,
-                        window,
-                        cx,
-                    );
-                }
-                editor.selection_drag_state = SelectionDragState::None;
-                cx.stop_propagation();
-                cx.notify();
-                return;
-            }
-            _ => {}
-        }
 
         if end_selection {
             editor.select(SelectPhase::End, window, cx);
@@ -707,15 +591,6 @@ impl EditorElement {
 
         if end_selection && pending_nonempty_selections {
             cx.stop_propagation();
-        } else if false && event.button == MouseButton::Middle {
-            #[allow(
-                clippy::collapsible_if,
-                clippy::needless_return,
-                reason = "The cfg-block below makes this a false positive"
-            )]
-            if !text_hitbox.is_hovered(window) || editor.read_only(cx) {
-                return;
-            }
         }
     }
 
@@ -729,17 +604,13 @@ impl EditorElement {
         let text_hitbox = &position_map.text_hitbox;
         let pending_nonempty_selections = editor.has_pending_nonempty_selection();
 
-        let hovered_link_modifier = Editor::is_cmd_or_ctrl_pressed(&event.modifiers(), cx);
-        let mouse_down_hovered_link_modifier = if let ClickEvent::Mouse(mouse_event) = event {
-            Editor::is_cmd_or_ctrl_pressed(&mouse_event.down.modifiers, cx)
-        } else {
-            true
-        };
+        let hovered_link_modifier = event.modifiers().secondary();
+        let mouse_down_hovered_link_modifier =
+            if let ClickEvent::Mouse(mouse_event) = event { mouse_event.down.modifiers.secondary() } else { true };
 
         if let Some(mouse_position) = event.mouse_position()
             && !pending_nonempty_selections
             && text_hitbox.is_hovered(window)
-            && !matches!(editor.selection_drag_state, SelectionDragState::Dragging { .. })
         {
             let point = position_map.point_for_position(mouse_position);
             if let ClickEvent::Mouse(mouse_event) = event
@@ -753,14 +624,12 @@ impl EditorElement {
                     cx,
                 )
             {
-                editor.selection_drag_state = SelectionDragState::None;
                 cx.stop_propagation();
                 return;
             }
 
             if hovered_link_modifier && mouse_down_hovered_link_modifier {
                 editor.handle_click_hovered_link(point, event.modifiers(), window, cx);
-                editor.selection_drag_state = SelectionDragState::None;
                 cx.stop_propagation();
             }
         }
@@ -782,7 +651,6 @@ impl EditorElement {
         if force_click_possible && text_hitbox.is_hovered(window) {
             let point = position_map.point_for_position(event.position);
             editor.handle_click_hovered_link(point, event.modifiers, window, cx);
-            editor.selection_drag_state = SelectionDragState::None;
             cx.stop_propagation();
         }
     }
@@ -794,9 +662,7 @@ impl EditorElement {
         window: &mut Window,
         cx: &mut Context<Editor>,
     ) {
-        if editor.has_autoscroll_request()
-            || !editor.has_pending_selection() && matches!(editor.selection_drag_state, SelectionDragState::None)
-        {
+        if editor.has_autoscroll_request() || !editor.has_pending_selection() {
             return;
         }
 
@@ -822,9 +688,7 @@ impl EditorElement {
             let font_size = style.text.font_size.to_pixels(window.rem_size());
             let em_width = window.text_system().em_width(font_id, font_size).unwrap_or(font_size);
 
-            let scroll_margin_x = EditorSettings::get_global(cx).horizontal_scroll_margin;
-
-            let scroll_space: Pixels = scroll_margin_x * em_width;
+            let scroll_space: Pixels = HORIZONTAL_SCROLL_MARGIN * em_width;
 
             let left = text_bounds.origin.x + scroll_space;
             let right = text_bounds.top_right().x - scroll_space;
@@ -838,67 +702,15 @@ impl EditorElement {
             scroll_delta
         };
 
-        if !editor.has_pending_selection() {
-            let drop_anchor =
-                position_map.snapshot.display_point_to_anchor(point_for_position.nearest_valid, Bias::Left);
-            match editor.selection_drag_state {
-                SelectionDragState::Dragging { ref mut drop_cursor, ref mut hide_drop_cursor, .. } => {
-                    drop_cursor.start = drop_anchor;
-                    drop_cursor.end = drop_anchor;
-                    *hide_drop_cursor = !text_hitbox.is_hovered(window);
-                    editor.apply_scroll_delta(scroll_delta, window, cx);
-                    cx.notify();
-                }
-                SelectionDragState::ReadyToDrag { ref selection, ref click_position, ref mouse_down_time } => {
-                    let drag_and_drop_delay =
-                        Duration::from_millis(EditorSettings::get_global(cx).drag_and_drop_selection.delay.0);
-                    if mouse_down_time.elapsed() >= drag_and_drop_delay {
-                        let drop_cursor = Selection {
-                            id: editor.selections.next_selection_id(),
-                            start: drop_anchor,
-                            end: drop_anchor,
-                            reversed: false,
-                            goal: SelectionGoal::None,
-                        };
-                        editor.selection_drag_state = SelectionDragState::Dragging {
-                            selection: *selection,
-                            drop_cursor,
-                            hide_drop_cursor: false,
-                        };
-                        editor.apply_scroll_delta(scroll_delta, window, cx);
-                        cx.notify();
-                    } else {
-                        let click_point = position_map.point_for_position(*click_position);
-                        editor.selection_drag_state = SelectionDragState::None;
-                        editor.select(
-                            SelectPhase::Begin { position: click_point.nearest_valid, add: false, click_count: 1 },
-                            window,
-                            cx,
-                        );
-                        editor.select(
-                            SelectPhase::Update {
-                                position: point_for_position.nearest_valid,
-                                goal_column: point_for_position.exact_unclipped.column(),
-                                scroll_delta,
-                            },
-                            window,
-                            cx,
-                        );
-                    }
-                }
-                _ => {}
-            }
-        } else {
-            editor.select(
-                SelectPhase::Update {
-                    position: point_for_position.nearest_valid,
-                    goal_column: point_for_position.exact_unclipped.column(),
-                    scroll_delta,
-                },
-                window,
-                cx,
-            );
-        }
+        editor.select(
+            SelectPhase::Update {
+                position: point_for_position.nearest_valid,
+                goal_column: point_for_position.exact_unclipped.column(),
+                scroll_delta,
+            },
+            window,
+            cx,
+        );
     }
 }
 

@@ -40,6 +40,34 @@
   enabled); there are no editor `scrollbar` settings. In files longer than
   the minimap, off-screen markers scroll in with the minimap. Editors without
   a minimap have no vertical scroll widget.
+- Fixed editor behaviour, with no settings: blinking bar cursor with movement
+  animation; full-width current-line highlight; rounded selections (editor
+  and terminal); selected-text occurrence highlights on; 75ms LSP document
+  highlight debounce; hover popover on, sticky, 300ms show and hide delays;
+  snippets sorted inline with other completions; 3-line vertical scroll
+  margin; full editors scroll one page past the last line. The minimap shows
+  only in the active editor (toggleable per editor), up to 80 columns wide,
+  with an always-visible borderless thumb.
+- The editor has no settings at all (`EditorSettingsContent` is gone; only
+  the git `file_diff` setting remains in `EditorSettings`). Also fixed:
+  - Mouse: alt adds cursors, cmd/ctrl follows links; shift+cmd/ctrl or
+    shift+alt starts a columnar selection. Alt scrolls 4x faster. Clicks never
+    autoscroll. No drag-and-drop of selected text and no middle-click paste.
+    Double-click in a multibuffer selects a word like in a single file.
+  - Search: starts with no options set, searches as you type, wraps around,
+    no smartcase, and the status bar search button is always shown. Search
+    seeds its query from the word under the cursor.
+  - Navigation: go to definition falls back to find all references when it
+    finds nothing, and centers the target. Results open in a multibuffer
+    unless the action asks for the picker (`open_results_in`).
+  - LSP: diagnostics down to hints; inline code actions; document colors as
+    inlays only; document links on.
+  - Completions: kind letter always shown, details left-aligned, no scrollbar.
+  - Multibuffers: 5 lines of excerpt context (`EXCERPT_CONTEXT_LINES`); expand
+    by 5 lines. Highlighted text keeps an APCA contrast of at least 45.
+  - Diffs open split, and fall back to unified below 100 columns. The
+    unified/split toggle is a session-wide choice (`GlobalDiffViewStyle`): it
+    switches every open diff view and applies to new ones, and is not saved.
 - The minimap runs the full card height. The minimap thumb, its markers and the
   current-line highlight are plain square quads; the pane card's corner mask
   (`ui-layout.md`) rounds them where they reach the card's corners.

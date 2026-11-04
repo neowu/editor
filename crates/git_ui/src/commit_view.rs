@@ -9,14 +9,14 @@ use anyhow::Result;
 use buffer_diff::BufferDiff;
 use collections::HashMap;
 use editor::Addon;
+use editor::DiffViewStyle;
+use editor::EXCERPT_CONTEXT_LINES;
 use editor::Editor;
 use editor::EditorEvent;
-use editor::EditorSettings;
 use editor::HiddenDiffHunkRenderer;
 use editor::MultiBuffer;
 use editor::SelectionEffects;
 use editor::SplittableEditor;
-use editor::multibuffer_context_lines;
 use editor::scroll::Autoscroll;
 use editor::scroll::ScrollAnchor;
 use editor::scroll::ScrollOffset;
@@ -68,8 +68,6 @@ use project::git_store::CommitDiff;
 use project::git_store::CommitFile;
 use project::git_store::Repository;
 use project::git_store::UnshallowState;
-use settings::DiffViewStyle;
-use settings::Settings;
 use theme::ActiveTheme;
 use ui::ContextMenu;
 use ui::DiffStat;
@@ -505,7 +503,7 @@ impl CommitView {
         let commit_view = cx.weak_entity();
         let editor = cx.new(|cx| {
             let editor = SplittableEditor::new(
-                EditorSettings::get_global(cx).diff_view_style,
+                DiffViewStyle::global(cx),
                 multibuffer.clone(),
                 project.clone(),
                 workspace_entity.clone(),
@@ -577,7 +575,7 @@ impl CommitView {
                                 file.path_key.clone(),
                                 file.buffer.clone(),
                                 ranges,
-                                multibuffer_context_lines(cx),
+                                EXCERPT_CONTEXT_LINES,
                                 file.buffer_diff.clone(),
                                 cx,
                             );

@@ -370,19 +370,7 @@ use document_links::LspDocumentLinks;
 use ed_actions::editor::MoveDown;
 use ed_actions::editor::MoveUp;
 pub use ed_actions::editor::RevealInFileManager;
-pub use editor_settings::CompletionDetailAlignment;
-pub use editor_settings::CompletionMenuItemKind;
-pub use editor_settings::CurrentLineHighlight;
-pub use editor_settings::DiffViewStyle;
-pub use editor_settings::DocumentColorsRenderMode;
 pub use editor_settings::EditorSettings;
-use editor_settings::GoToDefinitionFallback;
-use editor_settings::Minimap as MinimapSettings;
-pub use editor_settings::OpenResultsIn;
-pub use editor_settings::ScrollBeyondLastLine;
-pub use editor_settings::SearchSettings;
-pub use editor_settings::ShowMinimap;
-pub use editor_settings::ui_scrollbar_settings_from_raw;
 pub use element::CursorLayout;
 pub use element::EditorElement;
 pub use element::HighlightedRange;
@@ -530,6 +518,7 @@ use movement::TextLayoutDetails;
 pub use multi_buffer::Anchor;
 pub use multi_buffer::AnchorRangeExt;
 pub use multi_buffer::BufferOffset;
+pub use multi_buffer::EXCERPT_CONTEXT_LINES;
 use multi_buffer::ExcerptBoundaryInfo;
 pub use multi_buffer::ExcerptRange;
 use multi_buffer::ExpandExcerptDirection;
@@ -582,12 +571,15 @@ use selections_collection::SelectionsCollection;
 use serde::Deserialize;
 use serde::Serialize;
 use settings::GitGutterSetting;
+pub use settings::OpenResultsIn;
 use settings::Settings;
 use settings::SettingsStore;
 use smallvec::SmallVec;
 use smallvec::smallvec;
 use snippet::Snippet;
 pub use split::DiffStyleControls;
+pub use split::DiffViewStyle;
+pub use split::GlobalDiffViewStyle;
 pub use split::SplittableEditor;
 pub use split::ToggleSplitDiff;
 pub use split_editor_view::SplitEditorView;
@@ -641,7 +633,6 @@ use workspace::searchable::SearchEvent;
 use workspace::searchable::SelectSearchOptions;
 
 use crate::code_context_menus::CompletionsMenuSource;
-use crate::editor_settings::MultiCursorModifier;
 use crate::hover_links::find_url;
 use crate::hover_links::find_url_from_range;
 use crate::inlays::inlay_hints::LspInlayHintData;
@@ -658,6 +649,11 @@ pub const FILE_HEADER_HEIGHT: u32 = 2;
 pub const BUFFER_HEADER_PADDING: Rems = rems(0.25);
 pub const MULTI_BUFFER_EXCERPT_HEADER_HEIGHT: u32 = 1;
 const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(500);
+const LSP_HIGHLIGHT_DEBOUNCE: Duration = Duration::from_millis(75);
+/// Lines added to an excerpt per expand step.
+pub(crate) const EXPAND_EXCERPT_LINES: u32 = 5;
+/// Minimum APCA contrast for text drawn over highlight backgrounds.
+pub const MINIMUM_CONTRAST_FOR_HIGHLIGHTS: f32 = 45.0;
 const MAX_LINE_LEN: usize = 1024;
 /// Reserve gutter space for this many line number digits, to avoid resizes as files grow.
 pub(crate) const MIN_LINE_NUMBER_DIGITS: usize = 4;
@@ -734,7 +730,6 @@ pub fn init(cx: &mut App) {
     });
     _ = ui_input::ERASED_EDITOR_FACTORY
         .set(|window, cx| cx.new(|cx| Editor::single_line(window, cx)).update(cx, |editor, cx| editor.erased(cx)));
-    _ = multi_buffer::EXCERPT_CONTEXT_LINES.set(multibuffer_context_lines);
 }
 
 pub struct SearchWithinRange;
@@ -942,59 +937,33 @@ impl ScrollbarMarkerState {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum MinimapVisibility {
     Disabled,
-    Enabled {
-        /// The configuration currently present in the users settings.
-        setting_configuration: bool,
-        /// Whether to override the currently set visibility from the users setting.
-        toggle_override: bool,
-    },
+    Enabled { visible: bool },
 }
 
 impl MinimapVisibility {
-    fn for_mode(mode: &EditorMode, cx: &App) -> Self {
-        if mode.is_full() {
-            Self::Enabled {
-                setting_configuration: EditorSettings::get_global(cx).minimap.minimap_enabled(),
-                toggle_override: false,
-            }
-        } else {
-            Self::Disabled
-        }
+    const fn for_mode(mode: &EditorMode) -> MinimapVisibility {
+        if mode.is_full() { MinimapVisibility::Enabled { visible: true } } else { MinimapVisibility::Disabled }
     }
 
-    const fn hidden(&self) -> Self {
+    const fn hidden(&self) -> MinimapVisibility {
         match *self {
-            Self::Enabled { setting_configuration, .. } => {
-                Self::Enabled { setting_configuration, toggle_override: setting_configuration }
-            }
-            Self::Disabled => Self::Disabled,
+            MinimapVisibility::Enabled { .. } => MinimapVisibility::Enabled { visible: false },
+            MinimapVisibility::Disabled => MinimapVisibility::Disabled,
         }
     }
 
     const fn disabled(&self) -> bool {
-        matches!(*self, Self::Disabled)
-    }
-
-    const fn settings_visibility(&self) -> bool {
-        match *self {
-            Self::Enabled { setting_configuration, .. } => setting_configuration,
-            _ => false,
-        }
+        matches!(*self, MinimapVisibility::Disabled)
     }
 
     const fn visible(&self) -> bool {
-        match *self {
-            Self::Enabled { setting_configuration, toggle_override } => setting_configuration ^ toggle_override,
-            _ => false,
-        }
+        matches!(*self, MinimapVisibility::Enabled { visible: true })
     }
 
-    const fn toggle_visibility(&self) -> Self {
+    const fn toggle_visibility(&self) -> MinimapVisibility {
         match *self {
-            Self::Enabled { toggle_override, setting_configuration } => {
-                Self::Enabled { setting_configuration, toggle_override: !toggle_override }
-            }
-            Self::Disabled => Self::Disabled,
+            MinimapVisibility::Enabled { visible } => MinimapVisibility::Enabled { visible: !visible },
+            MinimapVisibility::Disabled => MinimapVisibility::Disabled,
         }
     }
 }
@@ -1117,15 +1086,6 @@ impl Default for ChangeList {
     fn default() -> Self {
         Self::new()
     }
-}
-
-enum SelectionDragState {
-    /// State when no drag related activity is detected.
-    None,
-    /// State when the mouse is down on a selection that is about to be dragged.
-    ReadyToDrag { selection: Selection<Anchor>, click_position: gpui::Point<Pixels>, mouse_down_time: Instant },
-    /// State when the mouse is dragging the selection in the editor.
-    Dragging { selection: Selection<Anchor>, drop_cursor: Selection<Anchor>, hide_drop_cursor: bool },
 }
 
 enum ColumnarSelectionState {
@@ -1282,7 +1242,6 @@ pub struct Editor {
     /// Whether the cursor is offset one character to the left when something is
     /// selected (needed for vim visual mode)
     cursor_offset_on_selection: bool,
-    current_line_highlight: Option<CurrentLineHighlight>,
     /// Whether to collapse search match ranges to just their start position.
     /// When true, navigating to a match positions the cursor at the match
     /// without selecting the matched text.
@@ -1369,7 +1328,6 @@ pub struct Editor {
     pub change_list: ChangeList,
     number_deleted_lines: bool,
 
-    selection_drag_state: SelectionDragState,
     colors: Option<LspColorData>,
     post_scroll_update: Task<()>,
     use_document_folding_ranges: bool,
@@ -1436,7 +1394,6 @@ pub struct EditorSnapshot {
     pub placeholder_display_snapshot: Option<DisplaySnapshot>,
     is_focused: bool,
     scroll_anchor: SharedScrollAnchor,
-    current_line_highlight: CurrentLineHighlight,
     gutter_hovered: bool,
 }
 
@@ -1886,11 +1843,7 @@ impl Editor {
 
         let full_mode = mode.is_full();
         let is_minimap = mode.is_minimap();
-        let diagnostics_max_severity = if full_mode {
-            EditorSettings::get_global(cx).diagnostics_max_severity.unwrap_or(DiagnosticSeverity::Hint)
-        } else {
-            DiagnosticSeverity::Off
-        };
+        let diagnostics_max_severity = if full_mode { DiagnosticSeverity::Hint } else { DiagnosticSeverity::Off };
         let style = window.text_style();
         let font_size = style.font_size.to_pixels(window.rem_size());
         let editor = cx.entity().downgrade();
@@ -1934,8 +1887,7 @@ impl Editor {
         let selections = SelectionsCollection::new();
 
         let blink_manager = cx.new(|cx| {
-            let mut blink_manager =
-                BlinkManager::new(CURSOR_BLINK_INTERVAL, |cx| EditorSettings::get_global(cx).cursor_blink, cx);
+            let mut blink_manager = BlinkManager::new(CURSOR_BLINK_INTERVAL, |_| true, cx);
             if is_minimap {
                 blink_manager.disable(cx);
             }
@@ -2139,7 +2091,7 @@ impl Editor {
             cursor_animations: CursorAnimationStates::default(),
             show_local_selections: true,
             show_horizontal_scrollbar: full_mode,
-            minimap_visibility: MinimapVisibility::for_mode(&mode, cx),
+            minimap_visibility: MinimapVisibility::for_mode(&mode),
             offset_content: !matches!(mode, EditorMode::SingleLine),
             show_gutter: full_mode,
             search_results_hold: None,
@@ -2182,9 +2134,8 @@ impl Editor {
             linked_editing_range_task: None,
             pending_rename: None,
             searchable: !is_minimap,
-            cursor_shape: EditorSettings::get_global(cx).cursor_shape.unwrap_or_default(),
+            cursor_shape: CursorShape::Bar,
             cursor_offset_on_selection: false,
-            current_line_highlight: None,
             autoindent_mode: Some(AutoindentMode::EachLine),
             collapse_matches: false,
             workspace: None,
@@ -2272,7 +2223,6 @@ impl Editor {
             minimap: None,
             change_list: ChangeList::new(),
             mode,
-            selection_drag_state: SelectionDragState::None,
             folding_newlines: Task::ready(()),
             lookup_key: None,
             select_next_options: None,
@@ -2285,7 +2235,7 @@ impl Editor {
             number_deleted_lines: false,
             refresh_matching_bracket_highlights_task: Task::ready(()),
             refresh_document_symbols_tasks: HashMap::default(),
-            lsp_document_links: LspDocumentLinks::new(cx),
+            lsp_document_links: LspDocumentLinks::default(),
             lsp_document_symbols: HashMap::default(),
             colorize_brackets_task: Task::ready(()),
             spell_check,
@@ -2353,8 +2303,8 @@ impl Editor {
             let should_auto_hide_scrollbars = cx.should_auto_hide_scrollbars();
             cx.set_global(ScrollbarAutoHide(should_auto_hide_scrollbars));
 
-            editor.minimap = editor.create_minimap(EditorSettings::get_global(cx).minimap, window, cx);
-            editor.colors = Some(LspColorData::new(cx));
+            editor.minimap = editor.create_minimap(window, cx);
+            editor.colors = Some(LspColorData::new());
             editor.use_document_folding_ranges = true;
             editor.inlay_hints = Some(LspInlayHintData::new(inlay_hint_settings));
 
@@ -2662,9 +2612,6 @@ impl Editor {
                 .as_ref()
                 .map(|display_map| display_map.update(cx, |map, cx| map.snapshot(cx))),
             is_focused: self.focus_handle.is_focused(window),
-            current_line_highlight: self
-                .current_line_highlight
-                .unwrap_or_else(|| EditorSettings::get_global(cx).current_line_highlight),
             gutter_hovered: self.gutter_hovered,
         }
     }
@@ -2833,10 +2780,6 @@ impl Editor {
         head
     }
 
-    pub const fn set_current_line_highlight(&mut self, current_line_highlight: Option<CurrentLineHighlight>) {
-        self.current_line_highlight = current_line_highlight;
-    }
-
     pub fn range_for_match<T: std::marker::Copy>(&self, range: &Range<T>) -> Range<T> {
         if self.collapse_matches {
             return range.start..range.start;
@@ -2911,7 +2854,6 @@ impl Editor {
 
     pub fn cancel(&mut self, _: &Cancel, window: &mut Window, cx: &mut Context<Self>) {
         self.selection_mark_mode = false;
-        self.selection_drag_state = SelectionDragState::None;
 
         if self.dismiss_menus_and_popups(true, window, cx) {
             cx.notify();
@@ -3057,7 +2999,7 @@ impl Editor {
                     PathKey::for_buffer(buffer_handle, cx),
                     buffer_handle.clone(),
                     edited_ranges.clone(),
-                    multibuffer_context_lines(cx),
+                    EXCERPT_CONTEXT_LINES,
                     cx,
                 );
                 let snapshot = multibuffer.snapshot(cx);
@@ -3131,7 +3073,6 @@ impl Editor {
             (start_word_range, end_word_range)
         });
 
-        let debounce = EditorSettings::get_global(cx).lsp_highlight_debounce.0;
         self.document_highlights_task = Some(cx.spawn(async move |this, cx| {
             let (start_word_range, end_word_range) = word_ranges.await;
             if start_word_range != end_word_range {
@@ -3143,7 +3084,7 @@ impl Editor {
                 .ok();
                 return;
             }
-            cx.background_executor().timer(Duration::from_millis(debounce)).await;
+            cx.background_executor().timer(LSP_HIGHLIGHT_DEBOUNCE).await;
 
             let highlights = if let Some(highlights) =
                 cx.update(|cx| provider.document_highlights(&cursor_buffer, cursor_buffer_position, cx))
@@ -3230,7 +3171,7 @@ impl Editor {
         if matches!(self.mode, EditorMode::SingleLine) {
             return None;
         }
-        if !self.use_selection_highlight || !EditorSettings::get_global(cx).selection_highlight {
+        if !self.use_selection_highlight {
             return None;
         }
         // Same as document highlights: no occurrence highlights in multibuffers.
@@ -3447,25 +3388,13 @@ impl Editor {
         )
     }
 
-    fn is_cmd_or_ctrl_pressed(modifiers: &Modifiers, cx: &Context<Self>) -> bool {
-        match EditorSettings::get_global(cx).multi_cursor_modifier {
-            MultiCursorModifier::Alt => modifiers.secondary(),
-            MultiCursorModifier::CmdOrCtrl => modifiers.alt,
-        }
-    }
-
-    fn is_alt_pressed(modifiers: &Modifiers, cx: &Context<Self>) -> bool {
-        match EditorSettings::get_global(cx).multi_cursor_modifier {
-            MultiCursorModifier::Alt => modifiers.alt,
-            MultiCursorModifier::CmdOrCtrl => modifiers.secondary(),
-        }
-    }
-
-    fn columnar_selection_mode(modifiers: &Modifiers, cx: &Context<Self>) -> Option<ColumnarMode> {
+    /// Columnar selection mode for a mouse gesture: shift+cmd/ctrl selects from the mouse,
+    /// shift+alt extends from the current selection.
+    const fn columnar_selection_mode(modifiers: &Modifiers) -> Option<ColumnarMode> {
         if modifiers.shift && modifiers.number_of_modifiers() == 2 {
-            if Self::is_cmd_or_ctrl_pressed(modifiers, cx) {
+            if modifiers.secondary() {
                 Some(ColumnarMode::FromMouse)
-            } else if Self::is_alt_pressed(modifiers, cx) {
+            } else if modifiers.alt {
                 Some(ColumnarMode::FromSelection)
             } else {
                 None
@@ -3482,7 +3411,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(mode) = Self::columnar_selection_mode(modifiers, cx) else {
+        let Some(mode) = Self::columnar_selection_mode(modifiers) else {
             return;
         };
         if self.selections.pending_anchor().is_none() {
@@ -3703,7 +3632,6 @@ impl Editor {
         };
 
         let id = post_inc(&mut self.next_completion_id);
-        let snippet_sort_order = EditorSettings::get_global(cx).snippet_sort_order;
         let mut context_menu = self.context_menu.borrow_mut();
         let old_menu = context_menu.take();
         *context_menu = Some(CodeContextMenu::Completions(CompletionsMenu::new_snippet_choices(
@@ -3714,7 +3642,6 @@ impl Editor {
             range,
             buffer,
             old_menu.map(|menu| menu.primary_scroll_handle()),
-            snippet_sort_order,
         )));
     }
 
@@ -5392,36 +5319,6 @@ impl Editor {
         });
     }
 
-    pub fn move_selection_on_drop(
-        &mut self,
-        selection: &Selection<Anchor>,
-        target: DisplayPoint,
-        is_cut: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
-        let buffer = display_map.buffer_snapshot();
-        let mut edits = Vec::new();
-        let insert_point = display_map.clip_point(target, Bias::Left).to_point(&display_map);
-        let text = buffer.text_for_range(selection.start..selection.end).collect::<String>();
-        if is_cut {
-            edits.push(((selection.start..selection.end), String::new()));
-        }
-        let insert_anchor = buffer.anchor_before(insert_point);
-        edits.push(((insert_anchor..insert_anchor), text));
-        let last_edit_start = insert_anchor.bias_left(buffer);
-        let last_edit_end = insert_anchor.bias_right(buffer);
-        self.transact(window, cx, |this, window, cx| {
-            this.buffer.update(cx, |buffer, cx| {
-                buffer.edit(edits, None, cx);
-            });
-            this.change_selections(SelectionEffects::default(), window, cx, |s| {
-                s.select_anchor_ranges([last_edit_start..last_edit_end]);
-            });
-        });
-    }
-
     pub fn duplicate(&mut self, upwards: bool, whole_lines: bool, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
@@ -6530,22 +6427,11 @@ impl Editor {
         self.display_map.update(cx, |map, cx| map.snapshot(cx)).text()
     }
 
-    fn create_minimap(
-        &self,
-        minimap_settings: MinimapSettings,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Option<Entity<Self>> {
-        (minimap_settings.minimap_enabled() && self.buffer_kind(cx) == ItemBufferKind::Singleton)
-            .then(|| self.initialize_new_minimap(minimap_settings, window, cx))
+    fn create_minimap(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<Entity<Self>> {
+        (self.buffer_kind(cx) == ItemBufferKind::Singleton).then(|| self.initialize_new_minimap(window, cx))
     }
 
-    fn initialize_new_minimap(
-        &self,
-        minimap_settings: MinimapSettings,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Entity<Self> {
+    fn initialize_new_minimap(&self, window: &mut Window, cx: &mut Context<Self>) -> Entity<Self> {
         const MINIMAP_FONT_WEIGHT: gpui::FontWeight = gpui::FontWeight::BLACK;
 
         let mut minimap = Editor::new_internal(
@@ -6564,15 +6450,7 @@ impl Editor {
             font_weight: Some(MINIMAP_FONT_WEIGHT),
             ..Default::default()
         });
-        minimap.update_minimap_configuration(minimap_settings, cx);
         cx.new(|_| minimap)
-    }
-
-    fn update_minimap_configuration(&mut self, minimap_settings: MinimapSettings, cx: &App) {
-        let current_line_highlight = minimap_settings
-            .current_line_highlight
-            .unwrap_or_else(|| EditorSettings::get_global(cx).current_line_highlight);
-        self.set_current_line_highlight(Some(current_line_highlight));
     }
 
     pub fn minimap(&self) -> Option<&Entity<Self>> {
@@ -7384,41 +7262,13 @@ impl Editor {
         let accents_changed = new_accents != self.accent_data;
         self.accent_data = new_accents;
 
-        if self.diagnostics_enabled() {
-            let new_severity =
-                EditorSettings::get_global(cx).diagnostics_max_severity.unwrap_or(DiagnosticSeverity::Hint);
-            self.set_max_diagnostics_severity(new_severity, cx);
-        }
         self.refresh_runnables(None, window, cx);
-
-        let old_cursor_shape = self.cursor_shape;
-
-        {
-            let editor_settings = EditorSettings::get_global(cx);
-            self.scroll_manager.vertical_scroll_margin = editor_settings.vertical_scroll_margin;
-            self.cursor_shape = editor_settings.cursor_shape.unwrap_or_default();
-        }
-
-        if old_cursor_shape != self.cursor_shape {
-            cx.emit(EditorEvent::CursorShapeChanged);
-        }
 
         let restore_unsaved_buffers = ProjectSettings::get_global(cx).session.restore_unsaved_buffers;
         self.buffer_serialization =
             self.should_serialize_buffer().then(|| BufferSerialization::new(restore_unsaved_buffers));
 
         if self.mode.is_full() {
-            let minimap_settings = EditorSettings::get_global(cx).minimap;
-            if self.minimap_visibility != MinimapVisibility::Disabled {
-                if self.minimap_visibility.settings_visibility() != minimap_settings.minimap_enabled() {
-                    self.set_minimap_visibility(MinimapVisibility::for_mode(self.mode(), cx), window, cx);
-                } else if let Some(minimap_entity) = self.minimap.as_ref() {
-                    minimap_entity.update(cx, |minimap_editor, cx| {
-                        minimap_editor.update_minimap_configuration(minimap_settings, cx)
-                    })
-                }
-            }
-
             if language_settings_changed || accents_changed {
                 self.colorize_brackets(true, cx);
             }
@@ -7426,28 +7276,6 @@ impl Editor {
             if language_settings_changed {
                 self.clear_disabled_lsp_folding_ranges(window, cx);
                 self.refresh_document_symbols(None, cx);
-            }
-
-            if let Some(inlay_splice) = self
-                .colors
-                .as_mut()
-                .and_then(|colors| colors.render_mode_updated(EditorSettings::get_global(cx).lsp_document_colors))
-            {
-                if !inlay_splice.is_empty() {
-                    self.splice_inlays(&inlay_splice.to_remove, inlay_splice.to_insert, cx);
-                }
-                self.refresh_document_colors(None, window, cx);
-            }
-
-            let lsp_document_links_enabled = EditorSettings::get_global(cx).lsp_document_links;
-            if lsp_document_links_enabled != self.lsp_document_links.enabled {
-                self.lsp_document_links.enabled = lsp_document_links_enabled;
-                if lsp_document_links_enabled {
-                    self.refresh_document_links(None, cx);
-                } else {
-                    self.lsp_document_links.per_buffer.clear();
-                    self.clear_lsp_data_tasks(LspDataKind::DocumentLinks);
-                }
             }
 
             self.refresh_inlay_hints(
@@ -7821,7 +7649,6 @@ impl Editor {
         if event.blurred != self.focus_handle {
             self.last_focused_descendant = Some(event.blurred);
         }
-        self.selection_drag_state = SelectionDragState::None;
     }
 
     pub fn handle_blur(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -8194,22 +8021,6 @@ impl Editor {
             self.needs_initial_data_update = false;
             self.update_lsp_data(None, window, cx);
             self.refresh_runnables(None, window, cx);
-        }
-    }
-
-    /// Returns the current cursor's vertical offset, in display rows, from the
-    /// top of the visible viewport.
-    /// Returns `None` if the cursor is not currently on screen.
-    pub fn cursor_top_offset(&self, cx: &mut Context<Self>) -> Option<ScrollOffset> {
-        let visible = self.visible_line_count()?;
-        let display_map = self.display_map.update(cx, |map, cx| map.snapshot(cx));
-        let scroll_top = self.scroll_manager.scroll_position(&display_map, cx).y;
-        let cursor_display_row =
-            self.selections.newest::<Point>(&display_map).head().to_display_point(&display_map).row().as_f64();
-
-        match cursor_display_row - scroll_top {
-            offset if offset < 0.0 || offset >= visible => None,
-            offset => Some(offset),
         }
     }
 }
@@ -8874,7 +8685,6 @@ pub enum EditorEvent {
     TransactionBegun {
         transaction_id: clock::Lamport,
     },
-    CursorShapeChanged,
     /// LSP document symbols for some buffer were fetched or dropped.
     DocumentSymbolsChanged,
     PushedToNavHistory {
@@ -9256,13 +9066,16 @@ struct LineManipulationResult {
     pub line_count_after: usize,
 }
 
-pub fn multibuffer_context_lines(cx: &App) -> u32 {
-    EditorSettings::try_get(cx).map(|settings| settings.excerpt_context_lines).unwrap_or(2).min(32)
-}
-
 #[cfg(test)]
 mod tests {
+    use gpui::Modifiers;
+
     use super::Addon;
+    use super::ColumnarMode;
+    use super::DiffViewStyle;
+    use super::Editor;
+    use super::EditorMode;
+    use super::MinimapVisibility;
 
     struct DefaultAddon;
 
@@ -9275,5 +9088,54 @@ mod tests {
     #[test]
     fn test_addon_shows_project_file_actions_by_default() {
         assert!(DefaultAddon.shows_project_file_actions());
+    }
+
+    #[test]
+    fn minimap_visible_by_default_only_in_full_editors() {
+        assert!(MinimapVisibility::for_mode(&EditorMode::full()).visible());
+        assert!(MinimapVisibility::for_mode(&EditorMode::SingleLine).disabled());
+    }
+
+    #[test]
+    fn minimap_toggle_and_hide() {
+        let shown = MinimapVisibility::for_mode(&EditorMode::full());
+        let hidden = shown.hidden();
+        assert!(!hidden.visible());
+        assert!(!hidden.disabled());
+        assert!(hidden.toggle_visibility().visible());
+        assert!(!shown.toggle_visibility().visible());
+    }
+
+    #[test]
+    fn columnar_selection_from_mouse_with_shift_and_secondary() {
+        let modifiers = Modifiers { shift: true, ..Modifiers::secondary_key() };
+        assert!(matches!(Editor::columnar_selection_mode(&modifiers), Some(ColumnarMode::FromMouse)));
+    }
+
+    #[test]
+    fn columnar_selection_from_selection_with_shift_and_alt() {
+        let modifiers = Modifiers { shift: true, alt: true, ..Modifiers::default() };
+        assert!(matches!(Editor::columnar_selection_mode(&modifiers), Some(ColumnarMode::FromSelection)));
+    }
+
+    #[test]
+    fn no_columnar_selection_without_shift_combo() {
+        assert!(Editor::columnar_selection_mode(&Modifiers { alt: true, ..Modifiers::default() }).is_none());
+        assert!(Editor::columnar_selection_mode(&Modifiers { shift: true, ..Modifiers::default() }).is_none());
+        let three = Modifiers { shift: true, alt: true, control: true, ..Modifiers::default() };
+        assert!(Editor::columnar_selection_mode(&three).is_none());
+    }
+
+    #[test]
+    fn diff_view_style_defaults_to_split() {
+        assert_eq!(DiffViewStyle::default(), DiffViewStyle::Split);
+    }
+
+    #[test]
+    fn disabled_minimap_stays_disabled() {
+        let disabled = MinimapVisibility::Disabled;
+        assert!(!disabled.visible());
+        assert!(disabled.hidden().disabled());
+        assert!(disabled.toggle_visibility().disabled());
     }
 }

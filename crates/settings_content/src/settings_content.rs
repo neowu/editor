@@ -79,9 +79,6 @@ pub struct SettingsContent {
     #[serde(flatten)]
     pub workspace: WorkspaceSettingsContent,
 
-    #[serde(flatten)]
-    pub editor: EditorSettingsContent,
-
     /// Settings related to the file finder.
     pub file_finder: Option<FileFinderSettingsContent>,
 

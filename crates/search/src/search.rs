@@ -6,7 +6,6 @@ pub use ed_actions::search::SelectPreviousMatch;
 pub use ed_actions::search::ToggleCaseSensitive;
 pub use ed_actions::search::ToggleIncludeIgnored;
 pub use editor::HighlightKey;
-use editor::SearchSettings;
 use gpui::Action;
 use gpui::App;
 use gpui::ClickEvent;
@@ -21,9 +20,6 @@ use ui::IconButtonShape;
 use ui::Tooltip;
 use ui::prelude::*;
 use util::paths::PathMatcher;
-use workspace::Toast;
-use workspace::Workspace;
-use workspace::notifications::NotificationId;
 
 use crate::project_search::ProjectSearchBar;
 
@@ -207,15 +203,6 @@ impl SearchOptions {
         options
     }
 
-    pub fn from_settings(settings: &SearchSettings) -> SearchOptions {
-        let mut options = SearchOptions::NONE;
-        options.set(SearchOptions::WHOLE_WORD, settings.whole_word);
-        options.set(SearchOptions::CASE_SENSITIVE, settings.case_sensitive);
-        options.set(SearchOptions::INCLUDE_IGNORED, settings.include_ignored);
-        options.set(SearchOptions::REGEX, settings.regex);
-        options
-    }
-
     /// Build a [`SearchQuery`] from these options, selecting the regex or text
     /// constructor based on [`SearchOptions::REGEX`]. Inverse of
     /// [`SearchOptions::from_query`].
@@ -252,20 +239,6 @@ impl SearchOptions {
             )
         }
     }
-}
-
-pub(crate) fn show_no_more_matches(window: &Window, cx: &mut App) {
-    window.defer(cx, |window, cx| {
-        struct NotifType();
-        let notification_id = NotificationId::unique::<NotifType>();
-
-        let Some(workspace) = Workspace::for_window(window, cx) else {
-            return;
-        };
-        workspace.update(cx, |workspace, cx| {
-            workspace.show_toast(Toast::new(notification_id.clone(), "No more matches").autohide(), cx);
-        })
-    });
 }
 
 /// Highlights a search query editor with the fallback regex syntax while regex

@@ -6,7 +6,6 @@ use buffer_diff::BufferDiff;
 use buffer_diff::BufferDiffSnapshot;
 use buffer_diff::DiffHunkStatus;
 use collections::HashMap;
-use fs::Fs;
 use gpui::Action;
 use gpui::AnyElement;
 use gpui::Entity;
@@ -30,11 +29,7 @@ use multi_buffer::MultiBufferSnapshot;
 use multi_buffer::PathKey;
 use project::Project;
 use rope::Point;
-use settings::DiffViewStyle;
 use settings::SeedQuerySetting;
-use settings::Settings;
-use settings::SettingsStore;
-use settings::update_settings_file;
 use text::Bias;
 use text::BufferId;
 use text::OffsetRangeExt as _;
@@ -61,13 +56,40 @@ use crate::DefaultDiffHunkRenderer;
 use crate::DiffHunkRenderer;
 use crate::Editor;
 use crate::EditorEvent;
-use crate::EditorSettings;
 use crate::ToggleSoftWrap;
 use crate::display_map::Companion;
 use crate::display_map::CompanionExcerptPatch;
 use crate::element::SplitSide;
 use crate::split_editor_view::SplitEditorState;
 use crate::split_editor_view::SplitEditorView;
+
+/// Minimum editor width, in columns, for a split diff; narrower diffs show unified.
+const MINIMUM_SPLIT_DIFF_WIDTH: f32 = 100.0;
+
+/// How to display diffs in the editor.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum DiffViewStyle {
+    /// Show diffs in a single unified view.
+    Unified,
+    /// Show diffs in a split view.
+    #[default]
+    Split,
+}
+
+/// The diff style last picked in any diff view, shared by every diff view for the session.
+pub struct GlobalDiffViewStyle(DiffViewStyle);
+
+impl gpui::Global for GlobalDiffViewStyle {}
+
+impl DiffViewStyle {
+    pub fn global(cx: &App) -> DiffViewStyle {
+        cx.try_global::<GlobalDiffViewStyle>().map(|style| style.0).unwrap_or_default()
+    }
+
+    pub fn set_global(style: DiffViewStyle, cx: &mut App) {
+        cx.set_global(GlobalDiffViewStyle(style));
+    }
+}
 
 pub(crate) fn patches_for_lhs_range(
     rhs_snapshot: &MultiBufferSnapshot,
@@ -395,9 +417,7 @@ impl DiffStyleControls {
         window: &mut Window,
         cx: &mut App,
     ) {
-        update_settings_file(<dyn Fs>::global(cx), cx, move |settings, _| {
-            settings.editor.diff_view_style = Some(diff_view_style);
-        });
+        DiffViewStyle::set_global(diff_view_style, cx);
 
         splittable_editor.update(cx, |editor, cx| {
             if editor.diff_view_style() != diff_view_style {
@@ -413,7 +433,7 @@ impl RenderOnce for DiffStyleControls {
         let diff_view_style = editor.diff_view_style();
         let is_split_set = diff_view_style == DiffViewStyle::Split;
         let is_split_pending = is_split_set && !editor.is_split();
-        let min_columns = EditorSettings::get_global(cx).minimum_split_diff_width as u32;
+        let min_columns = MINIMUM_SPLIT_DIFF_WIDTH as u32;
 
         let split_icon = if is_split_pending { IconName::DiffSplitAuto } else { IconName::DiffSplit };
 
@@ -549,8 +569,8 @@ impl SplittableEditor {
                     cx.emit(event.clone());
                 }
             }),
-            cx.observe_global_in::<SettingsStore>(window, move |this, window, cx| {
-                let diff_view_style = EditorSettings::get_global(cx).diff_view_style;
+            cx.observe_global_in::<GlobalDiffViewStyle>(window, move |this, window, cx| {
+                let diff_view_style = DiffViewStyle::global(cx);
                 if this.diff_view_style() != diff_view_style {
                     this.toggle_split(&ToggleSplitDiff, window, cx);
                     cx.notify();
@@ -1100,7 +1120,7 @@ impl SplittableEditor {
     fn width_changed(&mut self, width: Pixels, window: &mut Window, cx: &mut Context<Self>) {
         self.last_width = Some(width);
 
-        let min_ems = EditorSettings::get_global(cx).minimum_split_diff_width;
+        let min_ems = MINIMUM_SPLIT_DIFF_WIDTH;
 
         let style = self.rhs_editor.read(cx).create_style(cx);
         let font_id = window.text_system().resolve_font(&style.text.font());

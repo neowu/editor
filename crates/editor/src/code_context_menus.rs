@@ -48,19 +48,12 @@ use project::CompletionGroup;
 use project::CompletionSource;
 use project::TaskSourceKind;
 use project::lsp_store::CompletionDocumentation;
-use settings::CompletionDetailAlignment;
-use settings::CompletionMenuItemKind;
-use settings::Settings;
-use settings::SnippetSortOrder;
 use task::ResolvedTask;
 use ui::Divider;
 use ui::ListItem;
 use ui::ListSubHeader;
 use ui::Popover;
-use ui::ScrollAxes;
-use ui::Scrollbars;
 use ui::Tooltip;
-use ui::WithScrollbar;
 use ui::prelude::*;
 use util::ResultExt;
 
@@ -70,7 +63,6 @@ use crate::CompletionId;
 use crate::CompletionProvider;
 use crate::DisplayRow;
 use crate::Editor;
-use crate::EditorSettings;
 use crate::EditorStyle;
 use crate::ResolvedTasks;
 use crate::actions::ConfirmCodeAction;
@@ -276,7 +268,6 @@ pub struct CompletionsMenu {
     language_registry: Option<Arc<LanguageRegistry>>,
     language: Option<LanguageName>,
     display_options: CompletionDisplayOptions,
-    snippet_sort_order: SnippetSortOrder,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -336,15 +327,6 @@ impl Drop for CompletionsMenu {
     }
 }
 
-#[derive(Default)]
-struct CompletionMenuScrollBarSetting;
-
-impl ui::scrollbars::ScrollbarVisibility for CompletionMenuScrollBarSetting {
-    fn visibility(&self, cx: &App) -> ui::scrollbars::ShowScrollbar {
-        EditorSettings::get_global(cx).completion_menu_scrollbar
-    }
-}
-
 impl CompletionsMenu {
     pub fn new(
         id: CompletionId,
@@ -358,7 +340,6 @@ impl CompletionsMenu {
         completions: Box<[Completion]>,
         scroll_handle: Option<UniformListScrollHandle>,
         display_options: CompletionDisplayOptions,
-        snippet_sort_order: SnippetSortOrder,
         language_registry: Option<Arc<LanguageRegistry>>,
         language: Option<LanguageName>,
         cx: &mut Context<Editor>,
@@ -396,7 +377,6 @@ impl CompletionsMenu {
             language_registry,
             language,
             display_options,
-            snippet_sort_order,
         };
 
         completions_menu.start_markdown_parse_for_nearby_entries(cx);
@@ -412,7 +392,6 @@ impl CompletionsMenu {
         selection: Range<text::Anchor>,
         buffer: Entity<Buffer>,
         scroll_handle: Option<UniformListScrollHandle>,
-        snippet_sort_order: SnippetSortOrder,
     ) -> Self {
         let completions: Box<[Completion]> = choices
             .iter()
@@ -473,7 +452,6 @@ impl CompletionsMenu {
             language_registry: None,
             language: None,
             display_options: CompletionDisplayOptions::default(),
-            snippet_sort_order,
         }
     }
 
@@ -818,9 +796,6 @@ impl CompletionsMenu {
         cx: &mut Context<Editor>,
     ) -> AnyElement {
         let show_completion_documentation = self.show_completion_documentation;
-        let editor_settings = EditorSettings::get_global(cx);
-        let completion_detail_alignment = editor_settings.completion_detail_alignment;
-        let completion_menu_item_kind = editor_settings.completion_menu_item_kind;
         let widest_completion_ix = if self.display_options.dynamic_width {
             let completions = self.completions.borrow();
             let widest_completion_ix = self
@@ -961,12 +936,6 @@ impl CompletionsMenu {
                             None
                         };
 
-                        let left_aligned_suffix =
-                            matches!(completion_detail_alignment, CompletionDetailAlignment::Left);
-
-                        let right_aligned_suffix =
-                            matches!(completion_detail_alignment, CompletionDetailAlignment::Right,);
-
                         let documentation_label = match documentation {
                             Some(CompletionDocumentation::SingleLine(text))
                             | Some(CompletionDocumentation::SingleLineAndMultiLinePlainText {
@@ -999,19 +968,12 @@ impl CompletionsMenu {
                                 })
                             });
 
-                        let kind_letter_slot = match completion_menu_item_kind {
-                            CompletionMenuItemKind::Off => None,
-                            CompletionMenuItemKind::Symbol => {
-                                Some(render_completion_kind_letter(completion.kind(), item_ix, &style))
+                        let kind_letter = render_completion_kind_letter(completion.kind(), item_ix, &style);
+                        let start_slot = match icon_or_color_slot {
+                            Some(icon_or_color) => {
+                                h_flex().gap_0p5().child(kind_letter).child(icon_or_color).into_any_element()
                             }
-                        };
-
-                        let start_slot = match (kind_letter_slot, icon_or_color_slot) {
-                            (Some(letter), Some(icon_or_color)) => {
-                                Some(h_flex().gap_0p5().child(letter).child(icon_or_color).into_any_element())
-                            }
-                            (Some(letter), None) => Some(letter),
-                            (None, slot) => slot,
+                            None => kind_letter,
                         };
 
                         div()
@@ -1035,8 +997,7 @@ impl CompletionsMenu {
                                     .child(
                                         h_flex()
                                             .flex_grow_1()
-                                            .when(left_aligned_suffix, |this| this.justify_start())
-                                            .when(right_aligned_suffix, |this| this.justify_between())
+                                            .justify_start()
                                             .child(div().flex_none().whitespace_nowrap().child(main_label))
                                             .when_some(suffix_label, |this, suffix| {
                                                 this.child(div().truncate().child(suffix))
@@ -1063,17 +1024,7 @@ impl CompletionsMenu {
             }
         });
 
-        Popover::new()
-            .child(
-                div().child(list).custom_scrollbars(
-                    Scrollbars::for_settings::<CompletionMenuScrollBarSetting>()
-                        .show_along(ScrollAxes::Vertical)
-                        .tracked_scroll_handle(&self.scroll_handle),
-                    window,
-                    cx,
-                ),
-            )
-            .into_any_element()
+        Popover::new().child(div().child(list)).into_any_element()
     }
 
     fn render_aside(&self, max_size: Size<Pixels>, window: &Window, cx: &mut Context<Editor>) -> Option<AnyElement> {
@@ -1260,7 +1211,6 @@ impl CompletionsMenu {
 
         let completions = self.completions.clone();
         let sort_completions = self.sort_completions;
-        let snippet_sort_order = self.snippet_sort_order;
         cx.foreground_executor().spawn(async move {
             let mut results = matches_task.await;
 
@@ -1270,7 +1220,6 @@ impl CompletionsMenu {
                 results.filter_matches = Self::sort_string_matches(
                     results.filter_matches,
                     Some(&query), // used for non-snippets only
-                    snippet_sort_order,
                     &completions_ref,
                 );
             }
@@ -1324,7 +1273,6 @@ impl CompletionsMenu {
     pub fn sort_string_matches(
         matches: Vec<StringMatch>,
         query: Option<&str>,
-        snippet_sort_order: SnippetSortOrder,
         completions: &[Completion],
     ) -> Vec<StringMatch> {
         let mut matches = matches;
@@ -1333,7 +1281,6 @@ impl CompletionsMenu {
         enum MatchTier<'a> {
             WordStartMatch {
                 sort_exact: Reverse<i32>,
-                sort_snippet: Reverse<i32>,
                 sort_score: Reverse<OrderedFloat<f64>>,
                 sort_positions: Vec<usize>,
                 sort_exact_case_matches: Reverse<usize>,
@@ -1347,10 +1294,6 @@ impl CompletionsMenu {
         }
 
         let query_start_lower = query.as_ref().and_then(|q| q.chars().next()).and_then(|c| c.to_lowercase().next());
-
-        if snippet_sort_order == SnippetSortOrder::None {
-            matches.retain(|string_match| !completions[string_match.candidate_id].is_snippet_kind());
-        }
 
         matches.sort_unstable_by_key(|string_match| {
             let completion = &completions[string_match.candidate_id];
@@ -1378,12 +1321,6 @@ impl CompletionsMenu {
             if query_start_doesnt_match_split_words {
                 MatchTier::OtherMatch { sort_score }
             } else {
-                let sort_snippet = match snippet_sort_order {
-                    SnippetSortOrder::Top => Reverse(if is_snippet { 1 } else { 0 }),
-                    SnippetSortOrder::Bottom => Reverse(if is_snippet { 0 } else { 1 }),
-                    SnippetSortOrder::Inline => Reverse(0),
-                    SnippetSortOrder::None => Reverse(0),
-                };
                 let sort_positions = string_match.positions.clone();
                 let sort_exact_case_matches = Reverse(exact_case_match_count(query.unwrap_or_default(), string_match));
                 // This exact matching won't work for multi-word snippets, but it's fine
@@ -1391,7 +1328,6 @@ impl CompletionsMenu {
 
                 MatchTier::WordStartMatch {
                     sort_exact,
-                    sort_snippet,
                     sort_score,
                     sort_positions,
                     sort_exact_case_matches,

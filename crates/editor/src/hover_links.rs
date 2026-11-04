@@ -1,9 +1,7 @@
 use std::ops::Range;
 use std::str::FromStr as _;
-use std::sync::Arc;
 use std::sync::LazyLock;
 
-use gpui::Action;
 use gpui::App;
 use gpui::AsyncWindowContext;
 use gpui::Context;
@@ -14,7 +12,6 @@ use gpui::Modifiers;
 use gpui::Pixels;
 use gpui::Task;
 use gpui::UnderlineStyle;
-use gpui::WeakEntity;
 use gpui::Window;
 use gpui::px;
 use language::Bias;
@@ -23,14 +20,11 @@ use linkify::LinkFinder;
 use linkify::LinkKind;
 use lsp::LanguageServerId;
 use project::InlayId;
-use project::Location;
 use project::LocationLink;
 use project::Project;
 use project::ProjectPath;
 use project::ResolvedPath;
 use regex::Regex;
-use settings::OpenResultsIn;
-use settings::Settings;
 use text::OffsetRangeExt;
 use theme::ActiveTheme as _;
 use util::ResultExt;
@@ -42,7 +36,6 @@ use workspace::pane::NavigationEntry;
 use crate::Anchor;
 use crate::DisplayPoint;
 use crate::Editor;
-use crate::EditorSettings;
 use crate::EditorSnapshot;
 use crate::FindAllReferences;
 use crate::GotoDefinitionKind;
@@ -50,25 +43,6 @@ use crate::HighlightKey;
 use crate::Navigated;
 use crate::PointForPosition;
 use crate::SelectPhase;
-use crate::editor_settings::GoToDefinitionFallback;
-
-#[derive(Clone, Action)]
-#[action(no_json, no_register)]
-pub struct OpenDefinitionLocations(pub Arc<DefinitionLocations>);
-
-pub struct DefinitionLocations {
-    pub editor: WeakEntity<Editor>,
-    pub position: Anchor,
-    pub kind: GotoDefinitionKind,
-    pub locations: Vec<Location>,
-    pub origin: Option<NavigationEntry>,
-}
-
-impl PartialEq for OpenDefinitionLocations {
-    fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
-    }
-}
 
 #[derive(Debug)]
 pub struct HoveredLinkState {
@@ -194,7 +168,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let hovered_link_modifier = Editor::is_cmd_or_ctrl_pressed(&modifiers, cx);
+        let hovered_link_modifier = modifiers.secondary();
         if !hovered_link_modifier || self.has_pending_selection() {
             self.hide_hovered_link(cx);
             return;
@@ -240,7 +214,7 @@ impl Editor {
         cx: &mut Context<Editor>,
     ) {
         let kind = if modifiers.shift { GotoDefinitionKind::Type } else { GotoDefinitionKind::Symbol };
-        let split = Self::is_alt_pressed(&modifiers, cx);
+        let split = modifiers.alt;
         let snapshot = self.snapshot(window, cx);
         let position = snapshot.buffer_snapshot().anchor_before(point.next_valid.to_point(&snapshot.display_snapshot));
         let origin = self.navigation_entry(position, cx);
@@ -305,82 +279,11 @@ impl Editor {
                         } else {
                             links.retain(|link| matches!(link, HoverLink::Url(_) | HoverLink::File(_)));
                         }
-                        editor.reveal_clicked_links(kind, links, position, origin, split, window, cx);
+                        editor.open_clicked_links(kind, links, origin, split, window, cx);
                     })
                     .ok();
             })
             .detach();
-        } else {
-            self.reveal_clicked_links(kind, links, position, origin, split, window, cx);
-        }
-    }
-
-    pub(crate) fn open_definition_locations(
-        &mut self,
-        action: &OpenDefinitionLocations,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let action = &action.0;
-        if action.editor != cx.weak_entity() {
-            cx.propagate();
-            return;
-        }
-        if !self.lsp_data_enabled() || !self.buffer.read(cx).snapshot(cx).can_resolve(&action.position) {
-            return;
-        }
-        let links = action
-            .locations
-            .iter()
-            .cloned()
-            .map(|target| HoverLink::Text(LocationLink { origin: None, target }))
-            .collect::<Vec<_>>();
-        self.open_clicked_links(action.kind, links, action.origin.clone(), false, window, cx);
-    }
-
-    fn reveal_clicked_links(
-        &mut self,
-        kind: GotoDefinitionKind,
-        links: Vec<HoverLink>,
-        position: Anchor,
-        origin: Option<NavigationEntry>,
-        split: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if !split
-            && self.lsp_data_enabled()
-            && self.workspace().is_some()
-            && EditorSettings::get_global(cx).lsp_results_location == OpenResultsIn::Picker
-            && links.iter().all(|link| matches!(link, HoverLink::Text(_)))
-        {
-            let action = OpenDefinitionLocations(Arc::new(DefinitionLocations {
-                editor: cx.weak_entity(),
-                position,
-                kind,
-                locations: links
-                    .into_iter()
-                    .filter_map(|link| match link {
-                        HoverLink::Text(link) => Some(link.target),
-                        _ => None,
-                    })
-                    .collect(),
-                origin,
-            }));
-            let focus_handle = self.focus_handle(cx);
-            window.defer(cx, move |window, cx| {
-                if window.is_action_available_in(&action, &focus_handle) {
-                    focus_handle.dispatch_action(&action, window, cx);
-                } else {
-                    action
-                        .0
-                        .editor
-                        .update(cx, |editor, cx| {
-                            editor.open_definition_locations(&action, window, cx);
-                        })
-                        .ok();
-                }
-            });
         } else {
             self.open_clicked_links(kind, links, origin, split, window, cx);
         }
@@ -406,11 +309,7 @@ impl Editor {
                 .flatten();
             if let Some(focus_handle) = focus_handle {
                 cx.update(|window, cx| {
-                    if EditorSettings::get_global(cx).go_to_definition_fallback
-                        == GoToDefinitionFallback::FindAllReferences
-                    {
-                        focus_handle.dispatch_action(&FindAllReferences::default(), window, cx);
-                    }
+                    focus_handle.dispatch_action(&FindAllReferences::default(), window, cx);
                 })
                 .ok();
             }

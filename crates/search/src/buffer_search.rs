@@ -9,7 +9,6 @@ use ed_actions::workspace::CopyPath;
 use ed_actions::workspace::CopyRelativePath;
 use editor::DiffStyleControls;
 use editor::Editor;
-use editor::EditorSettings;
 use editor::MultiBufferOffset;
 use editor::SplittableEditor;
 use editor::actions::Backtab;
@@ -48,7 +47,6 @@ use registrar::ForDismissed;
 use registrar::SearchActionsRegistrar;
 pub use registrar::register_pane_search_actions;
 use settings::SeedQuerySetting;
-use settings::Settings;
 use ui::BASE_REM_SIZE_IN_PX;
 use ui::IconButtonShape;
 use ui::Tooltip;
@@ -129,7 +127,6 @@ pub struct BufferSearchBar {
     pending_search: Option<Task<()>>,
     search_options: SearchOptions,
     default_options: SearchOptions,
-    configured_options: SearchOptions,
     query_error: Option<String>,
     dismissed: bool,
     search_history: SearchHistory,
@@ -638,7 +635,7 @@ impl BufferSearchBar {
         let replacement_editor = cx.new(|cx| Editor::auto_height(1, 4, window, cx));
         cx.subscribe(&replacement_editor, Self::on_replacement_editor_event).detach();
 
-        let search_options = SearchOptions::from_settings(&EditorSettings::get_global(cx).search);
+        let search_options = SearchOptions::NONE;
 
         let this = Self {
             query_editor,
@@ -651,7 +648,6 @@ impl BufferSearchBar {
             active_match_index: None,
             searchable_items_with_matches: HashMap::default(),
             default_options: search_options,
-            configured_options: search_options,
             search_options,
             pending_search: None,
             query_error: None,
@@ -724,7 +720,6 @@ impl BufferSearchBar {
                 active_item.toggle_filtered_search_ranges(filtered_search_range, window, cx);
             }
             self.search_suggested(seed_query_override, window, cx);
-            self.smartcase(window, cx);
             let replace_enabled = deploy.replace_enabled && self.supported_options(cx).replacement;
             self.replace_enabled |= replace_enabled;
             self.selection_search_enabled = self.selection_search_enabled.or(if deploy.selection_search_enabled {
@@ -767,17 +762,6 @@ impl BufferSearchBar {
         let Some(handle) = self.active_searchable_item.as_ref() else {
             return false;
         };
-
-        let configured_options = SearchOptions::from_settings(&EditorSettings::get_global(cx).search);
-        let settings_changed = configured_options != self.configured_options;
-
-        if self.dismissed && settings_changed {
-            // Only update configuration options when search bar is dismissed,
-            // so we don't miss updates even after calling show twice
-            self.configured_options = configured_options;
-            self.search_options = configured_options;
-            self.default_options = configured_options;
-        }
 
         // This isn't a normal setting; it's only applicable to vim search.
         self.search_options.remove(SearchOptions::BACKWARDS);
@@ -1079,14 +1063,6 @@ impl BufferSearchBar {
                 .get(&searchable_item.downgrade())
                 .filter(|(matches, _)| !matches.is_empty())
         {
-            // If 'wrapscan' is disabled, searches do not wrap around the end of the file.
-            if !EditorSettings::get_global(cx).search_wrap
-                && ((direction == Direction::Next && index + count >= matches.len())
-                    || (direction == Direction::Prev && index < count))
-            {
-                crate::show_no_more_matches(window, cx);
-                return;
-            }
             let new_match_index =
                 searchable_item.match_index_for_direction(matches, index, direction, count, *token, window, cx);
             self.active_match_index = Some(new_match_index);
@@ -1132,7 +1108,6 @@ impl BufferSearchBar {
             editor::EditorEvent::Focused => self.query_editor_focused = true,
             editor::EditorEvent::Blurred => self.query_editor_focused = false,
             editor::EditorEvent::Edited { .. } => {
-                self.smartcase(window, cx);
                 self.clear_matches(window, cx);
                 let search = self.update_matches(false, true, window, cx);
 
@@ -1473,26 +1448,6 @@ impl BufferSearchBar {
     pub fn match_exists(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         self.update_match_index(window, cx);
         self.active_match_index.is_some()
-    }
-
-    pub fn should_use_smartcase_search(&mut self, cx: &mut Context<Self>) -> bool {
-        EditorSettings::get_global(cx).use_smartcase_search
-    }
-
-    pub fn is_contains_uppercase(&mut self, str: &str) -> bool {
-        str.chars().any(|c| c.is_uppercase())
-    }
-
-    fn smartcase(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.should_use_smartcase_search(cx) {
-            let query = self.query(cx);
-            if !query.is_empty() {
-                let is_case = self.is_contains_uppercase(&query);
-                if self.has_search_option(SearchOptions::CASE_SENSITIVE) != is_case {
-                    self.toggle_search_option(SearchOptions::CASE_SENSITIVE, window, cx);
-                }
-            }
-        }
     }
 
     fn adjust_query_regex_language(&self, cx: &mut App) {

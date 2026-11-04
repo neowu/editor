@@ -353,7 +353,7 @@ impl Editor {
                     let query = buffer.text_for_range(selection.start..selection.end).collect::<String>();
                     let is_empty = query.is_empty();
                     let select_state =
-                        self.build_select_state(query.chars().rev().collect(), SelectNextOrigin::Caret, is_empty, cx)?;
+                        self.build_select_state(query.chars().rev().collect(), SelectNextOrigin::Caret, is_empty)?;
                     self.select_prev_state = Some(select_state);
                 } else {
                     self.select_prev_state = None;
@@ -363,7 +363,6 @@ impl Editor {
                     selected_text.chars().rev().collect(),
                     SelectNextOrigin::Selection,
                     false,
-                    cx,
                 )?);
                 self.select_previous(action, window, cx)?;
             }
@@ -924,11 +923,7 @@ impl Editor {
             _ => {}
         }
 
-        let effects = if EditorSettings::get_global(cx).autoscroll_on_clicks {
-            SelectionEffects::scroll(Autoscroll::fit())
-        } else {
-            SelectionEffects::no_scroll()
-        };
+        let effects = SelectionEffects::no_scroll();
 
         self.change_selections(effects, window, cx, |s| {
             s.set_pending(pending_selection, pending_mode);
@@ -956,13 +951,11 @@ impl Editor {
         let start;
         let end;
         let mode;
-        let mut auto_scroll;
         match click_count {
             1 => {
                 start = buffer.anchor_before(position.to_point(&display_map));
                 end = start;
                 mode = SelectMode::Character;
-                auto_scroll = true;
             }
             2 => {
                 let position = display_map.clip_point(position, Bias::Left).to_offset(&display_map, Bias::Left);
@@ -970,7 +963,6 @@ impl Editor {
                 start = buffer.anchor_before(range.start);
                 end = buffer.anchor_before(range.end);
                 mode = SelectMode::Word(start..end);
-                auto_scroll = true;
             }
             3 => {
                 let position = display_map.clip_point(position, Bias::Left).to_point(&display_map);
@@ -980,16 +972,13 @@ impl Editor {
                 start = buffer.anchor_before(line_start);
                 end = buffer.anchor_before(next_line_start);
                 mode = SelectMode::Line(start..end);
-                auto_scroll = true;
             }
             _ => {
                 start = buffer.anchor_before(MultiBufferOffset(0));
                 end = buffer.anchor_before(buffer.len());
                 mode = SelectMode::All;
-                auto_scroll = false;
             }
         }
-        auto_scroll &= EditorSettings::get_global(cx).autoscroll_on_clicks;
 
         let point_to_delete: Option<usize> = {
             let selected_points: Vec<Selection<Point>> = self.selections.disjoint_in_range(start..end, &display_map);
@@ -1009,9 +998,7 @@ impl Editor {
         };
 
         let selections_count = self.selections.count();
-        let effects = if auto_scroll { SelectionEffects::default() } else { SelectionEffects::no_scroll() };
-
-        self.change_selections(effects, window, cx, |s| {
+        self.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
             if let Some(point_to_delete) = point_to_delete {
                 s.delete(point_to_delete);
 
@@ -2032,14 +2019,14 @@ impl Editor {
                     let selection = selections.last().expect("ensured that there's only one selection");
                     let query = buffer.text_for_range(selection.start..selection.end).collect::<String>();
                     let is_empty = query.is_empty();
-                    let select_state = self.build_select_state(query, SelectNextOrigin::Caret, is_empty, cx)?;
+                    let select_state = self.build_select_state(query, SelectNextOrigin::Caret, is_empty)?;
                     self.select_next_state = Some(select_state);
                 } else {
                     self.select_next_state = None;
                 }
             } else if let Some(selected_text) = selected_text {
                 self.select_next_state =
-                    Some(self.build_select_state(selected_text, SelectNextOrigin::Selection, false, cx)?);
+                    Some(self.build_select_state(selected_text, SelectNextOrigin::Selection, false)?);
                 self.select_next_match_internal(display_map, replace_newest, autoscroll, window, cx)?;
             }
         }
@@ -2061,15 +2048,9 @@ impl Editor {
         query: String,
         origin: SelectNextOrigin,
         done: bool,
-        cx: &App,
     ) -> Result<SelectNextState, BuildError> {
-        let search_options = self.select_next_options.unwrap_or_else(|| {
-            let search_settings = EditorSettings::get_global(cx).search;
-            SelectSearchOptions {
-                case_sensitive: search_settings.case_sensitive,
-                whole_word: search_settings.whole_word,
-            }
-        });
+        let search_options =
+            self.select_next_options.unwrap_or(SelectSearchOptions { case_sensitive: false, whole_word: false });
         Ok(SelectNextState {
             query: Self::build_query(&[query], search_options.case_sensitive)?,
             wordwise: matches!(origin, SelectNextOrigin::Caret) || search_options.whole_word,

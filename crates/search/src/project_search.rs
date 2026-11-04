@@ -12,9 +12,9 @@ use std::time::Duration;
 
 use collections::HashMap;
 use editor::Anchor;
+use editor::EXCERPT_CONTEXT_LINES;
 use editor::Editor;
 use editor::EditorEvent;
-use editor::EditorSettings;
 use editor::MAX_TAB_TITLE_LEN;
 use editor::MultiBuffer;
 use editor::PathKey;
@@ -27,7 +27,6 @@ use editor::actions::Tab;
 use editor::actions::ToggleFoldAll;
 use editor::actions::UnfoldAll;
 use editor::items::active_match_index;
-use editor::multibuffer_context_lines;
 use editor::scroll::Autoscroll;
 use futures::StreamExt;
 use futures::stream::FuturesOrdered;
@@ -71,7 +70,6 @@ use project::search::SearchInputKind;
 use project::search::SearchQuery;
 use project::search::SearchResult;
 use project::search_history::SearchHistoryCursor;
-use settings::Settings;
 use text::OffsetRangeExt;
 use ui::CommonAnimationExt;
 use ui::IconButtonShape;
@@ -271,10 +269,6 @@ pub fn init(cx: &mut App) {
         });
     })
     .detach();
-}
-
-fn contains_uppercase(str: &str) -> bool {
-    str.chars().any(|c| c.is_uppercase())
 }
 
 const SEARCH_ON_TYPE_DEBOUNCE: Duration = Duration::from_millis(250);
@@ -690,7 +684,7 @@ async fn consume_search_stream(
                                     PathKey::for_buffer(&buffer, cx),
                                     buffer.clone(),
                                     ranges,
-                                    multibuffer_context_lines(cx),
+                                    EXCERPT_CONTEXT_LINES,
                                     cx,
                                 );
                                 async move { (buffer, new_ranges.await) }
@@ -839,7 +833,7 @@ async fn apply_reused_chunk(
     let (context_line_count, chunk) = project_search
         .read_with(cx, |_, cx| {
             (
-                multibuffer_context_lines(cx),
+                EXCERPT_CONTEXT_LINES,
                 buffers_with_ranges
                     .into_iter()
                     .map(|(buffer, ranges)| {
@@ -1194,10 +1188,7 @@ impl ProjectSearchView {
         self.toggle_filters(cx);
         self.included_files_editor.update(cx, |_, cx| cx.notify());
         self.excluded_files_editor.update(cx, |_, cx| cx.notify());
-        if EditorSettings::get_global(cx).search.search_on_type
-            && self.entity.read(cx).active_query.is_some()
-            && !self.is_dirty(cx)
-        {
+        if self.entity.read(cx).active_query.is_some() && !self.is_dirty(cx) {
             self.search(SearchMode::Refresh, cx);
         }
         window.refresh();
@@ -1346,7 +1337,7 @@ impl ProjectSearchView {
         let (mut options, filters_enabled) = if let Some(settings) = settings {
             (settings.search_options, settings.filters_enabled)
         } else {
-            let search_options = SearchOptions::from_settings(&EditorSettings::get_global(cx).search);
+            let search_options = SearchOptions::NONE;
             (search_options, false)
         };
 
@@ -1373,16 +1364,7 @@ impl ProjectSearchView {
         // Subscribe to query_editor in order to reraise editor events for workspace item activation purposes
         subscriptions.push(cx.subscribe_in(&query_editor, window, |this, _, event: &EditorEvent, window, cx| {
             if let EditorEvent::Edited { .. } = event {
-                if EditorSettings::get_global(cx).use_smartcase_search {
-                    let query = this.search_query_text(cx);
-                    if !query.is_empty()
-                        && this.search_options.contains(SearchOptions::CASE_SENSITIVE) != contains_uppercase(&query)
-                    {
-                        this.toggle_search_option(SearchOptions::CASE_SENSITIVE, cx);
-                    }
-                }
-
-                if EditorSettings::get_global(cx).search.search_on_type && !this.is_dirty(cx) {
+                if !this.is_dirty(cx) {
                     if this.query_editor.read(cx).is_empty(cx) {
                         this.debounced_search = Some(cx.spawn_in(window, async move |this, cx| {
                             cx.background_executor().timer(SEARCH_ON_TYPE_DEBOUNCE).await;
@@ -1816,7 +1798,6 @@ impl ProjectSearchView {
 
     fn schedule_search_on_type_for_filter_edit(&mut self, event: &EditorEvent, cx: &Context<Self>) {
         if matches!(event, EditorEvent::Edited { .. })
-            && EditorSettings::get_global(cx).search.search_on_type
             && self.filters_enabled
             && !self.query_editor.read(cx).is_empty(cx)
         {
@@ -1958,14 +1939,6 @@ impl ProjectSearchView {
                 return;
             }
 
-            if !EditorSettings::get_global(cx).search_wrap
-                && ((direction == Direction::Next && index + 1 >= match_ranges.len())
-                    || (direction == Direction::Prev && index == 0))
-            {
-                crate::show_no_more_matches(window, cx);
-                return;
-            }
-
             let new_index = self.results_editor.update(cx, |editor, cx| {
                 editor.match_index_for_direction(&match_ranges, index, direction, 1, SearchToken::default(), window, cx)
             });
@@ -1973,11 +1946,7 @@ impl ProjectSearchView {
             let range_to_select = match_ranges[new_index].clone();
             self.results_editor.update(cx, |editor, cx| {
                 let range_to_select = editor.range_for_match(&range_to_select);
-                let autoscroll = if EditorSettings::get_global(cx).search.center_on_match {
-                    Autoscroll::center()
-                } else {
-                    Autoscroll::fit()
-                };
+                let autoscroll = Autoscroll::fit();
                 editor.unfold_ranges(std::slice::from_ref(&range_to_select), false, true, cx);
                 editor.change_selections(SelectionEffects::scroll(autoscroll), window, cx, |s| {
                     s.select_ranges([range_to_select])
@@ -2028,12 +1997,6 @@ impl ProjectSearchView {
 
     fn set_query(&mut self, query: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.set_search_editor(SearchInputKind::Query, query, window, cx);
-        if EditorSettings::get_global(cx).use_smartcase_search
-            && !query.is_empty()
-            && self.search_options.contains(SearchOptions::CASE_SENSITIVE) != contains_uppercase(query)
-        {
-            self.toggle_search_option(SearchOptions::CASE_SENSITIVE, cx)
-        }
     }
 
     fn set_search_editor(&self, kind: SearchInputKind, text: &str, window: &mut Window, cx: &mut Context<Self>) {
@@ -2170,15 +2133,7 @@ impl ProjectSearchView {
         let focus_handle = self.focus_handle.clone();
         v_flex()
             .gap_1()
-            .child(
-                Label::new(if EditorSettings::get_global(cx).search.search_on_type {
-                    "Start typing to search. For more options:"
-                } else {
-                    "Hit enter to search. For more options:"
-                })
-                .color(Color::Muted)
-                .mb_2(),
-            )
+            .child(Label::new("Start typing to search. For more options:").color(Color::Muted).mb_2())
             .child(render_landing_action_button(
                 "filter-paths",
                 "Include/exclude specific paths",
@@ -2299,18 +2254,14 @@ impl ProjectSearchBar {
                 }
 
                 cx.stop_propagation();
-                if EditorSettings::get_global(cx).search.search_on_type {
-                    if search_view.query_editor.read(cx).is_empty(cx) {
-                        return;
-                    }
-                    search_view.debounced_search = None;
-                    if search_view.is_dirty(cx) {
-                        search_view.prompt_to_save_if_dirty_then_search(window, cx).detach_and_log_err(cx);
-                    } else {
-                        search_view.search(SearchMode::Manual, cx);
-                    }
-                } else {
+                if search_view.query_editor.read(cx).is_empty(cx) {
+                    return;
+                }
+                search_view.debounced_search = None;
+                if search_view.is_dirty(cx) {
                     search_view.prompt_to_save_if_dirty_then_search(window, cx).detach_and_log_err(cx);
+                } else {
+                    search_view.search(SearchMode::Manual, cx);
                 }
             });
         }
@@ -2397,7 +2348,7 @@ impl ProjectSearchBar {
                 search_view.update(cx, |search_view, cx| {
                     search_view.toggle_search_option(option, cx);
                     search_view.entity.read(cx).active_query.as_ref()?;
-                    if EditorSettings::get_global(cx).search.search_on_type && !search_view.is_dirty(cx) {
+                    if !search_view.is_dirty(cx) {
                         search_view.search(SearchMode::Refresh, cx);
                         None
                     } else {
@@ -2456,7 +2407,7 @@ impl ProjectSearchBar {
                 search_view.update(cx, |search_view, cx| {
                     search_view.toggle_opened_only(window, cx);
                     search_view.entity.read(cx).active_query.as_ref()?;
-                    if EditorSettings::get_global(cx).search.search_on_type && !search_view.is_dirty(cx) {
+                    if !search_view.is_dirty(cx) {
                         search_view.search(SearchMode::Refresh, cx);
                         None
                     } else {

@@ -6,13 +6,13 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use buffer_diff::BufferDiff;
+use editor::DiffViewStyle;
+use editor::EXCERPT_CONTEXT_LINES;
 use editor::Editor;
 use editor::EditorEvent;
-use editor::EditorSettings;
 use editor::HiddenUnstagedDiffHunkRenderer;
 use editor::MultiBuffer;
 use editor::SplittableEditor;
-use editor::multibuffer_context_lines;
 use git_ui_core::file_diff_view::build_buffer_diff;
 use gpui::App;
 use gpui::AppContext as _;
@@ -34,7 +34,6 @@ use language::OffsetRangeExt;
 use multi_buffer::PathKey;
 use project::Project;
 use project::ProjectPath;
-use settings::Settings;
 use ui::Color;
 use ui::Icon;
 use ui::IconName;
@@ -149,7 +148,7 @@ impl MultiDiffView {
     ) -> Task<Result<Entity<Self>>> {
         let project = workspace.project().clone();
         let workspace = workspace.weak_handle();
-        let context_lines = multibuffer_context_lines(cx);
+        let context_lines = EXCERPT_CONTEXT_LINES;
 
         window.spawn(cx, async move |cx| {
             let (entries, common_root) = load_entries(diff_pairs, &project, cx).await?;
@@ -196,7 +195,7 @@ impl MultiDiffView {
     ) -> Self {
         let editor = cx.new(|cx| {
             let editor = SplittableEditor::new(
-                EditorSettings::get_global(cx).diff_view_style,
+                DiffViewStyle::global(cx),
                 multibuffer.clone(),
                 project.clone(),
                 workspace,

@@ -4,7 +4,6 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use editor::CursorLayout;
-use editor::EditorSettings;
 use editor::HighlightedRange;
 use editor::HighlightedRangeLine;
 use gpui::AbsoluteLength;
@@ -1418,11 +1417,7 @@ impl Element for TerminalElement {
                     if let Some((start_y, highlighted_range_lines)) =
                         to_highlighted_range_lines(relative_highlighted_range, layout, origin)
                     {
-                        let corner_radius = if EditorSettings::get_global(cx).rounded_selection {
-                            0.15 * layout.dimensions.line_height
-                        } else {
-                            Pixels::ZERO
-                        };
+                        let corner_radius = 0.15 * layout.dimensions.line_height;
                         let hr = HighlightedRange {
                             start_y,
                             line_height: layout.dimensions.line_height,

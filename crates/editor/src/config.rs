@@ -61,8 +61,7 @@ impl Editor {
     ) {
         if self.minimap_visibility != minimap_visibility {
             if minimap_visibility.visible() && self.minimap.is_none() {
-                let minimap_settings = EditorSettings::get_global(cx).minimap;
-                self.minimap = self.create_minimap(minimap_settings.with_show_override(), window, cx);
+                self.minimap = self.create_minimap(window, cx);
             }
             self.minimap_visibility = minimap_visibility;
             cx.notify();

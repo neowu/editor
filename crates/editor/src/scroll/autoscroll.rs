@@ -1,25 +1,21 @@
 use std::cmp;
 
-use gpui::App;
 use gpui::Bounds;
 use gpui::Context;
 use gpui::Pixels;
 use gpui::Window;
 use language::Point;
 use multi_buffer::Anchor;
-use settings::Settings;
 use text::Bias;
 
 use crate::DisplayPoint;
 use crate::DisplayRow;
 use crate::Editor;
 use crate::EditorMode;
-use crate::EditorSettings;
 use crate::LineWithInvisibles;
 use crate::RowExt;
 use crate::SelectionEffects;
 use crate::display_map::ToDisplayPoint;
-use crate::editor_settings::GoToDefinitionScrollStrategy;
 use crate::scroll::ScrollOffset;
 use crate::scroll::WasScrolled;
 
@@ -43,17 +39,6 @@ impl Autoscroll {
     /// scrolls so the newest cursor is vertically centered
     pub const fn center() -> Self {
         Self::Strategy(AutoscrollStrategy::Center, None)
-    }
-
-    /// Returns the autoscroll strategy configured for navigation to definitions
-    /// and references, based on `go_to_definition_scroll_strategy`.
-    pub fn for_go_to_definition(offset: Option<ScrollOffset>, cx: &App) -> Self {
-        match EditorSettings::get_global(cx).go_to_definition_scroll_strategy {
-            GoToDefinitionScrollStrategy::Center => Self::center(),
-            GoToDefinitionScrollStrategy::Minimum => Self::fit(),
-            GoToDefinitionScrollStrategy::Top => Self::focused(),
-            GoToDefinitionScrollStrategy::Preserve => offset.map(Self::top_relative).unwrap_or_else(Self::center),
-        }
     }
 
     /// scrolls so the newest cursor is near the top

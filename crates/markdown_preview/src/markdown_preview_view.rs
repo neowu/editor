@@ -14,7 +14,6 @@ use ed_actions::IncreaseBufferFontSize;
 use ed_actions::ResetBufferFontSize;
 use editor::Editor;
 use editor::EditorEvent;
-use editor::EditorSettings;
 use editor::MAX_TAB_TITLE_LEN;
 use editor::MultiBufferOffset;
 use editor::SelectionEffects;
@@ -56,7 +55,6 @@ use project::ProjectPath;
 use project::image_store;
 use project::search::SearchQuery;
 use settings::SeedQuerySetting;
-use settings::Settings;
 use theme::built_in::BUFFER_LINE_HEIGHT;
 use ui::ContextMenu;
 use ui::LinkPreview;
@@ -798,7 +796,7 @@ impl MarkdownPreviewView {
         }
 
         let mut markdown_style = preview_markdown_style(cx.theme().colors(), cx.theme().syntax(), window, cx);
-        markdown_style.minimum_highlight_contrast = EditorSettings::get_global(cx).minimum_contrast_for_highlights;
+        markdown_style.minimum_highlight_contrast = editor::MINIMUM_CONTRAST_FOR_HIGHLIGHTS;
 
         let mut markdown_element = MarkdownElement::new(self.markdown.clone(), markdown_style)
             .input_focus_handle(self.focus_handle.clone())

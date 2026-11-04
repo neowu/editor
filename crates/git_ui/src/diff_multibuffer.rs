@@ -5,12 +5,12 @@ use anyhow::Result;
 use buffer_diff::BufferDiff;
 use collections::HashMap;
 use collections::HashSet;
+use editor::DiffViewStyle;
+use editor::EXCERPT_CONTEXT_LINES;
 use editor::EditorEvent;
-use editor::EditorSettings;
 use editor::SelectionEffects;
 use editor::SplittableEditor;
 use editor::actions::GoToHunk;
-use editor::multibuffer_context_lines;
 use editor::scroll::Autoscroll;
 use futures::FutureExt as _;
 use futures::StreamExt as _;
@@ -109,7 +109,7 @@ impl DiffMultibuffer {
         });
         let editor = cx.new(|cx| {
             let mut diff_display_editor = SplittableEditor::new(
-                EditorSettings::get_global(cx).diff_view_style,
+                DiffViewStyle::global(cx),
                 multibuffer.clone(),
                 project.clone(),
                 workspace.clone(),
@@ -487,7 +487,7 @@ impl DiffMultibuffer {
                 path_key.clone(),
                 display_buffer,
                 excerpt_ranges,
-                multibuffer_context_lines(cx),
+                EXCERPT_CONTEXT_LINES,
                 diff,
                 cx,
             );

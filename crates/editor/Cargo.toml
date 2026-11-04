@@ -17,7 +17,6 @@ convert_case.workspace = true
 ed_actions.workspace = true
 emojis.workspace = true
 file_icons.workspace = true
-fs.workspace = true
 futures.workspace = true
 futures-lite.workspace = true
 fuzzy.workspace = true

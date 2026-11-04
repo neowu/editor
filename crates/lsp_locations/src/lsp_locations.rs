@@ -1,10 +1,8 @@
-use std::any::TypeId;
 use std::ops::Range;
 use std::sync::Arc;
 
 use collections::HashMap;
 use editor::Editor;
-use editor::EditorSettings;
 use editor::GotoDefinitionKind;
 use editor::OpenResultsIn;
 use editor::actions::FindAllReferences;
@@ -13,7 +11,6 @@ use editor::actions::GoToDefinition;
 use editor::actions::GoToImplementation;
 use editor::actions::GoToTypeDefinition;
 use editor::hover_links::HoverLink;
-use editor::hover_links::OpenDefinitionLocations;
 use file_icons::FileIcons;
 use fuzzy::StringMatchCandidate;
 use gpui::AnyElement;
@@ -22,7 +19,6 @@ use gpui::AppContext;
 use gpui::AsyncWindowContext;
 use gpui::Context;
 use gpui::DismissEvent;
-use gpui::DispatchPhase;
 use gpui::Entity;
 use gpui::EventEmitter;
 use gpui::FocusHandle;
@@ -43,8 +39,6 @@ use project::Location;
 use project::LocationLink;
 use project::Project;
 use project::ProjectPath;
-use settings::GoToDefinitionFallback;
-use settings::Settings as _;
 use text::Anchor;
 use text::Point;
 use ui::Divider;
@@ -71,17 +65,6 @@ fn register(editor: &mut Editor, _window: Option<&mut Window>, cx: &mut Context<
     if !editor.mode().is_full() {
         return;
     }
-    editor
-        .register_action_renderer(|editor, window, _| {
-            if editor.lsp_data_enabled() {
-                window.on_action(TypeId::of::<OpenDefinitionLocations>(), |action, phase, window, cx| {
-                    if phase == DispatchPhase::Bubble {
-                        handle_definition_locations(action.downcast_ref().expect("definition action"), window, cx);
-                    }
-                });
-            }
-        })
-        .detach();
     let handle = cx.entity().downgrade();
     editor
         .register_action({
@@ -124,7 +107,7 @@ fn register(editor: &mut Editor, _window: Option<&mut Window>, cx: &mut Context<
 
 /// Either opens the picker for the editor, or propagates the action so the
 /// editor's built-in (multibuffer) handler runs. A `None` argument falls back to
-/// the `lsp_results_location` setting.
+/// opening the multibuffer.
 fn handle_nav_action(
     open_results_in: Option<OpenResultsIn>,
     kind: LspPickerKind,
@@ -132,51 +115,11 @@ fn handle_nav_action(
     window: &Window,
     cx: &mut App,
 ) {
-    let open_results_in = open_results_in.unwrap_or_else(|| EditorSettings::get_global(cx).lsp_results_location);
-    if open_results_in != OpenResultsIn::Picker {
+    if open_results_in != Some(OpenResultsIn::Picker) {
         cx.propagate();
         return;
     }
     LspLocationsPicker::open_for_editor(kind, editor.clone(), window, cx);
-}
-
-fn handle_definition_locations(action: &OpenDefinitionLocations, window: &mut Window, cx: &mut App) {
-    let action = &action.0;
-    let Some(editor) = action.editor.upgrade() else {
-        return;
-    };
-    if !editor.read(cx).lsp_data_enabled()
-        || !editor.read(cx).buffer().read(cx).snapshot(cx).can_resolve(&action.position)
-    {
-        return;
-    }
-    let Some(workspace) = editor.read(cx).workspace() else {
-        cx.propagate();
-        return;
-    };
-    if EditorSettings::get_global(cx).lsp_results_location != OpenResultsIn::Picker
-        || action.locations.iter().any(|location| location.buffer.read(cx).file().is_none())
-    {
-        cx.propagate();
-        return;
-    }
-    let matches = build_location_matches(&action.locations, cx);
-    if matches.len() < 2 {
-        cx.propagate();
-        return;
-    }
-    let kind = match action.kind {
-        GotoDefinitionKind::Symbol => LspPickerKind::Definition,
-        GotoDefinitionKind::Type => LspPickerKind::TypeDefinition,
-        GotoDefinitionKind::Declaration => LspPickerKind::Declaration,
-        GotoDefinitionKind::Implementation => LspPickerKind::Implementation,
-    };
-    workspace.update(cx, |workspace, cx| {
-        let project = workspace.project().clone();
-        workspace.toggle_modal(window, cx, |window, cx| {
-            LspLocationsPicker::new(kind, matches, project, action.editor.clone(), action.origin.clone(), window, cx)
-        });
-    });
 }
 
 /// Runs the LSP query for `kind` and returns the raw locations. Returns `None`
@@ -294,8 +237,7 @@ impl LspLocationsPicker {
     }
 
     /// Opens the picker for `kind`: runs a fresh LSP query and shows the
-    /// results. An empty definitions query falls back to references when the
-    /// `go_to_definition_fallback` setting calls for it, matching
+    /// results. An empty definitions query falls back to references, matching
     /// [`Editor::go_to_definition`].
     fn open(
         kind: LspPickerKind,
@@ -305,7 +247,6 @@ impl LspLocationsPicker {
         cx: &Context<Workspace>,
     ) {
         let project = workspace.project().clone();
-        let fallback = EditorSettings::get_global(cx).go_to_definition_fallback;
         let editor = editor.downgrade();
         cx.spawn_in(window, async move |workspace, cx| {
             // The kind the user invoked, kept for user-facing messages even if
@@ -321,10 +262,7 @@ impl LspLocationsPicker {
                 return;
             };
 
-            if matches.is_empty()
-                && kind == LspPickerKind::Definition
-                && fallback == GoToDefinitionFallback::FindAllReferences
-            {
+            if matches.is_empty() && kind == LspPickerKind::Definition {
                 kind = LspPickerKind::References;
                 let Some(references) = run_picker_matches(kind, &editor, &workspace, &project, cx).await else {
                     return;

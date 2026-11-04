@@ -270,14 +270,7 @@ impl Editor {
             self.diagnostics_enabled() && self.diagnostics_max_severity != DiagnosticSeverity::Off;
         self.diagnostics_enabled = !diagnostics_enabled;
 
-        let new_severity = if self.diagnostics_enabled {
-            EditorSettings::get_global(cx)
-                .diagnostics_max_severity
-                .filter(|severity| severity != &DiagnosticSeverity::Off)
-                .unwrap_or(DiagnosticSeverity::Hint)
-        } else {
-            DiagnosticSeverity::Off
-        };
+        let new_severity = if self.diagnostics_enabled { DiagnosticSeverity::Hint } else { DiagnosticSeverity::Off };
         self.set_max_diagnostics_severity(new_severity, cx);
         if self.diagnostics_enabled {
             self.active_diagnostics = ActiveDiagnostic::None;

@@ -470,7 +470,7 @@ impl Editor {
                 let Some(show_hover) = editor
                     .update_in(cx, |editor, window, cx| {
                         let modifiers = window.modifiers();
-                        let secondary_held = Editor::is_cmd_or_ctrl_pressed(&modifiers, cx);
+                        let secondary_held = modifiers.secondary();
                         update_hover(editor, window, cx, hint, secondary_held, modifiers.shift)
                     })
                     .ok()

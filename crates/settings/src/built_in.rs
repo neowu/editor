@@ -7,27 +7,16 @@ use settings_content::AutosaveSetting;
 use settings_content::BottomDockLayout;
 use settings_content::BranchPickerSettingsContent;
 use settings_content::CloseWindowWhenNoItems;
-use settings_content::CompletionDetailAlignment;
-use settings_content::CompletionMenuItemKind;
 use settings_content::CompletionSettingsContent;
-use settings_content::CurrentLineHighlight;
-use settings_content::CursorAnimationSettingsContent;
-use settings_content::CursorShape;
 use settings_content::CursorShapeContent;
 use settings_content::DefaultOpenBehavior;
 use settings_content::DelayMs;
 use settings_content::DiagnosticSeverityContent;
 use settings_content::DiagnosticsSettingsContent;
-use settings_content::DiffViewStyle;
-use settings_content::DisplayIn;
 use settings_content::DockPosition;
 use settings_content::DockSide;
-use settings_content::DocumentColorsRenderMode;
 use settings_content::DocumentFoldingRanges;
 use settings_content::DocumentSymbols;
-use settings_content::DoubleClickInMultibuffer;
-use settings_content::DragAndDropSelectionContent;
-use settings_content::EditorSettingsContent;
 use settings_content::EncodingDisplayOptions;
 use settings_content::FileDiffSettingsContent;
 use settings_content::FileFinderSettingsContent;
@@ -50,8 +39,6 @@ use settings_content::GitPanelSortBy;
 use settings_content::GitPathStyle;
 use settings_content::GitSettings;
 use settings_content::GlobalLspSettingsContent;
-use settings_content::GoToDefinitionFallback;
-use settings_content::GoToDefinitionScrollStrategy;
 use settings_content::HideMouseMode;
 use settings_content::ImageFileSizeUnit;
 use settings_content::ImageViewerSettingsContent;
@@ -75,14 +62,8 @@ use settings_content::LspNotificationSettingsContent;
 use settings_content::LspPullDiagnosticsSettingsContent;
 use settings_content::LspSettings;
 use settings_content::LspSettingsMap;
-use settings_content::MinimapContent;
-use settings_content::MinimapThumb;
-use settings_content::MinimapThumbBorder;
-use settings_content::MinimumContrast;
 use settings_content::ModalWidthContent;
-use settings_content::MultiCursorModifier;
 use settings_content::OnNewWindow;
-use settings_content::OpenResultsIn;
 use settings_content::OutlinePanelSettingsContent;
 use settings_content::PaneSplitDirectionHorizontal;
 use settings_content::PaneSplitDirectionVertical;
@@ -101,9 +82,6 @@ use settings_content::ProjectTerminalSettingsContent;
 use settings_content::RestoreOnStartupBehavior;
 use settings_content::RewrapBehavior;
 use settings_content::ScanSymlinksSetting;
-use settings_content::ScrollBeyondLastLine;
-use settings_content::SearchSettingsContent;
-use settings_content::SeedQuerySetting;
 use settings_content::SemanticTokenRule;
 use settings_content::SemanticTokenRules;
 use settings_content::SessionSettingsContent;
@@ -111,10 +89,7 @@ use settings_content::SettingsContent;
 use settings_content::Shell;
 use settings_content::ShowDiagnostics;
 use settings_content::ShowIndentGuides;
-use settings_content::ShowMinimap;
-use settings_content::ShowScrollbar;
 use settings_content::ShowWhitespaceSetting;
-use settings_content::SnippetSortOrder;
 use settings_content::SoftWrap;
 use settings_content::SoftWrapIndent;
 use settings_content::StatusBarSettingsContent;
@@ -138,7 +113,6 @@ pub fn settings() -> SettingsContent {
     SettingsContent {
         project: project_settings(),
         workspace: workspace_settings(),
-        editor: editor_settings(),
         file_finder: Some(FileFinderSettingsContent {
             file_icons: Some(true),
             modal_max_width: Some(ModalWidthContent::Large),
@@ -333,68 +307,6 @@ fn terminal_settings() -> Option<TerminalSettingsContent> {
         minimum_contrast: Some(45.0),
         ..Default::default()
     })
-}
-
-const fn editor_settings() -> EditorSettingsContent {
-    EditorSettingsContent {
-        cursor_blink: Some(true),
-        cursor_shape: Some(CursorShape::Bar),
-        cursor_animation: Some(CursorAnimationSettingsContent { enabled: Some(true) }),
-        snippet_sort_order: Some(SnippetSortOrder::Inline),
-        current_line_highlight: Some(CurrentLineHighlight::All),
-        selection_highlight: Some(true),
-        rounded_selection: Some(true),
-        lsp_highlight_debounce: Some(DelayMs(75)),
-        hover_popover_enabled: Some(true),
-        hover_popover_delay: Some(DelayMs(300)),
-        hover_popover_sticky: Some(true),
-        hover_popover_hiding_delay: Some(DelayMs(300)),
-        minimap: Some(MinimapContent {
-            show: Some(ShowMinimap::Always),
-            display_in: Some(DisplayIn::ActiveEditor),
-            thumb: Some(MinimapThumb::Always),
-            thumb_border: Some(MinimapThumbBorder::None),
-            current_line_highlight: None,
-            max_width_columns: Some(std::num::NonZeroU32::new(80).unwrap()),
-        }),
-        scroll_beyond_last_line: Some(ScrollBeyondLastLine::OnePage),
-        vertical_scroll_margin: Some(3.0),
-        autoscroll_on_clicks: Some(false),
-        horizontal_scroll_margin: Some(5.0),
-        scroll_sensitivity: Some(1.0),
-        fast_scroll_sensitivity: Some(4.0),
-        seed_search_query_from_cursor: Some(SeedQuerySetting::Always),
-        use_smartcase_search: Some(false),
-        multi_cursor_modifier: Some(MultiCursorModifier::Alt),
-        expand_excerpt_lines: Some(5),
-        excerpt_context_lines: Some(5),
-        middle_click_paste: Some(true),
-        double_click_in_multibuffer: Some(DoubleClickInMultibuffer::Select),
-        search_wrap: Some(true),
-        search: Some(SearchSettingsContent {
-            button: Some(true),
-            whole_word: Some(false),
-            case_sensitive: Some(false),
-            include_ignored: Some(false),
-            regex: Some(false),
-            center_on_match: Some(false),
-            search_on_type: Some(true),
-        }),
-        minimum_contrast_for_highlights: Some(MinimumContrast(45.0)),
-        go_to_definition_fallback: Some(GoToDefinitionFallback::FindAllReferences),
-        lsp_results_location: Some(OpenResultsIn::MultiBuffer),
-        go_to_definition_scroll_strategy: Some(GoToDefinitionScrollStrategy::Center),
-        diagnostics_max_severity: Some(DiagnosticSeverityContent::All),
-        inline_code_actions: Some(true),
-        drag_and_drop_selection: Some(DragAndDropSelectionContent { enabled: Some(true), delay: Some(DelayMs(300)) }),
-        lsp_document_colors: Some(DocumentColorsRenderMode::Inlay),
-        lsp_document_links: Some(true),
-        completion_menu_scrollbar: Some(ShowScrollbar::Never),
-        completion_detail_alignment: Some(CompletionDetailAlignment::Left),
-        completion_menu_item_kind: Some(CompletionMenuItemKind::Symbol),
-        diff_view_style: Some(DiffViewStyle::Split),
-        minimum_split_diff_width: Some(100.0),
-    }
 }
 
 fn workspace_settings() -> WorkspaceSettingsContent {

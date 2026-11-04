@@ -35,7 +35,6 @@ use crate::DisplayRow;
 use crate::Editor;
 use crate::EditorEvent;
 use crate::EditorMode;
-use crate::EditorSettings;
 use crate::MultiBufferSnapshot;
 use crate::RowExt;
 use crate::SelectionEffects;
@@ -43,7 +42,6 @@ use crate::SizingBehavior;
 use crate::ToPoint;
 use crate::display_map::DisplaySnapshot;
 use crate::display_map::ToDisplayPoint;
-use crate::editor_settings::ScrollBeyondLastLine;
 use crate::hover_popover::hide_hover;
 
 const SCROLLBAR_SHOW_INTERVAL: Duration = Duration::from_secs(1);
@@ -240,7 +238,7 @@ impl ScrollManager {
             smooth_scroll: None,
         });
         ScrollManager {
-            vertical_scroll_margin: EditorSettings::get_global(cx).vertical_scroll_margin,
+            vertical_scroll_margin: 3.0,
             anchor,
             scroll_max_x: None,
             ongoing: OngoingScroll::default(),
@@ -359,31 +357,19 @@ impl ScrollManager {
         &mut self,
         scroll_position: gpui::Point<ScrollOffset>,
         map: &DisplaySnapshot,
-        scroll_beyond_last_line: ScrollBeyondLastLine,
+        scroll_beyond_last_line: bool,
         local: bool,
         autoscroll: bool,
         window: &mut Window,
         cx: &mut Context<Editor>,
     ) -> WasScrolled {
         let scroll_top = scroll_position.y.max(0.);
-        let scroll_top = match scroll_beyond_last_line {
-            ScrollBeyondLastLine::OnePage => scroll_top,
-            ScrollBeyondLastLine::Off => {
-                if let Some(height_in_lines) = self.visible_line_count {
-                    let max_row = map.max_point().row().as_f64();
-                    scroll_top.min(max_row - height_in_lines + 1.).max(0.)
-                } else {
-                    scroll_top
-                }
+        let scroll_top = match self.visible_line_count {
+            Some(height_in_lines) if !scroll_beyond_last_line => {
+                let max_row = map.max_point().row().as_f64();
+                scroll_top.min(max_row - height_in_lines + 1.).max(0.)
             }
-            ScrollBeyondLastLine::VerticalScrollMargin => {
-                if let Some(height_in_lines) = self.visible_line_count {
-                    let max_row = map.max_point().row().as_f64();
-                    scroll_top.min(max_row - height_in_lines + 1. + self.vertical_scroll_margin).max(0.)
-                } else {
-                    scroll_top
-                }
-            }
+            _ => scroll_top,
         };
         let scroll_top_row = DisplayRow(scroll_top as u32);
         let scroll_top_buffer_point =
@@ -586,16 +572,12 @@ impl Editor {
         self.scroll_manager.vertical_scroll_margin as usize
     }
 
-    pub(crate) fn scroll_beyond_last_line(&self, cx: &App) -> ScrollBeyondLastLine {
-        match self.mode {
-            EditorMode::Minimap { .. } | EditorMode::Full { sizing_behavior: SizingBehavior::Default, .. } => {
-                EditorSettings::get_global(cx).scroll_beyond_last_line
-            }
-
-            EditorMode::Full { .. } | EditorMode::SingleLine | EditorMode::AutoHeight { .. } => {
-                ScrollBeyondLastLine::Off
-            }
-        }
+    /// Whether the editor can scroll one page beyond its last line.
+    pub(crate) const fn scroll_beyond_last_line(&self) -> bool {
+        matches!(
+            self.mode,
+            EditorMode::Minimap { .. } | EditorMode::Full { sizing_behavior: SizingBehavior::Default, .. }
+        )
     }
 
     pub fn set_vertical_scroll_margin(&mut self, margin_rows: usize, cx: &mut Context<Self>) {
@@ -690,7 +672,7 @@ impl Editor {
         } else {
             scroll_position
         };
-        let scroll_beyond_last_line = self.scroll_beyond_last_line(cx);
+        let scroll_beyond_last_line = self.scroll_beyond_last_line();
         self.scroll_manager.set_scroll_position(
             adjusted_position,
             &display_map,

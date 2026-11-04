@@ -56,6 +56,7 @@ use project::lsp_store::LanguageServerShowDocumentRequest;
 use project::project_settings::ProjectSettings;
 use project::search::SearchQuery;
 use rope::TextSummary;
+use settings::SeedQuerySetting;
 use settings::Settings;
 use text::BufferSnapshot;
 use text::OffsetRangeExt;
@@ -96,7 +97,6 @@ use crate::BufferSerialization;
 use crate::Capability;
 use crate::Editor;
 use crate::EditorEvent;
-use crate::EditorSettings;
 use crate::FormatTarget;
 use crate::MultiBuffer;
 use crate::MultiBufferSnapshot;
@@ -104,7 +104,6 @@ use crate::NavigationData;
 use crate::SelectionEffects;
 use crate::ToPoint as _;
 use crate::display_map::HighlightKey;
-use crate::editor_settings::SeedQuerySetting;
 use crate::persistence::SerializedEditor;
 use crate::scroll::ScrollAnchor;
 use crate::scroll::ScrollOffset;
@@ -894,8 +893,7 @@ impl SearchableItem for Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> String {
-        let setting =
-            seed_query_override.unwrap_or_else(|| EditorSettings::get_global(cx).seed_search_query_from_cursor);
+        let setting = seed_query_override.unwrap_or(SeedQuerySetting::Always);
         let snapshot = self.snapshot(window, cx);
         let selection = self.selections.newest_adjusted(&snapshot.display_snapshot);
         let buffer_snapshot = snapshot.buffer_snapshot();
@@ -930,12 +928,7 @@ impl SearchableItem for Editor {
     ) {
         self.unfold_ranges(&[matches[index].clone()], false, true, cx);
         let range = self.range_for_match(&matches[index]);
-        let autoscroll = if EditorSettings::get_global(cx).search.center_on_match {
-            Autoscroll::center()
-        } else {
-            Autoscroll::fit()
-        };
-        self.change_selections(SelectionEffects::scroll(autoscroll), window, cx, |s| {
+        self.change_selections(SelectionEffects::scroll(Autoscroll::fit()), window, cx, |s| {
             s.select_ranges([range]);
         })
     }

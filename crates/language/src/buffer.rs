@@ -294,17 +294,6 @@ pub enum CursorShape {
     Hollow,
 }
 
-impl From<settings::CursorShape> for CursorShape {
-    fn from(shape: settings::CursorShape) -> Self {
-        match shape {
-            settings::CursorShape::Bar => CursorShape::Bar,
-            settings::CursorShape::Block => CursorShape::Block,
-            settings::CursorShape::Underline => CursorShape::Underline,
-            settings::CursorShape::Hollow => CursorShape::Hollow,
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 struct SelectionSet {
     line_mode: bool,

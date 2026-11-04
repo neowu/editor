@@ -1,6 +1,5 @@
 use collections::HashMap;
 use futures::future::join_all;
-use gpui::App;
 use gpui::Entity;
 use gpui::Task;
 use language::Buffer;
@@ -9,29 +8,21 @@ use lsp::LanguageServerId;
 use project::lsp_store::BufferDocumentLinks;
 use project::lsp_store::LspDocumentLink;
 use project::lsp_store::ResolvedDocumentLink;
-use settings::Settings;
 use text::BufferId;
 use ui::Context;
 
 use crate::Editor;
 use crate::LSP_REQUEST_DEBOUNCE_TIMEOUT;
 use crate::LspDataKind;
-use crate::editor_settings::EditorSettings;
 
+#[derive(Default)]
 pub(super) struct LspDocumentLinks {
-    pub(super) enabled: bool,
     pub(super) per_buffer: HashMap<BufferId, BufferDocumentLinks>,
-}
-
-impl LspDocumentLinks {
-    pub(super) fn new(cx: &App) -> Self {
-        Self { enabled: EditorSettings::get_global(cx).lsp_document_links, per_buffer: HashMap::default() }
-    }
 }
 
 impl Editor {
     pub(super) fn refresh_document_links(&mut self, for_buffer: Option<BufferId>, cx: &mut Context<Self>) {
-        if !self.lsp_data_enabled() || !self.lsp_document_links.enabled {
+        if !self.lsp_data_enabled() {
             return;
         }
         let Some(project) = self.project.as_ref().map(|p| p.downgrade()) else {

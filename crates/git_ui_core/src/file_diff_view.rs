@@ -10,9 +10,9 @@ use std::time::Duration;
 use anyhow::Result;
 use buffer_diff::BufferDiff;
 use editor::DiffStyleControls;
+use editor::DiffViewStyle;
 use editor::Editor;
 use editor::EditorEvent;
-use editor::EditorSettings;
 use editor::HiddenUnstagedDiffHunkRenderer;
 use editor::MultiBuffer;
 use editor::SplittableEditor;
@@ -36,7 +36,6 @@ use language::Buffer;
 use language::Point;
 use project::Project;
 use project::ProjectPath;
-use settings::Settings;
 use ui::Color;
 use ui::Icon;
 use ui::IconName;
@@ -134,7 +133,7 @@ impl FileDiffView {
         });
         let editor = cx.new(|cx| {
             let splittable = SplittableEditor::new(
-                EditorSettings::get_global(cx).diff_view_style,
+                DiffViewStyle::global(cx),
                 multibuffer.clone(),
                 project.clone(),
                 workspace,
