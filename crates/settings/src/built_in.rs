@@ -101,7 +101,6 @@ use settings_content::ProjectPanelSortOrder;
 use settings_content::ProjectPanelTitleTooltipDelay;
 use settings_content::ProjectSettingsContent;
 use settings_content::ProjectTerminalSettingsContent;
-use settings_content::RemoteSettingsContent;
 use settings_content::RestoreOnStartupBehavior;
 use settings_content::RewrapBehavior;
 use settings_content::ScanSymlinksSetting;
@@ -124,7 +123,6 @@ use settings_content::SoftWrap;
 use settings_content::SoftWrapIndent;
 use settings_content::StatusBarSettingsContent;
 use settings_content::StatusStyle;
-use settings_content::TabBarSettingsContent;
 use settings_content::TabSwitcherSettingsContent;
 use settings_content::TerminalBlink;
 use settings_content::TerminalDockPosition;
@@ -145,7 +143,6 @@ pub fn settings() -> SettingsContent {
         project: project_settings(),
         workspace: workspace_settings(),
         editor: editor_settings(),
-        remote: RemoteSettingsContent { ssh_connections: Some(vec![]) },
         file_finder: Some(FileFinderSettingsContent {
             file_icons: Some(true),
             modal_max_width: Some(ModalWidthContent::Large),
@@ -176,11 +173,6 @@ pub fn settings() -> SettingsContent {
             activate_on_close: Some(ActivateOnClose::History),
             show_diagnostics: Some(ShowDiagnostics::Off),
             show_close_button: Some(ShowCloseButton::Hover),
-        }),
-        tab_bar: Some(TabBarSettingsContent {
-            show: Some(true),
-            show_tab_bar_buttons: Some(true),
-            show_pinned_tabs_in_separate_row: Some(false),
         }),
         tab_switcher: Some(TabSwitcherSettingsContent { show_file_preview: Some(true) }),
         status_bar: Some(StatusBarSettingsContent {
@@ -251,7 +243,7 @@ pub fn settings() -> SettingsContent {
         line_indicator_format: Some(LineIndicatorFormat::Long),
         outline_panel: Some(OutlinePanelSettingsContent {
             button: Some(true),
-            default_width: Some(PixelSetting(300.0)),
+            default_width: Some(PixelSetting(360.0)),
             dock: Some(DockSide::Right),
             file_icons: Some(true),
             folder_indicator: Some(FolderIndicator::Icon),
@@ -265,7 +257,7 @@ pub fn settings() -> SettingsContent {
         project_panel: Some(ProjectPanelSettingsContent {
             button: Some(true),
             hide_gitignore: Some(false),
-            default_width: Some(PixelSetting(240.0)),
+            default_width: Some(PixelSetting(360.0)),
             dock: Some(DockSide::Left),
             title_tooltip_delay: Some(ProjectPanelTitleTooltipDelay::Default),
             entry_spacing: Some(ProjectPanelEntrySpacing::Comfortable),

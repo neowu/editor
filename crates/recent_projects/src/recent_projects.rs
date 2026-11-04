@@ -41,7 +41,6 @@ use remote::same_remote_connection_identity;
 pub use remote_connection::RemoteConnectionModal;
 pub use remote_connection::connect;
 pub use remote_connection::connect_with_modal;
-pub use remote_connections::RemoteSettings;
 pub use remote_connections::navigate_to_positions;
 pub use remote_connections::open_remote_project;
 pub use remote_servers::RemoteServerProjects;
@@ -1249,13 +1248,11 @@ impl RecentProjectsDelegate {
                             .detach_and_prompt_err("Failed to open project", window, cx, |_| None);
                     }
                 }
-                SerializedWorkspaceLocation::Remote(mut connection) => {
+                SerializedWorkspaceLocation::Remote(connection) => {
                     let app_state = workspace.app_state().clone();
                     let replace_window =
                         if replace_current_window { window.window_handle().downcast::<Workspace>() } else { None };
                     let open_options = OpenOptions { requesting_window: replace_window, ..Default::default() };
-                    let RemoteConnectionOptions::Ssh(ssh_options) = &mut connection;
-                    RemoteSettings::get_global(cx).fill_connection_options_from_settings(ssh_options);
                     let paths = candidate_workspace_paths.paths().to_vec();
                     cx.spawn_in(window, async move |_, cx| {
                         open_remote_project(connection.clone(), paths, app_state, open_options, cx).await

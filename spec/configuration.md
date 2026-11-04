@@ -31,8 +31,7 @@ migrator, or Vim/Helix mode.
     first, each with its recent folders and Open Folder). Connecting a new
     server goes straight to its folder picker, and the server is remembered
     once a project on it opens. Removing a server drops its recent projects.
-    Nicknames, ssh args and port forwards come only from the hardcoded
-    `ssh_connections` setting, so the modal has no nickname editing.
+    There are no per-server nicknames, ssh args or port forwards.
   - `<first root folder>/.ed/workspace.json`, per project: the pane tree with
     each tab's kind and its own JSON state, pinned/active/preview tabs, dock
     visibility/active panel/zoom, and recent navigation history. Remote

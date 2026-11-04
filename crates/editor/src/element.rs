@@ -629,7 +629,6 @@ impl EditorElement {
         register_action(editor, window, Editor::show_word_completions);
         register_action(editor, window, Editor::toggle_code_actions);
         register_action(editor, window, Editor::toggle_soft_wrap);
-        register_action(editor, window, Editor::toggle_tab_bar);
         register_action(editor, window, Editor::toggle_indent_guides);
 
         if editor.read(cx).lsp_data_enabled() {

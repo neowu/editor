@@ -120,7 +120,6 @@ use crate::notifications::NotifyResultExt;
 use crate::toolbar::Toolbar;
 use crate::workspace_settings::AutosaveSetting;
 use crate::workspace_settings::FocusFollowsMouse;
-use crate::workspace_settings::TabBarSettings;
 use crate::workspace_settings::WorkspaceSettings;
 
 /// A selected entry in e.g. project panel.
@@ -473,17 +472,12 @@ pub struct Pane {
     #[allow(clippy::type_complexity)]
     can_split_predicate: Option<Arc<dyn Fn(&mut Self, &dyn Any, &mut Window, &mut Context<Self>) -> bool>>,
     can_toggle_zoom: bool,
-    #[allow(clippy::type_complexity)]
-    should_display_tab_bar: Rc<dyn Fn(&Window, &mut Context<Pane>) -> bool>,
-    /// Whether the last render showed the tab bar strip above the card.
-    tab_bar_displayed: bool,
     tab_style: TabStyle,
     #[allow(clippy::type_complexity)]
     render_tab_bar_buttons:
         Rc<dyn Fn(&mut Pane, &mut Window, &mut Context<Pane>) -> (Option<AnyElement>, Option<AnyElement>)>,
     #[allow(clippy::type_complexity)]
     render_tab_bar: Rc<dyn Fn(&mut Pane, &mut Window, &mut Context<Pane>) -> AnyElement>,
-    show_tab_bar_buttons: bool,
     /// Window chrome the workspace puts at the start of this pane's tab bar
     /// (traffic light room, project name, back/forward), if this is the pane
     /// whose tab bar starts the window's top row.
@@ -652,12 +646,9 @@ impl Pane {
             can_drop_predicate,
             can_split_predicate: None,
             can_toggle_zoom: true,
-            should_display_tab_bar: Rc::new(|_, cx| TabBarSettings::get_global(cx).show),
-            tab_bar_displayed: false,
             tab_style: TabStyle::Folder,
             render_tab_bar_buttons: Rc::new(default_render_tab_bar_buttons),
             render_tab_bar: Rc::new(Self::render_tab_bar),
-            show_tab_bar_buttons: TabBarSettings::get_global(cx).show_tab_bar_buttons,
             tab_bar_header: None,
             tab_bar_is_titlebar: false,
             tab_bar_header_room: px(0.),
@@ -797,10 +788,6 @@ impl Pane {
     }
 
     fn settings_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let tab_bar_settings = TabBarSettings::get_global(cx);
-
-        self.show_tab_bar_buttons = tab_bar_settings.show_tab_bar_buttons;
-
         if !PreviewTabsSettings::get_global(cx).enabled {
             self.set_preview_item_id(None, cx);
         }
@@ -868,21 +855,10 @@ impl Pane {
             .into_any_element()
     }
 
-    pub fn set_should_display_tab_bar<F>(&mut self, should_display_tab_bar: F)
-    where
-        F: 'static + Fn(&Window, &mut Context<Pane>) -> bool,
-    {
-        self.should_display_tab_bar = Rc::new(should_display_tab_bar);
-    }
-
-    pub const fn tab_bar_displayed(&self) -> bool {
-        self.tab_bar_displayed
-    }
-
     /// Height of everything above the card: the tab bar, plus the gap above it
     /// that a tab bar in the window's top row keeps from the window edge.
     pub fn tab_strip_height(&self, cx: &App) -> Pixels {
-        tab_strip_height(self.tab_bar_displayed, self.tab_bar_is_titlebar, Tab::container_height(cx))
+        tab_strip_height(self.tab_style != TabStyle::Pill, self.tab_bar_is_titlebar, Tab::container_height(cx))
     }
 
     /// Pill tabs sit inside the card instead of on the chrome above it.
@@ -3101,37 +3077,13 @@ impl Pane {
         let unpinned_tabs = tab_items.split_off(self.pinned_tab_count);
         let pinned_tabs = tab_items;
 
-        let tab_bar_settings = TabBarSettings::get_global(cx);
-        let use_separate_rows = tab_bar_settings.show_pinned_tabs_in_separate_row;
-
-        if use_separate_rows && !pinned_tabs.is_empty() && !unpinned_tabs.is_empty() {
-            self.render_two_row_tab_bar(pinned_tabs, unpinned_tabs, tab_count, window, cx)
-        } else {
-            self.render_single_row_tab_bar(pinned_tabs, unpinned_tabs, tab_count, window, cx)
-        }
-    }
-
-    fn configure_tab_bar_start(&mut self, tab_bar: TabBar, window: &mut Window, cx: &mut Context<Pane>) -> TabBar {
-        let tab_bar = tab_bar.start_children(self.tab_bar_header.clone());
-        if self.show_tab_bar_buttons {
-            let render_tab_buttons = self.render_tab_bar_buttons.clone();
-            let (left_children, right_children) = render_tab_buttons(self, window, cx);
-            tab_bar.start_children(left_children).end_children(right_children)
-        } else {
-            tab_bar
-        }
-    }
-
-    fn render_single_row_tab_bar(
-        &mut self,
-        pinned_tabs: Vec<AnyElement>,
-        unpinned_tabs: Vec<AnyElement>,
-        tab_count: usize,
-        window: &mut Window,
-        cx: &mut Context<Pane>,
-    ) -> AnyElement {
-        let tab_bar = self
-            .configure_tab_bar_start(TabBar::new("tab_bar").style(self.tab_style), window, cx)
+        let render_tab_buttons = self.render_tab_bar_buttons.clone();
+        let (left_children, right_children) = render_tab_buttons(self, window, cx);
+        TabBar::new("tab_bar")
+            .style(self.tab_style)
+            .start_children(self.tab_bar_header.clone())
+            .start_children(left_children)
+            .end_children(right_children)
             .children(pinned_tabs.len().ne(&0).then(|| {
                 let max_scroll = self.tab_bar_scroll_handle.max_offset().x;
                 // We need to check both because offset returns delta values even when the scroll handle is not scrollable
@@ -3146,36 +3098,7 @@ impl Pane {
                         .border_color(cx.theme().colors().border)
                 })
             }))
-            .child(self.render_unpinned_tabs_container(unpinned_tabs, tab_count, cx));
-        tab_bar.into_any_element()
-    }
-
-    fn render_two_row_tab_bar(
-        &mut self,
-        pinned_tabs: Vec<AnyElement>,
-        unpinned_tabs: Vec<AnyElement>,
-        tab_count: usize,
-        window: &mut Window,
-        cx: &mut Context<Pane>,
-    ) -> AnyElement {
-        let pinned_tab_bar =
-            self.configure_tab_bar_start(TabBar::new("pinned_tab_bar").style(self.tab_style), window, cx).child(
-                h_flex()
-                    .id("pinned_tabs_row")
-                    .overflow_x_scroll()
-                    .w_full()
-                    .children(pinned_tabs)
-                    .child(self.render_pinned_tab_bar_drop_target(cx)),
-            );
-        v_flex()
-            .w_full()
-            .flex_none()
-            .child(pinned_tab_bar)
-            .child(TabBar::new("unpinned_tab_bar").style(self.tab_style).child(self.render_unpinned_tabs_container(
-                unpinned_tabs,
-                tab_count,
-                cx,
-            )))
+            .child(self.render_unpinned_tabs_container(unpinned_tabs, tab_count, cx))
             .into_any_element()
     }
 
@@ -3215,39 +3138,6 @@ impl Pane {
             .on_drop(cx.listener(move |this, selection: &DraggedSelection, window, cx| {
                 this.drag_split_direction = None;
                 this.handle_project_entry_drop(&selection.active_selection.entry_id, Some(tab_count), window, cx)
-            }))
-            .on_drop(cx.listener(move |this, paths, window, cx| {
-                this.drag_split_direction = None;
-                this.handle_external_paths_drop(paths, window, cx)
-            }))
-            .map(|this| self.tab_bar_empty_space_behaviour(this, cx))
-    }
-
-    fn render_pinned_tab_bar_drop_target(&self, cx: &Context<Pane>) -> impl IntoElement {
-        div()
-            .id("pinned_tabs_border")
-            .min_w_6()
-            .h(Tab::container_height(cx))
-            .flex_grow_1()
-            .border_l_1()
-            .border_color(cx.theme().colors().border)
-            // HACK: This empty child is currently necessary to force the drop target to appear
-            // despite us setting a min width above.
-            .child("")
-            .relative()
-            .child(self.render_tab_drop_marker(TabDropSide::Before, None, cx))
-            .on_drop(cx.listener(move |this, dragged_tab: &DraggedTab, window, cx| {
-                this.drag_split_direction = None;
-                this.handle_pinned_tab_bar_drop(dragged_tab, window, cx)
-            }))
-            .on_drop(cx.listener(move |this, selection: &DraggedSelection, window, cx| {
-                this.drag_split_direction = None;
-                this.handle_project_entry_drop(
-                    &selection.active_selection.entry_id,
-                    Some(this.pinned_tab_count),
-                    window,
-                    cx,
-                )
             }))
             .on_drop(cx.listener(move |this, paths, window, cx| {
                 this.drag_split_direction = None;
@@ -3389,55 +3279,6 @@ impl Pane {
 
                             if should_remain_pinned {
                                 this.pinned_tab_count += 1;
-                            }
-                        }
-                    });
-                });
-            })
-            .log_err();
-    }
-
-    fn handle_pinned_tab_bar_drop(&mut self, dragged_tab: &DraggedTab, window: &mut Window, cx: &mut Context<Self>) {
-        let item_id = dragged_tab.item.item_id();
-        let pinned_count = self.pinned_tab_count;
-
-        self.handle_tab_drop(dragged_tab, pinned_count, false, window, cx);
-
-        let to_pane = cx.entity();
-
-        self.workspace
-            .update(cx, |_, cx| {
-                cx.defer_in(window, move |_, _, cx| {
-                    to_pane.update(cx, |this, cx| {
-                        if let Some(actual_ix) = this.index_for_item_id(item_id) {
-                            // If the tab ended up at or after pinned_tab_count, it's not pinned
-                            // so we pin it now
-                            if actual_ix >= this.pinned_tab_count {
-                                let was_active = this.active_item_index == actual_ix;
-                                let destination_ix = this.pinned_tab_count;
-
-                                // Move item to pinned area if needed
-                                if actual_ix != destination_ix {
-                                    let item = this.items.remove(actual_ix);
-                                    this.items.insert(destination_ix, item);
-
-                                    // Update active_item_index to follow the moved item
-                                    if was_active {
-                                        this.active_item_index = destination_ix;
-                                    } else if this.active_item_index > actual_ix
-                                        && this.active_item_index <= destination_ix
-                                    {
-                                        // Item moved left past the active item
-                                        this.active_item_index -= 1;
-                                    } else if this.active_item_index >= destination_ix
-                                        && this.active_item_index < actual_ix
-                                    {
-                                        // Item moved right past the active item
-                                        this.active_item_index += 1;
-                                    }
-                                }
-                                this.pinned_tab_count += 1;
-                                cx.notify();
                             }
                         }
                     });
@@ -3762,11 +3603,7 @@ impl Render for Pane {
             key_context.add("EmptyPane");
         }
 
-        let should_display_tab_bar = self.should_display_tab_bar.clone();
-        // The window chrome lives in the tab bar, so a pane holding it always shows one.
-        let display_tab_bar = should_display_tab_bar(window, cx) || self.tab_bar_header.is_some();
         let pill_tabs = self.tab_style == TabStyle::Pill;
-        self.tab_bar_displayed = display_tab_bar && !pill_tabs;
         let Some(project) = self.project.upgrade() else {
             return div().track_focus(&self.focus_handle(cx));
         };
@@ -3918,12 +3755,12 @@ impl Render for Pane {
                 }
             }))
             // A top-row tab bar keeps the card gap from the window edge; the gap moves the window.
-            .when(display_tab_bar && !pill_tabs && self.tab_bar_is_titlebar, |pane| {
+            .when(!pill_tabs && self.tab_bar_is_titlebar, |pane| {
                 pane.child(
                     ui::utils::window_drag_area(div().id("tab-bar-top-gap")).flex_none().w_full().h(crate::CARD_GAP),
                 )
             })
-            .when(display_tab_bar && !pill_tabs, |pane| {
+            .when(!pill_tabs, |pane| {
                 if self.active_item().is_some() {
                     let tab_bar = (self.render_tab_bar.clone())(self, window, cx);
                     pane.child(self.with_tab_bar_header_room(tab_bar))
@@ -4024,7 +3861,7 @@ impl Render for Pane {
                         .flex_1()
                         .min_h_0()
                         .map(Self::card_style(cx))
-                        .when(display_tab_bar && self.active_item().is_some(), |card| {
+                        .when(self.active_item().is_some(), |card| {
                             card.child((self.render_tab_bar.clone())(self, window, cx))
                         })
                         .child(content)

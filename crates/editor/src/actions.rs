@@ -849,8 +849,6 @@ actions!(
         ToggleSelectedDiffHunks,
         /// Toggles soft wrap mode.
         ToggleSoftWrap,
-        /// Toggles the tab bar display.
-        ToggleTabBar,
         /// Transposes characters around cursor.
         Transpose,
         /// Undoes the last edit.

@@ -66,15 +66,6 @@ pub struct ActivePanelModifiers {
     pub inactive_opacity: Option<InactiveOpacity>,
 }
 
-#[derive(Deserialize)]
-pub struct TabBarSettings {
-    pub show: bool,
-    pub show_tab_bar_buttons: bool,
-    pub show_pinned_tabs_in_separate_row: bool,
-}
-
-settings::register_setting!(TabBarSettings);
-
 impl Settings for WorkspaceSettings {
     fn from_settings(content: &settings::SettingsContent) -> Self {
         let workspace = &content.workspace;
@@ -112,17 +103,6 @@ impl Settings for WorkspaceSettings {
                 enabled: workspace.focus_follows_mouse.unwrap().enabled.unwrap_or(false),
                 debounce: Duration::from_millis(workspace.focus_follows_mouse.unwrap().debounce_ms.unwrap_or(250)),
             },
-        }
-    }
-}
-
-impl Settings for TabBarSettings {
-    fn from_settings(content: &settings::SettingsContent) -> Self {
-        let tab_bar = content.tab_bar.clone().unwrap();
-        TabBarSettings {
-            show: tab_bar.show.unwrap(),
-            show_tab_bar_buttons: tab_bar.show_tab_bar_buttons.unwrap(),
-            show_pinned_tabs_in_separate_row: tab_bar.show_pinned_tabs_in_separate_row.unwrap(),
         }
     }
 }

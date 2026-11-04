@@ -149,6 +149,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
   only in the window header (see above), not on tab bars.
   The `tab_bar.show_nav_history_buttons` and `reveal_if_open`
   settings are removed. The terminal panel keeps its own panes and history.
+- Every pane always shows its tab bar (pill tabs inside the card, otherwise on
+  the chrome above it). Tab bars always carry their buttons and keep pinned
+  tabs in the same row as the others. There are no `tab_bar` settings and no
+  Toggle Tab Bar action.
 - Split panes are separate cards with an 8px gap between them (the chrome shows
   through) instead of a divider line. The resize handle covers the gap.
   Finding the neighbouring pane (pane navigation, "open to the side") looks

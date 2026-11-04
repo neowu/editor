@@ -319,23 +319,6 @@ pub enum RestoreOnStartupBehavior {
     Launchpad,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq)]
-pub struct TabBarSettingsContent {
-    /// Whether or not to show the tab bar in the editor.
-    ///
-    /// Default: true
-    pub show: Option<bool>,
-    /// Whether or not to show the tab bar buttons.
-    ///
-    /// Default: true
-    pub show_tab_bar_buttons: Option<bool>,
-    /// Whether or not to show pinned tabs in a separate row.
-    /// When enabled, pinned tabs appear in a top row and unpinned tabs in a bottom row.
-    ///
-    /// Default: false
-    pub show_pinned_tabs_in_separate_row: Option<bool>,
-}
-
 #[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct StatusBarSettingsContent {
     /// Whether to show the status bar.

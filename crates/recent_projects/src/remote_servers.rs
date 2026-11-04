@@ -1,7 +1,6 @@
 use crate::remote_connections::Connection;
 use crate::remote_connections::RemoteConnectionModal;
 use crate::remote_connections::RemoteConnectionPrompt;
-use crate::remote_connections::RemoteSettings;
 use crate::remote_connections::SshConnection;
 use crate::remote_connections::SshConnectionHeader;
 use crate::remote_connections::connect;
@@ -9,7 +8,6 @@ use crate::remote_connections::determine_paths_with_positions;
 use crate::remote_connections::open_remote_project;
 mod filter;
 
-use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -47,7 +45,6 @@ use remote::RemoteConnectionOptions;
 use remote::SshConnectionOptions;
 use remote::remote_client::ConnectionIdentifier;
 use settings::RemoteProject;
-use settings::Settings as _;
 use ui::HighlightedLabel;
 use ui::IconButtonShape;
 use ui::KeyBinding;
@@ -282,11 +279,10 @@ struct DefaultState {
 
 impl DefaultState {
     fn new(cx: &App) -> Self {
-        let settings = RemoteSettings::get_global(cx);
         let servers = ProjectsStore::global(cx)
             .recent_servers()
             .into_iter()
-            .map(|recent| remote_entry(recent, settings))
+            .map(remote_entry)
             .collect::<Vec<RemoteEntry>>();
 
         let filter_data = Arc::new(FilterData::build(&servers));
@@ -302,20 +298,14 @@ impl DefaultState {
     }
 }
 
-/// The modal's entry for a recent server. Options the hardcoded
-/// `ssh_connections` give the server (nickname, args, port forwards) apply.
-fn remote_entry(recent: RecentServer, settings: &RemoteSettings) -> RemoteEntry {
+/// The modal's entry for a recent server.
+fn remote_entry(recent: RecentServer) -> RemoteEntry {
     let RecentServer { server, projects } = recent;
-    let options = settings.connection_options_for(server.host.clone(), server.port, server.username.clone());
     let connection = SshConnection {
         host: server.host.clone(),
         username: server.username.clone(),
         port: server.port,
-        projects: BTreeSet::new(),
-        nickname: options.nickname,
-        args: options.args.unwrap_or_default(),
-        port_forwards: options.port_forwards,
-        connection_timeout: options.connection_timeout,
+        ..SshConnection::default()
     };
     let projects = projects
         .into_iter()
@@ -1406,8 +1396,6 @@ mod tests {
 
     use super::Connection;
     use super::RemoteEntry;
-    use super::RemoteSettings;
-    use super::SshConnection;
     use super::remote_entry;
 
     fn server(host: &str) -> RemoteServer {
@@ -1415,38 +1403,25 @@ mod tests {
     }
 
     #[test]
-    fn test_remote_entry_lists_projects_and_applies_hardcoded_options() {
+    fn test_remote_entry_lists_projects() {
         let location =
             ProjectLocation { paths: vec![PathBuf::from("/a"), PathBuf::from("/b")], remote: Some(server("dev")) };
-        let settings = RemoteSettings {
-            ssh_connections: vec![SshConnection {
-                host: "dev".into(),
-                username: Some("me".into()),
-                port: Some(22),
-                nickname: Some("box".into()),
-                args: vec!["-A".into()],
-                ..SshConnection::default()
-            }],
-        };
         let RemoteEntry::Project { projects, connection: Connection::Ssh(connection), server: entry_server } =
-            remote_entry(RecentServer { server: server("dev"), projects: vec![location.clone()] }, &settings);
+            remote_entry(RecentServer { server: server("dev"), projects: vec![location.clone()] });
         assert_eq!(entry_server, server("dev"));
-        assert_eq!((connection.host.as_str(), connection.nickname.as_deref()), ("dev", Some("box")));
-        assert_eq!(connection.args, ["-A"]);
+        assert_eq!(
+            (connection.host.as_str(), connection.username.as_deref(), connection.port, connection.nickname),
+            ("dev", Some("me"), Some(22), None)
+        );
         assert_eq!(projects.len(), 1);
         assert_eq!(projects[0].project, RemoteProject { paths: vec!["/a".into(), "/b".into()] });
         assert_eq!(projects[0].location, location);
     }
 
     #[test]
-    fn test_remote_entry_without_hardcoded_options() {
-        let settings = RemoteSettings { ssh_connections: Vec::new() };
-        let RemoteEntry::Project { projects, connection: Connection::Ssh(connection), .. } =
-            remote_entry(RecentServer { server: server("dev"), projects: Vec::new() }, &settings);
+    fn test_remote_entry_without_projects() {
+        let RemoteEntry::Project { projects, .. } =
+            remote_entry(RecentServer { server: server("dev"), projects: Vec::new() });
         assert!(projects.is_empty());
-        assert_eq!(
-            (connection.username.as_deref(), connection.port, connection.nickname),
-            (Some("me"), Some(22), None)
-        );
     }
 }

@@ -14,9 +14,9 @@ use gpui::App;
 use gpui::AsyncApp;
 use gpui::Global;
 use gpui::WindowHandle;
-use recent_projects::RemoteSettings;
 use recent_projects::navigate_to_positions;
 use remote::RemoteConnectionOptions;
+use remote::SshConnectionOptions;
 use settings::Settings;
 use util::ResultExt;
 use util::paths::PathWithPosition;
@@ -35,14 +35,14 @@ pub struct OpenRequest {
 }
 
 impl OpenRequest {
-    pub fn parse(request: RawOpenRequest, cx: &App) -> Result<Self> {
+    pub fn parse(request: RawOpenRequest) -> Result<Self> {
         let mut this = Self { diff_paths: request.diff_paths, diff_all: request.diff_all, ..Default::default() };
 
         for url in request.urls {
             if let Some(file) = url.strip_prefix("file://") {
                 this.parse_file_path(file)
             } else if url.starts_with("ssh://") {
-                this.parse_ssh_file_path(&url, cx)?
+                this.parse_ssh_file_path(&url)?
             } else {
                 log::error!("unhandled url: {}", url);
             }
@@ -57,7 +57,7 @@ impl OpenRequest {
         }
     }
 
-    fn parse_ssh_file_path(&mut self, file: &str, cx: &App) -> Result<()> {
+    fn parse_ssh_file_path(&mut self, file: &str) -> Result<()> {
         let url = parse_ssh_url(file)?;
         let host = match url.host().with_context(|| format!("missing host in ssh url: {url}"))? {
             url::Host::Domain(host) => host.to_string(),
@@ -72,9 +72,12 @@ impl OpenRequest {
             url.password().is_none(),
             "SSH password authentication is unsupported; configure non-interactive authentication"
         );
-        let connection_options = RemoteSettings::get_global(cx).connection_options_for(host, port, username);
-
-        let connection_options = RemoteConnectionOptions::Ssh(connection_options);
+        let connection_options = RemoteConnectionOptions::Ssh(SshConnectionOptions {
+            host: host.into(),
+            port,
+            username,
+            ..Default::default()
+        });
         if let Some(ssh_connection) = &self.remote_connection {
             anyhow::ensure!(*ssh_connection == connection_options, "cannot open multiple different remote connections");
         }

@@ -14,13 +14,11 @@ use gpui::WindowHandle;
 use remote::Interactive;
 use remote::RemoteConnection;
 use remote::RemoteConnectionOptions;
-use remote::SshConnectionOptions;
 pub use remote_connection::RemoteClientDelegate;
 pub use remote_connection::RemoteConnectionModal;
 pub use remote_connection::RemoteConnectionPrompt;
 pub use remote_connection::SshConnectionHeader;
 pub use remote_connection::connect;
-use settings::Settings;
 pub use settings::SshConnection;
 use util::paths::PathWithPosition;
 use workspace::AppState;
@@ -28,40 +26,6 @@ use workspace::OpenOptions;
 use workspace::SerializedWorkspaceLocation;
 use workspace::Workspace;
 use workspace::find_existing_workspace;
-
-pub struct RemoteSettings {
-    pub ssh_connections: Vec<SshConnection>,
-}
-
-settings::register_setting!(RemoteSettings);
-
-impl RemoteSettings {
-    pub fn ssh_connections(&self) -> impl Iterator<Item = SshConnection> + use<> {
-        self.ssh_connections.clone().into_iter()
-    }
-
-    pub fn fill_connection_options_from_settings(&self, options: &mut SshConnectionOptions) {
-        for conn in self.ssh_connections() {
-            if conn.host == options.host.to_string() && conn.username == options.username && conn.port == options.port {
-                options.nickname = conn.nickname;
-                options.args = Some(conn.args);
-                options.port_forwards = conn.port_forwards;
-                break;
-            }
-        }
-    }
-
-    pub fn connection_options_for(
-        &self,
-        host: String,
-        port: Option<u16>,
-        username: Option<String>,
-    ) -> SshConnectionOptions {
-        let mut options = SshConnectionOptions { host: host.into(), port, username, ..Default::default() };
-        self.fill_connection_options_from_settings(&mut options);
-        options
-    }
-}
 
 #[derive(Clone, PartialEq)]
 pub enum Connection {
@@ -79,13 +43,6 @@ impl From<Connection> for RemoteConnectionOptions {
 impl From<SshConnection> for Connection {
     fn from(val: SshConnection) -> Self {
         Connection::Ssh(val)
-    }
-}
-
-impl Settings for RemoteSettings {
-    fn from_settings(content: &settings::SettingsContent) -> Self {
-        let remote = &content.remote;
-        Self { ssh_connections: remote.ssh_connections.clone().unwrap_or_default() }
     }
 }
 

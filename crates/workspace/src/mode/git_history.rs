@@ -147,7 +147,6 @@ impl Workspace {
                 window,
                 cx,
             );
-            pane.set_should_display_tab_bar(|_, _| true);
             pane.set_can_split(Some(Arc::new(|_, _, _, _| true)));
             pane.set_read_only_tabs(true);
             pane.set_nav_history(nav_history);

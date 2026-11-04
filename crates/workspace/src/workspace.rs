@@ -198,7 +198,6 @@ pub use workspace_settings::EncodingDisplayOptions;
 pub use workspace_settings::FocusFollowsMouse;
 pub use workspace_settings::RestoreOnStartupBehavior;
 pub use workspace_settings::StatusBarSettings;
-pub use workspace_settings::TabBarSettings;
 pub use workspace_settings::WorkspaceSettings;
 
 use crate::item::ItemBufferKind;

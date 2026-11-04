@@ -187,17 +187,6 @@ impl Editor {
         cx.notify();
     }
 
-    pub(super) fn toggle_tab_bar(&mut self, _: &ToggleTabBar, _: &mut Window, cx: &mut Context<Self>) {
-        let Some(workspace) = self.workspace() else {
-            return;
-        };
-        let fs = workspace.read(cx).app_state().fs.clone();
-        let current_show = TabBarSettings::get_global(cx).show;
-        update_settings_file(fs, cx, move |setting, _| {
-            setting.tab_bar.get_or_insert_default().show = Some(!current_show);
-        });
-    }
-
     pub(super) fn toggle_indent_guides(&mut self, _: &ToggleIndentGuides, _: &mut Window, cx: &mut Context<Self>) {
         let currently_enabled = self
             .should_show_indent_guides()

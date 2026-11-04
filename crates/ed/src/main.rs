@@ -46,9 +46,7 @@ use gpui::Task;
 use gpui::TaskExt;
 use gpui::UpdateGlobal as _;
 use language::LanguageRegistry;
-use recent_projects::RemoteSettings;
 use recent_projects::open_remote_project;
-use remote::RemoteConnectionOptions;
 use settings::Settings;
 use settings::SettingsStore;
 use theme::ActiveTheme;
@@ -324,7 +322,7 @@ fn main() {
             open_listener.open(RawOpenRequest { urls, diff_paths, diff_all: diff_all_mode })
         }
 
-        let restore_task = match open_rx.try_recv().ok().and_then(|request| OpenRequest::parse(request, cx).log_err()) {
+        let restore_task = match open_rx.try_recv().ok().and_then(|request| OpenRequest::parse(request).log_err()) {
             Some(request) => {
                 handle_open_request(request, app_state.clone(), cx);
                 Task::ready(())
@@ -363,7 +361,7 @@ fn main() {
                     _ = first_window_placed.clone() => {}
                 }
                 cx.update(|cx| {
-                    if let Some(request) = OpenRequest::parse(urls, cx).log_err() {
+                    if let Some(request) = OpenRequest::parse(urls).log_err() {
                         handle_open_request(request, app_state.clone(), cx);
                     }
                 });
@@ -426,13 +424,9 @@ pub(crate) async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &m
                     restore_workspace(session_workspace, app_state.clone(), cx).await.map(|_| ())
                 }
                 SerializedWorkspaceLocation::Remote(connection_options) => {
-                    let mut connection_options = connection_options.clone();
-                    let RemoteConnectionOptions::Ssh(options) = &mut connection_options;
-                    cx.update(|cx| RemoteSettings::get_global(cx).fill_connection_options_from_settings(options));
-
                     let paths = session_workspace.paths.ordered_paths().cloned().collect::<Vec<_>>();
                     open_remote_project(
-                        connection_options,
+                        connection_options.clone(),
                         paths,
                         app_state.clone(),
                         workspace::OpenOptions {

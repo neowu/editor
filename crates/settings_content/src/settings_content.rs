@@ -82,16 +82,12 @@ pub struct SettingsContent {
     #[serde(flatten)]
     pub editor: EditorSettingsContent,
 
-    #[serde(flatten)]
-    pub remote: RemoteSettingsContent,
-
     /// Settings related to the file finder.
     pub file_finder: Option<FileFinderSettingsContent>,
 
     pub git_panel: Option<GitPanelSettingsContent>,
 
     pub tabs: Option<ItemSettingsContent>,
-    pub tab_bar: Option<TabBarSettingsContent>,
     pub tab_switcher: Option<TabSwitcherSettingsContent>,
     pub status_bar: Option<StatusBarSettingsContent>,
 
@@ -447,11 +443,6 @@ pub enum ImageFileSizeUnit {
     Binary,
     /// Displays file size in decimal units (e.g., KB, MB).
     Decimal,
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
-pub struct RemoteSettingsContent {
-    pub ssh_connections: Option<Vec<SshConnection>>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
