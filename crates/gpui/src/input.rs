@@ -7,7 +7,6 @@ use crate::Context;
 use crate::Entity;
 use crate::InputHandler;
 use crate::Pixels;
-use crate::TextInputConfiguration;
 use crate::UTF16Selection;
 use crate::Window;
 
@@ -84,22 +83,9 @@ pub trait EntityInputHandler: 'static + Sized {
         cx: &mut Context<Self>,
     ) -> Option<usize>;
 
-    /// See [`InputHandler::set_selected_text_range`] for details
-    fn set_selected_text_range(&mut self, _range_utf16: Range<usize>, _window: &mut Window, _cx: &mut Context<Self>) {}
-
-    /// See [`InputHandler::text_length_utf16`] for details
-    fn text_length_utf16(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> Option<usize> {
-        None
-    }
-
     /// See [`InputHandler::accepts_text_input`] for details
     fn accepts_text_input(&self, _window: &mut Window, _cx: &mut Context<Self>) -> bool {
         true
-    }
-
-    /// See [`InputHandler::text_input_configuration`] for details
-    fn text_input_configuration(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> TextInputConfiguration {
-        TextInputConfiguration::default()
     }
 
     /// See [`InputHandler::text_input_editable_range`] for details
@@ -197,28 +183,12 @@ impl<V: EntityInputHandler> InputHandler for ElementInputHandler<V> {
         self.view.update(cx, |view, cx| view.character_index_for_point(point, window, cx))
     }
 
-    fn set_selected_text_range(&mut self, range_utf16: Range<usize>, window: &mut Window, cx: &mut App) {
-        self.view.update(cx, |view, cx| view.set_selected_text_range(range_utf16, window, cx))
-    }
-
-    fn element_bounds(&mut self, _window: &mut Window, _cx: &mut App) -> Option<Bounds<Pixels>> {
-        Some(self.element_bounds)
-    }
-
-    fn text_length_utf16(&mut self, window: &mut Window, cx: &mut App) -> Option<usize> {
-        self.view.update(cx, |view, cx| view.text_length_utf16(window, cx))
-    }
-
     fn accepts_text_input(&mut self, window: &mut Window, cx: &mut App) -> bool {
         self.view.update(cx, |view, cx| view.accepts_text_input(window, cx))
     }
 
     fn prefers_ime_for_printable_keys(&mut self, window: &mut Window, cx: &mut App) -> bool {
         self.view.update(cx, |view, cx| view.accepts_text_input(window, cx))
-    }
-
-    fn text_input_configuration(&mut self, window: &mut Window, cx: &mut App) -> TextInputConfiguration {
-        self.view.update(cx, |view, cx| view.text_input_configuration(window, cx))
     }
 
     fn text_input_editable_range(&mut self, window: &mut Window, cx: &mut App) -> Option<Range<usize>> {

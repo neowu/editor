@@ -94,6 +94,14 @@ or UNC prefixes. There is no path-style abstraction; code uses
   It retains background execution, timers, and a foreground event loop for remote projects.
 - GPUI core has no direct `libc` dependency; native OS integration belongs in
   platform-specific crates.
+- No touch or mobile support in GPUI: no raw touch events, tap/long-press/touch-drag
+  recognition, touch click events, or touch hover suppression. Input modality is
+  mouse or keyboard only. Trackpad input stays: scroll phases (`TouchPhase`),
+  per-gesture scroll axis locking (`OngoingScroll`), and pinch (`PinchEvent`).
+- No mobile platform hooks: no app lifecycle or memory-warning callbacks, window
+  insets/safe areas, visual viewport, system back action, soft keyboard requests,
+  text-input state notifications, or soft-keyboard text configuration
+  (autocorrect, autocapitalize, enter-key hint).
 - Linux remote data, configuration, and logs follow XDG directory settings.
 
 ## App identity and user directories

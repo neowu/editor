@@ -19,7 +19,6 @@ diagnostics = { path = "crates/diagnostics" }
 ed_actions = { path = "crates/ed_actions" }
 editor = { path = "crates/editor" }
 encoding_selector = { path = "crates/encoding_selector" }
-env_var = { path = "crates/env_var" }
 file_content = { path = "crates/file_content" }
 file_finder = { path = "crates/file_finder" }
 file_icons = { path = "crates/file_icons" }

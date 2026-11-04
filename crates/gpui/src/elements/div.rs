@@ -17,7 +17,6 @@
 
 use std::any::Any;
 use std::any::TypeId;
-use std::cell::Cell;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -64,7 +63,6 @@ use crate::KeyUpEvent;
 use crate::KeyboardButton;
 use crate::KeyboardClickEvent;
 use crate::LayoutId;
-use crate::LongPressEvent;
 use crate::ModifiersChangedEvent;
 use crate::MouseButton;
 use crate::MouseClickEvent;
@@ -88,7 +86,6 @@ use crate::StyleRefinement;
 use crate::Styled;
 use crate::Task;
 use crate::TooltipId;
-use crate::TouchPhase;
 use crate::Visibility;
 use crate::Window;
 use crate::WindowControlArea;
@@ -623,7 +620,7 @@ impl Interactivity {
     /// passed to the callback is true when the hover starts and false when it ends.
     /// Transitions caused by layout changes under a stationary mouse also invoke the callback.
     ///
-    /// By default, keyboard input suppresses hover until the next mouse move, mouse down, or touch. Set
+    /// By default, keyboard input suppresses hover until the next mouse move or mouse down. Set
     /// [`HoverListenerMode::InputModalityIndependent`] with [`Self::hover_listener_mode`] to
     /// continue hit-testing hover after keyboard input.
     /// The imperative API equivalent to [`StatefulInteractiveElement::on_hover`].
@@ -679,7 +676,6 @@ impl Interactivity {
 
     /// Sets the delay before this element's tooltip is shown on hover.
     ///
-    /// Touch long presses show the tooltip immediately once the gesture is recognized.
     /// The imperative API equivalent to [`StatefulInteractiveElement::tooltip_show_delay`].
     pub const fn tooltip_show_delay(&mut self, delay: Duration) {
         self.tooltip_show_delay = Some(delay);
@@ -1297,7 +1293,7 @@ pub trait StatefulInteractiveElement: InteractiveElement {
     /// passed to the callback is true when the hover starts and false when it ends.
     /// Transitions caused by layout changes under a stationary mouse also invoke the callback.
     ///
-    /// By default, keyboard input suppresses hover until the next mouse move, mouse down, or touch. Set
+    /// By default, keyboard input suppresses hover until the next mouse move or mouse down. Set
     /// [`HoverListenerMode::InputModalityIndependent`] with [`Self::hover_listener_mode`] to
     /// continue hit-testing hover after keyboard input.
     /// The fluent API equivalent to [`Interactivity::on_hover`].
@@ -1345,7 +1341,6 @@ pub trait StatefulInteractiveElement: InteractiveElement {
 
     /// Sets the delay before this element's tooltip is shown on hover.
     ///
-    /// Touch long presses show the tooltip immediately once the gesture is recognized.
     /// The fluent API equivalent to [`Interactivity::tooltip_show_delay`].
     fn tooltip_show_delay(mut self, delay: Duration) -> Self
     where
@@ -1823,9 +1818,6 @@ impl Interactivity {
                         self.tooltip_id = set_tooltip_on_window(active_tooltip, window);
                     } else {
                         // If there is no longer a tooltip builder, remove the active tooltip.
-                        if let Some(long_press_tooltip_active) = element_state.long_press_tooltip_active.as_ref() {
-                            long_press_tooltip_active.set(false);
-                        }
                         element_state.active_tooltip.take();
                     }
                 }
@@ -2524,8 +2516,6 @@ impl Interactivity {
             if let Some(tooltip_builder) = self.tooltip_builder.take() {
                 let active_tooltip = element_state.active_tooltip.get_or_insert_with(Default::default).clone();
                 let pending_mouse_down = element_state.pending_mouse_down.get_or_insert_with(Default::default).clone();
-                let long_press_tooltip_active =
-                    element_state.long_press_tooltip_active.get_or_insert_with(Default::default).clone();
 
                 let tooltip_is_hoverable = tooltip_builder.hoverable;
                 let build_tooltip = Rc::new(move |window: &mut Window, cx: &mut App| {
@@ -2551,7 +2541,6 @@ impl Interactivity {
                     build_tooltip,
                     check_is_hovered,
                     check_is_hovered_during_prepaint,
-                    long_press_tooltip_active,
                     self.tooltip_show_delay,
                     window,
                 );
@@ -2740,10 +2729,9 @@ impl Interactivity {
         if !cx.has_active_drag() {
             if let Some(group_hover) = self.group_hover_style.as_ref() {
                 let is_group_hovered = if let Some(group_hitbox_id) = GroupHitboxes::get(&group_hover.group, cx) {
-                    !window.last_input_was_touch() && group_hitbox_id.is_hovered(window)
+                    group_hitbox_id.is_hovered(window)
                 } else if let Some(element_state) = element_state.as_ref() {
-                    !window.last_input_was_touch()
-                        && element_state.hover_state.as_ref().map(|state| state.borrow().group).unwrap_or(false)
+                    element_state.hover_state.as_ref().map(|state| state.borrow().group).unwrap_or(false)
                 } else {
                     false
                 };
@@ -2755,10 +2743,9 @@ impl Interactivity {
 
             if let Some(hover_style) = self.hover_style.as_ref() {
                 let is_hovered = if let Some(hitbox) = hitbox {
-                    !window.last_input_was_touch() && hitbox.is_hovered(window)
+                    hitbox.is_hovered(window)
                 } else if let Some(element_state) = element_state.as_ref() {
-                    !window.last_input_was_touch()
-                        && element_state.hover_state.as_ref().map(|state| state.borrow().element).unwrap_or(false)
+                    element_state.hover_state.as_ref().map(|state| state.borrow().element).unwrap_or(false)
                 } else {
                     false
                 };
@@ -2837,7 +2824,6 @@ pub struct InteractiveElementState {
     pub(crate) scroll_offset: Option<Rc<RefCell<Point<Pixels>>>>,
     ongoing_scroll: Option<Rc<RefCell<OngoingScroll>>>,
     pub(crate) active_tooltip: Option<Rc<RefCell<Option<ActiveTooltip>>>>,
-    long_press_tooltip_active: Option<Rc<Cell<bool>>>,
 }
 
 /// Whether or not the element or a group that contains it is clicked by the mouse.
@@ -2920,7 +2906,6 @@ pub(crate) fn register_tooltip_mouse_handlers(
     build_tooltip: Rc<dyn Fn(&mut Window, &mut App) -> Option<(AnyView, bool)>>,
     check_is_hovered: Rc<dyn Fn(&Window) -> bool>,
     check_is_hovered_during_prepaint: Rc<dyn Fn(&Window) -> bool>,
-    long_press_tooltip_active: Rc<Cell<bool>>,
     show_delay: Option<Duration>,
     window: &mut Window,
 ) {
@@ -2953,39 +2938,6 @@ pub(crate) fn register_tooltip_mouse_handlers(
         move |_: &MouseDownEvent, _phase, window: &mut Window, _cx| {
             if !tooltip_id.is_some_and(|tooltip_id| tooltip_id.is_hovered(window)) {
                 clear_active_tooltip_if_not_hoverable(&active_tooltip, window);
-            }
-        }
-    });
-
-    window.on_mouse_event({
-        let active_tooltip = active_tooltip.clone();
-        let build_tooltip = build_tooltip.clone();
-        let check_is_hovered_during_prepaint = check_is_hovered_during_prepaint.clone();
-        move |event: &LongPressEvent, phase, window, cx| {
-            if !phase.bubble() {
-                return;
-            }
-
-            match event.phase {
-                TouchPhase::Started if !window.default_prevented() && check_is_hovered(window) => {
-                    if show_tooltip(
-                        &active_tooltip,
-                        &build_tooltip,
-                        &check_is_hovered_during_prepaint,
-                        Some(long_press_tooltip_active.clone()),
-                        window,
-                        cx,
-                    ) {
-                        long_press_tooltip_active.set(true);
-                        window.prevent_default();
-                        cx.stop_propagation();
-                    }
-                }
-                TouchPhase::Ended | TouchPhase::Cancelled if long_press_tooltip_active.replace(false) => {
-                    clear_active_tooltip(&active_tooltip, window);
-                    cx.stop_propagation();
-                }
-                TouchPhase::Started | TouchPhase::Moved | TouchPhase::Ended | TouchPhase::Cancelled => {}
             }
         }
     });
@@ -3079,14 +3031,7 @@ fn handle_tooltip_mouse_move(
                         return;
                     };
                     cx.update(|window, cx| {
-                        show_tooltip(
-                            &active_tooltip,
-                            &build_tooltip,
-                            &check_is_hovered_during_prepaint,
-                            None,
-                            window,
-                            cx,
-                        );
+                        show_tooltip(&active_tooltip, &build_tooltip, &check_is_hovered_during_prepaint, window, cx);
                     })
                     .ok();
                 }
@@ -3101,10 +3046,9 @@ fn show_tooltip(
     active_tooltip: &Rc<RefCell<Option<ActiveTooltip>>>,
     build_tooltip: &Rc<dyn Fn(&mut Window, &mut App) -> Option<(AnyView, bool)>>,
     check_is_hovered_during_prepaint: &Rc<dyn Fn(&Window) -> bool>,
-    long_press_tooltip_active: Option<Rc<Cell<bool>>>,
     window: &mut Window,
     cx: &mut App,
-) -> bool {
+) {
     let new_tooltip = build_tooltip(window, cx).map(|(view, tooltip_is_hoverable)| {
         let weak_active_tooltip = Rc::downgrade(active_tooltip);
         let check_is_hovered_during_prepaint = check_is_hovered_during_prepaint.clone();
@@ -3113,9 +3057,6 @@ fn show_tooltip(
                 view,
                 mouse_position: window.mouse_position(),
                 check_visible_and_update: Rc::new(move |tooltip_bounds, window, cx| {
-                    if long_press_tooltip_active.as_ref().is_some_and(|active| active.get()) {
-                        return true;
-                    }
                     let Some(active_tooltip) = weak_active_tooltip.upgrade() else {
                         return false;
                     };
@@ -3132,10 +3073,8 @@ fn show_tooltip(
             is_hoverable: tooltip_is_hoverable,
         }
     });
-    let did_show = new_tooltip.is_some();
     *active_tooltip.borrow_mut() = new_tooltip;
     window.refresh();
-    did_show
 }
 
 /// Returns a callback which will be called by window prepaint to update tooltip visibility. The

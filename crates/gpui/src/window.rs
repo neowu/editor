@@ -136,8 +136,6 @@ use crate::Subscription;
 use crate::TabStopMap;
 use crate::TaffyLayoutEngine;
 use crate::Task;
-use crate::TextInputConfiguration;
-use crate::TextInputStateChange;
 use crate::TextRenderingMode;
 use crate::TextStyle;
 use crate::TextStyleRefinement;
@@ -154,10 +152,6 @@ use crate::WindowOptions;
 use crate::WindowParams;
 use crate::WindowTextSystem;
 use crate::WindowVisibility;
-use crate::gestures::GestureTuning;
-use crate::gestures::RecognizedTouchGesture;
-use crate::gestures::TouchGestureRecognizer;
-use crate::interactive::TouchEvent;
 use crate::point;
 use crate::prelude::*;
 use crate::px;
@@ -1160,7 +1154,6 @@ impl Frame {
 enum InputModality {
     Mouse,
     Keyboard,
-    Touch,
 }
 
 /// Holds the state for a specific window.
@@ -1192,11 +1185,6 @@ pub struct Window {
     pub(crate) element_opacity: f32,
     pub(crate) content_mask_stack: Vec<ContentMask<Pixels>>,
     pub(crate) requested_autoscroll: Option<Bounds<Pixels>>,
-    /// The [`TextInputConfiguration`] most recently forwarded to the platform
-    /// window, so that only actual changes are forwarded (reconfiguring a live
-    /// input session can restart the IME connection).
-    last_text_input_configuration: Option<TextInputConfiguration>,
-    focused_text_input_active: bool,
     pub(crate) image_cache_stack: Vec<AnyImageCache>,
     pub(crate) rendered_frame: Frame,
     pub(crate) next_frame: Frame,
@@ -1227,10 +1215,6 @@ pub struct Window {
     /// Used to selectively enable VRR optimization only when input rate exceeds 60fps.
     pub(crate) input_rate_tracker: Rc<RefCell<InputRateTracker>>,
     last_input_modality: InputModality,
-    touch_gestures: TouchGestureRecognizer,
-    touch_prediction_enabled: bool,
-    long_press_timer: Option<Task<()>>,
-    long_press_capture: Option<EntityId>,
     pub(crate) refreshing: bool,
     pub(crate) activation_observers: SingleSubscriberSet<AnyObserver>,
     pub(crate) focus: Option<FocusId>,
@@ -1693,18 +1677,6 @@ impl Window {
             }
         }));
         invalidator.set_platform_waker(platform_window.frame_waker());
-        platform_window.on_visual_viewport_changed(Box::new({
-            let mut cx = cx.to_async();
-            move || {
-                handle.update(&mut cx, |_, window, _| window.refresh()).log_err();
-            }
-        }));
-        platform_window.on_insets_changed(Box::new({
-            let mut cx = cx.to_async();
-            move |_| {
-                handle.update(&mut cx, |_, window, _| window.refresh()).log_err();
-            }
-        }));
         platform_window.on_resize(Box::new({
             let mut cx = cx.to_async();
             move |_, _| {
@@ -1822,8 +1794,6 @@ impl Window {
             content_mask_stack: Vec::new(),
             element_opacity: 1.0,
             requested_autoscroll: None,
-            last_text_input_configuration: None,
-            focused_text_input_active: false,
             rendered_frame: Frame::new(DispatchTree::new(cx.keymap.clone(), cx.actions.clone())),
             next_frame: Frame::new(DispatchTree::new(cx.keymap.clone(), cx.actions.clone())),
             next_frame_callbacks,
@@ -1850,12 +1820,6 @@ impl Window {
             needs_present,
             input_rate_tracker,
             last_input_modality: InputModality::Mouse,
-            touch_gestures: TouchGestureRecognizer::new(
-                cx.platform.gestures().map_or_else(GestureTuning::default, |gestures| gestures.tuning()),
-            ),
-            touch_prediction_enabled: true,
-            long_press_timer: None,
-            long_press_capture: None,
             refreshing: false,
             activation_observers: SingleSubscriberSet::new(),
             focus: None,
@@ -2422,46 +2386,6 @@ impl Window {
         self.viewport_size
     }
 
-    /// Returns the platform's visible viewport in window-local logical pixels.
-    ///
-    /// Unlike `viewport_size`, this can shrink or move when the keyboard opens.
-    /// During drawing this is a consistent frame snapshot. Outside drawing it
-    /// reflects the latest platform sample, not a synchronous geometry query.
-    pub fn visual_viewport_bounds(&self) -> Bounds<Pixels> {
-        self.platform_window.visual_viewport_bounds()
-    }
-
-    /// Returns a conservative rectangle avoiding platform-known obscured content.
-    ///
-    /// Intersects the visual viewport with the full layout area inset by system
-    /// safe areas and keyboard occlusion. Unknown overlays cannot be excluded.
-    pub fn fully_visible_bounds(&self) -> Bounds<Pixels> {
-        let insets = self.platform_window.insets().effective();
-        let viewport = self.viewport_size();
-        let left = insets.left.max(Pixels::ZERO).min(viewport.width);
-        let top = insets.top.max(Pixels::ZERO).min(viewport.height);
-        let right = (viewport.width - insets.right.max(Pixels::ZERO)).max(left);
-        let bottom = (viewport.height - insets.bottom.max(Pixels::ZERO)).max(top);
-        let safe_bounds = Bounds::from_corners(point(left, top), point(right, bottom));
-        let mut visible = safe_bounds.intersect(&self.visual_viewport_bounds());
-        visible.size.width = visible.size.width.max(Pixels::ZERO);
-        visible.size.height = visible.size.height.max(Pixels::ZERO);
-        visible
-    }
-
-    /// Requests the virtual keyboard for the currently focused text input.
-    ///
-    /// Call from a user gesture on platforms that require one. The platform may
-    /// decline the request; this does not change focus or the layout viewport.
-    pub fn request_virtual_keyboard(&self) {
-        self.platform_window.show_soft_keyboard();
-    }
-
-    /// Requests dismissal of the virtual keyboard without changing GPUI focus.
-    pub fn dismiss_virtual_keyboard(&self) {
-        self.platform_window.hide_soft_keyboard();
-    }
-
     /// Returns whether this window is focused by the operating system (receiving key events).
     pub fn is_window_active(&self) -> bool {
         self.active.get()
@@ -2796,20 +2720,6 @@ impl Window {
         self.captured_hitbox
     }
 
-    /// Captures the current long press for the given entity.
-    ///
-    /// The capture is released when the gesture ends or is cancelled, or when
-    /// a replacement touch begins. A listener must also call
-    /// [`Self::prevent_default`] on the started event to claim the gesture.
-    pub const fn capture_long_press<T: 'static>(&mut self, entity: &Entity<T>) {
-        self.long_press_capture = Some(entity.entity_id());
-    }
-
-    /// Returns whether the given entity has captured the current long press.
-    pub fn has_long_press_capture<T: 'static>(&self, entity: &Entity<T>) -> bool {
-        self.long_press_capture == Some(entity.entity_id())
-    }
-
     /// The current state of the keyboard's modifiers
     pub const fn modifiers(&self) -> Modifiers {
         self.modifiers
@@ -2819,10 +2729,6 @@ impl Window {
     /// This is used for focus-visible styling to show focus indicators only for keyboard navigation.
     pub fn last_input_was_keyboard(&self) -> bool {
         self.last_input_modality == InputModality::Keyboard
-    }
-
-    pub(crate) fn last_input_was_touch(&self) -> bool {
-        self.last_input_modality == InputModality::Touch
     }
 
     /// The current state of the keyboard's capslock
@@ -2868,22 +2774,8 @@ impl Window {
         // paint_range indices remain valid for reuse_paint on the next frame.
         // Search backwards to find the last Some entry, since reuse_paint may
         // have copied None slots from the previous frame. (Fixes #50456)
-        let focused_text_input_active =
-            if let Some(mut input_handler) = self.next_frame.input_handlers.iter_mut().rev().find_map(|h| h.take()) {
-                let accepts_text_input = input_handler.accepts_text_input(self, cx);
-                self.platform_window.set_input_handler(input_handler);
-                accepts_text_input
-            } else {
-                false
-            };
-        self.apply_text_input_configuration(cx);
-        if focused_text_input_active != self.focused_text_input_active {
-            self.focused_text_input_active = focused_text_input_active;
-            self.platform_window.text_input_state_changed(if focused_text_input_active {
-                TextInputStateChange::FocusGained
-            } else {
-                TextInputStateChange::FocusLost
-            });
+        if let Some(input_handler) = self.next_frame.input_handlers.iter_mut().rev().find_map(|h| h.take()) {
+            self.platform_window.set_input_handler(input_handler);
         }
 
         self.layout_engine.as_mut().unwrap().clear();
@@ -4415,25 +4307,6 @@ impl Window {
         }
     }
 
-    /// Forwards the focused input handler's [`TextInputConfiguration`] to the
-    /// platform window when it differs from the last forwarded value. With no
-    /// input handler the default configuration applies, so a field's
-    /// preferences don't outlive its focus.
-    fn apply_text_input_configuration(&mut self, cx: &mut App) {
-        let configuration = match self.platform_window.take_input_handler() {
-            Some(mut input_handler) => {
-                let configuration = input_handler.text_input_configuration(self, cx);
-                self.platform_window.set_input_handler(input_handler);
-                configuration
-            }
-            None => TextInputConfiguration::default(),
-        };
-        if self.last_text_input_configuration.as_ref() != Some(&configuration) {
-            self.platform_window.set_text_input_configuration(configuration.clone());
-            self.last_text_input_configuration = Some(configuration);
-        }
-    }
-
     /// Register a mouse event listener on the window for the next frame. The type of event
     /// is determined by the first parameter of the given listener. When the next frame is rendered
     /// the listener will be cleared.
@@ -4578,7 +4451,7 @@ impl Window {
             .unwrap_or_else(|| action.name().to_string())
     }
 
-    /// Dispatch a mouse, keyboard, or touch event on the window.
+    /// Dispatch a mouse or keyboard event on the window.
     pub fn dispatch_event(&mut self, event: PlatformInput, cx: &mut App) -> DispatchEventResult {
         let update_count_before = self.invalidator.update_count();
         // Track input modality for focus-visible styling and hover suppression.
@@ -4588,7 +4461,6 @@ impl Window {
         self.last_input_modality = match &event {
             PlatformInput::KeyDown(_) => InputModality::Keyboard,
             PlatformInput::MouseMove(_) | PlatformInput::MouseDown(_) => InputModality::Mouse,
-            PlatformInput::Touch(_) => InputModality::Touch,
             _ => self.last_input_modality,
         };
         if self.last_input_modality != old_modality {
@@ -4690,22 +4562,6 @@ impl Window {
                     PlatformInput::FileDrop(FileDropEvent::Ended)
                 }
             },
-            PlatformInput::Touch(touch) => PlatformInput::Touch(touch),
-            PlatformInput::LongPress(long_press) => {
-                self.mouse_position = if long_press.phase == crate::TouchPhase::Started {
-                    long_press.start_position
-                } else {
-                    long_press.position
-                };
-                if long_press.phase == crate::TouchPhase::Started {
-                    self.long_press_capture = None;
-                }
-                PlatformInput::LongPress(long_press)
-            }
-            PlatformInput::TouchDrag(touch_drag) => {
-                self.mouse_position = touch_drag.start_position;
-                PlatformInput::TouchDrag(touch_drag)
-            }
             PlatformInput::KeyDown(_) | PlatformInput::KeyUp(_) => event,
         };
 
@@ -4713,21 +4569,7 @@ impl Window {
             self.dispatch_mouse_event(any_mouse_event, cx);
         } else if let Some(any_key_event) = event.keyboard_event() {
             self.dispatch_key_event(any_key_event, cx);
-        } else if let Some(touch_event) = event.touch_event() {
-            self.dispatch_touch_event(touch_event, cx);
         }
-        if let PlatformInput::LongPress(long_press) = &event {
-            match long_press.phase {
-                crate::TouchPhase::Started if !self.default_prevented => {
-                    self.long_press_capture = None;
-                }
-                crate::TouchPhase::Ended | crate::TouchPhase::Cancelled => {
-                    self.long_press_capture = None;
-                }
-                crate::TouchPhase::Started | crate::TouchPhase::Moved => {}
-            }
-        }
-
         // Must run after the move is dispatched: the platform owns the gesture afterwards, so this
         // is the last chance for drag listeners to see the pointer leave and reset their state.
         self.promote_external_drag_to_platform(&event, cx);
@@ -4764,137 +4606,6 @@ impl Window {
         {
             self.refresh();
         }
-    }
-
-    /// Whether recognized touch pans may use the platform's predicted touch
-    /// positions ([`TouchEvent::predicted_position`]) to compensate for input
-    /// latency. Defaults to true.
-    pub const fn touch_prediction_enabled(&self) -> bool {
-        self.touch_prediction_enabled
-    }
-
-    /// Sets whether recognized touch pans may use the platform's predicted
-    /// touch positions. Disabling drops [`TouchEvent::predicted_position`]
-    /// before gesture recognition, so pans track only raw touch positions.
-    pub const fn set_touch_prediction_enabled(&mut self, enabled: bool) {
-        self.touch_prediction_enabled = enabled;
-    }
-
-    /// Runs the portable gesture recognizer over a raw touch event and
-    /// dispatches whatever it resolves (scroll steps, synthesized taps)
-    /// through the ordinary mouse-event path.
-    fn dispatch_touch_event(&mut self, event: &TouchEvent, cx: &mut App) {
-        let mut event = event.clone();
-        if !self.touch_prediction_enabled {
-            event.predicted_position = None;
-        }
-        let recognized_gestures = self.touch_gestures.handle_event(&event);
-        if event.phase == crate::TouchPhase::Started
-            && let Some(touch_drag) = self.touch_gestures.offer_touch_drag(event.id)
-        {
-            self.dispatch_recognized_touch_gesture(touch_drag, cx);
-        }
-        if event.phase == crate::TouchPhase::Started && self.touch_gestures.pending_long_press().is_some() {
-            self.long_press_capture = None;
-        }
-        let mut tapped = false;
-        for gesture in recognized_gestures {
-            tapped |= matches!(gesture, RecognizedTouchGesture::Tap { .. });
-            self.dispatch_recognized_touch_gesture(gesture, cx);
-        }
-        if event.phase == crate::TouchPhase::Started {
-            self.schedule_long_press_timer(cx);
-        } else if self.touch_gestures.pending_long_press().is_none() {
-            self.long_press_timer.take();
-        }
-        // The platform's touch-release handler may inspect the input handler
-        // as soon as this dispatch returns (the web platform decides virtual
-        // keyboard visibility there, inside the user gesture). Input handlers
-        // are registered during draw, so draw now to make them reflect any
-        // focus change the tap just caused.
-        if tapped && self.invalidator.is_dirty() {
-            self.draw(cx).clear(cx);
-        }
-        if self.touch_gestures.has_momentum() {
-            self.schedule_touch_momentum_tick();
-        }
-    }
-
-    fn dispatch_recognized_touch_gesture(&mut self, gesture: RecognizedTouchGesture, cx: &mut App) {
-        match gesture {
-            RecognizedTouchGesture::Scroll(scroll_wheel) => {
-                self.mouse_position = scroll_wheel.position;
-                cx.propagate_event = true;
-                self.dispatch_mouse_event(&scroll_wheel, cx);
-            }
-            RecognizedTouchGesture::Tap { down, up } => {
-                self.mouse_position = up.position;
-                cx.propagate_event = true;
-                self.dispatch_mouse_event(&down, cx);
-                cx.propagate_event = true;
-                self.dispatch_mouse_event(&up, cx);
-            }
-            RecognizedTouchGesture::TouchDrag(touch_drag) => {
-                self.mouse_position = touch_drag.start_position;
-                cx.propagate_event = true;
-                self.default_prevented = false;
-                let started = touch_drag.phase == crate::TouchPhase::Started;
-                self.dispatch_mouse_event(&touch_drag, cx);
-                if started {
-                    self.touch_gestures.resolve_touch_drag(self.default_prevented);
-                }
-            }
-            RecognizedTouchGesture::LongPress(long_press) => {
-                self.mouse_position = if long_press.phase == crate::TouchPhase::Started {
-                    long_press.start_position
-                } else {
-                    long_press.position
-                };
-                cx.propagate_event = true;
-                self.default_prevented = false;
-                let started = long_press.phase == crate::TouchPhase::Started;
-                let ended = matches!(long_press.phase, crate::TouchPhase::Ended | crate::TouchPhase::Cancelled);
-                self.dispatch_mouse_event(&long_press, cx);
-                if started {
-                    let claimed = self.default_prevented;
-                    self.touch_gestures.resolve_long_press(claimed);
-                    if !claimed {
-                        self.long_press_capture = None;
-                    }
-                }
-                if ended {
-                    self.long_press_capture = None;
-                }
-            }
-        }
-    }
-
-    fn schedule_long_press_timer(&mut self, cx: &App) {
-        self.long_press_timer.take();
-        let Some((touch_id, duration)) = self.touch_gestures.pending_long_press() else {
-            return;
-        };
-        self.long_press_timer = Some(self.spawn(cx, async move |cx| {
-            cx.background_executor.timer(duration).await;
-            cx.update(move |window, cx| {
-                window.long_press_timer.take();
-                if let Some(gesture) = window.touch_gestures.offer_long_press(touch_id) {
-                    window.dispatch_recognized_touch_gesture(gesture, cx);
-                }
-            })
-            .log_err();
-        }));
-    }
-
-    fn schedule_touch_momentum_tick(&self) {
-        self.on_next_frame(|window, cx| {
-            if let Some(gesture) = window.touch_gestures.tick_momentum() {
-                window.dispatch_recognized_touch_gesture(gesture, cx);
-            }
-            if window.touch_gestures.has_momentum() {
-                window.schedule_touch_momentum_tick();
-            }
-        });
     }
 
     fn dispatch_mouse_event(&mut self, event: &dyn Any, cx: &mut App) {

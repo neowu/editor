@@ -53,7 +53,6 @@ use crate::Bounds;
 use crate::DEFAULT_WINDOW_SIZE;
 use crate::DevicePixels;
 use crate::DispatchEventResult;
-use crate::Edges;
 use crate::ExternalDragPayload;
 use crate::Font;
 use crate::FontId;
@@ -68,7 +67,6 @@ use crate::Keymap;
 use crate::LineLayout;
 use crate::MissingGlyphSink;
 use crate::Pixels;
-use crate::PlatformGestures;
 use crate::PlatformInput;
 use crate::Point;
 use crate::Priority;
@@ -292,30 +290,6 @@ pub trait Platform: 'static {
     /// Registers the callback invoked when the system resumes from sleep.
     fn on_system_wake(&self, callback: Box<dyn FnMut()>);
 
-    // Mobile platform methods. On mobile the OS owns the application
-    // lifecycle: apps are backgrounded, foregrounded, and killed at the
-    // system's discretion, and must react rather than decide.
-
-    /// Registers a callback invoked whenever the application's lifecycle
-    /// phase changes. See [`AppLifecyclePhase`] for the phase vocabulary and
-    /// its mapping onto iOS and Android.
-    ///
-    /// Desktop platforms never invoke this.
-    fn on_app_lifecycle(&self, _callback: Box<dyn FnMut(AppLifecyclePhase)>) {}
-
-    /// Registers a callback invoked when the OS signals memory pressure
-    /// (iOS `didReceiveMemoryWarning`, Android `onTrimMemory`).
-    ///
-    /// Desktop platforms never invoke this.
-    fn on_memory_warning(&self, _callback: Box<dyn FnMut()>) {}
-
-    /// The platform's gesture recognition services, if it provides any
-    /// beyond gpui's portable recognizers. See
-    /// [`PlatformGestures`](crate::PlatformGestures).
-    fn gestures(&self) -> Option<Rc<dyn PlatformGestures>> {
-        None
-    }
-
     fn set_menus(&self, menus: Vec<Menu>, keymap: &Keymap);
     fn get_menus(&self) -> Option<Vec<OwnedMenu>> {
         None
@@ -482,94 +456,12 @@ pub struct RequestFrameOptions {
     pub force_render: bool,
 }
 
-/// The application's lifecycle phase, as owned and reported by a mobile OS.
-///
-/// `Inactive` means visible but not receiving input (a system dialog on
-/// top), while `Background` means not visible at all, with process death
-/// possible at any time thereafter.
-///
-/// | Phase        | iOS                          | Android      |
-/// |--------------|------------------------------|--------------|
-/// | `Active`     | `didBecomeActive`            | `onResume`   |
-/// | `Inactive`   | `willResignActive`           | `onPause`    |
-/// | `Background` | `didEnterBackground`         | `onStop`     |
-/// | `Foreground` | `willEnterForeground`        | `onStart`    |
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum AppLifecyclePhase {
-    /// Foreground and receiving input.
-    Active,
-    /// Foreground (visible) but not receiving input.
-    Inactive,
-    /// Not visible. The GPU surface may be destroyed while backgrounded and
-    /// the process may be killed without further notice.
-    Background,
-    /// Becoming visible again, before input is restored.
-    Foreground,
-}
-
-/// Regions of a window that are obscured or reserved by the system.
-///
-/// Mobile applications often share space in their window with system-specific
-/// geometry, from keyboards to camera notches. In GPUI, all this is abstracted
-/// into a single "inset" which should be overlaid on the window's bounds.
-/// It is up to the application develop to determine how to handle these cases.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct WindowInsets {
-    /// Regions covered by system UI or hardware: status bar, display
-    /// cutouts/notch, home indicator, navigation bars.
-    /// (iOS: `safeAreaInsets`. Android: `WindowInsets` of types
-    /// `systemBars() | displayCutout()`.)
-    pub safe_area: Edges<Pixels>,
-    /// The region covered by the keyboard, when present.
-    /// (iOS: derived from `keyboardWillShow`/frame-change notifications.
-    /// Android: `WindowInsets.Type.ime()`.)
-    pub ime: Edges<Pixels>,
-}
-
-impl WindowInsets {
-    /// The combined inset content should avoid.
-    pub fn effective(&self) -> Edges<Pixels> {
-        Edges {
-            top: self.safe_area.top.max(self.ime.top),
-            right: self.safe_area.right.max(self.ime.right),
-            bottom: self.safe_area.bottom.max(self.ime.bottom),
-            left: self.safe_area.left.max(self.ime.left),
-        }
-    }
-}
-
-/// A change in the state of the focused text input.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum TextInputStateChange {
-    /// The window changed from having no active text input to having one.
-    FocusGained,
-    /// The window no longer has an active text input.
-    FocusLost,
-    /// The selection or caret moved
-    SelectionChanged,
-    /// The document content changed outside of platform-initiated edits.
-    ContentChanged,
-}
-
 #[expect(missing_docs)]
 pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
     fn bounds(&self) -> Bounds<Pixels>;
     fn is_maximized(&self) -> bool;
     fn window_bounds(&self) -> WindowBounds;
     fn content_size(&self) -> Size<Pixels>;
-    /// Returns the visible viewport in logical pixels relative to the content origin.
-    ///
-    /// This may be smaller or offset when a keyboard or zoom obscures content;
-    /// it must not change the full layout size returned by `content_size`.
-    /// Implementations should return a frame snapshot, not query platform layout here.
-    fn visual_viewport_bounds(&self) -> Bounds<Pixels> {
-        Bounds::new(Point::default(), self.content_size())
-    }
-    /// Registers a callback when visible geometry may have changed.
-    ///
-    /// This requests a frame; backends can sample the new viewport and safe-area
-    /// geometry in `prepare_frame` rather than updating it inside the callback.
-    fn on_visual_viewport_changed(&self, _callback: Box<dyn FnMut()>) {}
     /// Samples platform geometry before a draw, returning whether view caches must be invalidated.
     ///
     /// Geometry getters must remain consistent throughout the ensuing draw.
@@ -586,11 +478,6 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
     fn capslock(&self) -> Capslock;
     fn set_input_handler(&mut self, input_handler: PlatformInputHandler);
     fn take_input_handler(&mut self) -> Option<PlatformInputHandler>;
-    /// Apply the focused text region's [`TextInputConfiguration`] to the
-    /// platform's text input session (e.g. attributes of the hidden editable
-    /// element on web). Called only when the configuration changes, because
-    /// reconfiguring a live input session can restart the IME connection.
-    fn set_text_input_configuration(&mut self, _configuration: TextInputConfiguration) {}
     fn prompt(
         &self,
         level: PromptLevel,
@@ -672,38 +559,6 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
     fn gpu_specs(&self) -> Option<GpuSpecs>;
 
     fn update_ime_position(&self, _bounds: Bounds<Pixels>);
-
-    // Mobile platform methods.
-
-    /// The regions of this window currently obscured or reserved by the
-    /// system. Zero on platforms without such regions.
-    fn insets(&self) -> WindowInsets {
-        WindowInsets::default()
-    }
-
-    /// Registers a callback invoked whenever [`Self::insets`] change.
-    ///
-    /// Contract: fires continuously during animated transitions (Android
-    /// `WindowInsetsAnimation` progress; on iOS the platform interpolates
-    /// the keyboard animation curve on frame ticks) and is exact at rest.
-    fn on_insets_changed(&self, _callback: Box<dyn FnMut(WindowInsets)>) {}
-
-    /// Sets the handler for the system back action (Android back
-    /// button/gesture; no source on iOS or desktop).
-    fn set_back_handler(&self, _callback: Box<dyn FnMut()>) {}
-
-    /// Declares whether the application would currently handle the system
-    /// back action (e.g. navigation depth > 0).
-    fn set_back_enabled(&self, _enabled: bool) {}
-
-    /// Requests that the soft keyboard be shown.
-    fn show_soft_keyboard(&self) {}
-
-    /// Requests that the soft keyboard be hidden.
-    fn hide_soft_keyboard(&self) {}
-
-    /// Inform the operating system that the text input state has changed
-    fn text_input_state_changed(&self, _change: TextInputStateChange) {}
 
     fn play_system_bell(&self) {}
 }
@@ -1285,21 +1140,6 @@ impl PlatformInputHandler {
         self.cx.update(|window, cx| self.handler.character_index_for_point(point, window, cx)).ok().flatten()
     }
 
-    /// See [`InputHandler::set_selected_text_range`].
-    pub fn set_selected_text_range(&mut self, range_utf16: Range<usize>) {
-        self.cx.update(|window, cx| self.handler.set_selected_text_range(range_utf16, window, cx)).ok();
-    }
-
-    /// See [`InputHandler::element_bounds`].
-    pub fn element_bounds(&mut self) -> Option<Bounds<Pixels>> {
-        self.cx.update(|window, cx| self.handler.element_bounds(window, cx)).ok().flatten()
-    }
-
-    /// See [`InputHandler::text_length_utf16`].
-    pub fn text_length_utf16(&mut self) -> Option<usize> {
-        self.cx.update(|window, cx| self.handler.text_length_utf16(window, cx)).ok().flatten()
-    }
-
     #[allow(dead_code)]
     pub fn accepts_text_input(&mut self, window: &mut Window, cx: &mut App) -> bool {
         self.handler.accepts_text_input(window, cx)
@@ -1322,11 +1162,6 @@ impl PlatformInputHandler {
                 !window.has_pending_keystrokes() && self.handler.prefers_ime_for_printable_keys(window, cx)
             })
             .unwrap_or(false)
-    }
-
-    /// See [`InputHandler::text_input_configuration`].
-    pub fn text_input_configuration(&mut self, window: &mut Window, cx: &mut App) -> TextInputConfiguration {
-        self.handler.text_input_configuration(window, cx)
     }
 
     /// See [`InputHandler::text_input_editable_range`].
@@ -1440,32 +1275,6 @@ pub trait InputHandler: 'static {
     /// Corresponds to [characterIndexForPoint:](https://developer.apple.com/documentation/appkit/nstextinputclient/characterindex(for:))
     fn character_index_for_point(&mut self, point: Point<Pixels>, window: &mut Window, cx: &mut App) -> Option<usize>;
 
-    /// Set the range of the user's currently selected text.
-    ///
-    /// This is the reverse data-flow direction from [`Self::selected_text_range`]:
-    /// platforms call it when the system text machinery moves the selection on the
-    /// application's behalf — e.g. the user drags a system selection handle or
-    /// invokes Select All from system UI (iOS `UITextInput setSelectedTextRange:`,
-    /// Android `InputConnection.setSelection`).
-    ///
-    /// range_utf16 is in terms of UTF-16 characters, from 0 to the length of the document
-    fn set_selected_text_range(&mut self, _range_utf16: Range<usize>, _window: &mut Window, _cx: &mut App) {}
-
-    /// Get the bounds of the focused text element in window coordinates, if known.
-    ///
-    /// This is the pull counterpart to the [`PlatformWindow::update_ime_position`]
-    /// push: mobile platforms ask for the focused element's geometry when they
-    /// need it (e.g. to frame system text-interaction UI overlaid on the focused
-    /// element).
-    fn element_bounds(&mut self, _window: &mut Window, _cx: &mut App) -> Option<Bounds<Pixels>> {
-        None
-    }
-
-    /// Get the length of the document in UTF-16 characters, if known.
-    fn text_length_utf16(&mut self, _window: &mut Window, _cx: &mut App) -> Option<usize> {
-        None
-    }
-
     /// Allows a given input context to opt into getting raw key repeats instead of
     /// sending these to the platform.
     /// TODO: Ideally we should be able to set ApplePressAndHoldEnabled in NSUserDefaults
@@ -1505,80 +1314,6 @@ pub trait InputHandler: 'static {
     fn prefers_ime_for_printable_keys(&mut self, _window: &mut Window, _cx: &mut App) -> bool {
         false
     }
-
-    /// Get this handler's preferences for platform text assistance.
-    ///
-    /// GPUI re-queries this every frame and forwards it to the platform window
-    /// only when it changes, so implementations must be cheap and may vary the
-    /// result with application state (e.g. with the cursor's position).
-    fn text_input_configuration(&mut self, _window: &mut Window, _cx: &mut App) -> TextInputConfiguration {
-        TextInputConfiguration::default()
-    }
-}
-
-/// Platform text-assistance preferences for the focused text region.
-///
-/// Returned by [`InputHandler::text_input_configuration`] and forwarded to the
-/// platform whenever it changes; the platform maps the fields onto its native
-/// input-session attributes (on web, DOM attributes of the hidden editable
-/// element such as `autocorrect` and `enterkeyhint`).
-///
-/// The default disables all text assistance and requests no particular action
-/// key presentation.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct TextInputConfiguration {
-    /// Whether the platform may automatically correct entered text.
-    pub autocorrect: bool,
-    /// How software keyboards automatically capitalize entered text.
-    pub autocapitalize: Autocapitalize,
-    /// Whether software keyboards may offer word suggestions and spellcheck.
-    pub suggestions: bool,
-    /// The action advertised on a software keyboard's confirm ("enter") key.
-    pub input_action: TextInputAction,
-}
-
-/// Automatic capitalization applied by software keyboards.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Autocapitalize {
-    /// No automatic capitalization.
-    #[default]
-    None,
-    /// Capitalize the first letter of each word.
-    Words,
-    /// Capitalize the first letter of each sentence.
-    Sentences,
-    /// Capitalize every letter.
-    Characters,
-}
-
-/// The action a software keyboard advertises on its confirm ("enter") key.
-///
-/// This affects only how the key is presented (icon or label); pressing it is
-/// still delivered as ordinary input.
-///
-/// The variants are the HTML `enterkeyhint` attribute's value set
-/// (<https://html.spec.whatwg.org/multipage/interaction.html#input-modalities:-the-enterkeyhint-attribute>),
-/// which also maps onto Android's `IME_ACTION_*` constants and iOS's
-/// `UIReturnKeyType`; [`TextInputAction::Unspecified`] means "emit no hint".
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum TextInputAction {
-    /// Let the platform choose its default presentation.
-    #[default]
-    Unspecified,
-    /// Inserting a line break.
-    Enter,
-    /// Committing the field's value.
-    Done,
-    /// Navigating to the typed target.
-    Go,
-    /// Moving to the next field.
-    Next,
-    /// Moving to the previous field.
-    Previous,
-    /// Executing a search.
-    Search,
-    /// Sending a message.
-    Send,
 }
 
 /// The variables that can be configured when creating a new window
