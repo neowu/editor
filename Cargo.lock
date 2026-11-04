@@ -875,7 +875,7 @@ dependencies = [
  "git_ui_core",
  "go_to_line",
  "gpui",
- "gpui_platform",
+ "gpui_macos",
  "image_viewer",
  "json_schema_store",
  "language",
@@ -1603,7 +1603,6 @@ dependencies = [
  "etagere",
  "futures",
  "gpui_macros",
- "gpui_platform",
  "gpui_shared_string",
  "gpui_util",
  "image",
@@ -1697,18 +1696,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "gpui_platform"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "flume",
- "futures",
- "gpui",
- "gpui_macos",
- "smol",
 ]
 
 [[package]]
@@ -3821,10 +3808,10 @@ dependencies = [
  "anyhow",
  "async-channel",
  "clap",
+ "flume",
  "fs",
  "futures",
  "gpui",
- "gpui_platform",
  "image",
  "json_schema_store",
  "language",

@@ -1,4 +1,4 @@
-//! Headless event loop for the Linux remote server. No display server or GPU is used.
+//! Headless event loop for the remote server on macOS and Linux. No display server or GPU is used.
 
 use std::cell::RefCell;
 use std::ffi::OsString;
@@ -170,7 +170,7 @@ impl Platform for HeadlessPlatform {
         None
     }
     fn open_window(&self, _handle: AnyWindowHandle, _options: WindowParams) -> Result<Box<dyn PlatformWindow>> {
-        bail!("the Linux remote server cannot open windows")
+        bail!("the remote server cannot open windows")
     }
     fn window_appearance(&self) -> WindowAppearance {
         WindowAppearance::Dark
@@ -249,5 +249,69 @@ impl PlatformKeyboardLayout for HeadlessKeyboardLayout {
     }
     fn name(&self) -> &str {
         "Headless"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    use super::*;
+
+    #[test]
+    fn run_drains_main_thread_tasks_until_quit() {
+        let platform = Rc::new(HeadlessPlatform::new());
+        let result = Rc::new(Cell::new(0));
+        let foreground = platform.foreground_executor();
+        let background = platform.background_executor();
+        let quitter = platform.clone();
+        let observed = result.clone();
+        platform.run(Box::new(move || {
+            foreground
+                .spawn(async move {
+                    observed.set(background.spawn(async { 40 + 2 }).await);
+                    quitter.quit();
+                })
+                .detach();
+        }));
+        assert_eq!(result.get(), 42);
+    }
+
+    #[test]
+    fn quit_callback_can_veto_quit() {
+        let platform = Rc::new(HeadlessPlatform::new());
+        let quit_requests = Rc::new(Cell::new(0));
+        let requests = quit_requests.clone();
+        platform.on_quit(Box::new(move || {
+            requests.set(requests.get() + 1);
+            requests.get() >= 2
+        }));
+        let quitter = platform.clone();
+        platform.run(Box::new(move || {
+            quitter.quit();
+            quitter.quit();
+        }));
+        assert_eq!(quit_requests.get(), 2);
+    }
+
+    #[test]
+    fn dispatcher_reports_main_thread() {
+        let platform = HeadlessPlatform::new();
+        let background = platform.background_executor();
+        assert!(background.dispatcher().is_main_thread());
+        let on_worker = smol::block_on(background.spawn({
+            let background = background.clone();
+            async move { background.dispatcher().is_main_thread() }
+        }));
+        assert!(!on_worker);
+    }
+
+    #[test]
+    fn has_no_displays_or_windows() {
+        let platform = HeadlessPlatform::new();
+        assert!(platform.displays().is_empty());
+        assert!(platform.primary_display().is_none());
+        assert!(platform.active_window().is_none());
     }
 }

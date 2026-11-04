@@ -64,7 +64,7 @@ use workspace::restore_workspace;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn build_application() -> Application {
-    Application::with_platform(gpui_platform::current_platform(false)).with_quit_mode(QuitMode::LastWindowClosed)
+    Application::with_platform(Rc::new(gpui_macos::MacPlatform::new(false))).with_quit_mode(QuitMode::LastWindowClosed)
 }
 
 fn files_not_created_on_launch(errors: HashMap<io::ErrorKind, Vec<&Path>>) {

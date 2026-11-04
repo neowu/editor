@@ -5,26 +5,26 @@ for Rust, designed to support a wide variety of applications.
 
 ## Getting Started
 
-GPUI is still in active development as we work on the Zed code editor, and is still pre-1.0. There will often be breaking changes between versions. You'll also need to use the latest version of stable Rust. Add `gpui`, and optionally `gpui_platform`, to your `Cargo.toml`:
+GPUI is still in active development as we work on the Zed code editor, and is still pre-1.0. There will often be breaking changes between versions. You'll also need to use the latest version of stable Rust. Add `gpui` and `gpui_macos` to your `Cargo.toml`:
 
 ```toml
 gpui = { version = "*" }
-gpui_platform = { version = "*" }
+gpui_macos = { version = "*" }
 ```
 
-Everything in a standalone GPUI app starts with an `Application`. You can create one with `gpui_platform::application()`, which creates the macOS windowing and text backends, and kick off your application by passing a callback to `Application::run()`. Inside this callback, you can create a new window with `App::open_window()` and register your first root view.
+Everything in a standalone GPUI app starts with an `Application`. You can create one with `Application::with_platform(Rc::new(gpui_macos::MacPlatform::new(false)))`, which uses the macOS windowing and text backends, and kick off your application by passing a callback to `Application::run()`. Inside this callback, you can create a new window with `App::open_window()` and register your first root view.
 
 ```rust,no_run
 use gpui::*;
 
 fn main() {
-    gpui_platform::application().run(|cx: &mut App| {
+    Application::with_platform(std::rc::Rc::new(gpui_macos::MacPlatform::new(false))).run(|cx: &mut App| {
         // ..
     });
 }
 ```
 
-### `gpui_platform`
+### `gpui_macos`
 
 This fork supports macOS only. Rendering uses Metal, and text uses Core Text directly
 for font lookup, shaping, and glyph rasterization.

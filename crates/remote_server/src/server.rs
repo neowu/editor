@@ -1,3 +1,4 @@
+mod headless_platform;
 mod headless_project;
 
 use std::ffi::OsStr;
@@ -10,6 +11,7 @@ use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::process::CommandExt as _;
 use std::path::Path;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -27,6 +29,8 @@ use futures::select;
 use futures::select_biased;
 use gpui::App;
 use gpui::AppContext as _;
+use gpui::Application;
+use headless_platform::HeadlessPlatform;
 pub use headless_project::HeadlessAppState;
 pub use headless_project::HeadlessProject;
 use language::LanguageRegistry;
@@ -398,7 +402,7 @@ pub fn execute_run(
 ) -> Result<()> {
     init_paths()?;
 
-    let app = gpui_platform::headless();
+    let app = Application::with_platform(Rc::new(HeadlessPlatform::new()));
     let pid = std::process::id();
     let log_rx = init_logging_server(panic_file.clone());
     log::info!(

@@ -90,8 +90,11 @@ or UNC prefixes. There is no path-style abstraction; code uses
 - No reduce-motion mode: GPUI has no `reduce_motion` flag and there is no
   `reduce_motion` setting; animations (spinners, GIFs, scrollbar fades,
   notification fades, cursor animation, smooth scrolling) always run.
-- The Linux remote server needs no display server, GPU, desktop integration, or fonts.
+- The remote server needs no display server, GPU, desktop integration, or fonts.
   It retains background execution, timers, and a foreground event loop for remote projects.
+- There is no platform-selection crate: the editor constructs `gpui_macos::MacPlatform`
+  directly, and the remote server owns a headless GPUI platform (smol worker pool plus a
+  main-thread event loop, no-op text system, no windows) used on both macOS and Linux.
 - GPUI core has no direct `libc` dependency; native OS integration belongs in
   platform-specific crates.
 - No touch or mobile support in GPUI: no raw touch events, tap/long-press/touch-drag
