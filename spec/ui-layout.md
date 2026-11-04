@@ -255,8 +255,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
   that pane. Center and Git History panes have no `+` or new-item menu; new
   files, project/symbol search and terminals come from their keybindings and
   the command palette. Every terminal
-  pane gets these buttons in `new_terminal_pane`, so panes restored from a
-  session or created by moving a tab into a split get them too.
+  pane gets these buttons in `new_terminal_pane`, so panes created by moving
+  a tab into a split get them too.
 - Pane toolbars (search bars, diff controls) have no bottom line either; they
   sit flat inside the card. Right-side toolbar items (e.g. image viewer
   controls) stay right-aligned even when nothing is on the left. Editor panes have no breadcrumbs or quick action

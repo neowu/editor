@@ -2,12 +2,10 @@ use std::cmp;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::Result;
 use anyhow::anyhow;
 use collections::HashMap;
-use db::kvp::KeyValueStore;
 use futures::channel::oneshot;
 use futures::future::join_all;
 use gpui::Action;
@@ -43,7 +41,6 @@ use ui::CommonAnimationExt;
 use ui::Tooltip;
 use ui::prelude::*;
 use util::ResultExt;
-use util::TryFutureExt;
 use util::defer;
 use workspace::ActivateNextPane;
 use workspace::ActivatePane;
@@ -53,7 +50,6 @@ use workspace::ActivatePaneRight;
 use workspace::ActivatePaneUp;
 use workspace::ActivatePreviousPane;
 use workspace::DraggedTab;
-use workspace::ItemId;
 use workspace::MoveItemToPane;
 use workspace::MoveItemToPaneInDirection;
 use workspace::MovePaneDown;
@@ -72,17 +68,11 @@ use workspace::Workspace;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
 use workspace::dock::PanelEvent;
-use workspace::dock::PanelHandle;
-use workspace::item::SerializableItem;
 use workspace::move_active_item;
 use workspace::pane;
 
 use crate::TerminalView;
 use crate::default_working_directory;
-use crate::persistence::SerializedItems;
-use crate::persistence::SerializedTerminalPanel;
-use crate::persistence::deserialize_terminal_panel;
-use crate::persistence::serialize_pane_group;
 
 const TERMINAL_PANEL_KEY: &str = "TerminalPanel";
 
@@ -120,10 +110,7 @@ pub struct TerminalPanel {
     focus_handle: FocusHandle,
     fs: Arc<dyn Fs>,
     workspace: WeakEntity<Workspace>,
-    pending_serialization: Task<Option<()>>,
     pending_terminals_to_add: usize,
-    restoring: bool,
-    _restoration: Task<()>,
     deferred_tasks: HashMap<TaskId, Task<()>>,
     active: bool,
 }
@@ -139,21 +126,10 @@ impl TerminalPanel {
             focus_handle: cx.focus_handle(),
             fs: workspace.app_state().fs.clone(),
             workspace: workspace.weak_handle(),
-            pending_serialization: Task::ready(None),
             pending_terminals_to_add: 0,
-            restoring: false,
-            _restoration: Task::ready(()),
             deferred_tasks: HashMap::default(),
             active: false,
         }
-    }
-
-    fn serialization_key(workspace: &Workspace) -> Option<String> {
-        workspace
-            .database_id()
-            .map(|id| i64::from(id).to_string())
-            .or(workspace.session_id())
-            .map(|id| format!("{:?}-{:?}", TERMINAL_PANEL_KEY, id))
     }
 
     pub async fn load(workspace: WeakEntity<Workspace>, mut cx: AsyncWindowContext) -> Result<Entity<Self>> {
@@ -164,159 +140,7 @@ impl TerminalPanel {
             .update(&mut cx, |workspace, _| workspace.set_terminal_provider(TerminalProvider(terminal_panel.clone())))
             .ok();
 
-        terminal_panel.update_in(&mut cx, |panel, window, cx| {
-            panel.restoring = true;
-            panel._restoration = cx.spawn_in(window, {
-                let workspace = workspace.clone();
-                async move |terminal_panel, cx| {
-                    let restored = Self::restore_serialized_state(workspace, terminal_panel.clone(), cx)
-                        .await
-                        .log_err()
-                        .unwrap_or(false);
-                    let default_shell_task = terminal_panel
-                        .update_in(cx, |terminal_panel, window, cx| {
-                            terminal_panel.finish_restoration(restored, window, cx)
-                        })
-                        .ok()
-                        .flatten();
-                    if let Some(task) = default_shell_task {
-                        task.await.log_err();
-                    }
-                }
-            });
-        })?;
-
         Ok(terminal_panel)
-    }
-
-    fn finish_restoration(
-        &mut self,
-        restored: bool,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> Option<Task<Result<WeakEntity<Terminal>>>> {
-        self.restoring = false;
-        let has_terminals = self.center.panes().into_iter().any(|pane| pane.read(cx).items_len() > 0);
-        if restored || has_terminals {
-            self.serialize(cx);
-        }
-        cx.notify();
-        if self.active && self.has_no_terminals(cx) {
-            let working_directory =
-                self.workspace.update(cx, |workspace, cx| default_working_directory(workspace, cx)).ok().flatten();
-            Some(self.add_terminal_shell(false, working_directory, RevealStrategy::Always, window, cx))
-        } else {
-            None
-        }
-    }
-
-    async fn restore_serialized_state(
-        workspace: WeakEntity<Workspace>,
-        terminal_panel: WeakEntity<Self>,
-        cx: &mut AsyncWindowContext,
-    ) -> Result<bool> {
-        let mut restored = false;
-        if let Some((database_id, serialization_key, kvp)) = workspace
-            .read_with(cx, |workspace, cx| {
-                workspace
-                    .database_id()
-                    .zip(TerminalPanel::serialization_key(workspace))
-                    .map(|(id, key)| (id, key, KeyValueStore::global(cx)))
-            })
-            .ok()
-            .flatten()
-            && let Some(serialized_panel) = cx
-                .background_spawn(async move { kvp.read_kvp(&serialization_key) })
-                .await
-                .log_err()
-                .flatten()
-                .map(|panel| serde_json::from_str::<SerializedTerminalPanel>(&panel))
-                .transpose()
-                .log_err()
-                .flatten()
-        {
-            let started_at = std::time::Instant::now();
-            let deserialized = workspace
-                .update_in(cx, |workspace, window, cx| {
-                    deserialize_terminal_panel(
-                        workspace.weak_handle(),
-                        workspace.project().clone(),
-                        database_id,
-                        serialized_panel,
-                        terminal_panel.clone(),
-                        window,
-                        cx,
-                    )
-                })?
-                .await;
-            if let Some(restored_terminals) = deserialized.log_err() {
-                restored = restored_terminals > 0;
-                log::debug!(
-                    "terminal panel: restored {restored_terminals} serialized terminal(s) in {:?}",
-                    started_at.elapsed()
-                );
-            }
-        }
-
-        // Since panels/docks are loaded outside from the workspace, we cleanup here, instead of through the workspace.
-        let cleanup = workspace.update_in(cx, |workspace, window, cx| {
-            let alive_item_ids = terminal_panel.upgrade().map(|terminal_panel| {
-                terminal_panel
-                    .read(cx)
-                    .center
-                    .panes()
-                    .into_iter()
-                    .flat_map(|pane| pane.read(cx).items())
-                    .map(|item| item.item_id().as_u64() as ItemId)
-                    .collect::<Vec<_>>()
-            });
-            alive_item_ids.zip(workspace.database_id()).map(|(alive_item_ids, workspace_id)| {
-                let cleanup_task = TerminalView::cleanup(workspace_id, alive_item_ids.clone(), window, cx);
-                (cleanup_task, alive_item_ids)
-            })
-        })?;
-        if let Some((cleanup_task, alive_item_ids)) = cleanup {
-            cleanup_task.await.log_err();
-            terminal_panel
-                .update(cx, |terminal_panel, cx| {
-                    let terminals_to_reserialize = terminal_panel
-                        .center
-                        .panes()
-                        .into_iter()
-                        .flat_map(|pane| {
-                            pane.read(cx)
-                                .items()
-                                .filter(|item| !alive_item_ids.contains(&(item.item_id().as_u64() as ItemId)))
-                                .filter_map(|item| item.act_as::<TerminalView>(cx))
-                                .collect::<Vec<_>>()
-                        })
-                        .collect::<Vec<_>>();
-                    for terminal_view in terminals_to_reserialize {
-                        terminal_view.update(cx, |terminal_view, cx| terminal_view.mark_needs_serialize(cx));
-                    }
-                })
-                .ok();
-        }
-
-        let should_focus = workspace
-            .update_in(cx, |workspace, window, cx| {
-                !workspace.has_active_modal(window, cx)
-                    && terminal_panel.upgrade().is_some_and(|terminal_panel| {
-                        workspace.active_item(cx).is_none()
-                            && workspace.is_dock_at_position_open(terminal_panel.position(window, cx), cx)
-                    })
-            })
-            .unwrap_or(false);
-        if should_focus {
-            terminal_panel
-                .update_in(cx, |panel, window, cx| {
-                    panel.active_pane.update(cx, |pane, cx| {
-                        pane.focus_active_item(window, cx);
-                    });
-                })
-                .ok();
-        }
-        Ok(restored)
     }
 
     fn handle_pane_event(
@@ -327,8 +151,6 @@ impl TerminalPanel {
         cx: &mut Context<Self>,
     ) {
         match event {
-            pane::Event::ActivateItem { .. } => self.serialize(cx),
-            pane::Event::RemovedItem { .. } => self.serialize(cx),
             pane::Event::Remove { focus_on_pane } => {
                 let pane_count_before_removal = self.center.panes().len();
                 let _removal_result = self.center.remove(pane, cx);
@@ -363,7 +185,6 @@ impl TerminalPanel {
                 if let Some(workspace) = self.workspace.upgrade() {
                     workspace.update(cx, |workspace, cx| item.added_to_pane(workspace, pane.clone(), window, cx))
                 }
-                self.serialize(cx);
             }
             &pane::Event::Split { direction, mode } => {
                 match mode {
@@ -403,9 +224,6 @@ impl TerminalPanel {
             pane::Event::Focus => {
                 self.active_pane = pane.clone();
             }
-            pane::Event::ItemPinned | pane::Event::ItemUnpinned => {
-                self.serialize(cx);
-            }
 
             _ => {}
         }
@@ -421,7 +239,6 @@ impl TerminalPanel {
             return Task::ready(None);
         };
         let workspace = workspace.read(cx);
-        let database_id = workspace.database_id();
         let weak_workspace = self.workspace.clone();
         let project = workspace.project().clone();
         let active_pane = &self.active_pane;
@@ -455,7 +272,6 @@ impl TerminalPanel {
                         TerminalView::new(
                             terminal.clone(),
                             weak_workspace.clone(),
-                            database_id,
                             project.downgrade(),
                             window,
                             cx,
@@ -631,7 +447,6 @@ impl TerminalPanel {
                     TerminalView::new(
                         terminal.clone(),
                         workspace.weak_handle(),
-                        workspace.database_id(),
                         workspace.project().downgrade(),
                         window,
                         cx,
@@ -667,7 +482,6 @@ impl TerminalPanel {
                     TerminalView::new(
                         terminal.clone(),
                         workspace.weak_handle(),
-                        workspace.database_id(),
                         workspace.project().downgrade(),
                         window,
                         cx,
@@ -721,7 +535,6 @@ impl TerminalPanel {
                         TerminalView::new(
                             terminal.clone(),
                             workspace.weak_handle(),
-                            workspace.database_id(),
                             workspace.project().downgrade(),
                             window,
                             cx,
@@ -784,12 +597,7 @@ impl TerminalPanel {
             let result = create_terminal(terminal_panel.clone(), cx).await;
             decrement_when_cancelled.abort();
             terminal_panel
-                .update(cx, |terminal_panel, cx| {
-                    terminal_panel.finish_pending_terminal(cx);
-                    if result.is_ok() {
-                        terminal_panel.serialize(cx);
-                    }
-                })
+                .update(cx, |terminal_panel, cx| terminal_panel.finish_pending_terminal(cx))
                 .ok();
             result
         })
@@ -798,42 +606,6 @@ impl TerminalPanel {
     fn finish_pending_terminal(&mut self, cx: &mut Context<Self>) {
         self.pending_terminals_to_add = self.pending_terminals_to_add.saturating_sub(1);
         cx.notify();
-    }
-
-    fn serialize(&mut self, cx: &Context<Self>) {
-        if self.restoring {
-            return;
-        }
-        let Some(serialization_key) =
-            self.workspace.read_with(cx, |workspace, _| TerminalPanel::serialization_key(workspace)).ok().flatten()
-        else {
-            return;
-        };
-        let kvp = KeyValueStore::global(cx);
-        self.pending_serialization = cx.spawn(async move |terminal_panel, cx| {
-            cx.background_executor().timer(Duration::from_millis(50)).await;
-            let terminal_panel = terminal_panel.upgrade()?;
-            let items = terminal_panel.update(cx, |terminal_panel, cx| {
-                SerializedItems::WithSplits(serialize_pane_group(
-                    &terminal_panel.center,
-                    &terminal_panel.active_pane,
-                    cx,
-                ))
-            });
-            cx.background_spawn(
-                async move {
-                    kvp.write_kvp(
-                        serialization_key,
-                        serde_json::to_string(&SerializedTerminalPanel { items, active_item_id: None })?,
-                    )
-                    .await?;
-                    anyhow::Ok(())
-                }
-                .log_err(),
-            )
-            .await;
-            Some(())
-        });
     }
 
     fn replace_terminal(
@@ -1129,9 +901,7 @@ impl Render for TerminalPanel {
             .map(|callbacks| (callbacks.wrap_div_with_search_actions)(div(), self.active_pane.clone()))
             .unwrap_or_else(div);
         let no_items_in_panes = self.center.panes().into_iter().all(|pane| pane.read(cx).items_len() == 0);
-        let waiting_for_terminals = self.restoring || self.pending_terminals_to_add > 0;
-        let restoring_placeholder = (waiting_for_terminals && no_items_in_panes).then(|| {
-            let label = if self.restoring { "Restoring terminals…" } else { "Starting terminal…" };
+        let starting_placeholder = (self.pending_terminals_to_add > 0 && no_items_in_panes).then(|| {
             h_flex()
                 .absolute()
                 .inset_0()
@@ -1140,7 +910,7 @@ impl Render for TerminalPanel {
                 .child(
                     Icon::new(IconName::ArrowCircle).color(Color::Muted).size(IconSize::Small).with_rotate_animation(2),
                 )
-                .child(Label::new(label).color(Color::Muted))
+                .child(Label::new("Starting terminal…").color(Color::Muted))
         });
         self.workspace
             .update(cx, |workspace, cx| {
@@ -1158,7 +928,7 @@ impl Render for TerminalPanel {
                         window,
                         cx,
                     ))
-                    .children(restoring_placeholder)
+                    .children(starting_placeholder)
             })
             .ok()
             .map(|div| {
@@ -1318,7 +1088,7 @@ impl Panel for TerminalPanel {
     fn set_active(&mut self, active: bool, window: &mut Window, cx: &mut Context<Self>) {
         let old_active = self.active;
         self.active = active;
-        if !active || old_active == active || self.restoring || !self.has_no_terminals(cx) {
+        if !active || old_active == active || !self.has_no_terminals(cx) {
             return;
         }
         cx.defer_in(window, |this, window, cx| {

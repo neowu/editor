@@ -4764,7 +4764,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "collections",
- "db",
  "dirs",
  "editor",
  "futures",
@@ -4776,7 +4775,6 @@ dependencies = [
  "project",
  "regex",
  "serde",
- "serde_json",
  "settings",
  "shellexpand",
  "shlex",

@@ -1,4 +1,3 @@
-mod persistence;
 pub mod terminal_element;
 pub mod terminal_panel;
 mod terminal_path_like_target;
@@ -44,7 +43,6 @@ use gpui::actions;
 use gpui::anchored;
 use gpui::deferred;
 use gpui::div;
-use persistence::TerminalDb;
 use project::Project;
 use project::ProjectEntryId;
 use project::search::SearchQuery;
@@ -101,13 +99,10 @@ use workspace::NewTerminal;
 use workspace::Pane;
 use workspace::Workspace;
 use workspace::WorkspaceId;
-use workspace::delete_unloaded_items;
 use workspace::item::Item;
 use workspace::item::ItemEvent;
-use workspace::item::SerializableItem;
 use workspace::item::TabContentParams;
 use workspace::item::TabTooltipContent;
-use workspace::register_serializable_item;
 use workspace::searchable::Direction;
 use workspace::searchable::SearchEvent;
 use workspace::searchable::SearchOptions;
@@ -157,7 +152,6 @@ pub struct RenameTerminal;
 pub fn init(cx: &mut App) {
     terminal_panel::init(cx);
 
-    register_serializable_item::<TerminalView>(cx);
 
     cx.observe_new(|workspace: &mut Workspace, _window, _cx| {
         workspace.register_action(TerminalView::deploy);
@@ -188,11 +182,9 @@ pub struct TerminalView {
     cursor_shape: CursorShape,
     blink_manager: Entity<BlinkManager>,
     blinking_terminal_enabled: bool,
-    needs_serialize: bool,
     custom_title: Option<String>,
     hover: Option<HoverTarget>,
     hover_tooltip_update: Task<()>,
-    workspace_id: Option<WorkspaceId>,
     block_below_cursor: Option<Rc<BlockProperties>>,
     scroll_top: Pixels,
     scroll_handle: TerminalScrollHandle,
@@ -239,7 +231,6 @@ impl TerminalView {
     pub fn new(
         terminal: Entity<Terminal>,
         workspace: WeakEntity<Workspace>,
-        workspace_id: Option<WorkspaceId>,
         project: WeakEntity<Project>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -285,11 +276,9 @@ impl TerminalView {
             blinking_terminal_enabled: false,
             hover: None,
             hover_tooltip_update: Task::ready(()),
-            workspace_id,
             block_below_cursor: None,
             scroll_top: Pixels::ZERO,
             scroll_handle,
-            needs_serialize: false,
             custom_title: None,
             ime_state: None,
             self_handle: cx.entity().downgrade(),
@@ -351,15 +340,9 @@ impl TerminalView {
         let label = label.filter(|l| !l.trim().is_empty());
         if self.custom_title != label {
             self.custom_title = label;
-            self.needs_serialize = true;
             cx.emit(ItemEvent::UpdateTab);
             cx.notify();
         }
-    }
-
-    pub(crate) fn mark_needs_serialize(&mut self, cx: &mut Context<Self>) {
-        self.needs_serialize = true;
-        cx.emit(ItemEvent::UpdateTab);
     }
 
     pub const fn is_renaming(&self) -> bool {
@@ -905,15 +888,8 @@ fn subscribe_for_terminal_events(
     cx: &mut Context<TerminalView>,
 ) -> Vec<Subscription> {
     let terminal_subscription = cx.observe(terminal, |_, _, cx| cx.notify());
-    let mut previous_cwd = None;
     let terminal_events_subscription =
         cx.subscribe_in(terminal, window, move |terminal_view, terminal, event, window, cx| {
-            let current_cwd = terminal.read(cx).working_directory();
-            if current_cwd != previous_cwd {
-                previous_cwd = current_cwd;
-                terminal_view.needs_serialize = true;
-            }
-
             match event {
                 Event::Wakeup => {
                     cx.notify();
@@ -1444,7 +1420,7 @@ impl Item for TerminalView {
 
     fn clone_on_split(
         &self,
-        workspace_id: Option<WorkspaceId>,
+        _workspace_id: Option<WorkspaceId>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<Option<Entity<Self>>> {
@@ -1458,7 +1434,7 @@ impl Item for TerminalView {
             let terminal = terminal.await.log_err()?;
             this.update_in(cx, |this, window, cx| {
                 cx.new(|cx| {
-                    TerminalView::new(terminal, this.workspace.clone(), workspace_id, this.project.clone(), window, cx)
+                    TerminalView::new(terminal, this.workspace.clone(), this.project.clone(), window, cx)
                 })
             })
             .ok()
@@ -1484,113 +1460,8 @@ impl Item for TerminalView {
         Some(Box::new(handle.clone()))
     }
 
-    fn added_to_workspace(&mut self, workspace: &mut Workspace, _: &mut Window, cx: &mut Context<Self>) {
-        if self.terminal().read(cx).task().is_none() {
-            if let Some((new_id, old_id)) = workspace.database_id().zip(self.workspace_id) {
-                log::debug!("Updating workspace id for the terminal, old: {old_id:?}, new: {new_id:?}",);
-                let db = TerminalDb::global(cx);
-                let entity_id = cx.entity_id().as_u64();
-                cx.background_spawn(async move { db.update_workspace_id(new_id, old_id, entity_id).await }).detach();
-            }
-            self.workspace_id = workspace.database_id();
-        }
-    }
-
     fn to_item_events(event: &Self::Event, f: &mut dyn FnMut(ItemEvent)) {
         f(*event)
-    }
-}
-
-impl SerializableItem for TerminalView {
-    fn serialized_item_kind() -> &'static str {
-        "Terminal"
-    }
-
-    fn cleanup(
-        workspace_id: WorkspaceId,
-        alive_items: Vec<workspace::ItemId>,
-        _window: &mut Window,
-        cx: &mut App,
-    ) -> Task<anyhow::Result<()>> {
-        let db = TerminalDb::global(cx);
-        delete_unloaded_items(alive_items, workspace_id, "terminals", &db, cx)
-    }
-
-    fn serialize(
-        &mut self,
-        _workspace: &mut Workspace,
-        item_id: workspace::ItemId,
-        _closing: bool,
-        cx: &mut Context<Self>,
-    ) -> Option<Task<anyhow::Result<()>>> {
-        let terminal = self.terminal().read(cx);
-        if terminal.task().is_some() {
-            return None;
-        }
-
-        if !self.needs_serialize {
-            return None;
-        }
-
-        let workspace_id = self.workspace_id?;
-        let cwd = terminal.working_directory();
-        let custom_title = self.custom_title.clone();
-        self.needs_serialize = false;
-
-        let db = TerminalDb::global(cx);
-        Some(cx.background_spawn(async move {
-            if let Some(cwd) = cwd {
-                db.save_working_directory(item_id, workspace_id, cwd).await?;
-            }
-            db.save_custom_title(item_id, workspace_id, custom_title).await?;
-            Ok(())
-        }))
-    }
-
-    fn should_serialize(&self, _: &Self::Event) -> bool {
-        self.needs_serialize
-    }
-
-    fn deserialize(
-        project: Entity<Project>,
-        workspace: WeakEntity<Workspace>,
-        workspace_id: WorkspaceId,
-        item_id: workspace::ItemId,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Task<anyhow::Result<Entity<Self>>> {
-        window.spawn(cx, async move |cx| {
-            let (cwd, custom_title) = cx
-                .update(|_window, cx| {
-                    let db = TerminalDb::global(cx);
-                    let from_db = db.get_working_directory(item_id, workspace_id).log_err().flatten();
-                    let cwd = if from_db.as_ref().is_some_and(|from_db| !from_db.as_os_str().is_empty()) {
-                        from_db
-                    } else {
-                        workspace.upgrade().and_then(|workspace| default_working_directory(workspace.read(cx), cx))
-                    };
-                    let custom_title = db
-                        .get_custom_title(item_id, workspace_id)
-                        .log_err()
-                        .flatten()
-                        .filter(|title| !title.trim().is_empty());
-                    (cwd, custom_title)
-                })
-                .ok()
-                .unwrap_or((None, None));
-
-            let terminal = project.update(cx, |project, cx| project.create_terminal_shell(cwd, cx)).await?;
-            cx.update(|window, cx| {
-                cx.new(|cx| {
-                    let mut view =
-                        TerminalView::new(terminal, workspace, Some(workspace_id), project.downgrade(), window, cx);
-                    if custom_title.is_some() {
-                        view.custom_title = custom_title;
-                    }
-                    view
-                })
-            })
-        })
     }
 }
 
