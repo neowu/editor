@@ -124,7 +124,7 @@ impl ProjectPicker {
     ) -> Entity<Self> {
         let (tx, rx) = oneshot::channel();
         let lister = project::DirectoryLister::Project(project.clone());
-        let delegate = open_path_prompt::OpenPathDelegate::new(tx, lister, false, cx).show_hidden();
+        let delegate = open_path_prompt::OpenPathDelegate::new(tx, lister, false).show_hidden();
 
         let picker = cx.new(|cx| {
             let picker = Picker::uniform_list(delegate, window, cx).embedded();

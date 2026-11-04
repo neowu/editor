@@ -19,9 +19,7 @@ use picker::Picker;
 use picker::PickerDelegate;
 use project::DirectoryItem;
 use project::DirectoryLister;
-use settings::ProjectPanelSortMode;
 use settings::Settings;
-use settings::SettingsStore;
 use ui::Context;
 use ui::HighlightedLabel;
 use ui::LabelLike;
@@ -48,20 +46,10 @@ pub struct OpenPathDelegate {
     #[allow(clippy::type_complexity)]
     render_footer: Arc<dyn Fn(&mut Window, &mut Context<Picker<Self>>) -> Option<AnyElement> + 'static>,
     hidden_entries: bool,
-    sort_mode: ProjectPanelSortMode,
 }
 
 impl OpenPathDelegate {
-    pub fn new(
-        tx: oneshot::Sender<Option<Vec<PathBuf>>>,
-        lister: DirectoryLister,
-        creating_path: bool,
-        cx: &App,
-    ) -> Self {
-        let sort_mode = cx
-            .try_global::<SettingsStore>()
-            .and_then(|store| store.merged_settings().project_panel.as_ref()?.sort_mode)
-            .unwrap_or_default();
+    pub fn new(tx: oneshot::Sender<Option<Vec<PathBuf>>>, lister: DirectoryLister, creating_path: bool) -> Self {
         Self {
             tx: Some(tx),
             lister,
@@ -74,7 +62,6 @@ impl OpenPathDelegate {
             replace_prompt: Task::ready(()),
             render_footer: Arc::new(|_, _| None),
             hidden_entries: false,
-            sort_mode,
         }
     }
 
@@ -167,7 +154,7 @@ impl OpenPathPrompt {
         cx: &mut Context<Workspace>,
     ) {
         workspace.toggle_modal(window, cx, |window, cx| {
-            let delegate = OpenPathDelegate::new(tx, lister.clone(), creating_path, cx).show_hidden();
+            let delegate = OpenPathDelegate::new(tx, lister.clone(), creating_path).show_hidden();
             let picker = Picker::uniform_list(delegate, window, cx);
             let mut query = lister.default_query(cx);
             if let Some(suggested_name) = suggested_name {
@@ -239,7 +226,6 @@ impl PickerDelegate for OpenPathDelegate {
         let hidden_entries = self.hidden_entries;
         let parent_path_is_root = self.prompt_root == dir;
         let current_dir = self.current_dir();
-        let sort_mode = self.sort_mode;
         cx.spawn_in(window, async move |this, cx| {
             if let Some(query) = query {
                 let paths = query.await;
@@ -252,7 +238,7 @@ impl PickerDelegate for OpenPathDelegate {
                         let new_state = match &this.delegate.directory_state {
                             DirectoryState::None { create: false } | DirectoryState::List { .. } => match paths {
                                 Ok(paths) => DirectoryState::List {
-                                    entries: path_candidates(parent_path_is_root, paths, sort_mode),
+                                    entries: path_candidates(parent_path_is_root, paths),
                                     parent_path: dir.clone(),
                                     error: None,
                                 },
@@ -264,7 +250,7 @@ impl PickerDelegate for OpenPathDelegate {
                             },
                             DirectoryState::None { create: true } | DirectoryState::Create { .. } => match paths {
                                 Ok(paths) => {
-                                    let mut entries = path_candidates(parent_path_is_root, paths, sort_mode);
+                                    let mut entries = path_candidates(parent_path_is_root, paths);
                                     let mut exists = false;
                                     let mut is_dir = false;
                                     let mut new_id = None;
@@ -745,23 +731,13 @@ impl PickerDelegate for OpenPathDelegate {
     }
 }
 
-fn path_candidates(
-    parent_path_is_root: bool,
-    mut children: Vec<DirectoryItem>,
-    sort_mode: ProjectPanelSortMode,
-) -> Vec<CandidateInfo> {
+fn path_candidates(parent_path_is_root: bool, mut children: Vec<DirectoryItem>) -> Vec<CandidateInfo> {
     if parent_path_is_root {
         children.push(DirectoryItem { is_dir: true, path: PathBuf::default() });
     }
 
-    children.sort_by(|a, b| {
-        let (a_is_file, b_is_file) = match sort_mode {
-            ProjectPanelSortMode::DirectoriesFirst => (!a.is_dir, !b.is_dir),
-            ProjectPanelSortMode::FilesFirst => (a.is_dir, b.is_dir),
-            ProjectPanelSortMode::Mixed => (true, true),
-        };
-        compare_paths((&a.path, a_is_file), (&b.path, b_is_file))
-    });
+    // Directories first, matching the project panel.
+    children.sort_by(|a, b| compare_paths((&a.path, !a.is_dir), (&b.path, !b.is_dir)));
     children
         .iter()
         .enumerate()
@@ -782,4 +758,27 @@ fn get_dir_and_suffix(query: String) -> (String, String) {
         dir.push('/');
     }
     (dir, suffix)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_path_candidates_lists_directories_first() {
+        let item = |path: &str, is_dir: bool| DirectoryItem { path: PathBuf::from(path), is_dir };
+        let children = vec![item("b.txt", false), item("z", true), item("a.txt", false), item("c", true)];
+
+        let candidates = path_candidates(false, children);
+        let names: Vec<_> = candidates.iter().map(|c| (c.path.string.as_str(), c.is_dir)).collect();
+        assert_eq!(names, [("c", true), ("z", true), ("a.txt", false), ("b.txt", false)]);
+        assert!(candidates.iter().enumerate().all(|(ix, c)| c.path.id == ix));
+    }
+
+    #[test]
+    fn test_path_candidates_adds_root_entry() {
+        let candidates = path_candidates(true, vec![DirectoryItem { path: PathBuf::from("a"), is_dir: true }]);
+        let names: Vec<_> = candidates.iter().map(|c| c.path.string.as_str()).collect();
+        assert_eq!(names, ["", "a"]);
+    }
 }

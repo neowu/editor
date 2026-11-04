@@ -51,13 +51,6 @@ use settings_content::ModalWidthContent;
 use settings_content::OutlinePanelSettingsContent;
 use settings_content::PathHyperlinkRegex;
 use settings_content::PixelSetting;
-use settings_content::ProjectPanelAutoOpenSettings;
-use settings_content::ProjectPanelEntrySpacing;
-use settings_content::ProjectPanelIndentGuidesSettings;
-use settings_content::ProjectPanelSettingsContent;
-use settings_content::ProjectPanelSortMode;
-use settings_content::ProjectPanelSortOrder;
-use settings_content::ProjectPanelTitleTooltipDelay;
 use settings_content::ProjectSettingsContent;
 use settings_content::ProjectTerminalSettingsContent;
 use settings_content::RewrapBehavior;
@@ -67,7 +60,6 @@ use settings_content::SemanticTokenRules;
 use settings_content::SessionSettingsContent;
 use settings_content::SettingsContent;
 use settings_content::Shell;
-use settings_content::ShowDiagnostics;
 use settings_content::ShowIndentGuides;
 use settings_content::ShowWhitespaceSetting;
 use settings_content::SoftWrap;
@@ -158,36 +150,6 @@ pub fn settings() -> SettingsContent {
             auto_fold_dirs: Some(true),
             indent_guides: Some(IndentGuidesSettingsContent { show: Some(ShowIndentGuides::Always) }),
             expand_outlines_with_depth: Some(100),
-        }),
-        project_panel: Some(ProjectPanelSettingsContent {
-            button: Some(true),
-            hide_gitignore: Some(false),
-            default_width: Some(PixelSetting(360.0)),
-            dock: Some(DockSide::Left),
-            title_tooltip_delay: Some(ProjectPanelTitleTooltipDelay::Default),
-            entry_spacing: Some(ProjectPanelEntrySpacing::Comfortable),
-            file_icons: Some(true),
-            folder_indicator: Some(FolderIndicator::Icon),
-            git_status: Some(true),
-            indent_size: Some(PixelSetting(20.0)),
-            auto_reveal_entries: Some(true),
-            auto_fold_dirs: Some(true),
-            starts_open: Some(true),
-            show_diagnostics: Some(ShowDiagnostics::All),
-            indent_guides: Some(ProjectPanelIndentGuidesSettings { show: Some(ShowIndentGuides::Always) }),
-            hide_root: Some(false),
-            hide_hidden: Some(false),
-            sticky_scroll: Some(true),
-            drag_and_drop: Some(true),
-            auto_open: Some(ProjectPanelAutoOpenSettings {
-                on_create: Some(true),
-                on_paste: Some(true),
-                on_drop: Some(true),
-            }),
-            sort_mode: Some(ProjectPanelSortMode::DirectoriesFirst),
-            sort_order: Some(ProjectPanelSortOrder::Default),
-            diagnostic_badges: Some(true),
-            git_status_indicator: Some(false),
         }),
         session: Some(SessionSettingsContent { restore_unsaved_buffers: Some(true) }),
         terminal: terminal_settings(),

@@ -100,8 +100,6 @@ pub struct SettingsContent {
 
     pub outline_panel: Option<OutlinePanelSettingsContent>,
 
-    pub project_panel: Option<ProjectPanelSettingsContent>,
-
     /// Configuration for session-related features
     pub session: Option<SessionSettingsContent>,
 

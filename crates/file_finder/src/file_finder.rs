@@ -54,7 +54,6 @@ use project::worktree_store::WorktreeStore;
 use settings::ModalWidthContent;
 use settings::SeedQuerySetting;
 use settings::Settings;
-use settings::SettingsStore;
 use ui::Checkbox;
 use ui::HighlightedLabel;
 use ui::ListItem;
@@ -696,38 +695,16 @@ fn matching_history_items<'a>(
     matching_history_paths
 }
 
-fn should_hide_root_in_entry_path(worktree_store: &Entity<WorktreeStore>, cx: &App) -> bool {
-    let multiple_worktrees = worktree_store
-        .read(cx)
-        .visible_worktrees(cx)
-        .filter(|worktree| !worktree.read(cx).is_single_file())
-        .nth(1)
-        .is_some();
-    let hide_root = cx
-        .global::<SettingsStore>()
-        .merged_settings()
-        .project_panel
-        .as_ref()
-        .and_then(|project_panel| project_panel.hide_root)
-        .unwrap_or(false);
-    hide_root && !multiple_worktrees
-}
-
 fn worktree_names_for_history_matching(
     worktree_store: &Entity<WorktreeStore>,
     cx: &App,
 ) -> Option<HashMap<WorktreeId, Arc<RelPath>>> {
-    let hide_root = should_hide_root_in_entry_path(worktree_store, cx);
     let names = worktree_store
         .read(cx)
         .worktrees()
-        .filter_map(|worktree| {
+        .map(|worktree| {
             let worktree = worktree.read(cx);
-            if hide_root && !worktree.is_single_file() {
-                None
-            } else {
-                Some((worktree.id(), worktree.root_name().into()))
-            }
+            (worktree.id(), worktree.root_name().into())
         })
         .collect::<HashMap<_, _>>();
 
@@ -1009,7 +986,6 @@ impl FileFinderDelegate {
         let relative_to = self.currently_opened_path.as_ref().map(|found_path| Arc::clone(&found_path.project.path));
         let worktree_store = self.project.read(cx).worktree_store();
         let worktrees = worktree_store.read(cx).visible_worktrees_and_single_files(cx).collect::<Vec<_>>();
-        let include_root_name = !should_hide_root_in_entry_path(&worktree_store, cx);
         let candidate_sets = worktrees
             .into_iter()
             .map(|worktree| {
@@ -1019,7 +995,7 @@ impl FileFinderDelegate {
                     include_ignored: self
                         .include_ignored
                         .unwrap_or_else(|| worktree.root_entry().is_some_and(|entry| entry.is_ignored)),
-                    include_root_name,
+                    include_root_name: true,
                     candidates: project::Candidates::Files,
                 }
             })
@@ -1165,12 +1141,7 @@ impl FileFinderDelegate {
                 if let Some(panel_match) = panel_match {
                     self.labels_for_path_match(&panel_match.0)
                 } else if let Some(worktree) = worktree {
-                    let worktree_store = self.project.read(cx).worktree_store();
-                    let full_path = if should_hide_root_in_entry_path(&worktree_store, cx) {
-                        entry_path.project.path.clone()
-                    } else {
-                        worktree.read(cx).root_name().join(&entry_path.project.path).into()
-                    };
+                    let full_path: Arc<RelPath> = worktree.read(cx).root_name().join(&entry_path.project.path).into();
                     let mut components = full_path.components();
                     let filename = components.next_back().unwrap_or("");
                     let prefix = components.rest();

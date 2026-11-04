@@ -1,5 +1,21 @@
 # Project panel
 
+## Fixed behaviour
+
+- There are no project panel settings (`ProjectPanelSettingsContent` is
+  gone). Fixed behaviour: left dock only, 360px default width, always-shown
+  button, opens on startup when a folder is open, 20px indent with indent
+  guides, comfortable spacing, sticky parent rows, 1.5s path tooltip.
+- Entries: file icons and folder icons (no chevrons), git status colours (when
+  git status is enabled), diagnostics marks and error/warning count badges for
+  errors and warnings, no git status letter indicator. The root entry is always
+  shown. Directories sort first, then case-insensitive natural name order; the
+  open-path prompt also lists directories first.
+- Single-child directories auto-fold. The active entry is always revealed.
+  Drag and drop is always on. New, pasted, and dropped files open.
+- "Hide Gitignored" and "Hide Hidden" toggles are per-panel session state
+  (both off at start), not persisted.
+
 ## Clipboard
 
 - Copy / Cut put the selected entries on the system clipboard as file URLs
