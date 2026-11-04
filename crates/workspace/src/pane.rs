@@ -8,7 +8,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
-use std::time::Duration;
 
 use anyhow::Result;
 use collections::BTreeSet;
@@ -53,7 +52,6 @@ use gpui::actions;
 use gpui::prelude::*;
 use itertools::Itertools;
 use language::Capability;
-use language::DiagnosticSeverity;
 use parking_lot::Mutex;
 use project::DirectoryLister;
 use project::Project;
@@ -67,10 +65,7 @@ use theme::ThemeColors;
 use ui::ContextMenu;
 use ui::ContextMenuEntry;
 use ui::ContextMenuItem;
-use ui::DecoratedIcon;
 use ui::IconButtonShape;
-use ui::IconDecoration;
-use ui::IconDecorationKind;
 use ui::Indicator;
 use ui::KeyBinding;
 use ui::Tab;
@@ -101,17 +96,12 @@ use crate::ZoomIn;
 use crate::ZoomOut;
 use crate::focus_follows_mouse::FocusFollowsMouse as _;
 use crate::invalid_item_view::InvalidItemView;
-use crate::item::ActivateOnClose;
-use crate::item::ClosePosition;
 use crate::item::Item;
 use crate::item::ItemBufferKind;
 use crate::item::ItemHandle;
-use crate::item::ItemSettings;
 use crate::item::PreviewTabsSettings;
 use crate::item::ProjectItemKind;
 use crate::item::SaveOptions;
-use crate::item::ShowCloseButton;
-use crate::item::ShowDiagnostics;
 use crate::item::TabContentParams;
 use crate::item::TabTooltipContent;
 use crate::item::WeakItemHandle;
@@ -502,10 +492,8 @@ pub struct Pane {
     /// saving or editing.
     read_only_tabs: bool,
     pinned_tab_count: usize,
-    diagnostics: HashMap<ProjectPath, DiagnosticSeverity>,
     zoom_out_on_close: bool,
     focus_follows_mouse: FocusFollowsMouse,
-    diagnostic_summary_update: Task<()>,
     /// If a certain project item wants to get recreated with specific data, it can persist its data before the recreation here.
     pub project_item_restoration_data: HashMap<ProjectItemKind, Box<dyn Any + Send>>,
 
@@ -620,7 +608,6 @@ impl Pane {
             cx.on_focus_in(&focus_handle, window, Pane::focus_in),
             cx.on_focus_out(&focus_handle, window, Pane::focus_out),
             cx.observe_global_in::<SettingsStore>(window, Self::settings_changed),
-            cx.subscribe(&project, Self::project_events),
         ];
 
         Self {
@@ -658,10 +645,8 @@ impl Pane {
             close_pane_if_empty: true,
             read_only_tabs: false,
             pinned_tab_count: 0,
-            diagnostics: HashMap::default(),
             zoom_out_on_close: true,
             focus_follows_mouse: WorkspaceSettings::get_global(cx).focus_follows_mouse,
-            diagnostic_summary_update: Task::ready(()),
             project_item_restoration_data: HashMap::default(),
             in_center_group: false,
         }
@@ -745,48 +730,6 @@ impl Pane {
         cx.notify();
     }
 
-    fn project_events(&mut self, _project: Entity<Project>, event: &project::Event, cx: &mut Context<Self>) {
-        match event {
-            project::Event::DiskBasedDiagnosticsFinished { .. } | project::Event::DiagnosticsUpdated { .. }
-                if ItemSettings::get_global(cx).show_diagnostics != ShowDiagnostics::Off =>
-            {
-                self.diagnostic_summary_update = cx.spawn(async move |this, cx| {
-                    cx.background_executor().timer(Duration::from_millis(30)).await;
-                    this.update(cx, |this, cx| {
-                        this.update_diagnostics(cx);
-                        cx.notify();
-                    })
-                    .log_err();
-                });
-            }
-            _ => {}
-        }
-    }
-
-    fn update_diagnostics(&mut self, cx: &Context<Self>) {
-        let Some(project) = self.project.upgrade() else {
-            return;
-        };
-        let show_diagnostics = ItemSettings::get_global(cx).show_diagnostics;
-        self.diagnostics = if show_diagnostics != ShowDiagnostics::Off {
-            project
-                .read(cx)
-                .diagnostic_summaries(false, cx)
-                .filter_map(|(project_path, _, diagnostic_summary)| {
-                    if diagnostic_summary.error_count > 0 {
-                        Some((project_path, DiagnosticSeverity::ERROR))
-                    } else if diagnostic_summary.warning_count > 0 && show_diagnostics != ShowDiagnostics::Errors {
-                        Some((project_path, DiagnosticSeverity::WARNING))
-                    } else {
-                        None
-                    }
-                })
-                .collect()
-        } else {
-            HashMap::default()
-        }
-    }
-
     fn settings_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !PreviewTabsSettings::get_global(cx).enabled {
             self.set_preview_item_id(None, cx);
@@ -803,7 +746,6 @@ impl Pane {
             self.close_items_on_settings_change(window, cx);
         }
 
-        self.update_diagnostics(cx);
         cx.notify();
     }
 
@@ -1932,35 +1874,22 @@ impl Pane {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let activate_on_close = &ItemSettings::get_global(cx).activate_on_close;
         self.activation_history.retain(|entry| entry.entity_id != self.items[item_index].item_id());
 
         if self.is_tab_pinned(item_index) {
             self.pinned_tab_count -= 1;
         }
         if item_index == self.active_item_index {
-            let left_neighbour_index = || item_index.min(self.items.len()).saturating_sub(1);
-            let index_to_activate = match activate_on_close {
-                ActivateOnClose::History => self
-                    .activation_history
+            let index_to_activate =
+                self.activation_history
                     .pop()
                     .and_then(|last_activated_item| {
                         self.items.iter().enumerate().find_map(|(index, item)| {
                             (item.item_id() == last_activated_item.entity_id).then_some(index)
                         })
                     })
-                    // We didn't have a valid activation history entry, so fallback
-                    // to activating the item to the left
-                    .unwrap_or_else(left_neighbour_index),
-                ActivateOnClose::Neighbour => {
-                    self.activation_history.pop();
-                    if item_index + 1 < self.items.len() { item_index + 1 } else { item_index.saturating_sub(1) }
-                }
-                ActivateOnClose::LeftNeighbour => {
-                    self.activation_history.pop();
-                    left_neighbour_index()
-                }
-            };
+                    // No valid activation history entry, so activate the item to the left.
+                    .unwrap_or_else(|| item_index.min(self.items.len()).saturating_sub(1));
 
             let should_activate = activate_pane || self.has_focus(window, cx);
             if self.items.len() == 1 && should_activate {
@@ -2468,43 +2397,6 @@ impl Pane {
         self.activate_item(index, true, true, window, cx);
     }
 
-    fn tab_icon_element(
-        &self,
-        item: &dyn ItemHandle,
-        is_active: bool,
-        window: &Window,
-        cx: &App,
-    ) -> Option<AnyElement> {
-        let icon = item.tab_icon(window, cx)?.size(IconSize::Small).color(Color::Muted);
-
-        let item_diagnostic = item.project_path(cx).and_then(|project_path| self.diagnostics.get(&project_path));
-
-        let Some(diagnostic) = item_diagnostic else {
-            return Some(icon.into_any_element());
-        };
-
-        let knockout_item_color =
-            if is_active { cx.theme().colors().tab_active_background } else { cx.theme().colors().tab_bar_background };
-
-        let (icon_decoration, icon_color) = if matches!(diagnostic, &DiagnosticSeverity::ERROR) {
-            (IconDecorationKind::X, Color::Error)
-        } else {
-            (IconDecorationKind::Triangle, Color::Warning)
-        };
-
-        Some(
-            DecoratedIcon::new(
-                icon,
-                Some(
-                    IconDecoration::new(icon_decoration, knockout_item_color, cx)
-                        .color(icon_color.color(cx))
-                        .position(Point { x: px(-2.), y: px(-2.) }),
-                ),
-            )
-            .into_any_element(),
-        )
-    }
-
     fn render_tab(
         &self,
         ix: usize,
@@ -2530,11 +2422,8 @@ impl Pane {
             cx,
         );
 
-        let icon = self.tab_icon_element(item, is_active, window, cx);
+        let icon = item.tab_icon(window, cx).map(|icon| icon.size(IconSize::Small).color(Color::Muted));
 
-        let settings = ItemSettings::get_global(cx);
-        let close_side = &settings.close_position;
-        let show_close_button = &settings.show_close_button;
         let indicator = render_item_indicator(item.boxed_clone(), cx);
         let tab_tooltip_content = item.tab_tooltip_content(cx);
         let item_id = item.item_id();
@@ -2576,10 +2465,6 @@ impl Pane {
                 TabPosition::Last
             } else {
                 TabPosition::Middle(position_relative_to_active_item)
-            })
-            .close_side(match close_side {
-                ClosePosition::Left => ui::TabCloseSide::Start,
-                ClosePosition::Right => ui::TabCloseSide::End,
             })
             .toggle_state(is_active)
             .on_click(cx.listener({
@@ -2658,20 +2543,17 @@ impl Pane {
                 } else {
                     // Quiet close button: no fill and no tooltip, only the icon
                     // brightening on hover.
-                    match show_close_button {
-                        ShowCloseButton::Always => IconButton::new("close tab", IconName::Close),
-                        ShowCloseButton::Hover => IconButton::new("close tab", IconName::Close).visible_on_hover(""),
-                        ShowCloseButton::Hidden => return this,
-                    }
-                    .shape(IconButtonShape::Square)
-                    .style(ButtonStyle::Transparent)
-                    .icon_color(Color::Muted)
-                    .hover_color(Color::Default)
-                    .size(ButtonSize::None)
-                    .icon_size(IconSize::Small)
-                    .on_click(cx.listener(move |pane, _, window, cx| {
-                        pane.close_item_by_id(item_id, SaveIntent::Close, window, cx).detach_and_log_err(cx);
-                    }))
+                    IconButton::new("close tab", IconName::Close)
+                        .visible_on_hover("")
+                        .shape(IconButtonShape::Square)
+                        .style(ButtonStyle::Transparent)
+                        .icon_color(Color::Muted)
+                        .hover_color(Color::Default)
+                        .size(ButtonSize::None)
+                        .icon_size(IconSize::Small)
+                        .on_click(cx.listener(move |pane, _, window, cx| {
+                            pane.close_item_by_id(item_id, SaveIntent::Close, window, cx).detach_and_log_err(cx);
+                        }))
                 };
                 this.end_slot(end_slot)
             })
@@ -2680,7 +2562,7 @@ impl Pane {
                     .id(("pane-tab-content", ix))
                     .gap_1()
                     .children(if let Some(icon) = icon {
-                        Some(icon)
+                        Some(icon.into_any_element())
                     } else if !capability.editable() {
                         Some(read_only_toggle(capability == Capability::Read).into_any_element())
                     } else {
@@ -4229,7 +4111,7 @@ impl Render for DraggedTab {
             window,
             cx,
         );
-        let icon = self.pane.read(cx).tab_icon_element(self.item.as_ref(), self.is_active, window, cx);
+        let icon = self.item.tab_icon(window, cx).map(|icon| icon.size(IconSize::Small).color(Color::Muted));
         Tab::new("")
             .floating()
             .toggle_state(self.is_active)

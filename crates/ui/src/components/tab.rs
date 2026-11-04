@@ -28,12 +28,6 @@ pub enum TabPosition {
     Last,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum TabCloseSide {
-    Start,
-    End,
-}
-
 /// How a [`Tab`] (and its [`TabBar`](crate::TabBar)) is drawn.
 #[derive(Debug, Default, PartialEq, Eq, Clone, Copy)]
 pub enum TabStyle {
@@ -51,7 +45,6 @@ pub struct Tab {
     style: TabStyle,
     floating: bool,
     position: TabPosition,
-    close_side: TabCloseSide,
     start_slot: Option<AnyElement>,
     end_slot: Option<AnyElement>,
     children: SmallVec<[AnyElement; 2]>,
@@ -66,7 +59,6 @@ impl Tab {
             style: TabStyle::Folder,
             floating: false,
             position: TabPosition::First,
-            close_side: TabCloseSide::End,
             start_slot: None,
             end_slot: None,
             children: SmallVec::new(),
@@ -87,11 +79,6 @@ impl Tab {
     /// Drawn away from a tab bar (a drag preview): no base flares, and an inactive tab keeps its fill.
     pub const fn floating(mut self) -> Self {
         self.floating = true;
-        self
-    }
-
-    pub const fn close_side(mut self, close_side: TabCloseSide) -> Self {
-        self.close_side = close_side;
         self
     }
 
@@ -172,16 +159,8 @@ impl RenderOnce for Tab {
             ),
         };
 
-        let (start_slot, end_slot) = {
-            let start_slot = h_flex().size(START_TAB_SLOT_SIZE).justify_center().children(self.start_slot);
-
-            let end_slot = h_flex().size(END_TAB_SLOT_SIZE).justify_center().children(self.end_slot);
-
-            match self.close_side {
-                TabCloseSide::End => (start_slot, end_slot),
-                TabCloseSide::Start => (end_slot, start_slot),
-            }
-        };
+        let start_slot = h_flex().size(START_TAB_SLOT_SIZE).justify_center().children(self.start_slot);
+        let end_slot = h_flex().size(END_TAB_SLOT_SIZE).justify_center().children(self.end_slot);
 
         if self.style == TabStyle::Pill {
             // Selection is shown by text contrast (and the item's own icon colour), not a fill,

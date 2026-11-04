@@ -31,7 +31,6 @@ use multi_buffer::Anchor;
 use multi_buffer::ExcerptBoundaryInfo;
 use multi_buffer::MultiBuffer;
 use project::Entry;
-use settings::Settings;
 use text::BufferId;
 use theme::ActiveTheme;
 use ui::ButtonLike;
@@ -43,7 +42,6 @@ use ui::prelude::*;
 use ui::right_click_menu;
 use ui::text_for_keystroke;
 use ui::utils::WithRemSize;
-use workspace::ItemSettings;
 use workspace::OpenInTerminal;
 use workspace::OpenTerminal;
 use workspace::RevealInProjectPanel;
@@ -378,11 +376,10 @@ pub(crate) fn render_buffer_header(
                             path_header
                                 .child(
                                     ButtonLike::new("filename-button")
-                                        .when(ItemSettings::get_global(cx).file_icons, |this| {
+                                        .child({
                                             let path = std::path::Path::new(filename.as_str());
                                             let icon = FileIcons::get_icon(path, cx).unwrap_or_default();
-
-                                            this.child(Icon::from_path(icon).color(Color::Muted))
+                                            Icon::from_path(icon).color(Color::Muted)
                                         })
                                         .child(
                                             Label::new(filename)

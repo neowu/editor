@@ -107,7 +107,6 @@ use gpui::transparent_black;
 pub use history_manager::*;
 pub use item::Item;
 pub use item::ItemHandle;
-pub use item::ItemSettings;
 pub use item::PreviewTabsSettings;
 pub use item::ProjectItem;
 pub use item::SerializableItem;

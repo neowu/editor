@@ -30,12 +30,8 @@ pub use language::HighlightedText;
 use project::Project;
 use project::ProjectEntryId;
 use project::ProjectPath;
-pub use settings::ActivateOnClose;
-pub use settings::ClosePosition;
 pub use settings::Settings;
 pub use settings::SettingsLocation;
-pub use settings::ShowCloseButton;
-pub use settings::ShowDiagnostics;
 use smallvec::SmallVec;
 use ui::Color;
 use ui::Icon;
@@ -67,17 +63,6 @@ impl Default for SaveOptions {
     }
 }
 
-pub struct ItemSettings {
-    pub git_status: bool,
-    pub close_position: ClosePosition,
-    pub activate_on_close: ActivateOnClose,
-    pub file_icons: bool,
-    pub show_diagnostics: ShowDiagnostics,
-    pub show_close_button: ShowCloseButton,
-}
-
-settings::register_setting!(ItemSettings);
-
 pub struct PreviewTabsSettings {
     pub enabled: bool,
     pub enable_preview_from_project_panel: bool,
@@ -89,21 +74,6 @@ pub struct PreviewTabsSettings {
 }
 
 settings::register_setting!(PreviewTabsSettings);
-
-impl Settings for ItemSettings {
-    fn from_settings(content: &settings::SettingsContent) -> Self {
-        let tabs = content.tabs.as_ref().unwrap();
-        Self {
-            git_status: tabs.git_status.unwrap()
-                && content.git.as_ref().unwrap().enabled.unwrap().is_git_status_enabled(),
-            close_position: tabs.close_position.unwrap(),
-            activate_on_close: tabs.activate_on_close.unwrap(),
-            file_icons: tabs.file_icons.unwrap(),
-            show_diagnostics: tabs.show_diagnostics.unwrap(),
-            show_close_button: tabs.show_close_button.unwrap(),
-        }
-    }
-}
 
 impl Settings for PreviewTabsSettings {
     fn from_settings(content: &settings::SettingsContent) -> Self {

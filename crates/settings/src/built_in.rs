@@ -1,5 +1,4 @@
 use collections::HashMap;
-use settings_content::ActivateOnClose;
 use settings_content::ActivePaneModifiers;
 use settings_content::AllLanguageSettingsContent;
 use settings_content::AlternateScroll;
@@ -7,7 +6,6 @@ use settings_content::AutoIndentMode;
 use settings_content::AutosaveSetting;
 use settings_content::BottomDockLayout;
 use settings_content::BranchPickerSettingsContent;
-use settings_content::ClosePosition;
 use settings_content::CloseWindowWhenNoItems;
 use settings_content::CompletionDetailAlignment;
 use settings_content::CompletionMenuItemKind;
@@ -65,7 +63,6 @@ use settings_content::IndentGuideSettingsContent;
 use settings_content::IndentGuidesSettingsContent;
 use settings_content::InlayHintSettingsContent;
 use settings_content::InlineDiagnosticsSettingsContent;
-use settings_content::ItemSettingsContent;
 use settings_content::JsxTagAutoCloseSettingsContent;
 use settings_content::LanguageServerFormatterSpecifier;
 use settings_content::LanguageSettingsContent;
@@ -112,7 +109,6 @@ use settings_content::SemanticTokenRules;
 use settings_content::SessionSettingsContent;
 use settings_content::SettingsContent;
 use settings_content::Shell;
-use settings_content::ShowCloseButton;
 use settings_content::ShowDiagnostics;
 use settings_content::ShowIndentGuides;
 use settings_content::ShowMinimap;
@@ -165,14 +161,6 @@ pub fn settings() -> SettingsContent {
             commit_title_max_length: Some(0),
             entry_primary_click_action: Some(GitPanelClickBehavior::ProjectDiff),
             commit_editor: Some(GitPanelCommitEditor::Expanded),
-        }),
-        tabs: Some(ItemSettingsContent {
-            git_status: Some(true),
-            close_position: Some(ClosePosition::Right),
-            file_icons: Some(true),
-            activate_on_close: Some(ActivateOnClose::History),
-            show_diagnostics: Some(ShowDiagnostics::Off),
-            show_close_button: Some(ShowCloseButton::Hover),
         }),
         tab_switcher: Some(TabSwitcherSettingsContent { show_file_preview: Some(true) }),
         status_bar: Some(StatusBarSettingsContent {

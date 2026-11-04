@@ -56,12 +56,10 @@ use project::ImageItem;
 use project::Project;
 use project::ProjectPath;
 use project::image_store::ImageItemEvent;
-use settings::Settings;
 use ui::Tooltip;
 use ui::prelude::*;
 use util::ResultExt as _;
 use util::paths::PathExt;
-use workspace::ItemSettings;
 use workspace::Pane;
 use workspace::ToolbarItemEvent;
 use workspace::ToolbarItemLocation;
@@ -524,24 +522,20 @@ impl Item for ImageView {
     fn tab_content(&self, params: TabContentParams, _window: &Window, cx: &App) -> AnyElement {
         let project_path = self.image_item.read(cx).project_path(cx);
 
-        let label_color = if ItemSettings::get_global(cx).git_status {
-            let git_status = self
-                .project
-                .read(cx)
-                .git_store()
-                .read(cx)
-                .status_for_project_path(&project_path, cx)
-                .map(|status| status.summary())
-                .unwrap_or_default();
-
-            self.project
-                .read(cx)
-                .entry_for_path(&project_path, cx)
-                .map(|entry| entry_git_aware_label_color(git_status, entry.is_ignored, params.selected))
-                .unwrap_or_else(|| params.text_color())
-        } else {
-            params.text_color()
-        };
+        let git_status = self
+            .project
+            .read(cx)
+            .git_store()
+            .read(cx)
+            .status_for_project_path(&project_path, cx)
+            .map(|status| status.summary())
+            .unwrap_or_default();
+        let label_color = self
+            .project
+            .read(cx)
+            .entry_for_path(&project_path, cx)
+            .map(|entry| entry_git_aware_label_color(git_status, entry.is_ignored, params.selected))
+            .unwrap_or_else(|| params.text_color());
 
         Label::new(self.tab_content_text(params.detail.unwrap_or_default(), cx))
             .single_line()
@@ -556,7 +550,7 @@ impl Item for ImageView {
 
     fn tab_icon(&self, _: &Window, cx: &App) -> Option<Icon> {
         let path = self.image_item.read(cx).abs_path(cx)?;
-        ItemSettings::get_global(cx).file_icons.then(|| FileIcons::get_icon(&path, cx)).flatten().map(Icon::from_path)
+        FileIcons::get_icon(&path, cx).map(Icon::from_path)
     }
 
     fn can_split(&self) -> bool {

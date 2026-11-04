@@ -56,7 +56,6 @@ use util::ResultExt as _;
 use workspace::ModalView;
 use workspace::Toast;
 use workspace::Workspace;
-use workspace::item::ItemSettings;
 use workspace::notifications::NotificationId;
 use workspace::pane::NavigationEntry;
 
@@ -687,10 +686,7 @@ impl PickerDelegate for LspLocationsDelegate {
                 let file_name = path.path.file_name().map(|name| name.to_string()).unwrap_or_default();
                 let directory =
                     path.path.parent().map(|parent| parent.display()).map(SharedString::new).unwrap_or_default();
-                let file_icon = ItemSettings::get_global(cx)
-                    .file_icons
-                    .then(|| FileIcons::get_icon(path.path.as_std_path(), cx))
-                    .flatten()
+                let file_icon = FileIcons::get_icon(path.path.as_std_path(), cx)
                     .map(|icon| Icon::from_path(icon).color(Color::Muted).size(IconSize::Small));
                 Some(
                     h_flex()

@@ -76,7 +76,6 @@ use workspace::invalid_item_view::InvalidItemView;
 use workspace::item::Item;
 use workspace::item::ItemBufferKind;
 use workspace::item::ItemEvent;
-use workspace::item::ItemSettings;
 use workspace::item::ProjectItem;
 use workspace::item::ProjectItemKind;
 use workspace::item::SaveOptions;
@@ -211,34 +210,27 @@ impl Item for Editor {
     }
 
     fn tab_icon(&self, _: &Window, cx: &App) -> Option<Icon> {
-        ItemSettings::get_global(cx)
-            .file_icons
-            .then(|| {
-                path_for_buffer(&self.buffer, 0, true, cx).and_then(|path| FileIcons::get_icon(Path::new(&*path), cx))
-            })
-            .flatten()
+        path_for_buffer(&self.buffer, 0, true, cx)
+            .and_then(|path| FileIcons::get_icon(Path::new(&*path), cx))
             .map(Icon::from_path)
     }
 
     fn tab_content(&self, params: TabContentParams, _: &Window, cx: &App) -> AnyElement {
-        let label_color = if ItemSettings::get_global(cx).git_status {
-            self.buffer()
-                .read(cx)
-                .as_singleton()
-                .and_then(|buffer| {
-                    let buffer = buffer.read(cx);
-                    let path = buffer.project_path(cx)?;
-                    let buffer_id = buffer.remote_id();
-                    let project = self.project()?.read(cx);
-                    let entry = project.entry_for_path(&path, cx)?;
-                    let status = project.git_store().read(cx).status_for_buffer_id(buffer_id, cx)?;
+        let label_color = self
+            .buffer()
+            .read(cx)
+            .as_singleton()
+            .and_then(|buffer| {
+                let buffer = buffer.read(cx);
+                let path = buffer.project_path(cx)?;
+                let buffer_id = buffer.remote_id();
+                let project = self.project()?.read(cx);
+                let entry = project.entry_for_path(&path, cx)?;
+                let status = project.git_store().read(cx).status_for_buffer_id(buffer_id, cx)?;
 
-                    Some(entry_git_aware_label_color(status.summary(), entry.is_ignored, params.selected))
-                })
-                .unwrap_or_else(|| entry_label_color(params.selected))
-        } else {
-            entry_label_color(params.selected)
-        };
+                Some(entry_git_aware_label_color(status.summary(), entry.is_ignored, params.selected))
+            })
+            .unwrap_or_else(|| entry_label_color(params.selected));
 
         let description = params.detail.and_then(|detail| {
             let description = self.tab_description(detail, cx)?;

@@ -153,6 +153,11 @@ because it hurt readability; an opaque window is also cheaper to composite.
   the chrome above it). Tab bars always carry their buttons and keep pinned
   tabs in the same row as the others. There are no `tab_bar` settings and no
   Toggle Tab Bar action.
+- Tabs are hardcoded too; there are no `tabs` settings. Every tab shows its
+  file icon and git status colour, the close button sits on the right and
+  appears on hover, closing the active tab activates the previously active one
+  (else its left neighbour), and tabs carry no diagnostic badges. The tab
+  switcher and file headers follow the same icon and git colouring.
 - Split panes are separate cards with an 8px gap between them (the chrome shows
   through) instead of a divider line. The resize handle covers the gap.
   Finding the neighbouring pane (pane navigation, "open to the side") looks

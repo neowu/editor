@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use collections::HashMap;
 use collections::HashSet;
-use editor::items::entry_diagnostic_aware_icon_decoration_and_color;
 use editor::items::entry_git_aware_label_color;
 use fuzzy_nucleo::StringMatchCandidate;
 use gpui::Action;
@@ -21,7 +20,6 @@ use gpui::ModifiersChangedEvent;
 use gpui::MouseButton;
 use gpui::MouseUpEvent;
 use gpui::ParentElement;
-use gpui::Point;
 use gpui::Render;
 use gpui::Styled;
 use gpui::Task;
@@ -37,9 +35,6 @@ use serde::Deserialize;
 use settings::Settings;
 use settings::SettingsContent;
 use settings::TabSwitcherSettingsContent;
-use ui::DecoratedIcon;
-use ui::IconDecoration;
-use ui::IconDecorationKind;
 use ui::ListItem;
 use ui::ListItemSpacing;
 use ui::Tooltip;
@@ -51,8 +46,6 @@ use workspace::Pane;
 use workspace::SaveIntent;
 use workspace::Workspace;
 use workspace::item::ItemHandle;
-use workspace::item::ItemSettings;
-use workspace::item::ShowDiagnostics;
 use workspace::item::TabContentParams;
 use workspace::pane::render_item_indicator;
 use workspace::pane::tab_details;
@@ -261,58 +254,20 @@ pub struct TabSwitcherDelegate {
 }
 
 impl TabMatch {
-    fn icon(&self, project: &Entity<Project>, selected: bool, window: &Window, cx: &App) -> Option<DecoratedIcon> {
+    fn icon(&self, project: &Entity<Project>, selected: bool, window: &Window, cx: &App) -> Option<Icon> {
         let icon = self.item.tab_icon(window, cx)?;
-        let item_settings = ItemSettings::get_global(cx);
-        let show_diagnostics = item_settings.show_diagnostics;
-        let git_status_color = item_settings
-            .git_status
-            .then(|| {
-                let path = self.item.project_path(cx)?;
-                let project = project.read(cx);
-                let entry = project.entry_for_path(&path, cx)?;
-                let git_status = project
-                    .git_store()
-                    .read(cx)
-                    .status_for_project_path(&path, cx)
-                    .map(|status| status.summary())
-                    .unwrap_or_default();
-                Some(entry_git_aware_label_color(git_status, entry.is_ignored, selected))
-            })
-            .flatten();
-        let colored_icon = icon.color(git_status_color.unwrap_or_default());
-
-        let most_severe_diagnostic_level = if show_diagnostics == ShowDiagnostics::Off {
-            None
-        } else {
-            let buffer_store = project.read(cx).buffer_store().read(cx);
-            let buffer = self
-                .item
-                .project_path(cx)
-                .and_then(|path| buffer_store.get_by_path(&path))
-                .map(|buffer| buffer.read(cx));
-            buffer.and_then(|buffer| {
-                buffer
-                    .buffer_diagnostics(None)
-                    .iter()
-                    .map(|diagnostic_entry| diagnostic_entry.diagnostic.severity)
-                    .min()
-            })
-        };
-
-        let decorations = entry_diagnostic_aware_icon_decoration_and_color(most_severe_diagnostic_level)
-            .filter(|(d, _)| *d != IconDecorationKind::Triangle || show_diagnostics != ShowDiagnostics::Errors)
-            .map(|(icon, color)| {
-                let knockout_item_color = if selected {
-                    cx.theme().colors().element_selected
-                } else {
-                    cx.theme().colors().element_background
-                };
-                IconDecoration::new(icon, knockout_item_color, cx)
-                    .color(color.color(cx))
-                    .position(Point { x: px(-2.), y: px(-2.) })
-            });
-        Some(DecoratedIcon::new(colored_icon, decorations))
+        let git_status_color = self.item.project_path(cx).and_then(|path| {
+            let project = project.read(cx);
+            let entry = project.entry_for_path(&path, cx)?;
+            let git_status = project
+                .git_store()
+                .read(cx)
+                .status_for_project_path(&path, cx)
+                .map(|status| status.summary())
+                .unwrap_or_default();
+            Some(entry_git_aware_label_color(git_status, entry.is_ignored, selected))
+        });
+        Some(icon.color(git_status_color.unwrap_or_default()))
     }
 }
 
@@ -758,7 +713,7 @@ impl PickerDelegate for TabSwitcherDelegate {
                 .inset(true)
                 .toggle_state(selected)
                 .child(h_flex().when(ix == 0, |row| row).w_full().min_w_0().overflow_hidden().child(label))
-                .start_slot::<DecoratedIcon>(icon)
+                .start_slot::<Icon>(icon)
                 .map(|el| {
                     if self.selected_index == ix {
                         el.end_slot::<AnyElement>(close_button)

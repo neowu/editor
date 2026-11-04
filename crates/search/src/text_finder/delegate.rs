@@ -63,7 +63,6 @@ use project::Search;
 use project::SearchResults;
 use project::search::SearchQuery;
 use project::search::SearchResult;
-use settings::Settings;
 use smol::future::yield_now;
 use text::Anchor;
 use ui::Disclosure;
@@ -78,7 +77,6 @@ use ui::text_for_keystroke;
 use util::ResultExt;
 use workspace::SplitDirection;
 use workspace::Workspace;
-use workspace::item::ItemSettings;
 use workspace::pane::Pane;
 
 use super::Fold;
@@ -938,10 +936,7 @@ impl Delegate {
                 let file_name = path.path.file_name().map(|name| name.to_string()).unwrap_or_default();
                 let directory =
                     path.path.parent().map(|parent| parent.display()).map(SharedString::new).unwrap_or_default();
-                let file_icon = ItemSettings::get_global(cx)
-                    .file_icons
-                    .then(|| FileIcons::get_icon(path.path.as_std_path(), cx))
-                    .flatten()
+                let file_icon = FileIcons::get_icon(path.path.as_std_path(), cx)
                     .map(|icon| Icon::from_path(icon).color(Color::Muted).size(IconSize::Small));
                 let is_collapsed = self.collapsed_paths.contains(path);
                 let toggle_path = path.clone();
