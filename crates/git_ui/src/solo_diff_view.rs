@@ -53,7 +53,6 @@ use project::ProjectPath;
 use project::git_store::Repository;
 use project::git_store::RepositoryId;
 use settings::Settings;
-use settings::StatusStyle;
 use ui::DiffStat;
 use ui::Divider;
 use ui::Tooltip;
@@ -72,7 +71,6 @@ use workspace::notifications::NotifyTaskExt;
 use workspace::searchable::SearchableItemHandle;
 
 use crate::git_panel::GitStatusEntry;
-use crate::git_panel_settings::GitPanelSettings;
 use crate::git_status_icon;
 
 pub struct SoloDiffView {
@@ -519,8 +517,6 @@ impl Render for SoloDiffStyleToolbar {
             )
         };
 
-        let show_status_icon = GitPanelSettings::get_global(cx).status_style != StatusStyle::LabelColor;
-
         let (expand_icon, expand_tooltip) = if showing_full_file {
             (IconName::ChevronDownUp, "Show Changes Only")
         } else {
@@ -540,7 +536,7 @@ impl Render for SoloDiffStyleToolbar {
             )
             .child(DiffStyleControls::new(editor_entity))
             .child(Divider::vertical().mr_1())
-            .when_some(show_status_icon.then_some(status).flatten(), |this, status| this.child(git_status_icon(status)))
+            .when_some(status, |this, status| this.child(git_status_icon(status)))
             .into_any_element()
     }
 }

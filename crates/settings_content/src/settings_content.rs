@@ -1,4 +1,3 @@
-
 mod editor;
 mod font;
 mod language;
@@ -76,8 +75,6 @@ pub struct SettingsContent {
     /// Settings related to the file finder.
     pub file_finder: Option<FileFinderSettingsContent>,
 
-    pub git_panel: Option<GitPanelSettingsContent>,
-
     pub tab_switcher: Option<TabSwitcherSettingsContent>,
     pub status_bar: Option<StatusBarSettingsContent>,
 
@@ -140,135 +137,6 @@ pub enum DockPosition {
     Left,
     Bottom,
     Right,
-}
-
-#[derive(Clone, PartialEq, Default, Serialize, Deserialize, Debug)]
-pub struct GitPanelSettingsContent {
-    /// Whether to show the panel button in the status bar.
-    ///
-    /// Default: true
-    pub button: Option<bool>,
-    /// Where to dock the panel.
-    ///
-    /// Default: left
-    pub dock: Option<DockPosition>,
-    /// Default width of the panel in pixels.
-    ///
-    /// Default: 360
-    pub default_width: Option<PixelSetting>,
-    /// How entry statuses are displayed.
-    ///
-    /// Default: icon
-    pub status_style: Option<StatusStyle>,
-
-    /// What to show for directories in the git panel.
-    ///
-    /// Default: icon
-    pub folder_indicator: Option<FolderIndicator>,
-
-    /// What the default branch name should be when
-    /// `init.defaultBranch` is not set in git
-    ///
-    /// Default: main
-    pub fallback_branch_name: Option<String>,
-
-    /// How to sort entries in the git panel.
-    ///
-    /// Default: path
-    pub sort_by: Option<GitPanelSortBy>,
-
-    /// How to group entries in the git panel.
-    ///
-    /// Default: status
-    pub group_by: Option<GitPanelGroupBy>,
-
-    /// Whether to collapse untracked files in the diff panel.
-    ///
-    /// Default: false
-    pub collapse_untracked_diff: Option<bool>,
-
-    /// Whether to show entries with tree or flat view in the panel
-    ///
-    /// Default: false
-    pub tree_view: Option<bool>,
-
-    /// Whether to show the addition/deletion change count next to each file in the Git panel.
-    ///
-    /// Default: true
-    pub diff_stats: Option<bool>,
-
-    /// Maximum length of the commit message title before a warning is shown.
-    /// Set to 0 to disable.
-    ///
-    /// Default: 0
-    pub commit_title_max_length: Option<usize>,
-
-    /// Default action when clicking a changed file in the Git panel.
-    ///
-    /// Default: project_diff
-    pub entry_primary_click_action: Option<GitPanelClickBehavior>,
-
-    /// Whether the commit message editor is shown in the Git panel by default.
-    ///
-    /// Default: expanded
-    pub commit_editor: Option<GitPanelCommitEditor>,
-}
-
-#[derive(
-    Copy, Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum GitPanelCommitEditor {
-    /// Show the commit message editor.
-    #[default]
-    Expanded,
-    /// Hide the commit message editor, leaving only the commit button row.
-    Collapsed,
-}
-
-#[derive(
-    Default, Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum GitPanelClickBehavior {
-    /// Open the project diff, showing all changed files.
-    #[default]
-    ProjectDiff,
-    /// Open a single-file diff view.
-    FileDiff,
-    /// Open the file in the editor without a diff view.
-    ViewFile,
-}
-
-#[derive(
-    Copy, Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum GitPanelSortBy {
-    #[default]
-    Path,
-    Name,
-}
-
-#[derive(
-    Copy, Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum GitPanelGroupBy {
-    None,
-    #[default]
-    Status,
-    Staging,
-}
-
-#[derive(
-    Default, Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum StatusStyle {
-    #[default]
-    Icon,
-    LabelColor,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq)]

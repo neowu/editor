@@ -65,7 +65,7 @@ mod diff_multibuffer;
 pub mod git_graph;
 pub mod git_history_button;
 pub mod git_panel;
-mod git_panel_settings;
+mod git_panel_view_options;
 pub mod git_picker;
 pub mod multi_diff_view;
 pub mod picker_prompt;

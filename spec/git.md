@@ -59,6 +59,16 @@ repository's `$PATH`; if none is found, the repository is not opened.
   expanded state is obvious. `git::Commit` /
   `git::Amend` from outside the editor open the panel and focus its commit
   editor (amend loads the last commit message) instead of opening a modal.
+- Not configurable: docked left only (360px default width), always has a
+  status bar button, shows status icons (labels keep the default colour),
+  folder icons in tree view, per-file and total diff stats, and no commit
+  title length warning. Clicking an entry opens the project diff;
+  secondary-click opens the single-file diff. The commit editor starts
+  expanded. `git init` falls back to `main` when git has no
+  `init.defaultBranch`. Untracked files are not folded in the project diff.
+- View options (tree/list, sort by path/name, group by none/status/staging)
+  are session-wide state shared by every git panel and project diff, not
+  persisted; each launch starts in tree view grouped by status.
 - Removing untracked files uses "Delete" wording everywhere (menu items,
   prompts, errors, `git::DeleteUntrackedFiles`), matching the project panel,
   even though files are moved to the system trash. Never say "Trash".

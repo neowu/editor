@@ -8,7 +8,6 @@ use settings_content::CursorShapeContent;
 use settings_content::DelayMs;
 use settings_content::DiagnosticSeverityContent;
 use settings_content::DiagnosticsSettingsContent;
-use settings_content::DockPosition;
 use settings_content::DockSide;
 use settings_content::DocumentFoldingRanges;
 use settings_content::DocumentSymbols;
@@ -24,11 +23,6 @@ use settings_content::FormatterList;
 use settings_content::GitEnabledSettings;
 use settings_content::GitGutterSetting;
 use settings_content::GitHunkStyleSetting;
-use settings_content::GitPanelClickBehavior;
-use settings_content::GitPanelCommitEditor;
-use settings_content::GitPanelGroupBy;
-use settings_content::GitPanelSettingsContent;
-use settings_content::GitPanelSortBy;
 use settings_content::GitPathStyle;
 use settings_content::GitSettings;
 use settings_content::GlobalLspSettingsContent;
@@ -81,7 +75,6 @@ use settings_content::ShowWhitespaceSetting;
 use settings_content::SoftWrap;
 use settings_content::SoftWrapIndent;
 use settings_content::StatusBarSettingsContent;
-use settings_content::StatusStyle;
 use settings_content::TabSwitcherSettingsContent;
 use settings_content::TerminalBlink;
 use settings_content::TerminalDockPosition;
@@ -103,22 +96,6 @@ pub fn settings() -> SettingsContent {
             skip_focus_for_active_in_search: Some(true),
             include_ignored: Some(IncludeIgnoredContent::Smart),
             prefill_query_from_selection: Some(true),
-        }),
-        git_panel: Some(GitPanelSettingsContent {
-            button: Some(true),
-            dock: Some(DockPosition::Left),
-            default_width: Some(PixelSetting(360.0)),
-            status_style: Some(StatusStyle::Icon),
-            folder_indicator: Some(FolderIndicator::Icon),
-            fallback_branch_name: Some("main".into()),
-            sort_by: Some(GitPanelSortBy::Path),
-            group_by: Some(GitPanelGroupBy::Status),
-            collapse_untracked_diff: Some(false),
-            tree_view: Some(true),
-            diff_stats: Some(true),
-            commit_title_max_length: Some(0),
-            entry_primary_click_action: Some(GitPanelClickBehavior::ProjectDiff),
-            commit_editor: Some(GitPanelCommitEditor::Expanded),
         }),
         tab_switcher: Some(TabSwitcherSettingsContent { show_file_preview: Some(true) }),
         status_bar: Some(StatusBarSettingsContent {

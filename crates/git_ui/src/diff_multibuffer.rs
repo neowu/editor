@@ -44,10 +44,6 @@ use project::git_store::Repository;
 use project::git_store::diff_buffer_list::BranchDiffEvent;
 use project::git_store::diff_buffer_list::DiffBase;
 use project::git_store::diff_buffer_list::{self};
-use settings::GitPanelGroupBy;
-use settings::GitPanelSortBy;
-use settings::Settings;
-use settings::SettingsStore;
 use theme::ActiveTheme;
 use ui::CommonAnimationExt as _;
 use ui::KeyBinding;
@@ -63,7 +59,9 @@ use workspace::item::SaveOptions;
 use crate::conflict_view;
 use crate::git_panel::GitPanel;
 use crate::git_panel::GitStatusEntry;
-use crate::git_panel_settings::GitPanelSettings;
+use crate::git_panel_view_options::GitPanelGroupBy;
+use crate::git_panel_view_options::GitPanelSortBy;
+use crate::git_panel_view_options::GitPanelViewOptions;
 
 /// Loading every changed file at once makes the first one land no sooner than the
 /// last, leaving a large diff on a spinner. Throughput flattens past this point.
@@ -138,32 +136,11 @@ impl DiffMultibuffer {
                 }
             });
 
-        let mut was_sort_by = GitPanelSettings::get_global(cx).sort_by;
-        let mut was_group_by = GitPanelSettings::get_global(cx).group_by;
-        let mut was_tree_view = GitPanelSettings::get_global(cx).tree_view;
-        let mut was_collapse_untracked_diff = GitPanelSettings::get_global(cx).collapse_untracked_diff;
-        cx.observe_global_in::<SettingsStore>(window, move |this, window, cx| {
-            let settings = GitPanelSettings::get_global(cx);
-            let sort_by = settings.sort_by;
-            let group_by = settings.group_by;
-            let tree_view = settings.tree_view;
-            let is_collapse_untracked_diff = settings.collapse_untracked_diff;
-            if sort_by != was_sort_by
-                || group_by != was_group_by
-                || tree_view != was_tree_view
-                || is_collapse_untracked_diff != was_collapse_untracked_diff
-            {
-                this._task = {
-                    window.spawn(cx, {
-                        let this = cx.weak_entity();
-                        async |cx| Self::refresh(this, cx).await
-                    })
-                }
-            }
-            was_sort_by = sort_by;
-            was_group_by = group_by;
-            was_tree_view = tree_view;
-            was_collapse_untracked_diff = is_collapse_untracked_diff;
+        cx.observe_global_in::<GitPanelViewOptions>(window, |this, window, cx| {
+            this._task = window.spawn(cx, {
+                let this = cx.weak_entity();
+                async |cx| Self::refresh(this, cx).await
+            })
         })
         .detach();
 
@@ -506,10 +483,7 @@ impl DiffMultibuffer {
                         selections.select_ranges([multi_buffer::Anchor::Min..multi_buffer::Anchor::Min])
                     });
                 }
-                if is_excerpt_newly_added
-                    && (file_status.is_deleted()
-                        || (file_status.is_untracked() && GitPanelSettings::get_global(cx).collapse_untracked_diff))
-                {
+                if is_excerpt_newly_added && file_status.is_deleted() {
                     needs_fold = true;
                 }
             })
@@ -817,8 +791,8 @@ const NEW_SORT_PREFIX: u64 = 3;
 /// for sorting and multibuffer identity; the path shown in the UI comes from the
 /// buffer's own `File`.
 pub(crate) fn project_diff_path_key(repo: &Repository, repo_path: &RepoPath, status: FileStatus, cx: &App) -> PathKey {
-    let settings = GitPanelSettings::get_global(cx);
-    let sort_prefix = if settings.group_by != GitPanelGroupBy::Status {
+    let view_options = GitPanelViewOptions::get(cx);
+    let sort_prefix = if view_options.group_by != GitPanelGroupBy::Status {
         TRACKED_SORT_PREFIX
     } else if repo.had_conflict_on_last_merge_head_change(repo_path) {
         CONFLICT_SORT_PREFIX
@@ -827,7 +801,7 @@ pub(crate) fn project_diff_path_key(repo: &Repository, repo_path: &RepoPath, sta
     } else {
         TRACKED_SORT_PREFIX
     };
-    let path = project_diff_sort_path(repo_path, settings.tree_view, settings.sort_by);
+    let path = project_diff_sort_path(repo_path, view_options.tree_view, view_options.sort_by);
     PathKey::with_sort_prefix(sort_prefix, path)
 }
 
