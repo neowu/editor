@@ -27,3 +27,6 @@
 - Frame pacing (#63477, #66237): large changes to window.rs, and the macOS Low Power Mode part drags in Linux and Windows power code. I’d skip them unless you’ve noticed stutter in Low Power Mode.
 
 # support to open in restricted mode? like not starting LSP?
+
+# git history
+- filter by branch, like only see one origin/branch
