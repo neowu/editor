@@ -57,20 +57,22 @@ impl Render for DiagnosticIndicator {
             return indicator.hidden();
         }
 
-        // The error and warning icons keep their colours; the check icon and
-        // the counts take the accent while project diagnostics is active.
-        let color = status_item_color(self.diagnostics_active);
+        // The error and warning icons are already coloured, so their counts
+        // keep the default colour; only the check icon takes the accent while
+        // project diagnostics is active.
         let diagnostic_indicator = match (self.summary.error_count, self.summary.warning_count) {
-            (0, 0) => h_flex().child(Icon::new(IconName::Check).size(IconSize::Small).color(color)),
+            (0, 0) => h_flex().child(
+                Icon::new(IconName::Check).size(IconSize::Small).color(status_item_color(self.diagnostics_active)),
+            ),
             (error_count, warning_count) => h_flex()
                 .gap_1()
                 .when(error_count > 0, |this| {
                     this.child(Icon::new(IconName::XCircle).size(IconSize::Small).color(Color::Error))
-                        .child(Label::new(error_count.to_string()).size(LabelSize::Small).color(color))
+                        .child(Label::new(error_count.to_string()).size(LabelSize::Small))
                 })
                 .when(warning_count > 0, |this| {
                     this.child(Icon::new(IconName::Warning).size(IconSize::Small).color(Color::Warning))
-                        .child(Label::new(warning_count.to_string()).size(LabelSize::Small).color(color))
+                        .child(Label::new(warning_count.to_string()).size(LabelSize::Small))
                 }),
         };
 
