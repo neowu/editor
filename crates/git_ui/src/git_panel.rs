@@ -10,7 +10,6 @@ use anyhow::Context as _;
 use collections::BTreeMap;
 use collections::HashMap;
 use collections::HashSet;
-use db::kvp::KeyValueStore;
 use ed_actions::DecreaseBufferFontSize;
 use ed_actions::IncreaseBufferFontSize;
 use ed_actions::ResetBufferFontSize;
@@ -97,7 +96,6 @@ use gpui::deferred;
 use gpui::uniform_list;
 use itertools::Itertools;
 use language::Buffer;
-use language::BufferEvent;
 use language::File;
 use menu;
 use multi_buffer::ExcerptBoundaryInfo;
@@ -113,8 +111,6 @@ use project::git_store::RepositoryId;
 use project::git_store::pending_op;
 use project::project_settings::GitPathStyle;
 use project::project_settings::ProjectSettings;
-use serde::Deserialize;
-use serde::Serialize;
 use settings::GitPanelClickBehavior;
 use settings::GitPanelCommitEditor;
 use settings::GitPanelGroupBy;
@@ -148,13 +144,11 @@ use ui::Tooltip;
 use ui::WithScrollbar;
 use ui::prelude::*;
 use util::ResultExt;
-use util::TryFutureExt;
 use util::markdown::MarkdownInlineCode;
 use util::paths::PathStyle;
 use workspace::CARD_RADIUS;
 use workspace::Item;
 use workspace::ModalView;
-use workspace::SERIALIZATION_THROTTLE_TIME;
 use workspace::Workspace;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
@@ -556,27 +550,6 @@ fn focus_commit_editor(workspace: &mut Workspace, amend: bool, window: &mut Wind
 #[derive(Debug, Clone)]
 pub enum Event {
     Focus,
-}
-
-#[derive(Default, Serialize, Deserialize)]
-struct SerializedGitPanel {
-    #[serde(default)]
-    signoff_enabled: bool,
-    #[serde(default)]
-    commit_messages: BTreeMap<String, SerializedCommitMessage>,
-    /// `None` means the user never toggled it, so the setting decides.
-    #[serde(default)]
-    commit_editor_collapsed: Option<bool>,
-}
-
-#[derive(Clone, Default, Serialize, Deserialize)]
-struct SerializedCommitMessage {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    message: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    original_message: Option<String>,
-    #[serde(default)]
-    amend_pending: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
@@ -1074,7 +1047,6 @@ pub struct GitPanel {
     commit_editor_collapsed: bool,
     /// Set once the user toggles the editor here, so an untouched workspace keeps
     /// following `git_panel.commit_editor` instead of pinning its first value.
-    commit_editor_toggled: bool,
     conflicted_count: usize,
     conflicted_staged_count: usize,
 
@@ -1096,10 +1068,8 @@ pub struct GitPanel {
     pending_remote_operation: Option<RemoteOperationKind>,
     amend_pending: bool,
     original_commit_message: Option<String>,
-    pending_commit_message_restores: BTreeMap<String, SerializedCommitMessage>,
     signoff_enabled: bool,
     skip_hooks_enabled: bool,
-    pending_serialization: Task<()>,
     pub(crate) project: Entity<Project>,
     scroll_handle: UniformListScrollHandle,
     max_width_item_index: Option<usize>,
@@ -1183,44 +1153,17 @@ fn git_commit_font_size(cx: &App) -> Pixels {
 }
 
 impl GitPanel {
-    fn new_with_serialized_panel(
-        workspace: &Workspace,
-        serialized_panel: Option<SerializedGitPanel>,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) -> Entity<Self> {
+    fn new(workspace: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> Entity<Self> {
         let project = workspace.project().clone();
         let app_state = workspace.app_state().clone();
         let fs = app_state.fs.clone();
         let git_store = project.read(cx).git_store().clone();
         let active_repository = project.read(cx).active_repository(cx);
-        let signoff_enabled = serialized_panel.as_ref().is_some_and(|panel| panel.signoff_enabled);
-        let commit_editor_was_serialized =
-            serialized_panel.as_ref().is_some_and(|panel| panel.commit_editor_collapsed.is_some());
-        let commit_editor_collapsed = serialized_panel
-            .as_ref()
-            .and_then(|panel| panel.commit_editor_collapsed)
-            .unwrap_or_else(|| GitPanelSettings::get_global(cx).commit_editor == GitPanelCommitEditor::Collapsed);
-        let active_work_directory_abs_path = active_repository
-            .as_ref()
-            .map(|repository| repository.read(cx).work_directory_abs_path.to_string_lossy().into_owned());
-        let active_draft = serialized_panel.as_ref().and_then(|panel| {
-            let path = active_work_directory_abs_path.as_ref()?;
-            panel.commit_messages.get(path)
-        });
-        // Seed the placeholder editor with the restored draft when the active
-        // repository already matches the serialized one, so the message is
-        // present immediately on restart instead of only after the commit
-        // buffer finishes loading in `reopen_commit_buffer`. Sourced from the
-        // serialized draft rather than a live buffer snapshot and scoped to the
-        // matching repository, so it neither replays cleared text nor leaks a
-        // draft across repositories. `reopen_commit_buffer` still performs the
-        // one-shot restore into the loaded buffer; applying the same draft
-        // there is idempotent.
-        let amend_pending = active_draft.is_some_and(|draft| draft.amend_pending);
-        let original_commit_message = active_draft.and_then(|draft| draft.original_message.clone());
-        let initial_commit_message = active_draft.and_then(|draft| draft.message.clone()).unwrap_or_default();
-        let pending_commit_message_restores = serialized_panel.map(|panel| panel.commit_messages).unwrap_or_default();
+        let signoff_enabled = false;
+        let commit_editor_collapsed = GitPanelSettings::get_global(cx).commit_editor == GitPanelCommitEditor::Collapsed;
+        let amend_pending = false;
+        let original_commit_message = None;
+        let initial_commit_message = String::new();
 
         cx.new(|cx| {
             let focus_handle = cx.focus_handle();
@@ -1329,7 +1272,6 @@ impl GitPanel {
                 commit_editor,
                 commit_editor_expanded: false,
                 commit_editor_collapsed,
-                commit_editor_toggled: commit_editor_was_serialized,
                 conflicted_count: 0,
                 conflicted_staged_count: 0,
 
@@ -1348,10 +1290,8 @@ impl GitPanel {
                 pending_remote_operation: None,
                 amend_pending,
                 original_commit_message,
-                pending_commit_message_restores,
                 signoff_enabled,
                 skip_hooks_enabled: false,
-                pending_serialization: Task::ready(()),
                 single_staged_entry: None,
                 single_tracked_entry: None,
                 project,
@@ -1741,98 +1681,6 @@ impl GitPanel {
 
         self.selected_entry = Some(ix);
         self.scroll_to_selected_entry(cx);
-    }
-
-    fn serialization_key(workspace: &Workspace) -> Option<String> {
-        workspace
-            .database_id()
-            .map(|id| i64::from(id).to_string())
-            .or(workspace.session_id())
-            .map(|id| format!("{}-{:?}", GIT_PANEL_KEY, id))
-    }
-
-    fn serialize(&mut self, cx: &Context<Self>) {
-        let signoff_enabled = self.signoff_enabled;
-        let commit_editor_collapsed = self.commit_editor_toggled.then_some(self.commit_editor_collapsed);
-        let commit_messages = self.serialized_commit_messages(cx);
-        let kvp = KeyValueStore::global(cx);
-
-        self.pending_serialization = cx.spawn(async move |git_panel, cx| {
-            cx.background_executor().timer(SERIALIZATION_THROTTLE_TIME).await;
-            let Some(serialization_key) = git_panel
-                .update(cx, |git_panel, cx| {
-                    git_panel.workspace.read_with(cx, |workspace, _| Self::serialization_key(workspace)).ok().flatten()
-                })
-                .ok()
-                .flatten()
-            else {
-                return;
-            };
-            cx.background_spawn(
-                async move {
-                    kvp.write_kvp(
-                        serialization_key,
-                        serde_json::to_string(&SerializedGitPanel {
-                            signoff_enabled,
-                            commit_messages,
-                            commit_editor_collapsed,
-                        })?,
-                    )
-                    .await?;
-                    anyhow::Ok(())
-                }
-                .log_err(),
-            )
-            .await;
-        });
-    }
-
-    fn serialized_commit_messages(&self, cx: &App) -> BTreeMap<String, SerializedCommitMessage> {
-        let active_work_directory_abs_path = self
-            .active_repository
-            .as_ref()
-            .map(|repository| repository.read(cx).work_directory_abs_path.to_string_lossy().into_owned());
-        let git_store = self.project.read(cx).git_store().clone();
-        let mut commit_messages = self.pending_commit_message_restores.clone();
-        for repository in git_store.read(cx).repositories().values() {
-            let repository = repository.read(cx);
-            let work_directory_abs_path = repository.work_directory_abs_path.to_string_lossy().into_owned();
-            if active_work_directory_abs_path.as_deref() == Some(work_directory_abs_path.as_str()) {
-                continue;
-            }
-            if let Some(buffer) = repository.commit_message_buffer() {
-                let text = buffer.read(cx).text();
-                if text.trim().is_empty() {
-                    commit_messages.remove(&work_directory_abs_path);
-                } else {
-                    commit_messages.insert(
-                        work_directory_abs_path,
-                        SerializedCommitMessage { message: Some(text), original_message: None, amend_pending: false },
-                    );
-                }
-            }
-        }
-        if let Some(work_directory_abs_path) = active_work_directory_abs_path {
-            let text = self.commit_message_buffer(cx).read(cx).text();
-            let trimmed_text = text.trim();
-            let use_buffer_text = !trimmed_text.is_empty()
-                && self
-                    .commit_template
-                    .as_ref()
-                    .is_none_or(|commit_template| commit_template.template.trim() != trimmed_text);
-            let message = use_buffer_text.then_some(text);
-            let original_message = self.original_commit_message.clone();
-            let amend_pending = self.amend_pending;
-            if message.is_some() || original_message.is_some() || amend_pending {
-                commit_messages.insert(
-                    work_directory_abs_path,
-                    SerializedCommitMessage { message, original_message, amend_pending },
-                );
-            } else {
-                commit_messages.remove(&work_directory_abs_path);
-            }
-        }
-        commit_messages
     }
 
     fn dispatch_context(&self, window: &Window, cx: &Context<Self>) -> KeyContext {
@@ -3362,7 +3210,6 @@ impl GitPanel {
                         } else {
                             this.commit_editor.update(cx, |editor, cx| editor.clear(window, cx));
                             this.original_commit_message = None;
-                            this.serialize(cx);
                         }
                     }
                     Err(e) => this.show_error_toast("commit", e, cx),
@@ -4099,7 +3946,6 @@ impl GitPanel {
             self.reopen_commit_buffer_task = Task::ready(());
             return;
         };
-        let active_repository_abs_path = active_repo.read(cx).work_directory_abs_path.to_string_lossy().into_owned();
         let load_buffer = active_repo.update(cx, |active_repo, cx| {
             let project = self.project.read(cx);
             active_repo.open_commit_buffer(Some(project.languages().clone()), project.buffer_store().clone(), cx)
@@ -4125,38 +3971,6 @@ impl GitPanel {
                                 cx,
                             )
                         });
-                    }
-
-                    // Create subscription such that, any edit on the commit
-                    // editor's buffer will be serialized and saved to the database
-                    // in order to be able to restore it in case there's a
-                    // disconnect.
-                    git_panel._commit_message_buffer_subscription =
-                        Some(cx.subscribe(&buffer, |git_panel, _, event, cx| {
-                            if matches!(event, BufferEvent::Edited { .. }) {
-                                git_panel.serialize(cx);
-                            }
-                        }));
-                })?;
-
-                // Check whether there's a pending commit message for this
-                // repository and, if that's the case, update the buffer's
-                // text.
-                git_panel.update(cx, |git_panel, cx| {
-                    if let Some(restored_commit_message) =
-                        git_panel.pending_commit_message_restores.remove(&active_repository_abs_path)
-                    {
-                        git_panel.amend_pending = restored_commit_message.amend_pending;
-                        git_panel.original_commit_message = restored_commit_message.original_message;
-                        cx.notify();
-
-                        if let Some(message) = restored_commit_message.message
-                            && buffer.read(cx).text().trim().is_empty()
-                        {
-                            buffer.update(cx, |buffer, cx| {
-                                buffer.set_text(message, cx);
-                            });
-                        }
                     }
                 })?;
 
@@ -4910,13 +4724,11 @@ impl GitPanel {
 
     fn toggle_commit_editor(&mut self, _: &ToggleCommitEditor, window: &mut Window, cx: &mut Context<Self>) {
         self.commit_editor_collapsed = !self.commit_editor_collapsed;
-        self.commit_editor_toggled = true;
         // Filling the panel and being hidden are mutually exclusive states, so
         // collapsing has to undo the fill rather than leave it dangling.
         if self.commit_editor_collapsed && self.commit_editor_expanded {
             self.toggle_fill_commit_editor(&ToggleFillCommitEditor, window, cx);
         }
-        self.serialize(cx);
         cx.notify();
     }
 
@@ -6380,7 +6192,6 @@ impl GitPanel {
         }
 
         self.amend_pending = value;
-        self.serialize(cx);
         cx.notify();
     }
 
@@ -6405,7 +6216,6 @@ impl GitPanel {
 
     pub fn set_signoff_enabled(&mut self, value: bool, cx: &mut Context<Self>) {
         self.signoff_enabled = value;
-        self.serialize(cx);
         cx.notify();
     }
 
@@ -6414,29 +6224,7 @@ impl GitPanel {
     }
 
     pub async fn load(workspace: WeakEntity<Workspace>, mut cx: AsyncWindowContext) -> anyhow::Result<Entity<Self>> {
-        let serialized_panel = match workspace
-            .read_with(&cx, |workspace, cx| {
-                Self::serialization_key(workspace).map(|key| (key, KeyValueStore::global(cx)))
-            })
-            .ok()
-            .flatten()
-        {
-            Some((serialization_key, kvp)) => cx
-                .background_spawn(async move { kvp.read_kvp(&serialization_key) })
-                .await
-                .context("loading git panel")
-                .log_err()
-                .flatten()
-                .map(|panel| serde_json::from_str::<SerializedGitPanel>(&panel))
-                .transpose()
-                .log_err()
-                .flatten(),
-            None => None,
-        };
-
-        workspace.update_in(&mut cx, |workspace, window, cx| {
-            GitPanel::new_with_serialized_panel(workspace, serialized_panel, window, cx)
-        })
+        workspace.update_in(&mut cx, |workspace, window, cx| GitPanel::new(workspace, window, cx))
     }
 
     fn stage_bulk(&mut self, mut index: usize, stage: bool, cx: &Context<'_, Self>) {

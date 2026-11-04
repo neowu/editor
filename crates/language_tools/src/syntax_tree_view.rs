@@ -490,12 +490,7 @@ impl Item for SyntaxTreeView {
         true
     }
 
-    fn clone_on_split(
-        &self,
-        _: Option<workspace::WorkspaceId>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Option<Entity<Self>>>
+    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
     where
         Self: Sized,
     {

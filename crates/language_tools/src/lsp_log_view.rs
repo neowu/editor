@@ -58,7 +58,6 @@ use workspace::ToolbarItemEvent;
 use workspace::ToolbarItemLocation;
 use workspace::ToolbarItemView;
 use workspace::Workspace;
-use workspace::WorkspaceId;
 use workspace::item::Item;
 use workspace::item::ItemHandle;
 use workspace::searchable::Direction;
@@ -701,12 +700,7 @@ impl Item for LspLogView {
         true
     }
 
-    fn clone_on_split(
-        &self,
-        _workspace_id: Option<WorkspaceId>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Option<Entity<Self>>>
+    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
     where
         Self: Sized,
     {

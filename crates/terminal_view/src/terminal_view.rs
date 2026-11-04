@@ -98,7 +98,6 @@ use workspace::NewCenterTerminal;
 use workspace::NewTerminal;
 use workspace::Pane;
 use workspace::Workspace;
-use workspace::WorkspaceId;
 use workspace::item::Item;
 use workspace::item::ItemEvent;
 use workspace::item::TabContentParams;
@@ -151,7 +150,6 @@ pub struct RenameTerminal;
 
 pub fn init(cx: &mut App) {
     terminal_panel::init(cx);
-
 
     cx.observe_new(|workspace: &mut Workspace, _window, _cx| {
         workspace.register_action(TerminalView::deploy);
@@ -1418,12 +1416,7 @@ impl Item for TerminalView {
         true
     }
 
-    fn clone_on_split(
-        &self,
-        _workspace_id: Option<WorkspaceId>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Option<Entity<Self>>> {
+    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>> {
         let Ok(terminal) = self.project.update(cx, |project, cx| {
             let cwd = project.active_project_directory(cx).map(|it| it.to_path_buf());
             project.clone_terminal(self.terminal(), cx, cwd)
@@ -1433,9 +1426,7 @@ impl Item for TerminalView {
         cx.spawn_in(window, async move |this, cx| {
             let terminal = terminal.await.log_err()?;
             this.update_in(cx, |this, window, cx| {
-                cx.new(|cx| {
-                    TerminalView::new(terminal, this.workspace.clone(), this.project.clone(), window, cx)
-                })
+                cx.new(|cx| TerminalView::new(terminal, this.workspace.clone(), this.project.clone(), window, cx))
             })
             .ok()
         })

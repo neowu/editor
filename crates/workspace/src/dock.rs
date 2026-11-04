@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use db::kvp::KeyValueStore;
 use gpui::Action;
 use gpui::Anchor;
 use gpui::AnyView;
@@ -363,25 +362,16 @@ pub struct PanelButtons {
     _settings_subscription: Subscription,
 }
 
-pub(crate) const PANEL_SIZE_STATE_KEY: &str = "dock_panel_size";
-
 /// Keeps a resized panel at least as large as the resize handle and the panel's minimum.
 fn clamp_resized_panel_size(size: Pixels, min_size: Option<Pixels>) -> Pixels {
     size.max(RESIZE_HANDLE_SIZE).max(min_size.unwrap_or(Pixels::ZERO)).round()
 }
 
-fn resize_panel_entry(
-    entry: &mut PanelEntry,
-    size: Option<Pixels>,
-    axis: Axis,
-    window: &mut Window,
-    cx: &mut App,
-) -> (&'static str, PanelSizeState) {
+fn resize_panel_entry(entry: &mut PanelEntry, size: Option<Pixels>, axis: Axis, window: &mut Window, cx: &mut App) {
     // `Panel::min_size` is a width; it doesn't apply to the bottom dock.
     let min_size = if axis == Axis::Horizontal { entry.panel.min_size(window, cx) } else { None };
     entry.size_state.size = size.map(|size| clamp_resized_panel_size(size, min_size));
     entry.panel.size_state_changed(window, cx);
-    (entry.panel.panel_key(), entry.size_state)
 }
 
 impl Dock {
@@ -890,16 +880,7 @@ impl Dock {
     fn resize_active_panel(&mut self, size: Option<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
         let axis = self.position.axis();
         if let Some(entry) = self.active_panel_entry_mut() {
-            let (panel_key, size_state) = resize_panel_entry(entry, size, axis, window, cx);
-
-            let workspace = self.workspace.clone();
-            cx.defer(move |cx| {
-                if let Some(workspace) = workspace.upgrade() {
-                    workspace.update(cx, |workspace, cx| {
-                        workspace.persist_panel_size_state(panel_key, size_state, cx);
-                    });
-                }
-            });
+            resize_panel_entry(entry, size, axis, window, cx);
             cx.notify();
         }
     }
@@ -946,20 +927,9 @@ impl Dock {
         }
 
         let axis = self.position.axis();
-        let size_states_to_persist: Vec<_> =
-            self.panel_entries.iter_mut().map(|entry| resize_panel_entry(entry, size, axis, window, cx)).collect();
-
-        let workspace = self.workspace.clone();
-        cx.defer(move |cx| {
-            if let Some(workspace) = workspace.upgrade() {
-                workspace.update(cx, |workspace, cx| {
-                    for (panel_key, size_state) in size_states_to_persist {
-                        workspace.persist_panel_size_state(panel_key, size_state, cx);
-                    }
-                });
-            }
-        });
-
+        for entry in &mut self.panel_entries {
+            resize_panel_entry(entry, size, axis, window, cx);
+        }
         cx.notify();
     }
 
@@ -991,21 +961,6 @@ impl Dock {
         if clamped {
             cx.notify();
         }
-    }
-
-    pub(crate) fn load_persisted_size_state(
-        workspace: &Workspace,
-        panel_key: &'static str,
-        cx: &App,
-    ) -> Option<PanelSizeState> {
-        let workspace_id = workspace.database_id().map(|id| i64::from(id).to_string()).or(workspace.session_id())?;
-        let kvp = KeyValueStore::global(cx);
-        let scope = kvp.scoped(PANEL_SIZE_STATE_KEY);
-        scope
-            .read(&format!("{workspace_id}:{panel_key}"))
-            .log_err()
-            .flatten()
-            .and_then(|json| serde_json::from_str::<PanelSizeState>(&json).log_err())
     }
 }
 

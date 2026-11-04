@@ -2,193 +2,370 @@ pub mod model;
 
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::bail;
 use collections::HashMap;
-use collections::HashSet;
-use db::kvp::KeyValueStore;
-use db::query;
-use db::sqlez::connection::Connection;
-use db::sqlez::domain::Domain;
-use db::sqlez_macros::sql;
 use fs::Fs;
-use gpui::Axis;
+use gpui::App;
+use gpui::AppContext as _;
+use gpui::AsyncApp;
 use gpui::Bounds;
+use gpui::Entity;
+use gpui::Global;
 use gpui::Task;
 use gpui::WindowBounds;
-use gpui::WindowId;
 use gpui::point;
 use gpui::size;
-use model::GroupId;
-use model::ItemId;
-use model::PaneId;
-use model::RemoteConnectionId;
-use model::SerializedItem;
-use model::SerializedPane;
-use model::SerializedPaneGroup;
-use model::SerializedWorkspace;
-use project::trusted_worktrees::DbTrustedPaths;
-use project::trusted_worktrees::RemoteHostLocation;
+use parking_lot::Mutex;
+use project::Project;
 use remote::RemoteConnectionIdentity;
 use remote::RemoteConnectionOptions;
 use remote::SshConnectionOptions;
 use remote::remote_connection_identity;
 use serde::Deserialize;
 use serde::Serialize;
-use sqlez::bindable::Bind;
-use sqlez::bindable::Column;
-use sqlez::bindable::StaticColumnCount;
-use sqlez::statement::Statement;
-use sqlez::thread_safe_connection::ThreadSafeConnection;
 use time::OffsetDateTime;
-use time::PrimitiveDateTime;
-use time::macros::format_description;
-use ui::App;
-use ui::SharedString;
 use ui::px;
 use util::ResultExt;
-use uuid::Uuid;
+use util::rel_path::RelPath;
 
-use self::model::DockStructure;
+use self::model::SerializedWorkspace;
 use self::model::SerializedWorkspaceLocation;
 use self::model::SessionWorkspace;
-use crate::WorkspaceId;
+use crate::Workspace;
 use crate::path_list::PathList;
-use crate::path_list::SerializedPathList;
-use crate::persistence::model::RemoteConnectionKind;
 
-// https://www.sqlite.org/limits.html
-// > <..> the maximum value of a host parameter number is SQLITE_MAX_VARIABLE_NUMBER,
-// > which defaults to <..> 32766 for SQLite versions after 3.32.0.
-const MAX_QUERY_PLACEHOLDERS: usize = 32000;
+/// Name of the global file, under the data dir, that lists recent projects and
+/// the projects open when ed last quit.
+const PROJECTS_FILE_NAME: &str = "projects.json";
+/// Project-level folder holding per-project state.
+pub const WORKSPACE_STATE_DIR: &str = ".ed";
+const WORKSPACE_STATE_FILE: &str = "workspace.json";
+const MAX_RECENT_PROJECTS: usize = 100;
 
-fn parse_timestamp(text: &str) -> OffsetDateTime {
-    PrimitiveDateTime::parse(text, format_description!("[year]-[month]-[day] [hour]:[minute]:[second]"))
-        .map(PrimitiveDateTime::assume_utc)
-        .unwrap_or_else(|_| OffsetDateTime::now_utc())
+/// Where a project lives: its root folders, in the order they were opened, and
+/// the server holding them for a remote project.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectLocation {
+    pub paths: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote: Option<RemoteServer>,
 }
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub(crate) struct SerializedAxis(pub(crate) gpui::Axis);
-impl sqlez::bindable::StaticColumnCount for SerializedAxis {}
-impl sqlez::bindable::Bind for SerializedAxis {
-    fn bind(&self, statement: &sqlez::statement::Statement, start_index: i32) -> anyhow::Result<i32> {
-        match self.0 {
-            gpui::Axis::Horizontal => "Horizontal",
-            gpui::Axis::Vertical => "Vertical",
-        }
-        .bind(statement, start_index)
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct RemoteServer {
+    pub host: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+}
+
+impl RemoteServer {
+    fn from_options(options: &RemoteConnectionOptions) -> RemoteServer {
+        let RemoteConnectionIdentity::Ssh { host, username, port } = remote_connection_identity(options);
+        RemoteServer { host, username, port }
     }
-}
 
-impl sqlez::bindable::Column for SerializedAxis {
-    fn column(statement: &mut sqlez::statement::Statement, start_index: i32) -> anyhow::Result<(Self, i32)> {
-        String::column(statement, start_index).and_then(|(axis_text, next_index)| {
-            Ok((
-                match axis_text.as_str() {
-                    "Horizontal" => Self(Axis::Horizontal),
-                    "Vertical" => Self(Axis::Vertical),
-                    _ => anyhow::bail!("Stored serialized item kind is incorrect"),
-                },
-                next_index,
-            ))
+    fn to_options(&self) -> RemoteConnectionOptions {
+        RemoteConnectionOptions::Ssh(SshConnectionOptions {
+            host: self.host.clone().into(),
+            username: self.username.clone(),
+            port: self.port,
+            ..Default::default()
         })
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Default)]
-pub(crate) struct SerializedWindowBounds(pub(crate) WindowBounds);
-
-impl StaticColumnCount for SerializedWindowBounds {
-    fn column_count() -> usize {
-        5
-    }
-}
-
-impl Bind for SerializedWindowBounds {
-    fn bind(&self, statement: &Statement, start_index: i32) -> Result<i32> {
-        match self.0 {
-            WindowBounds::Windowed(bounds) => {
-                let next_index = statement.bind(&"Windowed", start_index)?;
-                statement.bind(
-                    &(
-                        SerializedPixels(bounds.origin.x),
-                        SerializedPixels(bounds.origin.y),
-                        SerializedPixels(bounds.size.width),
-                        SerializedPixels(bounds.size.height),
-                    ),
-                    next_index,
-                )
-            }
-            WindowBounds::Maximized(bounds) => {
-                let next_index = statement.bind(&"Maximized", start_index)?;
-                statement.bind(
-                    &(
-                        SerializedPixels(bounds.origin.x),
-                        SerializedPixels(bounds.origin.y),
-                        SerializedPixels(bounds.size.width),
-                        SerializedPixels(bounds.size.height),
-                    ),
-                    next_index,
-                )
-            }
-            WindowBounds::Fullscreen(bounds) => {
-                let next_index = statement.bind(&"FullScreen", start_index)?;
-                statement.bind(
-                    &(
-                        SerializedPixels(bounds.origin.x),
-                        SerializedPixels(bounds.origin.y),
-                        SerializedPixels(bounds.size.width),
-                        SerializedPixels(bounds.size.height),
-                    ),
-                    next_index,
-                )
-            }
+impl ProjectLocation {
+    pub fn new(location: &SerializedWorkspaceLocation, paths: &PathList) -> ProjectLocation {
+        ProjectLocation {
+            paths: paths.ordered_paths().cloned().collect(),
+            remote: match location {
+                SerializedWorkspaceLocation::Local => None,
+                SerializedWorkspaceLocation::Remote(options) => Some(RemoteServer::from_options(options)),
+            },
         }
     }
-}
 
-impl Column for SerializedWindowBounds {
-    fn column(statement: &mut Statement, start_index: i32) -> Result<(Self, i32)> {
-        let (window_state, next_index) = String::column(statement, start_index)?;
-        let ((x, y, width, height), _): ((i32, i32, i32, i32), _) = Column::column(statement, next_index)?;
-        let bounds =
-            Bounds { origin: point(px(x as f32), px(y as f32)), size: size(px(width as f32), px(height as f32)) };
+    pub fn workspace_location(&self) -> SerializedWorkspaceLocation {
+        match &self.remote {
+            None => SerializedWorkspaceLocation::Local,
+            Some(server) => SerializedWorkspaceLocation::Remote(server.to_options()),
+        }
+    }
 
-        let status = match window_state.as_str() {
-            "Windowed" | "Fixed" => SerializedWindowBounds(WindowBounds::Windowed(bounds)),
-            "Maximized" => SerializedWindowBounds(WindowBounds::Maximized(bounds)),
-            "FullScreen" => SerializedWindowBounds(WindowBounds::Fullscreen(bounds)),
-            _ => bail!("Window State did not have a valid string"),
-        };
-
-        Ok((status, next_index + 4))
+    pub fn path_list(&self) -> PathList {
+        PathList::new(&self.paths)
     }
 }
 
-const DEFAULT_WINDOW_BOUNDS_KEY: &str = "default_window_bounds";
-
-pub fn read_default_window_bounds(kvp: &KeyValueStore) -> Option<(Uuid, WindowBounds)> {
-    let json_str = kvp.read_kvp(DEFAULT_WINDOW_BOUNDS_KEY).log_err().flatten()?;
-
-    let (display_uuid, persisted) = serde_json::from_str::<(Uuid, WindowBoundsJson)>(&json_str).ok()?;
-    Some((display_uuid, persisted.into()))
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecentProject {
+    #[serde(flatten)]
+    pub location: ProjectLocation,
+    /// Unix time, in seconds, the project was last opened or focused.
+    #[serde(default)]
+    pub opened_at: i64,
 }
 
-pub async fn write_default_window_bounds(
-    kvp: &KeyValueStore,
-    bounds: WindowBounds,
-    display_uuid: Uuid,
-) -> anyhow::Result<()> {
-    let persisted = WindowBoundsJson::from(bounds);
-    let json_str = serde_json::to_string(&(display_uuid, persisted))?;
-    kvp.write_kvp(DEFAULT_WINDOW_BOUNDS_KEY.to_string(), json_str).await?;
-    Ok(())
+/// Contents of `projects.json`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectsFile {
+    /// Most recent first.
+    #[serde(default)]
+    pub recent: Vec<RecentProject>,
+    /// Projects open in a window, frontmost first. Kept across quitting so the
+    /// next launch can reopen them.
+    #[serde(default)]
+    pub session: Vec<ProjectLocation>,
 }
 
-#[derive(Serialize, Deserialize)]
+impl ProjectsFile {
+    /// Parses `projects.json`, treating unreadable contents as an empty file.
+    pub fn parse(text: &str) -> ProjectsFile {
+        serde_json::from_str(text).unwrap_or_default()
+    }
+
+    /// Moves `location` to the front of the recent list. Returns whether the
+    /// list order changed, which is when the file needs rewriting.
+    pub fn record_recent(&mut self, location: ProjectLocation, now: i64) -> bool {
+        if location.paths.is_empty() {
+            return false;
+        }
+        if let Some(first) = self.recent.first_mut()
+            && first.location == location
+        {
+            first.opened_at = now;
+            return false;
+        }
+        self.recent.retain(|project| project.location != location);
+        self.recent.insert(0, RecentProject { location, opened_at: now });
+        self.recent.truncate(MAX_RECENT_PROJECTS);
+        true
+    }
+
+    /// Drops every recent entry `remove` matches. Returns whether any was dropped.
+    pub fn remove_recent(&mut self, mut remove: impl FnMut(&ProjectLocation) -> bool) -> bool {
+        let len = self.recent.len();
+        self.recent.retain(|project| !remove(&project.location));
+        self.recent.len() != len
+    }
+
+    /// Replaces the open-project list. Returns whether it changed.
+    pub fn set_session(&mut self, session: Vec<ProjectLocation>) -> bool {
+        if self.session == session {
+            return false;
+        }
+        self.session = session;
+        true
+    }
+}
+
+/// In-memory copy of `projects.json`, rewritten in full on every change.
+pub struct ProjectsStore {
+    fs: Arc<dyn Fs>,
+    path: PathBuf,
+    state: Arc<Mutex<ProjectsFile>>,
+    /// The session as it was at launch, before restored windows replace it.
+    last_session: Vec<ProjectLocation>,
+    write_lock: Arc<futures::lock::Mutex<()>>,
+}
+
+struct GlobalProjectsStore(Arc<ProjectsStore>);
+
+impl Global for GlobalProjectsStore {}
+
+impl ProjectsStore {
+    fn load(fs: Arc<dyn Fs>, path: PathBuf) -> ProjectsStore {
+        let file = std::fs::read_to_string(&path).map(|text| ProjectsFile::parse(&text)).unwrap_or_default();
+        ProjectsStore {
+            fs,
+            path,
+            last_session: file.session.clone(),
+            state: Arc::new(Mutex::new(file)),
+            write_lock: Arc::default(),
+        }
+    }
+
+    pub fn global(cx: &App) -> Arc<ProjectsStore> {
+        cx.global::<GlobalProjectsStore>().0.clone()
+    }
+
+    pub fn try_global(cx: &App) -> Option<Arc<ProjectsStore>> {
+        cx.try_global::<GlobalProjectsStore>().map(|store| store.0.clone())
+    }
+
+    pub fn recent(&self) -> Vec<RecentProject> {
+        self.state.lock().recent.clone()
+    }
+
+    pub fn last_session(&self) -> Vec<ProjectLocation> {
+        self.last_session.clone()
+    }
+
+    pub fn record_recent(&self, location: ProjectLocation, cx: &App) {
+        let now = OffsetDateTime::now_utc().unix_timestamp();
+        if self.state.lock().record_recent(location, now) {
+            self.save(cx).detach();
+        }
+    }
+
+    pub fn remove_recent(&self, remove: impl FnMut(&ProjectLocation) -> bool, cx: &App) -> Task<()> {
+        if self.state.lock().remove_recent(remove) { self.save(cx) } else { Task::ready(()) }
+    }
+
+    fn set_session(&self, session: Vec<ProjectLocation>, cx: &App) -> Task<()> {
+        if self.state.lock().set_session(session) { self.save(cx) } else { Task::ready(()) }
+    }
+
+    fn save(&self, cx: &App) -> Task<()> {
+        let fs = self.fs.clone();
+        let path = self.path.clone();
+        let state = self.state.clone();
+        let write_lock = self.write_lock.clone();
+        cx.background_spawn(async move {
+            // Writes run one at a time, each taking the latest state, so the
+            // file always ends up with the newest contents.
+            let _guard = write_lock.lock().await;
+            let result = async {
+                let json = serde_json::to_string_pretty(&*state.lock())?;
+                if let Some(parent) = path.parent() {
+                    fs.create_dir(parent).await?;
+                }
+                fs.atomic_write(path.clone(), json).await
+            }
+            .await;
+            result.with_context(|| format!("writing {path:?}")).log_err();
+        })
+    }
+}
+
+pub fn init(fs: Arc<dyn Fs>, cx: &mut App) {
+    let store = ProjectsStore::load(fs, paths::data_dir().join(PROJECTS_FILE_NAME));
+    cx.set_global(GlobalProjectsStore(Arc::new(store)));
+    track_session(cx);
+}
+
+/// Keeps the session list in `projects.json` matching the open windows. Closing
+/// a window drops its project; quitting keeps everything that was open.
+fn track_session(cx: &App) {
+    cx.spawn(async move |cx| {
+        loop {
+            cx.update(|cx| {
+                if let Some(session) = open_project_locations(cx) {
+                    ProjectsStore::global(cx).set_session(session, cx).detach();
+                }
+            });
+            cx.background_executor().timer(std::time::Duration::from_millis(500)).await;
+        }
+    })
+    .detach();
+
+    cx.on_app_quit(|cx| match open_project_locations(cx) {
+        Some(session) => ProjectsStore::global(cx).set_session(session, cx),
+        None => Task::ready(()),
+    })
+    .detach();
+}
+
+/// Project locations of the open workspace windows, frontmost first. `None`
+/// while no workspace window is open, so the last window closing while quitting
+/// doesn't wipe the session.
+fn open_project_locations(cx: &App) -> Option<Vec<ProjectLocation>> {
+    let windows = cx.window_stack().unwrap_or_else(|| cx.windows());
+    let workspaces =
+        windows.into_iter().filter_map(|window| window.downcast::<Workspace>()?.entity(cx).ok()).collect::<Vec<_>>();
+    if workspaces.is_empty() {
+        return None;
+    }
+    Some(workspaces.iter().filter_map(|workspace| workspace.read(cx).project_location(cx)).collect())
+}
+
+/// Projects that were open when ed last quit, in the order to reopen them
+/// (frontmost last, so it ends up on top).
+pub fn last_session_workspaces(cx: &App) -> Vec<SessionWorkspace> {
+    let mut session = ProjectsStore::global(cx)
+        .last_session()
+        .into_iter()
+        .map(|location| SessionWorkspace { paths: location.path_list(), location: location.workspace_location() })
+        .collect::<Vec<_>>();
+    session.reverse();
+    session
+}
+
+pub fn workspace_state_rel_path() -> Arc<RelPath> {
+    RelPath::from_unix_str(&format!("{WORKSPACE_STATE_DIR}/{WORKSPACE_STATE_FILE}")).unwrap().into_arc()
+}
+
+/// Path of the state file for a project whose first root folder is `root`.
+pub fn workspace_state_path(root: &Path) -> PathBuf {
+    root.join(WORKSPACE_STATE_DIR).join(WORKSPACE_STATE_FILE)
+}
+
+/// Parses a `workspace.json`, ignoring unreadable contents.
+pub(crate) fn parse_workspace_state(text: &str) -> Option<SerializedWorkspace> {
+    serde_json::from_str(text).log_err()
+}
+
+pub(crate) async fn load_local_workspace_state(fs: &dyn Fs, root: &Path) -> Option<SerializedWorkspace> {
+    let text = fs.load(&workspace_state_path(root)).await.ok()?;
+    parse_workspace_state(&text)
+}
+
+/// Reads `.ed/workspace.json` from the worktree rooted at `root` of a remote
+/// project, through the project's buffers.
+pub(crate) async fn load_remote_workspace_state(
+    project: &Entity<Project>,
+    root: &Path,
+    cx: &mut AsyncApp,
+) -> Option<SerializedWorkspace> {
+    let open_buffer = project.update(cx, |project, cx| {
+        let worktree = project.visible_worktrees(cx).find(|worktree| worktree.read(cx).abs_path().as_ref() == root)?;
+        let worktree_id = worktree.read(cx).id();
+        Some(project.open_buffer((worktree_id, workspace_state_rel_path()), cx))
+    })?;
+    let buffer = open_buffer.await.ok()?;
+    let text = buffer.read_with(cx, |buffer, _| buffer.text());
+    parse_workspace_state(&text)
+}
+
+/// Writes `json` to `.ed/workspace.json` in the project's first root folder.
+pub(crate) fn write_workspace_state(
+    project: &Entity<Project>,
+    root: &Path,
+    json: String,
+    cx: &mut App,
+) -> Task<Result<()>> {
+    if project.read(cx).is_local() {
+        let fs = project.read(cx).fs().clone();
+        let path = workspace_state_path(root);
+        return cx.background_spawn(async move {
+            if let Some(parent) = path.parent() {
+                fs.create_dir(parent).await?;
+            }
+            fs.atomic_write(path, json).await
+        });
+    }
+
+    let Some(worktree) =
+        project.read(cx).visible_worktrees(cx).find(|worktree| worktree.read(cx).abs_path().as_ref() == root)
+    else {
+        return Task::ready(Ok(()));
+    };
+    let write = worktree.update(cx, |worktree, cx| {
+        worktree.create_entry(workspace_state_rel_path(), false, Some(json.into_bytes()), cx)
+    });
+    cx.background_spawn(async move {
+        write.await?;
+        Ok(())
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "snake_case")]
 pub enum WindowBoundsJson {
     Windowed { x: i32, y: i32, width: i32, height: i32 },
     Maximized { x: i32, y: i32, width: i32, height: i32 },
@@ -196,1248 +373,130 @@ pub enum WindowBoundsJson {
 }
 
 impl From<WindowBounds> for WindowBoundsJson {
-    fn from(b: WindowBounds) -> Self {
-        match b {
-            WindowBounds::Windowed(bounds) => {
-                let origin = bounds.origin;
-                let size = bounds.size;
-                WindowBoundsJson::Windowed {
-                    x: f32::from(origin.x).round() as i32,
-                    y: f32::from(origin.y).round() as i32,
-                    width: f32::from(size.width).round() as i32,
-                    height: f32::from(size.height).round() as i32,
-                }
-            }
-            WindowBounds::Maximized(bounds) => {
-                let origin = bounds.origin;
-                let size = bounds.size;
-                WindowBoundsJson::Maximized {
-                    x: f32::from(origin.x).round() as i32,
-                    y: f32::from(origin.y).round() as i32,
-                    width: f32::from(size.width).round() as i32,
-                    height: f32::from(size.height).round() as i32,
-                }
-            }
-            WindowBounds::Fullscreen(bounds) => {
-                let origin = bounds.origin;
-                let size = bounds.size;
-                WindowBoundsJson::Fullscreen {
-                    x: f32::from(origin.x).round() as i32,
-                    y: f32::from(origin.y).round() as i32,
-                    width: f32::from(size.width).round() as i32,
-                    height: f32::from(size.height).round() as i32,
-                }
-            }
+    fn from(window_bounds: WindowBounds) -> WindowBoundsJson {
+        let bounds = window_bounds.get_bounds();
+        let x = f32::from(bounds.origin.x).round() as i32;
+        let y = f32::from(bounds.origin.y).round() as i32;
+        let width = f32::from(bounds.size.width).round() as i32;
+        let height = f32::from(bounds.size.height).round() as i32;
+        match window_bounds {
+            WindowBounds::Windowed(_) => WindowBoundsJson::Windowed { x, y, width, height },
+            WindowBounds::Maximized(_) => WindowBoundsJson::Maximized { x, y, width, height },
+            WindowBounds::Fullscreen(_) => WindowBoundsJson::Fullscreen { x, y, width, height },
         }
     }
 }
 
 impl From<WindowBoundsJson> for WindowBounds {
-    fn from(n: WindowBoundsJson) -> Self {
-        match n {
-            WindowBoundsJson::Windowed { x, y, width, height } => WindowBounds::Windowed(Bounds {
-                origin: point(px(x as f32), px(y as f32)),
-                size: size(px(width as f32), px(height as f32)),
-            }),
-            WindowBoundsJson::Maximized { x, y, width, height } => WindowBounds::Maximized(Bounds {
-                origin: point(px(x as f32), px(y as f32)),
-                size: size(px(width as f32), px(height as f32)),
-            }),
-            WindowBoundsJson::Fullscreen { x, y, width, height } => WindowBounds::Fullscreen(Bounds {
-                origin: point(px(x as f32), px(y as f32)),
-                size: size(px(width as f32), px(height as f32)),
-            }),
-        }
-    }
-}
-
-/// Picks the workspace to restore for each window of a previous session. A
-/// window has one workspace; should several rows still name the same window,
-/// the first one with paths wins.
-pub fn read_session_workspaces(session_workspaces: Vec<model::SessionWorkspace>) -> Vec<model::SessionWorkspace> {
-    let mut window_groups: Vec<Vec<model::SessionWorkspace>> = Vec::new();
-    let mut window_id_to_group: HashMap<WindowId, usize> = HashMap::default();
-
-    for session_workspace in session_workspaces {
-        match session_workspace.window_id {
-            Some(window_id) => {
-                let group_index = *window_id_to_group.entry(window_id).or_insert_with(|| {
-                    window_groups.push(Vec::new());
-                    window_groups.len() - 1
-                });
-                window_groups[group_index].push(session_workspace);
-            }
-            None => {
-                window_groups.push(vec![session_workspace]);
-            }
-        }
-    }
-
-    window_groups
-        .into_iter()
-        .filter_map(|group| {
-            let index = group.iter().position(|ws| !ws.paths.is_empty()).unwrap_or(0);
-            group.into_iter().nth(index)
-        })
-        .collect()
-}
-
-const DEFAULT_DOCK_STATE_KEY: &str = "default_dock_state";
-
-pub fn read_default_dock_state(kvp: &KeyValueStore) -> Option<DockStructure> {
-    let json_str = kvp.read_kvp(DEFAULT_DOCK_STATE_KEY).log_err().flatten()?;
-
-    serde_json::from_str::<DockStructure>(&json_str).ok()
-}
-
-pub async fn write_default_dock_state(kvp: &KeyValueStore, docks: DockStructure) -> anyhow::Result<()> {
-    let json_str = serde_json::to_string(&docks)?;
-    kvp.write_kvp(DEFAULT_DOCK_STATE_KEY.to_string(), json_str).await?;
-    Ok(())
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct SerializedPixels(gpui::Pixels);
-impl sqlez::bindable::StaticColumnCount for SerializedPixels {}
-
-impl sqlez::bindable::Bind for SerializedPixels {
-    fn bind(&self, statement: &sqlez::statement::Statement, start_index: i32) -> anyhow::Result<i32> {
-        let this: i32 = u32::from(self.0).cast_signed();
-        this.bind(statement, start_index)
-    }
-}
-
-pub struct WorkspaceDb(ThreadSafeConnection);
-
-impl Domain for WorkspaceDb {
-    const NAME: &str = stringify!(WorkspaceDb);
-
-    const SCHEMA: &str = sql!(
-        CREATE TABLE remote_connections(
-            id INTEGER PRIMARY KEY,
-            kind TEXT NOT NULL,
-            host TEXT,
-            port INTEGER,
-            user TEXT,
-            distro TEXT,
-            name TEXT,
-            container_id TEXT,
-            use_podman BOOLEAN,
-            remote_env TEXT
-        );
-
-        CREATE TABLE workspaces(
-            workspace_id INTEGER PRIMARY KEY,
-            paths TEXT,
-            paths_order TEXT,
-            remote_connection_id INTEGER REFERENCES remote_connections(id),
-            timestamp TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL,
-            window_state TEXT,
-            window_x REAL,
-            window_y REAL,
-            window_width REAL,
-            window_height REAL,
-            display BLOB,
-            left_dock_visible INTEGER, //bool
-            left_dock_active_panel TEXT,
-            right_dock_visible INTEGER, //bool
-            right_dock_active_panel TEXT,
-            bottom_dock_visible INTEGER, //bool
-            bottom_dock_active_panel TEXT,
-            left_dock_zoom INTEGER, //bool
-            right_dock_zoom INTEGER, //bool
-            bottom_dock_zoom INTEGER, //bool
-            fullscreen INTEGER, //bool
-            centered_layout INTEGER, //bool
-            session_id TEXT,
-            window_id INTEGER,
-            identity_paths TEXT,
-            identity_paths_order TEXT,
-            native_window_state BLOB
-        ) STRICT;
-
-        CREATE UNIQUE INDEX ix_workspaces_location ON workspaces(remote_connection_id, paths);
-
-        CREATE TABLE pane_groups(
-            group_id INTEGER PRIMARY KEY,
-            workspace_id INTEGER NOT NULL,
-            parent_group_id INTEGER, // NULL indicates that this is a root node
-            position INTEGER, // NULL indicates that this is a root node
-            axis TEXT NOT NULL, // Enum: 'Vertical' / 'Horizontal'
-            flexes TEXT,
-            FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
-            ON DELETE CASCADE
-            ON UPDATE CASCADE,
-            FOREIGN KEY(parent_group_id) REFERENCES pane_groups(group_id) ON DELETE CASCADE
-        ) STRICT;
-
-        CREATE TABLE panes(
-            pane_id INTEGER PRIMARY KEY,
-            workspace_id INTEGER NOT NULL,
-            active INTEGER NOT NULL, // Boolean
-            pinned_count INTEGER DEFAULT 0,
-            FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
-            ON DELETE CASCADE
-            ON UPDATE CASCADE
-        ) STRICT;
-
-        CREATE TABLE center_panes(
-            pane_id INTEGER PRIMARY KEY,
-            parent_group_id INTEGER, // NULL means that this is a root pane
-            position INTEGER, // NULL means that this is a root pane
-            FOREIGN KEY(pane_id) REFERENCES panes(pane_id)
-            ON DELETE CASCADE,
-            FOREIGN KEY(parent_group_id) REFERENCES pane_groups(group_id) ON DELETE CASCADE
-        ) STRICT;
-
-        CREATE TABLE items(
-            item_id INTEGER NOT NULL, // This is the item's view id, so this is not unique
-            workspace_id INTEGER NOT NULL,
-            pane_id INTEGER NOT NULL,
-            kind TEXT NOT NULL,
-            position INTEGER NOT NULL,
-            active INTEGER NOT NULL,
-            preview INTEGER, //bool
-            FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
-            ON DELETE CASCADE
-            ON UPDATE CASCADE,
-            FOREIGN KEY(pane_id) REFERENCES panes(pane_id)
-            ON DELETE CASCADE,
-            PRIMARY KEY(item_id, workspace_id)
-        ) STRICT;
-
-        CREATE TABLE trusted_worktrees (
-            trust_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            absolute_path TEXT,
-            user_name TEXT,
-            host_name TEXT
-        ) STRICT;
-
-        CREATE TABLE recent_navigation_history (
-            workspace_id INTEGER NOT NULL,
-            path BLOB NOT NULL,
-            position INTEGER NOT NULL,
-            PRIMARY KEY (workspace_id, path),
-            FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
-            ON DELETE CASCADE
-            ON UPDATE CASCADE
-        ) STRICT;
-    );
-}
-
-db::static_connection!(WorkspaceDb, []);
-
-impl WorkspaceDb {
-    /// Returns a serialized workspace for the given worktree_roots. If the passed array
-    /// is empty, the most recent workspace is returned instead. If no workspace for the
-    /// passed roots is stored, returns none.
-    pub(crate) fn workspace_for_roots<P: AsRef<Path>>(&self, worktree_roots: &[P]) -> Option<SerializedWorkspace> {
-        self.workspace_for_roots_internal(worktree_roots, None)
-    }
-
-    pub(crate) fn remote_workspace_for_roots<P: AsRef<Path>>(
-        &self,
-        worktree_roots: &[P],
-        remote_project_id: RemoteConnectionId,
-    ) -> Option<SerializedWorkspace> {
-        self.workspace_for_roots_internal(worktree_roots, Some(remote_project_id))
-    }
-
-    pub(crate) fn workspace_for_roots_internal<P: AsRef<Path>>(
-        &self,
-        worktree_roots: &[P],
-        remote_connection_id: Option<RemoteConnectionId>,
-    ) -> Option<SerializedWorkspace> {
-        // paths are sorted before db interactions to ensure that the order of the paths
-        // doesn't affect the workspace selection for existing workspaces
-        let root_paths = PathList::new(worktree_roots);
-
-        // Empty workspaces cannot be matched by paths (all empty workspaces have paths = "").
-        // They should only be restored via workspace_for_id during session restoration.
-        if root_paths.is_empty() && remote_connection_id.is_none() {
-            return None;
-        }
-
-        // Note that we re-assign the workspace_id here in case it's empty
-        // and we've grabbed the most recent workspace
-        #[allow(clippy::type_complexity)]
-        let (
-            workspace_id,
-            paths,
-            paths_order,
-            identity_paths,
-            identity_paths_order,
-            window_bounds,
-            display,
-            docks,
-            window_id,
-        ): (
-            WorkspaceId,
-            String,
-            String,
-            Option<String>,
-            Option<String>,
-            Option<SerializedWindowBounds>,
-            Option<Uuid>,
-            DockStructure,
-            Option<u64>,
-        ) = self
-            .select_row_bound(sql! {
-                SELECT
-                    workspace_id,
-                    paths,
-                    paths_order,
-                    identity_paths,
-                    identity_paths_order,
-                    window_state,
-                    window_x,
-                    window_y,
-                    window_width,
-                    window_height,
-                    display,
-                    left_dock_visible,
-                    left_dock_active_panel,
-                    left_dock_zoom,
-                    right_dock_visible,
-                    right_dock_active_panel,
-                    right_dock_zoom,
-                    bottom_dock_visible,
-                    bottom_dock_active_panel,
-                    bottom_dock_zoom,
-                    window_id
-                FROM workspaces
-                WHERE
-                    paths IS ? AND
-                    remote_connection_id IS ?
-                LIMIT 1
-            })
-            .and_then(|mut prepared_statement| {
-                (prepared_statement)((root_paths.serialize().paths, remote_connection_id.map(|id| id.0 as i32)))
-            })
-            .context("No workspaces found")
-            .warn_on_err()
-            .flatten()?;
-
-        let paths = PathList::deserialize(&SerializedPathList { paths, order: paths_order });
-        let identity_paths = identity_paths.map(|paths| {
-            PathList::deserialize(&SerializedPathList { paths, order: identity_paths_order.unwrap_or_default() })
-        });
-
-        let remote_connection_options = if let Some(remote_connection_id) = remote_connection_id {
-            self.remote_connection(remote_connection_id).context("Get remote connection").log_err()
-        } else {
-            None
+    fn from(json: WindowBoundsJson) -> WindowBounds {
+        let bounds = |x: i32, y: i32, width: i32, height: i32| Bounds {
+            origin: point(px(x as f32), px(y as f32)),
+            size: size(px(width as f32), px(height as f32)),
         };
-
-        Some(SerializedWorkspace {
-            id: workspace_id,
-            location: match remote_connection_options {
-                Some(options) => SerializedWorkspaceLocation::Remote(options),
-                None => SerializedWorkspaceLocation::Local,
-            },
-            paths,
-            identity_paths,
-            center_group: self.get_center_pane_group(workspace_id).context("Getting center group").log_err()?,
-            window_bounds,
-            display,
-            docks,
-            session_id: None,
-            window_id,
-            recent_navigation_history: self.recent_navigation_history(workspace_id),
-        })
-    }
-
-    /// Returns the workspace with the given ID, loading all associated data.
-    pub(crate) fn workspace_for_id(&self, workspace_id: WorkspaceId) -> Option<SerializedWorkspace> {
-        #[allow(clippy::type_complexity)]
-        let (
-            paths,
-            paths_order,
-            identity_paths,
-            identity_paths_order,
-            window_bounds,
-            display,
-            docks,
-            window_id,
-            remote_connection_id,
-        ): (
-            String,
-            String,
-            Option<String>,
-            Option<String>,
-            Option<SerializedWindowBounds>,
-            Option<Uuid>,
-            DockStructure,
-            Option<u64>,
-            Option<i32>,
-        ) = self
-            .select_row_bound(sql! {
-                SELECT
-                    paths,
-                    paths_order,
-                    identity_paths,
-                    identity_paths_order,
-                    window_state,
-                    window_x,
-                    window_y,
-                    window_width,
-                    window_height,
-                    display,
-                    left_dock_visible,
-                    left_dock_active_panel,
-                    left_dock_zoom,
-                    right_dock_visible,
-                    right_dock_active_panel,
-                    right_dock_zoom,
-                    bottom_dock_visible,
-                    bottom_dock_active_panel,
-                    bottom_dock_zoom,
-                    window_id,
-                    remote_connection_id
-                FROM workspaces
-                WHERE workspace_id = ?
-            })
-            .and_then(|mut prepared_statement| (prepared_statement)(workspace_id))
-            .context("No workspace found for id")
-            .warn_on_err()
-            .flatten()?;
-
-        let paths = PathList::deserialize(&SerializedPathList { paths, order: paths_order });
-        let identity_paths = identity_paths.map(|paths| {
-            PathList::deserialize(&SerializedPathList { paths, order: identity_paths_order.unwrap_or_default() })
-        });
-
-        let remote_connection_id = remote_connection_id.map(|id| RemoteConnectionId(id as u64));
-        let remote_connection_options = if let Some(remote_connection_id) = remote_connection_id {
-            self.remote_connection(remote_connection_id).context("Get remote connection").log_err()
-        } else {
-            None
-        };
-
-        Some(SerializedWorkspace {
-            id: workspace_id,
-            location: match remote_connection_options {
-                Some(options) => SerializedWorkspaceLocation::Remote(options),
-                None => SerializedWorkspaceLocation::Local,
-            },
-            paths,
-            identity_paths,
-            center_group: self.get_center_pane_group(workspace_id).context("Getting center group").log_err()?,
-            window_bounds,
-            display,
-            docks,
-            session_id: None,
-            window_id,
-            recent_navigation_history: self.recent_navigation_history(workspace_id),
-        })
-    }
-
-    fn recent_navigation_history(&self, workspace_id: WorkspaceId) -> Vec<PathBuf> {
-        self.select_bound(sql!(
-            SELECT path
-            FROM recent_navigation_history
-            WHERE workspace_id = ?
-            ORDER BY position
-        ))
-        .and_then(|mut statement| statement(workspace_id))
-        .context("Loading recent navigation history")
-        .log_err()
-        .unwrap_or_default()
-    }
-
-    pub(crate) async fn save_workspace(&self, workspace: SerializedWorkspace) {
-        let paths = workspace.paths.serialize();
-        let identity_paths = workspace.identity_paths.map(|paths| paths.serialize());
-        log::debug!("Saving workspace at location: {:?}", workspace.location);
-        self.write(move |conn| {
-            conn.with_savepoint("update_worktrees", || {
-                let remote_connection_id = match workspace.location.clone() {
-                    SerializedWorkspaceLocation::Local => None,
-                    SerializedWorkspaceLocation::Remote(connection_options) => {
-                        Some(Self::get_or_create_remote_connection_internal(
-                            conn,
-                            connection_options
-                        )?.0)
-                    }
-                };
-
-                // Clear out panes and pane_groups
-                conn.exec_bound(sql!(
-                    DELETE FROM pane_groups WHERE workspace_id = ?1;
-                    DELETE FROM panes WHERE workspace_id = ?1;))?(workspace.id)
-                    .context("Clearing old panes")?;
-
-                // Clear out old workspaces with the same paths.
-                // Skip this for empty workspaces - they are identified by workspace_id, not paths.
-                // Multiple empty workspaces with different content should coexist.
-                if !paths.paths.is_empty() {
-                    conn.exec_bound(sql!(
-                        DELETE
-                        FROM workspaces
-                        WHERE
-                            workspace_id != ?1 AND
-                            paths IS ?2 AND
-                            remote_connection_id IS ?3
-                    ))?((
-                        workspace.id,
-                        paths.paths.clone(),
-                        remote_connection_id,
-                    ))
-                    .context("clearing out old locations")?;
-                }
-
-                // Upsert
-                let query = sql!(
-                    INSERT INTO workspaces(
-                        workspace_id,
-                        paths,
-                        paths_order,
-                        identity_paths,
-                        identity_paths_order,
-                        remote_connection_id,
-                        left_dock_visible,
-                        left_dock_active_panel,
-                        left_dock_zoom,
-                        right_dock_visible,
-                        right_dock_active_panel,
-                        right_dock_zoom,
-                        bottom_dock_visible,
-                        bottom_dock_active_panel,
-                        bottom_dock_zoom,
-                        session_id,
-                        window_id,
-                        timestamp
-                    )
-                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, CURRENT_TIMESTAMP)
-                    ON CONFLICT DO
-                    UPDATE SET
-                        paths = ?2,
-                        paths_order = ?3,
-                        identity_paths = ?4,
-                        identity_paths_order = ?5,
-                        remote_connection_id = ?6,
-                        left_dock_visible = ?7,
-                        left_dock_active_panel = ?8,
-                        left_dock_zoom = ?9,
-                        right_dock_visible = ?10,
-                        right_dock_active_panel = ?11,
-                        right_dock_zoom = ?12,
-                        bottom_dock_visible = ?13,
-                        bottom_dock_active_panel = ?14,
-                        bottom_dock_zoom = ?15,
-                        session_id = ?16,
-                        window_id = ?17,
-                        timestamp = CURRENT_TIMESTAMP
-                );
-                let mut prepared_query = conn.exec_bound(query)?;
-                let args = (
-                    workspace.id,
-                    paths.paths.clone(),
-                    paths.order.clone(),
-                    identity_paths.as_ref().map(|paths| paths.paths.clone()),
-                    identity_paths.as_ref().map(|paths| paths.order.clone()),
-                    remote_connection_id,
-                    workspace.docks,
-                    workspace.session_id,
-                    workspace.window_id,
-                );
-
-                prepared_query(args).context("Updating workspace")?;
-
-                conn.exec_bound(sql!(
-                    DELETE FROM recent_navigation_history WHERE workspace_id = ?;
-                ))?(workspace.id)
-                .context("Clearing recent navigation history")?;
-
-                let mut insert_recent_path = conn.exec_bound(sql!(
-                    INSERT INTO recent_navigation_history(workspace_id, path, position)
-                    VALUES (?, ?, ?);
-                ))?;
-                for (position, path) in workspace.recent_navigation_history.iter().enumerate() {
-                    insert_recent_path((workspace.id, path.as_path(), position))
-                        .context("Inserting recent navigation history")?;
-                }
-
-                // Save center pane group
-                Self::save_pane_group(conn, workspace.id, &workspace.center_group, None)
-                    .context("save pane group in save workspace")?;
-
-                Ok(())
-            })
-            .log_err();
-        })
-        .await;
-    }
-
-    pub(crate) async fn get_or_create_remote_connection(
-        &self,
-        options: RemoteConnectionOptions,
-    ) -> Result<RemoteConnectionId> {
-        self.write(move |conn| Self::get_or_create_remote_connection_internal(conn, options)).await
-    }
-
-    fn get_or_create_remote_connection_internal(
-        this: &Connection,
-        options: RemoteConnectionOptions,
-    ) -> Result<RemoteConnectionId> {
-        let RemoteConnectionIdentity::Ssh { host, username, port } = remote_connection_identity(&options);
-        Self::get_or_create_remote_connection_query(this, RemoteConnectionKind::Ssh, Some(host), port, username, None)
-    }
-
-    fn get_or_create_remote_connection_query(
-        this: &Connection,
-        kind: RemoteConnectionKind,
-        host: Option<String>,
-        port: Option<u16>,
-        user: Option<String>,
-        distro: Option<String>,
-    ) -> Result<RemoteConnectionId> {
-        if let Some(id) = this.select_row_bound(sql!(
-            SELECT id
-            FROM remote_connections
-            WHERE
-                kind IS ? AND
-                host IS ? AND
-                port IS ? AND
-                user IS ? AND
-                distro IS ?
-            LIMIT 1
-        ))?((kind.serialize(), host.clone(), port, user.clone(), distro.clone()))?
-        {
-            Ok(RemoteConnectionId(id))
-        } else {
-            let id = this.select_row_bound(sql!(
-                INSERT INTO remote_connections (
-                    kind,
-                    host,
-                    port,
-                    user,
-                    distro
-                    ) VALUES (?1, ?2, ?3, ?4, ?5)
-                RETURNING id
-            ))?((kind.serialize(), host, port, user, distro))?
-            .context("failed to insert remote project")?;
-            Ok(RemoteConnectionId(id))
-        }
-    }
-
-    query! {
-        pub async fn next_id() -> Result<WorkspaceId> {
-            INSERT INTO workspaces DEFAULT VALUES RETURNING workspace_id
-        }
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn recent_workspaces(
-        &self,
-    ) -> Result<
-        Vec<(WorkspaceId, PathList, Option<PathList>, Option<RemoteConnectionId>, Option<String>, OffsetDateTime)>,
-    > {
-        Ok(self
-            .recent_workspaces_query()?
-            .into_iter()
-            .map(
-                |(
-                    id,
-                    paths,
-                    order,
-                    identity_paths,
-                    identity_paths_order,
-                    remote_connection_id,
-                    session_id,
-                    timestamp,
-                )| {
-                    (
-                        id,
-                        PathList::deserialize(&SerializedPathList { paths, order }),
-                        identity_paths.map(|paths| {
-                            PathList::deserialize(&SerializedPathList {
-                                paths,
-                                order: identity_paths_order.unwrap_or_default(),
-                            })
-                        }),
-                        remote_connection_id.map(RemoteConnectionId),
-                        session_id,
-                        parse_timestamp(&timestamp),
-                    )
-                },
-            )
-            .collect())
-    }
-
-    query! {
-        fn recent_workspaces_query() -> Result<Vec<(WorkspaceId, String, String, Option<String>, Option<String>, Option<u64>, Option<String>, String)>> {
-            SELECT workspace_id, paths, paths_order, identity_paths, identity_paths_order, remote_connection_id, session_id, timestamp
-            FROM workspaces
-            WHERE
-                paths IS NOT NULL OR
-                remote_connection_id IS NOT NULL
-            ORDER BY timestamp DESC
-        }
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn session_workspaces(
-        &self,
-        session_id: String,
-    ) -> Result<Vec<(WorkspaceId, PathList, Option<u64>, Option<RemoteConnectionId>)>> {
-        Ok(self
-            .session_workspaces_query(session_id)?
-            .into_iter()
-            .map(|(workspace_id, paths, order, window_id, remote_connection_id)| {
-                (
-                    WorkspaceId(workspace_id),
-                    PathList::deserialize(&SerializedPathList { paths, order }),
-                    window_id,
-                    remote_connection_id.map(RemoteConnectionId),
-                )
-            })
-            .collect())
-    }
-
-    query! {
-        fn session_workspaces_query(session_id: String) -> Result<Vec<(i64, String, String, Option<u64>, Option<u64>)>> {
-            SELECT workspace_id, paths, paths_order, window_id, remote_connection_id
-            FROM workspaces
-            WHERE session_id = ?1
-            ORDER BY timestamp DESC
-        }
-    }
-
-    fn remote_connections(&self) -> Result<HashMap<RemoteConnectionId, RemoteConnectionOptions>> {
-        Ok(self.select(sql!(
-            SELECT
-                id, kind, host, port, user, distro
-            FROM
-                remote_connections
-        ))?()?
-        .into_iter()
-        .filter_map(|(id, kind, host, port, user, distro)| {
-            Some((RemoteConnectionId(id), Self::remote_connection_from_row(kind, host, port, user, distro)?))
-        })
-        .collect())
-    }
-
-    pub(crate) fn remote_connection(&self, id: RemoteConnectionId) -> Result<RemoteConnectionOptions> {
-        let (kind, host, port, user, distro) = self.select_row_bound(sql!(
-            SELECT kind, host, port, user, distro
-            FROM remote_connections
-            WHERE id = ?
-        ))?(id.0)?
-        .context("no such remote connection")?;
-        Self::remote_connection_from_row(kind, host, port, user, distro).context("invalid remote_connection row")
-    }
-
-    fn remote_connection_from_row(
-        kind: String,
-        host: Option<String>,
-        port: Option<u16>,
-        user: Option<String>,
-        _distro: Option<String>,
-    ) -> Option<RemoteConnectionOptions> {
-        match RemoteConnectionKind::deserialize(&kind)? {
-            RemoteConnectionKind::Ssh => Some(RemoteConnectionOptions::Ssh(SshConnectionOptions {
-                host: host?.into(),
-                port,
-                username: user,
-                ..Default::default()
-            })),
-        }
-    }
-
-    query! {
-        pub async fn delete_workspace_by_id(id: WorkspaceId) -> Result<()> {
-            DELETE FROM workspaces
-            WHERE workspace_id IS ?
-        }
-    }
-
-    async fn all_paths_exist_with_a_directory(paths: &[PathBuf], fs: &dyn Fs) -> bool {
-        let mut any_dir = false;
-        for path in paths {
-            match fs.metadata(path).await.ok().flatten() {
-                None => return false,
-                Some(meta) => {
-                    if meta.is_dir {
-                        any_dir = true;
-                    }
-                }
+        match json {
+            WindowBoundsJson::Windowed { x, y, width, height } => WindowBounds::Windowed(bounds(x, y, width, height)),
+            WindowBoundsJson::Maximized { x, y, width, height } => WindowBounds::Maximized(bounds(x, y, width, height)),
+            WindowBoundsJson::Fullscreen { x, y, width, height } => {
+                WindowBounds::Fullscreen(bounds(x, y, width, height))
             }
-        }
-        any_dir
-    }
-
-    // Returns the raw recent workspace history. Scratch workspaces (no paths) are filtered
-    // out because they are restored separately by `last_session_workspace_locations`.
-    pub async fn recent_project_workspaces_ungrouped(&self, fs: &dyn Fs) -> Result<Vec<RecentWorkspace>> {
-        let remote_connections = self.remote_connections()?;
-        let mut result = Vec::new();
-        for (id, paths, identity_paths_hint, remote_connection_id, _session_id, timestamp) in
-            self.recent_workspaces()?
-        {
-            if let Some(remote_connection_id) = remote_connection_id {
-                if let Some(connection_options) = remote_connections.get(&remote_connection_id) {
-                    result.push(RecentWorkspace {
-                        workspace_id: id,
-                        location: SerializedWorkspaceLocation::Remote(connection_options.clone()),
-                        paths: paths.clone(),
-                        identity_paths: identity_paths_hint.unwrap_or(paths),
-                        timestamp,
-                    });
-                }
-                continue;
-            }
-
-            if paths.paths().is_empty() {
-                continue;
-            }
-
-            if Self::all_paths_exist_with_a_directory(paths.paths(), fs).await {
-                let identity_paths = resolve_local_workspace_identity(fs, &paths)
-                    .await
-                    .or(identity_paths_hint)
-                    .unwrap_or_else(|| paths.clone());
-                result.push(RecentWorkspace {
-                    workspace_id: id,
-                    location: SerializedWorkspaceLocation::Local,
-                    paths,
-                    identity_paths,
-                    timestamp,
-                });
-            }
-        }
-
-        Ok(result)
-    }
-
-    // Returns the recent project workspaces suitable for recent-project UIs.
-    // Entries are deduplicated by git worktree identity, but preserve the original
-    // serialized paths for reopening.
-    pub async fn recent_project_workspaces(&self, fs: &dyn Fs) -> Result<Vec<RecentWorkspace>> {
-        Ok(dedupe_recent_workspaces(self.recent_project_workspaces_ungrouped(fs).await?))
-    }
-
-    pub async fn delete_recent_workspace_group(&self, target: &RecentWorkspace) -> Result<Vec<WorkspaceId>> {
-        let target_paths = &target.identity_paths;
-        let target_remote_connection = match &target.location {
-            SerializedWorkspaceLocation::Local => None,
-            SerializedWorkspaceLocation::Remote(connection) => Some(remote_connection_identity(connection)),
-        };
-
-        let remote_connections = self.remote_connections()?;
-
-        let mut workspace_ids = Vec::new();
-        for (workspace_id, paths, identity_paths, remote_connection_id, _, _) in self.recent_workspaces()? {
-            let remote_connection = if let Some(id) = remote_connection_id {
-                let Some(connection_options) = remote_connections.get(&id) else {
-                    continue;
-                };
-                Some(remote_connection_identity(connection_options))
-            } else {
-                None
-            };
-            if remote_connection == target_remote_connection && &identity_paths.unwrap_or(paths) == target_paths {
-                workspace_ids.push(workspace_id);
-            }
-        }
-
-        futures::future::join_all(
-            workspace_ids.iter().copied().map(|workspace_id| self.delete_workspace_by_id(workspace_id)),
-        )
-        .await;
-
-        Ok(workspace_ids)
-    }
-
-    // Deletes workspace rows that can no longer be restored from. Remote workspaces whose
-    // connection was removed are cleaned up immediately. Local workspaces with no valid paths
-    // on disk are kept for seven days
-    // after going stale. Workspaces belonging to the current session or the last session are
-    // always preserved so that an in-progress restore can rehydrate them.
-    pub async fn garbage_collect_workspaces(
-        &self,
-        fs: &dyn Fs,
-        current_session_id: &str,
-        last_session_id: Option<&str>,
-    ) -> Result<()> {
-        let remote_connections = self.remote_connections()?;
-        let now = OffsetDateTime::now_utc();
-        let mut workspaces_to_delete = Vec::new();
-        for (id, paths, _identity_paths_hint, remote_connection_id, session_id, timestamp) in
-            self.recent_workspaces()?
-        {
-            if let Some(session_id) = session_id.as_deref()
-                && (session_id == current_session_id || Some(session_id) == last_session_id)
-            {
-                continue;
-            }
-
-            if let Some(remote_connection_id) = remote_connection_id {
-                if !remote_connections.contains_key(&remote_connection_id) {
-                    workspaces_to_delete.push(id);
-                }
-                continue;
-            }
-
-            if !Self::all_paths_exist_with_a_directory(paths.paths(), fs).await
-                && now - timestamp >= time::Duration::days(7)
-            {
-                workspaces_to_delete.push(id);
-            }
-        }
-
-        futures::future::join_all(workspaces_to_delete.into_iter().map(|id| self.delete_workspace_by_id(id))).await;
-        Ok(())
-    }
-
-    pub async fn last_workspace(&self, fs: &dyn Fs) -> Result<Option<RecentWorkspace>> {
-        Ok(self.recent_project_workspaces(fs).await?.into_iter().next())
-    }
-
-    // Returns the locations of the workspaces that were still opened when the last
-    // session was closed (i.e. when ed was quit).
-    // If `last_session_window_order` is provided, the returned locations are ordered
-    // according to that.
-    pub async fn last_session_workspace_locations(
-        &self,
-        last_session_id: &str,
-        last_session_window_stack: Option<Vec<WindowId>>,
-        fs: &dyn Fs,
-    ) -> Result<Vec<SessionWorkspace>> {
-        let mut workspaces = Vec::new();
-
-        for (workspace_id, paths, window_id, remote_connection_id) in
-            self.session_workspaces(last_session_id.to_owned())?
-        {
-            let window_id = window_id.map(WindowId::from);
-
-            if let Some(remote_connection_id) = remote_connection_id {
-                workspaces.push(SessionWorkspace {
-                    workspace_id,
-                    location: SerializedWorkspaceLocation::Remote(self.remote_connection(remote_connection_id)?),
-                    paths,
-                    window_id,
-                });
-                continue;
-            }
-
-            if paths.is_empty() || Self::all_paths_exist_with_a_directory(paths.paths(), fs).await {
-                workspaces.push(SessionWorkspace {
-                    workspace_id,
-                    location: SerializedWorkspaceLocation::Local,
-                    paths,
-                    window_id,
-                });
-            }
-        }
-
-        if let Some(stack) = last_session_window_stack {
-            workspaces.sort_by_key(|workspace| {
-                workspace
-                    .window_id
-                    .and_then(|id| stack.iter().position(|&order_id| order_id == id))
-                    .unwrap_or(usize::MAX)
-            });
-        }
-
-        Ok(workspaces)
-    }
-
-    fn get_center_pane_group(&self, workspace_id: WorkspaceId) -> Result<SerializedPaneGroup> {
-        Ok(self.get_pane_group(workspace_id, None)?.into_iter().next().unwrap_or_else(|| {
-            SerializedPaneGroup::Pane(SerializedPane { active: true, children: vec![], pinned_count: 0 })
-        }))
-    }
-
-    fn get_pane_group(&self, workspace_id: WorkspaceId, group_id: Option<GroupId>) -> Result<Vec<SerializedPaneGroup>> {
-        type GroupKey = (Option<GroupId>, WorkspaceId);
-        type GroupOrPane =
-            (Option<GroupId>, Option<SerializedAxis>, Option<PaneId>, Option<bool>, Option<usize>, Option<String>);
-        self.select_bound::<GroupKey, GroupOrPane>(sql!(
-            SELECT group_id, axis, pane_id, active, pinned_count, flexes
-                FROM (SELECT
-                        group_id,
-                        axis,
-                        NULL as pane_id,
-                        NULL as active,
-                        NULL as pinned_count,
-                        position,
-                        parent_group_id,
-                        workspace_id,
-                        flexes
-                      FROM pane_groups
-                    UNION
-                      SELECT
-                        NULL,
-                        NULL,
-                        center_panes.pane_id,
-                        panes.active as active,
-                        pinned_count,
-                        position,
-                        parent_group_id,
-                        panes.workspace_id as workspace_id,
-                        NULL
-                      FROM center_panes
-                      JOIN panes ON center_panes.pane_id = panes.pane_id)
-                WHERE parent_group_id IS ? AND workspace_id = ?
-                ORDER BY position
-        ))?((group_id, workspace_id))?
-        .into_iter()
-        .map(|(group_id, axis, pane_id, active, pinned_count, flexes)| {
-            let maybe_pane = (|| Some((pane_id?, active?, pinned_count?)))();
-            if let Some((group_id, axis)) = group_id.zip(axis) {
-                let flexes = flexes.map(|flexes: String| serde_json::from_str::<Vec<f32>>(&flexes)).transpose()?;
-
-                Ok(SerializedPaneGroup::Group {
-                    axis,
-                    children: self.get_pane_group(workspace_id, Some(group_id))?,
-                    flexes,
-                })
-            } else if let Some((pane_id, active, pinned_count)) = maybe_pane {
-                Ok(SerializedPaneGroup::Pane(SerializedPane::new(self.get_items(pane_id)?, active, pinned_count)))
-            } else {
-                bail!("Pane Group Child was neither a pane group or a pane");
-            }
-        })
-        // Filter out panes and pane groups which don't have any children or items
-        .filter(|pane_group| match pane_group {
-            Ok(SerializedPaneGroup::Group { children, .. }) => !children.is_empty(),
-            Ok(SerializedPaneGroup::Pane(pane)) => !pane.children.is_empty(),
-            _ => true,
-        })
-        .collect::<Result<_>>()
-    }
-
-    fn save_pane_group(
-        conn: &Connection,
-        workspace_id: WorkspaceId,
-        pane_group: &SerializedPaneGroup,
-        parent: Option<(GroupId, usize)>,
-    ) -> Result<()> {
-        if parent.is_none() {
-            log::debug!("Saving a pane group for workspace {workspace_id:?}");
-        }
-        match pane_group {
-            SerializedPaneGroup::Group { axis, children, flexes } => {
-                let (parent_id, position) = parent.unzip();
-
-                let flex_string = flexes.as_ref().map(|flexes| serde_json::json!(flexes).to_string());
-
-                let group_id = conn.select_row_bound::<_, i64>(sql!(
-                    INSERT INTO pane_groups(
-                        workspace_id,
-                        parent_group_id,
-                        position,
-                        axis,
-                        flexes
-                    )
-                    VALUES (?, ?, ?, ?, ?)
-                    RETURNING group_id
-                ))?((workspace_id, parent_id, position, *axis, flex_string))?
-                .context("Couldn't retrieve group_id from inserted pane_group")?;
-
-                for (position, group) in children.iter().enumerate() {
-                    Self::save_pane_group(conn, workspace_id, group, Some((group_id, position)))?
-                }
-
-                Ok(())
-            }
-            SerializedPaneGroup::Pane(pane) => {
-                Self::save_pane(conn, workspace_id, pane, parent)?;
-                Ok(())
-            }
-        }
-    }
-
-    fn save_pane(
-        conn: &Connection,
-        workspace_id: WorkspaceId,
-        pane: &SerializedPane,
-        parent: Option<(GroupId, usize)>,
-    ) -> Result<PaneId> {
-        let pane_id = conn.select_row_bound::<_, i64>(sql!(
-            INSERT INTO panes(workspace_id, active, pinned_count)
-            VALUES (?, ?, ?)
-            RETURNING pane_id
-        ))?((workspace_id, pane.active, pane.pinned_count))?
-        .context("Could not retrieve inserted pane_id")?;
-
-        let (parent_id, order) = parent.unzip();
-        conn.exec_bound(sql!(
-            INSERT INTO center_panes(pane_id, parent_group_id, position)
-            VALUES (?, ?, ?)
-        ))?((pane_id, parent_id, order))?;
-
-        Self::save_items(conn, workspace_id, pane_id, &pane.children).context("Saving items")?;
-
-        Ok(pane_id)
-    }
-
-    fn get_items(&self, pane_id: PaneId) -> Result<Vec<SerializedItem>> {
-        self.select_bound(sql!(
-            SELECT kind, item_id, active, preview FROM items
-            WHERE pane_id = ?
-                ORDER BY position
-        ))?(pane_id)
-    }
-
-    fn save_items(
-        conn: &Connection,
-        workspace_id: WorkspaceId,
-        pane_id: PaneId,
-        items: &[SerializedItem],
-    ) -> Result<()> {
-        let mut insert = conn.exec_bound(sql!(
-            INSERT INTO items(workspace_id, pane_id, position, kind, item_id, active, preview) VALUES (?, ?, ?, ?, ?, ?, ?)
-        )).context("Preparing insertion")?;
-        for (position, item) in items.iter().enumerate() {
-            insert((workspace_id, pane_id, position, item))?;
-        }
-
-        Ok(())
-    }
-
-    query! {
-        pub async fn update_timestamp(workspace_id: WorkspaceId) -> Result<()> {
-            UPDATE workspaces
-            SET timestamp = CURRENT_TIMESTAMP
-            WHERE workspace_id = ?
-        }
-    }
-
-    query! {
-        pub(crate) async fn set_window_open_status(workspace_id: WorkspaceId, bounds: SerializedWindowBounds, display: Uuid, native_window_state: Option<Vec<u8>>) -> Result<()> {
-            UPDATE workspaces
-            SET window_state = ?2,
-                window_x = ?3,
-                window_y = ?4,
-                window_width = ?5,
-                window_height = ?6,
-                display = ?7,
-                native_window_state = ?8
-            WHERE workspace_id = ?1
-        }
-    }
-
-    query! {
-        pub(crate) fn native_window_state(workspace_id: WorkspaceId) -> Result<Option<(Option<Uuid>, Option<Vec<u8>>)>> {
-            SELECT display, native_window_state
-            FROM workspaces
-            WHERE workspace_id = ?
-        }
-    }
-
-    query! {
-        pub(crate) async fn set_session_binding(workspace_id: WorkspaceId, session_id: Option<String>, window_id: Option<u64>) -> Result<()> {
-            UPDATE workspaces
-            SET session_id = ?2, window_id = ?3
-            WHERE workspace_id = ?1
-        }
-    }
-
-    pub(crate) async fn save_trusted_worktrees(
-        &self,
-        trusted_worktrees: HashMap<Option<RemoteHostLocation>, HashSet<PathBuf>>,
-    ) -> anyhow::Result<()> {
-        use anyhow::Context as _;
-        use db::sqlez::statement::Statement;
-        use itertools::Itertools as _;
-
-        self.clear_trusted_worktrees().await.context("clearing previous trust state")?;
-
-        let trusted_worktrees = trusted_worktrees
-            .into_iter()
-            .flat_map(|(host, abs_paths)| abs_paths.into_iter().map(move |abs_path| (Some(abs_path), host.clone())))
-            .collect::<Vec<_>>();
-        let mut first_worktree;
-        let mut last_worktree = 0_usize;
-        for (count, placeholders) in std::iter::once("(?, ?, ?)")
-            .cycle()
-            .take(trusted_worktrees.len())
-            .chunks(MAX_QUERY_PLACEHOLDERS / 3)
-            .into_iter()
-            .map(|chunk| {
-                let mut count = 0;
-                let placeholders = chunk
-                    .inspect(|_| {
-                        count += 1;
-                    })
-                    .join(", ");
-                (count, placeholders)
-            })
-            .collect::<Vec<_>>()
-        {
-            first_worktree = last_worktree;
-            last_worktree += count;
-            let query = format!(
-                r#"INSERT INTO trusted_worktrees(absolute_path, user_name, host_name)
-VALUES {placeholders};"#
-            );
-
-            let trusted_worktrees = trusted_worktrees[first_worktree..last_worktree].to_vec();
-            self.write(move |conn| {
-                let mut statement = Statement::prepare(conn, query)?;
-                let mut next_index = 1;
-                for (abs_path, host) in trusted_worktrees {
-                    let abs_path = abs_path.as_ref().map(|abs_path| abs_path.to_string_lossy());
-                    next_index = statement.bind(&abs_path.as_ref().map(|abs_path| abs_path.as_ref()), next_index)?;
-                    next_index = statement
-                        .bind(&host.as_ref().and_then(|host| Some(host.user_name.as_ref()?.as_str())), next_index)?;
-                    next_index =
-                        statement.bind(&host.as_ref().map(|host| host.host_identifier.as_str()), next_index)?;
-                }
-                statement.exec()
-            })
-            .await
-            .context("inserting new trusted state")?;
-        }
-        Ok(())
-    }
-
-    pub fn fetch_trusted_worktrees(&self) -> Result<DbTrustedPaths> {
-        let trusted_worktrees = self.trusted_worktrees()?;
-        Ok(trusted_worktrees
-            .into_iter()
-            .filter_map(|(abs_path, user_name, host_name)| {
-                let db_host = match (user_name, host_name) {
-                    (None, Some(host_name)) => {
-                        Some(RemoteHostLocation { user_name: None, host_identifier: SharedString::new(host_name) })
-                    }
-                    (Some(user_name), Some(host_name)) => Some(RemoteHostLocation {
-                        user_name: Some(SharedString::new(user_name)),
-                        host_identifier: SharedString::new(host_name),
-                    }),
-                    _ => None,
-                };
-                Some((db_host, abs_path?))
-            })
-            .fold(HashMap::default(), |mut acc, (remote_host, abs_path)| {
-                acc.entry(remote_host).or_insert_with(HashSet::default).insert(abs_path);
-                acc
-            }))
-    }
-
-    query! {
-        fn trusted_worktrees() -> Result<Vec<(Option<PathBuf>, Option<String>, Option<String>)>> {
-            SELECT absolute_path, user_name, host_name
-            FROM trusted_worktrees
-        }
-    }
-
-    query! {
-        pub async fn clear_trusted_worktrees() -> Result<()> {
-            DELETE FROM trusted_worktrees
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecentWorkspace {
-    pub workspace_id: WorkspaceId,
     pub location: SerializedWorkspaceLocation,
     pub paths: PathList,
     pub identity_paths: PathList,
     pub timestamp: OffsetDateTime,
+}
+
+async fn all_paths_exist_with_a_directory(paths: &[PathBuf], fs: &dyn Fs) -> bool {
+    let mut any_dir = false;
+    for path in paths {
+        match fs.metadata(path).await.ok().flatten() {
+            None => return false,
+            Some(meta) => {
+                if meta.is_dir {
+                    any_dir = true;
+                }
+            }
+        }
+    }
+    any_dir
+}
+
+/// Recent projects for recent-project UIs, most recent first. Local projects
+/// whose folders are gone are skipped, and git worktrees of one repository are
+/// grouped under the repository's main worktree.
+pub async fn recent_project_workspaces(recent: Vec<RecentProject>, fs: &dyn Fs) -> Vec<RecentWorkspace> {
+    let mut result = Vec::new();
+    for project in recent {
+        let paths = project.location.path_list();
+        let timestamp = OffsetDateTime::from_unix_timestamp(project.opened_at).unwrap_or(OffsetDateTime::UNIX_EPOCH);
+        if project.location.remote.is_some() {
+            result.push(RecentWorkspace {
+                location: project.location.workspace_location(),
+                identity_paths: paths.clone(),
+                paths,
+                timestamp,
+            });
+            continue;
+        }
+        if all_paths_exist_with_a_directory(paths.paths(), fs).await {
+            let identity_paths = resolve_local_workspace_identity(fs, &paths).await.unwrap_or_else(|| paths.clone());
+            result.push(RecentWorkspace {
+                location: SerializedWorkspaceLocation::Local,
+                paths,
+                identity_paths,
+                timestamp,
+            });
+        }
+    }
+    dedupe_recent_workspaces(result)
+}
+
+/// Removes every recent entry grouped with `target`.
+pub async fn delete_recent_workspace_group(target: &RecentWorkspace, fs: &dyn Fs, cx: &mut AsyncApp) {
+    let store = cx.update(|cx| ProjectsStore::global(cx));
+    let mut doomed = Vec::new();
+    for workspace in recent_project_workspaces_ungrouped(store.recent(), fs).await {
+        if same_group(&workspace, target) {
+            doomed.push(ProjectLocation::new(&workspace.location, &workspace.paths));
+        }
+    }
+    cx.update(|cx| store.remove_recent(|location| doomed.contains(location), cx)).await;
+}
+
+async fn recent_project_workspaces_ungrouped(recent: Vec<RecentProject>, fs: &dyn Fs) -> Vec<RecentWorkspace> {
+    let mut result = Vec::new();
+    for project in recent {
+        let paths = project.location.path_list();
+        let identity_paths = if project.location.remote.is_none() {
+            resolve_local_workspace_identity(fs, &paths).await.unwrap_or_else(|| paths.clone())
+        } else {
+            paths.clone()
+        };
+        result.push(RecentWorkspace {
+            location: project.location.workspace_location(),
+            paths,
+            identity_paths,
+            timestamp: OffsetDateTime::UNIX_EPOCH,
+        });
+    }
+    result
+}
+
+fn same_group(left: &RecentWorkspace, right: &RecentWorkspace) -> bool {
+    location_identity(&left.location) == location_identity(&right.location)
+        && left.identity_paths == right.identity_paths
+}
+
+fn location_identity(location: &SerializedWorkspaceLocation) -> Option<RemoteConnectionIdentity> {
+    match location {
+        SerializedWorkspaceLocation::Local => None,
+        SerializedWorkspaceLocation::Remote(connection) => Some(remote_connection_identity(connection)),
+    }
 }
 
 async fn resolve_local_workspace_identity(fs: &dyn Fs, paths: &PathList) -> Option<PathList> {
@@ -1460,88 +519,161 @@ async fn resolve_local_workspace_identity(fs: &dyn Fs, paths: &PathList) -> Opti
     Some(PathList::new(&resolved_path_refs))
 }
 
+/// Keeps the first, most recent, workspace of each group.
 fn dedupe_recent_workspaces(workspaces: impl IntoIterator<Item = RecentWorkspace>) -> Vec<RecentWorkspace> {
-    let mut indices_by_key: HashMap<(Option<RemoteConnectionIdentity>, Vec<PathBuf>), usize> = HashMap::default();
-    let mut result: Vec<RecentWorkspace> = Vec::new();
-    for workspace in workspaces {
-        let location_identity = match &workspace.location {
-            SerializedWorkspaceLocation::Local => None,
-            SerializedWorkspaceLocation::Remote(connection) => Some(remote_connection_identity(connection)),
-        };
-        let key = (location_identity, workspace.identity_paths.paths().to_vec());
-        if let Some(&existing_index) = indices_by_key.get(&key) {
-            if workspace.timestamp > result[existing_index].timestamp {
-                result[existing_index] = workspace;
-            }
-        } else {
-            indices_by_key.insert(key, result.len());
-            result.push(workspace);
-        }
-    }
-
-    result
-}
-
-pub fn delete_unloaded_items(
-    alive_items: Vec<ItemId>,
-    workspace_id: WorkspaceId,
-    table: &'static str,
-    db: &ThreadSafeConnection,
-    cx: &mut App,
-) -> Task<Result<()>> {
-    let db = db.clone();
-    cx.spawn(async move |_| {
-        let placeholders = alive_items.iter().map(|_| "?").collect::<Vec<&str>>().join(", ");
-
-        let query = format!("DELETE FROM {table} WHERE workspace_id = ? AND item_id NOT IN ({placeholders})");
-
-        db.write(move |conn| {
-            let mut statement = Statement::prepare(conn, query)?;
-            let mut next_index = statement.bind(&workspace_id, 1)?;
-            for id in alive_items {
-                next_index = statement.bind(&id, next_index)?;
-            }
-            statement.exec()
+    let mut seen: HashMap<(Option<RemoteConnectionIdentity>, Vec<PathBuf>), ()> = HashMap::default();
+    workspaces
+        .into_iter()
+        .filter(|workspace| {
+            let key = (location_identity(&workspace.location), workspace.identity_paths.paths().to_vec());
+            seen.insert(key, ()).is_none()
         })
-        .await
-    })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
-    use gpui::WindowId;
+    use std::path::PathBuf;
+
+    use time::OffsetDateTime;
     use util::path_list::PathList;
 
+    use super::ProjectLocation;
+    use super::ProjectsFile;
+    use super::RecentProject;
+    use super::RecentWorkspace;
+    use super::RemoteServer;
+    use super::WindowBoundsJson;
+    use super::dedupe_recent_workspaces;
     use super::model::SerializedWorkspaceLocation;
-    use super::model::SessionWorkspace;
-    use super::read_session_workspaces;
-    use crate::WorkspaceId;
+    use super::workspace_state_path;
+    use super::workspace_state_rel_path;
 
-    fn session_workspace(id: i64, window_id: Option<u64>, paths: &[&str]) -> SessionWorkspace {
-        SessionWorkspace {
-            workspace_id: WorkspaceId::from_i64(id),
-            location: SerializedWorkspaceLocation::Local,
-            paths: PathList::new(paths),
-            window_id: window_id.map(WindowId::from),
-        }
+    fn local(paths: &[&str]) -> ProjectLocation {
+        ProjectLocation { paths: paths.iter().map(PathBuf::from).collect(), remote: None }
     }
 
     #[test]
-    fn test_read_session_workspaces_keeps_one_per_window() {
-        let restored = read_session_workspaces(vec![
-            session_workspace(1, Some(1), &[]),
-            session_workspace(2, Some(1), &["/a"]),
-            session_workspace(3, Some(2), &[]),
-            session_workspace(4, None, &["/b"]),
-            session_workspace(5, Some(2), &[]),
-            session_workspace(6, None, &[]),
-        ]);
-        let ids = restored.iter().map(|workspace| workspace.workspace_id).collect::<Vec<_>>();
-        // A window prefers its first workspace with paths, else its first one;
-        // workspaces without a window are each restored on their own.
+    fn test_projects_file_parse_ignores_invalid_contents() {
+        assert_eq!(ProjectsFile::parse("not json"), ProjectsFile::default());
+        assert_eq!(ProjectsFile::parse(r#"{"recent": 3}"#), ProjectsFile::default());
+        assert_eq!(ProjectsFile::parse("{}"), ProjectsFile::default());
+    }
+
+    #[test]
+    fn test_projects_file_round_trip() {
+        let file = ProjectsFile {
+            recent: vec![
+                RecentProject { location: local(&["/b", "/a"]), opened_at: 7 },
+                RecentProject {
+                    location: ProjectLocation {
+                        paths: vec![PathBuf::from("/srv")],
+                        remote: Some(RemoteServer { host: "box".into(), username: Some("me".into()), port: None }),
+                    },
+                    opened_at: 3,
+                },
+            ],
+            session: vec![local(&["/b", "/a"])],
+        };
+        let json = serde_json::to_string(&file).unwrap();
+        assert_eq!(ProjectsFile::parse(&json), file);
+    }
+
+    #[test]
+    fn test_record_recent_moves_project_to_front() {
+        let mut file = ProjectsFile::default();
+        assert!(file.record_recent(local(&["/a"]), 1));
+        assert!(file.record_recent(local(&["/b"]), 2));
+        // Already first: only the timestamp moves, and nothing needs writing.
+        assert!(!file.record_recent(local(&["/b"]), 3));
+        assert!(file.record_recent(local(&["/a"]), 4));
+        assert!(!file.record_recent(local(&[]), 5));
         assert_eq!(
-            ids,
-            [WorkspaceId::from_i64(2), WorkspaceId::from_i64(3), WorkspaceId::from_i64(4), WorkspaceId::from_i64(6)]
+            file.recent,
+            [
+                RecentProject { location: local(&["/a"]), opened_at: 4 },
+                RecentProject { location: local(&["/b"]), opened_at: 3 }
+            ]
         );
+    }
+
+    #[test]
+    fn test_record_recent_caps_the_list() {
+        let mut file = ProjectsFile::default();
+        for index in 0..super::MAX_RECENT_PROJECTS + 5 {
+            file.record_recent(local(&[&format!("/{index}")]), i64::try_from(index).unwrap());
+        }
+        assert_eq!(file.recent.len(), super::MAX_RECENT_PROJECTS);
+        assert_eq!(file.recent[0].location, local(&[&format!("/{}", super::MAX_RECENT_PROJECTS + 4)]));
+    }
+
+    #[test]
+    fn test_remove_recent() {
+        let mut file = ProjectsFile::default();
+        file.record_recent(local(&["/a"]), 1);
+        file.record_recent(local(&["/b"]), 2);
+        assert!(file.remove_recent(|location| location == &local(&["/a"])));
+        assert!(!file.remove_recent(|location| location == &local(&["/a"])));
+        assert_eq!(file.recent.len(), 1);
+    }
+
+    #[test]
+    fn test_set_session_reports_changes() {
+        let mut file = ProjectsFile::default();
+        assert!(file.set_session(vec![local(&["/a"])]));
+        assert!(!file.set_session(vec![local(&["/a"])]));
+        assert!(file.set_session(Vec::new()));
+    }
+
+    #[test]
+    fn test_project_location_keeps_path_order() {
+        let paths = PathList::new(&["/b", "/a"]);
+        let location = ProjectLocation::new(&SerializedWorkspaceLocation::Local, &paths);
+        assert_eq!(location.paths, [PathBuf::from("/b"), PathBuf::from("/a")]);
+        assert_eq!(location.path_list(), paths);
+        assert_eq!(location.workspace_location(), SerializedWorkspaceLocation::Local);
+    }
+
+    #[test]
+    fn test_remote_server_round_trip() {
+        let server = RemoteServer { host: "box".into(), username: Some("me".into()), port: Some(2222) };
+        let location = ProjectLocation { paths: vec![PathBuf::from("/srv")], remote: Some(server.clone()) };
+        let SerializedWorkspaceLocation::Remote(options) = location.workspace_location() else {
+            panic!("expected a remote location");
+        };
+        assert_eq!(RemoteServer::from_options(&options), server);
+    }
+
+    #[test]
+    fn test_window_bounds_json_round_trip() {
+        let bounds = gpui::WindowBounds::Maximized(gpui::Bounds {
+            origin: gpui::point(gpui::px(10.), gpui::px(20.)),
+            size: gpui::size(gpui::px(800.), gpui::px(600.)),
+        });
+        let json = WindowBoundsJson::from(bounds);
+        assert_eq!(json, WindowBoundsJson::Maximized { x: 10, y: 20, width: 800, height: 600 });
+        assert_eq!(gpui::WindowBounds::from(json), bounds);
+    }
+
+    #[test]
+    fn test_workspace_state_paths() {
+        assert_eq!(workspace_state_path("/p".as_ref()), PathBuf::from("/p/.ed/workspace.json"));
+        assert_eq!(workspace_state_rel_path().as_unix_str(), ".ed/workspace.json");
+    }
+
+    #[test]
+    fn test_dedupe_recent_workspaces_keeps_first_of_group() {
+        let workspace = |paths: &[&str], identity: &[&str]| RecentWorkspace {
+            location: SerializedWorkspaceLocation::Local,
+            paths: PathList::new(paths),
+            identity_paths: PathList::new(identity),
+            timestamp: OffsetDateTime::UNIX_EPOCH,
+        };
+        let deduped = dedupe_recent_workspaces([
+            workspace(&["/repo-wt"], &["/repo"]),
+            workspace(&["/repo"], &["/repo"]),
+            workspace(&["/other"], &["/other"]),
+        ]);
+        assert_eq!(deduped, [workspace(&["/repo-wt"], &["/repo"]), workspace(&["/other"], &["/other"])]);
     }
 }

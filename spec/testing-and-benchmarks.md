@@ -39,8 +39,6 @@ Default and all-feature workspace checks must have no unused-dependency warnings
 Keep the workspace lint enabled; exceptions for dependencies shared between a
 library and its binary are confined to the affected target.
 Cargo-shear is not used in this fork; manifests carry no cargo-shear metadata.
-SQLite query macros validate syntax on every supported build host, including
-Linux hosts building the remote server.
 Avoid duplicate major versions in `Cargo.lock` (e.g. only `bitflags` 2.x and
 one `png`); prefer bumping the dependent over accepting a second copy.
 LSP protocol types are vendored in `crates/lsp_types` (from the Zed fork of

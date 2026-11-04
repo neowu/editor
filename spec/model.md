@@ -116,7 +116,7 @@ Workspace                 window root, one per window; owns Entity<Project>
   window (recent projects, Close Project, switching or creating a git worktree)
   first runs the current workspace's close prompts, then replaces the window's
   root with a new `Workspace` (`replace_window_workspace`); the old one leaves
-  the session and is released, keeping its DB row for recent projects. Nothing
+  the session and is released, staying in recent projects. Nothing
   keeps a second workspace alive in the background, and there are no
   per-window project groups or workspace sidebar.
 - Only the window's root workspace writes the window title / edited state.
@@ -124,7 +124,7 @@ Workspace                 window root, one per window; owns Entity<Project>
   uses the root it is given rather than updating the same `Entity<Workspace>`
   again (a double lease panics). Callbacks that may run for a non-root
   workspace update through the untyped `AnyWindowHandle`.
-- Session restore reopens one window per workspace of the previous session.
+- Session restore reopens one window per project open at the last quit.
 - `Workspace` holds the only strong `Project` handle that matters; panes,
   items and panels keep `Entity<Project>` or `WeakEntity` copies. When the
   workspace goes, the project goes.
@@ -180,8 +180,7 @@ downcasts to the item types it cares about, and (re)subscribes to that item.
 - A `Panel` emits `PanelEvent` (`Activate`, `Close`, `ZoomIn/Out`), which the
   workspace handles. `Dock` observes each panel to re-render, and observes
   settings to move a panel when its dock position setting changes.
-- Panels are loaded asynchronously (each panel's `load`, usually restoring
-  serialized state) and added when ready; dock layout is restored after all
+- Panels are loaded asynchronously (each panel's `load`) and added when ready; dock layout is restored after all
   of them (`finish_dock_restoration`).
 
 ## Opening a file
@@ -201,9 +200,10 @@ downcasts to the item types it cares about, and (re)subscribes to that item.
 - `Workspace::new_local` / `open_paths` creates a `Project`, opens a window
   (or replaces the requesting window's root) with a new `Workspace`, and restores
   the serialized workspace (panes, items via `SerializableItem`, docks) from
-  the DB.
+  the project's `.ed/workspace.json`.
 - `observe_new::<Workspace>` in `ed` then adds panels, status bar items and
   workspace actions, and routes the window's close request to its current root
   `Workspace`.
-- Items, panes and docks persist themselves by enqueuing serialization on
-  relevant events; the workspace debounces writes to the DB.
+- An item persists by returning its state from `SerializableItem::serialize`;
+  events it marks with `should_serialize` (and pane, dock and window changes)
+  schedule a debounced rewrite of the whole `.ed/workspace.json`.

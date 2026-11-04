@@ -151,8 +151,7 @@ because it hurt readability; an opaque window is also cheaper to composite.
 - A zoomed view (editor or any dock) covers exactly the area the cards occupy,
   on the chrome, overlaying the others, so every zoomed view has the same size.
   The `zoomed_padding` setting is removed, as is centered layout
-  (`workspace::ToggleCenteredLayout` and the `centered_layout` setting); the
-  database column it used is left in place, unused. The status bar is hidden while
+  (`workspace::ToggleCenteredLayout` and the `centered_layout` setting). The status bar is hidden while
   something is zoomed, so the zoomed view reaches down to the bottom gap. The
   window header moves into the zoomed view's top row, since the macOS window
   controls sit there.

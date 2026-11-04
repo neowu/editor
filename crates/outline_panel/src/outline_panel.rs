@@ -11,13 +11,11 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{self};
 use std::time::Duration;
 
-use anyhow::Context as _;
 use collections::BTreeMap;
 use collections::BTreeSet;
 use collections::HashMap;
 use collections::HashSet;
 use collections::IndexMap;
-use db::kvp::KeyValueStore;
 use editor::AnchorRangeExt;
 use editor::Bias;
 use editor::DisplayPoint;
@@ -107,8 +105,6 @@ use project::Project;
 use project::ProjectPath;
 use search::BufferSearchBar;
 use search::ProjectSearchView;
-use serde::Deserialize;
-use serde::Serialize;
 use settings::Settings;
 use settings::SettingsStore;
 use theme::SyntaxTheme;
@@ -129,8 +125,6 @@ use ui::WithScrollbar;
 use ui::prelude::*;
 use ui::utils::ui_text_style;
 use util::RangeExt;
-use util::ResultExt;
-use util::TryFutureExt;
 use util::debug_panic;
 use util::rel_path::RelPath;
 use workspace::OpenInTerminal;
@@ -204,7 +198,6 @@ pub struct OutlinePanel {
     rendered_entries_len: usize,
     context_menu: Option<(Entity<ContextMenu>, Point<Pixels>, Subscription)>,
     focus_handle: FocusHandle,
-    pending_serialization: Task<Option<()>>,
 
     fs_entries: Vec<FsEntry>,
     fs_children_count: HashMap<WorktreeId, HashMap<Arc<RelPath>, FsChildren>>,
@@ -983,11 +976,6 @@ pub enum Event {
     Focus,
 }
 
-#[derive(Serialize, Deserialize)]
-struct SerializedOutlinePanel {
-    active: Option<bool>,
-}
-
 pub fn init(cx: &mut App) {
     cx.observe_new(|workspace: &mut Workspace, _, _| {
         workspace.register_action(|workspace, _: &ToggleFocus, window, cx| {
@@ -1004,36 +992,14 @@ pub fn init(cx: &mut App) {
 
 impl OutlinePanel {
     pub async fn load(workspace: WeakEntity<Workspace>, mut cx: AsyncWindowContext) -> anyhow::Result<Entity<Self>> {
-        let serialized_panel =
-            match workspace.read_with(&cx, |workspace, _| OutlinePanel::serialization_key(workspace)).ok().flatten() {
-                Some(serialization_key) => {
-                    let kvp = cx.update(|_, cx| KeyValueStore::global(cx))?;
-                    cx.background_spawn(async move { kvp.read_kvp(&serialization_key) })
-                        .await
-                        .context("loading outline panel")
-                        .log_err()
-                        .flatten()
-                        .map(|panel| serde_json::from_str::<SerializedOutlinePanel>(&panel))
-                        .transpose()
-                        .log_err()
-                        .flatten()
-                }
-                None => None,
-            };
-
         workspace.update_in(&mut cx, |workspace, window, cx| {
-            let panel = Self::new(workspace, serialized_panel.as_ref(), window, cx);
+            let panel = Self::new(workspace, window, cx);
             panel.update(cx, |_, cx| cx.notify());
             panel
         })
     }
 
-    fn new(
-        workspace: &Workspace,
-        serialized: Option<&SerializedOutlinePanel>,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) -> Entity<Self> {
+    fn new(workspace: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> Entity<Self> {
         let project = workspace.project().clone();
         let workspace_handle = cx.entity().downgrade();
 
@@ -1165,7 +1131,7 @@ impl OutlinePanel {
 
             let mut outline_panel = Self {
                 mode: ItemsDisplayMode::Outline,
-                active: serialized.and_then(|s| s.active).unwrap_or(false),
+                active: false,
                 pinned: false,
                 workspace: workspace_handle,
                 project,
@@ -1182,7 +1148,6 @@ impl OutlinePanel {
                 selected_entry: SelectedEntry::None,
                 context_menu: None,
                 active_item: None,
-                pending_serialization: Task::ready(None),
                 new_entries_for_fs_update: HashSet::default(),
                 preserve_selection_on_buffer_fold_toggles: HashSet::default(),
                 pending_default_expansion_depth: None,
@@ -1210,31 +1175,6 @@ impl OutlinePanel {
             }
             outline_panel
         })
-    }
-
-    fn serialization_key(workspace: &Workspace) -> Option<String> {
-        workspace
-            .database_id()
-            .map(|id| i64::from(id).to_string())
-            .or(workspace.session_id())
-            .map(|id| format!("{}-{:?}", OUTLINE_PANEL_KEY, id))
-    }
-
-    fn serialize(&mut self, cx: &Context<Self>) {
-        let Some(serialization_key) =
-            self.workspace.read_with(cx, |workspace, _| OutlinePanel::serialization_key(workspace)).ok().flatten()
-        else {
-            return;
-        };
-        let active = self.active.then_some(true);
-        let kvp = KeyValueStore::global(cx);
-        self.pending_serialization = cx.background_spawn(
-            async move {
-                kvp.write_kvp(serialization_key, serde_json::to_string(&SerializedOutlinePanel { active })?).await?;
-                anyhow::Ok(())
-            }
-            .log_err(),
-        );
     }
 
     fn dispatch_context(&self, window: &Window, cx: &Context<Self>) -> KeyContext {
@@ -4623,7 +4563,6 @@ impl Panel for OutlinePanel {
                             outline_panel.clear_previous(window, cx);
                         }
                     }
-                    outline_panel.serialize(cx);
                 })
                 .ok();
         })

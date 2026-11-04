@@ -68,13 +68,12 @@ use util::TryFutureExt;
 use util::debug_panic;
 use util::paths::PathExt;
 use util::paths::UrlExt as _;
-use workspace::ItemId;
 use workspace::ItemNavHistory;
 use workspace::OpenOptions;
 use workspace::OpenVisible;
 use workspace::Pane;
+use workspace::RestoreOnStartupBehavior;
 use workspace::Workspace;
-use workspace::WorkspaceId;
 use workspace::WorkspaceSettings;
 use workspace::invalid_item_view::InvalidItemView;
 use workspace::item::Item;
@@ -110,7 +109,6 @@ use crate::SelectionEffects;
 use crate::ToPoint as _;
 use crate::display_map::HighlightKey;
 use crate::editor_settings::SeedQuerySetting;
-use crate::persistence::EditorDb;
 use crate::persistence::SerializedEditor;
 use crate::scroll::ScrollAnchor;
 use crate::scroll::ScrollOffset;
@@ -309,12 +307,7 @@ impl Item for Editor {
         true
     }
 
-    fn clone_on_split(
-        &self,
-        _workspace_id: Option<WorkspaceId>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Option<Entity<Editor>>>
+    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Editor>>>
     where
         Self: Sized,
     {
@@ -478,8 +471,8 @@ impl Item for Editor {
         self.pixel_position_of_newest_cursor
     }
 
-    fn added_to_workspace(&mut self, workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Self>) {
-        self.workspace = Some((workspace.weak_handle(), workspace.database_id()));
+    fn added_to_workspace(&mut self, workspace: &mut Workspace, _window: &mut Window, cx: &mut Context<Self>) {
+        self.workspace = Some(workspace.weak_handle());
         if let Some(workspace_entity) = &workspace.weak_handle().upgrade() {
             cx.subscribe(workspace_entity, |editor, _, event: &workspace::Event, _| {
                 if let workspace::Event::ModalOpened = event {
@@ -487,25 +480,6 @@ impl Item for Editor {
                 }
             })
             .detach();
-        }
-
-        // Load persisted folds if this editor doesn't already have folds.
-        // This handles manually-opened files (not workspace restoration).
-        let display_snapshot = self.display_map.update(cx, |display_map, cx| display_map.snapshot(cx));
-        let has_folds = display_snapshot
-            .folds_in_range(MultiBufferOffset(0)..display_snapshot.buffer_snapshot().len())
-            .next()
-            .is_some();
-
-        if !has_folds
-            && let Some(workspace_id) = workspace.database_id()
-            && let Some(file_path) = self
-                .buffer()
-                .read(cx)
-                .as_singleton()
-                .and_then(|buffer| project::File::from_dyn(buffer.read(cx).file()).map(|file| file.abs_path(cx)))
-        {
-            self.load_folds_from_db(workspace_id, file_path, window, cx);
         }
     }
 
@@ -547,71 +521,53 @@ impl SerializableItem for Editor {
         "Editor"
     }
 
-    fn cleanup(
-        workspace_id: WorkspaceId,
-        alive_items: Vec<ItemId>,
-        _window: &mut Window,
-        cx: &mut App,
-    ) -> Task<Result<()>> {
-        workspace::delete_unloaded_items(alive_items, workspace_id, "editors", &EditorDb::global(cx), cx)
-    }
-
     fn deserialize(
         project: Entity<Project>,
         _workspace: WeakEntity<Workspace>,
-        workspace_id: workspace::WorkspaceId,
-        item_id: ItemId,
+        state: serde_json::Value,
         window: &mut Window,
         cx: &mut App,
     ) -> Task<Result<Entity<Self>>> {
-        let serialized_editor = match EditorDb::global(cx)
-            .get_serialized_editor(item_id, workspace_id)
-            .context("Failed to query editor state")
-        {
-            Ok(Some(serialized_editor)) => {
-                if ProjectSettings::get_global(cx).session.restore_unsaved_buffers {
-                    serialized_editor
-                } else {
-                    SerializedEditor {
-                        abs_path: serialized_editor.abs_path,
-                        contents: None,
-                        language: None,
-                        mtime: None,
-                    }
-                }
-            }
-            Ok(None) => {
-                return Task::ready(Err(anyhow!(
-                    "Unable to deserialize editor: No entry in database for item_id: {item_id} and workspace_id {workspace_id:?}"
-                )));
-            }
-            Err(error) => {
-                return Task::ready(Err(error));
-            }
+        let mut serialized_editor = match serde_json::from_value::<SerializedEditor>(state) {
+            Ok(serialized_editor) => serialized_editor,
+            Err(error) => return Task::ready(Err(anyhow!(error).context("deserializing editor state"))),
         };
-        log::debug!("Deserialized editor {item_id:?} in workspace {workspace_id:?}, {serialized_editor:?}");
+        if !ProjectSettings::get_global(cx).session.restore_unsaved_buffers {
+            serialized_editor.contents = None;
+            serialized_editor.language = None;
+            serialized_editor.mtime = None;
+        }
 
-        match serialized_editor {
-            SerializedEditor { abs_path: None, contents: Some(contents), language, .. } => window.spawn(cx, {
-                let project = project.clone();
-                async move |cx| {
-                    let language_registry = project.read_with(cx, |project, _| project.languages().clone());
+        let build_editor = |buffer: Entity<Buffer>,
+                            project: Entity<Project>,
+                            serialized_editor: SerializedEditor,
+                            cx: &mut AsyncWindowContext| {
+            cx.update(|window, cx| {
+                cx.new(|cx| {
+                    let mut editor = Editor::for_buffer(buffer, Some(project), window, cx);
+                    editor.restore_serialized_state(&serialized_editor, window, cx);
+                    editor
+                })
+            })
+        };
 
-                    let language = if let Some(language_name) = language {
-                        // We don't fail here, because we'd rather not set the language if the name changed
-                        // than fail to restore the buffer.
-                        language_registry.language_for_name(&language_name).await.ok()
-                    } else {
-                        None
-                    };
+        match serialized_editor.abs_path.clone() {
+            None => window.spawn(cx, async move |cx| {
+                let language_registry = project.read_with(cx, |project, _| project.languages().clone());
+                let language = match serialized_editor.language.as_deref() {
+                    // We don't fail here, because we'd rather not set the language if the name changed
+                    // than fail to restore the buffer.
+                    Some(language_name) => language_registry.language_for_name(language_name).await.ok(),
+                    None => None,
+                };
 
-                    // First create the empty buffer
-                    let buffer = project
-                        .update(cx, |project, cx| project.create_buffer(language, true, cx))
-                        .await
-                        .context("Failed to create buffer while deserializing editor")?;
+                let buffer = project
+                    .update(cx, |project, cx| project.create_buffer(language, true, cx))
+                    .await
+                    .context("Failed to create buffer while deserializing editor")?;
 
-                    // Then set the text so that the dirty bit is set correctly
+                if let Some(contents) = serialized_editor.contents.clone() {
+                    // Set the text after creating the buffer so that the dirty bit is set correctly.
                     buffer.update(cx, |buffer, cx| {
                         buffer.set_language_registry(language_registry);
                         buffer.set_text(contents, cx);
@@ -619,97 +575,43 @@ impl SerializableItem for Editor {
                             buffer.forget_transaction(entry.transaction_id());
                         }
                     });
-
-                    cx.update(|window, cx| {
-                        cx.new(|cx| {
-                            let mut editor = Editor::for_buffer(buffer, Some(project), window, cx);
-
-                            editor.read_metadata_from_db(item_id, workspace_id, window, cx);
-                            editor
-                        })
-                    })
                 }
+
+                build_editor(buffer, project, serialized_editor, cx)
             }),
-            SerializedEditor { abs_path: Some(abs_path), contents, mtime, .. } => {
+            Some(abs_path) => {
                 let opened_buffer = project.update(cx, |project, cx| {
                     let (worktree, path) = project.find_worktree(&abs_path, cx)?;
                     let project_path = ProjectPath { worktree_id: worktree.read(cx).id(), path };
                     Some(project.open_path(project_path, cx))
                 });
 
-                match opened_buffer {
-                    Some(opened_buffer) => window.spawn(cx, async move |cx| {
-                        let (_, buffer) = opened_buffer.await.context("Failed to open path in project")?;
+                window.spawn(cx, async move |cx| {
+                    let buffer = match opened_buffer {
+                        Some(opened_buffer) => opened_buffer.await.context("Failed to open path in project")?.1,
+                        // The file is not in any worktree (e.g., opened as a standalone file). Open the
+                        // buffer directly rather than through `workspace.open_abs_path()`, which would also
+                        // add it to a pane; the caller adds the returned item to the right pane.
+                        None => project
+                            .update(cx, |project, cx| project.open_local_buffer(&abs_path, cx))
+                            .await
+                            .with_context(|| format!("Failed to open buffer for {abs_path:?}"))?,
+                    };
 
-                        if let Some(contents) = contents {
-                            buffer.update(cx, |buffer, cx| {
-                                restore_serialized_buffer_contents(buffer, contents, mtime, cx);
-                            });
-                        }
-
-                        cx.update(|window, cx| {
-                            cx.new(|cx| {
-                                let mut editor = Editor::for_buffer(buffer, Some(project), window, cx);
-
-                                editor.read_metadata_from_db(item_id, workspace_id, window, cx);
-                                editor
-                            })
-                        })
-                    }),
-                    None => {
-                        // File is not in any worktree (e.g., opened as a standalone file).
-                        // Open the buffer directly via the project rather than through
-                        // workspace.open_abs_path(), which has the side effect of adding
-                        // the item to a pane. The caller (deserialize_to) will add the
-                        // returned item to the correct pane.
-                        window.spawn(cx, async move |cx| {
-                            let buffer = project
-                                .update(cx, |project, cx| project.open_local_buffer(&abs_path, cx))
-                                .await
-                                .with_context(|| format!("Failed to open buffer for {abs_path:?}"))?;
-
-                            if let Some(contents) = contents {
-                                buffer.update(cx, |buffer, cx| {
-                                    restore_serialized_buffer_contents(buffer, contents, mtime, cx);
-                                });
-                            }
-
-                            cx.update(|window, cx| {
-                                cx.new(|cx| {
-                                    let mut editor = Editor::for_buffer(buffer, Some(project), window, cx);
-                                    editor.read_metadata_from_db(item_id, workspace_id, window, cx);
-                                    editor
-                                })
-                            })
-                        })
+                    if let Some(contents) = serialized_editor.contents.clone() {
+                        let mtime = serialized_editor.mtime();
+                        buffer.update(cx, |buffer, cx| {
+                            restore_serialized_buffer_contents(buffer, contents, mtime, cx);
+                        });
                     }
-                }
-            }
-            SerializedEditor { abs_path: None, contents: None, .. } => window.spawn(cx, async move |cx| {
-                let buffer = project
-                    .update(cx, |project, cx| project.create_buffer(None, true, cx))
-                    .await
-                    .context("Failed to create buffer")?;
 
-                cx.update(|window, cx| {
-                    cx.new(|cx| {
-                        let mut editor = Editor::for_buffer(buffer, Some(project), window, cx);
-
-                        editor.read_metadata_from_db(item_id, workspace_id, window, cx);
-                        editor
-                    })
+                    build_editor(buffer, project, serialized_editor, cx)
                 })
-            }),
+            }
         }
     }
 
-    fn serialize(
-        &mut self,
-        workspace: &mut Workspace,
-        item_id: ItemId,
-        closing: bool,
-        cx: &mut Context<Self>,
-    ) -> Option<Task<Result<()>>> {
+    fn serialize(&self, _workspace: &Workspace, closing: bool, cx: &App) -> Option<serde_json::Value> {
         let buffer_serialization = self.buffer_serialization?;
         let project = self.project.clone()?;
 
@@ -723,8 +625,6 @@ impl SerializableItem for Editor {
         if closing && !serialize_dirty_buffers {
             return None;
         }
-
-        let workspace_id = workspace.database_id()?;
 
         let buffer = self.buffer().read(cx).as_singleton()?;
 
@@ -741,25 +641,23 @@ impl SerializableItem for Editor {
                 })
         });
 
-        let is_dirty = buffer.read(cx).is_dirty();
-        let mtime = buffer.read(cx).saved_mtime();
+        let buffer = buffer.read(cx);
+        let (contents, language) = if serialize_dirty_buffers && buffer.is_dirty() {
+            (Some(buffer.text()), buffer.language().map(|language| language.name().to_string()))
+        } else {
+            (None, None)
+        };
+        let mtime = buffer.saved_mtime().and_then(|mtime| mtime.to_seconds_and_nanos_for_persistence());
 
-        let snapshot = buffer.read(cx).snapshot();
-
-        let db = EditorDb::global(cx);
-        Some(cx.background_spawn(async move {
-            let (contents, language) = if serialize_dirty_buffers && is_dirty {
-                let contents = snapshot.text();
-                let language = snapshot.language().map(|language| language.name().to_string());
-                (Some(contents), language)
+        let (scroll, selections) =
+            if WorkspaceSettings::get(None, cx).restore_on_startup != RestoreOnStartupBehavior::EmptyTab {
+                self.serialized_view_state(cx)
             } else {
-                (None, None)
+                (None, Vec::new())
             };
 
-            let editor = SerializedEditor { abs_path, contents, language, mtime };
-            log::debug!("Serializing editor {item_id:?} in workspace {workspace_id:?}");
-            db.save_serialized_editor(item_id, workspace_id, editor).await.context("failed to save serialized editor")
-        }))
+        let editor = SerializedEditor { abs_path, contents, language, mtime, scroll, selections };
+        serde_json::to_value(editor).log_err()
     }
 
     fn should_serialize(&self, event: &Self::Event) -> bool {
@@ -770,6 +668,8 @@ impl SerializableItem for Editor {
                     | EditorEvent::DirtyChanged
                     | EditorEvent::BufferEdited
                     | EditorEvent::FileHandleChanged
+                    | EditorEvent::SelectionsChanged { local: true }
+                    | EditorEvent::ScrollPositionChanged { local: true, .. }
             )
     }
 }

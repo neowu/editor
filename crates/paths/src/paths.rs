@@ -127,12 +127,6 @@ pub fn old_log_file() -> &'static PathBuf {
     OLD_LOG_FILE.get_or_init(|| logs_dir().join(format!("{}.log.old", APP_NAME)))
 }
 
-/// Returns the path to the database directory.
-pub fn database_dir() -> &'static PathBuf {
-    static DATABASE_DIR: OnceLock<PathBuf> = OnceLock::new();
-    DATABASE_DIR.get_or_init(|| data_dir().join("db"))
-}
-
 pub fn global_gitignore_path() -> Option<PathBuf> {
     static GLOBAL_GITIGNORE_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
     GLOBAL_GITIGNORE_PATH.get_or_init(::ignore::gitignore::gitconfig_excludes_path).clone()

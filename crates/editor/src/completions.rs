@@ -559,7 +559,7 @@ impl Editor {
                     let languages = editor
                         .workspace
                         .as_ref()
-                        .and_then(|(workspace, _)| workspace.upgrade())
+                        .and_then(|workspace| workspace.upgrade())
                         .map(|workspace| workspace.read(cx).app_state().languages.clone());
                     let menu = CompletionsMenu::new(
                         id,

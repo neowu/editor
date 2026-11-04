@@ -14,7 +14,6 @@ buffer_diff.workspace = true
 clock.workspace = true
 collections.workspace = true
 convert_case.workspace = true
-db.workspace = true
 ed_actions.workspace = true
 emojis.workspace = true
 file_icons.workspace = true
@@ -55,7 +54,7 @@ unicode-segmentation.workspace = true
 url.workspace = true
 urlencoding.workspace = true
 util.workspace = true
-uuid.workspace = true
+uuid = { workspace = true, features = ["v4", "v7"] }
 workspace.workspace = true
 
 [lints]

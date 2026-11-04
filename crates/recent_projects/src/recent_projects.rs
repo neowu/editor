@@ -48,7 +48,6 @@ pub use remote_servers::RemoteServerProjects;
 use settings::DefaultOpenBehavior;
 use settings::Settings;
 use settings::WorktreeId;
-use time::OffsetDateTime;
 use ui::ButtonLike;
 use ui::ContextMenu;
 use ui::Divider;
@@ -69,24 +68,15 @@ use workspace::ModalView;
 use workspace::OpenMode;
 use workspace::OpenOptions;
 use workspace::OpenVisible;
+use workspace::ProjectLocation;
+use workspace::ProjectsStore;
 use workspace::RecentWorkspace;
 use workspace::SerializedWorkspaceLocation;
 use workspace::Workspace;
-use workspace::WorkspaceDb;
-use workspace::WorkspaceId;
 use workspace::notifications::DetachAndPromptErr;
 use workspace::with_active_or_new_workspace;
 
 actions!(recent_projects, [ToggleActionsMenu, RemoveSelected, AddToWorkspace,]);
-
-#[derive(Clone, Debug)]
-pub struct RecentProjectEntry {
-    pub name: SharedString,
-    pub full_path: SharedString,
-    pub paths: Vec<PathBuf>,
-    pub workspace_id: WorkspaceId,
-    pub timestamp: OffsetDateTime,
-}
 
 #[derive(Clone, Debug)]
 struct OpenFolderEntry {
@@ -126,68 +116,6 @@ const fn is_selectable_entry(entry: &ProjectPickerEntry) -> bool {
 enum ProjectPickerStyle {
     Modal,
     Popover,
-}
-
-pub async fn get_recent_projects(
-    current_workspace_id: Option<WorkspaceId>,
-    limit: Option<usize>,
-    fs: Arc<dyn fs::Fs>,
-    db: &WorkspaceDb,
-) -> Vec<RecentProjectEntry> {
-    let workspaces = db.recent_project_workspaces(fs.as_ref()).await.unwrap_or_default();
-
-    let filtered: Vec<_> = workspaces
-        .into_iter()
-        .filter(|workspace| Some(workspace.workspace_id) != current_workspace_id)
-        .filter(|workspace| matches!(workspace.location, SerializedWorkspaceLocation::Local))
-        .collect();
-
-    let mut all_paths: Vec<PathBuf> =
-        filtered.iter().flat_map(|workspace| workspace.identity_paths.paths().iter().cloned()).collect();
-    all_paths.sort_unstable();
-    all_paths.dedup();
-    let path_details = util::disambiguate::compute_disambiguation_details(&all_paths, |path, detail| {
-        project::path_suffix(path, detail)
-    });
-    let path_detail_map: std::collections::HashMap<PathBuf, usize> = all_paths.into_iter().zip(path_details).collect();
-
-    let entries: Vec<RecentProjectEntry> = filtered
-        .into_iter()
-        .map(|workspace| {
-            let paths: Vec<PathBuf> = workspace.paths.paths().to_vec();
-            let ordered_paths: Vec<&PathBuf> = workspace.identity_paths.ordered_paths().collect();
-
-            let name = ordered_paths
-                .iter()
-                .map(|p| {
-                    let detail = path_detail_map.get(*p).copied().unwrap_or(0);
-                    project::path_suffix(p, detail)
-                })
-                .filter(|s| !s.is_empty())
-                .collect::<Vec<_>>()
-                .join(", ");
-
-            let full_path =
-                ordered_paths.iter().map(|p| p.to_string_lossy().to_string()).collect::<Vec<_>>().join("\n");
-
-            RecentProjectEntry {
-                name: SharedString::from(name),
-                full_path: SharedString::from(full_path),
-                paths,
-                workspace_id: workspace.workspace_id,
-                timestamp: workspace.timestamp,
-            }
-        })
-        .collect();
-
-    match limit {
-        Some(n) => entries.into_iter().take(n).collect(),
-        None => entries,
-    }
-}
-
-pub async fn delete_recent_project(workspace_id: WorkspaceId, db: &WorkspaceDb) {
-    let _ = db.delete_workspace_by_id(workspace_id).await;
 }
 
 fn get_open_folders(workspace: &Workspace, cx: &App) -> Vec<OpenFolderEntry> {
@@ -360,12 +288,12 @@ impl RecentProjects {
                 }
             }));
         }
-        // We do not want to block the UI on a potentially lengthy call to DB, so we're gonna swap
-        // out workspace locations once the future runs to completion.
-        let db = WorkspaceDb::global(cx);
+        // Checking which recent folders still exist touches the disk, so swap in the
+        // workspaces once that finishes rather than blocking the UI.
+        let recent = ProjectsStore::global(cx).recent();
         cx.spawn_in(window, async move |this, cx| {
             let Some(fs) = fs else { return };
-            let workspaces = db.recent_project_workspaces(fs.as_ref()).await.log_err().unwrap_or_default();
+            let workspaces = workspace::recent_project_workspaces(recent, fs.as_ref()).await;
             this.update_in(cx, move |this, window, cx| {
                 this.picker.update(cx, move |picker, cx| {
                     picker.delegate.set_workspaces(workspaces);
@@ -1290,12 +1218,13 @@ impl RecentProjectsDelegate {
         };
 
         let replace_current_window = self.create_new_window == secondary;
-        let candidate_workspace_id = candidate_workspace.workspace_id;
+        let candidate_project_location =
+            ProjectLocation::new(&candidate_workspace.location, &candidate_workspace.paths);
         let candidate_workspace_location = candidate_workspace.location.clone();
         let candidate_workspace_paths = candidate_workspace.paths.clone();
 
         workspace.update(cx, |workspace, cx| {
-            if workspace.database_id() == Some(candidate_workspace_id) {
+            if workspace.project_location(cx).as_ref() == Some(&candidate_project_location) {
                 return;
             }
             match candidate_workspace_location {
@@ -1427,22 +1356,16 @@ impl RecentProjectsDelegate {
                 return;
             };
             let fs = self.workspace.upgrade().map(|ws| ws.read(cx).app_state().fs.clone());
-            let db = WorkspaceDb::global(cx);
             cx.spawn_in(window, async move |this, cx| {
                 let Some(fs) = fs else { return };
-                let deleted_workspace_ids =
-                    db.delete_recent_workspace_group(&recent_workspace).await.log_err().unwrap_or_default();
-                let workspaces = db.recent_project_workspaces(fs.as_ref()).await.unwrap_or_default();
+                workspace::delete_recent_workspace_group(&recent_workspace, fs.as_ref(), cx).await;
+                let recent = cx.update(|_, cx| ProjectsStore::global(cx).recent()).unwrap_or_default();
+                let workspaces = workspace::recent_project_workspaces(recent, fs.as_ref()).await;
                 this.update_in(cx, move |picker, window, cx| {
                     Self::update_picker_after_recent_project_deletion(picker, ix, workspaces, window, cx);
-                    // After deleting a project, we want to update the history manager to reflect the change.
-                    // But we do not emit a update event when user opens a project, because it's handled in `workspace::load_workspace`.
+                    // Keep the dock's recent-projects menu in step with the list.
                     if let Some(history_manager) = HistoryManager::global(cx) {
-                        history_manager.update(cx, |this, cx| {
-                            for workspace_id in &deleted_workspace_ids {
-                                this.delete_history(*workspace_id, cx);
-                            }
-                        });
+                        history_manager.update(cx, |this, cx| this.delete_history(&recent_workspace.paths, cx));
                     }
                 })
                 .ok();
@@ -1473,15 +1396,11 @@ impl RecentProjectsDelegate {
         picker.update_matches(query, window, cx);
     }
 
-    fn is_current_workspace(&self, workspace_id: WorkspaceId, cx: &Context<Picker<Self>>) -> bool {
-        if let Some(workspace) = self.workspace.upgrade() {
-            let workspace = workspace.read(cx);
-            if Some(workspace_id) == workspace.database_id() {
-                return true;
-            }
-        }
-
-        false
+    fn is_current_workspace(&self, recent: &RecentWorkspace, cx: &Context<Picker<Self>>) -> bool {
+        let Some(workspace) = self.workspace.upgrade() else {
+            return false;
+        };
+        workspace.read(cx).project_location(cx) == Some(ProjectLocation::new(&recent.location, &recent.paths))
     }
 
     fn is_open_folder(&self, workspace: &RecentWorkspace) -> bool {
@@ -1508,6 +1427,6 @@ impl RecentProjectsDelegate {
     }
 
     fn is_valid_recent_candidate(&self, workspace: &RecentWorkspace, cx: &Context<Picker<Self>>) -> bool {
-        !self.is_current_workspace(workspace.workspace_id, cx) && !self.is_open_folder(workspace)
+        !self.is_current_workspace(workspace, cx) && !self.is_open_folder(workspace)
     }
 }

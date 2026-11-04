@@ -14,7 +14,6 @@ clock = { path = "crates/clock" }
 collections = { path = "crates/collections" }
 command_palette = { path = "crates/command_palette" }
 control = { path = "crates/control" }
-db = { path = "crates/db" }
 derive_refineable = { path = "crates/refineable/derive_refineable" }
 diagnostics = { path = "crates/diagnostics" }
 ed_actions = { path = "crates/ed_actions" }
@@ -75,13 +74,10 @@ rope = { path = "crates/rope" }
 rpc = { path = "crates/rpc" }
 scheduler = { path = "crates/scheduler" }
 search = { path = "crates/search" }
-session = { path = "crates/session" }
 settings = { path = "crates/settings" }
 settings_content = { path = "crates/settings_content" }
 snippet = { path = "crates/snippet" }
 spell_check = { path = "crates/spell_check" }
-sqlez = { path = "crates/sqlez" }
-sqlez_macros = { path = "crates/sqlez_macros" }
 sum_tree = { path = "crates/sum_tree" }
 svg_preview = { path = "crates/svg_preview" }
 syntax_theme = { path = "crates/syntax_theme" }
@@ -145,7 +141,6 @@ indexmap = { version = "2.7.0", features = ["serde"] }
 inventory = "0.3.19"
 itertools = "0.15"
 libc = "0.2"
-libsqlite3-sys = { version = "0.30.1", features = ["bundled"] }
 linkify = "0.10.0"
 log = { version = "0.4", default-features = false, features = ["std"] }
 lru = "0.19"
@@ -352,7 +347,6 @@ derive_refineable = { opt-level = 3 }
 gpui_macros = { opt-level = 3 }
 proc-macro2 = { opt-level = 3 }
 quote = { opt-level = 3 }
-sqlez_macros = { opt-level = 3, codegen-units = 1 }
 syn = { opt-level = 3 }
 # proc-macros end
 
@@ -373,7 +367,6 @@ project_symbols = { codegen-units = 1 }
 refineable = { codegen-units = 1 }
 resvg = { opt-level = 3 }
 serde_json = { opt-level = 3 }
-session = { codegen-units = 1 }
 snippet = { codegen-units = 1 }
 taffy = { opt-level = 3 }
 time_format = { codegen-units = 1 }

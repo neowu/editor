@@ -2,7 +2,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use anyhow::Result;
 use editor::Editor;
 use futures::FutureExt as _;
@@ -157,10 +156,7 @@ pub async fn open_remote_project(
         let workspace = window.entity(cx)?;
         (window, workspace)
     } else {
-        let workspace_position = cx
-            .update(|cx| workspace::remote_workspace_position_from_db(connection_options.clone(), &paths, cx))
-            .await
-            .context("fetching remote workspace position from db")?;
+        let workspace_position = workspace::remote_workspace_position();
 
         let mut options = cx.update(|cx| (app_state.build_window_options)(workspace_position.display, cx));
         options.window_bounds = workspace_position.window_bounds;
@@ -172,7 +168,7 @@ pub async fn open_remote_project(
                 project::LocalProjectFlags { init_worktree_trust: false },
                 cx,
             );
-            cx.new(|cx| Workspace::new(None, project, app_state.clone(), window, cx))
+            cx.new(|cx| Workspace::new(project, app_state.clone(), window, cx))
         })?;
         let workspace = window.entity(cx)?;
         (window, workspace)

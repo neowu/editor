@@ -729,21 +729,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
-name = "db"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "gpui",
- "inventory",
- "log",
- "paths",
- "sqlez",
- "sqlez_macros",
- "util",
- "uuid",
-]
-
-[[package]]
 name = "deranged"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -880,7 +865,6 @@ dependencies = [
  "collections",
  "command_palette",
  "control",
- "db",
  "diagnostics",
  "ed_actions",
  "editor",
@@ -915,7 +899,6 @@ dependencies = [
  "remote",
  "search",
  "serde_json",
- "session",
  "settings",
  "settings_content",
  "smol",
@@ -953,7 +936,6 @@ dependencies = [
  "clock",
  "collections",
  "convert_case 0.11.0",
- "db",
  "ed_actions",
  "emojis",
  "file_icons",
@@ -1514,7 +1496,6 @@ dependencies = [
  "async-channel",
  "buffer_diff",
  "collections",
- "db",
  "ed_actions",
  "editor",
  "file_icons",
@@ -1557,7 +1538,6 @@ dependencies = [
  "anyhow",
  "buffer_diff",
  "collections",
- "db",
  "ed_actions",
  "editor",
  "fs",
@@ -1575,8 +1555,6 @@ dependencies = [
  "rand",
  "remote",
  "remote_connection",
- "serde",
- "serde_json",
  "settings",
  "terminal",
  "ui",
@@ -2025,14 +2003,14 @@ name = "image_viewer"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "db",
  "editor",
  "file_icons",
  "gpui",
  "language",
- "log",
  "menu",
  "project",
+ "serde",
+ "serde_json",
  "settings",
  "ui",
  "util",
@@ -2422,17 +2400,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "libsqlite3-sys"
-version = "0.30.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149"
-dependencies = [
- "cc",
- "pkg-config",
- "vcpkg",
-]
-
-[[package]]
 name = "linked-hash-map"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2674,7 +2641,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "collections",
- "db",
  "ed_actions",
  "editor",
  "gpui",
@@ -2683,6 +2649,8 @@ dependencies = [
  "markdown",
  "mermaid",
  "project",
+ "serde",
+ "serde_json",
  "settings",
  "theme",
  "ui",
@@ -3137,7 +3105,6 @@ dependencies = [
  "anyhow",
  "async-channel",
  "collections",
- "db",
  "ed_actions",
  "editor",
  "file_icons",
@@ -3149,8 +3116,6 @@ dependencies = [
  "menu",
  "project",
  "search",
- "serde",
- "serde_json",
  "settings",
  "smallvec",
  "theme",
@@ -3754,7 +3719,6 @@ dependencies = [
  "remote",
  "remote_connection",
  "settings",
- "time",
  "ui",
  "util",
  "workspace",
@@ -4085,7 +4049,6 @@ dependencies = [
  "anyhow",
  "bitflags",
  "collections",
- "db",
  "ed_actions",
  "editor",
  "file_icons",
@@ -4178,16 +4141,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "session"
-version = "0.1.0"
-dependencies = [
- "db",
- "gpui",
- "serde_json",
- "util",
-]
-
-[[package]]
 name = "settings"
 version = "0.1.0"
 dependencies = [
@@ -4216,12 +4169,6 @@ dependencies = [
  "strum",
  "util",
 ]
-
-[[package]]
-name = "sha1_smol"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
 
 [[package]]
 name = "sha2"
@@ -4380,29 +4327,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
 dependencies = [
  "lock_api",
-]
-
-[[package]]
-name = "sqlez"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "collections",
- "futures",
- "libsqlite3-sys",
- "log",
- "parking_lot",
- "path",
- "thread_local",
- "uuid",
-]
-
-[[package]]
-name = "sqlez_macros"
-version = "0.1.0"
-dependencies = [
- "sqlez",
- "syn 2.0.117",
 ]
 
 [[package]]
@@ -4831,15 +4755,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.3",
-]
-
-[[package]]
-name = "thread_local"
-version = "1.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f60246a4944f24f6e018aa17cdeffb7818b76356965d03b07d6a9886e8962185"
-dependencies = [
- "cfg-if",
 ]
 
 [[package]]
@@ -5331,7 +5246,6 @@ dependencies = [
  "getrandom 0.4.1",
  "js-sys",
  "serde_core",
- "sha1_smol",
  "wasm-bindgen",
 ]
 
@@ -5370,12 +5284,6 @@ dependencies = [
  "sval_ref",
  "sval_serde",
 ]
-
-[[package]]
-name = "vcpkg"
-version = "0.2.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "version_check"
@@ -5944,7 +5852,6 @@ dependencies = [
  "any_vec",
  "anyhow",
  "collections",
- "db",
  "dirs",
  "ed_actions",
  "fs",
@@ -5957,15 +5864,14 @@ dependencies = [
  "markdown",
  "menu",
  "parking_lot",
+ "paths",
  "project",
  "remote",
  "rpc",
  "serde",
  "serde_json",
- "session",
  "settings",
  "smallvec",
- "sqlez",
  "strum",
  "task",
  "theme",

@@ -342,11 +342,11 @@ impl PickerDelegate for CommandPaletteDelegate {
                     .justify_between()
                     .gap_2()
                     .child(HighlightedLabel::new(command.name.clone(), matching_command.positions.clone()).truncate())
-                    .child(
-                        h_flex()
-                            .flex_shrink_0()
-                            .child(KeyBinding::for_action_in(&*command.action, &self.previous_focus_handle, cx)),
-                    ),
+                    .child(h_flex().flex_shrink_0().child(KeyBinding::for_action_in(
+                        &*command.action,
+                        &self.previous_focus_handle,
+                        cx,
+                    ))),
             ),
         )
     }

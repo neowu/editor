@@ -7,9 +7,10 @@ edition.workspace = true
 path = "src/markdown_preview.rs"
 
 [dependencies]
+serde.workspace = true
+serde_json.workspace = true
 anyhow.workspace = true
 collections.workspace = true
-db.workspace = true
 ed_actions.workspace = true
 editor.workspace = true
 gpui.workspace = true

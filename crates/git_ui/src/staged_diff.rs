@@ -295,12 +295,7 @@ impl Item for StagedDiff {
         true
     }
 
-    fn clone_on_split(
-        &self,
-        _workspace_id: Option<workspace::WorkspaceId>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Option<Entity<Self>>>
+    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
     where
         Self: Sized,
     {
@@ -372,15 +367,10 @@ impl SerializableItem for StagedDiff {
         "StagedDiff"
     }
 
-    fn cleanup(_: workspace::WorkspaceId, _: Vec<workspace::ItemId>, _: &mut Window, _: &mut App) -> Task<Result<()>> {
-        Task::ready(Ok(()))
-    }
-
     fn deserialize(
         project: Entity<Project>,
         workspace: WeakEntity<Workspace>,
-        _: workspace::WorkspaceId,
-        _: workspace::ItemId,
+        _state: serde_json::Value,
         window: &mut Window,
         cx: &mut App,
     ) -> Task<Result<Entity<Self>>> {
@@ -390,14 +380,8 @@ impl SerializableItem for StagedDiff {
         })
     }
 
-    fn serialize(
-        &mut self,
-        _: &mut Workspace,
-        _: workspace::ItemId,
-        _: bool,
-        _: &mut Context<Self>,
-    ) -> Option<Task<Result<()>>> {
-        Some(Task::ready(Ok(())))
+    fn serialize(&self, _: &Workspace, _: bool, _: &App) -> Option<serde_json::Value> {
+        Some(serde_json::Value::Null)
     }
 
     fn should_serialize(&self, _: &Self::Event) -> bool {

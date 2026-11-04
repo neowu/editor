@@ -42,17 +42,14 @@ use ui::Icon;
 use ui::IntoElement;
 use ui::Label;
 use ui::LabelCommon;
-use util::ResultExt;
 
 use crate::DelayedDebouncedEditAction;
 use crate::ItemNavHistory;
 use crate::SerializableItemRegistry;
 use crate::Workspace;
-use crate::WorkspaceId;
 use crate::invalid_item_view::InvalidItemView;
 use crate::pane::Pane;
 use crate::pane::{self};
-use crate::persistence::model::ItemId;
 use crate::searchable::SearchableItemHandle;
 use crate::workspace_settings::AutosaveSetting;
 use crate::workspace_settings::WorkspaceSettings;
@@ -255,16 +252,11 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
     fn can_split(&self) -> bool {
         false
     }
-    fn clone_on_split(
-        &self,
-        workspace_id: Option<WorkspaceId>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Option<Entity<Self>>>
+    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
     where
         Self: Sized,
     {
-        _ = (workspace_id, window, cx);
+        _ = (window, cx);
         unimplemented!("clone_on_split() must be implemented if can_split() returns true")
     }
     fn is_dirty(&self, _: &App) -> bool {
@@ -368,36 +360,26 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
 pub trait SerializableItem: Item {
     fn serialized_item_kind() -> &'static str;
 
-    fn cleanup(
-        workspace_id: WorkspaceId,
-        alive_items: Vec<ItemId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Task<Result<()>>;
-
     fn deserialize(
         _project: Entity<Project>,
         _workspace: WeakEntity<Workspace>,
-        _workspace_id: WorkspaceId,
-        _item_id: ItemId,
+        _state: serde_json::Value,
         _window: &mut Window,
         _cx: &mut App,
     ) -> Task<Result<Entity<Self>>>;
 
-    fn serialize(
-        &mut self,
-        workspace: &mut Workspace,
-        item_id: ItemId,
-        closing: bool,
-        cx: &mut Context<Self>,
-    ) -> Option<Task<Result<()>>>;
+    /// The state `.ed/workspace.json` keeps for this tab, or `None` to leave the
+    /// tab out. `closing` is set when the item's window is closing, so an item
+    /// that only keeps unsaved text in some modes can opt out.
+    fn serialize(&self, workspace: &Workspace, closing: bool, cx: &App) -> Option<serde_json::Value>;
 
+    /// Whether `event` changed state that `serialize` saves.
     fn should_serialize(&self, event: &Self::Event) -> bool;
 }
 
 pub trait SerializableItemHandle: ItemHandle {
     fn serialized_item_kind(&self) -> &'static str;
-    fn serialize(&self, workspace: &mut Workspace, closing: bool, cx: &mut App) -> Option<Task<Result<()>>>;
+    fn serialize(&self, workspace: &Workspace, closing: bool, cx: &App) -> Option<serde_json::Value>;
     fn should_serialize(&self, event: &dyn Any, cx: &App) -> bool;
 }
 
@@ -409,8 +391,8 @@ where
         T::serialized_item_kind()
     }
 
-    fn serialize(&self, workspace: &mut Workspace, closing: bool, cx: &mut App) -> Option<Task<Result<()>>> {
-        self.update(cx, |this, cx| this.serialize(workspace, cx.entity_id().as_u64(), closing, cx))
+    fn serialize(&self, workspace: &Workspace, closing: bool, cx: &App) -> Option<serde_json::Value> {
+        self.read(cx).serialize(workspace, closing, cx)
     }
 
     fn should_serialize(&self, event: &dyn Any, cx: &App) -> bool {
@@ -434,12 +416,7 @@ pub trait ItemHandle: 'static + Send {
     fn buffer_kind(&self, cx: &App) -> ItemBufferKind;
     fn boxed_clone(&self) -> Box<dyn ItemHandle>;
     fn can_split(&self, cx: &App) -> bool;
-    fn clone_on_split(
-        &self,
-        workspace_id: Option<WorkspaceId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Task<Option<Box<dyn ItemHandle>>>;
+    fn clone_on_split(&self, window: &mut Window, cx: &mut App) -> Task<Option<Box<dyn ItemHandle>>>;
     fn added_to_pane(
         &self,
         workspace: &mut Workspace,
@@ -600,13 +577,8 @@ impl<T: Item> ItemHandle for Entity<T> {
         self.read(cx).can_split()
     }
 
-    fn clone_on_split(
-        &self,
-        workspace_id: Option<WorkspaceId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Task<Option<Box<dyn ItemHandle>>> {
-        let task = self.update(cx, |item, cx| item.clone_on_split(workspace_id, window, cx));
+    fn clone_on_split(&self, window: &mut Window, cx: &mut App) -> Task<Option<Box<dyn ItemHandle>>> {
+        let task = self.update(cx, |item, cx| item.clone_on_split(window, cx));
         cx.background_spawn(async move { task.await.map(|handle| Box::new(handle) as Box<dyn ItemHandle>) })
     }
 
@@ -624,8 +596,8 @@ impl<T: Item> ItemHandle for Entity<T> {
             this.added_to_workspace(workspace, window, cx);
         });
 
-        if let Some(serializable_item) = self.to_serializable_item_handle(cx) {
-            workspace.enqueue_item_serialization(serializable_item).log_err();
+        if self.to_serializable_item_handle(cx).is_some() {
+            workspace.serialize_workspace(window, cx);
         }
 
         let old_item_pane = workspace.panes_by_item.insert(self.item_id(), pane.downgrade());
@@ -645,7 +617,7 @@ impl<T: Item> ItemHandle for Entity<T> {
                     if let Some(item) = item.to_serializable_item_handle(cx)
                         && item.should_serialize(event, cx)
                     {
-                        workspace.enqueue_item_serialization(item).ok();
+                        workspace.serialize_workspace(window, cx);
                     }
 
                     T::to_item_events(event, &mut |event| match event {

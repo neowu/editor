@@ -52,7 +52,6 @@ use crate::diff_multibuffer::DiffMultibuffer;
 use crate::project_diff::CompareWithBranch;
 use crate::project_diff::DeployBranchDiff;
 use crate::project_diff::ProjectDiff;
-use crate::project_diff::{self};
 
 /// The workspace item for a branch (merge-base) diff: "Changes since {branch}".
 /// It wraps a single [`DiffMultibuffer`] over [`DiffBase::Merge`] and delegates
@@ -342,12 +341,7 @@ impl Item for BranchDiff {
         true
     }
 
-    fn clone_on_split(
-        &self,
-        _workspace_id: Option<workspace::WorkspaceId>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Option<Entity<Self>>>
+    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
     where
         Self: Sized,
     {
@@ -438,21 +432,15 @@ impl SerializableItem for BranchDiff {
         "BranchDiff"
     }
 
-    fn cleanup(_: workspace::WorkspaceId, _: Vec<workspace::ItemId>, _: &mut Window, _: &mut App) -> Task<Result<()>> {
-        Task::ready(Ok(()))
-    }
-
     fn deserialize(
         project: Entity<Project>,
         workspace: WeakEntity<Workspace>,
-        workspace_id: workspace::WorkspaceId,
-        item_id: workspace::ItemId,
+        state: serde_json::Value,
         window: &mut Window,
         cx: &mut App,
     ) -> Task<Result<Entity<Self>>> {
-        let db = project_diff::persistence::ProjectDiffDb::global(cx);
         window.spawn(cx, async move |cx| {
-            let diff_base = db.get_project_diff_base(item_id, workspace_id)?;
+            let diff_base: DiffBase = serde_json::from_value(state).context("deserializing branch diff state")?;
             let DiffBase::Merge { base_ref } = diff_base else {
                 anyhow::bail!("expected a merge base for a branch diff");
             };
@@ -463,20 +451,11 @@ impl SerializableItem for BranchDiff {
         })
     }
 
-    fn serialize(
-        &mut self,
-        workspace: &mut Workspace,
-        item_id: workspace::ItemId,
-        _closing: bool,
-        cx: &mut Context<Self>,
-    ) -> Option<Task<Result<()>>> {
-        let workspace_id = workspace.database_id()?;
+    fn serialize(&self, _: &Workspace, _: bool, cx: &App) -> Option<serde_json::Value> {
         let DiffBase::Merge { base_ref } = self.diff_base(cx).clone() else {
             return None;
         };
-        let diff_base = DiffBase::Merge { base_ref };
-        let db = project_diff::persistence::ProjectDiffDb::global(cx);
-        Some(cx.background_spawn(async move { db.save_project_diff_base(item_id, workspace_id, diff_base).await }))
+        serde_json::to_value(DiffBase::Merge { base_ref }).ok()
     }
 
     fn should_serialize(&self, _: &Self::Event) -> bool {

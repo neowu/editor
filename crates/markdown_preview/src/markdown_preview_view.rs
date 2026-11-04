@@ -72,13 +72,10 @@ use util::markdown::split_local_url_fragment;
 use util::paths::PathStyle;
 use util::paths::PathWithPosition;
 use util::rel_path::RelPath;
-use workspace::ItemId;
 use workspace::ItemNavHistory;
 use workspace::Pane;
 use workspace::SaveIntent;
 use workspace::Workspace;
-use workspace::WorkspaceId;
-use workspace::delete_unloaded_items;
 use workspace::item::Item;
 use workspace::item::ItemBufferKind;
 use workspace::item::ItemHandle;
@@ -143,28 +140,13 @@ pub struct MarkdownPreviewView {
     nav_history: Option<ItemNavHistory>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum MarkdownPreviewMode {
     /// The preview will always show the contents of the provided editor.
     Default,
     /// The preview will "follow" the currently active editor.
     Follow,
-}
-
-impl MarkdownPreviewMode {
-    const fn to_db(self) -> i64 {
-        match self {
-            Self::Default => 0,
-            Self::Follow => 1,
-        }
-    }
-
-    const fn from_db(value: i64) -> Self {
-        match value {
-            1 => Self::Follow,
-            _ => Self::Default,
-        }
-    }
 }
 
 struct EditorState {
@@ -1416,12 +1398,7 @@ impl Item for MarkdownPreviewView {
         true
     }
 
-    fn clone_on_split(
-        &self,
-        _workspace_id: Option<WorkspaceId>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Option<Entity<Self>>>
+    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
     where
         Self: Sized,
     {
@@ -1705,16 +1682,13 @@ impl SerializableItem for MarkdownPreviewView {
     fn deserialize(
         project: Entity<Project>,
         workspace: WeakEntity<Workspace>,
-        workspace_id: WorkspaceId,
-        item_id: ItemId,
+        state: serde_json::Value,
         window: &mut Window,
         cx: &mut App,
     ) -> Task<Result<Entity<Self>>> {
-        let db = persistence::MarkdownPreviewDb::global(cx);
         window.spawn(cx, async move |cx| {
-            let (abs_path, mode_value) =
-                db.get_preview(item_id, workspace_id)?.context("No markdown preview entry found")?;
-            let mode = MarkdownPreviewMode::from_db(mode_value);
+            let SerializedMarkdownPreview { abs_path, mode } =
+                serde_json::from_value(state).context("deserializing markdown preview state")?;
 
             let (worktree, relative_path) = project
                 .update(cx, |project, cx| project.find_or_create_worktree(abs_path.clone(), false, cx))
@@ -1734,32 +1708,13 @@ impl SerializableItem for MarkdownPreviewView {
         })
     }
 
-    fn cleanup(
-        workspace_id: WorkspaceId,
-        alive_items: Vec<ItemId>,
-        _window: &mut Window,
-        cx: &mut App,
-    ) -> Task<Result<()>> {
-        let db = persistence::MarkdownPreviewDb::global(cx);
-        delete_unloaded_items(alive_items, workspace_id, "markdown_previews", &db, cx)
-    }
-
-    fn serialize(
-        &mut self,
-        workspace: &mut Workspace,
-        item_id: ItemId,
-        _closing: bool,
-        cx: &mut Context<Self>,
-    ) -> Option<Task<Result<()>>> {
-        let workspace_id = workspace.database_id()?;
+    fn serialize(&self, workspace: &Workspace, _closing: bool, cx: &App) -> Option<serde_json::Value> {
         let editor = self.active_editor.as_ref()?.editor.clone();
         let buffer = editor.read(cx).buffer().read(cx).as_singleton()?;
         let file = buffer.read(cx).file()?;
         let worktree_id = file.worktree_id(cx);
         let abs_path = workspace.project().read(cx).worktree_for_id(worktree_id, cx)?.read(cx).absolutize(file.path());
-        let mode = self.mode.to_db();
-        let db = persistence::MarkdownPreviewDb::global(cx);
-        Some(cx.background_spawn(async move { db.save_preview(item_id, workspace_id, abs_path, mode).await }))
+        serde_json::to_value(SerializedMarkdownPreview { abs_path, mode: self.mode }).log_err()
     }
 
     fn should_serialize(&self, event: &Self::Event) -> bool {
@@ -1767,57 +1722,14 @@ impl SerializableItem for MarkdownPreviewView {
     }
 }
 
-mod persistence {
-    use std::path::PathBuf;
+/// What `.ed/workspace.json` keeps for a markdown preview tab.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SerializedMarkdownPreview {
+    abs_path: PathBuf,
+    #[serde(default = "default_preview_mode")]
+    mode: MarkdownPreviewMode,
+}
 
-    use db::query;
-    use db::sqlez::domain::Domain;
-    use db::sqlez::thread_safe_connection::ThreadSafeConnection;
-    use db::sqlez_macros::sql;
-    use workspace::ItemId;
-    use workspace::WorkspaceDb;
-    use workspace::WorkspaceId;
-
-    pub struct MarkdownPreviewDb(ThreadSafeConnection);
-
-    impl Domain for MarkdownPreviewDb {
-        const NAME: &str = stringify!(MarkdownPreviewDb);
-
-        const SCHEMA: &str = sql!(
-            CREATE TABLE markdown_previews (
-                workspace_id INTEGER,
-                item_id INTEGER,
-                abs_path BLOB,
-                mode INTEGER NOT NULL DEFAULT 0,
-
-                PRIMARY KEY(workspace_id, item_id),
-                FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
-                ON DELETE CASCADE
-            ) STRICT;
-        );
-    }
-
-    db::static_connection!(MarkdownPreviewDb, [WorkspaceDb]);
-
-    impl MarkdownPreviewDb {
-        query! {
-            pub async fn save_preview(
-                item_id: ItemId,
-                workspace_id: WorkspaceId,
-                abs_path: PathBuf,
-                mode: i64
-            ) -> Result<()> {
-                INSERT OR REPLACE INTO markdown_previews(item_id, workspace_id, abs_path, mode)
-                VALUES (?, ?, ?, ?)
-            }
-        }
-
-        query! {
-            pub fn get_preview(item_id: ItemId, workspace_id: WorkspaceId) -> Result<Option<(PathBuf, i64)>> {
-                SELECT abs_path, mode
-                FROM markdown_previews
-                WHERE item_id = ? AND workspace_id = ?
-            }
-        }
-    }
+const fn default_preview_mode() -> MarkdownPreviewMode {
+    MarkdownPreviewMode::Default
 }

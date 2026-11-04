@@ -1,16 +1,11 @@
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::Context;
 use anyhow::Result;
-use db::sqlez::bindable::Bind;
-use db::sqlez::bindable::Column;
-use db::sqlez::bindable::StaticColumnCount;
-use db::sqlez::statement::Statement;
 use gpui::AsyncWindowContext;
+use gpui::Axis;
 use gpui::Entity;
 use gpui::WeakEntity;
-use gpui::WindowId;
 use project::Project;
 use remote::RemoteConnectionOptions;
 use serde::Deserialize;
@@ -18,24 +13,14 @@ use serde::Serialize;
 use util::ResultExt;
 use uuid::Uuid;
 
-use super::SerializedAxis;
-use super::SerializedWindowBounds;
+use super::WindowBoundsJson;
 use crate::Member;
 use crate::Pane;
 use crate::PaneAxis;
 use crate::SerializableItemRegistry;
 use crate::Workspace;
-use crate::WorkspaceId;
 use crate::item::ItemHandle;
 use crate::path_list::PathList;
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, serde::Serialize, serde::Deserialize)]
-pub(crate) struct RemoteConnectionId(pub u64);
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub(crate) enum RemoteConnectionKind {
-    Ssh,
-}
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
 pub enum SerializedWorkspaceLocation {
@@ -43,113 +28,70 @@ pub enum SerializedWorkspaceLocation {
     Remote(RemoteConnectionOptions),
 }
 
-impl SerializedWorkspaceLocation {}
-
-/// A workspace entry from a previous session, containing all the info needed
-/// to restore it including which window it belonged to.
+/// A project that was open when ed last quit.
 #[derive(Debug, PartialEq, Clone)]
 pub struct SessionWorkspace {
-    pub workspace_id: WorkspaceId,
     pub location: SerializedWorkspaceLocation,
     pub paths: PathList,
-    pub window_id: Option<WindowId>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+/// Contents of a project's `.ed/workspace.json`.
+#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub(crate) struct SerializedWorkspace {
-    pub(crate) id: WorkspaceId,
-    pub(crate) location: SerializedWorkspaceLocation,
-    pub(crate) paths: PathList,
-    /// The workspace's main worktree paths at the time this workspace was saved.
-    ///
-    /// These paths are used for grouping, deduping, and display in recent-workspace
-    /// UIs. They are not authoritative for reopening the workspace, because they may
-    /// become stale if the repository layout changes after the save. Use `paths` when
-    /// reopening the workspace.
-    pub(crate) identity_paths: Option<PathList>,
+    #[serde(default)]
     pub(crate) center_group: SerializedPaneGroup,
-    pub(crate) window_bounds: Option<SerializedWindowBounds>,
-    pub(crate) display: Option<Uuid>,
+    #[serde(default)]
     pub(crate) docks: DockStructure,
-    pub(crate) session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) window_bounds: Option<WindowBoundsJson>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) display: Option<Uuid>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) recent_navigation_history: Vec<PathBuf>,
-    pub(crate) window_id: Option<u64>,
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct DockStructure {
+    #[serde(default)]
     pub left: DockData,
+    #[serde(default)]
     pub right: DockData,
+    #[serde(default)]
     pub bottom: DockData,
-}
-
-impl RemoteConnectionKind {
-    pub(crate) const fn serialize(&self) -> &'static str {
-        match self {
-            RemoteConnectionKind::Ssh => "ssh",
-        }
-    }
-
-    pub(crate) fn deserialize(text: &str) -> Option<Self> {
-        match text {
-            "ssh" => Some(Self::Ssh),
-            _ => None,
-        }
-    }
-}
-
-impl Column for DockStructure {
-    fn column(statement: &mut Statement, start_index: i32) -> Result<(Self, i32)> {
-        let (left, next_index) = DockData::column(statement, start_index)?;
-        let (right, next_index) = DockData::column(statement, next_index)?;
-        let (bottom, next_index) = DockData::column(statement, next_index)?;
-        Ok((DockStructure { left, right, bottom }, next_index))
-    }
-}
-
-impl Bind for DockStructure {
-    fn bind(&self, statement: &Statement, start_index: i32) -> Result<i32> {
-        let next_index = statement.bind(&self.left, start_index)?;
-        let next_index = statement.bind(&self.right, next_index)?;
-        statement.bind(&self.bottom, next_index)
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct DockData {
+    #[serde(default)]
     pub visible: bool,
+    #[serde(default)]
     pub active_panel: Option<String>,
+    #[serde(default)]
     pub zoom: bool,
 }
 
-impl Column for DockData {
-    fn column(statement: &mut Statement, start_index: i32) -> Result<(Self, i32)> {
-        let (visible, next_index) = Option::<bool>::column(statement, start_index)?;
-        let (active_panel, next_index) = Option::<String>::column(statement, next_index)?;
-        let (zoom, next_index) = Option::<bool>::column(statement, next_index)?;
-        Ok((DockData { visible: visible.unwrap_or(false), active_panel, zoom: zoom.unwrap_or(false) }, next_index))
-    }
-}
-
-impl Bind for DockData {
-    fn bind(&self, statement: &Statement, start_index: i32) -> Result<i32> {
-        let next_index = statement.bind(&self.visible, start_index)?;
-        let next_index = statement.bind(&self.active_panel, next_index)?;
-        statement.bind(&self.zoom, next_index)
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub(crate) enum SerializedPaneGroup {
-    Group { axis: SerializedAxis, flexes: Option<Vec<f32>>, children: Vec<SerializedPaneGroup> },
+    Group {
+        axis: Axis,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        flexes: Option<Vec<f32>>,
+        children: Vec<SerializedPaneGroup>,
+    },
     Pane(SerializedPane),
+}
+
+impl Default for SerializedPaneGroup {
+    fn default() -> SerializedPaneGroup {
+        SerializedPaneGroup::Pane(SerializedPane { active: true, children: Vec::new(), pinned_count: 0 })
+    }
 }
 
 impl SerializedPaneGroup {
     pub(crate) async fn deserialize(
         self,
         project: &Entity<Project>,
-        workspace_id: WorkspaceId,
         workspace: WeakEntity<Workspace>,
         cx: &mut AsyncWindowContext,
     ) -> Option<(Member, Option<Entity<Pane>>, Vec<Option<Box<dyn ItemHandle>>>)> {
@@ -160,7 +102,7 @@ impl SerializedPaneGroup {
                 let mut items = Vec::new();
                 for child in children {
                     if let Some((new_member, active_pane, new_items)) =
-                        Box::pin(child.deserialize(project, workspace_id, workspace.clone(), cx)).await
+                        Box::pin(child.deserialize(project, workspace.clone(), cx)).await
                     {
                         members.push(new_member);
                         items.extend(new_items);
@@ -176,7 +118,7 @@ impl SerializedPaneGroup {
                     return Some((members.remove(0), current_active_pane, items));
                 }
 
-                Some((Member::Axis(PaneAxis::load(axis.0, members, flexes)), current_active_pane, items))
+                Some((Member::Axis(PaneAxis::load(axis, members, flexes)), current_active_pane, items))
             }
             SerializedPaneGroup::Pane(serialized_pane) => {
                 let pane = workspace
@@ -184,7 +126,7 @@ impl SerializedPaneGroup {
                     .log_err()?;
                 let active = serialized_pane.active;
                 let new_items = serialized_pane
-                    .deserialize_to(project, &pane, workspace_id, workspace.clone(), cx)
+                    .deserialize_to(project, &pane, workspace.clone(), cx)
                     .await
                     .context("Could not deserialize pane)")
                     .log_err()?;
@@ -204,10 +146,13 @@ impl SerializedPaneGroup {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Default, Clone)]
+#[derive(Debug, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct SerializedPane {
+    #[serde(default)]
     pub(crate) active: bool,
+    #[serde(default, rename = "items")]
     pub(crate) children: Vec<SerializedItem>,
+    #[serde(default)]
     pub(crate) pinned_count: usize,
 }
 
@@ -220,7 +165,6 @@ impl SerializedPane {
         &self,
         project: &Entity<Project>,
         pane: &WeakEntity<Pane>,
-        workspace_id: WorkspaceId,
         workspace: WeakEntity<Workspace>,
         cx: &mut AsyncWindowContext,
     ) -> Result<Vec<Option<Box<dyn ItemHandle>>>> {
@@ -234,8 +178,7 @@ impl SerializedPane {
                     &item.kind,
                     project,
                     workspace.clone(),
-                    workspace_id,
-                    item.item_id,
+                    item.state.clone(),
                     window,
                     cx,
                 )
@@ -286,44 +229,78 @@ impl SerializedPane {
     }
 }
 
-pub type GroupId = i64;
-pub type PaneId = i64;
 pub type ItemId = u64;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+/// A tab: its kind, which picks the item type that restores it, and the state
+/// that item type saved.
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct SerializedItem {
-    pub kind: Arc<str>,
-    pub item_id: ItemId,
+    pub kind: String,
+    #[serde(default)]
+    pub state: serde_json::Value,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub active: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub preview: bool,
 }
 
-impl SerializedItem {
-    pub fn new(kind: impl AsRef<str>, item_id: ItemId, active: bool, preview: bool) -> Self {
-        Self { kind: Arc::from(kind.as_ref()), item_id, active, preview }
-    }
-}
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
 
-impl StaticColumnCount for SerializedItem {
-    fn column_count() -> usize {
-        4
-    }
-}
-impl Bind for &SerializedItem {
-    fn bind(&self, statement: &Statement, start_index: i32) -> Result<i32> {
-        let next_index = statement.bind(&self.kind, start_index)?;
-        let next_index = statement.bind(&self.item_id, next_index)?;
-        let next_index = statement.bind(&self.active, next_index)?;
-        statement.bind(&self.preview, next_index)
-    }
-}
+    use gpui::Axis;
 
-impl Column for SerializedItem {
-    fn column(statement: &mut Statement, start_index: i32) -> Result<(Self, i32)> {
-        let (kind, next_index) = Arc::<str>::column(statement, start_index)?;
-        let (item_id, next_index) = ItemId::column(statement, next_index)?;
-        let (active, next_index) = bool::column(statement, next_index)?;
-        let (preview, next_index) = bool::column(statement, next_index)?;
-        Ok((SerializedItem { kind, item_id, active, preview }, next_index))
+    use super::DockData;
+    use super::DockStructure;
+    use super::SerializedItem;
+    use super::SerializedPane;
+    use super::SerializedPaneGroup;
+    use super::SerializedWorkspace;
+    use crate::persistence::WindowBoundsJson;
+    use crate::persistence::parse_workspace_state;
+
+    #[test]
+    fn test_serialized_workspace_round_trip() {
+        let workspace = SerializedWorkspace {
+            center_group: SerializedPaneGroup::Group {
+                axis: Axis::Horizontal,
+                flexes: Some(vec![0.5, 0.5]),
+                children: vec![
+                    SerializedPaneGroup::Pane(SerializedPane::new(
+                        vec![SerializedItem {
+                            kind: "Editor".into(),
+                            state: serde_json::json!({"abs_path": "/p/a.rs"}),
+                            active: true,
+                            preview: false,
+                        }],
+                        true,
+                        1,
+                    )),
+                    SerializedPaneGroup::default(),
+                ],
+            },
+            docks: DockStructure {
+                left: DockData { visible: true, active_panel: Some("ProjectPanel".into()), zoom: false },
+                ..DockStructure::default()
+            },
+            window_bounds: Some(WindowBoundsJson::Windowed { x: 1, y: 2, width: 3, height: 4 }),
+            display: None,
+            recent_navigation_history: vec![PathBuf::from("/p/a.rs")],
+        };
+        let json = serde_json::to_string_pretty(&workspace).unwrap();
+        assert_eq!(parse_workspace_state(&json), Some(workspace));
+    }
+
+    #[test]
+    fn test_parse_workspace_state_tolerates_missing_fields() {
+        assert_eq!(parse_workspace_state("{}"), Some(SerializedWorkspace::default()));
+        assert_eq!(parse_workspace_state("garbage"), None);
+        let workspace =
+            parse_workspace_state(r#"{"center_group": {"type": "pane", "items": [{"kind": "Editor"}]}}"#).unwrap();
+        let SerializedPaneGroup::Pane(pane) = workspace.center_group else {
+            panic!("expected a pane");
+        };
+        assert_eq!(pane.children[0].state, serde_json::Value::Null);
+        assert!(!pane.children[0].active);
     }
 }

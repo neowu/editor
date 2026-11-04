@@ -70,13 +70,12 @@ Diff-review gutter controls and intentional panic/crash
 actions are disabled and cannot be enabled through settings or environment variables.
 
 Feedback actions, bug-report links, and feature-request/email menu entries are
-removed. Local database failures still display a diagnostic notification.
+removed.
 
 The editor has a single application identity and icon. There is no
 release-channel concept anywhere (app, remote client, or remote server). The app
 version is the `ed` crate's Cargo.toml version; no commit SHA, build ID, or
-bundle type is embedded or shown. Existing local database state remains in the
-same directory.
+bundle type is embedded or shown.
 
 The ztracing instrumentation and Tracy integration are removed. The GPUI
 `profiler` feature is removed too: no task/frame timing collection, performance

@@ -13,12 +13,38 @@ migrator, or Vim/Helix mode.
 
 ## Behaviour
 
-- Stateless mode is removed. Databases use persistent storage, with an in-memory
-  fallback only when storage cannot be opened. `ED_STATELESS` has no effect;
-  single-instance checks are bypassed only in debug builds.
-- Database schemas are not migrated. Each domain declares only its current
-  schema; when the combined schema changes, the whole database is wiped and
-  recreated on next launch, losing all persisted state.
+- There is no database (no SQLite, key-value store, or `db`/`sqlez`/`session`
+  crates). App state lives in two JSON files:
+  - `~/.local/share/ed/projects.json`: recent projects (root folders in open
+    order, plus the SSH host/user/port for remote ones), most recent first and
+    capped at 100, and the projects open in a window, frontmost first. It is
+    read once at launch; unreadable contents count as empty. Every change
+    rewrites the whole file. A project moves to the front of the recents when
+    opened or its window is focused.
+  - `<first root folder>/.ed/workspace.json`, per project: the pane tree with
+    each tab's kind and its own JSON state, pinned/active/preview tabs, dock
+    visibility/active panel/zoom, window bounds and display, and recent
+    navigation history. Remote projects keep it on the server, read through
+    the project's buffers and written through the worktree after connecting,
+    so their window bounds aren't restored. Unreadable files are ignored.
+    Identical contents aren't rewritten. Windows with no root folder aren't
+    persisted.
+- Tabs persist only their own state: the editor keeps its file path, scroll
+  position and selections, plus unsaved text (with language and file mtime)
+  for hot exit when `restore_unsaved_buffers` is on. Folds are not persisted.
+  Image and markdown-preview tabs keep their path (and preview mode), branch
+  diffs their base, and other git diff tabs nothing.
+- Hot exit is only offered for windows with a root folder; other windows prompt
+  to save dirty buffers on close.
+- Restore on startup: `last_session` reopens the projects open at quit (closing
+  a window drops it from the list; quitting keeps it), falling back to the most
+  recent project; `last_workspace` reopens the most recent project whose
+  folders still exist.
+- Not persisted: panel sizes, default window bounds and dock layout for new
+  windows, native (macOS) window state, the Text Finder's last query and
+  filters, git panel commit drafts/signoff/commit-editor collapse, outline panel
+  state, trusted worktrees, and the registry of git worktrees ed created.
+- Single-instance checks are bypassed only in debug builds.
 - Settings types use ordinary Serde derives without optional-field macros or
   custom flattened-settings parsing. Ordinary optional fields reject invalid
   values and remain `None` when missing. Settings JSON error recovery and
@@ -100,14 +126,14 @@ migrator, or Vim/Helix mode.
 - The command palette has no "Add/Change Keybinding" flow; secondary confirm runs
   the selected command. It lists every available action as-is: there is no
   global action filter or query interceptor (`command_palette_hooks` is removed).
-- The command palette keeps no state in the database: commands are listed
+- The command palette keeps no persisted state: commands are listed
   alphabetically with no usage-based ranking, there is no query history
   (up/down only moves the selection), and no `command_palette` setting.
-- Pickers keep no state in the database: every picker opens with the default
+- Pickers keep no persisted state: every picker opens with the default
   preview layout and size, and a resize or preview-layout change lasts only
   until it closes (switching layouts resets to that layout's default size).
   `PickerDelegate` has no `name()` key.
-- Terminals keep no state in the database: neither terminal-panel terminals
+- Terminals keep no persisted state: neither terminal-panel terminals
   (and their splits) nor terminal tabs in the center are restored after a
   restart, and a terminal's custom title and working directory are not saved.
   The terminal panel opens a fresh shell when it is first shown empty.

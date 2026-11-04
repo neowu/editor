@@ -91,12 +91,7 @@ impl Item for ThemePreview {
         true
     }
 
-    fn clone_on_split(
-        &self,
-        _workspace_id: Option<crate::WorkspaceId>,
-        _: &mut Window,
-        cx: &mut Context<ThemePreview>,
-    ) -> Task<Option<Entity<ThemePreview>>> {
+    fn clone_on_split(&self, _: &mut Window, cx: &mut Context<ThemePreview>) -> Task<Option<Entity<ThemePreview>>> {
         Task::ready(Some(cx.new(|cx| ThemePreview::new(cx))))
     }
 }

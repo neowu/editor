@@ -298,7 +298,7 @@ impl Editor {
     }
 
     pub fn spawn_nearest_task(&mut self, action: &SpawnNearestTask, window: &mut Window, cx: &mut Context<Self>) {
-        let Some((workspace, _)) = self.workspace.clone() else {
+        let Some(workspace) = self.workspace.clone() else {
             return;
         };
         let Some(project) = self.project.clone() else {

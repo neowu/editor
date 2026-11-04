@@ -52,7 +52,6 @@ use gpui::point;
 use gpui::px;
 use gpui::size;
 use language::File as _;
-use persistence::ImageViewerDb;
 use project::ImageItem;
 use project::Project;
 use project::ProjectPath;
@@ -62,15 +61,12 @@ use ui::Tooltip;
 use ui::prelude::*;
 use util::ResultExt as _;
 use util::paths::PathExt;
-use workspace::ItemId;
 use workspace::ItemSettings;
 use workspace::Pane;
 use workspace::ToolbarItemEvent;
 use workspace::ToolbarItemLocation;
 use workspace::ToolbarItemView;
 use workspace::Workspace;
-use workspace::WorkspaceId;
-use workspace::delete_unloaded_items;
 use workspace::invalid_item_view::InvalidItemView;
 use workspace::item::Item;
 use workspace::item::ItemHandle;
@@ -567,12 +563,7 @@ impl Item for ImageView {
         true
     }
 
-    fn clone_on_split(
-        &self,
-        _workspace_id: Option<WorkspaceId>,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Option<Entity<Self>>>
+    fn clone_on_split(&self, _window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
     where
         Self: Sized,
     {
@@ -606,17 +597,16 @@ impl SerializableItem for ImageView {
     fn deserialize(
         project: Entity<Project>,
         _workspace: WeakEntity<Workspace>,
-        workspace_id: WorkspaceId,
-        item_id: ItemId,
+        state: serde_json::Value,
         window: &mut Window,
         cx: &mut App,
     ) -> Task<anyhow::Result<Entity<Self>>> {
-        let db = ImageViewerDb::global(cx);
         window.spawn(cx, async move |cx| {
-            let image_path = db.get_image_path(item_id, workspace_id)?.context("No image path found")?;
+            let SerializedImageView { abs_path } =
+                serde_json::from_value(state).context("deserializing image viewer state")?;
 
             let (worktree, relative_path) = project
-                .update(cx, |project, cx| project.find_or_create_worktree(image_path.clone(), false, cx))
+                .update(cx, |project, cx| project.find_or_create_worktree(abs_path.clone(), false, cx))
                 .await
                 .context("Path not found")?;
             let worktree_id = worktree.update(cx, |worktree, _cx| worktree.id());
@@ -629,33 +619,9 @@ impl SerializableItem for ImageView {
         })
     }
 
-    fn cleanup(
-        workspace_id: WorkspaceId,
-        alive_items: Vec<ItemId>,
-        _window: &mut Window,
-        cx: &mut App,
-    ) -> Task<anyhow::Result<()>> {
-        let db = ImageViewerDb::global(cx);
-        delete_unloaded_items(alive_items, workspace_id, "image_viewers", &db, cx)
-    }
-
-    fn serialize(
-        &mut self,
-        workspace: &mut Workspace,
-        item_id: ItemId,
-        _closing: bool,
-        cx: &mut Context<Self>,
-    ) -> Option<Task<anyhow::Result<()>>> {
-        let workspace_id = workspace.database_id()?;
-        let image_path = self.image_item.read(cx).abs_path(cx)?;
-
-        let db = ImageViewerDb::global(cx);
-        Some(cx.background_spawn({
-            async move {
-                log::debug!("Saving image at path {image_path:?}");
-                db.save_image_path(item_id, workspace_id, image_path).await
-            }
-        }))
+    fn serialize(&self, _workspace: &Workspace, _closing: bool, cx: &App) -> Option<serde_json::Value> {
+        let abs_path = self.image_item.read(cx).abs_path(cx)?;
+        serde_json::to_value(SerializedImageView { abs_path }).log_err()
     }
 
     fn should_serialize(&self, _event: &Self::Event) -> bool {
@@ -977,56 +943,8 @@ pub fn init(cx: &mut App) {
     workspace::register_serializable_item::<ImageView>(cx);
 }
 
-mod persistence {
-    use std::path::PathBuf;
-
-    use db::query;
-    use db::sqlez::domain::Domain;
-    use db::sqlez::thread_safe_connection::ThreadSafeConnection;
-    use db::sqlez_macros::sql;
-    use workspace::ItemId;
-    use workspace::WorkspaceDb;
-    use workspace::WorkspaceId;
-
-    pub struct ImageViewerDb(ThreadSafeConnection);
-
-    impl Domain for ImageViewerDb {
-        const NAME: &str = stringify!(ImageViewerDb);
-
-        const SCHEMA: &str = sql!(
-                CREATE TABLE image_viewers (
-                    workspace_id INTEGER,
-                    item_id INTEGER UNIQUE,
-
-                    image_path BLOB,
-
-                    PRIMARY KEY(workspace_id, item_id),
-                    FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
-                    ON DELETE CASCADE
-                ) STRICT;
-        );
-    }
-
-    db::static_connection!(ImageViewerDb, [WorkspaceDb]);
-
-    impl ImageViewerDb {
-        query! {
-            pub async fn save_image_path(
-                item_id: ItemId,
-                workspace_id: WorkspaceId,
-                image_path: PathBuf
-            ) -> Result<()> {
-                INSERT OR REPLACE INTO image_viewers(item_id, workspace_id, image_path)
-                VALUES (?, ?, ?)
-            }
-        }
-
-        query! {
-            pub fn get_image_path(item_id: ItemId, workspace_id: WorkspaceId) -> Result<Option<PathBuf>> {
-                SELECT image_path
-                FROM image_viewers
-                WHERE item_id = ? AND workspace_id = ?
-            }
-        }
-    }
+/// What `.ed/workspace.json` keeps for an image tab.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SerializedImageView {
+    abs_path: std::path::PathBuf,
 }

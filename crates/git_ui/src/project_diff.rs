@@ -385,12 +385,7 @@ impl Item for ProjectDiff {
         true
     }
 
-    fn clone_on_split(
-        &self,
-        _workspace_id: Option<workspace::WorkspaceId>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Option<Entity<Self>>>
+    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
     where
         Self: Sized,
     {
@@ -471,15 +466,10 @@ impl SerializableItem for ProjectDiff {
         "ProjectDiff"
     }
 
-    fn cleanup(_: workspace::WorkspaceId, _: Vec<workspace::ItemId>, _: &mut Window, _: &mut App) -> Task<Result<()>> {
-        Task::ready(Ok(()))
-    }
-
     fn deserialize(
         project: Entity<Project>,
         workspace: WeakEntity<Workspace>,
-        _workspace_id: workspace::WorkspaceId,
-        _item_id: workspace::ItemId,
+        _state: serde_json::Value,
         window: &mut Window,
         cx: &mut App,
     ) -> Task<Result<Entity<Self>>> {
@@ -494,86 +484,12 @@ impl SerializableItem for ProjectDiff {
         })
     }
 
-    fn serialize(
-        &mut self,
-        _: &mut Workspace,
-        _: workspace::ItemId,
-        _: bool,
-        _: &mut Context<Self>,
-    ) -> Option<Task<Result<()>>> {
-        Some(Task::ready(Ok(())))
+    fn serialize(&self, _: &Workspace, _: bool, _: &App) -> Option<serde_json::Value> {
+        Some(serde_json::Value::Null)
     }
 
     fn should_serialize(&self, _: &Self::Event) -> bool {
         false
-    }
-}
-
-pub(crate) mod persistence {
-
-    use anyhow::Context as _;
-    use db::sqlez::domain::Domain;
-    use db::sqlez::thread_safe_connection::ThreadSafeConnection;
-    use db::sqlez_macros::sql;
-    use project::git_store::diff_buffer_list::DiffBase;
-    use workspace::ItemId;
-    use workspace::WorkspaceDb;
-    use workspace::WorkspaceId;
-
-    pub struct ProjectDiffDb(ThreadSafeConnection);
-
-    impl Domain for ProjectDiffDb {
-        const NAME: &str = stringify!(ProjectDiffDb);
-
-        const SCHEMA: &str = sql!(
-            CREATE TABLE project_diffs(
-                workspace_id INTEGER,
-                item_id INTEGER UNIQUE,
-
-                diff_base TEXT,
-
-                PRIMARY KEY(workspace_id, item_id),
-                FOREIGN KEY(workspace_id) REFERENCES workspaces(workspace_id)
-                ON DELETE CASCADE
-            ) STRICT;
-        );
-    }
-
-    db::static_connection!(ProjectDiffDb, [WorkspaceDb]);
-
-    impl ProjectDiffDb {
-        pub async fn save_project_diff_base(
-            &self,
-            item_id: ItemId,
-            workspace_id: WorkspaceId,
-            diff_base: DiffBase,
-        ) -> anyhow::Result<()> {
-            self.write(move |connection| {
-                let sql_stmt = sql!(
-                    INSERT OR REPLACE INTO project_diffs(item_id, workspace_id, diff_base) VALUES (?, ?, ?)
-                );
-                let diff_base_str = serde_json::to_string(&diff_base)?;
-                let mut query = connection.exec_bound::<(ItemId, WorkspaceId, String)>(sql_stmt)?;
-                query((item_id, workspace_id, diff_base_str))
-                    .context(format!("exec_bound failed to execute or parse for: {}", sql_stmt))
-            })
-            .await
-        }
-
-        pub fn get_project_diff_base(&self, item_id: ItemId, workspace_id: WorkspaceId) -> anyhow::Result<DiffBase> {
-            let sql_stmt = sql!(SELECT diff_base FROM project_diffs WHERE item_id =  ?AND workspace_id =  ?);
-            let diff_base_str =
-                self.select_row_bound::<(ItemId, WorkspaceId), String>(sql_stmt)?((item_id, workspace_id)).context(
-                    ::std::format!(
-                        "Error in get_diff_base, select_row_bound failed to execute or parse for: {}",
-                        sql_stmt
-                    ),
-                )?;
-            let Some(diff_base_str) = diff_base_str else {
-                return Ok(DiffBase::Head);
-            };
-            serde_json::from_str(&diff_base_str).context("deserializing diff base")
-        }
     }
 }
 

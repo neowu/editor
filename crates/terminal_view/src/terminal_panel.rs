@@ -269,13 +269,7 @@ impl TerminalPanel {
             panel
                 .update_in(cx, move |_, window, cx| {
                     let terminal_view = Box::new(cx.new(|cx| {
-                        TerminalView::new(
-                            terminal.clone(),
-                            weak_workspace.clone(),
-                            project.downgrade(),
-                            window,
-                            cx,
-                        )
+                        TerminalView::new(terminal.clone(), weak_workspace.clone(), project.downgrade(), window, cx)
                     }));
                     let pane = new_terminal_pane(weak_workspace, project, is_zoomed, window, cx);
                     pane.update(cx, |pane, cx| {
@@ -596,9 +590,7 @@ impl TerminalPanel {
         cx.spawn_in(window, async move |terminal_panel, cx| {
             let result = create_terminal(terminal_panel.clone(), cx).await;
             decrement_when_cancelled.abort();
-            terminal_panel
-                .update(cx, |terminal_panel, cx| terminal_panel.finish_pending_terminal(cx))
-                .ok();
+            terminal_panel.update(cx, |terminal_panel, cx| terminal_panel.finish_pending_terminal(cx)).ok();
             result
         })
     }

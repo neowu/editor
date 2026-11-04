@@ -2,7 +2,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use collections::HashSet;
 use ed_actions::CreateWorktree;
 use ed_actions::NewWorktreeBranchTarget;
@@ -1239,27 +1238,16 @@ pub async fn open_remote_worktree(
         project::Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), true, cx)
     })?;
 
-    let workspace_position = cx
-        .update(|_, cx| workspace::remote_workspace_position_from_db(connection_options.clone(), &paths, cx))?
-        .await
-        .context("fetching workspace position from db")?;
+    let workspace_position = workspace::remote_workspace_position();
 
     let mut options = cx.update(|_, cx| (app_state.build_window_options)(workspace_position.display, cx))?;
     options.window_bounds = workspace_position.window_bounds;
 
     let new_window = cx.open_window(options, |window, cx| {
-        cx.new(|cx| Workspace::new(None, new_project.clone(), app_state.clone(), window, cx))
+        cx.new(|cx| Workspace::new(new_project.clone(), app_state.clone(), window, cx))
     })?;
 
-    workspace::open_remote_project_with_existing_connection(
-        connection_options,
-        new_project,
-        paths,
-        app_state,
-        new_window,
-        cx,
-    )
-    .await?;
+    workspace::open_remote_project_with_existing_connection(new_project, paths, app_state, new_window, cx).await?;
 
     Ok(())
 }

@@ -23,7 +23,6 @@ use anyhow::Result;
 use assets::Assets;
 use clap::Parser;
 use collections::HashMap;
-use db::kvp::KeyValueStore;
 use ed::OpenListener;
 use ed::OpenRequest;
 use ed::RawOpenRequest;
@@ -51,13 +50,10 @@ use project::trusted_worktrees;
 use recent_projects::RemoteSettings;
 use recent_projects::open_remote_project;
 use remote::RemoteConnectionOptions;
-use session::AppSession;
-use session::Session;
 use settings::Settings;
 use settings::SettingsStore;
 use theme::ActiveTheme;
 use util::ResultExt;
-use uuid::Uuid;
 use workspace::AppState;
 use workspace::SerializedWorkspaceLocation;
 use workspace::SessionWorkspace;
@@ -184,8 +180,6 @@ fn main() {
 
     let app = build_application().with_assets(Assets).with_restart_arguments(restart_arguments);
 
-    let app_db = db::AppDatabase::new();
-
     let (open_listener, mut open_rx) = OpenListener::new();
 
     let failed_single_instance_check = if cfg!(debug_assertions) {
@@ -201,11 +195,6 @@ fn main() {
         println!("ed is already running");
         return;
     }
-
-    // Only the primary instance records a session ID; a second launch writing
-    // one would orphan the running session's workspaces on the next start.
-    let session_id = Uuid::new_v4().to_string();
-    let session = app.background_executor().spawn(Session::new(session_id, KeyValueStore::from_app_db(&app_db)));
 
     let fs = RealFs::new(app.background_executor());
     if !stdout_is_a_pty() {
@@ -234,15 +223,7 @@ fn main() {
     });
 
     app.run(move |cx| {
-        cx.set_global(app_db);
-        let db_trusted_paths = match workspace::WorkspaceDb::global(cx).fetch_trusted_worktrees() {
-            Ok(trusted_paths) => trusted_paths,
-            Err(e) => {
-                log::error!("Failed to do initial trusted worktrees fetch: {e:#}");
-                HashMap::default()
-            }
-        };
-        trusted_worktrees::init(db_trusted_paths, cx);
+        trusted_worktrees::init(HashMap::default(), cx);
         menu::init();
         ed_actions::init();
 
@@ -262,18 +243,7 @@ fn main() {
 
         ed::init(cx);
 
-        let session = cx.foreground_executor().block_on(session);
-
-        let app_session = cx.new(|cx| AppSession::new(session, cx));
-
-        let app_state = Arc::new(AppState {
-            languages,
-
-            fs: fs.clone(),
-            build_window_options,
-            workspace_store,
-            session: app_session,
-        });
+        let app_state = Arc::new(AppState { languages, fs: fs.clone(), build_window_options, workspace_store });
         AppState::set_global(app_state.clone(), cx);
 
         theme::init(cx);
@@ -356,11 +326,6 @@ fn main() {
             open_listener.open(RawOpenRequest { urls, diff_paths, diff_all: diff_all_mode })
         }
 
-        let (current_session_id, last_session_id) = {
-            let session = app_state.session.read(cx);
-            (session.id().to_owned(), session.last_session_id().map(|id| id.to_owned()))
-        };
-
         let restore_task = match open_rx.try_recv().ok().and_then(|request| OpenRequest::parse(request, cx).log_err()) {
             Some(request) => {
                 handle_open_request(request, app_state.clone(), cx);
@@ -385,17 +350,6 @@ fn main() {
         });
 
         let restore_finished = cx.background_spawn(restore_task).shared();
-
-        cx.spawn({
-            let db = workspace::WorkspaceDb::global(cx);
-            let fs = app_state.fs.clone();
-            let restore_finished = restore_finished.clone();
-            async move |_cx| {
-                restore_finished.await;
-                db.garbage_collect_workspaces(fs.as_ref(), &current_session_id, last_session_id.as_deref()).await
-            }
-        })
-        .detach_and_log_err(cx);
 
         let app_state = app_state;
 
@@ -478,7 +432,7 @@ pub(crate) async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &m
                     let RemoteConnectionOptions::Ssh(options) = &mut connection_options;
                     cx.update(|cx| RemoteSettings::get_global(cx).fill_connection_options_from_settings(options));
 
-                    let paths = session_workspace.paths.paths().iter().map(PathBuf::from).collect::<Vec<_>>();
+                    let paths = session_workspace.paths.ordered_paths().cloned().collect::<Vec<_>>();
                     open_remote_project(
                         connection_options,
                         paths,
@@ -583,60 +537,21 @@ pub(crate) async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &m
     Ok(())
 }
 
-async fn restorable_workspaces(cx: &AsyncApp, app_state: &Arc<AppState>) -> Option<Vec<workspace::SessionWorkspace>> {
-    let locations = restorable_workspace_locations(cx, app_state).await?;
-    Some(workspace::read_session_workspaces(locations))
-}
-
-pub(crate) async fn restorable_workspace_locations(
-    cx: &AsyncApp,
-    app_state: &Arc<AppState>,
-) -> Option<Vec<SessionWorkspace>> {
-    let (mut restore_behavior, db) =
-        cx.update(|cx| (WorkspaceSettings::get(None, cx).restore_on_startup, workspace::WorkspaceDb::global(cx)));
-
-    let session_handle = app_state.session.clone();
-    let (last_session_id, last_session_window_stack) = cx.update(|cx| {
-        let session = session_handle.read(cx);
-
-        (session.last_session_id().map(|id| id.to_string()), session.last_session_window_stack())
-    });
-
-    if last_session_id.is_none() && matches!(restore_behavior, workspace::RestoreOnStartupBehavior::LastSession) {
-        restore_behavior = workspace::RestoreOnStartupBehavior::LastWorkspace;
-    }
-
+async fn restorable_workspaces(cx: &AsyncApp, app_state: &Arc<AppState>) -> Option<Vec<SessionWorkspace>> {
+    let restore_behavior = cx.update(|cx| WorkspaceSettings::get(None, cx).restore_on_startup);
     match restore_behavior {
-        workspace::RestoreOnStartupBehavior::LastWorkspace => {
-            workspace::last_opened_workspace_location(&db, app_state.fs.as_ref()).await.map(
-                |(workspace_id, location, paths)| {
-                    vec![SessionWorkspace { workspace_id, location, paths, window_id: None }]
-                },
-            )
-        }
         workspace::RestoreOnStartupBehavior::LastSession => {
-            if let Some(last_session_id) = last_session_id {
-                let ordered = last_session_window_stack.is_some();
-
-                let mut locations = workspace::last_session_workspace_locations(
-                    &db,
-                    &last_session_id,
-                    last_session_window_stack,
-                    app_state.fs.as_ref(),
-                )
-                .await
-                .filter(|locations| !locations.is_empty());
-
-                // Since last_session_window_order returns the windows ordered front-to-back
-                // we need to open the window that was frontmost last.
-                if ordered && let Some(locations) = locations.as_mut() {
-                    locations.reverse();
-                }
-
-                locations
+            let session = cx.update(|cx| workspace::last_session_workspaces(cx));
+            if session.is_empty() {
+                workspace::last_opened_workspace_location(app_state.fs.as_ref(), cx)
+                    .await
+                    .map(|workspace| vec![workspace])
             } else {
-                None
+                Some(session)
             }
+        }
+        workspace::RestoreOnStartupBehavior::LastWorkspace => {
+            workspace::last_opened_workspace_location(app_state.fs.as_ref(), cx).await.map(|workspace| vec![workspace])
         }
         _ => None,
     }
@@ -660,7 +575,7 @@ fn install_panic_hook() {
 }
 
 fn init_paths() -> HashMap<io::ErrorKind, Vec<&'static Path>> {
-    [paths::config_dir(), paths::database_dir(), paths::logs_dir(), paths::temp_dir()].into_iter().fold(
+    [paths::config_dir(), paths::data_dir(), paths::logs_dir(), paths::temp_dir()].into_iter().fold(
         HashMap::default(),
         |mut errors, path| {
             if let Err(e) = std::fs::create_dir_all(path) {
