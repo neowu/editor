@@ -3268,17 +3268,14 @@ name = "picker"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "db",
  "ed_actions",
  "gpui",
  "language",
  "menu",
  "project",
  "serde",
- "serde_json",
  "ui",
  "ui_input",
- "util",
  "workspace",
 ]
 

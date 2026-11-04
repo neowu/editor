@@ -103,6 +103,10 @@ migrator, or Vim/Helix mode.
 - The command palette keeps no state in the database: commands are listed
   alphabetically with no usage-based ranking, there is no query history
   (up/down only moves the selection), and no `command_palette` setting.
+- Pickers keep no state in the database: every picker opens with the default
+  preview layout and size, and a resize or preview-layout change lasts only
+  until it closes (switching layouts resets to that layout's default size).
+  `PickerDelegate` has no `name()` key.
 - App-level actions (quit, about, font size, `NoAction`/`Unbind`, ...)
   use the `ed` namespace (`ed::Quit`, shown as "ed: quit"), not upstream's
   `zed`. Keymaps using `zed::*` names do not resolve.

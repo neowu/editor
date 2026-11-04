@@ -599,10 +599,6 @@ fn build_location_matches(locations: &[Location], cx: &App) -> Vec<LocationMatch
 impl PickerDelegate for LspLocationsDelegate {
     type ListItem = AnyElement;
 
-    fn name() -> &'static str {
-        "lsp locations picker"
-    }
-
     fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> std::sync::Arc<str> {
         self.kind.placeholder().into()
     }

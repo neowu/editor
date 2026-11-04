@@ -1015,10 +1015,6 @@ impl BranchListDelegate {
 impl PickerDelegate for BranchListDelegate {
     type ListItem = AnyElement;
 
-    fn name() -> &'static str {
-        "branch picker"
-    }
-
     fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> Arc<str> {
         match self.state {
             PickerState::List | PickerState::NewRemote | PickerState::NewBranch => "Switch or type to create a branch…",

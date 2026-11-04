@@ -660,10 +660,6 @@ const MAX_MATCH_CONTEXT_BYTES: usize = 512;
 impl PickerDelegate for Delegate {
     type ListItem = AnyElement;
 
-    fn name() -> &'static str {
-        "text finder"
-    }
-
     fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> Arc<str> {
         "Search all files…".into()
     }

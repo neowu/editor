@@ -42,7 +42,6 @@ use crate::PickerEditorPosition;
 use crate::Preview;
 use crate::ToggleMultiSelect;
 use crate::head::Head;
-use crate::persistence;
 use crate::preview;
 use crate::preview::Layout;
 use crate::render::window_controls::Bottom;
@@ -379,7 +378,6 @@ impl<D: PickerDelegate> Picker<D> {
             && !cx.has_active_drag()
         {
             let centered = Shape::centered_and_relative(pos, self.preview_layout_rendered(window), window);
-            persistence::store_shape_for_this_layout(D::name(), self.preview_layout(), centered, window, cx);
             self.shape = Shape::HorizontallyCentered(centered);
             if let Some(preview) = &mut self.preview {
                 preview.adjust_to_new_size(window, cx);

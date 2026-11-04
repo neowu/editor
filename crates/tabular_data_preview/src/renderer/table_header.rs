@@ -258,10 +258,6 @@ impl ColumnFilterDelegate {
 impl PickerDelegate for ColumnFilterDelegate {
     type ListItem = AnyElement;
 
-    fn name() -> &'static str {
-        "table column filter"
-    }
-
     fn match_count(&self) -> usize {
         self.filtered.len()
     }

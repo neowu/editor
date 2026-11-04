@@ -1543,10 +1543,6 @@ fn full_path_budget(file_name: &str, normal_em: Pixels, small_em: Pixels, max_wi
 impl PickerDelegate for FileFinderDelegate {
     type ListItem = ListItem;
 
-    fn name() -> &'static str {
-        "file finder"
-    }
-
     fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> Arc<str> {
         "Search project files...".into()
     }

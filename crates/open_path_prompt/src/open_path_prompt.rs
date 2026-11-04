@@ -204,10 +204,6 @@ impl OpenPathPrompt {
 impl PickerDelegate for OpenPathDelegate {
     type ListItem = ui::ListItem;
 
-    fn name() -> &'static str {
-        "open path prompt"
-    }
-
     fn match_count(&self) -> usize {
         let user_input = if let DirectoryState::Create { user_input, .. } = &self.directory_state {
             user_input.as_ref().filter(|input| !input.exists || !input.is_dir).into_iter().count()

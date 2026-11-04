@@ -156,12 +156,6 @@ impl ViewportFraction {
     pub(crate) fn from_width_pixels(preview: Pixels, window: &Window) -> Self {
         Self(preview / window.viewport_size().width)
     }
-
-    /// Returns the fraction of the viewport that this describes.
-    /// Guaranteed to be between zero and one
-    pub(crate) const fn raw(&self) -> f32 {
-        self.0
-    }
 }
 
 impl std::ops::Mul<f32> for ViewportFraction {

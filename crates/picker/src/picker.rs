@@ -45,14 +45,12 @@ use ui::PopoverMenuHandle;
 use ui::Tooltip;
 use ui::prelude::*;
 use ui_input::ErasedEditorEvent;
-use util::ResultExt;
 use workspace::ModalView;
 
 mod footer;
 mod head;
 pub mod highlighted_match_with_paths;
 pub mod parts;
-mod persistence;
 pub mod popover_menu;
 mod preview;
 mod render;
@@ -175,7 +173,6 @@ pub struct Picker<D: PickerDelegate> {
     picker_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
     /// Bounds tracking for items (for aside positioning) - maps item index to bounds
     item_bounds: Rc<RefCell<HashMap<usize, Bounds<Pixels>>>>,
-    shape_loaded_from_persistence: bool,
     /// Handle for the default footer's Actions popover menu. Used to keep the
     /// picker open while that menu has focus.
     actions_menu_handle: PopoverMenuHandle<ContextMenu>,
@@ -194,9 +191,6 @@ pub enum PickerEditorPosition {
 pub trait PickerDelegate: Sized + 'static {
     type ListItem: IntoElement;
 
-    /// Name of the picker, this is the key for serialization. We could use the
-    /// typename of the delegate but then a rename would break persistence.
-    fn name() -> &'static str;
     fn match_count(&self) -> usize;
     fn selected_index(&self) -> usize;
     fn separators_after_indices(&self) -> Vec<usize> {
@@ -503,18 +497,12 @@ impl<D: PickerDelegate> Picker<D> {
         delegate: D,
         container: ContainerKind,
         head: Head,
-        mut preview: Option<Preview>,
+        preview: Option<Preview>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let element_container = Self::create_element_container(container);
-        if let Some(preview) = &mut preview {
-            preview.layout =
-                persistence::load_last_preview_layout(D::name(), cx).log_err().flatten().unwrap_or_default();
-        };
         let has_preview = preview.is_some();
-        let persisted_shape =
-            persistence::try_load_shape(D::name(), preview.as_ref().map(|p| p.layout), cx).log_err().flatten();
         // Every picker opens at the standard "simple" size: a fixed width and a
         // standard max height it shrinks below when there's little content.
         // Showing a preview expands it to the larger "telescope" size (see
@@ -536,10 +524,7 @@ impl<D: PickerDelegate> Picker<D> {
             confirm_on_update: None,
             select_instead_of_open: false,
             preview,
-            shape_loaded_from_persistence: persisted_shape.is_some(),
-            shape: persisted_shape.unwrap_or_else(|| {
-                shape::Shape::HorizontallyCentered(default_shape_for_layout(default_shape, initial_layout))
-            }),
+            shape: shape::Shape::HorizontallyCentered(default_shape_for_layout(default_shape, initial_layout)),
             default_shape,
             show_scrollbar: false,
             presentation: Presentation::Modal { resizable: has_preview },
@@ -604,14 +589,12 @@ impl<D: PickerDelegate> Picker<D> {
     }
 
     /// Whether the live shape still reflects the hidden-layout default, i.e. it
-    /// was not restored from a persisted size and currently opens with no
-    /// preview. Only then may `initial_width`/`max_height` push their
+    /// currently opens with no preview. Only then may `initial_width`/`max_height` push their
     /// hidden/no-preview defaults onto it; a picker reopened in a preview layout
     /// keeps the larger telescope default, which those (smaller) no-preview
     /// values must not shrink.
     fn live_shape_is_hidden_default(&self) -> bool {
-        !self.shape_loaded_from_persistence
-            && self.preview_layout().unwrap_or(preview::Layout::Hidden) == preview::Layout::Hidden
+        self.preview_layout().unwrap_or(preview::Layout::Hidden) == preview::Layout::Hidden
     }
 
     /// Whether the picker fills its full height (preview visible) or shrinks to
@@ -1315,17 +1298,13 @@ impl<D: PickerDelegate> Picker<D> {
     }
 
     fn set_preview_layout(&mut self, layout: preview::Layout, _window: &mut Window, cx: &mut Context<Self>) {
-        persistence::store_last_layout(D::name(), self.preview.as_ref().map(|_| layout), cx);
-
         let Some(preview) = &mut self.preview else {
             return;
         };
         preview.layout = layout;
-        // Restore the size the user last left this layout at, or fall back to the
-        // layout's default (simple when hidden, larger when a preview is shown).
-        self.shape = persistence::try_load_shape(D::name(), layout, cx).log_err().flatten().unwrap_or_else(|| {
-            shape::Shape::HorizontallyCentered(default_shape_for_layout(self.default_shape, layout))
-        });
+        // Each layout opens at its default size (simple when hidden, larger when a
+        // preview is shown).
+        self.shape = shape::Shape::HorizontallyCentered(default_shape_for_layout(self.default_shape, layout));
         self.delegate.preview_layout_changed(matches!(layout, preview::Layout::Right));
         cx.notify();
     }
@@ -1334,3 +1313,20 @@ impl<D: PickerDelegate> Picker<D> {
 impl<D: PickerDelegate> EventEmitter<DismissEvent> for Picker<D> {}
 impl<D: PickerDelegate> ModalView for Picker<D> {}
 impl<D: PickerDelegate> ui::FluentBuilder for Picker<D> {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_shape_for_layout_uses_simple_only_when_hidden() {
+        let hidden = shape::Centered::simple();
+        let shown = shape::Centered::default();
+        for (layout, expected) in
+            [(preview::Layout::Hidden, hidden), (preview::Layout::Right, shown), (preview::Layout::Below, shown)]
+        {
+            let actual = default_shape_for_layout(hidden, layout);
+            assert_eq!(format!("{actual:?}"), format!("{expected:?}"), "{layout:?}");
+        }
+    }
+}

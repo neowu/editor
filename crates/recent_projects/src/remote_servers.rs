@@ -551,10 +551,6 @@ impl RemoteServerPickerDelegate {
 impl PickerDelegate for RemoteServerPickerDelegate {
     type ListItem = AnyElement;
 
-    fn name() -> &'static str {
-        "RemoteServerPicker"
-    }
-
     fn match_count(&self) -> usize {
         self.matches.len()
     }

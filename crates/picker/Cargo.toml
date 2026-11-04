@@ -8,17 +8,14 @@ path = "src/picker.rs"
 
 [dependencies]
 anyhow.workspace = true
-db.workspace = true
 ed_actions.workspace = true
 gpui.workspace = true
 language.workspace = true
 menu.workspace = true
 project.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 ui.workspace = true
 ui_input.workspace = true
-util.workspace = true
 workspace.workspace = true
 
 [lints]
