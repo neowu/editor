@@ -206,9 +206,7 @@ impl SerializedPane {
         }
 
         if let Some(preview_item) = preview_item_index.and_then(|index| items.get(index)?.clone()) {
-            pane.update(cx, |pane, cx| {
-                pane.set_preview_item_id(Some(preview_item.item_id()), cx);
-            })?;
+            pane.update(cx, |pane, _| pane.set_preview_item_id(Some(preview_item.item_id())))?;
         }
 
         // `items` keeps a `None` for every item that failed to deserialize, and those

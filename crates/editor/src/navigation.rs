@@ -1136,17 +1136,13 @@ impl Editor {
                         let pane = workspace.read(cx).active_pane().clone();
                         window.defer(cx, move |window, cx| {
                             let target_editor: Entity<Self> = workspace.update(cx, |workspace, cx| {
-                                let preview_tabs_settings = PreviewTabsSettings::get_global(cx);
-                                let keep_old_preview = preview_tabs_settings.enable_keep_preview_on_code_navigation;
-                                let allow_new_preview = preview_tabs_settings.enable_preview_file_from_code_navigation;
-
                                 workspace.open_project_item(
                                     None,
                                     target_buffer.clone(),
                                     true,
                                     true,
-                                    keep_old_preview,
-                                    allow_new_preview,
+                                    false,
+                                    true,
                                     window,
                                     cx,
                                 )
@@ -1174,13 +1170,11 @@ impl Editor {
                     .take(3)
                     .join(", ");
                 let title = if target.is_empty() { "References".to_owned() } else { format!("References to {target}") };
-                let allow_preview = PreviewTabsSettings::get_global(cx).enable_preview_multibuffer_from_code_navigation;
                 Self::open_locations_in_multibuffer(
                     workspace,
                     locations,
                     title,
                     false,
-                    allow_preview,
                     MultibufferSelectionMode::First,
                     window,
                     cx,
@@ -1395,14 +1389,11 @@ impl Editor {
 
                 let opened = workspace
                     .update_in(cx, |workspace, window, cx| {
-                        let allow_preview =
-                            PreviewTabsSettings::get_global(cx).enable_preview_multibuffer_from_code_navigation;
                         if let Some((target_editor, target_pane)) = Self::open_locations_in_multibuffer(
                             workspace,
                             locations,
                             title,
                             split,
-                            allow_preview,
                             MultibufferSelectionMode::First,
                             window,
                             cx,
@@ -1436,9 +1427,7 @@ impl Editor {
                         Ok(Navigated::Yes)
                     }
                     Some(Either::Right(file_target)) => {
-                        // TODO(andrew): respect preview tab settings
-                        //               `enable_keep_preview_on_code_navigation` and
-                        //               `enable_preview_file_from_code_navigation`
+                        // TODO(andrew): open as a preview tab like other single-file code navigation
                         let Some(workspace) = workspace else {
                             return Ok(Navigated::No);
                         };
@@ -1505,18 +1494,13 @@ impl Editor {
                                         workspace.active_pane().clone()
                                     };
 
-                                    let preview_tabs_settings = PreviewTabsSettings::get_global(cx);
-                                    let keep_old_preview = preview_tabs_settings.enable_keep_preview_on_code_navigation;
-                                    let allow_new_preview =
-                                        preview_tabs_settings.enable_preview_file_from_code_navigation;
-
                                     let editor = workspace.open_project_item(
                                         split.then_some(requested_pane.clone()),
                                         target_buffer.clone(),
                                         true,
                                         true,
-                                        keep_old_preview,
-                                        allow_new_preview,
+                                        false,
+                                        true,
                                         window,
                                         cx,
                                     );
@@ -1707,7 +1691,6 @@ impl Editor {
         locations: std::collections::HashMap<Entity<Buffer>, Vec<Range<Point>>>,
         title: String,
         split: bool,
-        allow_preview: bool,
         multibuffer_selection_mode: MultibufferSelectionMode,
         window: &mut Window,
         cx: &mut Context<Workspace>,
@@ -1799,16 +1782,11 @@ impl Editor {
         let pane = if split { workspace.adjacent_pane(window, cx) } else { workspace.active_pane().clone() };
         let activate_pane = split;
 
-        let mut destination_index = None;
         pane.update(cx, |pane, cx| {
-            if allow_preview && !was_existing {
-                destination_index = pane.replace_preview_item_id(item.item_id(), window, cx);
-                editor.update(cx, |editor, cx| editor.buffer.update(cx, |buffer, cx| buffer.refresh_preview(cx)));
-            }
-            if was_existing && !allow_preview {
+            if was_existing {
                 pane.unpreview_item_if_preview(item.item_id());
             }
-            pane.add_item(item, activate_pane, true, destination_index, window, cx);
+            pane.add_item(item, activate_pane, true, None, window, cx);
         });
 
         Some((editor, pane))

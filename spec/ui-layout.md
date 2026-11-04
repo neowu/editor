@@ -165,8 +165,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
 - Inactive split panes are dimmed (70% overlay opacity) over the rounded card
   only, never the tab bar, so tab bars stay the plain chrome colour in every
   pane. The active pane has no border.
-- The workspace has no settings (`WorkspaceSettingsContent` is gone; only
-  `StatusBarSettings` remains in `workspace_settings`). Fixed behaviour:
+- The workspace has no settings (`WorkspaceSettingsContent`,
+  `StatusBarSettings` and `PreviewTabsSettings` are gone). Fixed behaviour:
   - Layout: the bottom dock sits between the left and right docks. Splitting
     goes right or down. Split drop targets are 20% of the pane's smaller
     side. Resizing the left dock resizes all its panels; other docks resize
@@ -176,6 +176,15 @@ because it hurt readability; an opaque window is also cheaper to composite.
   - Focus never follows the mouse.
   - Window: native macOS fullscreen. Text uses the platform's default
     rendering mode.
+  - Status bar: always shown (except while zoomed), with the language and
+    cursor position buttons; the encoding button only for non-UTF-8 or
+    UTF-8-with-BOM buffers.
+  - Preview tabs are always on (`TogglePreviewTab` always works). A single
+    click in the project panel, opening from a multibuffer, and single-file
+    code navigation open preview tabs, and code navigation replaces the
+    current preview rather than keeping it. The file finder and multibuffer
+    results of code navigation (references, multiple definitions, selections)
+    open permanent tabs.
 - A zoomed view (editor or any dock) covers exactly the area the cards occupy,
   on the chrome, overlaying the others, so every zoomed view has the same size.
   The `zoomed_padding` setting is removed, as is centered layout
@@ -192,8 +201,7 @@ because it hurt readability; an opaque window is also cheaper to composite.
   window's top edge. When the status bar is shown, it replaces
   the bottom gap and pads its content evenly above and below, so the icons sit
   centred between the card and the window edge.
-- Status bar items have no "Hide Button" right-click entry; they are hidden only
-  through their settings. Items without other menu entries (search, cursor
+- Status bar items have no "Hide Button" right-click entry and can't be hidden. Items without other menu entries (search, cursor
   position, language, diagnostics, …) have no right-click menu at all; dock
   panel buttons keep theirs for dock position only.
 - Status bar buttons that open a pane item (project search, project

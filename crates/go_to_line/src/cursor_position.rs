@@ -10,7 +10,6 @@ use gpui::App;
 use gpui::Entity;
 use gpui::FocusHandle;
 use gpui::Focusable;
-use gpui::Styled;
 use gpui::Subscription;
 use gpui::Task;
 use gpui::WeakEntity;
@@ -30,7 +29,6 @@ use ui::Tooltip;
 use ui::Window;
 use ui::div;
 use util::paths::FILE_ROW_COLUMN_DELIMITER;
-use workspace::StatusBarSettings;
 use workspace::StatusItemView;
 use workspace::Workspace;
 use workspace::item::ItemHandle;
@@ -197,10 +195,6 @@ impl CursorPosition {
 
 impl Render for CursorPosition {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !StatusBarSettings::get_global(cx).cursor_position_button {
-            return div().hidden();
-        }
-
         div().when_some(self.position, |el, position| {
             let mut text = format!("{}{FILE_ROW_COLUMN_DELIMITER}{}", position.line, position.character,);
             self.write_position(&mut text, cx);

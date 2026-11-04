@@ -2097,13 +2097,6 @@ impl MultiBuffer {
         cx.notify();
     }
 
-    /// Preserve preview tabs containing this multibuffer until additional edits occur.
-    pub fn refresh_preview(&self, cx: &mut Context<Self>) {
-        for buffer_state in self.buffers.values() {
-            buffer_state.buffer.update(cx, |buffer, _cx| buffer.refresh_preview());
-        }
-    }
-
     /// Whether we should preserve the preview status of a tab containing this multi-buffer.
     pub fn preserve_preview(&self, cx: &App) -> bool {
         self.buffers.values().all(|state| state.buffer.read(cx).preserve_preview())

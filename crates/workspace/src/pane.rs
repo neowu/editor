@@ -58,7 +58,6 @@ use project::ProjectEntryId;
 use project::ProjectPath;
 use project::WorktreeId;
 use serde::Deserialize;
-use settings::Settings;
 use settings::SettingsStore;
 use theme::ThemeColors;
 use ui::ContextMenu;
@@ -97,7 +96,6 @@ use crate::invalid_item_view::InvalidItemView;
 use crate::item::Item;
 use crate::item::ItemBufferKind;
 use crate::item::ItemHandle;
-use crate::item::PreviewTabsSettings;
 use crate::item::ProjectItemKind;
 use crate::item::SaveOptions;
 use crate::item::TabContentParams;
@@ -720,10 +718,6 @@ impl Pane {
     }
 
     fn settings_changed(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
-        if !PreviewTabsSettings::get_global(cx).enabled {
-            self.set_preview_item_id(None, cx);
-        }
-
         cx.notify();
     }
 
@@ -885,7 +879,6 @@ impl Pane {
     }
 
     /// Marks the item with the given ID as the preview item.
-    /// This will be ignored if the global setting `preview_tabs` is disabled.
     ///
     /// The old preview item (if there was one) is closed and its index is returned.
     pub fn replace_preview_item_id(
@@ -895,19 +888,16 @@ impl Pane {
         cx: &mut Context<Self>,
     ) -> Option<usize> {
         let idx = self.close_current_preview_item(window, cx);
-        self.set_preview_item_id(Some(item_id), cx);
+        self.set_preview_item_id(Some(item_id));
         idx
     }
 
     /// Marks the item with the given ID as the preview item.
-    /// This will be ignored if the global setting `preview_tabs` is disabled.
     ///
     /// This is a low-level method. Prefer `unpreview_item_if_preview()` or `set_new_preview_item()`.
-    pub(crate) fn set_preview_item_id(&mut self, item_id: Option<EntityId>, cx: &App) {
-        if item_id.is_none() || PreviewTabsSettings::get_global(cx).enabled {
-            let old_item_id = mem::replace(&mut self.preview_item_id, item_id);
-            self.nav_history.set_preview_item(old_item_id, item_id);
-        }
+    pub(crate) fn set_preview_item_id(&mut self, item_id: Option<EntityId>) {
+        let old_item_id = mem::replace(&mut self.preview_item_id, item_id);
+        self.nav_history.set_preview_item(old_item_id, item_id);
     }
 
     pub const fn set_read_only_tabs(&mut self, read_only_tabs: bool) {
@@ -985,13 +975,13 @@ impl Pane {
             let new_item_id = new_item.item_id();
 
             if allow_preview && preview_was_active {
-                pane.set_preview_item_id(Some(new_item_id), cx);
+                pane.set_preview_item_id(Some(new_item_id));
             }
 
             pane.add_item_inner(new_item, true, focus_item, activate, destination_index, window, cx);
 
             if allow_preview && !preview_was_active {
-                pane.set_preview_item_id(Some(new_item_id), cx);
+                pane.set_preview_item_id(Some(new_item_id));
             }
         };
 
@@ -3466,17 +3456,15 @@ impl Render for Pane {
             .on_action(cx.listener(Self::swap_item_right))
             .on_action(cx.listener(Self::toggle_pin_tab))
             .on_action(cx.listener(Self::unpin_all_tabs))
-            .when(PreviewTabsSettings::get_global(cx).enabled, |this| {
-                this.on_action(cx.listener(|pane: &mut Pane, _: &TogglePreviewTab, window, cx| {
-                    if let Some(active_item_id) = pane.active_item().map(|i| i.item_id()) {
-                        if pane.is_active_preview_item(active_item_id) {
-                            pane.unpreview_item_if_preview(active_item_id);
-                        } else {
-                            pane.replace_preview_item_id(active_item_id, window, cx);
-                        }
+            .on_action(cx.listener(|pane: &mut Pane, _: &TogglePreviewTab, window, cx| {
+                if let Some(active_item_id) = pane.active_item().map(|i| i.item_id()) {
+                    if pane.is_active_preview_item(active_item_id) {
+                        pane.unpreview_item_if_preview(active_item_id);
+                    } else {
+                        pane.replace_preview_item_id(active_item_id, window, cx);
                     }
-                }))
-            })
+                }
+            }))
             .on_action(cx.listener(|pane: &mut Self, action: &CloseActiveItem, window, cx| {
                 pane.close_active_item(action, window, cx).detach_and_log_err(cx)
             }))

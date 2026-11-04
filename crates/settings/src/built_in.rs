@@ -11,7 +11,6 @@ use settings_content::DiagnosticsSettingsContent;
 use settings_content::DockSide;
 use settings_content::DocumentFoldingRanges;
 use settings_content::DocumentSymbols;
-use settings_content::EncodingDisplayOptions;
 use settings_content::FileDiffSettingsContent;
 use settings_content::FileFinderSettingsContent;
 use settings_content::FileTypeMap;
@@ -52,7 +51,6 @@ use settings_content::ModalWidthContent;
 use settings_content::OutlinePanelSettingsContent;
 use settings_content::PathHyperlinkRegex;
 use settings_content::PixelSetting;
-use settings_content::PreviewTabsSettingsContent;
 use settings_content::ProjectPanelAutoOpenSettings;
 use settings_content::ProjectPanelEntrySpacing;
 use settings_content::ProjectPanelIndentGuidesSettings;
@@ -74,7 +72,6 @@ use settings_content::ShowIndentGuides;
 use settings_content::ShowWhitespaceSetting;
 use settings_content::SoftWrap;
 use settings_content::SoftWrapIndent;
-use settings_content::StatusBarSettingsContent;
 use settings_content::TabSwitcherSettingsContent;
 use settings_content::TerminalBlink;
 use settings_content::TerminalDockPosition;
@@ -98,21 +95,6 @@ pub fn settings() -> SettingsContent {
             prefill_query_from_selection: Some(true),
         }),
         tab_switcher: Some(TabSwitcherSettingsContent { show_file_preview: Some(true) }),
-        status_bar: Some(StatusBarSettingsContent {
-            show: Some(true),
-            active_language_button: Some(true),
-            cursor_position_button: Some(true),
-            active_encoding_button: Some(EncodingDisplayOptions::NonUtf8),
-        }),
-        preview_tabs: Some(PreviewTabsSettingsContent {
-            enabled: Some(true),
-            enable_preview_from_project_panel: Some(true),
-            enable_preview_from_file_finder: Some(false),
-            enable_preview_from_multibuffer: Some(true),
-            enable_preview_multibuffer_from_code_navigation: Some(false),
-            enable_preview_file_from_code_navigation: Some(true),
-            enable_keep_preview_on_code_navigation: Some(false),
-        }),
         diagnostics: Some(DiagnosticsSettingsContent {
             button: Some(true),
             lsp_pull_diagnostics: Some(LspPullDiagnosticsSettingsContent {

@@ -23,7 +23,6 @@ mod toast_layer;
 mod toolbar;
 mod window_header;
 pub mod workspace_error;
-mod workspace_settings;
 
 use std::any::TypeId;
 use std::borrow::Cow;
@@ -96,7 +95,6 @@ use gpui::size;
 pub use history_manager::*;
 pub use item::Item;
 pub use item::ItemHandle;
-pub use item::PreviewTabsSettings;
 pub use item::ProjectItem;
 pub use item::SerializableItem;
 pub use item::SerializableItemHandle;
@@ -178,8 +176,6 @@ use util::ResultExt;
 use util::paths::SanitizedPath;
 use util::rel_path::RelPath;
 use uuid::Uuid;
-pub use workspace_settings::EncodingDisplayOptions;
-pub use workspace_settings::StatusBarSettings;
 
 use crate::item::ItemBufferKind;
 use crate::mode::GIT_HISTORY_SIDEBAR_WIDTH;
@@ -1624,7 +1620,7 @@ impl Workspace {
     /// The status bar is hidden while the shown mode has something zoomed, so
     /// the zoomed view extends down to the window edge.
     pub fn status_bar_visible(&self, cx: &App) -> bool {
-        StatusBarSettings::get_global(cx).show && !self.has_zoomed(self.mode, cx)
+        !self.has_zoomed(self.mode, cx)
     }
 
     pub const fn mode(&self) -> WorkspaceMode {

@@ -157,7 +157,6 @@ use workspace::OpenInTerminal;
 use workspace::OpenMode;
 use workspace::OpenOptions;
 use workspace::OpenVisible;
-use workspace::PreviewTabsSettings;
 use workspace::SelectedEntry;
 use workspace::SplitDirection;
 use workspace::Workspace;
@@ -1861,8 +1860,7 @@ impl ProjectPanel {
     }
 
     fn open(&mut self, _: &Open, window: &mut Window, cx: &mut Context<Self>) {
-        let preview_tabs_enabled = PreviewTabsSettings::get_global(cx).enable_preview_from_project_panel;
-        self.open_internal(preview_tabs_enabled, !preview_tabs_enabled, None, window, cx);
+        self.open_internal(true, false, None, window, cx);
     }
 
     fn open_permanent(&mut self, _: &OpenPermanent, window: &mut Window, cx: &mut Context<Self>) {
@@ -5562,10 +5560,9 @@ impl ProjectPanel {
                         project_panel.toggle_expanded(entry_id, window, cx);
                     }
                 } else {
-                    let preview_tabs_enabled = PreviewTabsSettings::get_global(cx).enable_preview_from_project_panel;
                     let click_count = event.click_count();
                     let focus_opened_item = click_count > 1;
-                    let allow_preview = preview_tabs_enabled && click_count == 1;
+                    let allow_preview = click_count == 1;
                     project_panel.open_entry(entry_id, focus_opened_item, allow_preview, cx);
                 }
             }))

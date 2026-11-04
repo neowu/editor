@@ -17,11 +17,9 @@ use ui::ButtonCommon;
 use ui::Clickable;
 use ui::LabelSize;
 use ui::Tooltip;
-use workspace::StatusBarSettings;
 use workspace::StatusItemView;
 use workspace::Workspace;
 use workspace::item::ItemHandle;
-use workspace::item::Settings;
 
 use crate::EncodingSelector;
 use crate::Toggle;
@@ -74,9 +72,7 @@ impl Render for ActiveBufferEncoding {
             return div().hidden();
         };
 
-        let display_option = StatusBarSettings::get_global(cx).active_encoding_button;
-        let is_utf8 = active_encoding == UTF_8;
-        if !display_option.should_show(is_utf8, self.has_bom) {
+        if !is_non_standard_encoding(active_encoding, self.has_bom) {
             return div().hidden();
         }
 
@@ -135,5 +131,27 @@ impl StatusItemView for ActiveBufferEncoding {
         }
 
         cx.notify();
+    }
+}
+
+/// The status bar shows the encoding only when it is not plain UTF-8 (another
+/// encoding, or UTF-8 with a BOM).
+fn is_non_standard_encoding(encoding: &'static Encoding, has_bom: bool) -> bool {
+    encoding != UTF_8 || has_bom
+}
+
+#[cfg(test)]
+mod tests {
+    use encoding_rs::UTF_16LE;
+    use encoding_rs::WINDOWS_1252;
+
+    use super::*;
+
+    #[test]
+    fn test_is_non_standard_encoding() {
+        assert!(!is_non_standard_encoding(UTF_8, false));
+        assert!(is_non_standard_encoding(UTF_8, true));
+        assert!(is_non_standard_encoding(UTF_16LE, false));
+        assert!(is_non_standard_encoding(WINDOWS_1252, false));
     }
 }

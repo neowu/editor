@@ -4,21 +4,18 @@ use gpui::Entity;
 use gpui::IntoElement;
 use gpui::ParentElement;
 use gpui::Render;
-use gpui::Styled;
 use gpui::Subscription;
 use gpui::WeakEntity;
 use gpui::Window;
 use gpui::div;
 use language::LanguageName;
 use language::PLAIN_TEXT;
-use settings::Settings as _;
 use ui::Button;
 use ui::ButtonCommon;
 use ui::Clickable;
 use ui::FluentBuilder;
 use ui::LabelSize;
 use ui::Tooltip;
-use workspace::StatusBarSettings;
 use workspace::StatusItemView;
 use workspace::Workspace;
 use workspace::item::ItemHandle;
@@ -58,10 +55,6 @@ impl ActiveBufferLanguage {
 
 impl Render for ActiveBufferLanguage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !StatusBarSettings::get_global(cx).active_language_button {
-            return div().hidden();
-        }
-
         div().when_some(self.active_language.as_ref(), |el, active_language| {
             let active_language_text = if let Some(active_language_text) = active_language {
                 active_language_text.to_string()

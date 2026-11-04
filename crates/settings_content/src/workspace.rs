@@ -4,41 +4,6 @@ use serde::Serialize;
 use crate::DockSide;
 use crate::ShowIndentGuides;
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-pub struct PreviewTabsSettingsContent {
-    /// Whether to show opened editors as preview tabs.
-    /// Preview tabs do not stay open, are reused until explicitly set to be kept open opened (via double-click or editing) and show file names in italic.
-    ///
-    /// Default: true
-    pub enabled: Option<bool>,
-    /// Whether to open tabs in preview mode when opened from the project panel
-    /// with a single click or the `project_panel::Open` action.
-    ///
-    /// Default: true
-    pub enable_preview_from_project_panel: Option<bool>,
-    /// Whether to open tabs in preview mode when selected from the file finder.
-    ///
-    /// Default: false
-    pub enable_preview_from_file_finder: Option<bool>,
-    /// Whether to open tabs in preview mode when opened from a multibuffer.
-    ///
-    /// Default: true
-    pub enable_preview_from_multibuffer: Option<bool>,
-    /// Whether to open tabs in preview mode when code navigation is used to open a multibuffer.
-    ///
-    /// Default: false
-    pub enable_preview_multibuffer_from_code_navigation: Option<bool>,
-    /// Whether to open tabs in preview mode when code navigation is used to open a single file.
-    ///
-    /// Default: true
-    pub enable_preview_file_from_code_navigation: Option<bool>,
-    /// Whether to keep tabs in preview mode when code navigation is used to navigate away from them.
-    /// If `enable_preview_file_from_code_navigation` or `enable_preview_multibuffer_from_code_navigation` is also true, the new tab may replace the existing one.
-    ///
-    /// Default: false
-    pub enable_keep_preview_on_code_navigation: Option<bool>,
-}
-
 #[derive(
     Copy, Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames,
 )]
@@ -48,50 +13,6 @@ pub enum ShowDiagnostics {
     Off,
     Errors,
     All,
-}
-
-#[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq, Eq)]
-pub struct StatusBarSettingsContent {
-    /// Whether to show the status bar.
-    ///
-    /// Default: true
-    #[serde(rename = "experimental.show")]
-    pub show: Option<bool>,
-    /// Whether to display the active language button in the status bar.
-    ///
-    /// Default: true
-    pub active_language_button: Option<bool>,
-    /// Whether to show the cursor position button in the status bar.
-    ///
-    /// Default: true
-    pub cursor_position_button: Option<bool>,
-    /// Whether to show the active encoding button in the status bar.
-    ///
-    /// Default: non_utf8
-    pub active_encoding_button: Option<EncodingDisplayOptions>,
-}
-
-#[derive(
-    Copy, Clone, Debug, Eq, PartialEq, Default, Serialize, Deserialize, strum::VariantNames, strum::VariantArray,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum EncodingDisplayOptions {
-    Enabled,
-    Disabled,
-    #[default]
-    NonUtf8,
-}
-impl EncodingDisplayOptions {
-    pub const fn should_show(&self, is_utf8: bool, has_bom: bool) -> bool {
-        match self {
-            Self::Disabled => false,
-            Self::Enabled => true,
-            Self::NonUtf8 => {
-                let is_standard_utf8 = is_utf8 && !has_bom;
-                !is_standard_utf8
-            }
-        }
-    }
 }
 
 #[derive(Clone, PartialEq, Default, Serialize, Deserialize, Debug)]

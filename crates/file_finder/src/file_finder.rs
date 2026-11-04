@@ -71,7 +71,6 @@ use workspace::OpenOptions;
 use workspace::OpenVisible;
 use workspace::SplitDirection;
 use workspace::Workspace;
-use workspace::item::PreviewTabsSettings;
 use workspace::notifications::NotifyResultExt;
 use workspace::pane;
 
@@ -1368,8 +1367,7 @@ impl FileFinderDelegate {
         let Some(m) = self.matches.get(self.selected_index()).cloned() else {
             return;
         };
-        let allow_preview = PreviewTabsSettings::get_global(cx).enable_preview_from_file_finder;
-        self.open_match(m, secondary, dismiss_after_open, allow_preview, window, cx);
+        self.open_match(m, secondary, dismiss_after_open, false, window, cx);
     }
 
     /// `allow_preview` is forced off for batch opens so every file gets its

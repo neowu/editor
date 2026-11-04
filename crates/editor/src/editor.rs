@@ -620,7 +620,6 @@ use workspace::SplitDirection;
 use workspace::Workspace;
 use workspace::item::ItemBufferKind;
 use workspace::item::ItemHandle;
-use workspace::item::PreviewTabsSettings;
 use workspace::item::SaveOptions;
 use workspace::notifications::DetachAndPromptErr;
 use workspace::notifications::NotifyResultExt;
@@ -6644,7 +6643,6 @@ impl Editor {
                     locations,
                     format!("Selections for '{title}'"),
                     false,
-                    false,
                     MultibufferSelectionMode::All,
                     window,
                     cx,
@@ -7428,37 +7426,24 @@ impl Editor {
                                 // Handle file-less buffers separately: those are not really the project items, so won't have a project path or entity id,
                                 // so `workspace.open_project_item` will never find them, always opening a new editor.
                                 // Instead, we try to activate the existing editor in the pane first.
-                                let (editor, pane_item_index, pane_item_id) =
+                                let (editor, pane_item_index) =
                                     pane.read(cx).items().enumerate().find_map(|(i, item)| {
                                         let editor = item.downcast::<Editor>()?;
                                         let singleton_buffer = editor.read(cx).buffer().read(cx).as_singleton()?;
-                                        if singleton_buffer == buffer {
-                                            Some((editor, i, item.item_id()))
-                                        } else {
-                                            None
-                                        }
+                                        if singleton_buffer == buffer { Some((editor, i)) } else { None }
                                     })?;
-                                pane.update(cx, |pane, cx| {
-                                    pane.activate_item(pane_item_index, true, true, window, cx);
-                                    if !PreviewTabsSettings::get_global(cx).enable_preview_from_multibuffer {
-                                        pane.unpreview_item_if_preview(pane_item_id);
-                                    }
-                                });
+                                pane.update(cx, |pane, cx| pane.activate_item(pane_item_index, true, true, window, cx));
                                 Some(editor)
                             })
                             .flatten()
                             .unwrap_or_else(|| {
-                                let keep_old_preview =
-                                    PreviewTabsSettings::get_global(cx).enable_keep_preview_on_code_navigation;
-                                let allow_new_preview =
-                                    PreviewTabsSettings::get_global(cx).enable_preview_from_multibuffer;
                                 workspace.open_project_item::<Self>(
                                     target_pane,
                                     buffer,
                                     true,
                                     true,
-                                    keep_old_preview,
-                                    allow_new_preview,
+                                    false,
+                                    true,
                                     window,
                                     cx,
                                 )

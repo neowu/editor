@@ -76,9 +76,6 @@ pub struct SettingsContent {
     pub file_finder: Option<FileFinderSettingsContent>,
 
     pub tab_switcher: Option<TabSwitcherSettingsContent>,
-    pub status_bar: Option<StatusBarSettingsContent>,
-
-    pub preview_tabs: Option<PreviewTabsSettingsContent>,
 
     /// Configuration for Diagnostics-related features.
     pub diagnostics: Option<DiagnosticsSettingsContent>,
