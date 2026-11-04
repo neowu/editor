@@ -128,6 +128,14 @@ pub struct SavedWindowBounds {
     pub display: Uuid,
 }
 
+/// A server of the recent remote projects, with those projects.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecentServer {
+    pub server: RemoteServer,
+    /// Most recent first.
+    pub projects: Vec<ProjectLocation>,
+}
+
 /// Contents of `projects.json`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectsFile {
@@ -203,6 +211,21 @@ impl ProjectsFile {
             .window
     }
 
+    /// Servers of the recent remote projects, most recently used first.
+    pub fn recent_servers(&self) -> Vec<RecentServer> {
+        let mut servers: Vec<RecentServer> = Vec::new();
+        for project in &self.recent {
+            let Some(server) = &project.location.remote else {
+                continue;
+            };
+            match servers.iter_mut().find(|recent| &recent.server == server) {
+                Some(recent) => recent.projects.push(project.location.clone()),
+                None => servers.push(RecentServer { server: server.clone(), projects: vec![project.location.clone()] }),
+            }
+        }
+        servers
+    }
+
     /// Locations of the projects marked open, most recent first.
     pub fn open_projects(&self) -> Vec<ProjectLocation> {
         self.recent.iter().filter(|project| project.open).map(|project| project.location.clone()).collect()
@@ -245,6 +268,10 @@ impl ProjectsStore {
 
     pub fn recent(&self) -> Vec<RecentProject> {
         self.state.lock().recent.clone()
+    }
+
+    pub fn recent_servers(&self) -> Vec<RecentServer> {
+        self.state.lock().recent_servers()
     }
 
     pub fn last_session(&self) -> Vec<ProjectLocation> {
@@ -613,6 +640,7 @@ mod tests {
     use super::ProjectLocation;
     use super::ProjectsFile;
     use super::RecentProject;
+    use super::RecentServer;
     use super::RecentWorkspace;
     use super::RemoteServer;
     use super::SavedWindowBounds;
@@ -678,6 +706,28 @@ mod tests {
                 RecentProject { location: local(&["/b"]), opened_at: 3, open: false, window: None }
             ]
         );
+    }
+
+    #[test]
+    fn test_recent_servers_groups_remote_projects_by_server() {
+        let remote = |host: &str, paths: &[&str]| ProjectLocation {
+            paths: paths.iter().map(PathBuf::from).collect(),
+            remote: Some(RemoteServer { host: host.into(), username: None, port: None }),
+        };
+        let mut file = ProjectsFile::default();
+        file.record_recent(remote("a", &["/one"]), 1);
+        file.record_recent(local(&["/local"]), 2);
+        file.record_recent(remote("b", &["/two"]), 3);
+        file.record_recent(remote("a", &["/three"]), 4);
+        let server = |host: &str| RemoteServer { host: host.into(), username: None, port: None };
+        assert_eq!(
+            file.recent_servers(),
+            [
+                RecentServer { server: server("a"), projects: vec![remote("a", &["/three"]), remote("a", &["/one"])] },
+                RecentServer { server: server("b"), projects: vec![remote("b", &["/two"])] },
+            ]
+        );
+        assert_eq!(ProjectsFile::default().recent_servers(), []);
     }
 
     #[test]
