@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use gpui::Action;
-use gpui::Anchor;
 use gpui::AnyView;
 use gpui::App;
 use gpui::Axis;
@@ -31,15 +30,12 @@ use gpui::px;
 use serde::Deserialize;
 use serde::Serialize;
 use settings::SettingsStore;
-use settings::TerminalDockPosition;
-use ui::ContextMenu;
 use ui::CountBadge;
 use ui::Divider;
 use ui::DividerColor;
 use ui::IconButton;
 use ui::Tooltip;
 use ui::prelude::*;
-use ui::right_click_menu;
 use util::ResultExt as _;
 
 use crate::DraggedDock;
@@ -73,8 +69,6 @@ pub trait Panel: Focusable + EventEmitter<PanelEvent> + Render + Sized {
         self.focus_handle(cx)
     }
     fn position(&self, window: &Window, cx: &App) -> DockPosition;
-    fn position_is_valid(&self, position: DockPosition) -> bool;
-    fn set_position(&mut self, position: DockPosition, window: &mut Window, cx: &mut Context<Self>);
     fn default_size(&self, window: &Window, cx: &App) -> Pixels;
     fn min_size(&self, _window: &Window, _cx: &App) -> Option<Pixels> {
         None
@@ -112,8 +106,6 @@ pub trait PanelHandle: Send + Sync {
     fn persistent_name(&self) -> &'static str;
     fn panel_key(&self) -> &'static str;
     fn position(&self, window: &Window, cx: &App) -> DockPosition;
-    fn position_is_valid(&self, position: DockPosition, cx: &App) -> bool;
-    fn set_position(&self, position: DockPosition, window: &mut Window, cx: &mut App);
     fn is_zoomed(&self, window: &Window, cx: &App) -> bool;
     fn set_zoomed(&self, zoomed: bool, window: &mut Window, cx: &mut App);
     fn set_active(&self, active: bool, window: &mut Window, cx: &mut App);
@@ -132,17 +124,6 @@ pub trait PanelHandle: Send + Sync {
     fn to_any(&self) -> AnyView;
     fn activation_priority(&self, cx: &App) -> u32;
     fn enabled(&self, cx: &App) -> bool;
-    fn move_to_next_position(&self, window: &mut Window, cx: &mut App) {
-        let current_position = self.position(window, cx);
-        let next_position = [DockPosition::Left, DockPosition::Bottom, DockPosition::Right]
-            .into_iter()
-            .filter(|position| self.position_is_valid(*position, cx))
-            .skip_while(|valid_position| *valid_position != current_position)
-            .nth(1)
-            .unwrap_or(DockPosition::Left);
-
-        self.set_position(next_position, window, cx);
-    }
 }
 
 impl<T> PanelHandle for Entity<T>
@@ -163,14 +144,6 @@ where
 
     fn position(&self, window: &Window, cx: &App) -> DockPosition {
         self.read(cx).position(window, cx)
-    }
-
-    fn position_is_valid(&self, position: DockPosition, cx: &App) -> bool {
-        self.read(cx).position_is_valid(position)
-    }
-
-    fn set_position(&self, position: DockPosition, window: &mut Window, cx: &mut App) {
-        self.update(cx, |this, cx| this.set_position(position, window, cx))
     }
 
     fn is_zoomed(&self, window: &Window, cx: &App) -> bool {
@@ -316,16 +289,6 @@ impl From<DockPosition> for settings::DockPosition {
     }
 }
 
-impl From<TerminalDockPosition> for DockPosition {
-    fn from(value: TerminalDockPosition) -> Self {
-        match value {
-            TerminalDockPosition::Left => DockPosition::Left,
-            TerminalDockPosition::Bottom => DockPosition::Bottom,
-            TerminalDockPosition::Right => DockPosition::Right,
-        }
-    }
-}
-
 impl DockPosition {
     const fn label(&self) -> &'static str {
         match self {
@@ -351,7 +314,7 @@ pub struct PanelSizeState {
 struct PanelEntry {
     panel: Arc<dyn PanelHandle>,
     size_state: PanelSizeState,
-    _subscriptions: [Subscription; 4],
+    _subscriptions: [Subscription; 3],
 }
 
 pub struct PanelButtons {
@@ -550,67 +513,6 @@ impl Dock {
     ) -> usize {
         let subscriptions = [
             cx.observe(&panel, |_, _, cx| cx.notify()),
-            cx.observe_global_in::<SettingsStore>(window, {
-                let workspace = workspace.clone();
-                let panel = panel.clone();
-
-                move |this, window, cx| {
-                    let new_position = panel.read(cx).position(window, cx);
-                    if new_position == this.position {
-                        return;
-                    }
-
-                    let Ok(new_dock) = workspace.update(cx, |workspace, cx| {
-                        if panel.is_zoomed(window, cx) {
-                            workspace.zoomed_position = Some(new_position);
-                        }
-                        match new_position {
-                            DockPosition::Left => &workspace.left_dock,
-                            DockPosition::Bottom => &workspace.bottom_dock,
-                            DockPosition::Right => &workspace.right_dock,
-                        }
-                        .clone()
-                    }) else {
-                        return;
-                    };
-
-                    let panel_id = Entity::entity_id(&panel);
-                    let was_visible = this.is_open()
-                        && this.visible_panel().is_some_and(|active_panel| active_panel.panel_id() == panel_id);
-                    let size_state = this
-                        .panel_entries
-                        .iter()
-                        .find(|entry| entry.panel.panel_id() == panel_id)
-                        .map(|entry| entry.size_state)
-                        .unwrap_or_default();
-
-                    let previous_axis = this.position.axis();
-                    let next_axis = new_position.axis();
-                    let size_state = if previous_axis == next_axis { size_state } else { PanelSizeState::default() };
-
-                    if !this.remove_panel(&panel, window, cx) {
-                        // Panel was already moved from this dock
-                        return;
-                    }
-
-                    new_dock.update(cx, |new_dock, cx| {
-                        let index = new_dock.add_panel(panel.clone(), workspace.clone(), window, cx);
-                        if let Some(added_panel) = new_dock.panel_for_id(panel_id).cloned() {
-                            new_dock.set_panel_size_state(added_panel.as_ref(), size_state, cx);
-                        }
-                        if was_visible {
-                            new_dock.set_open(true, window, cx);
-                            new_dock.activate_panel(index, window, cx);
-                        }
-                    });
-
-                    workspace
-                        .update(cx, |workspace, cx| {
-                            workspace.serialize_workspace(window, cx);
-                        })
-                        .ok();
-                }
-            }),
             {
                 let panel = panel.clone();
                 let mut last_default_size = panel.read(cx).default_size(window, cx);
@@ -1063,11 +965,6 @@ impl Render for PanelButtons {
         let is_open = dock.is_open;
         let dock_position = dock.position;
 
-        let (menu_anchor, menu_attach) = match dock.position {
-            DockPosition::Left => (Anchor::BottomLeft, Anchor::TopLeft),
-            DockPosition::Bottom | DockPosition::Right => (Anchor::BottomRight, Anchor::TopRight),
-        };
-
         let mut buttons: Vec<_> = dock
             .panel_entries
             .iter()
@@ -1080,7 +977,6 @@ impl Render for PanelButtons {
                     .ok_or_else(|| anyhow::anyhow!("can't render a panel button without an icon tooltip"))
                     .log_err()?;
                 let name = entry.panel.persistent_name();
-                let panel = entry.panel.clone();
 
                 let is_active_button = Some(i) == active_index && is_open;
                 let (action, tooltip) = if is_active_button {
@@ -1097,62 +993,27 @@ impl Render for PanelButtons {
 
                 let focus_handle = dock.panel_button_focus_handle(window, cx);
                 let icon_label = entry.panel.icon_label(window, cx);
-                let primary_button = right_click_menu(name)
-                    .menu(move |window, cx| {
-                        const POSITIONS: [DockPosition; 3] =
-                            [DockPosition::Left, DockPosition::Right, DockPosition::Bottom];
-
-                        ContextMenu::build(window, cx, |mut menu, _, cx| {
-                            for position in POSITIONS {
-                                if panel.position_is_valid(position, cx) {
-                                    let is_current = position == dock_position;
-                                    let panel = panel.clone();
-                                    menu = menu.toggleable_entry(
-                                        format!("Dock {}", position.label()),
-                                        is_current,
-                                        IconPosition::Start,
-                                        None,
-                                        move |window, cx| {
-                                            if !is_current {
-                                                panel.set_position(position, window, cx);
-                                            }
-                                        },
-                                    );
-                                }
-                            }
-                            menu
-                        })
+                // Include active state in element ID to invalidate the cached
+                // tooltip when panel state changes (e.g., via keyboard shortcut)
+                let button = IconButton::new((name, is_active_button as u64), icon)
+                    .icon_size(IconSize::Small)
+                    .toggle_state(is_active_button)
+                    .tab_index(0isize)
+                    .on_click({
+                        let action = action.boxed_clone();
+                        move |_, window, cx| {
+                            window.focus(&focus_handle, cx);
+                            window.dispatch_action(action.boxed_clone(), cx)
+                        }
                     })
-                    .anchor(menu_anchor)
-                    .attach(menu_attach)
-                    .trigger(move |is_active, _window, _cx| {
-                        // Include active state in element ID to invalidate the cached
-                        // tooltip when panel state changes (e.g., via keyboard shortcut)
-                        let button = IconButton::new((name, is_active_button as u64), icon)
-                            .icon_size(IconSize::Small)
-                            .toggle_state(is_active_button)
-                            .tab_index(0isize)
-                            .on_click({
-                                let action = action.boxed_clone();
-                                move |_, window, cx| {
-                                    window.focus(&focus_handle, cx);
-                                    window.dispatch_action(action.boxed_clone(), cx)
-                                }
-                            })
-                            .when(!is_active, |this| {
-                                this.tooltip(move |_window, cx| Tooltip::for_action(tooltip.clone(), &*action, cx))
-                            });
+                    .tooltip(move |_window, cx| Tooltip::for_action(tooltip.clone(), &*action, cx));
 
-                        div().relative().child(button).when_some(
-                            icon_label
-                                .clone()
-                                .filter(|_| !is_active_button)
-                                .and_then(|label| label.parse::<usize>().ok()),
-                            |this, count| this.child(CountBadge::new(count)),
-                        )
-                    });
+                let button = div().relative().child(button).when_some(
+                    icon_label.filter(|_| !is_active_button).and_then(|label| label.parse::<usize>().ok()),
+                    |this, count| this.child(CountBadge::new(count)),
+                );
 
-                Some(primary_button)
+                Some(button)
             })
             .collect();
 

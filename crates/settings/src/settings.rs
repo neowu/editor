@@ -4,7 +4,6 @@ mod built_in_keymap;
 mod built_in_semantic_token_rules;
 mod content_into_gpui;
 mod keymap;
-mod settings_file;
 mod settings_store;
 
 pub mod settings_content {
@@ -41,7 +40,6 @@ pub use content_into_gpui::IntoGpui;
 use gpui::App;
 pub use keymap::KeyBindingSpec;
 pub use keymap::built_in_key_bindings;
-pub use settings_file::*;
 pub use settings_store::DefaultSemanticTokenRules;
 pub use settings_store::Settings;
 pub use settings_store::SettingsStore;

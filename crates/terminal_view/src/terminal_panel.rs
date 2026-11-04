@@ -28,10 +28,8 @@ use gpui::WeakEntity;
 use gpui::Window;
 use gpui::actions;
 use itertools::Itertools;
-use project::Fs;
 use project::Project;
 use settings::Settings;
-use settings::TerminalDockPosition;
 use task::RevealStrategy;
 use task::SpawnInTerminal;
 use task::TaskId;
@@ -108,7 +106,6 @@ pub struct TerminalPanel {
     pub(crate) active_pane: Entity<Pane>,
     pub(crate) center: PaneGroup,
     focus_handle: FocusHandle,
-    fs: Arc<dyn Fs>,
     workspace: WeakEntity<Workspace>,
     pending_terminals_to_add: usize,
     deferred_tasks: HashMap<TaskId, Task<()>>,
@@ -124,7 +121,6 @@ impl TerminalPanel {
             center,
             active_pane: pane,
             focus_handle: cx.focus_handle(),
-            fs: workspace.app_state().fs.clone(),
             workspace: workspace.weak_handle(),
             pending_terminals_to_add: 0,
             deferred_tasks: HashMap::default(),
@@ -1035,31 +1031,12 @@ impl Panel for TerminalPanel {
         self.active_pane.focus_handle(cx)
     }
 
-    fn position(&self, _window: &Window, cx: &App) -> DockPosition {
-        TerminalSettings::get_global(cx).dock.into()
+    fn position(&self, _: &Window, _: &App) -> DockPosition {
+        DockPosition::Bottom
     }
 
-    fn position_is_valid(&self, _: DockPosition) -> bool {
-        true
-    }
-
-    fn set_position(&mut self, position: DockPosition, _window: &mut Window, cx: &mut Context<Self>) {
-        settings::update_settings_file(self.fs.clone(), cx, move |settings, _| {
-            let dock = match position {
-                DockPosition::Left => TerminalDockPosition::Left,
-                DockPosition::Bottom => TerminalDockPosition::Bottom,
-                DockPosition::Right => TerminalDockPosition::Right,
-            };
-            settings.terminal.get_or_insert_default().dock = Some(dock);
-        });
-    }
-
-    fn default_size(&self, window: &Window, cx: &App) -> Pixels {
-        let settings = TerminalSettings::get_global(cx);
-        match self.position(window, cx) {
-            DockPosition::Left | DockPosition::Right => settings.default_width,
-            DockPosition::Bottom => settings.default_height,
-        }
+    fn default_size(&self, _: &Window, cx: &App) -> Pixels {
+        TerminalSettings::get_global(cx).default_height
     }
 
     fn is_zoomed(&self, _window: &Window, cx: &App) -> bool {

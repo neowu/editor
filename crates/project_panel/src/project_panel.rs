@@ -6707,12 +6707,6 @@ impl Panel for ProjectPanel {
         DockPosition::Left
     }
 
-    fn position_is_valid(&self, position: DockPosition) -> bool {
-        position == DockPosition::Left
-    }
-
-    fn set_position(&mut self, _: DockPosition, _: &mut Window, _: &mut Context<Self>) {}
-
     fn default_size(&self, _: &Window, _: &App) -> Pixels {
         DEFAULT_WIDTH
     }

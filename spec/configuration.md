@@ -92,7 +92,8 @@ migrator, or Vim/Helix mode.
     name, worktree and branch pickers, and the branch change-status icon are
     always shown; there are no title bar settings;
   - terminal: no title breadcrumbs, no count badge, no bell sound (the tab
-    still marks the bell), does not open on startup;
+    still marks the bell), does not open on startup, always docked at the
+    bottom (no `dock` or `default_width` setting);
   - git panel: no file icons, no count badge, does not open on startup;
     there are no git panel settings (see `git.md`);
   - project panel: folder labels are not bold; there are no project panel

@@ -203,7 +203,7 @@ because it hurt readability; an opaque window is also cheaper to composite.
   centred between the card and the window edge.
 - Status bar items have no "Hide Button" right-click entry and can't be hidden. Items without other menu entries (search, cursor
   position, language, diagnostics, …) have no right-click menu at all; dock
-  panel buttons keep theirs for dock position only.
+  panel buttons have none either.
 - Status bar buttons that open a pane item (project search, project
   diagnostics, Git History's graph) turn accent while that item is the active
   tab (`status_item_color`). Diagnostics keeps its error/warning icon colours

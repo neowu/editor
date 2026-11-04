@@ -275,8 +275,6 @@ actions!(
         GoBack,
         /// Navigates forward in the workspace's shared history.
         GoForward,
-        /// Moves the focused panel to the next position.
-        MoveFocusedPanelToNextPosition,
         /// Creates a new file.
         NewFile,
         /// Switches the window from Git History mode back to the editor.
@@ -2251,27 +2249,6 @@ impl Workspace {
                     .unwrap_or(false)
             });
         });
-    }
-
-    pub fn move_focused_panel_to_next_position(
-        &mut self,
-        _: &MoveFocusedPanelToNextPosition,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let docks = self.all_docks();
-        let active_dock = docks.into_iter().find(|dock| dock.focus_handle(cx).contains_focused(window, cx));
-
-        if let Some(dock) = active_dock {
-            dock.update(cx, |dock, cx| {
-                let active_panel =
-                    dock.active_panel().filter(|panel| panel.panel_focus_handle(cx).contains_focused(window, cx));
-
-                if let Some(panel) = active_panel {
-                    panel.move_to_next_position(window, cx);
-                }
-            })
-        }
     }
 
     pub fn prepare_to_close(
@@ -4700,7 +4677,6 @@ impl Workspace {
             }))
             .on_action(cx.listener(Self::activate_pane_at_index))
             .on_action(cx.listener(Self::move_item_to_pane_at_index))
-            .on_action(cx.listener(Self::move_focused_panel_to_next_position))
             .on_action(cx.listener(Self::reopen_last_picker))
             .when(!active_item_is_read_only, |this| {
                 this.on_action(cx.listener(|workspace, action: &Save, window, cx| {

@@ -58,7 +58,6 @@ use settings_content::SoftWrap;
 use settings_content::SoftWrapIndent;
 use settings_content::TabSwitcherSettingsContent;
 use settings_content::TerminalBlink;
-use settings_content::TerminalDockPosition;
 use settings_content::TerminalLineHeight;
 use settings_content::TerminalSettingsContent;
 use settings_content::WhitespaceMapContent;
@@ -172,8 +171,6 @@ fn terminal_settings() -> Option<TerminalSettingsContent> {
         keep_selection_on_copy: Some(true),
         open_links_in_mouse_mode: Some(true),
         button: Some(true),
-        dock: Some(TerminalDockPosition::Bottom),
-        default_width: Some(PixelSetting(640.0)),
         default_height: Some(PixelSetting(320.0)),
         max_scroll_history_lines: Some(10000),
         scroll_multiplier: Some(1.0),

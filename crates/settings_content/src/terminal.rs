@@ -153,12 +153,7 @@ pub struct TerminalSettingsContent {
     ///
     /// Default: true
     pub button: Option<bool>,
-    pub dock: Option<TerminalDockPosition>,
-    /// Default width when the terminal is docked to the left or right.
-    ///
-    /// Default: 640
-    pub default_width: Option<crate::PixelSetting>,
-    /// Default height when the terminal is docked to the bottom.
+    /// Default height of the terminal panel (always docked at the bottom).
     ///
     /// Default: 320
     pub default_height: Option<crate::PixelSetting>,
@@ -318,12 +313,4 @@ pub enum AlternateScroll {
 pub enum PathHyperlinkRegex {
     SingleLine(String),
     MultiLine(Vec<String>),
-}
-
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames)]
-#[serde(rename_all = "snake_case")]
-pub enum TerminalDockPosition {
-    Left,
-    Bottom,
-    Right,
 }

@@ -10,7 +10,6 @@ use settings::FontFamilyName;
 use settings::IntoGpui;
 use settings::PathHyperlinkRegex;
 use settings::TerminalBlink;
-use settings::TerminalDockPosition;
 use settings::TerminalLineHeight;
 use settings::WorkingDirectory;
 use task::Shell;
@@ -34,8 +33,6 @@ pub struct TerminalSettings {
     pub keep_selection_on_copy: bool,
     pub open_links_in_mouse_mode: bool,
     pub button: bool,
-    pub dock: TerminalDockPosition,
-    pub default_width: Pixels,
     pub default_height: Pixels,
     pub detect_venv: bool,
     pub max_scroll_history_lines: Option<usize>,
@@ -81,8 +78,6 @@ impl settings::Settings for TerminalSettings {
             keep_selection_on_copy: user_content.keep_selection_on_copy.unwrap(),
             open_links_in_mouse_mode: user_content.open_links_in_mouse_mode.unwrap(),
             button: user_content.button.unwrap(),
-            dock: user_content.dock.unwrap(),
-            default_width: user_content.default_width.unwrap().into_gpui(),
             default_height: user_content.default_height.unwrap().into_gpui(),
             detect_venv: project_content.detect_venv.unwrap(),
             scroll_multiplier: user_content.scroll_multiplier.unwrap(),

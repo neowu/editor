@@ -4328,12 +4328,6 @@ impl Panel for OutlinePanel {
         DockPosition::Right
     }
 
-    fn position_is_valid(&self, position: DockPosition) -> bool {
-        position == DockPosition::Right
-    }
-
-    fn set_position(&mut self, _: DockPosition, _: &mut Window, _: &mut Context<Self>) {}
-
     fn default_size(&self, _: &Window, _: &App) -> Pixels {
         DEFAULT_WIDTH
     }

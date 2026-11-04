@@ -178,8 +178,10 @@ downcasts to the item types it cares about, and (re)subscribes to that item.
 ### Docks and panels
 
 - A `Panel` emits `PanelEvent` (`Activate`, `Close`, `ZoomIn/Out`), which the
-  workspace handles. `Dock` observes each panel to re-render, and observes
-  settings to move a panel when its dock position setting changes.
+  workspace handles. `Dock` observes each panel to re-render.
+- Every panel has one fixed dock (project, git: left; terminal: bottom;
+  outline: right). Panels can't be moved: there is no dock position setting,
+  "Dock Left/Right/Bottom" menu, or move-panel action.
 - Panels are loaded asynchronously (each panel's `load`) and added when ready; dock layout is restored after all
   of them (`finish_dock_restoration`).
 
