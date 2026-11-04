@@ -62,8 +62,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
   overlay, whose border runs along the card edge.
 - There is no title bar row; the window's top row is the sidebar and the tab
   bars, to give the content the most room. The window header is one group:
-  empty room for the macOS traffic lights, the project name and alerts (such as
-  restricted mode), Go Back / Go Forward, then an icon-only, segmented
+  empty room for the macOS traffic lights, the project name (with the remote
+  host for remote projects), Go Back / Go Forward, then an icon-only, segmented
   Workspace / Git History switch (shown only for a project in a git
   repository). The switch groups its icon buttons on a faint, borderless
   track (2px inset) so the modes read as one control as more are added; the

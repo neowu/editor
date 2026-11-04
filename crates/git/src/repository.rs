@@ -9,7 +9,6 @@ use std::process::ExitStatus;
 use std::process::Output;
 use std::str::FromStr;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::time::SystemTime;
 
 use anyhow::Context as _;
@@ -969,9 +968,6 @@ pub trait GitRepository: Send + Sync {
     fn delete_ref(&self, ref_name: String) -> BoxFuture<'_, Result<()>>;
 
     fn repair_worktrees(&self) -> BoxFuture<'_, Result<()>>;
-
-    fn set_trusted(&self, trusted: bool);
-    fn is_trusted(&self) -> bool;
 }
 
 pub enum DiffType {
@@ -1007,7 +1003,6 @@ pub struct RealGitRepository {
     pub git_binary_path: PathBuf,
     git_binary_help_output: Arc<Mutex<Option<SharedString>>>,
     executor: BackgroundExecutor,
-    is_trusted: Arc<AtomicBool>,
 }
 
 #[derive(Debug)]
@@ -1073,7 +1068,6 @@ impl RealGitRepository {
             git_binary_path,
             executor,
             git_binary_help_output: Arc::new(Mutex::new(None)),
-            is_trusted: Arc::new(AtomicBool::new(false)),
         })
     }
 
@@ -1086,11 +1080,11 @@ impl RealGitRepository {
     }
 
     fn git_binary_in_worktree(&self) -> Result<GitBinary> {
-        Ok(GitBinary::new(self.git_binary_path.clone(), self.working_directory()?, self.is_trusted()))
+        Ok(GitBinary::new(self.git_binary_path.clone(), self.working_directory()?))
     }
 
     fn git_binary(&self) -> GitBinary {
-        GitBinary::new(self.git_binary_path.clone(), self.command_directory(), self.is_trusted())
+        GitBinary::new(self.git_binary_path.clone(), self.command_directory())
     }
 
     fn edit_ref(&self, edit: RefEdit) -> BoxFuture<'_, Result<()>> {
@@ -1129,7 +1123,7 @@ pub struct GitCommitTemplate {
 }
 
 pub async fn get_git_committer(cx: &AsyncApp) -> GitCommitter {
-    let git = GitBinary::new(PathBuf::from("git"), paths::home_dir().clone(), true);
+    let git = GitBinary::new(PathBuf::from("git"), paths::home_dir().clone());
 
     cx.background_spawn(async move {
         let name = git.run(&["config", "--global", "user.name"]).await.log_err();
@@ -1956,7 +1950,7 @@ impl GitRepository for RealGitRepository {
         worktree_path: PathBuf,
         create: bool,
     ) -> BoxFuture<'_, Result<()>> {
-        let git_binary = GitBinary::new(self.git_binary_path.clone(), worktree_path, self.is_trusted());
+        let git_binary = GitBinary::new(self.git_binary_path.clone(), worktree_path);
 
         self.executor
             .spawn(async move {
@@ -2369,9 +2363,8 @@ impl GitRepository for RealGitRepository {
     ) -> BoxFuture<'_, Result<RemoteCommandOutput>> {
         let working_directory = self.command_directory();
         let git_binary_path = self.git_binary_path.clone();
-        let is_trusted = self.is_trusted();
         async move {
-            let git = GitBinary::new(git_binary_path, working_directory, is_trusted);
+            let git = GitBinary::new(git_binary_path, working_directory);
             let mut command = git.build_command(&["push"]);
             command
                 .envs(env.iter())
@@ -2400,9 +2393,8 @@ impl GitRepository for RealGitRepository {
     ) -> BoxFuture<'_, Result<RemoteCommandOutput>> {
         let working_directory = self.command_directory();
         let git_binary_path = self.git_binary_path.clone();
-        let is_trusted = self.is_trusted();
         async move {
-            let git = GitBinary::new(git_binary_path, working_directory, is_trusted);
+            let git = GitBinary::new(git_binary_path, working_directory);
             let mut command = git.build_command(&["pull"]);
             command.envs(env.iter());
 
@@ -2426,9 +2418,8 @@ impl GitRepository for RealGitRepository {
         let working_directory = self.command_directory();
         let remote_name = format!("{}", fetch_options);
         let git_binary_path = self.git_binary_path.clone();
-        let is_trusted = self.is_trusted();
         async move {
-            let git = GitBinary::new(git_binary_path, working_directory, is_trusted);
+            let git = GitBinary::new(git_binary_path, working_directory);
             let mut command = git.build_command(&["fetch", &remote_name]);
             command.envs(env.iter()).stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -2608,7 +2599,7 @@ impl GitRepository for RealGitRepository {
             let working_directory = git_binary.working_directory.clone();
             if !help_output.await.lines().any(|line| line.trim().starts_with("hook ")) {
                 let hook_abs_path = git_dir.join("hooks").join(hook.as_str());
-                if hook_abs_path.is_file() && git_binary.is_trusted {
+                if hook_abs_path.is_file() {
                     #[allow(clippy::disallowed_methods)]
                     let output =
                         new_command(&hook_abs_path).envs(env.iter()).current_dir(&working_directory).output().await?;
@@ -2626,10 +2617,8 @@ impl GitRepository for RealGitRepository {
                 return Ok(());
             }
 
-            if git_binary.is_trusted {
-                let git_binary = git_binary.envs(HashMap::clone(&env));
-                git_binary.run(&["hook", "run", "--ignore-missing", hook.as_str()]).await?;
-            }
+            let git_binary = git_binary.envs(HashMap::clone(&env));
+            git_binary.run(&["hook", "run", "--ignore-missing", hook.as_str()]).await?;
             Ok(())
         }
         .boxed()
@@ -2825,14 +2814,6 @@ impl GitRepository for RealGitRepository {
 
         Ok(CommitDataReader { request_tx, _task: task })
     }
-
-    fn set_trusted(&self, trusted: bool) {
-        self.is_trusted.store(trusted, std::sync::atomic::Ordering::Release);
-    }
-
-    fn is_trusted(&self) -> bool {
-        self.is_trusted.load(std::sync::atomic::Ordering::Acquire)
-    }
 }
 
 async fn run_commit_data_reader(git: GitBinary, request_rx: async_channel::Receiver<CommitDataRequest>) -> Result<()> {
@@ -2995,12 +2976,11 @@ pub(crate) struct GitBinary {
     git_binary_path: PathBuf,
     working_directory: PathBuf,
     envs: HashMap<String, String>,
-    is_trusted: bool,
 }
 
 impl GitBinary {
-    pub(crate) fn new(git_binary_path: PathBuf, working_directory: PathBuf, is_trusted: bool) -> Self {
-        Self { git_binary_path, working_directory, envs: HashMap::default(), is_trusted }
+    pub(crate) fn new(git_binary_path: PathBuf, working_directory: PathBuf) -> Self {
+        Self { git_binary_path, working_directory, envs: HashMap::default() }
     }
 
     fn envs(mut self, envs: HashMap<String, String>) -> Self {
@@ -3052,28 +3032,7 @@ impl GitBinary {
         // Internal commands must be non-interactive so background tasks never block on user input.
         command.arg("--no-pager");
 
-        if !self.is_trusted {
-            command.args(["-c", "core.hooksPath=/dev/null"]);
-            command.args(["-c", "core.sshCommand=ssh"]);
-            command.args(["-c", "credential.helper="]);
-            command.args(["-c", "protocol.ext.allow=never"]);
-            command.args(["-c", "diff.external="]);
-        }
-        // If the `diff` command is being used, we'll want to add the
-        // `--no-ext-diff` flag when working on an untrusted repository,
-        // preventing any external diff programs from being invoked. It goes
-        // directly after the subcommand: callers end their revisions with `--`,
-        // and anything after that separator is read as a pathspec rather than as
-        // an option.
-        let mut args = args.iter();
-        if let Some(subcommand) = args.next() {
-            let is_diff = subcommand.as_ref() == "diff";
-            command.arg(subcommand);
-            if !self.is_trusted && is_diff {
-                command.arg("--no-ext-diff");
-            }
-            command.args(args);
-        }
+        command.args(args);
 
         command.envs(&self.envs);
         command
@@ -3277,4 +3236,29 @@ fn parse_upstream_track(upstream_track: &str) -> Result<UpstreamTracking> {
         }
     }
     Ok(UpstreamTracking::Tracked(UpstreamTrackingStatus { ahead, behind }))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+    use std::path::PathBuf;
+
+    use super::GitBinary;
+
+    fn command_args(args: &[&str]) -> Vec<String> {
+        let git = GitBinary::new(PathBuf::from("git"), PathBuf::from("/repo"));
+        let command = git.build_command(args);
+        command.get_args().map(OsStr::to_string_lossy).map(String::from).collect()
+    }
+
+    #[test]
+    fn test_build_command_keeps_user_git_config() {
+        let args = command_args(&["commit", "-m", "msg"]);
+        assert!(!args.iter().any(|arg| arg.starts_with("core.hooksPath") || arg.starts_with("credential.helper")));
+        assert_eq!(args[args.len() - 3..], ["commit", "-m", "msg"]);
+
+        let args = command_args(&["diff", "HEAD"]);
+        assert!(!args.iter().any(|arg| arg == "--no-ext-diff"));
+        assert_eq!(args[args.len() - 2..], ["diff", "HEAD"]);
+    }
 }

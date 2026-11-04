@@ -44,7 +44,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("alt-cmd-h", "ed::HideOthers"),
             KeyBindingSpec::new("cmd-m", "ed::Minimize"),
             KeyBindingSpec::new("ctrl-cmd-l", "lsp_tool::ToggleMenu"),
-            KeyBindingSpec::new("ctrl-cmd-s", "workspace::ToggleWorktreeSecurity"),
         ],
     );
     add_bindings(

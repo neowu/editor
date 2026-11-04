@@ -15,7 +15,6 @@ pub mod path_link;
 mod persistence;
 pub mod preview;
 pub mod searchable;
-pub mod security_modal;
 
 pub mod focus_follows_mouse;
 mod status_bar;
@@ -153,9 +152,6 @@ use project::UpdatedEntriesSet;
 use project::Worktree;
 use project::WorktreeId;
 use project::WorktreeSettings;
-use project::project_settings::ProjectSettings;
-use project::trusted_worktrees::RemoteHostLocation;
-use project::trusted_worktrees::TrustedWorktrees;
 use remote::RemoteClientDelegate;
 use remote::RemoteConnection;
 pub use remote::RemoteConnectionIdentity;
@@ -169,7 +165,6 @@ use serde::Deserialize;
 use settings::DefaultOpenBehavior;
 use settings::Settings;
 use settings::SettingsLocation;
-use settings::SettingsStore;
 use status_bar::StatusBar;
 pub use status_bar::StatusItemModes;
 pub use status_bar::StatusItemView;
@@ -210,7 +205,6 @@ use crate::notifications::NotificationId;
 use crate::persistence::model::SerializedItem;
 use crate::persistence::model::SerializedPane;
 use crate::persistence::model::SerializedPaneGroup;
-use crate::security_modal::SecurityModal;
 
 pub const SERIALIZATION_THROTTLE_TIME: Duration = Duration::from_millis(200);
 pub const MAX_RECENT_SELECTIONS: usize = 20;
@@ -359,12 +353,6 @@ actions!(
         ZoomIn,
         /// Zooms out of the active pane.
         ZoomOut,
-        /// If any worktrees are in restricted mode, shows a modal with possible actions.
-        /// If the modal is shown already, closes it without trusting any worktree.
-        ToggleWorktreeSecurity,
-        /// Clears all trusted worktrees, placing them in restricted mode on next open.
-        /// Requires restart to take effect on already opened projects.
-        ClearTrustedWorktrees,
     ]
 );
 
@@ -1167,19 +1155,6 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        if TrustedWorktrees::try_get_global(cx).is_some() {
-            cx.observe_global::<SettingsStore>(|_, cx| {
-                if ProjectSettings::get_global(cx).session.trust_all_worktrees
-                    && let Some(trusted_worktrees) = TrustedWorktrees::try_get_global(cx)
-                {
-                    trusted_worktrees.update(cx, |trusted_worktrees, cx| {
-                        trusted_worktrees.auto_trust_all(cx);
-                    })
-                }
-            })
-            .detach();
-        }
-
         cx.subscribe_in(&project, window, move |this, _, event, window, cx| {
             match event {
                 &project::Event::WorktreeRemoved(_) => {
@@ -1437,12 +1412,7 @@ impl Workspace {
         open_mode: OpenMode,
         cx: &mut App,
     ) -> Task<anyhow::Result<OpenResult>> {
-        let project_handle = Project::local(
-            app_state.languages.clone(),
-            app_state.fs.clone(),
-            project::LocalProjectFlags::default(),
-            cx,
-        );
+        let project_handle = Project::local(app_state.languages.clone(), app_state.fs.clone(), cx);
 
         cx.spawn(async move |cx| {
             let mut paths_to_open = Vec::with_capacity(abs_paths.len());
@@ -1529,8 +1499,6 @@ impl Workspace {
                 .update(cx, |workspace, window, cx| {
                     workspace.update_history(cx);
                     window.activate_window();
-                    // Auto-show the security modal if the project has restricted worktrees
-                    workspace.show_worktree_trust_security_modal(false, window, cx);
                 })
                 .log_err();
 
@@ -4990,14 +4958,6 @@ impl Workspace {
                     workspace.suppress_notification(&notification_id, cx);
                 }
             }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ToggleWorktreeSecurity, window, cx| {
-                workspace.show_worktree_trust_security_modal(true, window, cx);
-            }))
-            .on_action(cx.listener(|_: &mut Workspace, _: &ClearTrustedWorktrees, _, cx| {
-                if let Some(trusted_worktrees) = TrustedWorktrees::try_get_global(cx) {
-                    trusted_worktrees.update(cx, |trusted_worktrees, _| trusted_worktrees.clear_trusted_paths());
-                }
-            }))
             .on_action(cx.listener(|workspace: &mut Workspace, _: &ReopenClosedItem, window, cx| {
                 workspace.reopen_closed_item(window, cx).detach();
             }))
@@ -5459,29 +5419,6 @@ impl Workspace {
         self.bottom_dock.update(cx, |bottom_dock, cx| {
             bottom_dock.resize_panel_sizes(Some(size), window, cx);
         });
-    }
-
-    pub fn show_worktree_trust_security_modal(&mut self, toggle: bool, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(security_modal) = self.active_modal::<SecurityModal>(cx) {
-            if toggle {
-                security_modal.update(cx, |security_modal, cx| {
-                    security_modal.dismiss(cx);
-                })
-            } else {
-                security_modal.update(cx, |security_modal, cx| {
-                    security_modal.refresh_restricted_paths(cx);
-                });
-            }
-        } else {
-            let has_restricted_worktrees =
-                TrustedWorktrees::has_restricted_worktrees(&self.project().read(cx).worktree_store(), cx);
-            if has_restricted_worktrees {
-                let project = self.project().read(cx);
-                let remote_host = project.remote_connection_options(cx).map(RemoteHostLocation::from);
-                let worktree_store = project.worktree_store().downgrade();
-                self.toggle_modal(window, cx, |window, cx| SecurityModal::new(worktree_store, remote_host, window, cx));
-            }
-        }
     }
 }
 
@@ -6116,9 +6053,8 @@ pub fn open_remote_project_with_new_connection(
             None => return Ok((None, Vec::new())),
         };
 
-        let project = cx.update(|cx| {
-            project::Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), true, cx)
-        });
+        let project =
+            cx.update(|cx| project::Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), cx));
 
         let (workspace, items) = open_remote_project_inner(project, paths, app_state, window, cx).await?;
         Ok((Some(workspace), items))

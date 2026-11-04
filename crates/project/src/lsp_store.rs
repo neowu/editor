@@ -28,7 +28,6 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::cmp::Reverse;
 use std::collections::VecDeque;
-use std::collections::hash_map;
 use std::convert::TryInto;
 use std::ffi::OsStr;
 use std::iter;
@@ -89,7 +88,6 @@ use gpui::Entity;
 use gpui::EventEmitter;
 use gpui::PromptLevel;
 use gpui::SharedString;
-use gpui::Subscription;
 use gpui::Task;
 use gpui::TaskExt;
 use gpui::WeakEntity;
@@ -297,9 +295,6 @@ use crate::manifest_tree::ManifestTree;
 use crate::project_settings::BinarySettings;
 use crate::project_settings::LspSettings;
 use crate::project_settings::ProjectSettings;
-use crate::trusted_worktrees::PathTrust;
-use crate::trusted_worktrees::TrustedWorktrees;
-use crate::trusted_worktrees::TrustedWorktreesEvent;
 use crate::worktree_store::WorktreeStore;
 use crate::worktree_store::WorktreeStoreEvent;
 
@@ -470,7 +465,6 @@ pub struct LocalLspStore {
     #[allow(clippy::type_complexity)]
     workspace_pull_diagnostics_result_ids:
         HashMap<LanguageServerId, HashMap<Option<SharedString>, HashMap<PathBuf, Option<SharedString>>>>,
-    restricted_worktrees_tasks: HashMap<WorktreeId, (Subscription, watch::Receiver<bool>)>,
     auto_start_language_servers: bool,
     language_server_start_overrides: HashMap<LanguageServerName, bool>,
     language_server_restart_tasks: Vec<Task<()>>,
@@ -513,7 +507,7 @@ impl LocalLspStore {
         disposition: &Arc<LaunchDisposition>,
         language_name: &LanguageName,
         start_mode: LanguageServerStartMode,
-        cx: &mut App,
+        cx: &App,
     ) -> Option<LanguageServerId> {
         let key = LanguageServerSeed {
             worktree_id: worktree_handle.read(cx).id(),
@@ -569,11 +563,10 @@ impl LocalLspStore {
         settings: Arc<LspSettings>,
         key: LanguageServerSeed,
         language_name: LanguageName,
-        cx: &mut App,
+        cx: &App,
     ) -> LanguageServerId {
         let worktree = worktree_handle.read(cx);
 
-        let worktree_id = worktree.id();
         let worktree_abs_path = worktree.abs_path();
         let override_options = settings.initialization_options.clone();
 
@@ -585,48 +578,7 @@ impl LocalLspStore {
             adapter.name.0
         );
 
-        let wait_until_worktree_trust = TrustedWorktrees::try_get_global(cx).and_then(|trusted_worktrees| {
-            let can_trust = trusted_worktrees
-                .update(cx, |trusted_worktrees, cx| trusted_worktrees.can_trust(&self.worktree_store, worktree_id, cx));
-            if can_trust {
-                self.restricted_worktrees_tasks.remove(&worktree_id);
-                None
-            } else {
-                match self.restricted_worktrees_tasks.entry(worktree_id) {
-                    hash_map::Entry::Occupied(o) => Some(o.get().1.clone()),
-                    hash_map::Entry::Vacant(v) => {
-                        let (mut tx, rx) = watch::channel(false);
-                        let lsp_store = self.weak.clone();
-                        let subscription = cx.subscribe(&trusted_worktrees, move |_, e, cx| {
-                            if let TrustedWorktreesEvent::Trusted(_, trusted_paths) = e
-                                && trusted_paths.contains(&PathTrust::Worktree(worktree_id))
-                            {
-                                tx.send(true).ok();
-                                lsp_store
-                                    .update(cx, |lsp_store, _| {
-                                        if let Some(local_lsp_store) = lsp_store.as_local_mut() {
-                                            local_lsp_store.restricted_worktrees_tasks.remove(&worktree_id);
-                                        }
-                                    })
-                                    .ok();
-                            }
-                        });
-                        v.insert((subscription, rx.clone()));
-                        Some(rx)
-                    }
-                }
-            }
-        });
-        let update_binary_status = wait_until_worktree_trust.is_none();
-
-        let binary = self.get_language_server_binary(
-            worktree_abs_path.clone(),
-            adapter.clone(),
-            settings,
-            delegate.clone(),
-            wait_until_worktree_trust,
-            cx,
-        );
+        let binary = self.get_language_server_binary(adapter.clone(), settings, delegate.clone(), cx);
         let pending_workspace_folders = Arc::<Mutex<BTreeSet<Uri>>>::default();
 
         let pending_server = cx.spawn({
@@ -758,9 +710,7 @@ impl LocalLspStore {
         };
         let state = LanguageServerState::Starting { startup, pending_workspace_folders };
 
-        if update_binary_status {
-            self.update_binary_status(adapter.name(), BinaryStatus::Starting);
-        }
+        self.update_binary_status(adapter.name(), BinaryStatus::Starting);
 
         self.language_servers.insert(server_id, state);
         self.language_server_ids
@@ -771,35 +721,12 @@ impl LocalLspStore {
 
     fn get_language_server_binary(
         &self,
-        worktree_abs_path: Arc<Path>,
         adapter: Arc<CachedLspAdapter>,
         settings: Arc<LspSettings>,
         delegate: Arc<dyn LspAdapterDelegate>,
-        wait_until_worktree_trust: Option<watch::Receiver<bool>>,
         cx: &App,
     ) -> Task<Result<LanguageServerBinary>> {
         cx.spawn(async move |cx| {
-            if let Some(mut wait_until_worktree_trust) = wait_until_worktree_trust {
-                let already_trusted = *wait_until_worktree_trust.borrow();
-                if !already_trusted {
-                    log::info!(
-                        "Waiting for worktree {worktree_abs_path:?} to be trusted, \
-                        before starting language server {}",
-                        adapter.name(),
-                    );
-                    while wait_until_worktree_trust.changed().await.is_ok() {
-                        if *wait_until_worktree_trust.borrow() {
-                            break;
-                        }
-                    }
-                    log::info!(
-                        "Worktree {worktree_abs_path:?} is trusted, starting language server {}",
-                        adapter.name(),
-                    );
-                }
-                delegate.update_status(adapter.name(), BinaryStatus::Starting);
-            }
-
             let binary_settings = settings.binary.clone().unwrap_or_default();
             let mut binary = adapter.find_binary(&delegate, cx).await?;
             log::info!(
@@ -3458,7 +3385,6 @@ impl LocalLspStore {
     }
 
     fn remove_worktree(&mut self, id_to_remove: WorktreeId, cx: &mut Context<LspStore>) -> Vec<LanguageServerId> {
-        self.restricted_worktrees_tasks.remove(&id_to_remove);
         self.diagnostics.remove(&id_to_remove);
 
         let mut servers_to_remove = BTreeSet::default();
@@ -4239,7 +4165,6 @@ impl LspStore {
                 buffers_opened_in_servers: HashMap::default(),
                 buffer_pull_diagnostics_result_ids: HashMap::default(),
                 workspace_pull_diagnostics_result_ids: HashMap::default(),
-                restricted_worktrees_tasks: HashMap::default(),
                 auto_start_language_servers: true,
                 language_server_start_overrides: HashMap::default(),
                 language_server_restart_tasks: Vec::new(),

@@ -10,7 +10,6 @@ use std::time::Instant;
 use collections::HashSet;
 use editor::Editor;
 use editor::EditorEvent;
-use gpui::Action as _;
 use gpui::Anchor;
 use gpui::App;
 use gpui::Entity;
@@ -31,7 +30,6 @@ use project::LspStoreEvent;
 use project::Worktree;
 use project::lsp_store::log_store::GlobalLogStore;
 use project::project_settings::ProjectSettings;
-use project::trusted_worktrees::TrustedWorktrees;
 use rpc::proto;
 use settings::Settings as _;
 use settings::SettingsStore;
@@ -50,7 +48,6 @@ use util::ResultExt;
 use util::paths::PathExt;
 use util::rel_path::RelPath;
 use workspace::StatusItemView;
-use workspace::ToggleWorktreeSecurity;
 use workspace::Workspace;
 
 use crate::lsp_log_view;
@@ -240,38 +237,6 @@ impl LanguageServerState {
         let Some(lsp_logs) = lsp_logs else {
             return menu;
         };
-
-        let is_restricted = self
-            .workspace
-            .upgrade()
-            .map(|workspace| {
-                let worktree_store = workspace.read(cx).project().read(cx).worktree_store();
-                TrustedWorktrees::has_restricted_worktrees(&worktree_store, cx)
-            })
-            .unwrap_or(false);
-
-        if is_restricted {
-            menu = menu.custom_entry(
-                move |_window, _cx| {
-                    v_flex()
-                        .child(
-                            h_flex()
-                                .gap_1()
-                                .child(Icon::new(IconName::Warning).color(Color::Warning).size(IconSize::XSmall))
-                                .child(Label::new("Project is in Restricted Mode").size(LabelSize::Small)),
-                        )
-                        .child(
-                            Label::new("Language Servers can't run until you trust this project.")
-                                .size(LabelSize::Small)
-                                .color(Color::Muted),
-                        )
-                        .into_any_element()
-                },
-                move |window, cx| {
-                    window.dispatch_action(ToggleWorktreeSecurity.boxed_clone(), cx);
-                },
-            );
-        }
 
         let path_style =
             self.workspace.upgrade().map(|workspace| workspace.read(cx).path_style(cx)).unwrap_or(PathStyle::local());
@@ -797,10 +762,7 @@ impl LspButton {
             lsp_menu_refresh: Task::ready(()),
             _subscriptions: vec![settings_subscription, lsp_store_subscription],
         };
-        let is_restricted =
-            TrustedWorktrees::has_restricted_worktrees(&workspace.project().read(cx).worktree_store(), cx);
-
-        if is_restricted || !lsp_button.server_state.read(cx).language_servers.binary_statuses.is_empty() {
+        if !lsp_button.server_state.read(cx).language_servers.binary_statuses.is_empty() {
             lsp_button.refresh_lsp_menu(true, window, cx);
         }
 
@@ -1165,18 +1127,7 @@ impl StatusItemView for LspButton {
 
 impl Render for LspButton {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl ui::IntoElement {
-        let is_restricted = self
-            .server_state
-            .read(cx)
-            .workspace
-            .upgrade()
-            .map(|workspace| {
-                let worktree_store = workspace.read(cx).project().read(cx).worktree_store();
-                TrustedWorktrees::has_restricted_worktrees(&worktree_store, cx)
-            })
-            .unwrap_or(false);
-
-        if !is_restricted && (self.server_state.read(cx).language_servers.is_empty() || self.lsp_menu.is_none()) {
+        if self.server_state.read(cx).language_servers.is_empty() || self.lsp_menu.is_none() {
             return div().hidden();
         }
 
@@ -1200,9 +1151,7 @@ impl Render for LspButton {
             }
         }
 
-        let (indicator, description) = if is_restricted {
-            (Some(Indicator::dot().color(Color::Warning)), "Restricted Mode")
-        } else if has_errors {
+        let (indicator, description) = if has_errors {
             (Some(Indicator::dot().color(Color::Error)), "Server with errors")
         } else if has_warnings {
             (Some(Indicator::dot().color(Color::Warning)), "Server with warnings")
@@ -1225,7 +1174,6 @@ impl Render for LspButton {
                         .when_some(indicator, IconButton::indicator)
                         .icon_size(IconSize::Small)
                         .tab_index(0isize)
-                        .when(is_restricted, |s| s.icon_color(Color::Warning))
                         .indicator_border_color(Some(cx.theme().colors().status_bar_background)),
                     move |_window, cx| Tooltip::with_meta("Language Servers", Some(&ToggleMenu), description, cx),
                 ),

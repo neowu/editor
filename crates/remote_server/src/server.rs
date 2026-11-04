@@ -16,7 +16,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use clap::Subcommand;
-use collections::HashMap;
 use fs::RealFs;
 use futures::AsyncRead;
 use futures::AsyncWrite;
@@ -32,7 +31,6 @@ pub use headless_project::HeadlessAppState;
 pub use headless_project::HeadlessProject;
 use language::LanguageRegistry;
 use paths::logs_dir;
-use project::trusted_worktrees;
 use remote::RemoteClient;
 use remote::command::RemoteCommand;
 use remote::json_log::LogRecord;
@@ -438,15 +436,13 @@ pub fn execute_run(
         log::info!("gpui app started, initializing server");
         let session = start_server(listeners, log_rx, cx);
 
-        trusted_worktrees::init(HashMap::default(), cx);
-
         json_schema_store::init(cx);
 
         let project = cx.new(|cx| {
             let fs = RealFs::new(cx.background_executor().clone());
             let languages = Arc::new(LanguageRegistry::new(cx.background_executor().clone()));
 
-            HeadlessProject::new(HeadlessAppState { session: session.clone(), fs, languages }, true, cx)
+            HeadlessProject::new(HeadlessAppState { session: session.clone(), fs, languages }, cx)
         });
 
         mem::forget(project);

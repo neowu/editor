@@ -39,7 +39,6 @@ strum.workspace = true
 task.workspace = true
 theme.workspace = true
 ui.workspace = true
-ui_input.workspace = true
 url.workspace = true
 util.workspace = true
 uuid.workspace = true

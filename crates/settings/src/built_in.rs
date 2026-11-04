@@ -292,7 +292,7 @@ pub fn settings() -> SettingsContent {
             diagnostic_badges: Some(true),
             git_status_indicator: Some(false),
         }),
-        session: Some(SessionSettingsContent { restore_unsaved_buffers: Some(true), trust_all_worktrees: Some(false) }),
+        session: Some(SessionSettingsContent { restore_unsaved_buffers: Some(true) }),
         terminal: terminal_settings(),
         title_bar: Some(TitleBarSettingsContent {
             show_branch_status_icon: Some(true),

@@ -1004,13 +1004,7 @@ impl RemoteServerProjects {
                     let (path_style, project) = cx.update(|_, cx| {
                         (
                             session.read(cx).path_style(),
-                            project::Project::remote(
-                                session,
-                                app_state.languages.clone(),
-                                app_state.fs.clone(),
-                                true,
-                                cx,
-                            ),
+                            project::Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), cx),
                         )
                     })?;
 

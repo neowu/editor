@@ -50,12 +50,6 @@ pub struct SessionSettings {
     ///
     /// Default: true
     pub restore_unsaved_buffers: bool,
-    /// Whether or not to skip worktree trust checks.
-    /// When trusted, project settings are synchronized automatically,
-    /// language and MCP servers are downloaded and started automatically.
-    ///
-    /// Default: false
-    pub trust_all_worktrees: bool,
 }
 
 /// Common language server settings.
@@ -424,7 +418,6 @@ impl Settings for ProjectSettings {
             git: git_settings,
             session: SessionSettings {
                 restore_unsaved_buffers: content.session.unwrap().restore_unsaved_buffers.unwrap(),
-                trust_all_worktrees: content.session.unwrap().trust_all_worktrees.unwrap(),
             },
         }
     }

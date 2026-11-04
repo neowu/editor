@@ -49,7 +49,6 @@ use worktree::WorktreeId;
 
 use crate::ProjectPath;
 use crate::library::library_root;
-use crate::trusted_worktrees::TrustedWorktrees;
 
 /// The current paths for a project's worktrees. Each folder path has a corresponding
 /// main worktree path at the same position. The two lists are always the
@@ -691,16 +690,6 @@ impl WorktreeStore {
                     .ok();
 
                     if let Ok(worktree) = &result {
-                        if let Some((trusted_worktrees, worktree_store)) = this
-                            .update(cx, |_, cx| TrustedWorktrees::try_get_global(cx).zip(Some(cx.entity())))
-                            .ok()
-                            .flatten()
-                        {
-                            trusted_worktrees.update(cx, |trusted_worktrees, cx| {
-                                trusted_worktrees.can_trust(&worktree_store, worktree.read(cx).id(), cx);
-                            });
-                        }
-
                         this.update(cx, |this, cx| {
                             if this.scanning_enabled && visible {
                                 this.observe_worktree_scan_completion(worktree, cx);

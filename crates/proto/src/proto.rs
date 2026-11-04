@@ -243,8 +243,6 @@ messages!(
     (GitCreateBranch, Background),
     (GitChangeBranch, Background),
     (GitRenameBranch, Background),
-    (TrustWorktrees, Background),
-    (RestrictWorktrees, Background),
     (CheckForPushedCommits, Background),
     (CheckForPushedCommitsResponse, Background),
     (GitDiff, Background),
@@ -437,8 +435,6 @@ request_messages!(
     (GitRemoveWorktree, Ack),
     (GitRenameWorktree, Ack),
     (GitWorktreeCreatedAt, GitWorktreeCreatedAtResponse),
-    (TrustWorktrees, Ack),
-    (RestrictWorktrees, Ack),
     (FindSearchCandidatesChunk, Ack),
 );
 
@@ -615,8 +611,6 @@ entity_messages!(
     GitRemoveWorktree,
     GitRenameWorktree,
     GitWorktreeCreatedAt,
-    TrustWorktrees,
-    RestrictWorktrees,
     FindSearchCandidatesChunk,
     FindSearchCandidatesCancelled,
     DownloadFileByPath

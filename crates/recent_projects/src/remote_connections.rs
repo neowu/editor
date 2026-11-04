@@ -11,7 +11,6 @@ use gpui::AppContext;
 use gpui::AsyncApp;
 use gpui::PromptLevel;
 use gpui::WindowHandle;
-use project::trusted_worktrees;
 use remote::Interactive;
 use remote::RemoteConnection;
 use remote::RemoteConnectionOptions;
@@ -162,12 +161,7 @@ pub async fn open_remote_project(
         options.window_bounds = workspace_position.window_bounds;
 
         let window = cx.open_window(options, |window, cx| {
-            let project = project::Project::local(
-                app_state.languages.clone(),
-                app_state.fs.clone(),
-                project::LocalProjectFlags { init_worktree_trust: false },
-                cx,
-            );
+            let project = project::Project::local(app_state.languages.clone(), app_state.fs.clone(), cx);
             cx.new(|cx| Workspace::new(project, app_state.clone(), window, cx))
         })?;
         let workspace = window.entity(cx)?;
@@ -290,15 +284,6 @@ pub async fn open_remote_project(
                 if created_new_window {
                     window.update(cx, |_, window, _| window.remove_window()).ok();
                 }
-                initial_workspace.update(cx, |workspace, cx| {
-                    trusted_worktrees::track_worktree_trust(
-                        workspace.project().read(cx).worktree_store(),
-                        None,
-                        None,
-                        None,
-                        cx,
-                    );
-                });
             }
 
             Ok((_, items)) => {

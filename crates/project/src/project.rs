@@ -14,7 +14,6 @@ pub mod search;
 pub mod task_inventory;
 pub mod task_store;
 pub mod terminals;
-pub mod trusted_worktrees;
 pub mod worktree_store;
 
 mod environment;
@@ -139,7 +138,6 @@ use remote::RemoteClient;
 use remote::RemoteConnectionOptions;
 use rpc::AnyProtoClient;
 use rpc::ErrorCode;
-use rpc::ProjectId;
 use rpc::TypedEnvelope;
 use rpc::proto;
 use rpc::proto::LanguageServerPromptResponse;
@@ -188,22 +186,8 @@ use crate::git_store::GitStore;
 use crate::lsp_store::SymbolLocation;
 use crate::lsp_store::log_store::LogKind;
 use crate::project_search::SearchResultsHandle;
-use crate::trusted_worktrees::PathTrust;
-use crate::trusted_worktrees::RemoteHostLocation;
-use crate::trusted_worktrees::TrustedWorktrees;
 use crate::worktree_store::WorktreeIdCounter;
 const MAX_PROJECT_SEARCH_HISTORY_SIZE: usize = 500;
-
-#[derive(Clone, Copy, Debug)]
-pub struct LocalProjectFlags {
-    pub init_worktree_trust: bool,
-}
-
-impl Default for LocalProjectFlags {
-    fn default() -> Self {
-        Self { init_worktree_trust: true }
-    }
-}
 
 pub trait ProjectItem: 'static {
     fn try_open(project: &Entity<Project>, path: &ProjectPath, cx: &mut App) -> Option<Task<Result<Entity<Self>>>>
@@ -1001,17 +985,9 @@ pub enum PulledDiagnostics {
 }
 
 impl Project {
-    pub fn local(
-        languages: Arc<LanguageRegistry>,
-        fs: Arc<dyn Fs>,
-        flags: LocalProjectFlags,
-        cx: &mut App,
-    ) -> Entity<Self> {
+    pub fn local(languages: Arc<LanguageRegistry>, fs: Arc<dyn Fs>, cx: &mut App) -> Entity<Self> {
         cx.new(|cx: &mut Context<Self>| {
             let worktree_store = cx.new(|cx| WorktreeStore::local(false, fs.clone(), WorktreeIdCounter::get(cx)));
-            if flags.init_worktree_trust {
-                trusted_worktrees::track_worktree_trust(worktree_store.clone(), None, None, None, cx);
-            }
             cx.subscribe(&worktree_store, Self::on_worktree_store_event).detach();
 
             let weak_self = cx.weak_entity();
@@ -1090,12 +1066,11 @@ impl Project {
         remote: Entity<RemoteClient>,
         languages: Arc<LanguageRegistry>,
         fs: Arc<dyn Fs>,
-        init_worktree_trust: bool,
         cx: &mut App,
     ) -> Entity<Self> {
         cx.new(|cx: &mut Context<Self>| {
-            let (remote_proto, path_style, connection_options) = remote
-                .read_with(cx, |remote, _| (remote.proto_client(), remote.path_style(), remote.connection_options()));
+            let (remote_proto, path_style) =
+                remote.read_with(cx, |remote, _| (remote.proto_client(), remote.path_style()));
             let worktree_store = cx.new(|cx| {
                 WorktreeStore::remote(
                     false,
@@ -1107,15 +1082,6 @@ impl Project {
             });
 
             cx.subscribe(&worktree_store, Self::on_worktree_store_event).detach();
-            if init_worktree_trust {
-                trusted_worktrees::track_worktree_trust(
-                    worktree_store.clone(),
-                    Some(RemoteHostLocation::from(connection_options)),
-                    None,
-                    Some((remote_proto.clone(), ProjectId(REMOTE_SERVER_PROJECT_ID))),
-                    cx,
-                );
-            }
 
             let weak_self = cx.weak_entity();
 
@@ -1235,8 +1201,6 @@ impl Project {
             remote_proto.add_entity_request_handler(Self::handle_language_server_show_document_request);
             remote_proto.add_entity_message_handler(Self::handle_hide_toast);
             remote_proto.add_entity_request_handler(Self::handle_update_buffer_from_remote_server);
-            remote_proto.add_entity_request_handler(Self::handle_trust_worktrees);
-            remote_proto.add_entity_request_handler(Self::handle_restrict_worktrees);
             remote_proto.add_entity_request_handler(Self::handle_find_search_candidates_chunk);
 
             remote_proto.add_entity_message_handler(Self::handle_find_search_candidates_cancel);
@@ -3129,44 +3093,6 @@ impl Project {
     ) -> Result<proto::Ack> {
         let buffer_store = this.read_with(&cx, |this, _cx| this.buffer_store.clone());
         BufferStore::handle_update_buffer(buffer_store, envelope, cx).await
-    }
-
-    async fn handle_trust_worktrees(
-        this: Entity<Self>,
-        envelope: TypedEnvelope<proto::TrustWorktrees>,
-        mut cx: AsyncApp,
-    ) -> Result<proto::Ack> {
-        let trusted_worktrees =
-            cx.update(|cx| TrustedWorktrees::try_get_global(cx)).context("missing trusted worktrees")?;
-        trusted_worktrees.update(&mut cx, |trusted_worktrees, cx| {
-            trusted_worktrees.trust(
-                &this.read(cx).worktree_store(),
-                envelope.payload.trusted_paths.into_iter().filter_map(PathTrust::from_proto).collect(),
-                cx,
-            );
-        });
-        Ok(proto::Ack {})
-    }
-
-    async fn handle_restrict_worktrees(
-        this: Entity<Self>,
-        envelope: TypedEnvelope<proto::RestrictWorktrees>,
-        mut cx: AsyncApp,
-    ) -> Result<proto::Ack> {
-        let trusted_worktrees =
-            cx.update(|cx| TrustedWorktrees::try_get_global(cx)).context("missing trusted worktrees")?;
-        trusted_worktrees.update(&mut cx, |trusted_worktrees, cx| {
-            let worktree_store = this.read(cx).worktree_store().downgrade();
-            let restricted_paths = envelope
-                .payload
-                .worktree_ids
-                .into_iter()
-                .map(WorktreeId::from_proto)
-                .map(PathTrust::Worktree)
-                .collect::<HashSet<_>>();
-            trusted_worktrees.restrict(worktree_store, restricted_paths, cx);
-        });
-        Ok(proto::Ack {})
     }
 
     // Goes from host to client.

@@ -23,8 +23,6 @@ use gpui::WeakEntity;
 use project::Project;
 use project::git_store::Repository;
 use project::project_settings::ProjectSettings;
-use project::trusted_worktrees::PathTrust;
-use project::trusted_worktrees::TrustedWorktrees;
 use remote::RemoteConnectionOptions;
 use settings::Settings;
 use ui::prelude::*;
@@ -518,60 +516,6 @@ pub async fn await_and_rollback_on_failure(
     Err(anyhow!(error_message))
 }
 
-/// Propagates worktree trust from the source workspace to the new workspace.
-/// If the source project's worktrees are all trusted, the new worktree paths
-/// will also be trusted automatically.
-fn maybe_propagate_worktree_trust(
-    source_workspace: &WeakEntity<Workspace>,
-    new_workspace: &Entity<Workspace>,
-    paths: &[PathBuf],
-    cx: &mut AsyncWindowContext,
-) {
-    cx.update(|_, cx| {
-        if ProjectSettings::get_global(cx).session.trust_all_worktrees {
-            return;
-        }
-        let source_is_trusted = source_workspace
-            .upgrade()
-            .map(|workspace| {
-                let source_worktree_store = workspace.read(cx).project().read(cx).worktree_store();
-                !TrustedWorktrees::has_restricted_worktrees(&source_worktree_store, cx)
-            })
-            .unwrap_or(false);
-
-        if !source_is_trusted {
-            return;
-        }
-
-        let worktree_store = new_workspace.read(cx).project().read(cx).worktree_store();
-        let paths_to_trust: HashSet<_> = paths
-            .iter()
-            .filter_map(|path| {
-                let (worktree, _) = worktree_store.read(cx).find_worktree(path, cx)?;
-                Some(PathTrust::Worktree(worktree.read(cx).id()))
-            })
-            .collect();
-
-        if !paths_to_trust.is_empty()
-            && let Some(trusted_store) = TrustedWorktrees::try_get_global(cx)
-        {
-            trusted_store.update(cx, |store, cx| {
-                store.trust(&worktree_store, paths_to_trust, cx);
-            });
-        }
-    })
-    .ok();
-
-    // After trust propagation, refresh the security modal on the new workspace
-    // so it dismisses itself if there are no more restricted worktrees.
-    cx.update(|window, cx| {
-        new_workspace.update(cx, |workspace, cx| {
-            workspace.show_worktree_trust_security_modal(false, window, cx);
-        });
-    })
-    .ok();
-}
-
 /// Handles the `CreateWorktree` action.
 /// Creates a new git worktree, opens the workspace, restores layout and files.
 /// Errors are surfaced to the user via toasts.
@@ -928,7 +872,7 @@ async fn open_worktree_workspace(
         remote_connection::dismiss_connection_modal(&source_workspace, cx);
         let session = session?.context("remote connection was cancelled")?;
         let project =
-            cx.update(|_, cx| Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), true, cx))?;
+            cx.update(|_, cx| Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), cx))?;
         let (new_workspace, _) = workspace::open_remote_project_with_existing_connection(
             project,
             all_paths.clone(),
@@ -965,8 +909,6 @@ async fn open_worktree_workspace(
             futures::future::join_all(tasks)
         })
         .await;
-
-    maybe_propagate_worktree_trust(&workspace, &new_workspace, &all_paths, cx);
 
     if transfer_state {
         cx.update(|window, cx| {

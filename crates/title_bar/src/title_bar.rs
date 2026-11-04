@@ -23,7 +23,6 @@ use project::git_store::GitStoreEvent;
 use project::linked_worktree_short_name;
 use project::repo_identity_path;
 use project::repo_identity_path_if_local;
-use project::trusted_worktrees::TrustedWorktrees;
 use remote::RemoteConnectionOptions;
 use settings::Settings as _;
 use theme::ActiveTheme;
@@ -35,9 +34,7 @@ use ui::PopoverMenu;
 use ui::TintColor;
 use ui::Tooltip;
 use ui::prelude::*;
-use util::ResultExt;
 use workspace::StatusItemModes;
-use workspace::ToggleWorktreeSecurity;
 use workspace::Workspace;
 
 use crate::application_menu::ApplicationMenu;
@@ -78,7 +75,7 @@ pub fn init(cx: &mut App) {
     .detach();
 }
 
-/// The project's name and alerts (restricted mode, remote host), shown in the
+/// The project's name and remote host, shown in the
 /// window header above the sidebar or at the start of the top-left tab bar.
 pub struct TitleBar {
     project: Entity<Project>,
@@ -94,18 +91,16 @@ impl Render for TitleBar {
             && !self.application_menu.as_ref().is_some_and(|menu| menu.read(cx).all_menus_shown());
         let project_name = show_project_items.then(|| ActiveRepository::of(&self.project, cx).project_name);
 
-        h_flex()
-            .h_full()
-            .gap_0p5()
-            .children(self.application_menu.clone())
-            .children(self.render_restricted_mode(cx))
-            .when_some(project_name, |title_bar, project_name| {
+        h_flex().h_full().gap_0p5().children(self.application_menu.clone()).when_some(
+            project_name,
+            |title_bar, project_name| {
                 title_bar.children(self.render_project_host(cx)).child(self.render_project_name(
                     project_name,
                     window,
                     cx,
                 ))
-            })
+            },
+        )
     }
 }
 
@@ -237,11 +232,6 @@ impl TitleBar {
             _ => {}
         }));
         subscriptions.push(cx.observe(&project, |_, _, cx| cx.notify()));
-        if let Some(trusted_worktrees) = TrustedWorktrees::try_get_global(cx) {
-            subscriptions.push(cx.subscribe(&trusted_worktrees, |_, _, _, cx| {
-                cx.notify();
-            }));
-        }
 
         Self { application_menu, workspace: workspace.weak_handle(), project, _subscriptions: subscriptions }
     }
@@ -314,37 +304,6 @@ impl TitleBar {
                 .anchor(gpui::Anchor::TopLeft)
                 .into_any_element(),
         )
-    }
-
-    pub fn render_restricted_mode(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let has_restricted_worktrees =
-            TrustedWorktrees::has_restricted_worktrees(&self.project.read(cx).worktree_store(), cx);
-        if !has_restricted_worktrees {
-            return None;
-        }
-
-        let button = Button::new("restricted_mode_trigger", "Restricted Mode")
-            .style(ButtonStyle::Tinted(TintColor::Warning))
-            .label_size(LabelSize::Small)
-            .color(Color::Warning)
-            .start_icon(Icon::new(IconName::Warning).size(IconSize::Small).color(Color::Warning))
-            .tooltip(|_, cx| {
-                Tooltip::with_meta(
-                    "You're in Restricted Mode",
-                    Some(&ToggleWorktreeSecurity),
-                    "Mark this project as trusted and unlock all features",
-                    cx,
-                )
-            })
-            .on_click({
-                cx.listener(move |this, _, window, cx| {
-                    this.workspace
-                        .update(cx, |workspace, cx| workspace.show_worktree_trust_security_modal(true, window, cx))
-                        .log_err();
-                })
-            });
-
-        Some(button.into_any_element())
     }
 
     pub fn render_project_host(&self, cx: &mut Context<Self>) -> Option<AnyElement> {

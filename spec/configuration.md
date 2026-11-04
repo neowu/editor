@@ -43,7 +43,10 @@ migrator, or Vim/Helix mode.
 - Not persisted: panel sizes, default window bounds and dock layout for new
   windows, native (macOS) window state, the Text Finder's last query and
   filters, git panel commit drafts/signoff/commit-editor collapse, outline panel
-  state, trusted worktrees, and the registry of git worktrees ed created.
+  state, and the registry of git worktrees ed created.
+- There is no restricted mode or worktree trust: every opened project is
+  trusted, so its project settings apply and its language servers start
+  without a prompt.
 - Single-instance checks are bypassed only in debug builds.
 - Settings types use ordinary Serde derives without optional-field macros or
   custom flattened-settings parsing. Ordinary optional fields reject invalid

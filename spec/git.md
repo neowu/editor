@@ -11,6 +11,10 @@ repository's `$PATH`; if none is found, the repository is not opened.
 
 ## Behaviour
 
+- Every repository is trusted (there is no restricted mode): git runs with
+  the user's own config, so hooks, credential helpers, `core.sshCommand` and
+  external diff tools all apply. Only `core.fsmonitor` and
+  `log.showSignature` are forced off.
 - No permalinks: the editor's Copy/Open Permalink to Line, the file
   Copy/Open File Permalink actions and their menu entries are removed, along
   with the matching RPCs.

@@ -46,7 +46,6 @@ use gpui::Task;
 use gpui::TaskExt;
 use gpui::UpdateGlobal as _;
 use language::LanguageRegistry;
-use project::trusted_worktrees;
 use recent_projects::RemoteSettings;
 use recent_projects::open_remote_project;
 use remote::RemoteConnectionOptions;
@@ -223,7 +222,6 @@ fn main() {
     });
 
     app.run(move |cx| {
-        trusted_worktrees::init(HashMap::default(), cx);
         menu::init();
         ed_actions::init();
 

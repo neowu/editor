@@ -328,12 +328,6 @@ pub struct SessionSettingsContent {
     ///
     /// Default: true
     pub restore_unsaved_buffers: Option<bool>,
-    /// Whether or not to skip worktree trust checks.
-    /// When trusted, project settings are synchronized automatically,
-    /// language and MCP servers are downloaded and started automatically.
-    ///
-    /// Default: false
-    pub trust_all_worktrees: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
