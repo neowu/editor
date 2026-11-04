@@ -44,8 +44,6 @@ pub use remote_connection::connect_with_modal;
 pub use remote_connections::navigate_to_positions;
 pub use remote_connections::open_remote_project;
 pub use remote_servers::RemoteServerProjects;
-use settings::DefaultOpenBehavior;
-use settings::Settings;
 use settings::WorktreeId;
 use ui::ButtonLike;
 use ui::ContextMenu;
@@ -186,10 +184,6 @@ fn get_branch_for_worktree(worktree: &Worktree, repositories: &[Entity<Repositor
         .and_then(|repo| repo.read(cx).branch.as_ref().map(|branch| SharedString::from(branch.name().to_string())))
 }
 
-pub(crate) fn default_open_in_new_window(cx: &App) -> bool {
-    matches!(workspace::WorkspaceSettings::get_global(cx).default_open_behavior, DefaultOpenBehavior::NewWindow)
-}
-
 pub fn init(cx: &mut App) {
     cx.on_action(|open_recent: &OpenRecent, cx| {
         let create_new_window = open_recent.create_new_window;
@@ -229,7 +223,7 @@ pub fn init(cx: &mut App) {
     });
     cx.on_action(|open_remote: &OpenRemote, cx| {
         let from_existing_connection = open_remote.from_existing_connection;
-        let create_new_window = open_remote.create_new_window.unwrap_or_else(|| default_open_in_new_window(cx));
+        let create_new_window = open_remote.create_new_window.unwrap_or(false);
         with_active_or_new_workspace(cx, move |workspace, window, cx| {
             if from_existing_connection {
                 cx.propagate();
@@ -316,7 +310,7 @@ impl RecentProjects {
         let open_folders = get_open_folders(workspace, cx);
         let fs = Some(workspace.app_state().fs.clone());
 
-        let create_new_window = create_new_window.unwrap_or_else(|| default_open_in_new_window(cx));
+        let create_new_window = create_new_window.unwrap_or(false);
 
         workspace.toggle_modal(window, cx, |window, cx| {
             let delegate = RecentProjectsDelegate::new(
@@ -346,7 +340,7 @@ impl RecentProjects {
             })
             .unwrap_or_else(|| (Vec::new(), None));
 
-        let create_new_window = create_new_window.unwrap_or_else(|| default_open_in_new_window(cx));
+        let create_new_window = create_new_window.unwrap_or(false);
 
         cx.new(|cx| {
             let delegate = RecentProjectsDelegate::new(

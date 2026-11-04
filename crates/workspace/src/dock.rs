@@ -30,7 +30,6 @@ use gpui::div;
 use gpui::px;
 use serde::Deserialize;
 use serde::Serialize;
-use settings::Settings;
 use settings::SettingsStore;
 use settings::TerminalDockPosition;
 use ui::ContextMenu;
@@ -48,8 +47,6 @@ use crate::Event;
 use crate::ModalLayer;
 use crate::Pane;
 use crate::Workspace;
-use crate::WorkspaceSettings;
-use crate::focus_follows_mouse::FocusFollowsMouse as _;
 use crate::persistence::model::DockData;
 use crate::status_bar::StatusItemView;
 
@@ -885,20 +882,18 @@ impl Dock {
         }
     }
 
-    /// Resizes the active panel and, when this dock is included in
-    /// `resize_all_panels_in_dock`, all panels.
+    /// Resizes the active panel, or every panel in the left dock.
     pub fn resize_panel_sizes(&mut self, size: Option<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
-        if self.should_resize_all_panels(cx) {
+        if self.position == DockPosition::Left {
             self.resize_all_panels(size, window, cx);
         } else {
             self.resize_active_panel(size, window, cx);
         }
     }
 
-    /// Resets the active panel and, when this dock is included in
-    /// `resize_all_panels_in_dock`, all panels.
+    /// Resets the active panel, or every panel in the left dock.
     pub fn reset_panel_sizes(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.should_resize_all_panels(cx) {
+        if self.position == DockPosition::Left {
             self.reset_all_panel_sizes(window, cx);
         } else {
             self.reset_active_panel_size(window, cx);
@@ -915,10 +910,6 @@ impl Dock {
         };
         let size = active_entry.panel.default_size(window, cx);
         self.resize_all_panels(Some(size), window, cx);
-    }
-
-    fn should_resize_all_panels(&self, cx: &App) -> bool {
-        WorkspaceSettings::get_global(cx).resize_all_panels_in_dock.contains(&self.position)
     }
 
     fn resize_all_panels(&mut self, size: Option<Pixels>, window: &mut Window, cx: &mut Context<Self>) {
@@ -1032,7 +1023,6 @@ impl Render for Dock {
                 .id("dock-panel")
                 .key_context(dispatch_context)
                 .track_focus(&self.focus_handle(cx))
-                .focus_follows_mouse(WorkspaceSettings::get_global(cx).focus_follows_mouse, cx)
                 .flex()
                 .overflow_hidden()
                 .map(|this| match self.position().axis() {

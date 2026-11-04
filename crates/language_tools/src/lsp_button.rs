@@ -247,10 +247,7 @@ impl LanguageServerState {
                             server_id,
                             ServerMetadata {
                                 server_version: status.server_readable_version.clone(),
-                                binary_display_path: status
-                                    .binary
-                                    .as_ref()
-                                    .map(tooltip_for_server_binary),
+                                binary_display_path: status.binary.as_ref().map(tooltip_for_server_binary),
                                 process_id: status.process_id,
                             },
                         )

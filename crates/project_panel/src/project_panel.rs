@@ -161,12 +161,10 @@ use workspace::PreviewTabsSettings;
 use workspace::SelectedEntry;
 use workspace::SplitDirection;
 use workspace::Workspace;
-use workspace::WorkspaceSettings;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
 use workspace::dock::PanelEvent;
 use workspace::dock::SIDEBAR_MIN_WIDTH;
-use workspace::focus_follows_mouse::FocusFollowsMouse as _;
 use workspace::notifications::DetachAndPromptErr;
 use workspace::notifications::NotifyResultExt;
 use workspace::notifications::NotifyTaskExt;
@@ -1872,11 +1870,11 @@ impl ProjectPanel {
     }
 
     fn open_split_vertical(&mut self, _: &OpenSplitVertical, window: &mut Window, cx: &mut Context<Self>) {
-        self.open_internal(false, true, Some(SplitDirection::vertical(cx)), window, cx);
+        self.open_internal(false, true, Some(SplitDirection::Right), window, cx);
     }
 
     fn open_split_horizontal(&mut self, _: &OpenSplitHorizontal, window: &mut Window, cx: &mut Context<Self>) {
-        self.open_internal(false, true, Some(SplitDirection::horizontal(cx)), window, cx);
+        self.open_internal(false, true, Some(SplitDirection::Down), window, cx);
     }
 
     fn open_markdown_preview(&mut self, _: &OpenMarkdownPreview, window: &mut Window, cx: &mut Context<Self>) {
@@ -6663,7 +6661,6 @@ impl Render for ProjectPanel {
                                 // `block_mouse_except_scroll` prevents the dock's own
                                 // focus-follows-mouse hover handler from seeing this area,
                                 // so handle it here directly.
-                                .focus_follows_mouse(WorkspaceSettings::get_global(cx).focus_follows_mouse, cx)
                                 .flex_grow_1()
                                 .on_scroll_wheel({
                                     let scroll_handle = self.scroll_handle.clone();

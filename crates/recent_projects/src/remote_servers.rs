@@ -279,11 +279,8 @@ struct DefaultState {
 
 impl DefaultState {
     fn new(cx: &App) -> Self {
-        let servers = ProjectsStore::global(cx)
-            .recent_servers()
-            .into_iter()
-            .map(remote_entry)
-            .collect::<Vec<RemoteEntry>>();
+        let servers =
+            ProjectsStore::global(cx).recent_servers().into_iter().map(remote_entry).collect::<Vec<RemoteEntry>>();
 
         let filter_data = Arc::new(FilterData::build(&servers));
         Self { servers, filtered_servers: None, filter_data }
@@ -726,7 +723,7 @@ impl RemoteServerProjects {
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<Self> {
-        let create_new_window = create_new_window.unwrap_or_else(|| crate::default_open_in_new_window(cx));
+        let create_new_window = create_new_window.unwrap_or(false);
         cx.new(|cx| {
             let server = Self::new(create_new_window, window, workspace, cx);
             server.focus_handle(cx).focus(window, cx);

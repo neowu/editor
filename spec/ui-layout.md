@@ -162,9 +162,21 @@ because it hurt readability; an opaque window is also cheaper to composite.
   through) instead of a divider line. The resize handle covers the gap.
   Finding the neighbouring pane (pane navigation, "open to the side") looks
   across the gap, so it reuses an existing pane rather than splitting again.
-- Inactive-pane dimming (`active_pane_modifiers.inactive_opacity`) and the
-  active-pane border cover only the rounded card, never the tab bar, so tab
-  bars stay the plain chrome colour in every pane.
+- Inactive split panes are dimmed (70% overlay opacity) over the rounded card
+  only, never the tab bar, so tab bars stay the plain chrome colour in every
+  pane. The active pane has no border.
+- The workspace has no settings (`WorkspaceSettingsContent` is gone; only
+  `StatusBarSettings` remains in `workspace_settings`). Fixed behaviour:
+  - Layout: the bottom dock sits between the left and right docks. Splitting
+    goes right or down. Split drop targets are 20% of the pane's smaller
+    side. Resizing the left dock resizes all its panels; other docks resize
+    only the active panel. No max tab count.
+  - Closing the active item in an empty pane closes the window. Files deleted
+    on disk keep their tab.
+  - Focus never follows the mouse.
+  - Window: client-side decorations (the `ED_WINDOW_DECORATIONS=server` env
+    var still overrides) and native macOS fullscreen. Text uses the
+    platform's default rendering mode.
 - A zoomed view (editor or any dock) covers exactly the area the cards occupy,
   on the chrome, overlaying the others, so every zoomed view has the same size.
   The `zoomed_padding` setting is removed, as is centered layout

@@ -1,6 +1,5 @@
 pub mod app_metadata;
 
-mod action;
 mod editor;
 mod font;
 mod language;
@@ -10,7 +9,6 @@ mod terminal;
 mod title_bar;
 mod workspace;
 
-pub use action::CommandAliasTarget;
 use anyhow::Context;
 use collections::HashMap;
 pub use editor::*;
@@ -75,9 +73,6 @@ pub enum HideMouseMode {
 pub struct SettingsContent {
     #[serde(flatten)]
     pub project: ProjectSettingsContent,
-
-    #[serde(flatten)]
-    pub workspace: WorkspaceSettingsContent,
 
     /// Settings related to the file finder.
     pub file_finder: Option<FileFinderSettingsContent>,

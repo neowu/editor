@@ -47,7 +47,6 @@ use gpui::TaskExt;
 use gpui::UpdateGlobal as _;
 use language::LanguageRegistry;
 use recent_projects::open_remote_project;
-use settings::Settings;
 use settings::SettingsStore;
 use theme::ActiveTheme;
 use util::ResultExt;
@@ -56,7 +55,6 @@ use workspace::SerializedWorkspaceLocation;
 use workspace::SessionWorkspace;
 use workspace::Toast;
 use workspace::Workspace;
-use workspace::WorkspaceSettings;
 use workspace::WorkspaceStore;
 use workspace::notifications::NotificationId;
 use workspace::restore_workspace;
@@ -290,12 +288,6 @@ fn main() {
                     let background_appearance = cx.theme().window_background_appearance();
                     window.update(cx, |_, window, _| window.set_background_appearance(background_appearance)).ok();
                 }
-
-                cx.set_text_rendering_mode(match WorkspaceSettings::get_global(cx).text_rendering_mode {
-                    settings::TextRenderingMode::PlatformDefault => gpui::TextRenderingMode::PlatformDefault,
-                    settings::TextRenderingMode::Subpixel => gpui::TextRenderingMode::Subpixel,
-                    settings::TextRenderingMode::Grayscale => gpui::TextRenderingMode::Grayscale,
-                });
             }
         })
         .detach();
@@ -373,10 +365,9 @@ fn main() {
 
 fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &App) {
     if let Some(connection_options) = request.remote_connection {
-        let base_open_options = ed::open_options_for_request(cx);
         cx.spawn(async move |cx| {
             let paths: Vec<PathBuf> = request.open_paths.into_iter().map(PathBuf::from).collect();
-            open_remote_project(connection_options, paths, app_state, base_open_options, cx).await
+            open_remote_project(connection_options, paths, app_state, workspace::OpenOptions::default(), cx).await
         })
         .detach_and_log_err(cx);
         return;
@@ -384,7 +375,6 @@ fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &App)
 
     let mut task = None;
     if !request.open_paths.is_empty() || !request.diff_paths.is_empty() {
-        let base_open_options = ed::open_options_for_request(cx);
         task = Some(cx.spawn(async move |cx| {
             let paths_with_position = derive_paths_with_position(app_state.fs.as_ref(), request.open_paths).await;
             let (_window, results) = open_paths_with_positions(
@@ -392,7 +382,7 @@ fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &App)
                 &request.diff_paths,
                 request.diff_all,
                 app_state,
-                base_open_options,
+                workspace::OpenOptions::default(),
                 cx,
             )
             .await?;
@@ -498,15 +488,7 @@ pub(crate) async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &m
                     workspace::OpenOptions::default(),
                     app_state.clone(),
                     cx,
-                    |workspace, window, cx| {
-                        let restore_on_startup = WorkspaceSettings::get_global(cx).restore_on_startup;
-                        match restore_on_startup {
-                            workspace::RestoreOnStartupBehavior::Launchpad => {}
-                            _ => {
-                                Editor::new_file(workspace, &workspace::NewFile, window, cx);
-                            }
-                        }
-                    },
+                    |workspace, window, cx| Editor::new_file(workspace, &workspace::NewFile, window, cx),
                 )
             })
             .await?;
@@ -514,13 +496,7 @@ pub(crate) async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &m
     } else {
         cx.update(|cx| {
             workspace::open_new(workspace::OpenOptions::default(), app_state, cx, |workspace, window, cx| {
-                let restore_on_startup = WorkspaceSettings::get_global(cx).restore_on_startup;
-                match restore_on_startup {
-                    workspace::RestoreOnStartupBehavior::Launchpad => {}
-                    _ => {
-                        Editor::new_file(workspace, &workspace::NewFile, window, cx);
-                    }
-                }
+                Editor::new_file(workspace, &workspace::NewFile, window, cx)
             })
         })
         .await?;
@@ -530,22 +506,11 @@ pub(crate) async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &m
 }
 
 async fn restorable_workspaces(cx: &AsyncApp, app_state: &Arc<AppState>) -> Option<Vec<SessionWorkspace>> {
-    let restore_behavior = cx.update(|cx| WorkspaceSettings::get(None, cx).restore_on_startup);
-    match restore_behavior {
-        workspace::RestoreOnStartupBehavior::LastSession => {
-            let session = cx.update(|cx| workspace::last_session_workspaces(cx));
-            if session.is_empty() {
-                workspace::last_opened_workspace_location(app_state.fs.as_ref(), cx)
-                    .await
-                    .map(|workspace| vec![workspace])
-            } else {
-                Some(session)
-            }
-        }
-        workspace::RestoreOnStartupBehavior::LastWorkspace => {
-            workspace::last_opened_workspace_location(app_state.fs.as_ref(), cx).await.map(|workspace| vec![workspace])
-        }
-        _ => None,
+    let session = cx.update(|cx| workspace::last_session_workspaces(cx));
+    if session.is_empty() {
+        workspace::last_opened_workspace_location(app_state.fs.as_ref(), cx).await.map(|workspace| vec![workspace])
+    } else {
+        Some(session)
     }
 }
 

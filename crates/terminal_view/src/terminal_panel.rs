@@ -771,7 +771,6 @@ pub fn new_terminal_pane(
             Arc::default(),
             None,
             workspace::NewTerminal::default().boxed_clone(),
-            false,
             window,
             cx,
         );

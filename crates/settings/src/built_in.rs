@@ -1,15 +1,10 @@
 use collections::HashMap;
-use settings_content::ActivePaneModifiers;
 use settings_content::AllLanguageSettingsContent;
 use settings_content::AlternateScroll;
 use settings_content::AutoIndentMode;
-use settings_content::AutosaveSetting;
-use settings_content::BottomDockLayout;
 use settings_content::BranchPickerSettingsContent;
-use settings_content::CloseWindowWhenNoItems;
 use settings_content::CompletionSettingsContent;
 use settings_content::CursorShapeContent;
-use settings_content::DefaultOpenBehavior;
 use settings_content::DelayMs;
 use settings_content::DiagnosticSeverityContent;
 use settings_content::DiagnosticsSettingsContent;
@@ -21,13 +16,11 @@ use settings_content::EncodingDisplayOptions;
 use settings_content::FileDiffSettingsContent;
 use settings_content::FileFinderSettingsContent;
 use settings_content::FileTypeMap;
-use settings_content::FocusFollowsMouse;
 use settings_content::FolderIndicator;
 use settings_content::FontWeightContent;
 use settings_content::FormatOnSave;
 use settings_content::Formatter;
 use settings_content::FormatterList;
-use settings_content::FullscreenMode;
 use settings_content::GitEnabledSettings;
 use settings_content::GitGutterSetting;
 use settings_content::GitHunkStyleSetting;
@@ -42,7 +35,6 @@ use settings_content::GlobalLspSettingsContent;
 use settings_content::HideMouseMode;
 use settings_content::ImageFileSizeUnit;
 use settings_content::ImageViewerSettingsContent;
-use settings_content::InactiveOpacity;
 use settings_content::IncludeIgnoredContent;
 use settings_content::IndentGuideBackgroundColoring;
 use settings_content::IndentGuideColoring;
@@ -63,10 +55,7 @@ use settings_content::LspPullDiagnosticsSettingsContent;
 use settings_content::LspSettings;
 use settings_content::LspSettingsMap;
 use settings_content::ModalWidthContent;
-use settings_content::OnNewWindow;
 use settings_content::OutlinePanelSettingsContent;
-use settings_content::PaneSplitDirectionHorizontal;
-use settings_content::PaneSplitDirectionVertical;
 use settings_content::PathHyperlinkRegex;
 use settings_content::PixelSetting;
 use settings_content::PreviewTabsSettingsContent;
@@ -79,7 +68,6 @@ use settings_content::ProjectPanelSortOrder;
 use settings_content::ProjectPanelTitleTooltipDelay;
 use settings_content::ProjectSettingsContent;
 use settings_content::ProjectTerminalSettingsContent;
-use settings_content::RestoreOnStartupBehavior;
 use settings_content::RewrapBehavior;
 use settings_content::ScanSymlinksSetting;
 use settings_content::SemanticTokenRule;
@@ -99,20 +87,16 @@ use settings_content::TerminalBlink;
 use settings_content::TerminalDockPosition;
 use settings_content::TerminalLineHeight;
 use settings_content::TerminalSettingsContent;
-use settings_content::TextRenderingMode;
 use settings_content::TitleBarSettingsContent;
 use settings_content::WhitespaceMapContent;
-use settings_content::WindowDecorations;
 use settings_content::WordsCompletionMode;
 use settings_content::WorkingDirectory;
-use settings_content::WorkspaceSettingsContent;
 use settings_content::WorktreeSettingsContent;
 
 /// The complete application settings. Edit this constructor to change persistent preferences.
 pub fn settings() -> SettingsContent {
     SettingsContent {
         project: project_settings(),
-        workspace: workspace_settings(),
         file_finder: Some(FileFinderSettingsContent {
             file_icons: Some(true),
             modal_max_width: Some(ModalWidthContent::Large),
@@ -307,35 +291,6 @@ fn terminal_settings() -> Option<TerminalSettingsContent> {
         minimum_contrast: Some(45.0),
         ..Default::default()
     })
-}
-
-fn workspace_settings() -> WorkspaceSettingsContent {
-    WorkspaceSettingsContent {
-        active_pane_modifiers: Some(ActivePaneModifiers {
-            border_size: Some(PixelSetting(0.0)),
-            inactive_opacity: Some(InactiveOpacity(0.7)),
-        }),
-        text_rendering_mode: Some(TextRenderingMode::PlatformDefault),
-        bottom_dock_layout: Some(BottomDockLayout::Contained),
-        pane_split_direction_horizontal: Some(PaneSplitDirectionHorizontal::Down),
-        pane_split_direction_vertical: Some(PaneSplitDirectionVertical::Right),
-        confirm_quit: Some(false),
-        autosave: Some(AutosaveSetting::OnFocusChange),
-        restore_on_startup: Some(RestoreOnStartupBehavior::LastSession),
-        default_open_behavior: Some(DefaultOpenBehavior::ExistingWindow),
-        restore_on_file_reopen: Some(true),
-        drop_target_size: Some(0.2),
-        when_closing_with_no_tabs: Some(CloseWindowWhenNoItems::PlatformDefault),
-        use_system_path_prompts: Some(true),
-        command_aliases: HashMap::default(),
-        max_tabs: None,
-        on_new_window: Some(OnNewWindow::Launchpad),
-        resize_all_panels_in_dock: Some(vec![DockPosition::Left]),
-        close_on_file_delete: Some(false),
-        fullscreen_mode: Some(FullscreenMode::Native),
-        window_decorations: Some(WindowDecorations::Client),
-        focus_follows_mouse: Some(FocusFollowsMouse { enabled: Some(false), debounce_ms: Some(250) }),
-    }
 }
 
 fn project_settings() -> ProjectSettingsContent {

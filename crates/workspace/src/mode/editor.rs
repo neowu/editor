@@ -7,122 +7,37 @@ use gpui::Entity;
 use gpui::IntoElement;
 use gpui::Stateful;
 use gpui::canvas;
-use settings::Settings;
 use ui::Window;
 use ui::prelude::*;
 
-use crate::BottomDockLayout;
 use crate::CARD_GAP;
 use crate::DraggedDock;
 use crate::PaneRenderContext;
 use crate::Workspace;
 use crate::WorkspaceMode;
-use crate::WorkspaceSettings;
 use crate::dock::Dock;
 use crate::dock::DockPosition;
 
 impl Workspace {
     pub(super) fn render_editor_mode(&self, window: &mut Window, cx: &mut Context<Self>) -> Div {
         let background = cx.theme().colors().background;
-        let bottom_dock_layout = WorkspaceSettings::get_global(cx).bottom_dock_layout;
         let pane_render_context = PaneRenderContext { active_pane: &self.active_pane, workspace: &self.weak_self };
 
-        let layout = match bottom_dock_layout {
-            BottomDockLayout::Full => div()
-                .flex()
-                .flex_col()
-                .h_full()
-                .child(
-                    div()
-                        .flex()
-                        .flex_row()
-                        .flex_1()
-                        .overflow_hidden()
-                        .children(self.render_dock(DockPosition::Left, &self.left_dock, window, cx))
-                        .child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .flex_1()
-                                .overflow_hidden()
-                                .child(h_flex().flex_1().child(self.render_center(&pane_render_context, window, cx))),
-                        )
-                        .children(self.render_dock(DockPosition::Right, &self.right_dock, window, cx)),
-                )
-                .child(div().w_full().children(self.render_dock(DockPosition::Bottom, &self.bottom_dock, window, cx))),
-
-            BottomDockLayout::LeftAligned => div()
-                .flex()
-                .flex_row()
-                .h_full()
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .flex_1()
-                        .h_full()
-                        .child(
-                            div()
-                                .flex()
-                                .flex_row()
-                                .flex_1()
-                                .children(self.render_dock(DockPosition::Left, &self.left_dock, window, cx))
-                                .child(div().flex().flex_col().flex_1().overflow_hidden().child(
-                                    h_flex().flex_1().child(self.render_center(&pane_render_context, window, cx)),
-                                )),
-                        )
-                        .child(div().w_full().children(self.render_dock(
-                            DockPosition::Bottom,
-                            &self.bottom_dock,
-                            window,
-                            cx,
-                        ))),
-                )
-                .children(self.render_dock(DockPosition::Right, &self.right_dock, window, cx)),
-            BottomDockLayout::RightAligned => div()
-                .flex()
-                .flex_row()
-                .h_full()
-                .children(self.render_dock(DockPosition::Left, &self.left_dock, window, cx))
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .flex_1()
-                        .h_full()
-                        .child(
-                            div()
-                                .flex()
-                                .flex_row()
-                                .flex_1()
-                                .child(div().flex().flex_col().flex_1().overflow_hidden().child(
-                                    h_flex().flex_1().child(self.render_center(&pane_render_context, window, cx)),
-                                ))
-                                .children(self.render_dock(DockPosition::Right, &self.right_dock, window, cx)),
-                        )
-                        .child(div().w_full().children(self.render_dock(
-                            DockPosition::Bottom,
-                            &self.bottom_dock,
-                            window,
-                            cx,
-                        ))),
-                ),
-            BottomDockLayout::Contained => div()
-                .flex()
-                .flex_row()
-                .h_full()
-                .children(self.render_dock(DockPosition::Left, &self.left_dock, window, cx))
-                .child(
-                    div()
-                        .flex()
-                        .flex_col()
-                        .flex_1()
-                        .overflow_hidden()
-                        .child(h_flex().flex_1().child(self.render_center(&pane_render_context, window, cx)))
-                        .children(self.render_dock(DockPosition::Bottom, &self.bottom_dock, window, cx)),
-                )
-                .children(self.render_dock(DockPosition::Right, &self.right_dock, window, cx)),
-        };
+        let layout = div()
+            .flex()
+            .flex_row()
+            .h_full()
+            .children(self.render_dock(DockPosition::Left, &self.left_dock, window, cx))
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .flex_1()
+                    .overflow_hidden()
+                    .child(h_flex().flex_1().child(self.render_center(&pane_render_context, window, cx)))
+                    .children(self.render_dock(DockPosition::Bottom, &self.bottom_dock, window, cx)),
+            )
+            .children(self.render_dock(DockPosition::Right, &self.right_dock, window, cx));
 
         self.mode_container(cx)
             .child({

@@ -137,16 +137,8 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Entity<Pane> {
         let pane = cx.new(|cx| {
-            let mut pane = Pane::new(
-                workspace,
-                project,
-                pane_history_timestamp,
-                None,
-                Box::new(gpui::NoAction),
-                false,
-                window,
-                cx,
-            );
+            let mut pane =
+                Pane::new(workspace, project, pane_history_timestamp, None, Box::new(gpui::NoAction), window, cx);
             pane.set_can_split(Some(Arc::new(|_, _, _, _| true)));
             pane.set_read_only_tabs(true);
             pane.set_nav_history(nav_history);

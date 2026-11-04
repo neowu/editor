@@ -6,7 +6,6 @@ use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::prelude::*;
 use ui::prelude::*;
-use ui::utils::RetainedFocusExt as _;
 use ui_input::ErasedEditor;
 use ui_input::ErasedEditorEvent;
 
@@ -69,7 +68,7 @@ pub(crate) struct EmptyHead {
 
 impl EmptyHead {
     fn new(cx: &mut Context<Self>) -> Self {
-        Self { focus_handle: cx.retained_focus_handle() }
+        Self { focus_handle: cx.focus_handle() }
     }
 }
 

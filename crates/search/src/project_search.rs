@@ -1363,30 +1363,30 @@ impl ProjectSearchView {
         });
         // Subscribe to query_editor in order to reraise editor events for workspace item activation purposes
         subscriptions.push(cx.subscribe_in(&query_editor, window, |this, _, event: &EditorEvent, window, cx| {
-            if let EditorEvent::Edited { .. } = event {
-                if !this.is_dirty(cx) {
-                    if this.query_editor.read(cx).is_empty(cx) {
-                        this.debounced_search = Some(cx.spawn_in(window, async move |this, cx| {
-                            cx.background_executor().timer(SEARCH_ON_TYPE_DEBOUNCE).await;
-                            this.update_in(cx, |this, window, cx| {
-                                if this.query_editor.read(cx).is_empty(cx) && !this.is_dirty(cx) {
-                                    this.last_search_signature = None;
-                                    this.pending_replace_next = false;
-                                    this.pending_replace_all = false;
-                                    if this.panels_with_errors.remove(&InputPanel::Query).is_some() {
-                                        cx.notify();
-                                    }
-                                    this.entity.update(cx, |model, cx| model.clear(cx));
-                                    this.results_editor.update(cx, |editor, cx| {
-                                        editor.scroll(Point::default(), window, cx);
-                                    });
+            if let EditorEvent::Edited { .. } = event
+                && !this.is_dirty(cx)
+            {
+                if this.query_editor.read(cx).is_empty(cx) {
+                    this.debounced_search = Some(cx.spawn_in(window, async move |this, cx| {
+                        cx.background_executor().timer(SEARCH_ON_TYPE_DEBOUNCE).await;
+                        this.update_in(cx, |this, window, cx| {
+                            if this.query_editor.read(cx).is_empty(cx) && !this.is_dirty(cx) {
+                                this.last_search_signature = None;
+                                this.pending_replace_next = false;
+                                this.pending_replace_all = false;
+                                if this.panels_with_errors.remove(&InputPanel::Query).is_some() {
+                                    cx.notify();
                                 }
-                            })
-                            .ok();
-                        }));
-                    } else {
-                        this.schedule_search_on_type(cx);
-                    }
+                                this.entity.update(cx, |model, cx| model.clear(cx));
+                                this.results_editor.update(cx, |editor, cx| {
+                                    editor.scroll(Point::default(), window, cx);
+                                });
+                            }
+                        })
+                        .ok();
+                    }));
+                } else {
+                    this.schedule_search_on_type(cx);
                 }
             }
             cx.emit(ViewEvent::EditorEvent(event.clone()))
@@ -1632,10 +1632,7 @@ impl ProjectSearchView {
     fn prompt_to_save_if_dirty_then_search(&self, window: &Window, cx: &Context<Self>) -> Task<anyhow::Result<()>> {
         let project = self.entity.read(cx).project.clone();
 
-        let can_autosave = self.results_editor.can_autosave(cx);
-        let autosave_setting = self.results_editor.workspace_settings(cx).autosave;
-
-        let will_autosave = can_autosave && autosave_setting.should_save_on_close();
+        let will_autosave = self.results_editor.can_autosave(cx);
 
         let is_dirty = self.is_dirty(cx);
 
@@ -1995,7 +1992,7 @@ impl ProjectSearchView {
         self.entity_changed(window, cx);
     }
 
-    fn set_query(&mut self, query: &str, window: &mut Window, cx: &mut Context<Self>) {
+    fn set_query(&self, query: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.set_search_editor(SearchInputKind::Query, query, window, cx);
     }
 

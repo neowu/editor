@@ -8,8 +8,6 @@ mod open_listener;
 use std::borrow::Cow;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::{self};
 
 use anyhow::Context as _;
 pub use app_menus::*;
@@ -38,7 +36,6 @@ use gpui::Image;
 use gpui::ImageFormat;
 use gpui::ParentElement;
 use gpui::PathPromptOptions;
-use gpui::PromptLevel;
 use gpui::SharedString;
 use gpui::Size;
 use gpui::Task;
@@ -65,7 +62,6 @@ use project::DirectoryLister;
 use project_panel::ProjectPanel;
 use recent_projects::open_remote_project;
 use search::project_search::ProjectSearchBar;
-use settings::DefaultOpenBehavior;
 use settings::Settings;
 use settings::SettingsStore;
 use terminal_view::terminal_panel::TerminalPanel;
@@ -85,7 +81,6 @@ use workspace::OpenLog;
 use workspace::Pane;
 use workspace::StatusItemModes;
 use workspace::Workspace;
-use workspace::WorkspaceSettings;
 use workspace::notifications::NotificationId;
 use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::open_new;
@@ -144,11 +139,7 @@ pub fn build_window_options(display_uuid: Option<Uuid>, cx: &mut App) -> WindowO
     let app_id = settings_content::app_metadata::APP_ID;
     let window_decorations = match std::env::var("ED_WINDOW_DECORATIONS") {
         Ok(val) if val == "server" => gpui::WindowDecorations::Server,
-        Ok(val) if val == "client" => gpui::WindowDecorations::Client,
-        _ => match WorkspaceSettings::get_global(cx).window_decorations {
-            settings::WindowDecorations::Server => gpui::WindowDecorations::Server,
-            settings::WindowDecorations::Client => gpui::WindowDecorations::Client,
-        },
+        _ => gpui::WindowDecorations::Client,
     };
 
     WindowOptions {
@@ -317,16 +308,8 @@ fn register_actions(app_state: Arc<AppState>, workspace: &mut Workspace, _: &mut
         .register_action(|_, _: &Zoom, window, _| {
             window.zoom_window();
         })
-        .register_action(|_, _: &ToggleFullScreen, window, cx| {
-            let use_simple_fullscreen = PlatformStyle::platform() == PlatformStyle::Mac
-                && (window.is_simple_fullscreen()
-                    || (!window.is_fullscreen()
-                        && WorkspaceSettings::get_global(cx).fullscreen_mode == settings::FullscreenMode::Simple));
-            if use_simple_fullscreen {
-                window.toggle_simple_fullscreen();
-            } else {
-                window.toggle_fullscreen();
-            }
+        .register_action(|_, _: &ToggleFullScreen, window, _| {
+            window.toggle_fullscreen();
         })
         .register_action(|workspace, action: &OpenBrowser, _window, cx| {
             // Parse and validate the URL to ensure it's properly formatted
@@ -351,9 +334,7 @@ fn register_actions(app_state: Arc<AppState>, workspace: &mut Workspace, _: &mut
                 workspace,
                 workspace.app_state().clone(),
                 PathPromptOptions { files: true, directories: true, multiple: true, prompt: None },
-                action.create_new_window.unwrap_or_else(|| {
-                    matches!(WorkspaceSettings::get_global(cx).default_open_behavior, DefaultOpenBehavior::NewWindow)
-                }),
+                action.create_new_window.unwrap_or(false),
                 window,
                 cx,
             );
@@ -378,9 +359,7 @@ fn register_actions(app_state: Arc<AppState>, workspace: &mut Workspace, _: &mut
             if workspace.project().read(cx).is_local() {
                 return;
             }
-            let create_new_window = action.create_new_window.unwrap_or_else(|| {
-                matches!(WorkspaceSettings::get_global(cx).default_open_behavior, DefaultOpenBehavior::NewWindow)
-            });
+            let create_new_window = action.create_new_window.unwrap_or(false);
 
             let paths = workspace.prompt_for_open_path(
                 PathPromptOptions { files: true, directories: true, multiple: true, prompt: None },
@@ -452,9 +431,8 @@ fn register_actions(app_state: Arc<AppState>, workspace: &mut Workspace, _: &mut
         .register_action({
             let app_state = app_state.clone();
             move |_, _: &NewWindow, _, cx| {
-                open_new(workspace::OpenOptions::default(), app_state.clone(), cx, |workspace, window, cx| {
+                open_new(workspace::OpenOptions::default(), app_state.clone(), cx, |_, _, cx| {
                     cx.activate(true);
-                    initialize_new_window(workspace, window, cx);
                 })
                 .detach();
             }
@@ -636,13 +614,7 @@ fn open_about_window(cx: &mut App) {
     .log_err();
 }
 
-static WAITING_QUIT_CONFIRMATION: AtomicBool = AtomicBool::new(false);
 fn quit(_: &Quit, cx: &mut App) {
-    if WAITING_QUIT_CONFIRMATION.load(atomic::Ordering::Acquire) {
-        return;
-    }
-
-    let should_confirm = WorkspaceSettings::get_global(cx).confirm_quit;
     cx.spawn(async move |cx| {
         let mut workspace_windows: Vec<WindowHandle<Workspace>> = cx.update(|cx| {
             cx.windows().into_iter().filter_map(|window| window.downcast::<Workspace>()).collect::<Vec<_>>()
@@ -653,23 +625,6 @@ fn quit(_: &Quit, cx: &mut App) {
         cx.update(|cx| {
             workspace_windows.sort_by_key(|window| window.is_active(cx) == Some(false));
         });
-
-        if should_confirm && let Some(workspace_window) = workspace_windows.first() {
-            let answer = workspace_window
-                .update(cx, |_, window, cx| {
-                    window.prompt(PromptLevel::Info, "Are you sure you want to quit?", None, &["Quit", "Cancel"], cx)
-                })
-                .log_err();
-
-            if let Some(answer) = answer {
-                WAITING_QUIT_CONFIRMATION.store(true, atomic::Ordering::Release);
-                let answer = answer.await.ok();
-                WAITING_QUIT_CONFIRMATION.store(false, atomic::Ordering::Release);
-                if answer != Some(0) {
-                    return Ok(());
-                }
-            }
-        }
 
         if !workspace::prepare_windows_to_quit(&workspace_windows, cx).await {
             return Ok(());
@@ -806,21 +761,6 @@ pub fn initialize_keymap(cx: &mut App) {
     let menus = app_menus(cx);
     cx.set_menus(menus);
     cx.set_dock_menu(vec![gpui::MenuItem::action("New Window", workspace::NewWindow)]);
-}
-
-/// Populates a freshly opened window according to the `on_new_window` setting.
-///
-/// For `EmptyTab` this opens an empty buffer. For `Launchpad` the window is left
-/// without any items so the pane falls back to displaying the Launchpad.
-fn initialize_new_window(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
-    if WorkspaceSettings::get_global(cx).on_new_window == settings::OnNewWindow::Launchpad {
-        return;
-    }
-    // Create buffer synchronously to avoid flicker
-    let project = workspace.project().clone();
-    let buffer = project.update(cx, |project, cx| project.create_local_buffer("", None, true, cx));
-    let editor = cx.new(|cx| Editor::for_buffer(buffer, Some(project), window, cx));
-    workspace.add_item_to_active_pane(Box::new(editor), None, true, window, cx);
 }
 
 pub fn open_new_ssh_project_from_project(

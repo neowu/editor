@@ -566,7 +566,6 @@ impl EditorElement {
         register_action(editor, window, Editor::go_to_prev_hunk);
         register_action(editor, window, Editor::go_to_next_document_highlight);
         register_action(editor, window, Editor::go_to_prev_document_highlight);
-        if editor.read(cx).lsp_data_enabled() {}
         register_action(editor, window, |editor, action, window, cx| {
             editor.go_to_definition(action, window, cx).detach_and_log_err(cx);
         });

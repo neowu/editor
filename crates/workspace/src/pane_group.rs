@@ -16,15 +16,11 @@ use gpui::Window;
 use gpui::px;
 use parking_lot::Mutex;
 use serde::Deserialize;
-use settings::Settings;
 use ui::prelude::*;
 
 use crate::Pane;
 use crate::Workspace;
-use crate::WorkspaceSettings;
 use crate::pane_group::element::pane_axis;
-use crate::workspace_settings::PaneSplitDirectionHorizontal;
-use crate::workspace_settings::PaneSplitDirectionVertical;
 
 pub const HANDLE_HITBOX_SIZE: f32 = 4.0;
 const HORIZONTAL_MIN_SIZE: f32 = 80.;
@@ -764,20 +760,6 @@ impl SplitDirection {
         [Self::Up, Self::Down, Self::Left, Self::Right]
     }
 
-    pub fn vertical(cx: &mut App) -> Self {
-        match WorkspaceSettings::get_global(cx).pane_split_direction_vertical {
-            PaneSplitDirectionVertical::Left => SplitDirection::Left,
-            PaneSplitDirectionVertical::Right => SplitDirection::Right,
-        }
-    }
-
-    pub fn horizontal(cx: &mut App) -> Self {
-        match WorkspaceSettings::get_global(cx).pane_split_direction_horizontal {
-            PaneSplitDirectionHorizontal::Down => SplitDirection::Down,
-            PaneSplitDirectionHorizontal::Up => SplitDirection::Up,
-        }
-    }
-
     pub fn edge(&self, rect: Bounds<Pixels>) -> Pixels {
         match self {
             Self::Up => rect.origin.y,
@@ -822,7 +804,6 @@ mod element {
     use gpui::AnyElement;
     use gpui::App;
     use gpui::Axis;
-    use gpui::BorderStyle;
     use gpui::Bounds;
     use gpui::CursorStyle;
     use gpui::Element;
@@ -845,7 +826,6 @@ mod element {
     use gpui::relative;
     use gpui::size;
     use parking_lot::Mutex;
-    use settings::Settings;
     use smallvec::SmallVec;
     use ui::prelude::*;
     use util::ResultExt;
@@ -855,7 +835,9 @@ mod element {
     use super::VERTICAL_MIN_SIZE;
     use crate::Pane;
     use crate::Workspace;
-    use crate::WorkspaceSettings;
+
+    /// Opacity of the overlay that dims inactive split panes.
+    const INACTIVE_PANE_OPACITY: f32 = 0.7;
 
     /// Split panes are separate cards, with the chrome showing through the gap between them.
     const GAP: Pixels = crate::CARD_GAP;
@@ -1150,42 +1132,16 @@ mod element {
                 child.element.paint(window, cx);
             }
 
-            let overlay_opacity = WorkspaceSettings::get(None, cx)
-                .active_pane_modifiers
-                .inactive_opacity
-                .map(|val| val.0.clamp(0.0, 1.0))
-                .and_then(|val| (val <= 1.).then_some(val));
-
             let mut overlay_background = cx.theme().colors().editor_background;
-            if let Some(opacity) = overlay_opacity {
-                overlay_background.fade_out(opacity);
-            }
-
-            let overlay_border = WorkspaceSettings::get(None, cx)
-                .active_pane_modifiers
-                .border_size
-                .and_then(|val| (val >= 0.).then_some(val));
+            overlay_background.fade_out(INACTIVE_PANE_OPACITY);
 
             let len = layout.children.len();
             for (ix, child) in &mut layout.children.iter_mut().enumerate() {
                 // Only the card is dimmed / outlined, not the tab bar on the chrome above it.
-                if let Some(card_bounds) = child.card_bounds {
-                    if overlay_opacity.is_some() && self.active_pane_ix != Some(ix) {
-                        window.paint_quad(gpui::fill(card_bounds, overlay_background).corner_radii(crate::CARD_RADIUS));
-                    }
-
-                    if let Some(border) = overlay_border
-                        && self.active_pane_ix == Some(ix)
-                    {
-                        window.paint_quad(gpui::quad(
-                            card_bounds,
-                            crate::CARD_RADIUS,
-                            gpui::transparent_black(),
-                            border,
-                            cx.theme().colors().border_selected,
-                            BorderStyle::Solid,
-                        ));
-                    }
+                if let Some(card_bounds) = child.card_bounds
+                    && self.active_pane_ix != Some(ix)
+                {
+                    window.paint_quad(gpui::fill(card_bounds, overlay_background).corner_radii(crate::CARD_RADIUS));
                 }
 
                 if let Some(handle) = child.handle.as_mut() {

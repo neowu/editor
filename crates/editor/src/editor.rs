@@ -605,7 +605,6 @@ use ui::Tooltip;
 use ui::font::observe_buffer_font_size_adjustment;
 use ui::prelude::*;
 use ui::scrollbars::ScrollbarAutoHide;
-use ui::utils::RetainedFocusExt as _;
 use ui_input::ErasedEditor;
 use util::RangeExt;
 use util::ResultExt;
@@ -617,10 +616,8 @@ use workspace::NavigationEntry;
 use workspace::OpenInTerminal;
 use workspace::OpenTerminal;
 use workspace::Pane;
-use workspace::RestoreOnStartupBehavior;
 use workspace::SplitDirection;
 use workspace::Workspace;
-use workspace::WorkspaceSettings;
 use workspace::item::ItemBufferKind;
 use workspace::item::ItemHandle;
 use workspace::item::PreviewTabsSettings;
@@ -2035,7 +2032,7 @@ impl Editor {
         let buffer_snapshot = multi_buffer.read(cx).snapshot(cx);
 
         let inlay_hint_settings = inlay_hint_settings(selections.newest_anchor().head(), &buffer_snapshot, cx);
-        let focus_handle = if mode.is_single_line() { cx.retained_focus_handle() } else { cx.focus_handle() };
+        let focus_handle = cx.focus_handle();
         if !is_minimap {
             cx.on_focus(&focus_handle, window, Self::handle_focus).detach();
             cx.on_focus_in(&focus_handle, window, Self::handle_focus_in).detach();
@@ -2504,7 +2501,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
-        Self::new_file_in_direction(workspace, SplitDirection::vertical(cx), window, cx)
+        Self::new_file_in_direction(workspace, SplitDirection::Right, window, cx)
     }
 
     fn new_file_horizontal(
@@ -2513,7 +2510,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
-        Self::new_file_in_direction(workspace, SplitDirection::horizontal(cx), window, cx)
+        Self::new_file_in_direction(workspace, SplitDirection::Down, window, cx)
     }
 
     fn new_file_split(

@@ -52,11 +52,15 @@ migrator, or Vim/Helix mode.
   recording a tab on `workspace.json` would rewrite the file it shows.
 - Hot exit (untitled buffers only) is only offered for windows with a root
   folder; other windows prompt to save dirty buffers on close.
-- Restore on startup: `last_session` reopens the projects flagged open at quit
-  (closing a window clears its flag; quitting keeps it; removing a project from
-  the recents drops it), most recent on top, falling back to the most recent
-  project; `last_workspace` reopens the most recent project whose
-  folders still exist.
+- Restore on startup (not configurable) reopens the projects flagged open at
+  quit (closing a window clears its flag; quitting keeps it; removing a
+  project from the recents drops it), most recent on top, falling back to the
+  most recent project whose folders still exist. If nothing is restored, a
+  window opens with an empty buffer.
+- Autosave (not configurable) saves a buffer when focus leaves it and when the
+  window deactivates, formatting on save; closing a dirty, autosavable buffer
+  saves it instead of prompting. Reopening a file in the same pane restores
+  its selections, folds and scroll position.
 - Not persisted: panel sizes, default window bounds and dock layout for new
   windows, native (macOS) window state, the Text Finder's last query and
   filters, git panel commit drafts/signoff/commit-editor collapse, outline panel

@@ -792,8 +792,8 @@ impl CompletionsMenu {
         &self,
         style: &EditorStyle,
         max_height_in_lines: u32,
-        window: &mut Window,
-        cx: &mut Context<Editor>,
+        window: &Window,
+        cx: &Context<Editor>,
     ) -> AnyElement {
         let show_completion_documentation = self.show_completion_documentation;
         let widest_completion_ix = if self.display_options.dynamic_width {

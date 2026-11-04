@@ -10,14 +10,12 @@ use futures::channel::mpsc::UnboundedReceiver;
 use futures::channel::mpsc::UnboundedSender;
 use git_ui::multi_diff_view::MultiDiffView;
 use git_ui_core::file_diff_view::FileDiffView;
-use gpui::App;
 use gpui::AsyncApp;
 use gpui::Global;
 use gpui::WindowHandle;
 use recent_projects::navigate_to_positions;
 use remote::RemoteConnectionOptions;
 use remote::SshConnectionOptions;
-use settings::Settings;
 use util::ResultExt;
 use util::paths::PathWithPosition;
 use workspace::AppState;
@@ -227,18 +225,6 @@ pub async fn open_paths_with_positions(
     navigate_to_positions(&window, items_for_navigation, path_positions, cx);
 
     Ok((window, items))
-}
-
-/// Open options for an open request (e.g. from Finder or a URL), following the
-/// `default_open_behavior` setting.
-pub(crate) fn open_options_for_request(cx: &App) -> workspace::OpenOptions {
-    match workspace::WorkspaceSettings::get_global(cx).default_open_behavior {
-        settings::DefaultOpenBehavior::ExistingWindow => workspace::OpenOptions::default(),
-        settings::DefaultOpenBehavior::NewWindow => workspace::OpenOptions {
-            workspace_matching: workspace::WorkspaceMatching::MatchSubpaths,
-            ..Default::default()
-        },
-    }
 }
 
 pub async fn derive_paths_with_position(

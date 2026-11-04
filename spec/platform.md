@@ -36,8 +36,12 @@ or UNC prefixes. There is no path-style abstraction; code uses
 - No `ed` CLI binary (`edctl` is only for automation, see `automation.md`). Files and folders open through macOS (Finder, `open -a
   ed`, Apple Events) or as arguments to the app binary itself. There is no
   `--wait`, environment/cwd forwarding, open-mode flags (`-a`/`-n`/`-e`), or
-  `cli_default_open_behavior` setting; open requests follow
-  `default_open_behavior`.
+  `cli_default_open_behavior` setting; open requests, Open, and Open Recent
+  add to the existing window unless the action asks for a new one. New
+  windows show the Launchpad.
+- Quit and restart never ask for confirmation (unsaved changes still prompt).
+- Open and Save As use the system dialogs for local projects and the built-in
+  pickers for remote ones.
 - Terminals, tasks, environment capture, and SSH commands only understand
   POSIX shells (sh/bash/zsh) and fish. Any other shell is treated as POSIX;
   csh/tcsh, rc, PowerShell, cmd, Nushell, Xonsh, and Elvish quoting and syntax

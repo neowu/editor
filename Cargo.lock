@@ -605,7 +605,6 @@ dependencies = [
  "gpui",
  "menu",
  "picker",
- "settings",
  "ui",
  "util",
  "workspace",

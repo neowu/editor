@@ -2,7 +2,6 @@ use std::any::Any;
 use std::any::TypeId;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::Result;
 use gpui::Action;
@@ -39,7 +38,6 @@ use ui::IntoElement;
 use ui::Label;
 use ui::LabelCommon;
 
-use crate::DelayedDebouncedEditAction;
 use crate::ItemNavHistory;
 use crate::SerializableItemRegistry;
 use crate::Workspace;
@@ -47,8 +45,6 @@ use crate::invalid_item_view::InvalidItemView;
 use crate::pane::Pane;
 use crate::pane::{self};
 use crate::searchable::SearchableItemHandle;
-use crate::workspace_settings::AutosaveSetting;
-use crate::workspace_settings::WorkspaceSettings;
 
 #[derive(Clone, Copy, Debug)]
 pub struct SaveOptions {
@@ -431,7 +427,6 @@ pub trait ItemHandle: 'static + Send {
     fn is_permanent(&self, cx: &App) -> bool;
     fn pixel_position_of_cursor(&self, cx: &App) -> Option<Point<Pixels>>;
     fn downgrade_item(&self) -> Box<dyn WeakItemHandle>;
-    fn workspace_settings<'a>(&self, cx: &'a App) -> &'a WorkspaceSettings;
     fn preserve_preview(&self, cx: &App) -> bool;
     fn include_in_nav_history(&self) -> bool;
     fn relay_action(&self, action: Box<dyn Action>, window: &mut Window, cx: &mut App);
@@ -490,17 +485,6 @@ impl<T: Item> ItemHandle for Entity<T> {
 
     fn project_path(&self, cx: &App) -> Option<ProjectPath> {
         <T as Item>::active_project_path(self.read(cx), cx)
-    }
-
-    fn workspace_settings<'a>(&self, cx: &'a App) -> &'a WorkspaceSettings {
-        if let Some(project_path) = self.project_path(cx) {
-            WorkspaceSettings::get(
-                Some(SettingsLocation { worktree_id: project_path.worktree_id, path: &project_path.path }),
-                cx,
-            )
-        } else {
-            WorkspaceSettings::get_global(cx)
-        }
     }
 
     fn project_entry_ids(&self, cx: &App) -> SmallVec<[ProjectEntryId; 3]> {
@@ -573,7 +557,6 @@ impl<T: Item> ItemHandle for Entity<T> {
         let old_item_pane = workspace.panes_by_item.insert(self.item_id(), pane.downgrade());
 
         if old_item_pane.is_none() {
-            let mut pending_autosave = DelayedDebouncedEditAction::new();
             let mut event_subscription =
                 Some(cx.subscribe_in(self, window, move |workspace, item: &Entity<T>, event, window, cx| {
                     let pane = if let Some(pane) =
@@ -601,31 +584,10 @@ impl<T: Item> ItemHandle for Entity<T> {
                         ItemEvent::UpdateTab => {
                             workspace.update_item_dirty_state(item, window, cx);
 
-                            if item.has_deleted_file(cx)
-                                && !item.is_dirty(cx)
-                                && item.workspace_settings(cx).close_on_file_delete
-                            {
-                                let item_id = item.item_id();
-                                let close_item_task = pane.update(cx, |pane, cx| {
-                                    pane.close_item_by_id(item_id, crate::SaveIntent::Close, window, cx)
-                                });
-                                cx.spawn_in(window, {
-                                    let pane = pane.clone();
-                                    async move |_workspace, cx| {
-                                        close_item_task.await?;
-                                        pane.update(cx, |pane, _cx| {
-                                            pane.nav_history_mut().remove_item(item_id);
-                                        });
-                                        anyhow::Ok(())
-                                    }
-                                })
-                                .detach_and_log_err(cx);
-                            } else {
-                                pane.update(cx, |_, cx| {
-                                    cx.emit(pane::Event::ChangeItemTitle);
-                                    cx.notify();
-                                });
-                            }
+                            pane.update(cx, |_, cx| {
+                                cx.emit(pane::Event::ChangeItemTitle);
+                                cx.notify();
+                            });
                         }
 
                         ItemEvent::UpdateActivePath => {
@@ -640,24 +602,13 @@ impl<T: Item> ItemHandle for Entity<T> {
                         }
 
                         ItemEvent::Edit => {
-                            let autosave = item.workspace_settings(cx).autosave;
-
-                            if let AutosaveSetting::AfterDelay { milliseconds } = autosave {
-                                let delay = Duration::from_millis(milliseconds.0);
-                                let item = item.clone();
-                                pending_autosave.fire_new(delay, window, cx, move |workspace, window, cx| {
-                                    Pane::autosave_item(&item, workspace.project().clone(), window, cx)
-                                });
-                            }
                             pane.update(cx, |pane, cx| pane.handle_item_edit(item.item_id(), cx));
                         }
                     });
                 }));
 
             cx.on_focus_out(&self.read(cx).focus_handle(cx), window, move |workspace, _event, window, cx| {
-                if let Some(item) = weak_item.upgrade()
-                    && item.workspace_settings(cx).autosave == AutosaveSetting::OnFocusChange
-                {
+                if let Some(item) = weak_item.upgrade() {
                     // Only trigger autosave if focus has truly left the item.
                     // If focus is still within the item's hierarchy (e.g., moved to a context menu),
                     // don't trigger autosave to avoid unwanted formatting and cursor jumps.

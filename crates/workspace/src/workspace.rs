@@ -16,7 +16,6 @@ mod persistence;
 pub mod preview;
 pub mod searchable;
 
-pub mod focus_follows_mouse;
 mod status_bar;
 pub mod tasks;
 mod theme_preview;
@@ -165,7 +164,6 @@ use rpc::ErrorExt;
 use rpc::proto::ErrorCode;
 use rpc::proto::{self};
 use serde::Deserialize;
-use settings::DefaultOpenBehavior;
 use settings::Settings;
 use settings::SettingsLocation;
 use status_bar::StatusBar;
@@ -191,13 +189,8 @@ use util::ResultExt;
 use util::paths::SanitizedPath;
 use util::rel_path::RelPath;
 use uuid::Uuid;
-pub use workspace_settings::AutosaveSetting;
-pub use workspace_settings::BottomDockLayout;
 pub use workspace_settings::EncodingDisplayOptions;
-pub use workspace_settings::FocusFollowsMouse;
-pub use workspace_settings::RestoreOnStartupBehavior;
 pub use workspace_settings::StatusBarSettings;
-pub use workspace_settings::WorkspaceSettings;
 
 use crate::item::ItemBufferKind;
 use crate::mode::GIT_HISTORY_SIDEBAR_WIDTH;
@@ -699,9 +692,7 @@ pub fn init(app_state: Arc<AppState>, cx: &mut App) {
             prompt_and_open_paths(
                 app_state,
                 PathPromptOptions { files: true, directories: true, multiple: true, prompt: None },
-                action.create_new_window.unwrap_or_else(|| {
-                    matches!(WorkspaceSettings::get_global(cx).default_open_behavior, DefaultOpenBehavior::NewWindow)
-                }),
+                action.create_new_window.unwrap_or(false),
                 cx,
             );
         })
@@ -921,48 +912,6 @@ impl AppState {
     }
     pub fn set_global(state: Arc<AppState>, cx: &mut App) {
         cx.set_global(GlobalAppState(state));
-    }
-}
-
-struct DelayedDebouncedEditAction {
-    task: Option<Task<()>>,
-    cancel_channel: Option<oneshot::Sender<()>>,
-}
-
-impl DelayedDebouncedEditAction {
-    const fn new() -> DelayedDebouncedEditAction {
-        DelayedDebouncedEditAction { task: None, cancel_channel: None }
-    }
-
-    fn fire_new<F>(&mut self, delay: Duration, window: &Window, cx: &Context<Workspace>, func: F)
-    where
-        F: 'static + Send + FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) -> Task<Result<()>>,
-    {
-        if let Some(channel) = self.cancel_channel.take() {
-            _ = channel.send(());
-        }
-
-        let (sender, mut receiver) = oneshot::channel::<()>();
-        self.cancel_channel = Some(sender);
-
-        let previous_task = self.task.take();
-        self.task = Some(cx.spawn_in(window, async move |workspace, cx| {
-            let mut timer = cx.background_executor().timer(delay).fuse();
-            if let Some(previous_task) = previous_task {
-                previous_task.await;
-            }
-
-            futures::select_biased! {
-                _ = receiver => return,
-                    _ = timer => {}
-            }
-
-            if let Some(result) =
-                workspace.update_in(cx, |workspace, window, cx| (func)(workspace, window, cx)).log_err()
-            {
-                result.await.log_err();
-            }
-        }));
     }
 }
 
@@ -1248,7 +1197,6 @@ impl Workspace {
                 pane_history_timestamp.clone(),
                 None,
                 NewFile.boxed_clone(),
-                true,
                 window,
                 cx,
             );
@@ -2196,10 +2144,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> oneshot::Receiver<Option<Vec<PathBuf>>> {
-        // TODO: If `on_prompt_for_open_path` is set, we should always use it
-        // rather than gating on `use_system_path_prompts`. This would let tests
-        // inject a mock without also having to disable the setting.
-        if !lister.is_local(cx) || !WorkspaceSettings::get_global(cx).use_system_path_prompts {
+        if !lister.is_local(cx) {
             let prompt = self.on_prompt_for_open_path.take().unwrap();
             let rx = prompt(self, lister, window, cx);
             self.on_prompt_for_open_path = Some(prompt);
@@ -2245,7 +2190,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> oneshot::Receiver<Option<Vec<PathBuf>>> {
-        if self.project.read(cx).is_via_remote_server() || !WorkspaceSettings::get_global(cx).use_system_path_prompts {
+        if self.project.read(cx).is_via_remote_server() {
             let prompt = self.on_prompt_for_new_path.take().unwrap();
             let rx = prompt(self, lister, suggested_name, window, cx);
             self.on_prompt_for_new_path = Some(prompt);
@@ -3266,7 +3211,6 @@ impl Workspace {
                 self.pane_history_timestamp.clone(),
                 None,
                 NewFile.boxed_clone(),
-                true,
                 window,
                 cx,
             );
@@ -4499,12 +4443,7 @@ impl Workspace {
                         item.workspace_deactivated(window, cx);
                     }
                     for item in pane.items() {
-                        if matches!(
-                            item.workspace_settings(cx).autosave,
-                            AutosaveSetting::OnWindowChange | AutosaveSetting::OnFocusChange
-                        ) {
-                            Pane::autosave_item(item.as_ref(), self.project.clone(), window, cx).detach_and_log_err(cx);
-                        }
+                        Pane::autosave_item(item.as_ref(), self.project.clone(), window, cx).detach_and_log_err(cx);
                     }
                 });
             }
@@ -6159,7 +6098,6 @@ fn remote_workspace_connection_id(paths: &[PathBuf]) -> i64 {
 }
 
 pub fn reload(cx: &mut App) {
-    let should_confirm = WorkspaceSettings::get_global(cx).confirm_quit;
     let mut workspace_windows =
         cx.windows().into_iter().filter_map(|window| window.downcast::<Workspace>()).collect::<Vec<_>>();
 
@@ -6167,23 +6105,7 @@ pub fn reload(cx: &mut App) {
     // prompt in the active window before switching to a different window.
     workspace_windows.sort_by_key(|window| window.is_active(cx) == Some(false));
 
-    let mut prompt = None;
-    if let (true, Some(window)) = (should_confirm, workspace_windows.first()) {
-        prompt = window
-            .update(cx, |_, window, cx| {
-                window.prompt(PromptLevel::Info, "Are you sure you want to restart?", None, &["Restart", "Cancel"], cx)
-            })
-            .ok();
-    }
-
     cx.spawn(async move |cx| {
-        if let Some(prompt) = prompt {
-            let answer = prompt.await?;
-            if answer != 0 {
-                return anyhow::Ok(());
-            }
-        }
-
         if !prepare_windows_to_quit(&workspace_windows, cx).await {
             return anyhow::Ok(());
         }

@@ -2,7 +2,6 @@ use std::any::Any;
 use std::cmp;
 use std::fmt;
 use std::mem;
-use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -94,7 +93,6 @@ use crate::Workspace;
 use crate::WorkspaceItemBuilder;
 use crate::ZoomIn;
 use crate::ZoomOut;
-use crate::focus_follows_mouse::FocusFollowsMouse as _;
 use crate::invalid_item_view::InvalidItemView;
 use crate::item::Item;
 use crate::item::ItemBufferKind;
@@ -108,9 +106,6 @@ use crate::item::WeakItemHandle;
 use crate::move_item;
 use crate::notifications::NotifyResultExt;
 use crate::toolbar::Toolbar;
-use crate::workspace_settings::AutosaveSetting;
-use crate::workspace_settings::FocusFollowsMouse;
-use crate::workspace_settings::WorkspaceSettings;
 
 /// A selected entry in e.g. project panel.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -372,6 +367,8 @@ actions!(
 
 const MAX_NAVIGATION_HISTORY_LEN: usize = 1024;
 const TAB_DROP_MARKER_WIDTH: Pixels = px(2.);
+/// Size of the split drop targets on a pane's edges, as a fraction of its smaller dimension.
+const DROP_TARGET_SIZE: f32 = 0.2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TabDropSide {
@@ -478,8 +475,6 @@ pub struct Pane {
     /// Room kept at the start of the tab bar for the part of the window header
     /// that overhangs a narrow sidebar, so tabs never slide under it.
     tab_bar_header_room: Pixels,
-    max_tabs: Option<NonZeroUsize>,
-    use_max_tabs: bool,
     _subscriptions: Vec<Subscription>,
     tab_bar_scroll_handle: ScrollHandle,
     /// This is set to true if a user scroll has occurred more recently than a system scroll
@@ -493,7 +488,6 @@ pub struct Pane {
     read_only_tabs: bool,
     pinned_tab_count: usize,
     zoom_out_on_close: bool,
-    focus_follows_mouse: FocusFollowsMouse,
     /// If a certain project item wants to get recreated with specific data, it can persist its data before the recreation here.
     pub project_item_restoration_data: HashMap<ProjectItemKind, Box<dyn Any + Send>>,
 
@@ -594,12 +588,10 @@ impl Pane {
         next_timestamp: Arc<AtomicUsize>,
         can_drop_predicate: Option<Arc<dyn Fn(&dyn Any, &mut Window, &mut App) -> bool + 'static>>,
         double_click_dispatch_action: Box<dyn Action>,
-        use_max_tabs: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let focus_handle = cx.focus_handle();
-        let max_tabs = if use_max_tabs { WorkspaceSettings::get_global(cx).max_tabs } else { None };
 
         let toolbar = cx.new(|_| Toolbar::new());
         let subscriptions = vec![
@@ -620,8 +612,6 @@ impl Pane {
             zoomed: false,
             active_item_index: 0,
             preview_item_id: None,
-            max_tabs,
-            use_max_tabs,
             last_focus_handle_by_item: HashMap::default(),
             nav_history: NavHistory::new(workspace.clone(), next_timestamp),
             toolbar,
@@ -646,7 +636,6 @@ impl Pane {
             read_only_tabs: false,
             pinned_tab_count: 0,
             zoom_out_on_close: true,
-            focus_follows_mouse: WorkspaceSettings::get_global(cx).focus_follows_mouse,
             project_item_restoration_data: HashMap::default(),
             in_center_group: false,
         }
@@ -730,20 +719,9 @@ impl Pane {
         cx.notify();
     }
 
-    fn settings_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn settings_changed(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         if !PreviewTabsSettings::get_global(cx).enabled {
             self.set_preview_item_id(None, cx);
-        }
-
-        let workspace_settings = WorkspaceSettings::get_global(cx);
-
-        self.focus_follows_mouse = workspace_settings.focus_follows_mouse;
-
-        let new_max_tabs = workspace_settings.max_tabs;
-
-        if self.use_max_tabs && new_max_tabs != self.max_tabs {
-            self.max_tabs = new_max_tabs;
-            self.close_items_on_settings_change(window, cx);
         }
 
         cx.notify();
@@ -1096,13 +1074,7 @@ impl Pane {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let item_already_exists = self.items.iter().any(|existing_item| existing_item.item_id() == item.item_id());
-
         let mut replaces_existing_item_in_pane = false;
-
-        if !item_already_exists {
-            self.close_items_on_item_open(window, cx);
-        }
 
         if item.buffer_kind(cx) == ItemBufferKind::Singleton
             && let Some(&entry_id) = item.project_entry_ids(cx).first()
@@ -1417,10 +1389,7 @@ impl Pane {
         cx: &mut Context<Self>,
     ) -> Task<Result<()>> {
         if self.items.is_empty() {
-            // Close the window when there's no active items to close, if configured
-            if WorkspaceSettings::get_global(cx).when_closing_with_no_tabs.should_close() {
-                window.dispatch_action(Box::new(CloseWindow), cx);
-            }
+            window.dispatch_action(Box::new(CloseWindow), cx);
 
             return Task::ready(Ok(()));
         }
@@ -1606,73 +1575,6 @@ impl Pane {
         self.close_items(window, cx, action.save_intent.unwrap_or(SaveIntent::Close), &|item_id| {
             action.close_pinned || !pinned_item_ids.contains(&item_id)
         })
-    }
-
-    fn close_items_on_item_open(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let target = self.max_tabs.map(|m| m.get());
-        let protect_active_item = false;
-        self.close_items_to_target_count(target, protect_active_item, window, cx);
-    }
-
-    fn close_items_on_settings_change(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let target = self.max_tabs.map(|m| m.get() + 1);
-        // The active item in this case is the settings.json file, which should be protected from being closed
-        let protect_active_item = true;
-        self.close_items_to_target_count(target, protect_active_item, window, cx);
-    }
-
-    fn close_items_to_target_count(
-        &mut self,
-        target_count: Option<usize>,
-        protect_active_item: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(target_count) = target_count else {
-            return;
-        };
-
-        let mut index_list = Vec::new();
-        let mut items_len = self.items_len();
-        let mut indexes: HashMap<EntityId, usize> = HashMap::default();
-        let active_ix = self.active_item_index();
-
-        for (index, item) in self.items.iter().enumerate() {
-            indexes.insert(item.item_id(), index);
-        }
-
-        // Close least recently used items to reach target count.
-        // The target count is allowed to be exceeded, as we protect pinned
-        // items, dirty items, and sometimes, the active item.
-        for entry in &self.activation_history {
-            if items_len < target_count {
-                break;
-            }
-
-            let Some(&index) = indexes.get(&entry.entity_id) else {
-                continue;
-            };
-
-            if protect_active_item && index == active_ix {
-                continue;
-            }
-
-            if let Some(true) = self.items.get(index).map(|item| item.is_dirty(cx)) {
-                continue;
-            }
-
-            if self.is_tab_pinned(index) || self.items[index].is_permanent(cx) {
-                continue;
-            }
-
-            index_list.push(index);
-            items_len -= 1;
-        }
-        // The sort and reverse is necessary since we remove items
-        // using their index position, hence removing from the end
-        // of the list first to avoid changing indexes.
-        index_list.sort_unstable();
-        index_list.iter().rev().for_each(|&index| self._remove_item(index, false, false, None, window, cx));
     }
 
     // Usually when you close an item that has unsaved changes, we prompt you to
@@ -2057,9 +1959,7 @@ impl Pane {
             }
         } else if is_dirty && (can_save || can_save_as) {
             if save_intent == SaveIntent::Close {
-                let will_autosave = cx.update(|_window, cx| {
-                    item.can_autosave(cx) && item.workspace_settings(cx).autosave.should_save_on_close()
-                })?;
+                let will_autosave = cx.update(|_window, cx| item.can_autosave(cx))?;
                 if !will_autosave {
                     let item_id = item.item_id();
                     let answer_task = pane.update_in(cx, |pane, window, cx| {
@@ -2177,9 +2077,8 @@ impl Pane {
         window: &mut Window,
         cx: &mut App,
     ) -> Task<Result<()>> {
-        let format = !matches!(item.workspace_settings(cx).autosave, AutosaveSetting::AfterDelay { .. });
         if item.can_autosave(cx) {
-            item.save(SaveOptions { format, force_format: false, autosave: true }, project, window, cx)
+            item.save(SaveOptions { format: true, force_format: false, autosave: true }, project, window, cx)
         } else {
             Task::ready(Ok(()))
         }
@@ -3077,8 +2976,7 @@ impl Pane {
 
         let rect = event.bounds.size;
 
-        let size =
-            event.bounds.size.width.min(event.bounds.size.height) * WorkspaceSettings::get_global(cx).drop_target_size;
+        let size = event.bounds.size.width.min(event.bounds.size.height) * DROP_TARGET_SIZE;
 
         let relative_cursor =
             Point::new(event.event.position.x - event.bounds.left(), event.event.position.y - event.bounds.top());
@@ -3523,10 +3421,10 @@ impl Render for Pane {
                 cx.listener(|pane, split: &SplitUp, window, cx| pane.split(SplitDirection::Up, split.mode, window, cx)),
             )
             .on_action(cx.listener(|pane, split: &SplitHorizontal, window, cx| {
-                pane.split(SplitDirection::horizontal(cx), split.mode, window, cx)
+                pane.split(SplitDirection::Down, split.mode, window, cx)
             }))
             .on_action(cx.listener(|pane, split: &SplitVertical, window, cx| {
-                pane.split(SplitDirection::vertical(cx), split.mode, window, cx)
+                pane.split(SplitDirection::Right, split.mode, window, cx)
             }))
             .on_action(cx.listener(|pane, split: &SplitRight, window, cx| {
                 pane.split(SplitDirection::Right, split.mode, window, cx)
@@ -3695,7 +3593,6 @@ impl Render for Pane {
                                 }))
                                 .child(self.render_empty_pane_hints(cx))
                         }
-                        .focus_follows_mouse(self.focus_follows_mouse, cx)
                     })
                     // Below the drag target, whose border runs along the card edge.
                     .when(!pill_tabs, |content| {

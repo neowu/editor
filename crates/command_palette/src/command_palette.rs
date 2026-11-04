@@ -21,7 +21,6 @@ use gpui::WeakEntity;
 use gpui::Window;
 use picker::Picker;
 use picker::PickerDelegate;
-use settings::Settings;
 use ui::HighlightedLabel;
 use ui::KeyBinding;
 use ui::ListItem;
@@ -30,7 +29,6 @@ use ui::prelude::*;
 use util::ResultExt;
 use workspace::ModalView;
 use workspace::Workspace;
-use workspace::WorkspaceSettings;
 
 pub fn init(cx: &mut App) {
     cx.observe_new(CommandPalette::register).detach();
@@ -228,17 +226,7 @@ impl PickerDelegate for CommandPaletteDelegate {
         self.selected_ix = ix;
     }
 
-    fn update_matches(
-        &mut self,
-        mut query: String,
-        window: &mut Window,
-        cx: &mut Context<Picker<Self>>,
-    ) -> gpui::Task<()> {
-        let settings = WorkspaceSettings::get_global(cx);
-        if let Some(alias) = settings.command_aliases.get(&query) {
-            alias.as_ref().clone_into(&mut query);
-        }
-
+    fn update_matches(&mut self, query: String, window: &mut Window, cx: &mut Context<Picker<Self>>) -> gpui::Task<()> {
         let (tx, rx) = async_channel::bounded(1);
 
         let query_str = query.as_str();
