@@ -20,12 +20,10 @@
 
 - think about remote "download" vs local "open in default app", copy/paste file across local/remote
 
-- think about if we need external terminal, just do everything in ed, introduce terminal mode?
+# terminal mode
+- think about if we need external terminal, just do everything in ed?
 
 # should add low power mode? or my laptop is powerful enough
 - Frame pacing (#63477, #66237): large changes to window.rs, and the macOS Low Power Mode part drags in Linux and Windows power code. I’d skip them unless you’ve noticed stutter in Low Power Mode.
-
-# asset
-- is it good idea to embed assets into binary? should it be side loaded, like from file/folder
 
 # support to open in restricted mode? like not starting LSP?

@@ -12,5 +12,3 @@ pub use rustc_hash::FxBuildHasher;
 pub use rustc_hash::FxHashMap;
 pub use rustc_hash::FxHashSet;
 pub use rustc_hash::FxHasher;
-
-pub mod vecmap;

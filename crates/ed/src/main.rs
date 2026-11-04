@@ -604,16 +604,12 @@ struct Args {
     #[arg(long, action = clap::ArgAction::Append, num_args = 2, value_names = ["OLD_PATH", "NEW_PATH"])]
     diff: Vec<String>,
 
-    /// Sets a custom directory for all user data (e.g., database, extensions, logs).
+    /// Sets a custom directory for all user data (e.g., state, logs).
     ///
     /// This overrides the default data directory location, `$XDG_DATA_HOME/ed`
     /// (`~/.local/share/ed`).
     #[arg(long, value_name = "DIR", verbatim_doc_comment)]
     user_data_dir: Option<String>,
-
-    /// Instructs ed to run as a dev server on this machine. (not implemented)
-    #[arg(long)]
-    dev_server_token: Option<String>,
 
     /// Output current environment variables as JSON to stdout
     #[arg(long, hide = true)]
