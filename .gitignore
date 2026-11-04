@@ -1,3 +1,4 @@
 /target
+.ed/
 .DS_Store
 .env

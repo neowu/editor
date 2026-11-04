@@ -27,3 +27,5 @@
 
 # asset
 - is it good idea to embed assets into binary? should it be side loaded, like from file/folder
+
+# support to open in restricted mode? like not starting LSP?

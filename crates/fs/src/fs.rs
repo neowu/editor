@@ -22,7 +22,6 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -294,16 +293,6 @@ impl Drop for JobTracker {
 }
 
 impl MTime {
-    /// Conversion intended for persistence and testing.
-    pub fn from_seconds_and_nanos(secs: u64, nanos: u32) -> Self {
-        MTime(UNIX_EPOCH + Duration::new(secs, nanos))
-    }
-
-    /// Conversion intended for persistence.
-    pub fn to_seconds_and_nanos_for_persistence(self) -> Option<(u64, u32)> {
-        self.0.duration_since(UNIX_EPOCH).ok().map(|duration| (duration.as_secs(), duration.subsec_nanos()))
-    }
-
     /// Returns the value wrapped by this `MTime`, for presentation to the user. The name including
     /// "_for_user" is to discourage misuse - this method should not be used when making decisions
     /// about file dirtiness.

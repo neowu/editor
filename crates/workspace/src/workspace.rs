@@ -5799,7 +5799,11 @@ fn serialize_pane_handle(
             .items()
             .enumerate()
             .filter_map(|(index, handle)| {
-                let serialized = handle.to_serializable_item_handle(cx).and_then(|serializable| {
+                let in_state_dir = handle
+                    .project_path(cx)
+                    .is_some_and(|project_path| persistence::is_in_workspace_state_dir(&project_path.path));
+                let serializable = handle.to_serializable_item_handle(cx).filter(|_| !in_state_dir);
+                let serialized = serializable.and_then(|serializable| {
                     Some(SerializedItem {
                         kind: serializable.serialized_item_kind().to_string(),
                         state: serializable.serialize(workspace, false, cx)?,

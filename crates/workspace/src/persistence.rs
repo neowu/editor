@@ -37,8 +37,8 @@ use self::model::SessionWorkspace;
 use crate::Workspace;
 use crate::path_list::PathList;
 
-/// Name of the global file, under the data dir, that lists recent projects and
-/// the projects open when ed last quit.
+/// Name of the global file, under the data dir, that lists recent projects,
+/// marking the ones open when ed last quit.
 const PROJECTS_FILE_NAME: &str = "projects.json";
 /// Project-level folder holding per-project state.
 pub const WORKSPACE_STATE_DIR: &str = ".ed";
@@ -109,6 +109,10 @@ pub struct RecentProject {
     /// Unix time, in seconds, the project was last opened or focused.
     #[serde(default)]
     pub opened_at: i64,
+    /// Whether the project is open in a window. Kept across quitting so the
+    /// next launch can reopen it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub open: bool,
 }
 
 /// Contents of `projects.json`.
@@ -117,10 +121,6 @@ pub struct ProjectsFile {
     /// Most recent first.
     #[serde(default)]
     pub recent: Vec<RecentProject>,
-    /// Projects open in a window, frontmost first. Kept across quitting so the
-    /// next launch can reopen them.
-    #[serde(default)]
-    pub session: Vec<ProjectLocation>,
 }
 
 impl ProjectsFile {
@@ -129,20 +129,24 @@ impl ProjectsFile {
         serde_json::from_str(text).unwrap_or_default()
     }
 
-    /// Moves `location` to the front of the recent list. Returns whether the
-    /// list order changed, which is when the file needs rewriting.
+    /// Moves `location` to the front of the recent list, keeping its open
+    /// flag. Returns whether the list order changed, which is when the file
+    /// needs rewriting.
     pub fn record_recent(&mut self, location: ProjectLocation, now: i64) -> bool {
         if location.paths.is_empty() {
             return false;
         }
-        if let Some(first) = self.recent.first_mut()
-            && first.location == location
-        {
-            first.opened_at = now;
+        let existing = self.recent.iter().position(|project| project.location == location);
+        if existing == Some(0) {
+            self.recent[0].opened_at = now;
             return false;
         }
-        self.recent.retain(|project| project.location != location);
-        self.recent.insert(0, RecentProject { location, opened_at: now });
+        let mut project = match existing {
+            Some(index) => self.recent.remove(index),
+            None => RecentProject { location, opened_at: 0, open: false },
+        };
+        project.opened_at = now;
+        self.recent.insert(0, project);
         self.recent.truncate(MAX_RECENT_PROJECTS);
         true
     }
@@ -154,13 +158,21 @@ impl ProjectsFile {
         self.recent.len() != len
     }
 
-    /// Replaces the open-project list. Returns whether it changed.
-    pub fn set_session(&mut self, session: Vec<ProjectLocation>) -> bool {
-        if self.session == session {
-            return false;
+    /// Marks exactly the recent entries in `open` as open. Returns whether
+    /// any flag changed.
+    pub fn set_open(&mut self, open: &[ProjectLocation]) -> bool {
+        let mut changed = false;
+        for project in &mut self.recent {
+            let is_open = open.contains(&project.location);
+            changed |= project.open != is_open;
+            project.open = is_open;
         }
-        self.session = session;
-        true
+        changed
+    }
+
+    /// Locations of the projects marked open, most recent first.
+    pub fn open_projects(&self) -> Vec<ProjectLocation> {
+        self.recent.iter().filter(|project| project.open).map(|project| project.location.clone()).collect()
     }
 }
 
@@ -169,7 +181,7 @@ pub struct ProjectsStore {
     fs: Arc<dyn Fs>,
     path: PathBuf,
     state: Arc<Mutex<ProjectsFile>>,
-    /// The session as it was at launch, before restored windows replace it.
+    /// Projects marked open at launch, before restored windows update the flags.
     last_session: Vec<ProjectLocation>,
     write_lock: Arc<futures::lock::Mutex<()>>,
 }
@@ -184,7 +196,7 @@ impl ProjectsStore {
         ProjectsStore {
             fs,
             path,
-            last_session: file.session.clone(),
+            last_session: file.open_projects(),
             state: Arc::new(Mutex::new(file)),
             write_lock: Arc::default(),
         }
@@ -217,8 +229,8 @@ impl ProjectsStore {
         if self.state.lock().remove_recent(remove) { self.save(cx) } else { Task::ready(()) }
     }
 
-    fn set_session(&self, session: Vec<ProjectLocation>, cx: &App) -> Task<()> {
-        if self.state.lock().set_session(session) { self.save(cx) } else { Task::ready(()) }
+    fn set_open(&self, open: &[ProjectLocation], cx: &App) -> Task<()> {
+        if self.state.lock().set_open(open) { self.save(cx) } else { Task::ready(()) }
     }
 
     fn save(&self, cx: &App) -> Task<()> {
@@ -249,14 +261,14 @@ pub fn init(fs: Arc<dyn Fs>, cx: &mut App) {
     track_session(cx);
 }
 
-/// Keeps the session list in `projects.json` matching the open windows. Closing
-/// a window drops its project; quitting keeps everything that was open.
+/// Keeps the open flags in `projects.json` matching the open windows. Closing a
+/// window clears its project's flag; quitting keeps everything that was open.
 fn track_session(cx: &App) {
     cx.spawn(async move |cx| {
         loop {
             cx.update(|cx| {
-                if let Some(session) = open_project_locations(cx) {
-                    ProjectsStore::global(cx).set_session(session, cx).detach();
+                if let Some(open) = open_project_locations(cx) {
+                    ProjectsStore::global(cx).set_open(&open, cx).detach();
                 }
             });
             cx.background_executor().timer(std::time::Duration::from_millis(500)).await;
@@ -265,19 +277,21 @@ fn track_session(cx: &App) {
     .detach();
 
     cx.on_app_quit(|cx| match open_project_locations(cx) {
-        Some(session) => ProjectsStore::global(cx).set_session(session, cx),
+        Some(open) => ProjectsStore::global(cx).set_open(&open, cx),
         None => Task::ready(()),
     })
     .detach();
 }
 
-/// Project locations of the open workspace windows, frontmost first. `None`
-/// while no workspace window is open, so the last window closing while quitting
-/// doesn't wipe the session.
+/// Project locations of the open workspace windows. `None` while no workspace
+/// window is open, so the last window closing while quitting doesn't clear the
+/// open flags.
 fn open_project_locations(cx: &App) -> Option<Vec<ProjectLocation>> {
-    let windows = cx.window_stack().unwrap_or_else(|| cx.windows());
-    let workspaces =
-        windows.into_iter().filter_map(|window| window.downcast::<Workspace>()?.entity(cx).ok()).collect::<Vec<_>>();
+    let workspaces = cx
+        .windows()
+        .into_iter()
+        .filter_map(|window| window.downcast::<Workspace>()?.entity(cx).ok())
+        .collect::<Vec<_>>();
     if workspaces.is_empty() {
         return None;
     }
@@ -285,7 +299,7 @@ fn open_project_locations(cx: &App) -> Option<Vec<ProjectLocation>> {
 }
 
 /// Projects that were open when ed last quit, in the order to reopen them
-/// (frontmost last, so it ends up on top).
+/// (most recent last, so it ends up on top).
 pub fn last_session_workspaces(cx: &App) -> Vec<SessionWorkspace> {
     let mut session = ProjectsStore::global(cx)
         .last_session()
@@ -298,6 +312,13 @@ pub fn last_session_workspaces(cx: &App) -> Vec<SessionWorkspace> {
 
 pub fn workspace_state_rel_path() -> Arc<RelPath> {
     RelPath::from_unix_str(&format!("{WORKSPACE_STATE_DIR}/{WORKSPACE_STATE_FILE}")).unwrap().into_arc()
+}
+
+/// Whether `path`, relative to a root folder, is inside the project-level
+/// `.ed` folder. Tabs on such files aren't persisted: `.ed` is config, and
+/// recording a tab on `workspace.json` would rewrite the file it shows.
+pub fn is_in_workspace_state_dir(path: &RelPath) -> bool {
+    path.starts_with(RelPath::from_unix_str(WORKSPACE_STATE_DIR).unwrap())
 }
 
 /// Path of the state file for a project whose first root folder is `root`.
@@ -545,6 +566,7 @@ mod tests {
     use super::RemoteServer;
     use super::WindowBoundsJson;
     use super::dedupe_recent_workspaces;
+    use super::is_in_workspace_state_dir;
     use super::model::SerializedWorkspaceLocation;
     use super::workspace_state_path;
     use super::workspace_state_rel_path;
@@ -564,16 +586,16 @@ mod tests {
     fn test_projects_file_round_trip() {
         let file = ProjectsFile {
             recent: vec![
-                RecentProject { location: local(&["/b", "/a"]), opened_at: 7 },
+                RecentProject { location: local(&["/b", "/a"]), opened_at: 7, open: true },
                 RecentProject {
                     location: ProjectLocation {
                         paths: vec![PathBuf::from("/srv")],
                         remote: Some(RemoteServer { host: "box".into(), username: Some("me".into()), port: None }),
                     },
                     opened_at: 3,
+                    open: false,
                 },
             ],
-            session: vec![local(&["/b", "/a"])],
         };
         let json = serde_json::to_string(&file).unwrap();
         assert_eq!(ProjectsFile::parse(&json), file);
@@ -591,8 +613,8 @@ mod tests {
         assert_eq!(
             file.recent,
             [
-                RecentProject { location: local(&["/a"]), opened_at: 4 },
-                RecentProject { location: local(&["/b"]), opened_at: 3 }
+                RecentProject { location: local(&["/a"]), opened_at: 4, open: false },
+                RecentProject { location: local(&["/b"]), opened_at: 3, open: false }
             ]
         );
     }
@@ -618,11 +640,59 @@ mod tests {
     }
 
     #[test]
-    fn test_set_session_reports_changes() {
+    fn test_record_recent_keeps_open_flag() {
         let mut file = ProjectsFile::default();
-        assert!(file.set_session(vec![local(&["/a"])]));
-        assert!(!file.set_session(vec![local(&["/a"])]));
-        assert!(file.set_session(Vec::new()));
+        file.record_recent(local(&["/a"]), 1);
+        file.record_recent(local(&["/b"]), 2);
+        file.set_open(&[local(&["/a"])]);
+        assert!(file.record_recent(local(&["/a"]), 3));
+        assert_eq!(file.recent[0], RecentProject { location: local(&["/a"]), opened_at: 3, open: true });
+    }
+
+    #[test]
+    fn test_set_open_reports_changes() {
+        let mut file = ProjectsFile::default();
+        file.record_recent(local(&["/a"]), 1);
+        file.record_recent(local(&["/b"]), 2);
+        assert!(file.set_open(&[local(&["/a"]), local(&["/c"])]));
+        assert!(!file.set_open(&[local(&["/a"])]));
+        assert_eq!(file.open_projects(), [local(&["/a"])]);
+        assert!(file.set_open(&[]));
+        assert!(file.open_projects().is_empty());
+    }
+
+    #[test]
+    fn test_open_projects_most_recent_first() {
+        let mut file = ProjectsFile::default();
+        file.record_recent(local(&["/a"]), 1);
+        file.record_recent(local(&["/b"]), 2);
+        file.record_recent(local(&["/c"]), 3);
+        file.set_open(&[local(&["/a"]), local(&["/c"])]);
+        assert_eq!(file.open_projects(), [local(&["/c"]), local(&["/a"])]);
+    }
+
+    #[test]
+    fn test_is_in_workspace_state_dir() {
+        fn rel(path: &str) -> &util::rel_path::RelPath {
+            util::rel_path::RelPath::from_unix_str(path).unwrap()
+        }
+        assert!(is_in_workspace_state_dir(rel(".ed")));
+        assert!(is_in_workspace_state_dir(rel(".ed/workspace.json")));
+        assert!(is_in_workspace_state_dir(rel(".ed/sub/settings.json")));
+        assert!(is_in_workspace_state_dir(&workspace_state_rel_path()));
+        assert!(!is_in_workspace_state_dir(rel(".editorconfig")));
+        assert!(!is_in_workspace_state_dir(rel("src/.ed/a.rs")));
+        assert!(!is_in_workspace_state_dir(rel("src/main.rs")));
+        assert!(!is_in_workspace_state_dir(rel("")));
+    }
+
+    #[test]
+    fn test_open_flag_serialized_only_when_set() {
+        let mut file = ProjectsFile::default();
+        file.record_recent(local(&["/a"]), 1);
+        assert!(!serde_json::to_string(&file).unwrap().contains(r#""open":"#));
+        file.set_open(&[local(&["/a"])]);
+        assert!(serde_json::to_string(&file).unwrap().contains(r#""open":true"#));
     }
 
     #[test]

@@ -25,7 +25,7 @@ remote detection, command execution, and proxy startup are removed.
   "Show Tab Bar" / "Merge All Windows" style menu items, and there is no
   `use_system_window_tabs` setting or in-app window-tab strip.
 - Closing the last window quits the app (it never lingers windowless in the
-  Dock); the last workspace stays in the session for restore. There is no
+  Dock); the last workspace stays flagged open for restore. There is no
   `on_last_window_closed` setting.
 - The native menu bar has no Help menu.
 - No `ed` CLI binary (`edctl` is only for automation, see `automation.md`). Files and folders open through macOS (Finder, `open -a

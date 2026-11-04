@@ -17,7 +17,8 @@ migrator, or Vim/Helix mode.
   crates). App state lives in two JSON files:
   - `~/.local/share/ed/projects.json`: recent projects (root folders in open
     order, plus the SSH host/user/port for remote ones), most recent first and
-    capped at 100, and the projects open in a window, frontmost first. It is
+    capped at 100, each flagged `open` while it has a window (the open list
+    is the recents, not a separate list). It is
     read once at launch; unreadable contents count as empty. Every change
     rewrites the whole file. A project moves to the front of the recents when
     opened or its window is focused.
@@ -29,16 +30,22 @@ migrator, or Vim/Helix mode.
     so their window bounds aren't restored. Unreadable files are ignored.
     Identical contents aren't rewritten. Windows with no root folder aren't
     persisted.
-- Tabs persist only their own state: the editor keeps its file path, scroll
-  position and selections, plus unsaved text (with language and file mtime)
-  for hot exit when `restore_unsaved_buffers` is on. Folds are not persisted.
+- Tabs persist only their own state. An editor tab on a file keeps only its
+  path: on restore the file is read from disk, and nothing else (scroll,
+  selections, folds, unsaved edits) is kept, so editing or scrolling a file
+  doesn't rewrite `workspace.json`. A dirty file isn't kept on close: it is
+  saved by autosave-on-close, or prompted for. Only an untitled buffer keeps its
+  unsaved text, for hot exit when `restore_unsaved_buffers` is on.
   Image and markdown-preview tabs keep their path (and preview mode), branch
-  diffs their base, and other git diff tabs nothing.
-- Hot exit is only offered for windows with a root folder; other windows prompt
-  to save dirty buffers on close.
-- Restore on startup: `last_session` reopens the projects open at quit (closing
-  a window drops it from the list; quitting keeps it), falling back to the most
-  recent project; `last_workspace` reopens the most recent project whose
+  diffs their base, and other git diff tabs nothing. Tabs on files inside a
+  root folder's `.ed/` aren't persisted at all: it's project config, and
+  recording a tab on `workspace.json` would rewrite the file it shows.
+- Hot exit (untitled buffers only) is only offered for windows with a root
+  folder; other windows prompt to save dirty buffers on close.
+- Restore on startup: `last_session` reopens the projects flagged open at quit
+  (closing a window clears its flag; quitting keeps it; removing a project from
+  the recents drops it), most recent on top, falling back to the most recent
+  project; `last_workspace` reopens the most recent project whose
   folders still exist.
 - Not persisted: panel sizes, default window bounds and dock layout for new
   windows, native (macOS) window state, the Text Finder's last query and

@@ -546,8 +546,6 @@ pub use multi_buffer::PathKey;
 pub use multi_buffer::RowInfo;
 pub use multi_buffer::ToOffset;
 pub use multi_buffer::ToPoint;
-use persistence::SerializedEditor;
-use persistence::SerializedScroll;
 use project::CodeAction;
 use project::Completion;
 use project::CompletionDisplayOptions;
@@ -7988,51 +7986,6 @@ impl Editor {
         let em_advance = window.text_system().em_advance(font_id, font_size).unwrap();
 
         CharacterDimensions { em_width, em_advance, line_height }
-    }
-
-    /// Restores the selections and scroll position saved for this tab.
-    fn restore_serialized_state(&mut self, state: &SerializedEditor, window: &mut Window, cx: &mut Context<Editor>) {
-        if self.buffer_kind(cx) == ItemBufferKind::Singleton
-            && !self.mode.is_minimap()
-            && WorkspaceSettings::get(None, cx).restore_on_startup != RestoreOnStartupBehavior::EmptyTab
-            && !state.selections.is_empty()
-        {
-            let snapshot = self.buffer.read(cx).snapshot(cx);
-            // skip adding the initial selection to selection history
-            self.selection_history.mode = SelectionHistoryMode::Skipping;
-            self.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
-                s.select_ranges(state.selections.iter().map(|&(start, end)| {
-                    snapshot.clip_offset(MultiBufferOffset(start), Bias::Left)
-                        ..snapshot.clip_offset(MultiBufferOffset(end), Bias::Right)
-                }));
-            });
-            self.selection_history.mode = SelectionHistoryMode::Normal;
-        }
-
-        if let Some(scroll) = state.scroll {
-            let top_anchor = self.buffer().read(cx).snapshot(cx).anchor_before(Point::new(scroll.top_row, 0));
-            let scroll_anchor =
-                ScrollAnchor { offset: gpui::Point::new(scroll.offset_x, scroll.offset_y), anchor: top_anchor };
-            self.set_scroll_anchor(scroll_anchor, window, cx);
-        }
-    }
-
-    /// The selections and scroll position to save for this tab.
-    fn serialized_view_state(&self, cx: &App) -> (Option<SerializedScroll>, Vec<(usize, usize)>) {
-        let snapshot = self.buffer.read(cx).snapshot(cx);
-        let scroll_anchor = self.scroll_manager.scroll_anchor_entity().read(cx).scroll_anchor;
-        let scroll = SerializedScroll {
-            top_row: scroll_anchor.anchor.to_point(&snapshot).row,
-            offset_x: scroll_anchor.offset.x,
-            offset_y: scroll_anchor.offset.y,
-        };
-        let selections = self
-            .selections
-            .disjoint_anchors_arc()
-            .iter()
-            .map(|selection| (selection.start.to_offset(&snapshot).0, selection.end.to_offset(&snapshot).0))
-            .collect();
-        (Some(scroll), selections)
     }
 
     pub const fn lsp_data_enabled(&self) -> bool {
