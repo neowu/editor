@@ -61,16 +61,24 @@ because it hurt readability; an opaque window is also cheaper to composite.
   never does its own corner rounding. The mask sits below the drag-target
   overlay, whose border runs along the card edge.
 - There is no title bar row; the window's top row is the sidebar and the tab
-  bars, to give the content the most room. The window header is one group:
-  empty room for the macOS traffic lights, the project name (with the remote
-  host for remote projects), Go Back / Go Forward, then an icon-only, segmented
-  Workspace / Git History switch (shown only for a project in a git
-  repository). The switch groups its icon buttons on a faint, borderless
+  bars, to give the content the most room. The window header is one group,
+  read left to right as "where, then how": empty room for the macOS traffic
+  lights, the project name (with the remote host for remote projects), the
+  worktree and branch pickers as `worktree / branch` (shown only for a project
+  in a git repository), then an icon-only, segmented Workspace / Git History
+  switch (also git only), then Go Back / Go Forward. The pickers moved here from
+  the status bar so everything that names the project sits together; their
+  menus open downward. The switch groups its icon buttons on a faint, borderless
   track (2px inset) so the modes read as one control as more are added; the
   shown mode's button is filled with its icon in the accent colour. The
   buttons keep the top-row size, so the track is 4px taller than them rather
-  than shrinking them; an outlined switch looked heavier. The project
-  name is regular weight at the tab label's size (semibold was too loud).
+  than shrinking them; an outlined switch looked heavier.
+  Every header text button (project, worktree, branch, remote host) shares one
+  style (`title_bar::worktree_branch::header_text_button`): 28px high like the
+  icon buttons, the tab label's size and regular weight (semibold was too
+  loud), with a 14px leading icon. The project name is full contrast; worktree
+  and branch are muted, so the row reads as a breadcrumb. The branch icon keeps
+  its change-status colour.
   Every top-row icon button (Go Back / Go Forward, the switch, and the tab bar
   ends' New File, preview and Zoom) is a 16px icon in a 28px square
   (`workspace::pane::top_row_icon_button`), 4px apart, so both ends of the row
@@ -103,8 +111,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
   bar does the same. Lower panes' empty tab bar space
   keeps its double-click action. An empty top-row pane still draws its tab bar
   for this, instead of the blank strip.
-- The status bar starts, in every mode, with the worktree and branch pickers
-  and a divider; they show only for a project in a git repository.
+- The status bar has no worktree or branch pickers; they are in the window
+  header.
 - Modes are strictly isolated for rendering. Only the window header and status bar
   (plus notifications, toasts and modals) are shared; everything between them
   belongs to one mode, rendered by that mode's own cached view, and only the

@@ -1,6 +1,6 @@
 //! The window has no title bar row. The window header (room for the macOS
-//! traffic lights, the project name, Go Back / Go Forward and the Workspace /
-//! Git History switch) sits above the sidebar when one is shown, otherwise at
+//! traffic lights, the project name, worktree and branch, the Workspace / Git
+//! History switch, and Go Back / Go Forward) sits above the sidebar when one is shown, otherwise at
 //! the start of the top-left tab bar. Above a sidebar narrower than the header,
 //! the header overhangs it and the top-left tab bar starts after the header.
 
@@ -154,10 +154,10 @@ impl Render for WindowHeader {
                     .gap_2()
                     // Clicks on the controls must not move the window.
                     .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .child(render_nav_buttons(&self.workspace, self.shown))
                     .when(self.shown.has_repository, |this| {
                         this.child(render_mode_switch(&self.workspace, self.shown.mode, cx))
-                    }),
+                    })
+                    .child(render_nav_buttons(&self.workspace, self.shown)),
             )
             .into_any_element()
     }
@@ -296,7 +296,7 @@ impl Workspace {
         }
     }
 
-    /// The title bar item (project name and alerts) inside its focus region.
+    /// The title bar item (project, worktree and branch) inside its focus region.
     /// The region is a toolbar so region navigation (FocusNextPart) can reach
     /// its controls: it lands on the first control, Tab steps through them,
     /// and arrow keys move between them once focus is inside.

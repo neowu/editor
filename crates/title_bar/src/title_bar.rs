@@ -1,6 +1,6 @@
 mod application_menu;
-mod branch_status_item;
 mod title_bar_settings;
+mod worktree_branch;
 
 use std::path::Path;
 
@@ -21,6 +21,7 @@ use gpui::actions;
 use project::Project;
 use project::git_store::GitStoreEvent;
 use project::linked_worktree_short_name;
+use project::project_settings::ProjectSettings;
 use project::repo_identity_path;
 use project::repo_identity_path_if_local;
 use remote::RemoteConnectionOptions;
@@ -34,11 +35,10 @@ use ui::PopoverMenu;
 use ui::TintColor;
 use ui::Tooltip;
 use ui::prelude::*;
-use workspace::StatusItemModes;
 use workspace::Workspace;
 
 use crate::application_menu::ApplicationMenu;
-use crate::branch_status_item::BranchStatusItem;
+use crate::worktree_branch::header_text_button;
 
 const MAX_PROJECT_NAME_LENGTH: usize = 40;
 
@@ -67,15 +67,11 @@ pub fn init(cx: &mut App) {
         };
         let item = cx.new(|cx| TitleBar::new(workspace, window, cx));
         workspace.set_titlebar_item(item.into(), window, cx);
-        let branch_item = cx.new(|cx| BranchStatusItem::new(workspace, cx));
-        workspace.status_bar().update(cx, |status_bar, cx| {
-            status_bar.prepend_left_item_in(branch_item, StatusItemModes::All, window, cx);
-        });
     })
     .detach();
 }
 
-/// The project's name and remote host, shown in the
+/// The project's remote host, name, worktree and branch, shown in the
 /// window header above the sidebar or at the start of the top-left tab bar.
 pub struct TitleBar {
     project: Entity<Project>,
@@ -89,18 +85,18 @@ impl Render for TitleBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let show_project_items = TitleBarSettings::get_global(cx).show_project_items
             && !self.application_menu.as_ref().is_some_and(|menu| menu.read(cx).all_menus_shown());
-        let project_name = show_project_items.then(|| ActiveRepository::of(&self.project, cx).project_name);
+        let active = show_project_items.then(|| ActiveRepository::of(&self.project, cx));
 
-        h_flex().h_full().gap_0p5().children(self.application_menu.clone()).when_some(
-            project_name,
-            |title_bar, project_name| {
-                title_bar.children(self.render_project_host(cx)).child(self.render_project_name(
-                    project_name,
-                    window,
-                    cx,
-                ))
-            },
-        )
+        h_flex().h_full().children(self.application_menu.clone()).when_some(active, |title_bar, active| {
+            let worktree_and_branch = active
+                .repository
+                .filter(|_| ProjectSettings::get_global(cx).git.enabled.status)
+                .and_then(|repository| self.render_worktree_and_branch(repository, active.linked_worktree_name, cx));
+            title_bar
+                .children(self.render_project_host(cx))
+                .child(self.render_project_name(active.project_name, window, cx))
+                .children(worktree_and_branch)
+        })
     }
 }
 
@@ -232,6 +228,13 @@ impl TitleBar {
             _ => {}
         }));
         subscriptions.push(cx.observe(&project, |_, _, cx| cx.notify()));
+        if let Some(workspace_entity) = workspace.weak_handle().upgrade() {
+            subscriptions.push(cx.subscribe(&workspace_entity, |_, _, event: &workspace::Event, cx| {
+                if matches!(event, workspace::Event::WorktreeCreationChanged) {
+                    cx.notify();
+                }
+            }));
+        }
 
         Self { application_menu, workspace: workspace.weak_handle(), project, _subscriptions: subscriptions }
     }
@@ -283,20 +286,23 @@ impl TitleBar {
                     Some(recent_projects::RemoteServerProjects::popover(workspace.clone(), None, window, cx))
                 })
                 .trigger_with_tooltip(
-                    ButtonLike::new("remote_project").selected_style(ButtonStyle::Tinted(TintColor::Accent)).child(
-                        h_flex()
-                            .gap_2()
-                            .max_w_32()
-                            .child(
-                                IconWithIndicator::new(
-                                    Icon::new(icon).size(IconSize::Small).color(icon_color),
-                                    Some(Indicator::dot().color(indicator_color)),
+                    ButtonLike::new("remote_project")
+                        .size(ButtonSize::Medium)
+                        .selected_style(ButtonStyle::Tinted(TintColor::Accent))
+                        .child(
+                            h_flex()
+                                .gap_2()
+                                .max_w_32()
+                                .child(
+                                    IconWithIndicator::new(
+                                        Icon::new(icon).size(IconSize::Small).color(icon_color),
+                                        Some(Indicator::dot().color(indicator_color)),
+                                    )
+                                    .indicator_border_color(Some(cx.theme().colors().title_bar_background))
+                                    .into_any_element(),
                                 )
-                                .indicator_border_color(Some(cx.theme().colors().title_bar_background))
-                                .into_any_element(),
-                            )
-                            .child(Label::new(nickname).size(LabelSize::Small).truncate()),
-                    ),
+                                .child(Label::new(nickname).truncate()),
+                        ),
                     move |_window, cx| {
                         Tooltip::with_meta(tooltip_title, Some(&OpenRemote::default()), meta.clone(), cx)
                     },
@@ -313,10 +319,9 @@ impl TitleBar {
 
         if self.project.read(cx).is_disconnected(cx) {
             return Some(
-                Button::new("disconnected", "Disconnected")
+                header_text_button("disconnected", "Disconnected")
                     .disabled(true)
                     .color(Color::Disabled)
-                    .label_size(LabelSize::Small)
                     .into_any_element(),
             );
         }
@@ -349,12 +354,10 @@ impl TitleBar {
                 ))
             })
             .trigger_with_tooltip(
-                Button::new("project_name_trigger", display_name)
-                    .tab_index(0isize)
+                header_text_button("project_name_trigger", display_name)
                     .when(self.worktree_count(cx) > 1, |this| {
                         this.end_icon(Icon::new(IconName::ChevronDown).size(IconSize::XSmall).color(Color::Muted))
                     })
-                    .selected_style(ButtonStyle::Tinted(TintColor::Accent))
                     .when(!is_project_selected, |s| s.color(Color::Muted)),
                 move |_window, cx| Tooltip::for_action("Recent Projects", &ed_actions::OpenRecent::default(), cx),
             )

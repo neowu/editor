@@ -223,21 +223,6 @@ impl StatusBar {
         cx.notify();
     }
 
-    /// Adds an item before every other left item.
-    pub fn prepend_left_item_in<T>(
-        &mut self,
-        item: Entity<T>,
-        modes: StatusItemModes,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) where
-        T: 'static + StatusItemView,
-    {
-        let item = self.new_item(item, modes, window, cx);
-        self.left_items.insert(0, item);
-        cx.notify();
-    }
-
     /// Wraps `item`, giving it the active pane item if it is shown now.
     fn new_item<T>(&self, item: Entity<T>, modes: StatusItemModes, window: &mut Window, cx: &mut App) -> StatusItem
     where

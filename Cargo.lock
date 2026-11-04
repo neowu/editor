@@ -4853,6 +4853,7 @@ name = "title_bar"
 version = "0.1.0"
 dependencies = [
  "ed_actions",
+ "git",
  "git_ui_core",
  "gpui",
  "project",

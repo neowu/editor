@@ -15,6 +15,7 @@ doctest = false
 default = []
 
 [dependencies]
+git.workspace = true
 git_ui_core.workspace = true
 gpui.workspace = true
 project.workspace = true
