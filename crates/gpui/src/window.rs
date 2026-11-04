@@ -66,7 +66,6 @@ use crate::Context;
 use crate::Corners;
 use crate::CursorHideMode;
 use crate::CursorStyle;
-use crate::Decorations;
 use crate::DevicePixels;
 use crate::DispatchActionListener;
 use crate::DispatchNodeId;
@@ -121,7 +120,6 @@ use crate::RenderImage;
 use crate::RenderImageParams;
 use crate::RenderSvgParams;
 use crate::Replay;
-use crate::ResizeEdge;
 use crate::SMOOTH_SVG_SCALE_FACTOR;
 use crate::SUBPIXEL_VARIANTS_X;
 use crate::SUBPIXEL_VARIANTS_Y;
@@ -152,8 +150,6 @@ use crate::UnderlineStyle;
 use crate::WindowAppearance;
 use crate::WindowBackgroundAppearance;
 use crate::WindowBounds;
-use crate::WindowControls;
-use crate::WindowDecorations;
 use crate::WindowOptions;
 use crate::WindowParams;
 use crate::WindowTextSystem;
@@ -1221,7 +1217,6 @@ pub struct Window {
     pub(crate) bounds_observers: SingleSubscriberSet<AnyObserver>,
     appearance: WindowAppearance,
     pub(crate) appearance_observers: SingleSubscriberSet<AnyObserver>,
-    pub(crate) button_layout_observers: SingleSubscriberSet<AnyObserver>,
     active: Rc<Cell<bool>>,
     visibility: WindowVisibility,
     pub(crate) visibility_observers:
@@ -1247,7 +1242,6 @@ pub struct Window {
     pending_modifier: ModifierState,
     pub(crate) pending_input_observers: SingleSubscriberSet<AnyObserver>,
     prompt: Option<RenderablePromptHandle>,
-    pub(crate) client_inset: Option<Pixels>,
     /// The hitbox that has captured the pointer, if any.
     /// While captured, mouse events route to this hitbox regardless of hit testing.
     captured_hitbox: Option<HitboxId>,
@@ -1506,15 +1500,11 @@ impl Window {
             is_minimizable,
             display_id,
             window_background,
-            app_id,
             window_min_size,
-            window_decorations,
-            #[allow(unused_variables)]
-            icon,
         } = options;
 
         let window_bounds = window_bounds.unwrap_or_else(|| default_bounds(display_id, cx));
-        let mut platform_window = cx.platform.open_window(
+        let platform_window = cx.platform.open_window(
             handle,
             WindowParams {
                 bounds: window_bounds.get_bounds(),
@@ -1528,8 +1518,6 @@ impl Window {
                 show,
                 display_id,
                 window_min_size,
-                app_id: app_id.clone(),
-                icon,
             },
         )?;
 
@@ -1551,7 +1539,6 @@ impl Window {
         let input_rate_tracker = Rc::new(RefCell::new(InputRateTracker::default()));
         let last_frame_time = Rc::new(Cell::new(None));
 
-        platform_window.request_decorations(window_decorations.unwrap_or(WindowDecorations::Server));
         platform_window.set_background_appearance(window_background);
 
         match window_bounds {
@@ -1748,12 +1735,6 @@ impl Window {
                     .detach();
             }
         }));
-        platform_window.on_button_layout_changed(Box::new({
-            let mut cx = cx.to_async();
-            move || {
-                handle.update(&mut cx, |_, window, cx| window.button_layout_changed(cx)).log_err();
-            }
-        }));
         platform_window.on_active_status_change(Box::new({
             let mut cx = cx.to_async();
             move |active| {
@@ -1817,12 +1798,6 @@ impl Window {
             })
         });
 
-        if let Some(app_id) = app_id {
-            platform_window.set_app_id(&app_id);
-        }
-
-        platform_window.map_window().unwrap();
-
         Ok(Window {
             handle,
             invalidator,
@@ -1868,7 +1843,6 @@ impl Window {
             bounds_observers: SingleSubscriberSet::new(),
             appearance,
             appearance_observers: SingleSubscriberSet::new(),
-            button_layout_observers: SingleSubscriberSet::new(),
             active,
             visibility,
             visibility_observers: SingleSubscriberSet::new(),
@@ -1891,7 +1865,6 @@ impl Window {
             pending_modifier: ModifierState::default(),
             pending_input_observers: SingleSubscriberSet::new(),
             prompt: None,
-            client_inset: None,
             image_cache_stack: Vec::new(),
             captured_hitbox: None,
         })
@@ -1980,17 +1953,6 @@ impl Window {
     /// Registers a callback to be invoked when the window appearance changes.
     pub fn observe_window_appearance(&self, mut callback: impl FnMut(&mut Window, &mut App) + 'static) -> Subscription {
         self.appearance_observers.insert(Box::new(move |window, cx| {
-            callback(window, cx);
-            true
-        }))
-    }
-
-    /// Registers a callback to be invoked when the window button layout changes.
-    pub fn observe_button_layout_changed(
-        &self,
-        mut callback: impl FnMut(&mut Window, &mut App) + 'static,
-    ) -> Subscription {
-        self.button_layout_observers.insert(Box::new(move |window, cx| {
             callback(window, cx);
             true
         }))
@@ -2130,46 +2092,10 @@ impl Window {
         self.platform_window.is_maximized()
     }
 
-    /// request a certain window decoration (Wayland)
-    pub fn request_decorations(&self, decorations: WindowDecorations) {
-        self.platform_window.request_decorations(decorations);
-    }
-
-    /// Set the exclusive zone for a layer-shell surface: how much screen space it
-    /// reserves so other surfaces avoid occluding it (e.g. a panel reserving space).
-    /// Positive values reserve that distance from the anchored edge, 0 lets the
-    /// surface be moved out of others' exclusive zones, and -1 ignores reserved
-    /// space and may extend under other surfaces. (Wayland layer-shell windows only)
-    pub fn set_exclusive_zone(&self, zone: Pixels) {
-        self.platform_window.set_exclusive_zone(zone);
-    }
-
-    /// Start an interactive window resize operation if this window is resizable.
-    pub fn start_window_resize(&self, edge: ResizeEdge) {
-        if self.is_resizable {
-            self.platform_window.start_window_resize(edge);
-        }
-    }
-
-    /// Linux (wayland) only: Set the window's input region, the area that receives pointer
-    /// and touch input. Events outside it pass through to whatever is below the window.
-    ///
-    /// - `Some(rects)` restricts input to the union of `rects`, in window coordinates.
-    /// - `Some(&[])` is an empty region, so the window receives no pointer or touch input.
-    /// - `None` resets the region to the default, so the whole window receives input again.
-    pub fn set_input_region(&self, region: Option<&[Bounds<Pixels>]>) {
-        self.platform_window.set_input_region(region);
-    }
-
     /// Return the `WindowBounds` to indicate that how a window should be opened
     /// after it has been closed
     pub fn window_bounds(&self) -> WindowBounds {
         self.platform_window.window_bounds()
-    }
-
-    /// Return the `WindowBounds` excluding insets (Wayland and X11)
-    pub fn inner_window_bounds(&self) -> WindowBounds {
-        self.platform_window.inner_window_bounds()
     }
 
     /// Encode the window's native restorable state into an opaque blob.
@@ -2486,10 +2412,6 @@ impl Window {
         self.appearance_observers.clone().retain(|callback| callback(self, cx));
     }
 
-    pub(crate) fn button_layout_changed(&mut self, cx: &mut App) {
-        self.button_layout_observers.clone().retain(|callback| callback(self, cx));
-    }
-
     /// Returns the appearance of the current window.
     pub const fn appearance(&self) -> WindowAppearance {
         self.appearance
@@ -2557,33 +2479,12 @@ impl Window {
         self.platform_window.zoom();
     }
 
-    /// Opens the native title bar context menu, useful when implementing client side decorations (Wayland and X11)
-    pub fn show_window_menu(&self, position: Point<Pixels>) {
-        self.platform_window.show_window_menu(position)
-    }
-
     /// Handle window movement for Linux and macOS.
     /// Tells the compositor to take control of window movement (Wayland and X11)
     ///
     /// Events may not be received during a move operation.
     pub fn start_window_move(&self) {
         self.platform_window.start_window_move()
-    }
-
-    /// When using client side decorations, set this to the width of the invisible decorations (Wayland and X11)
-    pub fn set_client_inset(&mut self, inset: Pixels) {
-        self.client_inset = Some(inset);
-        self.platform_window.set_client_inset(inset);
-    }
-
-    /// Returns the client_inset value by [`Self::set_client_inset`].
-    pub const fn client_inset(&self) -> Option<Pixels> {
-        self.client_inset
-    }
-
-    /// Returns whether the title bar window controls need to be rendered by the application (Wayland and X11)
-    pub fn window_decorations(&self) -> Decorations {
-        self.platform_window.window_decorations()
     }
 
     /// Returns whether this window is resizable.
@@ -2596,11 +2497,6 @@ impl Window {
         self.is_minimizable
     }
 
-    /// Returns the controls supported by the platform.
-    pub fn window_controls(&self) -> WindowControls {
-        self.platform_window.window_controls()
-    }
-
     /// Updates the window's title at the platform level.
     pub fn set_window_title(&mut self, title: &str) {
         self.platform_window.set_title(title);
@@ -2609,11 +2505,6 @@ impl Window {
     /// Sets the position of the macOS traffic light buttons.
     pub fn set_traffic_light_position(&self, position: Point<Pixels>) {
         self.platform_window.set_traffic_light_position(position);
-    }
-
-    /// Sets the application identifier.
-    pub fn set_app_id(&mut self, app_id: &str) {
-        self.platform_window.set_app_id(app_id);
     }
 
     /// Sets the window background appearance.

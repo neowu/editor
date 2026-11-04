@@ -19,7 +19,6 @@ use crate::Size;
 use crate::Style;
 use crate::Window;
 use crate::point;
-use crate::px;
 
 /// The state that the anchored element element uses to track its children.
 pub struct AnchoredState {
@@ -179,12 +178,10 @@ impl Element for Anchored {
             }
         }
 
-        let client_inset = window.client_inset.unwrap_or(px(0.));
         let edges = match self.fit_mode {
             AnchoredFitMode::SnapToWindowWithMargin(edges) => edges,
             _ => Edges::default(),
-        }
-        .map(|edge| *edge + client_inset);
+        };
 
         // Snap the horizontal edges of the anchored element to the horizontal edges of the window if
         // its horizontal bounds overflow, aligning to the left if it is wider than the limits.

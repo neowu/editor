@@ -899,7 +899,6 @@ dependencies = [
  "search",
  "serde_json",
  "settings",
- "settings_content",
  "smol",
  "svg_preview",
  "tab_switcher",

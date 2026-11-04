@@ -1,4 +1,3 @@
-pub mod app_metadata;
 
 mod editor;
 mod font;

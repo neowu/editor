@@ -52,7 +52,6 @@ remote.workspace = true
 search.workspace = true
 serde_json.workspace = true
 settings.workspace = true
-settings_content.workspace = true
 smol.workspace = true
 svg_preview.workspace = true
 tab_switcher.workspace = true

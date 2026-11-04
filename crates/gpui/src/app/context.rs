@@ -435,18 +435,6 @@ impl<'a, T: 'static> Context<'a, T> {
             .insert(Box::new(move |window, cx| view.update(cx, |view, cx| callback(view, window, cx)).is_ok()))
     }
 
-    /// Registers a callback to be invoked when the window button layout changes.
-    pub fn observe_button_layout_changed(
-        &self,
-        window: &mut Window,
-        mut callback: impl FnMut(&mut T, &mut Window, &mut Context<T>) + 'static,
-    ) -> Subscription {
-        let view = self.weak_entity();
-        window
-            .button_layout_observers
-            .insert(Box::new(move |window, cx| view.update(cx, |view, cx| callback(view, window, cx)).is_ok()))
-    }
-
     /// Registers a callback for [`App::observe_keystrokes`] that updates this entity.
     pub fn observe_keystrokes(
         &mut self,

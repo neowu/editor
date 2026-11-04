@@ -105,7 +105,6 @@ use crate::TextSystem;
 use crate::ThermalState;
 use crate::Window;
 use crate::WindowAppearance;
-use crate::WindowButtonLayout;
 use crate::WindowHandle;
 use crate::WindowId;
 use crate::WindowInvalidator;
@@ -1207,11 +1206,6 @@ impl App {
     /// the system. On other platforms this is a no-op.
     pub fn set_window_appearance(&self, appearance: Option<WindowAppearance>) {
         self.platform.set_window_appearance(appearance);
-    }
-
-    /// Returns the window button layout configuration when supported.
-    pub fn button_layout(&self) -> Option<WindowButtonLayout> {
-        self.platform.button_layout()
     }
 
     /// Reads data from the platform clipboard.

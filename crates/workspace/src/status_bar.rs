@@ -3,7 +3,6 @@ use std::ops::Deref;
 use gpui::AnyView;
 use gpui::App;
 use gpui::Context;
-use gpui::Decorations;
 use gpui::Entity;
 use gpui::FocusHandle;
 use gpui::Focusable;
@@ -13,7 +12,6 @@ use gpui::Render;
 use gpui::Styled;
 use gpui::Subscription;
 use gpui::Window;
-use theme::CLIENT_SIDE_DECORATION_ROUNDING;
 use ui::prelude::*;
 
 use crate::ItemHandle;
@@ -93,7 +91,7 @@ impl Focusable for StatusBar {
 }
 
 impl Render for StatusBar {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         h_flex()
             .id("status-bar")
             .track_focus(&self.focus_handle)
@@ -125,20 +123,6 @@ impl Render for StatusBar {
             .px(crate::CARD_GAP)
             .py(crate::CARD_GAP - px(2.))
             .bg(cx.theme().colors().status_bar_background)
-            .map(|el| match window.window_decorations() {
-                Decorations::Server => el,
-                Decorations::Client { tiling, .. } => el
-                    .when(!(tiling.bottom || tiling.right), |el| el.rounded_br(CLIENT_SIDE_DECORATION_ROUNDING))
-                    .when(!(tiling.bottom || tiling.left), |el| el.rounded_bl(CLIENT_SIDE_DECORATION_ROUNDING))
-                    // This border is to avoid a transparent gap in the rounded corners
-                    .mb(px(-1.))
-                    .mt({
-                        let needs_gap_fix = false;
-                        if needs_gap_fix { px(-1.) } else { px(0.) }
-                    })
-                    .border_b(px(1.0))
-                    .border_color(cx.theme().colors().status_bar_background),
-            })
             .child(self.render_left_tools())
             .child(self.render_right_tools())
     }

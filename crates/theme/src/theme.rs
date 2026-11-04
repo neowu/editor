@@ -7,44 +7,11 @@ use std::sync::Arc;
 use gpui::App;
 use gpui::Global;
 use gpui::Hsla;
-use gpui::Pixels;
 use gpui::SharedString;
-use gpui::Styled;
-use gpui::Tiling;
 use gpui::WindowBackgroundAppearance;
-use gpui::px;
 
 pub use crate::color_space::*;
 pub use crate::styles::*;
-
-/// Defines window border radius for platforms that use client side decorations.
-pub const CLIENT_SIDE_DECORATION_ROUNDING: Pixels = px(10.0);
-/// Defines window shadow size for platforms that use client side decorations.
-pub const CLIENT_SIDE_DECORATION_SHADOW: Pixels = px(10.0);
-/// Defines window border width for platforms that use client side decorations.
-pub const CLIENT_SIDE_DECORATION_BORDER: Pixels = px(1.0);
-
-/// Styling helpers for elements that follow client-side window decorations.
-pub trait ClientDecorationsExt: Styled {
-    /// Rounds each corner whose two adjacent edges are both untiled.
-    fn rounded_client_corners(mut self, tiling: Tiling) -> Self {
-        if !tiling.top && !tiling.left {
-            self = self.rounded_tl(CLIENT_SIDE_DECORATION_ROUNDING);
-        }
-        if !tiling.top && !tiling.right {
-            self = self.rounded_tr(CLIENT_SIDE_DECORATION_ROUNDING);
-        }
-        if !tiling.bottom && !tiling.left {
-            self = self.rounded_bl(CLIENT_SIDE_DECORATION_ROUNDING);
-        }
-        if !tiling.bottom && !tiling.right {
-            self = self.rounded_br(CLIENT_SIDE_DECORATION_ROUNDING);
-        }
-        self
-    }
-}
-
-impl<T: Styled> ClientDecorationsExt for T {}
 
 /// The appearance of the theme.
 #[derive(Debug, PartialEq, Clone, Copy)]

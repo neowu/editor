@@ -272,11 +272,6 @@ pub trait Platform: 'static {
     /// other platforms.
     fn set_window_appearance(&self, _appearance: Option<WindowAppearance>) {}
 
-    /// Returns the window button layout configuration when supported.
-    fn button_layout(&self) -> Option<WindowButtonLayout> {
-        None
-    }
-
     fn open_url(&self, url: &str);
     fn on_open_urls(&self, callback: Box<dyn FnMut(Vec<String>)>);
 
@@ -478,131 +473,6 @@ impl Debug for DisplayId {
     }
 }
 
-/// Which part of the window to resize
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ResizeEdge {
-    /// The top edge
-    Top,
-    /// The top right corner
-    TopRight,
-    /// The right edge
-    Right,
-    /// The bottom right corner
-    BottomRight,
-    /// The bottom edge
-    Bottom,
-    /// The bottom left corner
-    BottomLeft,
-    /// The left edge
-    Left,
-    /// The top left corner
-    TopLeft,
-}
-
-/// A type to describe the appearance of a window
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
-pub enum WindowDecorations {
-    #[default]
-    /// Server side decorations
-    Server,
-    /// Client side decorations
-    Client,
-}
-
-/// A type to describe how this window is currently configured
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
-pub enum Decorations {
-    /// The window is configured to use server side decorations
-    #[default]
-    Server,
-    /// The window is configured to use client side decorations
-    Client {
-        /// The edge tiling state
-        tiling: Tiling,
-    },
-}
-
-/// What window controls this platform supports
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct WindowControls {
-    /// Whether this platform supports fullscreen
-    pub fullscreen: bool,
-    /// Whether this platform supports maximize
-    pub maximize: bool,
-    /// Whether this platform supports minimize
-    pub minimize: bool,
-    /// Whether this platform supports a window menu
-    pub window_menu: bool,
-}
-
-impl Default for WindowControls {
-    fn default() -> Self {
-        // Assume that we can do anything, unless told otherwise
-        Self { fullscreen: true, maximize: true, minimize: true, window_menu: true }
-    }
-}
-
-/// A window control button type used in [`WindowButtonLayout`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum WindowButton {
-    /// The minimize button
-    Minimize,
-    /// The maximize button
-    Maximize,
-    /// The close button
-    Close,
-}
-
-impl WindowButton {
-    /// Returns a stable element ID for rendering this button.
-    pub const fn id(&self) -> &'static str {
-        match self {
-            WindowButton::Minimize => "minimize",
-            WindowButton::Maximize => "maximize",
-            WindowButton::Close => "close",
-        }
-    }
-}
-
-/// Maximum number of [`WindowButton`]s per side in the titlebar.
-pub const MAX_BUTTONS_PER_SIDE: usize = 3;
-
-/// Describes which [`WindowButton`]s appear on each side of the titlebar.
-///
-/// Each side holds up to [`MAX_BUTTONS_PER_SIDE`] buttons.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WindowButtonLayout {
-    /// Buttons on the left side of the titlebar.
-    pub left: [Option<WindowButton>; MAX_BUTTONS_PER_SIDE],
-    /// Buttons on the right side of the titlebar.
-    pub right: [Option<WindowButton>; MAX_BUTTONS_PER_SIDE],
-}
-
-/// A type to describe which sides of the window are currently tiled in some way
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
-pub struct Tiling {
-    /// Whether the top edge is tiled
-    pub top: bool,
-    /// Whether the left edge is tiled
-    pub left: bool,
-    /// Whether the right edge is tiled
-    pub right: bool,
-    /// Whether the bottom edge is tiled
-    pub bottom: bool,
-}
-
-impl Tiling {
-    /// Initializes a [`Tiling`] type with all sides tiled
-    pub const fn tiled() -> Self {
-        Self { top: true, left: true, right: true, bottom: true }
-    }
-
-    /// Whether any edge is tiled
-    pub const fn is_tiled(&self) -> bool {
-        self.top || self.left || self.right || self.bottom
-    }
-}
-
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
 #[expect(missing_docs)]
 pub struct RequestFrameOptions {
@@ -764,7 +634,6 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
     fn on_hit_test_window_control(&self, callback: Box<dyn FnMut() -> Option<WindowControlArea>>);
     fn on_close(&self, callback: Box<dyn FnOnce()>);
     fn on_appearance_changed(&self, callback: Box<dyn FnMut()>);
-    fn on_button_layout_changed(&self, _callback: Box<dyn FnMut()>) {}
     fn draw(&self, scene: &Scene);
     fn render_to_image(&self, _scene: &Scene) -> Result<image::RgbaImage> {
         anyhow::bail!("rendering a window to an image is not supported on this platform")
@@ -793,12 +662,6 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
     }
     fn restore_native_window_state(&self, _state: &[u8]) {}
 
-    // Linux specific methods
-    fn inner_window_bounds(&self) -> WindowBounds {
-        self.window_bounds()
-    }
-    fn request_decorations(&self, _decorations: WindowDecorations) {}
-    fn show_window_menu(&self, _position: Point<Pixels>) {}
     fn start_window_move(&self) {}
     fn can_start_external_drag(&self) -> bool {
         false
@@ -806,21 +669,6 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
     fn start_external_drag(&self, _payload: &ExternalDragPayload) -> bool {
         false
     }
-    fn start_window_resize(&self, _edge: ResizeEdge) {}
-    fn set_exclusive_zone(&self, _zone: Pixels) {}
-
-    fn set_input_region(&self, _region: Option<&[Bounds<Pixels>]>) {}
-    fn window_decorations(&self) -> Decorations {
-        Decorations::Server
-    }
-    fn set_app_id(&mut self, _app_id: &str) {}
-    fn map_window(&mut self) -> anyhow::Result<()> {
-        Ok(())
-    }
-    fn window_controls(&self) -> WindowControls {
-        WindowControls::default()
-    }
-    fn set_client_inset(&self, _inset: Pixels) {}
     fn gpu_specs(&self) -> Option<GpuSpecs>;
 
     fn update_ime_position(&self, _bounds: Bounds<Pixels>);
@@ -1789,18 +1637,8 @@ pub struct WindowOptions {
     /// The appearance of the window background.
     pub window_background: WindowBackgroundAppearance,
 
-    /// Application identifier of the window. Can by used by desktop environments to group applications together.
-    pub app_id: Option<String>,
-
     /// Window minimum size
     pub window_min_size: Option<Size<Pixels>>,
-
-    /// Whether to use client or server-side decorations on X11 and Wayland.
-    /// The platform may ignore requests it cannot satisfy.
-    pub window_decorations: Option<WindowDecorations>,
-
-    /// Icon image (X11 only)
-    pub icon: Option<Arc<image::RgbaImage>>,
 }
 
 /// The variables that can be configured when creating a new window
@@ -1831,12 +1669,7 @@ pub struct WindowParams {
 
     pub show: bool,
 
-    /// An image to set as the window icon (x11 only)
-    pub icon: Option<Arc<image::RgbaImage>>,
-
     pub display_id: Option<DisplayId>,
-
-    pub app_id: Option<String>,
 
     pub window_min_size: Option<Size<Pixels>>,
 }
@@ -1895,10 +1728,7 @@ impl Default for WindowOptions {
             is_minimizable: true,
             display_id: None,
             window_background: WindowBackgroundAppearance::default(),
-            icon: None,
-            app_id: None,
             window_min_size: None,
-            window_decorations: None,
         }
     }
 }
@@ -1909,8 +1739,7 @@ pub struct TitlebarOptions {
     /// The initial title of the window
     pub title: Option<SharedString>,
 
-    /// Should the default system titlebar be hidden to allow for a custom-drawn titlebar? (macOS and Windows only)
-    /// Refer to [`WindowOptions::window_decorations`] on Linux
+    /// Should the default system titlebar be hidden to allow for a custom-drawn titlebar?
     pub appears_transparent: bool,
 
     /// The position of the macOS traffic light buttons

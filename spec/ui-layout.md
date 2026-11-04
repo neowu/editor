@@ -174,9 +174,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
   - Closing the active item in an empty pane closes the window. Files deleted
     on disk keep their tab.
   - Focus never follows the mouse.
-  - Window: client-side decorations (the `ED_WINDOW_DECORATIONS=server` env
-    var still overrides) and native macOS fullscreen. Text uses the
-    platform's default rendering mode.
+  - Window: native macOS fullscreen. Text uses the platform's default
+    rendering mode.
 - A zoomed view (editor or any dock) covers exactly the area the cards occupy,
   on the chrome, overlaying the others, so every zoomed view has the same size.
   The `zoomed_padding` setting is removed, as is centered layout

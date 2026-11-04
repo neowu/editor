@@ -136,11 +136,6 @@ pub fn init(cx: &mut App) {
 pub fn build_window_options(display_uuid: Option<Uuid>, cx: &mut App) -> WindowOptions {
     let display =
         display_uuid.and_then(|uuid| cx.displays().into_iter().find(|display| display.uuid().ok() == Some(uuid)));
-    let app_id = settings_content::app_metadata::APP_ID;
-    let window_decorations = match std::env::var("ED_WINDOW_DECORATIONS") {
-        Ok(val) if val == "server" => gpui::WindowDecorations::Server,
-        _ => gpui::WindowDecorations::Client,
-    };
 
     WindowOptions {
         titlebar: Some(TitlebarOptions {
@@ -164,10 +159,6 @@ pub fn build_window_options(display_uuid: Option<Uuid>, cx: &mut App) -> WindowO
         app_owns_titlebar_drag: true,
         display_id: display.map(|display| display.id()),
         window_background: cx.theme().window_background_appearance(),
-        app_id: Some(app_id.to_owned()),
-        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-        icon: APP_ICON.as_ref().cloned(),
-        window_decorations: Some(window_decorations),
         window_min_size: Some(gpui::Size { width: px(360.0), height: px(240.0) }),
         ..Default::default()
     }
@@ -600,7 +591,6 @@ fn open_about_window(cx: &mut App) {
             is_resizable: false,
             is_minimizable: false,
             kind: WindowKind::Floating,
-            app_id: Some(settings_content::app_metadata::APP_ID.to_owned()),
             ..Default::default()
         },
         |window, cx| {
