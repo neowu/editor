@@ -255,16 +255,6 @@ impl LanguageRegistry {
         state.available_languages.find_by_exact_name(name)
     }
 
-    /// Look up a language by its modeline name (vim filetype or emacs mode).
-    ///
-    /// This performs a case-insensitive match against:
-    /// 1. Explicit modeline aliases defined in the language config
-    /// 2. The language's grammar name
-    /// 3. The language name itself
-    pub fn available_language_for_modeline_name(self: &Arc<Self>, modeline_name: &str) -> Option<AvailableLanguage> {
-        self.state.read().available_languages.find_by_modeline_name(modeline_name)
-    }
-
     pub fn language_for_file(
         self: &Arc<Self>,
         file: &Arc<dyn File>,

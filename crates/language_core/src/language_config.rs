@@ -219,11 +219,6 @@ pub struct LanguageMatcher {
     /// A regex pattern that determines whether the language should be assigned to a file or not.
     #[serde(default, serialize_with = "serialize_regex", deserialize_with = "deserialize_regex")]
     pub first_line_pattern: Option<Regex>,
-    /// Alternative names for this language used in vim/emacs modelines.
-    /// These are matched case-insensitively against the `mode` (emacs) or
-    /// `filetype`/`ft` (vim) specified in the modeline.
-    #[serde(default)]
-    pub modeline_aliases: Vec<SharedString>,
 }
 
 impl Ord for LanguageMatcher {
@@ -236,7 +231,6 @@ impl Ord for LanguageMatcher {
                     .map(Regex::as_str)
                     .cmp(&other.first_line_pattern.as_ref().map(Regex::as_str))
             })
-            .then_with(|| self.modeline_aliases.cmp(&other.modeline_aliases))
     }
 }
 
@@ -253,7 +247,6 @@ impl PartialEq for LanguageMatcher {
         self.path_suffixes == other.path_suffixes
             && self.first_line_pattern.as_ref().map(Regex::as_str)
                 == other.first_line_pattern.as_ref().map(Regex::as_str)
-            && self.modeline_aliases == other.modeline_aliases
     }
 }
 

@@ -99,7 +99,6 @@ pub use crate::HighlightMap;
 pub use crate::Language;
 pub use crate::LanguageRegistry;
 use crate::LanguageScope;
-use crate::ModelineSettings;
 use crate::Outline;
 use crate::OutlineConfig;
 use crate::PLAIN_TEXT;
@@ -190,7 +189,6 @@ pub struct Buffer {
     /// The contents of a cell are (self.version, has_changes) at the time of a last call.
     has_unsaved_edits: Cell<(clock::Global, bool)>,
     change_bits: Vec<rc::Weak<Cell<bool>>>,
-    modeline: Option<Arc<ModelineSettings>>,
     _subscriptions: Vec<gpui::Subscription>,
     resolved_settings: Option<Arc<LanguageSettings>>,
     _settings_observer: Option<gpui::Subscription>,
@@ -256,7 +254,6 @@ pub struct BufferSnapshot {
     file: Option<Arc<dyn File>>,
     non_text_state_update_count: usize,
     pub capability: Capability,
-    modeline: Option<Arc<ModelineSettings>>,
     resolved_settings: Option<Arc<LanguageSettings>>,
 }
 
@@ -1148,7 +1145,6 @@ impl Buffer {
             deferred_ops: OperationQueue::new(),
             has_conflict: false,
             change_bits: Vec::default(),
-            modeline: None,
             _subscriptions: Vec::new(),
             resolved_settings: None,
             _settings_observer: Some(cx.observe_global::<SettingsStore>(|this, cx| {
@@ -1183,42 +1179,6 @@ impl Buffer {
         self.resolved_settings.as_ref()
     }
 
-    pub fn build_snapshot(
-        text: Rope,
-        language: Option<Arc<Language>>,
-        language_registry: Option<Arc<LanguageRegistry>>,
-        modeline: Option<Arc<ModelineSettings>>,
-        cx: &mut App,
-    ) -> impl Future<Output = BufferSnapshot> + use<> {
-        let entity_id = cx.reserve_entity::<Self>().entity_id();
-        let buffer_id = entity_id.as_non_zero_u64().into();
-        async move {
-            let text = TextBuffer::new_normalized(ReplicaId::LOCAL, buffer_id, LineEnding::default(), text);
-            let text = text.into_snapshot();
-            let mut syntax = SyntaxMap::new(&text).snapshot();
-            if let Some(language) = language.clone() {
-                let language_registry = language_registry.clone();
-                syntax.reparse(&text, None, language_registry, language);
-            }
-            let tree_sitter_data = TreeSitterData::new(&text);
-            let fallback_highlighter = FallbackHighlighter::for_buffer(language.as_deref(), None, &text).map(Arc::new);
-            BufferSnapshot {
-                text,
-                syntax,
-                file: None,
-                diagnostics: TreeMap::default(),
-                remote_selections: TreeMap::default(),
-                tree_sitter_data: Arc::new(tree_sitter_data),
-                fallback_highlighter,
-                language,
-                non_text_state_update_count: 0,
-                capability: Capability::ReadOnly,
-                modeline,
-                resolved_settings: None,
-            }
-        }
-    }
-
     pub fn build_empty_snapshot(cx: &mut App) -> BufferSnapshot {
         let entity_id = cx.reserve_entity::<Self>().entity_id();
         let buffer_id = entity_id.as_non_zero_u64().into();
@@ -1237,7 +1197,6 @@ impl Buffer {
             language: None,
             non_text_state_update_count: 0,
             capability: Capability::ReadOnly,
-            modeline: None,
             resolved_settings: None,
         }
     }
@@ -1270,7 +1229,6 @@ impl Buffer {
             language: self.language.clone(),
             non_text_state_update_count: self.non_text_state_update_count,
             capability: self.capability,
-            modeline: self.modeline.clone(),
             resolved_settings: self.resolved_settings.clone(),
         }
     }
@@ -1511,22 +1469,6 @@ impl Buffer {
 
         let lamport_timestamp = self.text.lamport_clock.tick();
         self.send_operation(Operation::UpdateLineEnding { line_ending, lamport_timestamp }, true, cx);
-    }
-
-    /// Assign the buffer [`ModelineSettings`].
-    pub fn set_modeline(&mut self, modeline: Option<ModelineSettings>, cx: &mut Context<Self>) -> bool {
-        if modeline.as_ref() != self.modeline.as_deref() {
-            self.modeline = modeline.map(Arc::new);
-            self.refresh_resolved_settings(cx);
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Returns the [`ModelineSettings`].
-    pub const fn modeline(&self) -> Option<&Arc<ModelineSettings>> {
-        self.modeline.as_ref()
     }
 
     /// Assign the buffer a new [`Capability`].
@@ -3833,11 +3775,6 @@ impl BufferSnapshot {
         })
     }
 
-    /// Returns the [`ModelineSettings`].
-    pub const fn modeline(&self) -> Option<&Arc<ModelineSettings>> {
-        self.modeline.as_ref()
-    }
-
     pub(crate) const fn resolved_settings(&self) -> Option<&Arc<LanguageSettings>> {
         self.resolved_settings.as_ref()
     }
@@ -4874,7 +4811,6 @@ impl Clone for BufferSnapshot {
             fallback_highlighter: self.fallback_highlighter.clone(),
             non_text_state_update_count: self.non_text_state_update_count,
             capability: self.capability,
-            modeline: self.modeline.clone(),
             resolved_settings: self.resolved_settings.clone(),
         }
     }

@@ -107,13 +107,6 @@ pub struct SettingsContent {
     pub terminal: Option<TerminalSettingsContent>,
 
     pub title_bar: Option<TitleBarSettingsContent>,
-
-    /// Number of lines to search for modelines at the beginning and end of files.
-    /// Modelines contain editor directives (e.g., vim/emacs settings) that configure
-    /// the editor behavior for specific files.
-    ///
-    /// Default: 5
-    pub modeline_lines: Option<usize>,
 }
 
 impl SettingsContent {

@@ -35,7 +35,6 @@ use crate::Buffer;
 use crate::BufferSnapshot;
 use crate::File;
 use crate::LanguageName;
-use crate::ModelineSettings;
 
 /// Returns the settings for all languages from the provided file.
 pub fn all_language_settings<'a>(file: Option<&'a Arc<dyn File>>, cx: &'a App) -> &'a AllLanguageSettings {
@@ -258,13 +257,7 @@ impl LanguageSettings {
         let location =
             buffer.file().map(|f| SettingsLocation { worktree_id: f.worktree_id(cx), path: f.path().as_ref() });
 
-        let mut settings = AllLanguageSettings::get(location, cx).language(language.map(|l| l.name()).as_ref());
-
-        if let Some(modeline) = buffer.modeline() {
-            merge_with_modeline(Arc::make_mut(&mut settings), modeline);
-        }
-
-        settings
+        AllLanguageSettings::get(location, cx).language(language.map(|l| l.name()).as_ref())
     }
 
     pub fn resolve(
@@ -294,13 +287,7 @@ impl LanguageSettings {
             buffer.file().map(|f| SettingsLocation { worktree_id: f.worktree_id(cx), path: f.path().as_ref() });
         let buffer_language = buffer.language().map(|l| l.name());
         let language_name = override_language.or(buffer_language.as_ref());
-        let mut settings = AllLanguageSettings::get(location, cx).language(language_name);
-
-        if let Some(modeline) = buffer.modeline() {
-            merge_with_modeline(Arc::make_mut(&mut settings), modeline);
-        }
-
-        settings
+        AllLanguageSettings::get(location, cx).language(language_name)
     }
 }
 
@@ -363,27 +350,6 @@ impl AllLanguageSettings {
         let settings = language_name.and_then(|name| self.languages.get(name)).unwrap_or(&self.defaults);
 
         Arc::clone(settings)
-    }
-}
-
-fn merge_with_modeline(settings: &mut LanguageSettings, modeline: &ModelineSettings) {
-    if let Some(tab_size) = modeline.tab_size {
-        settings.tab_size = tab_size;
-    }
-    if let Some(hard_tabs) = modeline.hard_tabs {
-        settings.hard_tabs = hard_tabs;
-    }
-    if let Some(preferred_line_length) = modeline.preferred_line_length {
-        settings.preferred_line_length = preferred_line_length.into();
-    }
-    if let Some(auto_indent) = modeline.auto_indent {
-        settings.auto_indent = if auto_indent { AutoIndentMode::SyntaxAware } else { AutoIndentMode::None };
-    }
-    if modeline.show_trailing_whitespace == Some(true) {
-        settings.show_whitespaces = ShowWhitespaceSetting::Trailing;
-    }
-    if let Some(ensure_final_newline) = modeline.ensure_final_newline {
-        settings.ensure_final_newline_on_save = ensure_final_newline;
     }
 }
 

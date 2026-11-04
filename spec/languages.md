@@ -26,7 +26,7 @@
   languages are removed. Their files open as Plain Text and are still
   highlighted by the fallback below.
 - A buffer's language comes only from its file (name/extension, first
-  line, modeline) or a manual pick in the language selector. Untitled buffers
+  line) or a manual pick in the language selector. Untitled buffers
   are never detected from their contents (no ML detection, no
   `language_detection` setting) and stay Plain Text until saved or picked.
 - The status bar language button and the language selector follow the buffer

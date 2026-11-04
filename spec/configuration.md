@@ -118,8 +118,8 @@ migrator, or Vim/Helix mode.
 - User and bundled keymap JSON files are removed from the loading path. There is
   no keymap watcher, file editor/viewer action, base-keymap selection, or keymap
   JSON schema. Task files are not supported (see `tasks.md`).
-- EditorConfig is not supported: `.editorconfig` files are ignored, and language
-  settings come only from built-in settings and file modelines. There is no
+- EditorConfig and file modelines (vim/emacs `vim:`/`-*-` comments) are not
+  supported, so language settings come only from built-in settings. There is no
   project-local settings layer or worktree-settings sync with remote peers.
 - The built-in keymap retains contexts and binding order. Only the US/ABC QWERTY
   layout is supported: macOS has no per-layout key-equivalent remapping, so

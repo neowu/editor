@@ -1,7 +1,6 @@
 name = "C++"
 auto_indent_using_last_non_empty_line = true
 path_suffixes = ["cc", "ccm", "hh", "cpp", "cppm", "h", "hpp", "cxx", "cxxm", "hxx", "c++", "c++m", "h++", "hip", "ipp", "inl", "ino", "ixx", "cu", "cuh", "C", "H"]
-modeline_aliases = ["c++", "cpp", "cxx"]
 line_comments = ["// ", "/// ", "//! "]
 first_line_pattern = '^//.*-\*-\s*C\+\+\s*-\*-'
 decrease_indent_patterns = [

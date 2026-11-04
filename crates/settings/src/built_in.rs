@@ -159,7 +159,6 @@ pub fn settings() -> SettingsContent {
             show_worktree_name: Some(true),
             show_project_items: Some(true),
         }),
-        modeline_lines: Some(5),
     }
 }
 

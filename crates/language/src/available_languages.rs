@@ -116,22 +116,6 @@ impl AvailableLanguages {
         self.0.iter().find(|language| language.name.0.as_ref() == name).cloned()
     }
 
-    pub(super) fn find_by_modeline_name(&self, modeline_name: &str) -> Option<AvailableLanguage> {
-        let modeline_name = modeline_name.to_lowercase();
-        self.0
-            .iter()
-            .find(|language| {
-                language.matcher.modeline_aliases.iter().any(|alias| alias.to_lowercase() == modeline_name)
-            })
-            .or_else(|| {
-                self.0.iter().find(|language| {
-                    language.grammar.as_ref().is_some_and(|grammar| grammar.to_lowercase() == modeline_name)
-                })
-            })
-            .or_else(|| self.0.iter().find(|language| language.name.0.to_lowercase() == modeline_name))
-            .cloned()
-    }
-
     pub(super) fn mark_all_unloaded(&mut self) {
         for language in &mut self.0 {
             language.loaded = false;

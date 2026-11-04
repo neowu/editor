@@ -16,7 +16,6 @@ mod language_registry;
 pub mod language_settings;
 mod library;
 mod manifest;
-pub mod modeline;
 mod outline;
 pub mod proto;
 mod runnable;
@@ -125,8 +124,6 @@ pub use manifest::ManifestDelegate;
 pub use manifest::ManifestName;
 pub use manifest::ManifestProvider;
 pub use manifest::ManifestQuery;
-pub use modeline::ModelineSettings;
-pub use modeline::parse_modeline;
 pub use outline::*;
 use parking_lot::Mutex;
 use regex::Regex;
@@ -221,7 +218,6 @@ pub static PLAIN_TEXT: LazyLock<Arc<Language>> = LazyLock::new(|| {
             matcher: (LanguageMatcher {
                 path_suffixes: vec![SharedString::new_static("txt")],
                 first_line_pattern: None,
-                modeline_aliases: vec![SharedString::new_static("text"), SharedString::new_static("txt")],
             })
             .into(),
             brackets: BracketPairConfig {

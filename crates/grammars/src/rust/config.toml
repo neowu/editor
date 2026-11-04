@@ -2,7 +2,6 @@ name = "Rust"
 auto_indent_using_last_non_empty_line = true
 grammar = "rust"
 path_suffixes = ["rs"]
-modeline_aliases = ["rs", "rustic"]
 line_comments = ["// ", "/// ", "//! "]
 autoclose_before = ";:.,=}])>"
 brackets = [
