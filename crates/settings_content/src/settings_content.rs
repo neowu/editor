@@ -85,9 +85,6 @@ pub struct SettingsContent {
     #[serde(flatten)]
     pub remote: RemoteSettingsContent,
 
-    /// Settings related to the command palette.
-    pub command_palette: Option<CommandPaletteSettingsContent>,
-
     /// Settings related to the file finder.
     pub file_finder: Option<FileFinderSettingsContent>,
 
@@ -286,14 +283,6 @@ pub enum StatusStyle {
     #[default]
     Icon,
     LabelColor,
-}
-
-#[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq)]
-pub struct CommandPaletteSettingsContent {
-    /// Whether to use command history ranking for sorting in the command palette.
-    ///
-    /// Default: true
-    pub use_command_history: Option<bool>,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq)]

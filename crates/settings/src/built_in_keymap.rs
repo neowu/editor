@@ -805,12 +805,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
     );
     add_bindings(
         &mut keymap,
-        Some("CommandPalette || (CommandPalette > Picker > Editor)"),
-        true,
-        [KeyBindingSpec::new("shift-backspace", "command_palette::RemoveSelected")],
-    );
-    add_bindings(
-        &mut keymap,
         Some("RecentProjects || (RecentProjects > Picker > Editor)"),
         true,
         [

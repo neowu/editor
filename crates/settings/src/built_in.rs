@@ -9,7 +9,6 @@ use settings_content::BottomDockLayout;
 use settings_content::BranchPickerSettingsContent;
 use settings_content::ClosePosition;
 use settings_content::CloseWindowWhenNoItems;
-use settings_content::CommandPaletteSettingsContent;
 use settings_content::CompletionDetailAlignment;
 use settings_content::CompletionMenuItemKind;
 use settings_content::CompletionSettingsContent;
@@ -147,7 +146,6 @@ pub fn settings() -> SettingsContent {
         workspace: workspace_settings(),
         editor: editor_settings(),
         remote: RemoteSettingsContent { ssh_connections: Some(vec![]) },
-        command_palette: Some(CommandPaletteSettingsContent { use_command_history: Some(true) }),
         file_finder: Some(FileFinderSettingsContent {
             file_icons: Some(true),
             modal_max_width: Some(ModalWidthContent::Large),

@@ -100,6 +100,9 @@ migrator, or Vim/Helix mode.
 - The command palette has no "Add/Change Keybinding" flow; secondary confirm runs
   the selected command. It lists every available action as-is: there is no
   global action filter or query interceptor (`command_palette_hooks` is removed).
+- The command palette keeps no state in the database: commands are listed
+  alphabetically with no usage-based ranking, there is no query history
+  (up/down only moves the selection), and no `command_palette` setting.
 - App-level actions (quit, about, font size, `NoAction`/`Unbind`, ...)
   use the `ed` namespace (`ed::Quit`, shown as "ed: quit"), not upstream's
   `zed`. Keymaps using `zed::*` names do not resolve.
