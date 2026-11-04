@@ -132,6 +132,7 @@ pub use path_list::SerializedPathList;
 pub use persistence::ProjectLocation;
 pub use persistence::ProjectsStore;
 pub use persistence::RecentWorkspace;
+use persistence::SavedWindowBounds;
 pub use persistence::WORKSPACE_STATE_DIR;
 pub use persistence::delete_recent_workspace_group;
 pub use persistence::last_session_workspaces;
@@ -155,6 +156,7 @@ use project::WorktreeSettings;
 use remote::RemoteClientDelegate;
 use remote::RemoteConnection;
 pub use remote::RemoteConnectionIdentity;
+use remote::RemoteConnectionOptions;
 use remote::remote_client::ConnectionIdentifier;
 pub use remote::remote_connection_identity;
 pub use remote::same_remote_connection_identity;
@@ -1429,6 +1431,8 @@ impl Workspace {
                 None => None,
             };
 
+            let position = cx.update(|cx| workspace_position(&paths_to_open, None, cx));
+
             // Get project paths for all of the abs_paths
             let mut project_paths: Vec<(PathBuf, Option<ProjectPath>)> = Vec::with_capacity(paths_to_open.len());
 
@@ -1465,11 +1469,8 @@ impl Workspace {
                     })?;
                     (window, workspace)
                 } else {
-                    let (window_bounds, display) = restored_window_bounds(serialized_workspace.as_ref());
-
-                    // Use the serialized workspace to construct the new window
-                    let mut options = cx.update(|cx| (app_state.build_window_options)(display, cx));
-                    options.window_bounds = window_bounds;
+                    let mut options = cx.update(|cx| (app_state.build_window_options)(position.display, cx));
+                    options.window_bounds = position.window_bounds;
                     let window = cx.open_window(options, {
                         let app_state = app_state.clone();
                         let project_handle = project_handle.clone();
@@ -4600,7 +4601,16 @@ impl Workspace {
         if self.restoring_workspace {
             return Task::ready(());
         }
-        let Some(root) = self.project_location(cx).and_then(|location| location.paths.into_iter().next()) else {
+        let Some(location) = self.project_location(cx) else {
+            return Task::ready(());
+        };
+        if let Some(display) = window.display(cx).and_then(|display| display.uuid().ok())
+            && let Some(store) = ProjectsStore::try_global(cx)
+        {
+            let window = SavedWindowBounds { bounds: window.window_bounds().into(), display };
+            store.set_window_bounds(&location, window, cx);
+        }
+        let Some(root) = location.paths.into_iter().next() else {
             return Task::ready(());
         };
 
@@ -4628,8 +4638,6 @@ impl Workspace {
         let serialized_workspace = SerializedWorkspace {
             center_group: build_serialized_pane_group(&self.center.root, self, window, cx),
             docks: self.capture_dock_state(window, cx),
-            window_bounds: Some(window.window_bounds().into()),
-            display: window.display(cx).and_then(|display| display.uuid().ok()),
             recent_navigation_history: self.persisted_recent_navigation_history.clone(),
         };
         let Some(json) = serde_json::to_string_pretty(&serialized_workspace).log_err() else {
@@ -5757,17 +5765,24 @@ pub async fn restore_workspace(
     Ok(window_handle)
 }
 
-/// Window bounds and display to open a restored workspace's window with.
-fn restored_window_bounds(serialized_workspace: Option<&SerializedWorkspace>) -> (Option<WindowBounds>, Option<Uuid>) {
+/// Window bounds and display to open a project's window with: the
+/// environment override, else where its window last was.
+fn restored_window_bounds(saved: Option<SavedWindowBounds>) -> WorkspacePosition {
     if let Some(bounds) = window_bounds_env_override() {
-        return (Some(WindowBounds::Windowed(bounds)), None);
+        return WorkspacePosition { window_bounds: Some(WindowBounds::Windowed(bounds)), display: None };
     }
-    match serialized_workspace {
-        Some(SerializedWorkspace { window_bounds: Some(bounds), display: Some(display), .. }) => {
-            (Some((*bounds).into()), Some(*display))
-        }
-        _ => (None, None),
+    match saved {
+        Some(saved) => WorkspacePosition { window_bounds: Some(saved.bounds.into()), display: Some(saved.display) },
+        None => WorkspacePosition { window_bounds: None, display: None },
     }
+}
+
+/// Where to open the window of the local project (`remote` is `None`) or remote
+/// project with root folders `paths`. Read from `projects.json`, so a remote
+/// project's window can be placed before connecting.
+pub fn workspace_position(paths: &[PathBuf], remote: Option<&RemoteConnectionOptions>, cx: &App) -> WorkspacePosition {
+    let saved = ProjectsStore::try_global(cx).and_then(|store| store.window_bounds(paths, remote));
+    restored_window_bounds(saved)
 }
 
 actions!(
@@ -6559,16 +6574,10 @@ pub fn move_active_item(
     });
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct WorkspacePosition {
     pub window_bounds: Option<WindowBounds>,
     pub display: Option<Uuid>,
-}
-
-/// Where to open a remote workspace's window. Its saved bounds live on the
-/// server, so before connecting only the environment override applies.
-pub fn remote_workspace_position() -> WorkspacePosition {
-    WorkspacePosition { window_bounds: window_bounds_env_override().map(WindowBounds::Windowed), display: None }
 }
 
 pub fn with_active_or_new_workspace(
@@ -6619,9 +6628,10 @@ mod tests {
     }
 
     #[test]
-    fn test_restored_window_bounds_needs_bounds_and_display() {
+    fn test_restored_window_bounds_uses_saved_window() {
+        use super::WorkspacePosition;
+        use super::persistence::SavedWindowBounds;
         use super::persistence::WindowBoundsJson;
-        use super::persistence::model::SerializedWorkspace;
         use super::restored_window_bounds;
 
         if super::window_bounds_env_override().is_some() {
@@ -6629,15 +6639,11 @@ mod tests {
         }
         let bounds = WindowBoundsJson::Windowed { x: 1, y: 2, width: 300, height: 400 };
         let display = uuid::Uuid::from_u128(7);
-        let mut workspace = SerializedWorkspace {
-            window_bounds: Some(bounds),
-            display: Some(display),
-            ..SerializedWorkspace::default()
-        };
-        assert_eq!(restored_window_bounds(Some(&workspace)), (Some(bounds.into()), Some(display)));
-        workspace.display = None;
-        assert_eq!(restored_window_bounds(Some(&workspace)), (None, None));
-        assert_eq!(restored_window_bounds(None), (None, None));
+        assert_eq!(
+            restored_window_bounds(Some(SavedWindowBounds { bounds, display })),
+            WorkspacePosition { window_bounds: Some(bounds.into()), display: Some(display) }
+        );
+        assert_eq!(restored_window_bounds(None), WorkspacePosition { window_bounds: None, display: None });
     }
 
     #[test]

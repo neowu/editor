@@ -30,6 +30,7 @@ use time::OffsetDateTime;
 use ui::px;
 use util::ResultExt;
 use util::rel_path::RelPath;
+use uuid::Uuid;
 
 use self::model::SerializedWorkspace;
 use self::model::SerializedWorkspaceLocation;
@@ -113,6 +114,18 @@ pub struct RecentProject {
     /// next launch can reopen it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub open: bool,
+    /// Where the project's window last was. Kept here rather than in
+    /// `workspace.json`: it describes this machine's displays, and a remote
+    /// project's window opens before its server can be read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window: Option<SavedWindowBounds>,
+}
+
+/// A window's bounds and the display they are relative to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedWindowBounds {
+    pub bounds: WindowBoundsJson,
+    pub display: Uuid,
 }
 
 /// Contents of `projects.json`.
@@ -143,7 +156,7 @@ impl ProjectsFile {
         }
         let mut project = match existing {
             Some(index) => self.recent.remove(index),
-            None => RecentProject { location, opened_at: 0, open: false },
+            None => RecentProject { location, opened_at: 0, open: false, window: None },
         };
         project.opened_at = now;
         self.recent.insert(0, project);
@@ -168,6 +181,26 @@ impl ProjectsFile {
             project.open = is_open;
         }
         changed
+    }
+
+    /// Records where `location`'s window is. Only projects already in the
+    /// recent list are updated. Returns whether anything changed.
+    pub fn set_window_bounds(&mut self, location: &ProjectLocation, window: SavedWindowBounds) -> bool {
+        let Some(project) = self.recent.iter_mut().find(|project| &project.location == location) else {
+            return false;
+        };
+        let changed = project.window != Some(window);
+        project.window = Some(window);
+        changed
+    }
+
+    /// Saved window of the project on `remote` with root folders `paths`, in
+    /// any order.
+    pub fn window_bounds(&self, paths: &PathList, remote: Option<&RemoteServer>) -> Option<SavedWindowBounds> {
+        self.recent
+            .iter()
+            .find(|project| project.location.remote.as_ref() == remote && &project.location.path_list() == paths)?
+            .window
     }
 
     /// Locations of the projects marked open, most recent first.
@@ -227,6 +260,23 @@ impl ProjectsStore {
 
     pub fn remove_recent(&self, remove: impl FnMut(&ProjectLocation) -> bool, cx: &App) -> Task<()> {
         if self.state.lock().remove_recent(remove) { self.save(cx) } else { Task::ready(()) }
+    }
+
+    pub fn set_window_bounds(&self, location: &ProjectLocation, window: SavedWindowBounds, cx: &App) {
+        if self.state.lock().set_window_bounds(location, window) {
+            self.save(cx).detach();
+        }
+    }
+
+    /// Saved window of the local project (`remote` is `None`) or remote
+    /// project with root folders `paths`.
+    pub fn window_bounds(
+        &self,
+        paths: &[PathBuf],
+        remote: Option<&RemoteConnectionOptions>,
+    ) -> Option<SavedWindowBounds> {
+        let remote = remote.map(RemoteServer::from_options);
+        self.state.lock().window_bounds(&PathList::new(paths), remote.as_ref())
     }
 
     fn set_open(&self, open: &[ProjectLocation], cx: &App) -> Task<()> {
@@ -385,7 +435,7 @@ pub(crate) fn write_workspace_state(
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
 pub enum WindowBoundsJson {
     Windowed { x: i32, y: i32, width: i32, height: i32 },
@@ -558,12 +608,14 @@ mod tests {
 
     use time::OffsetDateTime;
     use util::path_list::PathList;
+    use uuid::Uuid;
 
     use super::ProjectLocation;
     use super::ProjectsFile;
     use super::RecentProject;
     use super::RecentWorkspace;
     use super::RemoteServer;
+    use super::SavedWindowBounds;
     use super::WindowBoundsJson;
     use super::dedupe_recent_workspaces;
     use super::is_in_workspace_state_dir;
@@ -586,7 +638,15 @@ mod tests {
     fn test_projects_file_round_trip() {
         let file = ProjectsFile {
             recent: vec![
-                RecentProject { location: local(&["/b", "/a"]), opened_at: 7, open: true },
+                RecentProject {
+                    location: local(&["/b", "/a"]),
+                    opened_at: 7,
+                    open: true,
+                    window: Some(SavedWindowBounds {
+                        bounds: WindowBoundsJson::Windowed { x: 1, y: 2, width: 3, height: 4 },
+                        display: Uuid::from_u128(9),
+                    }),
+                },
                 RecentProject {
                     location: ProjectLocation {
                         paths: vec![PathBuf::from("/srv")],
@@ -594,6 +654,7 @@ mod tests {
                     },
                     opened_at: 3,
                     open: false,
+                    window: None,
                 },
             ],
         };
@@ -613,8 +674,8 @@ mod tests {
         assert_eq!(
             file.recent,
             [
-                RecentProject { location: local(&["/a"]), opened_at: 4, open: false },
-                RecentProject { location: local(&["/b"]), opened_at: 3, open: false }
+                RecentProject { location: local(&["/a"]), opened_at: 4, open: false, window: None },
+                RecentProject { location: local(&["/b"]), opened_at: 3, open: false, window: None }
             ]
         );
     }
@@ -640,13 +701,50 @@ mod tests {
     }
 
     #[test]
+    fn test_set_window_bounds_updates_only_recent_projects() {
+        let window = SavedWindowBounds {
+            bounds: WindowBoundsJson::Windowed { x: 1, y: 2, width: 300, height: 400 },
+            display: Uuid::from_u128(1),
+        };
+        let mut file = ProjectsFile::default();
+        assert!(!file.set_window_bounds(&local(&["/a"]), window));
+        file.record_recent(local(&["/a"]), 1);
+        assert!(file.set_window_bounds(&local(&["/a"]), window));
+        assert!(!file.set_window_bounds(&local(&["/a"]), window));
+        assert_eq!(file.recent[0].window, Some(window));
+        // Moving the project to the front keeps its window.
+        file.record_recent(local(&["/b"]), 2);
+        file.record_recent(local(&["/a"]), 3);
+        assert_eq!(file.recent[0].window, Some(window));
+    }
+
+    #[test]
+    fn test_window_bounds_matches_paths_in_any_order_and_remote() {
+        let window = SavedWindowBounds {
+            bounds: WindowBoundsJson::Maximized { x: 0, y: 0, width: 800, height: 600 },
+            display: Uuid::from_u128(2),
+        };
+        let server = RemoteServer { host: "box".into(), username: None, port: None };
+        let remote =
+            ProjectLocation { paths: vec![PathBuf::from("/a"), PathBuf::from("/b")], remote: Some(server.clone()) };
+        let mut file = ProjectsFile::default();
+        file.record_recent(local(&["/a", "/b"]), 1);
+        file.record_recent(remote.clone(), 2);
+        file.set_window_bounds(&remote, window);
+        let paths = PathList::new(&["/b", "/a"]);
+        assert_eq!(file.window_bounds(&paths, Some(&server)), Some(window));
+        assert_eq!(file.window_bounds(&paths, None), None);
+        assert_eq!(file.window_bounds(&PathList::new(&["/a"]), Some(&server)), None);
+    }
+
+    #[test]
     fn test_record_recent_keeps_open_flag() {
         let mut file = ProjectsFile::default();
         file.record_recent(local(&["/a"]), 1);
         file.record_recent(local(&["/b"]), 2);
         file.set_open(&[local(&["/a"])]);
         assert!(file.record_recent(local(&["/a"]), 3));
-        assert_eq!(file.recent[0], RecentProject { location: local(&["/a"]), opened_at: 3, open: true });
+        assert_eq!(file.recent[0], RecentProject { location: local(&["/a"]), opened_at: 3, open: true, window: None });
     }
 
     #[test]

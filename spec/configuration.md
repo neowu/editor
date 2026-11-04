@@ -18,16 +18,20 @@ migrator, or Vim/Helix mode.
   - `~/.local/share/ed/projects.json`: recent projects (root folders in open
     order, plus the SSH host/user/port for remote ones), most recent first and
     capped at 100, each flagged `open` while it has a window (the open list
-    is the recents, not a separate list). It is
+    is the recents, not a separate list), and the window's last bounds and
+    display. Window placement lives here, not in `workspace.json`: it
+    describes this machine's displays, and a remote project's window opens
+    (showing the connection modal) before its server can be read, so both
+    local and remote windows open at their saved place. It is
     read once at launch; unreadable contents count as empty. Every change
     rewrites the whole file. A project moves to the front of the recents when
     opened or its window is focused.
   - `<first root folder>/.ed/workspace.json`, per project: the pane tree with
     each tab's kind and its own JSON state, pinned/active/preview tabs, dock
-    visibility/active panel/zoom, window bounds and display, and recent
-    navigation history. Remote projects keep it on the server, read through
-    the project's buffers and written through the worktree after connecting,
-    so their window bounds aren't restored. Unreadable files are ignored.
+    visibility/active panel/zoom, and recent navigation history. Remote
+    projects keep it on the server, read through the project's buffers and
+    written through the worktree after connecting. Unreadable files are
+    ignored.
     Identical contents aren't rewritten. Windows with no root folder aren't
     persisted.
 - Tabs persist only their own state. An editor tab on a file keeps only its

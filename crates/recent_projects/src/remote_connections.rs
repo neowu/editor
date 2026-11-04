@@ -155,7 +155,7 @@ pub async fn open_remote_project(
         let workspace = window.entity(cx)?;
         (window, workspace)
     } else {
-        let workspace_position = workspace::remote_workspace_position();
+        let workspace_position = cx.update(|cx| workspace::workspace_position(&paths, Some(&connection_options), cx));
 
         let mut options = cx.update(|cx| (app_state.build_window_options)(workspace_position.display, cx));
         options.window_bounds = workspace_position.window_bounds;

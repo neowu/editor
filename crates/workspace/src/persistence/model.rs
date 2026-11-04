@@ -11,9 +11,7 @@ use remote::RemoteConnectionOptions;
 use serde::Deserialize;
 use serde::Serialize;
 use util::ResultExt;
-use uuid::Uuid;
 
-use super::WindowBoundsJson;
 use crate::Member;
 use crate::Pane;
 use crate::PaneAxis;
@@ -42,10 +40,6 @@ pub(crate) struct SerializedWorkspace {
     pub(crate) center_group: SerializedPaneGroup,
     #[serde(default)]
     pub(crate) docks: DockStructure,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) window_bounds: Option<WindowBoundsJson>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub(crate) display: Option<Uuid>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) recent_navigation_history: Vec<PathBuf>,
 }
@@ -256,7 +250,6 @@ mod tests {
     use super::SerializedPane;
     use super::SerializedPaneGroup;
     use super::SerializedWorkspace;
-    use crate::persistence::WindowBoundsJson;
     use crate::persistence::parse_workspace_state;
 
     #[test]
@@ -283,8 +276,6 @@ mod tests {
                 left: DockData { visible: true, active_panel: Some("ProjectPanel".into()), zoom: false },
                 ..DockStructure::default()
             },
-            window_bounds: Some(WindowBoundsJson::Windowed { x: 1, y: 2, width: 3, height: 4 }),
-            display: None,
             recent_navigation_history: vec![PathBuf::from("/p/a.rs")],
         };
         let json = serde_json::to_string_pretty(&workspace).unwrap();

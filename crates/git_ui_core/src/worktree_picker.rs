@@ -1237,7 +1237,7 @@ pub async fn open_remote_worktree(
     let new_project =
         cx.update(|_, cx| project::Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), cx))?;
 
-    let workspace_position = workspace::remote_workspace_position();
+    let workspace_position = cx.update(|_, cx| workspace::workspace_position(&paths, Some(&connection_options), cx))?;
 
     let mut options = cx.update(|_, cx| (app_state.build_window_options)(workspace_position.display, cx))?;
     options.window_bounds = workspace_position.window_bounds;
