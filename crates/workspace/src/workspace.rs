@@ -1223,9 +1223,9 @@ impl Workspace {
         let right_dock_buttons = cx.new(|cx| PanelButtons::new(right_dock.clone(), cx));
         let status_bar = cx.new(|cx| {
             let mut status_bar = StatusBar::new(&center_pane.clone(), window, cx);
-            status_bar.add_left_item(left_dock_buttons, window, cx);
-            status_bar.add_right_item(right_dock_buttons, window, cx);
-            status_bar.add_right_item(bottom_dock_buttons, window, cx);
+            status_bar.add_left_item_in(left_dock_buttons, StatusItemModes::Editor, window, cx);
+            status_bar.add_right_item_in(right_dock_buttons, StatusItemModes::Editor, window, cx);
+            status_bar.add_right_item_in(bottom_dock_buttons, StatusItemModes::Editor, window, cx);
             status_bar
         });
 

@@ -185,14 +185,6 @@ impl StatusBar {
         items.iter().filter(move |item| item.modes.includes(mode))
     }
 
-    /// Adds an item shown only in Workspace mode.
-    pub fn add_left_item<T>(&mut self, item: Entity<T>, window: &mut Window, cx: &mut Context<Self>)
-    where
-        T: 'static + StatusItemView,
-    {
-        self.add_left_item_in(item, StatusItemModes::Editor, window, cx);
-    }
-
     pub fn add_left_item_in<T>(
         &mut self,
         item: Entity<T>,
@@ -221,14 +213,6 @@ impl StatusBar {
 
     pub fn item_of_type<T: StatusItemView>(&self) -> Option<Entity<T>> {
         self.left_items.iter().chain(&self.right_items).find_map(|item| item.to_any().downcast().ok())
-    }
-
-    /// Adds an item shown only in Workspace mode.
-    pub fn add_right_item<T>(&mut self, item: Entity<T>, window: &mut Window, cx: &mut Context<Self>)
-    where
-        T: 'static + StatusItemView,
-    {
-        self.add_right_item_in(item, StatusItemModes::Editor, window, cx);
     }
 
     pub fn add_right_item_in<T>(

@@ -242,14 +242,14 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
 
         let cursor_position = cx.new(|_| go_to_line::cursor_position::CursorPosition::new(workspace));
         workspace.status_bar().update(cx, |status_bar, cx| {
-            status_bar.add_left_item(search_button, window, cx);
-            status_bar.add_left_item(lsp_button, window, cx);
-            status_bar.add_left_item(diagnostic_summary, window, cx);
-            status_bar.add_left_item(activity_indicator, window, cx);
-            status_bar.add_right_item(active_buffer_encoding, window, cx);
+            status_bar.add_left_item_in(search_button, StatusItemModes::Editor, window, cx);
+            status_bar.add_left_item_in(lsp_button, StatusItemModes::Editor, window, cx);
+            status_bar.add_left_item_in(diagnostic_summary, StatusItemModes::Editor, window, cx);
+            status_bar.add_left_item_in(activity_indicator, StatusItemModes::Editor, window, cx);
+            status_bar.add_right_item_in(active_buffer_encoding, StatusItemModes::All, window, cx);
             status_bar.add_right_item_in(active_buffer_language, StatusItemModes::All, window, cx);
             status_bar.add_right_item_in(cursor_position, StatusItemModes::All, window, cx);
-            status_bar.add_right_item(image_info, window, cx);
+            status_bar.add_right_item_in(image_info, StatusItemModes::All, window, cx);
             status_bar.add_left_item_in(git_history_button, StatusItemModes::GitHistory, window, cx);
         });
 
