@@ -173,12 +173,26 @@ pub mod git_graph {
     actions!(
         git_graph,
         [
-            /// Switches the window to Git History mode, showing the git graph.
-            Open,
+            /// Switches the window to Git History mode and brings the active
+            /// repository's graph to the front, even over its own commit tabs.
+            Open
+        ]
+    );
+}
+
+/// Switching between the window's modes (`WorkspaceMode`).
+pub mod mode {
+    use gpui::actions;
+
+    actions!(
+        mode,
+        [
+            /// Switches the window to Editor mode.
+            Editor,
             /// Switches the window to Git History mode for the active repository:
             /// keeps the active history tab if it belongs to that repository,
             /// otherwise shows the repository's graph.
-            Show
+            GitHistory
         ]
     );
 }

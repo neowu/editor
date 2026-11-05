@@ -118,12 +118,12 @@ blobs with no language server, so they are not mixed into editor panes.
 - An icon-only, segmented "Editor" / "Git History" switch at the end of the
   window header, after Go Back / Go Forward, switches modes (`ui-layout.md`).
   It is shown whenever the project is in a git repository. "Git
-  History" (`git_graph::Show`) follows the active repository (the folder picked
+  History" (`mode::GitHistory`) follows the active repository (the folder picked
   in the window header): it returns to the active history tab if that tab belongs
   to the active repository, otherwise it opens (or reuses) that repository's
   graph. A tab belongs to its graph's repository, or to the repository of the
-  commit in its sidebar. `workspace::ShowEditor` and `git_graph::Open` switch
-  from the keyboard.
+  commit in its sidebar. Mode-switching actions live in the `mode`
+  namespace (`mode::Editor`, `mode::GitHistory`), one per mode.
 - While Git History is shown, picking another folder (changing the active
   repository) applies the same rule, so the history switches to that
   repository's graph; tabs of other repositories stay open. Picking a folder

@@ -281,8 +281,6 @@ actions!(
         GoForward,
         /// Creates a new file.
         NewFile,
-        /// Switches the window to Editor mode.
-        ShowEditor,
         /// Creates a new file in a vertical split.
         NewFileSplitVertical,
         /// Creates a new file in a horizontal split.
@@ -4858,7 +4856,7 @@ impl Workspace {
                     cx.propagate();
                 }
             }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ShowEditor, window, cx| {
+            .on_action(cx.listener(|workspace: &mut Workspace, _: &ed_actions::mode::Editor, window, cx| {
                 workspace.set_mode(WorkspaceMode::Editor, window, cx);
             }))
             .on_action(cx.listener(|workspace: &mut Workspace, _: &CloseAllDocks, window, cx| {
@@ -6328,6 +6326,15 @@ fn hidden_by_zoom(zoomed: bool, zoomed_position: Option<DockPosition>, position:
 #[cfg(test)]
 mod tests {
     use super::WorkspaceMode;
+
+    #[test]
+    fn test_mode_action_names() {
+        use gpui::Action;
+
+        // The built-in keymap binds `cmd-1` / `cmd-2` by these names.
+        assert_eq!(ed_actions::mode::Editor::name_for_type(), "mode::Editor");
+        assert_eq!(ed_actions::mode::GitHistory::name_for_type(), "mode::GitHistory");
+    }
 
     #[test]
     fn test_hidden_by_zoom() {

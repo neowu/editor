@@ -9,7 +9,6 @@ use collections::HashMap;
 use collections::IndexSet;
 use ed_actions::buffer_search;
 pub use ed_actions::git_graph::Open;
-pub use ed_actions::git_graph::Show;
 use ed_actions::search::SelectNextMatch;
 use ed_actions::search::SelectPreviousMatch;
 use ed_actions::search::ToggleCaseSensitive;
@@ -744,7 +743,7 @@ pub fn init(cx: &mut App) {
             .detach();
         }
 
-        workspace.register_action(|workspace, _: &Show, window, cx| {
+        workspace.register_action(|workspace, _: &ed_actions::mode::GitHistory, window, cx| {
             show_active_repository_history(workspace, window, cx);
         });
         workspace.register_action_renderer(|div, workspace, window, cx| {

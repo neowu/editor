@@ -29,7 +29,6 @@ use crate::CARD_GAP;
 use crate::GoBack;
 use crate::GoForward;
 use crate::Pane;
-use crate::ShowEditor;
 use crate::Workspace;
 use crate::WorkspaceMode;
 use crate::dock::Dock;
@@ -152,7 +151,7 @@ impl Render for WindowHeader {
                     // Clicks on the controls must not move the window.
                     .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .when(self.shown.has_repository, |this| {
-                        this.child(render_mode_switch(&self.workspace, self.shown.mode, cx))
+                        this.child(render_mode_switch(self.shown.mode, cx))
                     })
                     .child(render_nav_buttons(&self.workspace, self.shown)),
             )
@@ -213,25 +212,20 @@ const MODE_SWITCH_PADDING: Pixels = px(2.);
 /// Icon-only mode switch ("Editor" / "Git History"): top-row icon buttons
 /// grouped on a faint track, so the modes read as one control, with the shown
 /// mode's button filled and its icon in the accent colour.
-fn render_mode_switch(workspace: &WeakEntity<Workspace>, mode: WorkspaceMode, cx: &App) -> impl IntoElement {
+fn render_mode_switch(mode: WorkspaceMode, cx: &App) -> impl IntoElement {
     let segment = |id: &'static str, icon: IconName, shown: bool| {
         top_row_icon_button(id, icon)
             .icon_color(if shown { Color::Accent } else { Color::Muted })
             .when(shown, |this| this.style(ButtonStyle::Filled))
     };
 
-    let editor_workspace = workspace.clone();
     let show_editor = segment("workspace-mode-editor", IconName::Code, mode == WorkspaceMode::Editor)
-        .tooltip(|_window, cx| Tooltip::for_action("Editor", &ShowEditor, cx))
-        .on_click(move |_, window, cx| {
-            editor_workspace
-                .update(cx, |workspace, cx| workspace.set_mode(WorkspaceMode::Editor, window, cx))
-                .log_err();
-        });
+        .tooltip(|_window, cx| Tooltip::for_action("Editor", &ed_actions::mode::Editor, cx))
+        .on_click(|_, window, cx| window.dispatch_action(Box::new(ed_actions::mode::Editor), cx));
 
     let show_history = segment("workspace-mode-git-history", IconName::GitGraph, mode == WorkspaceMode::GitHistory)
-        .tooltip(|_window, cx| Tooltip::for_action("Git History", &ed_actions::git_graph::Show, cx))
-        .on_click(|_, window, cx| window.dispatch_action(Box::new(ed_actions::git_graph::Show), cx));
+        .tooltip(|_window, cx| Tooltip::for_action("Git History", &ed_actions::mode::GitHistory, cx))
+        .on_click(|_, window, cx| window.dispatch_action(Box::new(ed_actions::mode::GitHistory), cx));
 
     h_flex()
         .p(MODE_SWITCH_PADDING)

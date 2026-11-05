@@ -67,8 +67,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
   host for remote projects), the
   worktree and branch pickers as `worktree / branch` (shown only for a project
   in a git repository), then an icon-only, segmented Editor / Git History
-  switch (also git only; `cmd-1` Editor via `workspace::ShowEditor`, `cmd-2`
-  Git History via `git_graph::Show`, in any mode), then Go Back / Go Forward. The pickers moved here from
+  switch (also git only; `cmd-1` Editor via `mode::Editor`, `cmd-2`
+  Git History via `mode::GitHistory`, in any mode), then Go Back / Go Forward. The pickers moved here from
   the status bar so everything that names the project sits together; their
   menus open downward. The switch groups its icon buttons on a faint, borderless
   track (2px inset) so the modes read as one control as more are added; the

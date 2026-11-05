@@ -446,8 +446,8 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("alt-shift-enter", "toast::RunAction"),
             KeyBindingSpec::new("cmd-shift-s", "workspace::SaveAs"),
             KeyBindingSpec::new("cmd-shift-n", "workspace::NewWindow"),
-            KeyBindingSpec::new("cmd-1", "workspace::ShowEditor"),
-            KeyBindingSpec::new("cmd-2", "git_graph::Show"),
+            KeyBindingSpec::new("cmd-1", "mode::Editor"),
+            KeyBindingSpec::new("cmd-2", "mode::GitHistory"),
             KeyBindingSpec::new("cmd-`", "workspace::ToggleZoom"),
             KeyBindingSpec::new("cmd-b", "workspace::CycleLeftDock"),
             KeyBindingSpec::new("cmd-r", "workspace::CycleRightDock"),
@@ -748,7 +748,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
         Some("RecentProjects || (RecentProjects > Picker > Editor)"),
         true,
         [
-            // KeyBindingSpec::new("cmd-k", "recent_projects::ToggleActionsMenu"),
             KeyBindingSpec::new("cmd-shift-a", "workspace::AddFolderToProject"),
             KeyBindingSpec::new("shift-backspace", "recent_projects::RemoveSelected"),
             KeyBindingSpec::new("cmd-shift-enter", "recent_projects::AddToWorkspace"),
