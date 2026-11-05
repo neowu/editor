@@ -30,3 +30,5 @@
 
 # git history
 - filter by branch, like only see one origin/branch
+- need refresh? claude commit outside how to refresh
+- way to go to project file from file revision with line number
