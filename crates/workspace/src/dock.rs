@@ -440,6 +440,10 @@ impl Dock {
         self.panel_entries.iter().find(|entry| entry.panel.panel_id() == panel_id).map(|entry| &entry.panel)
     }
 
+    pub fn panels_enabled(&self, cx: &App) -> Vec<bool> {
+        self.panel_entries.iter().map(|entry| entry.panel.enabled(cx)).collect()
+    }
+
     pub fn first_enabled_panel_idx(&mut self, cx: &mut Context<Self>) -> anyhow::Result<usize> {
         self.panel_entries
             .iter()
@@ -1047,6 +1051,13 @@ impl StatusItemView for PanelButtons {
     }
 }
 
+/// The panel a dock-cycle press shows next, given which panels are enabled and
+/// which one is visible (`None` when the dock is hidden). `None` means close.
+pub fn next_dock_cycle_panel(enabled: &[bool], visible_index: Option<usize>) -> Option<usize> {
+    let start = visible_index.map_or(0, |index| index + 1);
+    enabled.iter().enumerate().skip(start).find_map(|(index, enabled)| enabled.then_some(index))
+}
+
 #[cfg(test)]
 mod tests {
     use gpui::px;
@@ -1054,6 +1065,20 @@ mod tests {
     use super::RESIZE_HANDLE_SIZE;
     use super::SIDEBAR_MIN_WIDTH;
     use super::clamp_resized_panel_size;
+    use super::next_dock_cycle_panel;
+
+    #[test]
+    fn test_next_dock_cycle_panel() {
+        assert_eq!(next_dock_cycle_panel(&[true, true], None), Some(0));
+        assert_eq!(next_dock_cycle_panel(&[true, true], Some(0)), Some(1));
+        assert_eq!(next_dock_cycle_panel(&[true, true], Some(1)), None);
+        assert_eq!(next_dock_cycle_panel(&[true], Some(0)), None);
+        assert_eq!(next_dock_cycle_panel(&[false, true, false, true], None), Some(1));
+        assert_eq!(next_dock_cycle_panel(&[true, false, true], Some(0)), Some(2));
+        assert_eq!(next_dock_cycle_panel(&[true, true, false], Some(1)), None);
+        assert_eq!(next_dock_cycle_panel(&[false], None), None);
+        assert_eq!(next_dock_cycle_panel(&[], None), None);
+    }
 
     #[test]
     fn test_clamp_resized_panel_size() {

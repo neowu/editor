@@ -14,8 +14,8 @@ pub fn app_menus(_cx: &mut App) -> Vec<Menu> {
         MenuItem::action("Reset Zoom", ed_actions::ResetBufferFontSize),
         MenuItem::action("Reset All Zoom", ed_actions::ResetAllZoom),
         MenuItem::separator(),
-        MenuItem::action("Toggle Left Dock", workspace::ToggleLeftDock),
-        MenuItem::action("Toggle Right Dock", workspace::ToggleRightDock),
+        MenuItem::action("Cycle Left Dock", workspace::CycleLeftDock),
+        MenuItem::action("Cycle Right Dock", workspace::CycleRightDock),
         MenuItem::action("Toggle Bottom Dock", workspace::ToggleBottomDock),
         MenuItem::action("Toggle All Docks", workspace::ToggleAllDocks),
         MenuItem::submenu(Menu {

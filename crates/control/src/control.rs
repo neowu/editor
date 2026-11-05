@@ -226,9 +226,22 @@ pub struct WorkspaceState {
     pub panes: Vec<PaneState>,
     /// The Git History mode panes, kept apart from the editor panes.
     pub git_history_panes: Vec<PaneState>,
+    /// The left, bottom and right docks, in that order.
+    pub docks: Vec<DockState>,
     /// The active item, when it is an editor.
     pub active_editor: Option<EditorState>,
     pub language_servers: Vec<LanguageServerState>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DockState {
+    /// "left", "bottom" or "right".
+    pub position: String,
+    pub open: bool,
+    /// The persistent name of the panel shown (e.g. "ProjectPanel"), when open.
+    pub visible_panel: Option<String>,
+    /// Whether keyboard focus is inside the dock.
+    pub has_focus: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

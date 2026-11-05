@@ -4088,13 +4088,13 @@ impl OutlinePanel {
                         {
                             match self.position(window, cx) {
                                 DockPosition::Left => {
-                                    KeyBinding::for_action(&workspace::ToggleLeftDock, cx).into_any_element()
+                                    KeyBinding::for_action(&workspace::CycleLeftDock, cx).into_any_element()
                                 }
                                 DockPosition::Bottom => {
                                     KeyBinding::for_action(&workspace::ToggleBottomDock, cx).into_any_element()
                                 }
                                 DockPosition::Right => {
-                                    KeyBinding::for_action(&workspace::ToggleRightDock, cx).into_any_element()
+                                    KeyBinding::for_action(&workspace::CycleRightDock, cx).into_any_element()
                                 }
                             }
                         },

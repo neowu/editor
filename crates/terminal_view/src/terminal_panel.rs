@@ -80,7 +80,11 @@ actions!(
         /// Toggles the terminal panel.
         Toggle,
         /// Toggles focus on the terminal panel.
-        ToggleFocus
+        ToggleFocus,
+        /// Shows a shell terminal (not task output) in the terminal panel,
+        /// opening one if there is none, or hides the panel when a shell is
+        /// already shown.
+        ToggleShell
     ]
 );
 
@@ -93,6 +97,7 @@ pub fn init(cx: &mut App) {
                 workspace.toggle_panel_focus::<TerminalPanel>(window, cx);
             }
         });
+        workspace.register_action(TerminalPanel::toggle_shell);
         workspace.register_action(|workspace, _: &Toggle, window, cx| {
             if is_enabled_in_workspace(workspace, cx) && !workspace.toggle_panel_focus::<TerminalPanel>(window, cx) {
                 workspace.close_panel::<TerminalPanel>(window, cx);
@@ -276,6 +281,63 @@ impl TerminalPanel {
                 .ok()
                 .flatten()
         })
+    }
+
+    fn toggle_shell(workspace: &mut Workspace, _: &ToggleShell, window: &mut Window, cx: &mut Context<Workspace>) {
+        if !workspace.mode().has_docks() || !is_enabled_in_workspace(workspace, cx) {
+            return;
+        }
+        let Some(terminal_panel) = workspace.panel::<Self>(cx) else {
+            return;
+        };
+        let bottom_dock = workspace.dock_at_position(DockPosition::Bottom).read(cx);
+        let visible = workspace.is_dock_visible(DockPosition::Bottom, cx)
+            && bottom_dock.visible_panel().is_some_and(|panel| panel.panel_id() == terminal_panel.entity_id());
+
+        let panel = terminal_panel.read(cx);
+        let panes: Vec<Entity<Pane>> = panel.center.panes().into_iter().cloned().collect();
+        let active_pane_index = panes.iter().position(|pane| *pane == panel.active_pane).unwrap_or(0);
+        let pane_shells: Vec<PaneShells> = panes
+            .iter()
+            .map(|pane| {
+                let pane = pane.read(cx);
+                PaneShells {
+                    active_item: (pane.items_len() > 0).then(|| pane.active_item_index()),
+                    shells: pane
+                        .items()
+                        .map(|item| {
+                            item.act_as::<TerminalView>(cx)
+                                .is_some_and(|view| view.read(cx).terminal().read(cx).task().is_none())
+                        })
+                        .collect(),
+                }
+            })
+            .collect();
+        let has_no_terminals = panel.has_no_terminals(cx);
+
+        match shell_toggle_target(visible, active_pane_index, &pane_shells) {
+            ShellToggleTarget::Close => workspace.toggle_dock(DockPosition::Bottom, window, cx),
+            ShellToggleTarget::Show { pane, item } => {
+                if !visible {
+                    workspace.toggle_dock(DockPosition::Bottom, window, cx);
+                }
+                panes[pane].update(cx, |pane, cx| pane.activate_item(item, true, true, window, cx));
+            }
+            ShellToggleTarget::New => {
+                if !visible {
+                    workspace.toggle_dock(DockPosition::Bottom, window, cx);
+                }
+                // Opening an empty panel already starts a shell.
+                if visible || !has_no_terminals {
+                    let working_directory = default_working_directory(workspace, cx);
+                    terminal_panel
+                        .update(cx, |panel, cx| {
+                            panel.add_terminal_shell(false, working_directory, RevealStrategy::Always, window, cx)
+                        })
+                        .detach_and_log_err(cx);
+                }
+            }
+        }
     }
 
     pub fn open_terminal(
@@ -1128,5 +1190,77 @@ impl workspace::TerminalProvider for TerminalProvider {
                 Err(e) => Some(Err(e)),
             }
         })
+    }
+}
+
+/// The shell terminals among a terminal pane's items, for `ToggleShell`.
+struct PaneShells {
+    active_item: Option<usize>,
+    /// Per item: whether it is a shell terminal, not task output or another item.
+    shells: Vec<bool>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ShellToggleTarget {
+    Close,
+    Show { pane: usize, item: usize },
+    New,
+}
+
+/// What `ToggleShell` does: close the panel when a shell is in front,
+/// otherwise bring a shell to the front, preferring the active pane's active
+/// item, then the active pane, then the other panes, else open a new shell.
+fn shell_toggle_target(visible: bool, active_pane: usize, panes: &[PaneShells]) -> ShellToggleTarget {
+    let is_shell = |pane: usize, item: usize| panes.get(pane).is_some_and(|p| p.shells.get(item) == Some(&true));
+    if let Some(item) = panes.get(active_pane).and_then(|pane| pane.active_item)
+        && is_shell(active_pane, item)
+    {
+        return if visible { ShellToggleTarget::Close } else { ShellToggleTarget::Show { pane: active_pane, item } };
+    }
+    std::iter::once(active_pane)
+        .chain((0..panes.len()).filter(|pane| *pane != active_pane))
+        .find_map(|pane| {
+            let item = panes.get(pane)?.shells.iter().position(|shell| *shell)?;
+            Some(ShellToggleTarget::Show { pane, item })
+        })
+        .unwrap_or(ShellToggleTarget::New)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PaneShells;
+    use super::ShellToggleTarget;
+    use super::shell_toggle_target;
+
+    fn pane(active_item: Option<usize>, shells: &[bool]) -> PaneShells {
+        PaneShells { active_item, shells: shells.to_vec() }
+    }
+
+    #[test]
+    fn test_shell_toggle_target() {
+        // A shell in front: close when visible, just show when hidden.
+        assert_eq!(shell_toggle_target(true, 0, &[pane(Some(0), &[true])]), ShellToggleTarget::Close);
+        assert_eq!(
+            shell_toggle_target(false, 0, &[pane(Some(0), &[true])]),
+            ShellToggleTarget::Show { pane: 0, item: 0 }
+        );
+        // Task output in front: switch to a shell in the same pane, visible or not.
+        assert_eq!(
+            shell_toggle_target(true, 0, &[pane(Some(1), &[true, false])]),
+            ShellToggleTarget::Show { pane: 0, item: 0 }
+        );
+        assert_eq!(
+            shell_toggle_target(false, 0, &[pane(Some(1), &[true, false])]),
+            ShellToggleTarget::Show { pane: 0, item: 0 }
+        );
+        // The active pane has no shell: look in the other panes.
+        assert_eq!(
+            shell_toggle_target(true, 1, &[pane(Some(0), &[false, true]), pane(Some(0), &[false])]),
+            ShellToggleTarget::Show { pane: 0, item: 1 }
+        );
+        // No shell anywhere, or no items at all: open a new one.
+        assert_eq!(shell_toggle_target(true, 0, &[pane(Some(0), &[false])]), ShellToggleTarget::New);
+        assert_eq!(shell_toggle_target(false, 0, &[pane(None, &[])]), ShellToggleTarget::New);
+        assert_eq!(shell_toggle_target(false, 0, &[]), ShellToggleTarget::New);
     }
 }

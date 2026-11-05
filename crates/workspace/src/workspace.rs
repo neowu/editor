@@ -54,6 +54,7 @@ pub use dock::Panel;
 use dock::PanelButtons;
 use dock::PanelHandle;
 use dock::RESIZE_HANDLE_SIZE;
+use dock::next_dock_cycle_panel;
 use futures::Future;
 use futures::FutureExt;
 use futures::channel::oneshot;
@@ -258,6 +259,10 @@ actions!(
         AddFolderToProject,
         /// Clears all notifications.
         ClearAllNotifications,
+        /// Rotates the left dock through its panels, then closes it.
+        CycleLeftDock,
+        /// Rotates the right dock through its panels, then closes it.
+        CycleRightDock,
         /// Clears all navigation history, including forward/backward navigation, recently opened files, and recently closed tabs. **This action is irreversible**.
         ClearNavigationHistory,
         /// Closes the active dock.
@@ -2840,6 +2845,12 @@ impl Workspace {
         self.dock_at_position(position).read(cx).is_open()
     }
 
+    /// Whether the dock is open and not covered by another zoomed view.
+    pub fn is_dock_visible(&self, position: DockPosition, cx: &App) -> bool {
+        self.dock_at_position(position).read(cx).is_open()
+            && !hidden_by_zoom(self.zoomed.is_some(), self.zoomed_position, position)
+    }
+
     pub fn toggle_dock(&mut self, dock_side: DockPosition, window: &mut Window, cx: &mut Context<Self>) {
         if !self.mode.has_docks() {
             return;
@@ -2847,8 +2858,7 @@ impl Workspace {
         let mut focus_center = false;
         let mut reveal_dock = false;
 
-        let other_is_zoomed = self.zoomed.is_some() && self.zoomed_position != Some(dock_side);
-        let was_visible = self.is_dock_at_position_open(dock_side, cx) && !other_is_zoomed;
+        let was_visible = self.is_dock_visible(dock_side, cx);
 
         if was_visible {
             self.save_open_dock_positions(cx);
@@ -2888,6 +2898,34 @@ impl Workspace {
 
         cx.notify();
         self.serialize_workspace(window, cx);
+    }
+
+    /// Shows the dock's next enabled panel, starting from the first when the
+    /// dock is hidden, and closes the dock after the last one.
+    pub fn cycle_dock(&mut self, dock_side: DockPosition, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.mode.has_docks() {
+            return;
+        }
+        let dock = self.dock_at_position(dock_side).clone();
+        let visible_index = if self.is_dock_visible(dock_side, cx) { dock.read(cx).active_panel_index() } else { None };
+        let enabled = dock.read(cx).panels_enabled(cx);
+
+        match next_dock_cycle_panel(&enabled, visible_index) {
+            Some(panel_ix) => {
+                dock.update(cx, |dock, cx| dock.activate_panel(panel_ix, window, cx));
+                if visible_index.is_none() {
+                    self.toggle_dock(dock_side, window, cx);
+                } else {
+                    if let Some(panel) = dock.read(cx).active_panel() {
+                        window.focus(&panel.activation_focus_handle(cx), cx);
+                    }
+                    cx.notify();
+                    self.serialize_workspace(window, cx);
+                }
+            }
+            None if visible_index.is_some() => self.toggle_dock(dock_side, window, cx),
+            None => {}
+        }
     }
 
     fn active_dock(&self, window: &Window, cx: &Context<Self>) -> Option<&Entity<Dock>> {
@@ -4806,6 +4844,12 @@ impl Workspace {
             .on_action(cx.listener(|workspace: &mut Workspace, _: &ToggleRightDock, window, cx| {
                 workspace.toggle_dock(DockPosition::Right, window, cx);
             }))
+            .on_action(cx.listener(|workspace: &mut Workspace, _: &CycleLeftDock, window, cx| {
+                workspace.cycle_dock(DockPosition::Left, window, cx);
+            }))
+            .on_action(cx.listener(|workspace: &mut Workspace, _: &CycleRightDock, window, cx| {
+                workspace.cycle_dock(DockPosition::Right, window, cx);
+            }))
             .on_action(cx.listener(|workspace: &mut Workspace, _: &ToggleBottomDock, window, cx| {
                 workspace.toggle_dock(DockPosition::Bottom, window, cx);
             }))
@@ -6276,9 +6320,25 @@ pub fn with_active_or_new_workspace(
     }
 }
 
+/// A dock is hidden when something other than that dock is zoomed.
+fn hidden_by_zoom(zoomed: bool, zoomed_position: Option<DockPosition>, position: DockPosition) -> bool {
+    zoomed && zoomed_position != Some(position)
+}
+
 #[cfg(test)]
 mod tests {
     use super::WorkspaceMode;
+
+    #[test]
+    fn test_hidden_by_zoom() {
+        use super::DockPosition;
+        use super::hidden_by_zoom;
+
+        assert!(!hidden_by_zoom(false, None, DockPosition::Bottom));
+        assert!(hidden_by_zoom(true, None, DockPosition::Bottom));
+        assert!(hidden_by_zoom(true, Some(DockPosition::Left), DockPosition::Bottom));
+        assert!(!hidden_by_zoom(true, Some(DockPosition::Bottom), DockPosition::Bottom));
+    }
 
     #[test]
     fn test_status_bar_shown() {

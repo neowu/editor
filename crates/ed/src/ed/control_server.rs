@@ -22,6 +22,7 @@ use gpui::Bounds;
 use gpui::CursorHideMode;
 use gpui::ElementId;
 use gpui::Entity;
+use gpui::Focusable as _;
 use gpui::Keystroke;
 use gpui::Modifiers;
 use gpui::MouseButton;
@@ -47,6 +48,7 @@ use util::ResultExt as _;
 use workspace::Pane;
 use workspace::Workspace;
 use workspace::WorkspaceMode;
+use workspace::dock::DockPosition;
 
 const SETTLE_TIMEOUT: Duration = Duration::from_secs(1);
 const SETTLE_TICK: Duration = Duration::from_millis(16);
@@ -451,6 +453,19 @@ fn state(window: &Window, cx: &mut App) -> control::State {
     let panes = workspace.panes().iter().map(|pane| pane_state(pane, workspace.active_pane())).collect();
     let git_history_panes =
         workspace.git_history_panes().into_iter().map(|pane| pane_state(pane, workspace.git_history_pane())).collect();
+    let docks = workspace
+        .all_docks()
+        .into_iter()
+        .map(|dock_entity| {
+            let dock = dock_entity.read(cx);
+            control::DockState {
+                position: dock_position_name(dock.position()).to_string(),
+                open: dock.is_open(),
+                visible_panel: dock.visible_panel().map(|panel| panel.persistent_name().to_string()),
+                has_focus: dock_entity.focus_handle(cx).contains_focused(window, cx),
+            }
+        })
+        .collect();
     let mode = match workspace.mode() {
         WorkspaceMode::Editor => "editor",
         WorkspaceMode::GitHistory => "git_history",
@@ -508,8 +523,31 @@ fn state(window: &Window, cx: &mut App) -> control::State {
             mode,
             panes,
             git_history_panes,
+            docks,
             active_editor,
             language_servers,
         }),
+    }
+}
+
+const fn dock_position_name(position: DockPosition) -> &'static str {
+    match position {
+        DockPosition::Left => "left",
+        DockPosition::Bottom => "bottom",
+        DockPosition::Right => "right",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use workspace::dock::DockPosition;
+
+    use super::dock_position_name;
+
+    #[test]
+    fn test_dock_position_name() {
+        assert_eq!(dock_position_name(DockPosition::Left), "left");
+        assert_eq!(dock_position_name(DockPosition::Bottom), "bottom");
+        assert_eq!(dock_position_name(DockPosition::Right), "right");
     }
 }

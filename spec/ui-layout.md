@@ -202,8 +202,24 @@ because it hurt readability; an opaque window is also cheaper to composite.
 - Actions act only in the mode they belong to; in other modes they are ignored
   rather than switching modes, so switching is always explicit (`cmd-1`,
   `cmd-2`). Docks belong to Editor mode: toggling, opening, closing, focusing
-  or resizing docks and panels (`cmd-b`, `cmd-r`, `cmd-j`, `` ctrl-` ``,
-  `cmd-shift-e`, …) does nothing in Git History.
+  or resizing docks and panels (`cmd-b`, `cmd-r`, `cmd-j`, …)
+  does nothing in Git History.
+- One key per dock, no per-panel shortcuts (the panel `ToggleFocus` actions
+  stay in the command palette and View menu):
+  - `cmd-b` / `cmd-r` (`workspace::CycleLeftDock` / `CycleRightDock`) rotate
+    the dock: hidden → first enabled panel → next enabled panel → … → hidden
+    (left: project → git → hidden; right: outline → hidden). The rotation
+    follows what is visible, not focus: a hidden dock always starts at its
+    first panel, and a press on an open dock advances even when focus is in
+    the editor. The shown panel takes focus; closing returns focus to the
+    center only if the dock had it. A dock hidden behind another zoomed view
+    counts as hidden.
+  - `cmd-j` (`terminal_panel::ToggleShell`) is about shell terminals, not
+    task output (tasks run as terminal tabs in the same panel). With a shell
+    in front of a visible panel it hides the panel; otherwise (hidden, or task
+    output in front) it shows and focuses a shell: the active tab if it is
+    one, else the first shell in the active terminal pane, then in the other
+    panes, else a new shell.
 - Zoom (`workspace::ToggleZoom`, `` cmd-` ``, also `shift-escape`) expands the
   focused pane. In the terminal dock that is the focused terminal pane alone,
   not every split, as zooming an editor pane hides the other panes.
