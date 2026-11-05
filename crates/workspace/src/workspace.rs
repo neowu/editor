@@ -5598,22 +5598,22 @@ pub async fn restore_workspace(
     Ok(window_handle)
 }
 
-/// Bounds every new window opens with on the display `display_id`: the
-/// environment override, else maximized. Windows don't remember their bounds.
+/// Bounds every new window opens with on the display `display_id` (the
+/// primary display when `None`): the environment override, else the
+/// display's whole visible area. Sized directly rather than zoomed, since
+/// macOS zooms a not-yet-shown window against the wrong screen. Windows don't
+/// remember their bounds.
 pub fn new_window_bounds(display_id: Option<DisplayId>, cx: &App) -> WindowBounds {
-    window_bounds_or_maximized(window_bounds_env_override(), || Bounds::centered(display_id, DEFAULT_WINDOW_SIZE, cx))
+    let display = display_id.and_then(|id| cx.find_display(id)).or_else(|| cx.primary_display());
+    WindowBounds::Windowed(window_bounds_or_fill(
+        window_bounds_env_override(),
+        display.map(|display| display.visible_bounds()),
+    ))
 }
 
-/// `env_override` as a windowed window, else maximized, restoring to
-/// `unmaximized` bounds.
-fn window_bounds_or_maximized(
-    env_override: Option<Bounds<Pixels>>,
-    unmaximized: impl FnOnce() -> Bounds<Pixels>,
-) -> WindowBounds {
-    match env_override {
-        Some(bounds) => WindowBounds::Windowed(bounds),
-        None => WindowBounds::Maximized(unmaximized()),
-    }
+/// `env_override`, else the display's `visible` area, else the default size.
+fn window_bounds_or_fill(env_override: Option<Bounds<Pixels>>, visible: Option<Bounds<Pixels>>) -> Bounds<Pixels> {
+    env_override.or(visible).unwrap_or_else(|| Bounds::new(Point::default(), DEFAULT_WINDOW_SIZE))
 }
 
 actions!(
@@ -6268,17 +6268,18 @@ mod tests {
     }
 
     #[test]
-    fn test_window_bounds_or_maximized() {
+    fn test_window_bounds_or_fill() {
         use gpui::Bounds;
-        use gpui::WindowBounds;
+        use gpui::DEFAULT_WINDOW_SIZE;
         use gpui::point;
         use gpui::px;
         use gpui::size;
 
         let env = Bounds::new(point(px(1.), px(2.)), size(px(300.), px(400.)));
-        let unmaximized = Bounds::new(point(px(0.), px(0.)), size(px(800.), px(600.)));
-        assert_eq!(super::window_bounds_or_maximized(Some(env), || unmaximized), WindowBounds::Windowed(env));
-        assert_eq!(super::window_bounds_or_maximized(None, || unmaximized), WindowBounds::Maximized(unmaximized));
+        let visible = Bounds::new(point(px(0.), px(25.)), size(px(800.), px(575.)));
+        assert_eq!(super::window_bounds_or_fill(Some(env), Some(visible)), env);
+        assert_eq!(super::window_bounds_or_fill(None, Some(visible)), visible);
+        assert_eq!(super::window_bounds_or_fill(None, None).size, DEFAULT_WINDOW_SIZE);
     }
 
     #[test]

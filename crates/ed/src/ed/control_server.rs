@@ -411,9 +411,11 @@ const fn rect(bounds: Bounds<Pixels>) -> control::Rect {
 
 fn state(window: &Window, cx: &mut App) -> control::State {
     let window_id = window.window_handle().window_id().as_u64();
+    let bounds = rect(window.bounds());
+    let display_visible_bounds = window.display(cx).map(|display| rect(display.visible_bounds()));
     let workspace = window.root::<Workspace>().flatten();
     let Some(workspace) = workspace else {
-        return control::State { window: window_id, workspace: None };
+        return control::State { window: window_id, bounds, display_visible_bounds, workspace: None };
     };
 
     let focused_pane = workspace.read(cx).focused_pane(window, cx);
@@ -494,6 +496,8 @@ fn state(window: &Window, cx: &mut App) -> control::State {
 
     control::State {
         window: window_id,
+        bounds,
+        display_visible_bounds,
         workspace: Some(control::WorkspaceState {
             roots,
             mode,

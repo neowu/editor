@@ -57,7 +57,11 @@ migrator, or Vim/Helix mode.
   saves it instead of prompting. Reopening a file in the same pane restores
   its selections, folds and scroll position.
 - Not persisted: panel sizes, window bounds (every new window, restored
-  ones included, opens maximized so all windows match), dock layout for new
+  ones included, is created filling the visible area of its display so all
+  windows match; not zoomed, since macOS zooms a not-yet-shown window against
+  the wrong screen. The display is ed's frontmost window's, which works even
+  when ed isn't the active app, else the screen the user is on (macOS
+  `NSScreen.mainScreen`, gpui `App::main_display`)), dock layout for new
   windows, native (macOS) window state, the Text Finder's last query and
   filters, git panel commit drafts/signoff/commit-editor collapse, outline panel
   state, and the registry of git worktrees ed created.

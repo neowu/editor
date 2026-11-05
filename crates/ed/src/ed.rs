@@ -7,6 +7,7 @@ mod open_listener;
 
 use std::borrow::Cow;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -36,6 +37,7 @@ use gpui::Image;
 use gpui::ImageFormat;
 use gpui::ParentElement;
 use gpui::PathPromptOptions;
+use gpui::PlatformDisplay;
 use gpui::SharedString;
 use gpui::Size;
 use gpui::Task;
@@ -132,8 +134,10 @@ pub fn init(cx: &mut App) {
 }
 
 pub fn build_window_options(display_uuid: Option<Uuid>, cx: &mut App) -> WindowOptions {
-    let display =
-        display_uuid.and_then(|uuid| cx.displays().into_iter().find(|display| display.uuid().ok() == Some(uuid)));
+    let display = display_uuid
+        .and_then(|uuid| cx.displays().into_iter().find(|display| display.uuid().ok() == Some(uuid)))
+        .or_else(|| frontmost_window_display(cx))
+        .or_else(|| cx.main_display());
 
     WindowOptions {
         titlebar: Some(TitlebarOptions {
@@ -160,6 +164,13 @@ pub fn build_window_options(display_uuid: Option<Uuid>, cx: &mut App) -> WindowO
         window_min_size: Some(gpui::Size { width: px(360.0), height: px(240.0) }),
         ..Default::default()
     }
+}
+
+/// The display of ed's frontmost window. Unlike the active window, this
+/// doesn't need ed to be the active app.
+fn frontmost_window_display(cx: &mut App) -> Option<Rc<dyn PlatformDisplay>> {
+    let window = cx.window_stack()?.into_iter().next()?;
+    window.update(cx, |_, window, cx| window.display(cx)).ok().flatten()
 }
 
 pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {

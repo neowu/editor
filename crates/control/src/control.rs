@@ -211,6 +211,10 @@ pub struct Text {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct State {
     pub window: u64,
+    /// The window's bounds, relative to its display.
+    pub bounds: Rect,
+    /// The visible area (without menu bar and Dock) of the window's display.
+    pub display_visible_bounds: Option<Rect>,
     pub workspace: Option<WorkspaceState>,
 }
 

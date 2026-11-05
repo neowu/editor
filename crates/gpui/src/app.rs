@@ -1094,6 +1094,12 @@ impl App {
         self.platform.primary_display()
     }
 
+    /// Returns the display the user is working on (see
+    /// [`Platform::main_display`]), falling back to the primary display.
+    pub fn main_display(&self) -> Option<Rc<dyn PlatformDisplay>> {
+        self.platform.main_display().or_else(|| self.primary_display())
+    }
+
     /// Returns the display with the given ID, if one exists.
     pub fn find_display(&self, id: DisplayId) -> Option<Rc<dyn PlatformDisplay>> {
         self.displays().iter().find(|display| display.id() == id).cloned()

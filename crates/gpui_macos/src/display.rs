@@ -53,7 +53,22 @@ impl MacDisplay {
         // https://chromium.googlesource.com/chromium/src/+/66.0.3359.158/ui/display/mac/screen_mac.mm#56
         unsafe {
             let screens: id = msg_send![class!(NSScreen), screens];
-            let screen = array_object_at(screens, 0);
+            Self::for_screen(array_object_at(screens, 0))
+        }
+    }
+
+    /// The screen the user is working on (`NSScreen.mainScreen`): the key
+    /// window's screen, else the one whose menu bar is active. `None` without
+    /// a window server connection.
+    pub fn main() -> Option<Self> {
+        unsafe {
+            let screen: id = msg_send![class!(NSScreen), mainScreen];
+            (screen != nil).then(|| Self::for_screen(screen))
+        }
+    }
+
+    unsafe fn for_screen(screen: id) -> Self {
+        unsafe {
             let device_description: id = msg_send![screen, deviceDescription];
             let screen_number_key: id = ns_string("NSScreenNumber");
             let screen_number: id = msg_send![device_description, objectForKey: screen_number_key];
@@ -191,5 +206,18 @@ impl MacDisplay {
             }
         }
         nil
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::MacDisplay;
+
+    #[test]
+    fn test_main_display_is_an_active_display() {
+        // `None` without a window server connection (e.g. headless CI).
+        if let Some(main) = MacDisplay::main() {
+            assert!(MacDisplay::all().any(|display| display.0 == main.0), "{}", main.0);
+        }
     }
 }

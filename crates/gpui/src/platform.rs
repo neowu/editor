@@ -245,6 +245,11 @@ pub trait Platform: 'static {
 
     fn displays(&self) -> Vec<Rc<dyn PlatformDisplay>>;
     fn primary_display(&self) -> Option<Rc<dyn PlatformDisplay>>;
+    /// The display the user is working on, where new windows open: on macOS
+    /// the key window's screen, else the one whose menu bar is active.
+    fn main_display(&self) -> Option<Rc<dyn PlatformDisplay>> {
+        self.primary_display()
+    }
     /// Registers the callback invoked when displays may have been added or
     /// removed, or a display's properties may have changed. GPUI rereads
     /// [`Self::displays`] to find out what changed, so calls may be spurious.

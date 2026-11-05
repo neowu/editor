@@ -37,8 +37,9 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
   inside it. Ids are the `/`-joined element id path without view and
   focus-handle ids, and component type paths are shortened to their last
   segment. Text too small to read (e.g. the minimap) is left out.
-- `state` reports workspace roots, panes and items, and the active editor's
-  text and selections. `screenshot` renders the last frame offscreen at device
+- `state` reports the window's bounds and its display's visible area,
+  workspace roots, panes and items, and the active editor's text and
+  selections. `screenshot` renders the last frame offscreen at device
   resolution, so the window may be hidden or covered.
 - `action`, `keys` (keymap syntax), `type`, `click`, `mouse`, and `scroll`
   inject input as the platform would. Each event is dispatched in its own

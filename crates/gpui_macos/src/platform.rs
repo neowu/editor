@@ -741,6 +741,10 @@ impl Platform for MacPlatform {
         Some(Rc::new(MacDisplay::primary()))
     }
 
+    fn main_display(&self) -> Option<Rc<dyn PlatformDisplay>> {
+        MacDisplay::main().map(|display| Rc::new(display) as Rc<_>)
+    }
+
     fn displays(&self) -> Vec<Rc<dyn PlatformDisplay>> {
         MacDisplay::all().map(|screen| Rc::new(screen) as Rc<_>).collect()
     }
