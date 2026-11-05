@@ -464,6 +464,16 @@ impl Render for BranchList {
     }
 }
 
+/// Select mode (e.g. the Git History branch filter) only picks an existing
+/// branch, so it never offers to switch or create one.
+const fn branch_list_placeholder(state: &PickerState, select_only: bool) -> &'static str {
+    match state {
+        PickerState::CreateRemote(_) => "Enter a name for this remote…",
+        _ if select_only => "Select a branch…",
+        PickerState::List | PickerState::NewRemote | PickerState::NewBranch => "Switch or type to create a branch…",
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 enum Entry {
     Branch { branch: Branch, positions: Vec<usize> },
@@ -1016,11 +1026,7 @@ impl PickerDelegate for BranchListDelegate {
     type ListItem = AnyElement;
 
     fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> Arc<str> {
-        match self.state {
-            PickerState::List | PickerState::NewRemote | PickerState::NewBranch => "Switch or type to create a branch…",
-            PickerState::CreateRemote(_) => "Enter a name for this remote…",
-        }
-        .into()
+        branch_list_placeholder(&self.state, self.is_select_only()).into()
     }
 
     fn no_matches_text(&self, _window: &mut Window, _cx: &mut App) -> Option<SharedString> {
@@ -1718,5 +1724,21 @@ impl PickerDelegate for BranchListDelegate {
             ),
             PickerState::NewRemote => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_branch_list_placeholder() {
+        assert_eq!(branch_list_placeholder(&PickerState::List, true), "Select a branch…");
+        assert_eq!(branch_list_placeholder(&PickerState::List, false), "Switch or type to create a branch…");
+        assert_eq!(branch_list_placeholder(&PickerState::NewBranch, false), "Switch or type to create a branch…");
+        assert_eq!(
+            branch_list_placeholder(&PickerState::CreateRemote("origin".into()), true),
+            "Enter a name for this remote…"
+        );
     }
 }

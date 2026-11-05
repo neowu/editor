@@ -242,7 +242,37 @@ view) offers:
 
 ## Git graph
 
-- The search row is hidden until opened with `cmd-f`, like buffer search.
+- A toolbar row sits above the graph (the commit sidebar only describes the
+  selected commit, so controls that change what the graph shows live here):
+  the branch filter on the left, Search and Refresh icon buttons on the right.
+- Branch filter (repository graph only, not file history): "All Branches" by
+  default; it opens the branch picker in select mode (local and remote
+  branches, "Select a branch…") and limits the graph to that branch's history
+  (`LogSource::Branch` with the full ref). While filtered the button shows the
+  branch name in the accent colour with a clear button next to it. The tab
+  stays the same permanent repository graph; search follows the filter. The
+  filter is session-only, is dropped when its branch disappears, and is
+  cleared when opening the graph at a specific commit (e.g. "Show in Git
+  History"), since that commit may not be on the branch.
+- Reloads (refs, HEAD, tags or stash changed, filter changed, Refresh) keep
+  the selected commit by sha, not by row, since new commits shift the rows;
+  the details sidebar stays up meanwhile. When it is gone (e.g. not on the
+  filtered branch) the newest commit is selected. This holds whether the
+  commits are read from git or taken from the repository's cache (switching
+  back to a source loaded before sends no load events), so a reload never
+  leaves Git History without a selection or sidebar.
+- When an automatic reload or Refresh brings in commits above the previous
+  newest one, an "N new commits" pill floats over the top of the list; it
+  selects the newest commit and goes away when clicked or when a new commit
+  is selected.
+- Refresh (`git_graph::Refresh`, `cmd-r` in the graph) is for changes the
+  file watcher misses, e.g. a repository on a virtiofs share in a VM opened
+  over SSH and committed to from the host: guest inotify never sees host
+  writes. It rescans the worktrees (on the remote host for remote projects,
+  like `workspace::ReloadProjectFiles`), then drops the cached commits and
+  reloads them. The button spins while commits load.
+- The search row is hidden until opened with `cmd-f` (or the Search button),
+  like buffer search.
   `escape` hides it and clears
   the matches and highlights; the query is kept and searched again on reopen.
   While hidden, the graph itself takes focus.

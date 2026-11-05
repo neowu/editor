@@ -88,12 +88,14 @@ use ui::HeaderResizeInfo;
 use ui::HighlightedLabel;
 use ui::ListItem;
 use ui::ListItemSpacing;
+use ui::PopoverMenu;
 use ui::RedistributableColumnsState;
 use ui::ScrollableHandle;
 use ui::Table;
 use ui::TableInteractionState;
 use ui::TableRenderContext;
 use ui::TableResizeBehavior;
+use ui::TintColor;
 use ui::Tooltip;
 use ui::bind_redistributable_columns;
 use ui::prelude::*;
@@ -102,6 +104,7 @@ use ui::redistribute_hidden_widths;
 use ui::render_redistributable_columns_resize_handles;
 use ui::render_table_header;
 use ui::table_row::TableRow;
+use util::ResultExt as _;
 use workspace::ItemNavHistory;
 use workspace::ModalView;
 use workspace::Workspace;
@@ -111,6 +114,7 @@ use workspace::item::ItemEvent;
 use workspace::item::ItemHandle;
 use workspace::item::TabTooltipContent;
 
+use crate::branch_picker;
 use crate::commit_context_menu::CommitContextMenuData;
 pub use crate::commit_context_menu::CopyCommitSha;
 pub use crate::commit_context_menu::CopyCommitTag;
@@ -310,6 +314,8 @@ actions!(
         ScrollDown,
         /// Toggles the selected commit's changed files between flat and tree views.
         ToggleChangedFilesView,
+        /// Rereads the repository's refs and reloads the commits.
+        Refresh,
     ]
 );
 
@@ -932,10 +938,44 @@ pub fn open_or_reuse_graph(
     if let Some(sha) = sha {
         cx.defer(move |cx| {
             git_graph.update(cx, |graph, cx| {
+                // The commit may not be on the filtered branch.
+                graph.set_branch_filter(None, cx);
                 graph.select_commit_by_sha(sha.as_str(), cx);
             });
         });
     }
+}
+
+/// The commits a graph of `log_source` loads: one branch's when the
+/// repository graph is filtered to it.
+fn graph_data_source(log_source: &LogSource, branch_filter: Option<&SharedString>) -> LogSource {
+    match branch_filter {
+        Some(ref_name) if is_repository_graph(log_source) => LogSource::Branch(ref_name.clone()),
+        _ => log_source.clone(),
+    }
+}
+
+/// The branch filter left after the branch list changed: dropped when its
+/// branch no longer exists.
+fn kept_branch_filter(
+    branch_filter: Option<SharedString>,
+    branches: &[git::repository::Branch],
+) -> Option<SharedString> {
+    branch_filter.filter(|ref_name| branches.iter().any(|branch| branch.ref_name == *ref_name))
+}
+
+/// A commit's row index, only once this graph has taken that row.
+fn loaded_index(index: Option<usize>, loaded_commit_count: usize) -> Option<usize> {
+    index.filter(|index| *index < loaded_commit_count)
+}
+
+fn new_commits_label(count: usize) -> String {
+    if count == 1 { "1 new commit".to_string() } else { format!("{count} new commits") }
+}
+
+/// The branch name shown for a filter ref, without `refs/heads/` or `refs/remotes/`.
+fn branch_filter_label(ref_name: &str) -> &str {
+    ref_name.strip_prefix("refs/heads/").or_else(|| ref_name.strip_prefix("refs/remotes/")).unwrap_or(ref_name)
 }
 
 /// Whether a graph of `log_source` is the repository-wide one, a permanent
@@ -1061,6 +1101,14 @@ pub struct GitGraph {
     repo_id: RepositoryId,
     pending_select_sha: Option<Oid>,
     nav_history: Option<ItemNavHistory>,
+    /// The branch ref (e.g. `refs/remotes/origin/main`) the repository graph is
+    /// limited to; `None` shows all branches.
+    branch_filter: Option<SharedString>,
+    /// The newest commit before a reload, to count the commits it brought in.
+    previous_newest_sha: Option<Oid>,
+    /// Commits a reload added above the previous newest one, shown as a pill.
+    new_commit_count: usize,
+    refreshing: Option<Task<()>>,
 }
 
 impl GitGraph {
@@ -1071,6 +1119,106 @@ impl GitGraph {
         self.search_state.state.next_state();
         self.context_menu = None;
         cx.emit(ItemEvent::Edit);
+        cx.notify();
+    }
+
+    /// The commits shown: the repository graph limited to `branch_filter`, or
+    /// the graph's own source.
+    fn data_source(&self) -> LogSource {
+        graph_data_source(&self.log_source, self.branch_filter.as_ref())
+    }
+
+    /// Reloads the commits after the repository changed. The selection follows
+    /// its commit, not its row, since new commits shift the rows; the newest
+    /// commit is remembered to count the ones the reload brings in.
+    fn reload(&mut self, cx: &mut Context<Self>) {
+        let selected_sha =
+            self.selected_entry_idx.and_then(|idx| self.graph_data.commits.get(idx)).map(|commit| commit.data.sha);
+        self.pending_select_sha = selected_sha.or(self.pending_select_sha);
+        self.previous_newest_sha =
+            self.graph_data.commits.first().map(|commit| commit.data.sha).or(self.previous_newest_sha);
+        self.new_commit_count = 0;
+        self.selected_entry_idx = None;
+        self.invalidate_state(cx);
+    }
+
+    /// Limits the repository graph to one branch, or shows all with `None`,
+    /// keeping the selected commit when the branch has it.
+    fn set_branch_filter(&mut self, ref_name: Option<SharedString>, cx: &mut Context<Self>) {
+        if self.branch_filter == ref_name {
+            return;
+        }
+        self.branch_filter = ref_name;
+        self.reload(cx);
+        self.previous_newest_sha = None;
+    }
+
+    /// Rescans the project (on the remote host for remote projects) and then
+    /// reloads the commits from git, for changes the file watcher missed, as
+    /// on a virtiofs mount inside a VM.
+    fn refresh(&mut self, _: &Refresh, _window: &mut Window, cx: &mut Context<Self>) {
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+        let rescan = workspace.read(cx).project().read(cx).worktree_store().read(cx).rescan_worktrees(cx);
+        self.refreshing = Some(cx.spawn(async move |this, cx| {
+            rescan.await.log_err();
+            this.update(cx, |this, cx| {
+                this.refreshing = None;
+                if let Some(repository) = this.get_repository(cx) {
+                    let data_source = this.data_source();
+                    let log_order = this.log_order;
+                    repository.update(cx, |repository, _| repository.forget_graph_data(&data_source, log_order));
+                }
+                this.reload(cx);
+            })
+            .ok();
+        }));
+        cx.notify();
+    }
+
+    /// Counts the commits a reload added above the previous newest commit,
+    /// once that commit is loaded.
+    fn count_new_commits(&mut self, repository: &Entity<Repository>, cx: &App) {
+        let Some(previous_newest_sha) = self.previous_newest_sha else {
+            return;
+        };
+        let index = repository
+            .read(cx)
+            .get_graph_data(self.data_source(), self.log_order)
+            .and_then(|data| data.commit_oid_to_index.get(&previous_newest_sha).copied());
+        if let Some(index) = index {
+            self.new_commit_count = index;
+            self.previous_newest_sha = None;
+        }
+    }
+
+    /// Commits taken from the repository's cache (e.g. after clearing the
+    /// branch filter) arrive without load events, so the commit waiting to be
+    /// selected, or else the newest one, is selected here.
+    fn select_after_cached_load(&mut self, is_loading: bool, cx: &mut Context<Self>) {
+        if let Some(oid) = self.pending_select_sha
+            && let Some(repository) = self.get_repository(cx)
+        {
+            let index = repository
+                .read(cx)
+                .get_graph_data(self.data_source(), self.log_order)
+                .and_then(|data| data.commit_oid_to_index.get(&oid).copied());
+            if let Some(index) = loaded_index(index, self.graph_data.commits.len()) {
+                self.pending_select_sha = None;
+                self.select_entry(index, ScrollStrategy::Center, cx);
+            } else if !is_loading {
+                self.pending_select_sha = None;
+            }
+        }
+        self.select_newest_if_unselected(cx);
+    }
+
+    /// Scrolls to and selects the newest commit, dismissing the new commits pill.
+    fn show_new_commits(&mut self, cx: &mut Context<Self>) {
+        self.new_commit_count = 0;
+        self.pending_select_sha = None;
+        self.select_entry(0, ScrollStrategy::Top, cx);
         cx.notify();
     }
 
@@ -1289,6 +1437,10 @@ impl GitGraph {
             repo_id,
             pending_select_sha: None,
             nav_history: None,
+            branch_filter: None,
+            previous_newest_sha: None,
+            new_commit_count: 0,
+            refreshing: None,
         };
 
         this.fetch_initial_graph_data(cx);
@@ -1298,10 +1450,12 @@ impl GitGraph {
     fn on_repository_event(&mut self, repository: Entity<Repository>, event: &RepositoryEvent, cx: &mut Context<Self>) {
         match event {
             RepositoryEvent::GraphEvent((source, order), event)
-                if source == &self.log_source && order == &self.log_order =>
+                if *source == self.data_source() && order == &self.log_order =>
             {
                 match event {
                     GitGraphEvent::FullyLoaded => {
+                        self.count_new_commits(&repository, cx);
+                        self.previous_newest_sha = None;
                         if let Some(pending_sha_index) = self.pending_select_sha.take().and_then(|oid| {
                             repository
                                 .read(cx)
@@ -1344,6 +1498,7 @@ impl GitGraph {
                             self.select_entry(pending_selection_index, ScrollStrategy::Nearest, cx);
                             self.pending_select_sha.take();
                         }
+                        self.count_new_commits(&repository, cx);
                         self.select_newest_if_unselected(cx);
 
                         cx.notify();
@@ -1351,23 +1506,22 @@ impl GitGraph {
                 }
             }
             RepositoryEvent::TagsChanged => {
-                self.pending_select_sha = None;
-                self.invalidate_state(cx);
+                self.reload(cx);
             }
             RepositoryEvent::HeadChanged | RepositoryEvent::BranchListChanged => {
                 // Only invalidate if we scanned atleast once,
                 // meaning we are not inside the initial repo loading state
                 // NOTE: this fixes an loading performance regression
                 if repository.read(cx).scan_id > 1 {
-                    self.pending_select_sha = None;
-                    self.invalidate_state(cx);
+                    self.branch_filter =
+                        kept_branch_filter(self.branch_filter.take(), &repository.read(cx).branch_list);
+                    self.reload(cx);
                 }
             }
-            RepositoryEvent::StashEntriesChanged if self.log_source == LogSource::All => {
+            RepositoryEvent::StashEntriesChanged if self.data_source() == LogSource::All => {
                 // Stash entries initial's scan id is 2, so we don't want to invalidate the graph before that
                 if repository.read(cx).scan_id > 2 {
-                    self.pending_select_sha = None;
-                    self.invalidate_state(cx);
+                    self.reload(cx);
                 }
             }
             RepositoryEvent::GraphEvent(_, _) => {}
@@ -1381,7 +1535,7 @@ impl GitGraph {
     fn fetch_initial_graph_data(&mut self, cx: &mut Context<Self>) {
         if let Some(repository) = self.get_repository(cx) {
             repository.update(cx, |repository, cx| {
-                let commits = repository.graph_data(self.log_source.clone(), self.log_order, 0..usize::MAX, cx).commits;
+                let commits = repository.graph_data(self.data_source(), self.log_order, 0..usize::MAX, cx).commits;
                 self.graph_data.add_commits(commits);
             });
         }
@@ -1718,7 +1872,7 @@ impl GitGraph {
 
         repo.update(cx, |repo, cx| {
             repo.search_commits(
-                self.log_source.clone(),
+                self.data_source(),
                 SearchCommitArgs { query: query.clone(), case_sensitive: self.search_state.case_sensitive },
                 request_tx,
                 cx,
@@ -1827,6 +1981,9 @@ impl GitGraph {
             return;
         }
 
+        if idx < self.new_commit_count {
+            self.new_commit_count = 0;
+        }
         if self.selected_entry_idx.replace(idx).is_none() {
             cx.emit(ItemEvent::UpdateTab);
         }
@@ -1920,12 +2077,14 @@ impl GitGraph {
                 return;
             };
 
-            let Some(index) = selected_repository
+            let index = selected_repository
                 .read(cx)
-                .get_graph_data(this.log_source.clone(), this.log_order)
+                .get_graph_data(this.data_source(), this.log_order)
                 .and_then(|data| data.commit_oid_to_index.get(&oid))
-                .copied()
-            else {
+                .copied();
+            // The repository may know the commit before this graph took its row
+            // (e.g. right after a reload); select it once the row is here.
+            let Some(index) = loaded_index(index, this.graph_data.commits.len()) else {
                 this.pending_select_sha = Some(oid);
                 return;
             };
@@ -2296,6 +2455,134 @@ impl GitGraph {
                             ),
                     ),
             )
+    }
+
+    /// The row above the graph: the branch filter on the left (repository graph
+    /// only), search and refresh on the right.
+    fn render_toolbar(&self, is_loading: bool, cx: &Context<Self>) -> impl IntoElement {
+        let focus_handle = self.focus_handle.clone();
+        let search_shown = self.search_state.shown;
+
+        h_flex()
+            .w_full()
+            .px_1p5()
+            .py_1()
+            .gap_1()
+            .border_b_1()
+            .border_color(cx.theme().colors().border_variant)
+            .when(is_repository_graph(&self.log_source), |this| this.child(self.render_branch_filter(cx)))
+            .child(div().flex_1())
+            .child({
+                let focus_handle = focus_handle.clone();
+                IconButton::new("git-graph-search", IconName::MagnifyingGlass)
+                    .icon_size(IconSize::Small)
+                    .toggle_state(search_shown)
+                    .tooltip(move |_, cx| {
+                        Tooltip::for_action_in("Search Commits", &buffer_search::Deploy::find(), &focus_handle, cx)
+                    })
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        if search_shown {
+                            this.hide_search(window, cx);
+                        } else {
+                            this.show_search(window, cx);
+                        }
+                    }))
+            })
+            .child(if is_loading {
+                h_flex()
+                    .id("git-graph-refreshing")
+                    .size_6()
+                    .justify_center()
+                    .child(
+                        Icon::new(IconName::ArrowCircle)
+                            .size(IconSize::Small)
+                            .color(Color::Muted)
+                            .with_rotate_animation(2),
+                    )
+                    .tooltip(Tooltip::text("Loading Commits"))
+                    .into_any_element()
+            } else {
+                IconButton::new("git-graph-refresh", IconName::ArrowCircle)
+                    .icon_size(IconSize::Small)
+                    .tooltip(move |_, cx| Tooltip::for_action_in("Refresh", &Refresh, &focus_handle, cx))
+                    .on_click(cx.listener(|this, _, window, cx| this.refresh(&Refresh, window, cx)))
+                    .into_any_element()
+            })
+    }
+
+    /// The branch the repository graph is limited to, picked from the branch
+    /// list, with a button to show all branches again.
+    fn render_branch_filter(&self, cx: &Context<Self>) -> impl IntoElement {
+        let repository = self.get_repository(cx);
+        let workspace = self.workspace.clone();
+        let graph = cx.weak_entity();
+        let branch_filter = self.branch_filter.clone();
+        let label: SharedString = branch_filter
+            .as_deref()
+            .map_or_else(|| "All Branches".into(), |ref_name| branch_filter_label(ref_name).to_string().into());
+
+        h_flex()
+            .gap_0p5()
+            .child(
+                PopoverMenu::new("git-graph-branch-filter-menu")
+                    .menu({
+                        let branch_filter = branch_filter.clone();
+                        move |window, cx| {
+                            let graph = graph.clone();
+                            let on_select =
+                                Arc::new(move |branch: git::repository::Branch, _: &mut Window, cx: &mut App| {
+                                    graph
+                                        .update(cx, |graph, cx| {
+                                            graph.set_branch_filter(Some(branch.ref_name.clone()), cx)
+                                        })
+                                        .ok();
+                                });
+                            Some(branch_picker::select_popover(
+                                workspace.clone(),
+                                repository.clone(),
+                                branch_filter.clone(),
+                                on_select,
+                                window,
+                                cx,
+                            ))
+                        }
+                    })
+                    .trigger_with_tooltip(
+                        Button::new("git-graph-branch-filter", label)
+                            .label_size(LabelSize::Small)
+                            .when(branch_filter.is_some(), |this| this.color(Color::Accent))
+                            .start_icon(
+                                Icon::new(IconName::GitBranch)
+                                    .size(IconSize::Small)
+                                    .color(if branch_filter.is_some() { Color::Accent } else { Color::Muted }),
+                            )
+                            .end_icon(Icon::new(IconName::ChevronDown).size(IconSize::XSmall).color(Color::Muted)),
+                        Tooltip::text("Filter by Branch"),
+                    ),
+            )
+            .when(branch_filter.is_some(), |this| {
+                this.child(
+                    IconButton::new("git-graph-clear-branch-filter", IconName::Close)
+                        .icon_size(IconSize::XSmall)
+                        .tooltip(Tooltip::text("Show All Branches"))
+                        .on_click(cx.listener(|this, _, _, cx| this.set_branch_filter(None, cx))),
+                )
+            })
+    }
+
+    /// Floats over the top of the commits after a reload brought in new ones;
+    /// clicking it selects the newest commit.
+    fn render_new_commits_pill(&self, cx: &Context<Self>) -> impl IntoElement {
+        let count = self.new_commit_count;
+        let label = new_commits_label(count);
+
+        h_flex().absolute().top_9().left_0().right_0().justify_center().child(
+            Button::new("git-graph-new-commits", label)
+                .label_size(LabelSize::Small)
+                .style(ButtonStyle::Tinted(TintColor::Accent))
+                .start_icon(Icon::new(IconName::ArrowUp).size(IconSize::XSmall))
+                .on_click(cx.listener(|this, _, _, cx| this.show_new_commits(cx))),
+        )
     }
 
     fn render_loading_spinner(&self, cx: &App) -> AnyElement {
@@ -2808,7 +3095,7 @@ impl GitGraph {
                     .get_repository(cx)
                     .map(|repository| {
                         repository.update(cx, |repository, cx| {
-                            repository.graph_data(self.log_source.clone(), self.log_order, 0..0, cx).is_loading
+                            repository.graph_data(self.data_source(), self.log_order, 0..0, cx).is_loading
                         })
                     })
                     .unwrap_or(false);
@@ -2820,13 +3107,14 @@ impl GitGraph {
                     repository.update(cx, |repository, cx| {
                         // Start loading the graph data if we haven't started already
                         let GraphDataResponse { commits, is_loading, error: _ } =
-                            repository.graph_data(self.log_source.clone(), self.log_order, 0..usize::MAX, cx);
+                            repository.graph_data(self.data_source(), self.log_order, 0..usize::MAX, cx);
                         self.graph_data.add_commits(commits);
                         (commits.len(), is_loading)
                     })
                 } else {
                     (0, false)
                 };
+                self.select_after_cached_load(is_loading, cx);
 
                 (commit_count, is_loading)
             }
@@ -2845,7 +3133,7 @@ impl Render for GitGraph {
         let (commit_count, is_loading) = self.commit_count_and_loading_state(cx);
 
         let error = self.get_repository(cx).and_then(|repo| {
-            repo.read(cx).get_graph_data(self.log_source.clone(), self.log_order).and_then(|data| data.error.clone())
+            repo.read(cx).get_graph_data(self.data_source(), self.log_order).and_then(|data| data.error.clone())
         });
 
         let content = if commit_count == 0 {
@@ -3123,6 +3411,7 @@ impl Render for GitGraph {
             .on_action(cx.listener(Self::copy_selected_commit_sha))
             .on_action(cx.listener(Self::copy_selected_commit_tag))
             .on_action(cx.listener(|this, _: &FocusSearch, window, cx| this.show_search(window, cx)))
+            .on_action(cx.listener(Self::refresh))
             .on_action(cx.listener(Self::select_first))
             .on_action(cx.listener(Self::select_prev))
             .on_action(cx.listener(Self::select_next))
@@ -3148,8 +3437,15 @@ impl Render for GitGraph {
             .child(
                 v_flex()
                     .size_full()
+                    .child(self.render_toolbar(is_loading || self.refreshing.is_some(), cx))
                     .when(self.search_state.shown, |this| this.child(self.render_search_bar(cx)))
-                    .child(div().flex_1().child(content)),
+                    .child(
+                        div()
+                            .relative()
+                            .flex_1()
+                            .child(content)
+                            .when(self.new_commit_count > 0, |this| this.child(self.render_new_commits_pill(cx))),
+                    ),
             )
             .children(self.context_menu.as_ref().map(|context_menu| {
                 deferred(
@@ -3183,8 +3479,10 @@ impl Focusable for GitGraph {
 impl Item for GitGraph {
     type Event = ItemEvent;
 
-    fn side_card(&self, _: &App) -> Option<AnyView> {
-        self.selected_entry_idx.is_some().then(|| self.commit_details.clone().into())
+    fn side_card(&self, cx: &App) -> Option<AnyView> {
+        // While a reload reselects the commit, keep showing its details.
+        let reselecting = self.pending_select_sha.is_some() && self.commit_details.read(cx).repository_id(cx).is_some();
+        (self.selected_entry_idx.is_some() || reselecting).then(|| self.commit_details.clone().into())
     }
 
     fn tab_icon(&self, _window: &Window, _cx: &App) -> Option<Icon> {
@@ -3270,6 +3568,52 @@ mod tests {
         assert_eq!(history_reveal_path(&LogSource::Path(path.clone())), Some(path));
         assert_eq!(history_reveal_path(&LogSource::All), None);
         assert_eq!(history_reveal_path(&LogSource::Branch("main".into())), None);
+    }
+
+    #[test]
+    fn test_graph_data_source() {
+        let main = SharedString::from("refs/remotes/origin/main");
+        let path = LogSource::Path(RepoPath::new("README.md").unwrap());
+        assert_eq!(graph_data_source(&LogSource::All, None), LogSource::All);
+        assert_eq!(graph_data_source(&LogSource::All, Some(&main)), LogSource::Branch(main.clone()));
+        assert_eq!(graph_data_source(&path, Some(&main)), path);
+        assert_eq!(graph_data_source(&path, None), path);
+    }
+
+    #[test]
+    fn test_branch_filter_label() {
+        assert_eq!(branch_filter_label("refs/heads/feat/table"), "feat/table");
+        assert_eq!(branch_filter_label("refs/remotes/origin/main"), "origin/main");
+        assert_eq!(branch_filter_label("main"), "main");
+    }
+
+    #[test]
+    fn test_kept_branch_filter() {
+        let branch = |ref_name: &str| git::repository::Branch {
+            is_head: false,
+            ref_name: ref_name.to_string().into(),
+            upstream: None,
+            most_recent_commit: None,
+        };
+        let branches = [branch("refs/heads/main"), branch("refs/remotes/origin/main")];
+        let origin_main = SharedString::from("refs/remotes/origin/main");
+        assert_eq!(kept_branch_filter(Some(origin_main.clone()), &branches), Some(origin_main));
+        assert_eq!(kept_branch_filter(Some("refs/heads/gone".into()), &branches), None);
+        assert_eq!(kept_branch_filter(None, &branches), None);
+    }
+
+    #[test]
+    fn test_loaded_index() {
+        assert_eq!(loaded_index(Some(2), 3), Some(2));
+        assert_eq!(loaded_index(Some(3), 3), None);
+        assert_eq!(loaded_index(Some(0), 0), None);
+        assert_eq!(loaded_index(None, 3), None);
+    }
+
+    #[test]
+    fn test_new_commits_label() {
+        assert_eq!(new_commits_label(1), "1 new commit");
+        assert_eq!(new_commits_label(3), "3 new commits");
     }
 
     #[test]

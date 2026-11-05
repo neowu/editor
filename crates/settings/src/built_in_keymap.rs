@@ -979,6 +979,7 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("tab", "git_graph::FocusNextTabStop"),
             KeyBindingSpec::new("shift-tab", "git_graph::FocusPreviousTabStop"),
             KeyBindingSpec::new("cmd-f", "buffer_search::Deploy"),
+            KeyBindingSpec::new("cmd-r", "git_graph::Refresh"),
         ],
     );
     add_bindings(

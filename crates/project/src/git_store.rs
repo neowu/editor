@@ -5513,6 +5513,12 @@ impl Repository {
         self.initial_graph_data.get(&(log_source, log_order))
     }
 
+    /// Drops the cached commits of one graph so the next request reads them
+    /// from git again.
+    pub fn forget_graph_data(&mut self, log_source: &LogSource, log_order: LogOrder) {
+        self.initial_graph_data.remove(&(log_source.clone(), log_order));
+    }
+
     pub fn search_commits(
         &mut self,
         log_source: LogSource,
