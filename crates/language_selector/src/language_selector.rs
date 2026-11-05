@@ -27,11 +27,9 @@ use language::Buffer;
 use language::LanguageMatcher;
 use language::LanguageName;
 use language::LanguageRegistry;
-use open_path_prompt::file_finder_settings::FileFinderSettings;
 use picker::Picker;
 use picker::PickerDelegate;
 use project::Project;
-use settings::Settings;
 use ui::HighlightedLabel;
 use ui::ListItem;
 use ui::ListItemSpacing;
@@ -157,23 +155,19 @@ impl LanguageSelectorDelegate {
     fn language_data_for_match(&self, mat: &StringMatch, cx: &App) -> (String, Option<Icon>) {
         let mut label = mat.string.clone();
         let buffer_language = self.buffer.read(cx).language();
-        let need_icon = FileFinderSettings::get_global(cx).file_icons;
 
         if let Some(buffer_language) =
             buffer_language.filter(|buffer_language| buffer_language.name().as_ref() == mat.string.as_str())
         {
             label.push_str(" (current)");
-            let icon = need_icon.then(|| self.language_icon(&buffer_language.config().matcher, cx)).flatten();
+            let icon = self.language_icon(&buffer_language.config().matcher, cx);
             (label, icon)
         } else {
-            let icon = need_icon
-                .then(|| {
-                    let language_name = LanguageName::new(mat.string.as_str());
-                    self.language_registry
-                        .available_language_for_name(language_name.as_ref())
-                        .and_then(|available_language| self.language_icon(available_language.matcher(), cx))
-                })
-                .flatten();
+            let language_name = LanguageName::new(mat.string.as_str());
+            let icon = self
+                .language_registry
+                .available_language_for_name(language_name.as_ref())
+                .and_then(|available_language| self.language_icon(available_language.matcher(), cx));
             (label, icon)
         }
     }

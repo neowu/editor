@@ -8,16 +8,13 @@ use gpui::div;
 use project::image_store::ImageFormat;
 use project::image_store::ImageMetadata;
 use project::image_store::RasterImageFormat;
-use settings::Settings;
 use ui::prelude::*;
 use util::size::format_file_size;
 use workspace::ItemHandle;
 use workspace::StatusItemView;
 use workspace::Workspace;
 
-use crate::ImageFileSizeUnit;
 use crate::ImageView;
-use crate::ImageViewerSettings;
 
 pub struct ImageInfo {
     metadata: Option<ImageMetadata>,
@@ -45,22 +42,15 @@ impl ImageInfo {
     }
 }
 
-fn format_image_size(size: u64, image_unit_type: ImageFileSizeUnit) -> String {
-    let use_decimal = matches!(image_unit_type, ImageFileSizeUnit::Decimal);
-    format_file_size(size, use_decimal)
-}
-
 impl Render for ImageInfo {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let settings = ImageViewerSettings::get_global(cx);
-
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         let Some(metadata) = self.metadata.as_ref() else {
             return div().hidden();
         };
 
         let mut components = Vec::new();
         components.push(format!("{}x{}", metadata.width, metadata.height));
-        components.push(format_image_size(metadata.file_size, settings.unit));
+        components.push(format_file_size(metadata.file_size, false));
 
         if let Some(colors) = metadata.colors {
             components.push(format!("{} channels, {} bits per pixel", colors.channels, colors.bits_per_pixel()));

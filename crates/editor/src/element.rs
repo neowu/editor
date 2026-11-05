@@ -101,10 +101,8 @@ use multi_buffer::MultiBufferRow;
 use multi_buffer::MultiBufferSnapshot;
 use multi_buffer::RowInfo;
 use multi_buffer::ToOffset;
-use project::project_settings::ProjectSettings;
 use settings::IndentGuideBackgroundColoring;
 use settings::IndentGuideColoring;
-use settings::Settings;
 use smallvec::SmallVec;
 use smallvec::smallvec;
 use sum_tree::Bias;
@@ -152,6 +150,7 @@ use crate::GutterDimensions;
 use crate::HalfPageDown;
 use crate::HalfPageUp;
 use crate::HandleInput;
+use crate::INLINE_DIAGNOSTICS_PADDING_COLUMNS;
 use crate::LineDown;
 use crate::LineHighlight;
 use crate::LineUp;
@@ -1446,23 +1445,9 @@ impl EditorElement {
         window: &mut Window,
         cx: &mut App,
     ) -> HashMap<DisplayRow, AnyElement> {
-        let max_severity = match self
-            .editor
-            .read(cx)
-            .inline_diagnostics_enabled()
-            .then(|| {
-                ProjectSettings::get_global(cx)
-                    .diagnostics
-                    .inline
-                    .max_severity
-                    .unwrap_or_else(|| self.editor.read(cx).diagnostics_max_severity)
-                    .into_lsp()
-            })
-            .flatten()
-        {
-            Some(max_severity) => max_severity,
-            None => return HashMap::default(),
-        };
+        if !self.editor.read(cx).inline_diagnostics_enabled() {
+            return HashMap::default();
+        }
 
         let active_diagnostics_group = self.editor.read(cx).active_diagnostic_group_id();
 
@@ -1471,7 +1456,7 @@ impl EditorElement {
             editor
                 .inline_diagnostics
                 .iter()
-                .filter(|(_, diagnostic)| diagnostic.severity <= max_severity)
+                .filter(|(_, diagnostic)| diagnostic.severity <= lsp::DiagnosticSeverity::ERROR)
                 .filter(|(_, diagnostic)| match active_diagnostics_group {
                     Some(active_diagnostics_group) => {
                         // Active diagnostics are all shown in the editor already, no need to display them inline
@@ -1501,9 +1486,7 @@ impl EditorElement {
             _ => Color::Error,
         };
 
-        let padding = ProjectSettings::get_global(cx).diagnostics.inline.padding as f32 * em_width;
-        let min_x =
-            column_pixels(&self.style, ProjectSettings::get_global(cx).diagnostics.inline.min_column as usize, window);
+        let padding = INLINE_DIAGNOSTICS_PADDING_COLUMNS * em_width;
 
         let mut elements = HashMap::default();
         for (row, mut diagnostics) in diagnostics_by_rows {
@@ -1537,11 +1520,7 @@ impl EditorElement {
                     )
                 };
 
-                let padded_line = line_end + padding;
-                let min_start =
-                    Pixels::from(ScrollPixelOffset::from(content_origin.x + min_x) - scroll_pixel_position.x);
-
-                cmp::max(padded_line, min_start)
+                line_end + padding
             };
 
             let mut element = h_flex()

@@ -1,12 +1,9 @@
-pub mod file_finder_settings;
-
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{self};
 
-use file_finder_settings::FileFinderSettings;
 use file_icons::FileIcons;
 use futures::channel::oneshot;
 use fuzzy::CharBag;
@@ -19,7 +16,6 @@ use picker::Picker;
 use picker::PickerDelegate;
 use project::DirectoryItem;
 use project::DirectoryLister;
-use settings::Settings;
 use ui::Context;
 use ui::HighlightedLabel;
 use ui::LabelLike;
@@ -587,7 +583,6 @@ impl PickerDelegate for OpenPathDelegate {
         window: &mut Window,
         cx: &mut Context<Picker<Self>>,
     ) -> Option<Self::ListItem> {
-        let settings = FileFinderSettings::get_global(cx);
         let candidate = self.get_entry(ix)?;
         let string_match = match &self.directory_state {
             DirectoryState::List { .. } => self.string_matches.get(ix),
@@ -617,10 +612,6 @@ impl PickerDelegate for OpenPathDelegate {
         let is_current_dir_candidate = candidate.path.string == self.current_dir();
 
         let file_icon = (|| {
-            if !settings.file_icons {
-                return None;
-            }
-
             let path = Path::new(&candidate.path.string);
             let icon = if candidate.is_dir {
                 if is_current_dir_candidate {

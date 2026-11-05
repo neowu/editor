@@ -15,8 +15,6 @@ use gpui::WeakEntity;
 use gpui::Window;
 use language::Diagnostic;
 use project::project_settings::GoToDiagnosticSeverityFilter;
-use project::project_settings::ProjectSettings;
-use settings::Settings;
 use ui::Button;
 use ui::ButtonLike;
 use ui::Color;
@@ -53,9 +51,6 @@ pub struct DiagnosticIndicator {
 impl Render for DiagnosticIndicator {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let indicator = h_flex().gap_2().min_w_0().overflow_x_hidden();
-        if !ProjectSettings::get_global(cx).diagnostics.button {
-            return indicator.hidden();
-        }
 
         // The error and warning icons are already coloured, so their counts
         // keep the default colour; only the check icon takes the accent while

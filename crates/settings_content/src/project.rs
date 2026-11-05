@@ -7,7 +7,6 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::AllLanguageSettingsContent;
-use crate::DelayMs;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct LspSettingsMap(pub HashMap<Arc<str>, LspSettings>);
@@ -317,65 +316,4 @@ pub enum SemanticTokenFontStyle {
     #[default]
     Normal,
     Italic,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub struct DiagnosticsSettingsContent {
-    /// Whether to show the project diagnostics button in the status bar.
-    pub button: Option<bool>,
-
-    /// Settings for using LSP pull diagnostics mechanism in ed.
-    pub lsp_pull_diagnostics: Option<LspPullDiagnosticsSettingsContent>,
-
-    /// Settings for showing inline diagnostics.
-    pub inline: Option<InlineDiagnosticsSettingsContent>,
-}
-
-#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
-pub struct LspPullDiagnosticsSettingsContent {
-    /// Whether to pull for diagnostics or not.
-    ///
-    /// Default: true
-    pub enabled: Option<bool>,
-    /// Minimum time to wait before pulling diagnostics from the language server(s).
-    /// 0 turns the debounce off.
-    ///
-    /// Default: 50
-    pub debounce_ms: Option<DelayMs>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Default, Serialize, Deserialize, Eq)]
-pub struct InlineDiagnosticsSettingsContent {
-    /// Whether to only show the inline diagnostics after a delay after the
-    /// last editor event.
-    ///
-    /// Default: 150
-    pub update_debounce_ms: Option<DelayMs>,
-    /// The amount of padding between the end of the source line and the start
-    /// of the inline diagnostic in units of columns.
-    ///
-    /// Default: 4
-    pub padding: Option<u32>,
-    /// The minimum column to display inline diagnostics. This setting can be
-    /// used to horizontally align inline diagnostics at some position. Lines
-    /// longer than this value will still push diagnostics further to the right.
-    ///
-    /// Default: 0
-    pub min_column: Option<u32>,
-
-    pub max_severity: Option<DiagnosticSeverityContent>,
-}
-
-#[derive(
-    Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, strum::VariantArray, strum::VariantNames,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum DiagnosticSeverityContent {
-    // No diagnostics are shown.
-    Off,
-    Error,
-    Warning,
-    Info,
-    Hint,
-    All,
 }

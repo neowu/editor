@@ -1,5 +1,4 @@
 mod image_info;
-mod image_viewer_settings;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -73,7 +72,6 @@ use workspace::item::SerializableItem;
 use workspace::item::TabContentParams;
 
 pub use crate::image_info::*;
-pub use crate::image_viewer_settings::*;
 
 actions!(
     image_viewer,

@@ -4,26 +4,18 @@ use settings_content::AlternateScroll;
 use settings_content::AutoIndentMode;
 use settings_content::CompletionSettingsContent;
 use settings_content::CursorShapeContent;
-use settings_content::DelayMs;
-use settings_content::DiagnosticSeverityContent;
-use settings_content::DiagnosticsSettingsContent;
 use settings_content::DocumentFoldingRanges;
 use settings_content::DocumentSymbols;
-use settings_content::FileFinderSettingsContent;
 use settings_content::FileTypeMap;
 use settings_content::FontWeightContent;
 use settings_content::FormatOnSave;
 use settings_content::Formatter;
 use settings_content::FormatterList;
 use settings_content::GlobalLspSettingsContent;
-use settings_content::ImageFileSizeUnit;
-use settings_content::ImageViewerSettingsContent;
-use settings_content::IncludeIgnoredContent;
 use settings_content::IndentGuideBackgroundColoring;
 use settings_content::IndentGuideColoring;
 use settings_content::IndentGuideSettingsContent;
 use settings_content::InlayHintSettingsContent;
-use settings_content::InlineDiagnosticsSettingsContent;
 use settings_content::JsxTagAutoCloseSettingsContent;
 use settings_content::LanguageServerFormatterSpecifier;
 use settings_content::LanguageSettingsContent;
@@ -32,10 +24,8 @@ use settings_content::LanguageToSettingsMap;
 use settings_content::LineEndingSetting;
 use settings_content::LspInsertMode;
 use settings_content::LspNotificationSettingsContent;
-use settings_content::LspPullDiagnosticsSettingsContent;
 use settings_content::LspSettings;
 use settings_content::LspSettingsMap;
-use settings_content::ModalWidthContent;
 use settings_content::PathHyperlinkRegex;
 use settings_content::PixelSetting;
 use settings_content::ProjectSettingsContent;
@@ -49,7 +39,6 @@ use settings_content::Shell;
 use settings_content::ShowWhitespaceSetting;
 use settings_content::SoftWrap;
 use settings_content::SoftWrapIndent;
-use settings_content::TabSwitcherSettingsContent;
 use settings_content::TerminalBlink;
 use settings_content::TerminalLineHeight;
 use settings_content::TerminalSettingsContent;
@@ -62,27 +51,6 @@ use settings_content::WorktreeSettingsContent;
 pub fn settings() -> SettingsContent {
     SettingsContent {
         project: project_settings(),
-        file_finder: Some(FileFinderSettingsContent {
-            file_icons: Some(true),
-            modal_max_width: Some(ModalWidthContent::Large),
-            skip_focus_for_active_in_search: Some(true),
-            include_ignored: Some(IncludeIgnoredContent::Smart),
-            prefill_query_from_selection: Some(true),
-        }),
-        tab_switcher: Some(TabSwitcherSettingsContent { show_file_preview: Some(true) }),
-        diagnostics: Some(DiagnosticsSettingsContent {
-            button: Some(true),
-            lsp_pull_diagnostics: Some(LspPullDiagnosticsSettingsContent {
-                enabled: Some(true),
-                debounce_ms: Some(DelayMs(50)),
-            }),
-            inline: Some(InlineDiagnosticsSettingsContent {
-                update_debounce_ms: Some(DelayMs(150)),
-                padding: Some(4),
-                min_column: Some(0),
-                max_severity: Some(DiagnosticSeverityContent::Error),
-            }),
-        }),
         global_lsp_settings: Some(GlobalLspSettingsContent {
             button: Some(true),
             request_timeout: Some(120),
@@ -103,7 +71,6 @@ pub fn settings() -> SettingsContent {
                 ],
             }),
         }),
-        image_viewer: Some(ImageViewerSettingsContent { unit: Some(ImageFileSizeUnit::Binary) }),
         terminal: terminal_settings(),
     }
 }

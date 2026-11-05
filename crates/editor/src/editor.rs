@@ -643,6 +643,10 @@ pub const BUFFER_HEADER_PADDING: Rems = rems(0.25);
 pub const MULTI_BUFFER_EXCERPT_HEADER_HEIGHT: u32 = 1;
 const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(500);
 const LSP_HIGHLIGHT_DEBOUNCE: Duration = Duration::from_millis(75);
+const INLINE_DIAGNOSTICS_DEBOUNCE: Duration = Duration::from_millis(150);
+const PULL_DIAGNOSTICS_DEBOUNCE: Duration = Duration::from_millis(50);
+/// Gap between a line's end and its inline diagnostic, in columns.
+pub(crate) const INLINE_DIAGNOSTICS_PADDING_COLUMNS: f32 = 4.0;
 /// Lines added to an excerpt per expand step.
 pub(crate) const EXPAND_EXCERPT_LINES: u32 = 5;
 /// Minimum APCA contrast for text drawn over highlight backgrounds.

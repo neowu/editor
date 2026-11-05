@@ -43,7 +43,6 @@ use language::BufferSnapshot;
 use language::Point;
 pub use open_path_prompt::OpenPathDelegate;
 use open_path_prompt::OpenPathPrompt;
-use open_path_prompt::file_finder_settings::FileFinderSettings;
 use picker::Picker;
 use picker::PickerDelegate;
 use project::PathMatchCandidateSet;
@@ -51,9 +50,7 @@ use project::Project;
 use project::ProjectPath;
 use project::WorktreeId;
 use project::worktree_store::WorktreeStore;
-use settings::ModalWidthContent;
 use settings::SeedQuerySetting;
-use settings::Settings;
 use ui::Checkbox;
 use ui::HighlightedLabel;
 use ui::ListItem;
@@ -169,15 +166,11 @@ impl FileFinder {
         })
     }
 
-    /// The query to pre-fill the finder with from the user's latest selection,
-    /// when `prefill_query_from_selection` is enabled. The focused pane's item
+    /// The query to pre-fill the finder with from the user's latest selection.
+    /// The focused pane's item
     /// (e.g. a terminal in a dock) is consulted before the active center pane's
     /// item, so the selection next to the focus wins.
     fn seed_query(workspace: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> Option<String> {
-        if !FileFinderSettings::get_global(cx).prefill_query_from_selection {
-            return None;
-        }
-
         let focused_item = workspace.focused_pane(window, cx).read(cx).active_item();
         let active_item = workspace.active_item(cx).filter(|active| match &focused_item {
             Some(focused) => focused.item_id() != active.item_id(),
@@ -197,10 +190,8 @@ impl FileFinder {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let modal_max_width_setting = FileFinderSettings::get_global(cx).modal_max_width;
-
         let project = delegate.project.clone();
-        let modal_max_width = Self::modal_max_width(modal_max_width_setting, window);
+        let modal_max_width = Self::modal_max_width(window);
         let preview = picker_preview::editor_preview(project, window, cx);
         let picker = cx.new(|cx| {
             Picker::uniform_list_with_preview(delegate, preview, window, cx)
@@ -242,9 +233,8 @@ impl FileFinder {
     fn handle_toggle_ignored(&mut self, _: &ToggleIncludeIgnored, window: &mut Window, cx: &mut Context<Self>) {
         self.picker.update(cx, |picker, cx| {
             picker.delegate.include_ignored = match picker.delegate.include_ignored {
-                Some(true) => FileFinderSettings::get_global(cx).include_ignored.map(|_| false),
-                Some(false) => Some(true),
-                None => Some(true),
+                Some(true) => None,
+                Some(false) | None => Some(true),
             };
             picker.delegate.include_ignored_refresh = picker.delegate.update_matches(picker.query(cx), window, cx);
         });
@@ -298,9 +288,9 @@ impl FileFinder {
         });
     }
 
-    pub fn modal_max_width(width_setting: ModalWidthContent, window: &mut Window) -> Pixels {
+    fn modal_max_width(window: &Window) -> Pixels {
         let small_width = picker::DEFAULT_MODAL_WIDTH.to_pixels(window.rem_size());
-        width_setting.to_pixels(small_width, window.viewport_size().width)
+        (window.viewport_size().width - px(768.)).max(small_width)
     }
 }
 
@@ -875,7 +865,7 @@ impl FileFinderDelegate {
             separate_history,
             first_update: true,
             focus_handle: cx.focus_handle(),
-            include_ignored: include_ignored.or(FileFinderSettings::get_global(cx).include_ignored),
+            include_ignored,
             include_ignored_refresh: Task::ready(()),
             debounce_next_refresh: false,
         }
@@ -1111,7 +1101,7 @@ impl FileFinderDelegate {
             } else {
                 let query_has_position = query.path_position.row.is_some();
                 selected_match.map_or_else(
-                    || self.calculate_selected_index(query_has_position, cx),
+                    || self.calculate_selected_index(query_has_position),
                     |m| self.matches.position(&m, self.currently_opened_path.as_ref()).unwrap_or(0),
                 )
             };
@@ -1123,12 +1113,7 @@ impl FileFinderDelegate {
         }
     }
 
-    fn labels_for_match(
-        &self,
-        path_match: &Match,
-        window: &mut Window,
-        cx: &App,
-    ) -> (HighlightedLabel, HighlightedLabel) {
+    fn labels_for_match(&self, path_match: &Match, window: &Window, cx: &App) -> (HighlightedLabel, HighlightedLabel) {
         let (file_name, file_name_positions, mut full_path, mut full_path_positions) = match &path_match {
             Match::History { path: entry_path, panel_match } => {
                 let worktree_id = entry_path.project.worktree_id;
@@ -1181,8 +1166,7 @@ impl FileFinderDelegate {
         }
 
         if full_path.is_ascii() {
-            let file_finder_settings = FileFinderSettings::get_global(cx);
-            let max_width = FileFinder::modal_max_width(file_finder_settings.modal_max_width, window);
+            let max_width = FileFinder::modal_max_width(window);
             let (normal_em, small_em) = {
                 let style = window.text_style();
                 let font_id = window.text_system().resolve_font(&style.font());
@@ -1300,11 +1284,9 @@ impl FileFinderDelegate {
     /// Skips first history match (that is displayed topmost) if it's currently opened.
     ///
     /// When the query carries a row (e.g. `foo.rs:42`), the user is asking to
-    /// navigate inside a specific file, so we never skip past the active match
-    /// even if the setting is enabled.
-    fn calculate_selected_index(&self, query_has_position: bool, cx: &Context<Picker<Self>>) -> usize {
+    /// navigate inside a specific file, so we never skip past the active match.
+    fn calculate_selected_index(&self, query_has_position: bool) -> usize {
         if !query_has_position
-            && FileFinderSettings::get_global(cx).skip_focus_for_active_in_search
             && let Some(Match::History { path, .. }) = self.matches.get(0)
             && Some(path) == self.currently_opened_path.as_ref()
         {
@@ -1754,11 +1736,9 @@ impl FileFinderDelegate {
         ix: usize,
         selected: bool,
         checkbox: Option<AnyElement>,
-        window: &mut Window,
+        window: &Window,
         cx: &Context<Picker<Self>>,
     ) -> Option<ListItem> {
-        let settings = FileFinderSettings::get_global(cx);
-
         let path_match = self.matches.get(ix)?;
 
         let (file_name_label, full_path_label) = self.labels_for_match(path_match, window, cx);
@@ -1766,9 +1746,6 @@ impl FileFinderDelegate {
         let start_icon = match path_match {
             Match::CreateNew(_) => Some(Icon::new(IconName::Plus).size(IconSize::Small)),
             _ => (|| {
-                if !settings.file_icons {
-                    return None;
-                }
                 let abs_path = path_match.abs_path(&self.project, cx)?;
                 let file_name = abs_path.file_name()?;
                 let icon = FileIcons::get_icon(file_name.as_ref(), cx)?;

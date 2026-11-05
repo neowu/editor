@@ -28,8 +28,6 @@ pub struct ProjectSettings {
 
     /// Common language server settings.
     pub global_lsp_settings: GlobalLspSettings,
-
-    pub diagnostics: DiagnosticsSettings,
 }
 
 settings::register_setting!(ProjectSettings);
@@ -116,19 +114,6 @@ impl DiagnosticSeverity {
     }
 }
 
-impl From<settings::DiagnosticSeverityContent> for DiagnosticSeverity {
-    fn from(severity: settings::DiagnosticSeverityContent) -> Self {
-        match severity {
-            settings::DiagnosticSeverityContent::Off => DiagnosticSeverity::Off,
-            settings::DiagnosticSeverityContent::Error => DiagnosticSeverity::Error,
-            settings::DiagnosticSeverityContent::Warning => DiagnosticSeverity::Warning,
-            settings::DiagnosticSeverityContent::Info => DiagnosticSeverity::Info,
-            settings::DiagnosticSeverityContent::Hint => DiagnosticSeverity::Hint,
-            settings::DiagnosticSeverityContent::All => DiagnosticSeverity::Hint,
-        }
-    }
-}
-
 /// Determines the severity of the diagnostic that should be moved to.
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -199,59 +184,9 @@ impl GoToDiagnosticSeverityFilter {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct DiagnosticsSettings {
-    /// Whether to show the project diagnostics button in the status bar.
-    pub button: bool,
-
-    /// Settings for using LSP pull diagnostics mechanism in ed.
-    pub lsp_pull_diagnostics: LspPullDiagnosticsSettings,
-
-    /// Settings for showing inline diagnostics.
-    pub inline: InlineDiagnosticsSettings,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct InlineDiagnosticsSettings {
-    /// Whether to only show the inline diagnostics after a delay after the
-    /// last editor event.
-    ///
-    /// Default: 150
-    pub update_debounce_ms: u64,
-    /// The amount of padding between the end of the source line and the start
-    /// of the inline diagnostic in units of columns.
-    ///
-    /// Default: 4
-    pub padding: u32,
-    /// The minimum column to display inline diagnostics. This setting can be
-    /// used to horizontally align inline diagnostics at some position. Lines
-    /// longer than this value will still push diagnostics further to the right.
-    ///
-    /// Default: 0
-    pub min_column: u32,
-
-    pub max_severity: Option<DiagnosticSeverity>,
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct LspPullDiagnosticsSettings {
-    /// Whether to pull for diagnostics or not.
-    ///
-    /// Default: true
-    pub enabled: bool,
-    /// Minimum time to wait before pulling diagnostics from the language server(s).
-    /// 0 turns the debounce off.
-    ///
-    /// Default: 50
-    pub debounce_ms: u64,
-}
-
 impl Settings for ProjectSettings {
     fn from_settings(content: &settings::SettingsContent) -> Self {
         let project = &content.project.clone();
-        let diagnostics = content.diagnostics.as_ref().unwrap();
-        let lsp_pull_diagnostics = diagnostics.lsp_pull_diagnostics.as_ref().unwrap();
-        let inline_diagnostics = diagnostics.inline.as_ref().unwrap();
 
         Self {
             lsp: project.lsp.clone().into_iter().map(|(key, value)| (LanguageServerName(key.into()), value)).collect(),
@@ -277,19 +212,6 @@ impl Settings for ProjectSettings {
                     .as_ref()
                     .unwrap()
                     .clone(),
-            },
-            diagnostics: DiagnosticsSettings {
-                button: diagnostics.button.unwrap(),
-                lsp_pull_diagnostics: LspPullDiagnosticsSettings {
-                    enabled: lsp_pull_diagnostics.enabled.unwrap(),
-                    debounce_ms: lsp_pull_diagnostics.debounce_ms.unwrap().0,
-                },
-                inline: InlineDiagnosticsSettings {
-                    update_debounce_ms: inline_diagnostics.update_debounce_ms.unwrap().0,
-                    padding: inline_diagnostics.padding.unwrap(),
-                    min_column: inline_diagnostics.min_column.unwrap(),
-                    max_severity: inline_diagnostics.max_severity.map(Into::into),
-                },
             },
         }
     }

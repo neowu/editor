@@ -32,9 +32,6 @@ use picker::Picker;
 use picker::PickerDelegate;
 use project::Project;
 use serde::Deserialize;
-use settings::Settings;
-use settings::SettingsContent;
-use settings::TabSwitcherSettingsContent;
 use ui::ListItem;
 use ui::ListItemSpacing;
 use ui::Tooltip;
@@ -49,20 +46,6 @@ use workspace::item::ItemHandle;
 use workspace::item::TabContentParams;
 use workspace::pane::render_item_indicator;
 use workspace::pane::tab_details;
-
-#[derive(Clone, Copy, Debug)]
-pub struct TabSwitcherSettings {
-    pub show_file_preview: bool,
-}
-
-settings::register_setting!(TabSwitcherSettings);
-
-impl Settings for TabSwitcherSettings {
-    fn from_settings(content: &SettingsContent) -> Self {
-        let tab_switcher: &TabSwitcherSettingsContent = content.tab_switcher.as_ref().unwrap();
-        Self { show_file_preview: tab_switcher.show_file_preview.unwrap() }
-    }
-}
 
 const PANEL_WIDTH_REMS: f32 = 28.;
 
@@ -597,7 +580,7 @@ impl PickerDelegate for TabSwitcherDelegate {
     fn set_selected_index(&mut self, ix: usize, window: &mut Window, cx: &mut Context<Picker<Self>>) {
         self.selected_index = ix;
 
-        if !self.open_in_active_pane && TabSwitcherSettings::get_global(cx).show_file_preview {
+        if !self.open_in_active_pane {
             let Some(selected_match) = self.matches.get(self.selected_index()) else {
                 return;
             };

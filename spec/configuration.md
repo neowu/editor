@@ -106,6 +106,16 @@ migrator, or Vim/Helix mode.
     indent guides, file and folder icons (no folder chevrons), single-child
     directories auto-fold, the active entry is always revealed, outlines are
     not collapsed by default depth; there are no outline panel settings;
+  - file finder: file icons, width `window − 768px` (at least the default
+    modal width), the active file is skipped as the first history match unless
+    the query has a position, ignored files follow the worktree unless toggled,
+    and the query is pre-filled from the focused selection; file icons also
+    show in the open-path prompt and language selector;
+  - tab switcher: previews the selected tab while cycling;
+  - diagnostics: status bar button shown; LSP pull diagnostics on with a 50ms
+    debounce; inline diagnostics show errors only, 150ms debounce, 4 columns
+    after the line end;
+  - image viewer: file sizes in binary units (KiB, MiB);
   - mouse cursor hides on typing and on keystrokes that resolve to an action;
   - workspace: a panel's focus toggle never closes the panel; the window title
     is fixed to `<project names> — <active file name>` (no title template, so

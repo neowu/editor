@@ -375,19 +375,14 @@ impl Editor {
     }
 
     pub(super) fn refresh_inline_diagnostics(&mut self, debounce: bool, window: &Window, cx: &mut Context<Self>) {
-        let max_severity =
-            ProjectSettings::get_global(cx).diagnostics.inline.max_severity.unwrap_or(self.diagnostics_max_severity);
-
-        if !self.inline_diagnostics_enabled() || !self.diagnostics_enabled() || max_severity == DiagnosticSeverity::Off
-        {
+        if !self.inline_diagnostics_enabled() || !self.diagnostics_enabled() {
             self.inline_diagnostics_update = Task::ready(());
             self.inline_diagnostics.clear();
             cx.notify();
             return;
         }
 
-        let debounce_ms = ProjectSettings::get_global(cx).diagnostics.inline.update_debounce_ms;
-        let debounce = if debounce && debounce_ms > 0 { Some(Duration::from_millis(debounce_ms)) } else { None };
+        let debounce = debounce.then_some(INLINE_DIAGNOSTICS_DEBOUNCE);
         self.inline_diagnostics_update = cx.spawn_in(window, async move |editor, cx| {
             if let Some(debounce) = debounce {
                 cx.background_executor().timer(debounce).await;
@@ -476,18 +471,13 @@ impl Editor {
         if self.active_diagnostics == ActiveDiagnostic::All || !self.diagnostics_enabled() {
             return None;
         }
-        let pull_diagnostics_settings = ProjectSettings::get_global(cx).diagnostics.lsp_pull_diagnostics;
-        if !pull_diagnostics_settings.enabled {
-            return None;
-        }
-        let debounce = Duration::from_millis(pull_diagnostics_settings.debounce_ms);
         let project = self.project()?.downgrade();
         let buffer = self.buffer().read(cx).buffer(buffer_id)?;
 
         self.spawn_lsp_data_tasks(LspDataKind::PullDiagnostics, Some(buffer_id), vec![buffer], cx, |buffer, cx| {
             let project = project.clone();
             cx.spawn(async move |_, cx| {
-                cx.background_executor().timer(debounce).await;
+                cx.background_executor().timer(PULL_DIAGNOSTICS_DEBOUNCE).await;
                 if let Ok(task) = project.update(cx, |project, cx| {
                     project.lsp_store().update(cx, |lsp_store, cx| lsp_store.pull_diagnostics_for_buffer(buffer, cx))
                 }) {

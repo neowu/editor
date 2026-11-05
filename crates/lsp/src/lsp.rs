@@ -828,7 +828,7 @@ impl LanguageServer {
         Ok(())
     }
 
-    pub fn default_initialize_params(&self, pull_diagnostics: bool) -> InitializeParams {
+    pub fn default_initialize_params(&self) -> InitializeParams {
         let workspace_folders = self.workspace_folders.as_ref().map_or_else(
             || vec![workspace_folder_for_uri(self.root_uri.clone())],
             |folders| folders.lock().iter().cloned().map(workspace_folder_for_uri).collect(),
@@ -866,8 +866,7 @@ impl LanguageServer {
                         ..WorkspaceSymbolClientCapabilities::default()
                     }),
                     inlay_hint: Some(InlayHintWorkspaceClientCapabilities { refresh_support: Some(true) }),
-                    diagnostics: pull_diagnostics
-                        .then_some(DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) }),
+                    diagnostics: Some(DiagnosticWorkspaceClientCapabilities { refresh_support: Some(true) }),
                     code_lens: Some(CodeLensWorkspaceClientCapabilities { refresh_support: Some(true) }),
                     workspace_edit: Some(WorkspaceEditClientCapabilities {
                         resource_operations: Some(vec![
@@ -1015,7 +1014,7 @@ impl LanguageServer {
                         dynamic_registration: Some(true),
                         ..DocumentSymbolClientCapabilities::default()
                     }),
-                    diagnostic: pull_diagnostics.then_some(DiagnosticClientCapabilities {
+                    diagnostic: Some(DiagnosticClientCapabilities {
                         dynamic_registration: Some(true),
                         related_document_support: Some(true),
                         markup_message_support: Some(true),
