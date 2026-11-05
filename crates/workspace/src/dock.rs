@@ -564,8 +564,8 @@ impl Dock {
                     if let Some(ix) =
                         this.panel_entries.iter().position(|entry| entry.panel.panel_id() == Entity::entity_id(panel))
                     {
-                        this.set_open(true, window, cx);
                         this.activate_panel(ix, window, cx);
+                        this.set_open(true, window, cx);
                         window.focus(&panel.read(cx).activation_focus_handle(cx), cx);
                     }
                 }
