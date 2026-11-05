@@ -46,6 +46,7 @@ use crate::pane::EmptyPaneHints;
 use crate::persistence::model::SerializedTerminalGroup;
 use crate::persistence::model::SerializedTerminalPane;
 use crate::persistence::model::SerializedTerminalTab;
+use crate::restored_active_pane;
 
 /// What terminal mode needs from the terminal crate.
 pub trait TerminalModeDelegate: 'static {
@@ -411,8 +412,14 @@ impl Workspace {
                 self.notify_mode(WorkspaceMode::Terminal, cx);
                 self.serialize_workspace(window, cx);
             }
-            pane::Event::ZoomIn => self.zoom_terminal_pane(Some(pane), cx),
-            pane::Event::ZoomOut => self.zoom_terminal_pane(None, cx),
+            pane::Event::ZoomIn => {
+                self.zoom_terminal_pane(Some(pane), cx);
+                self.serialize_workspace(window, cx);
+            }
+            pane::Event::ZoomOut => {
+                self.zoom_terminal_pane(None, cx);
+                self.serialize_workspace(window, cx);
+            }
             pane::Event::Focus => {
                 self.set_active_terminal_pane(pane, cx);
                 self.switch_mode(WorkspaceMode::Terminal, cx);
@@ -464,6 +471,7 @@ impl Workspace {
                     active: *pane_entity == self.active_terminal_pane,
                     active_tab: saved_active_tab(&is_terminal, pane.active_item_index()),
                     tabs,
+                    zoomed: pane.is_zoomed(),
                 })
             }
         }
@@ -483,11 +491,11 @@ impl Workspace {
         let mut panes = Vec::new();
         let root = self.build_terminal_member(saved_layout, &mut panes, window, cx);
         self.terminal_center = PaneGroup::with_root(root);
-        let active_pane = panes
-            .iter()
-            .find(|(_, saved_pane)| saved_pane.active)
-            .map(|(pane, _)| pane.clone())
-            .unwrap_or_else(|| self.terminal_center.first_pane());
+        let saved_active = panes.iter().find(|(_, saved_pane)| saved_pane.active).map(|(pane, _)| pane.clone());
+        let zoomed_pane = panes.iter().find(|(_, saved_pane)| saved_pane.zoomed).map(|(pane, _)| pane.clone());
+        self.zoom_terminal_pane(zoomed_pane.as_ref(), cx);
+        let active_pane =
+            restored_active_pane(saved_active, zoomed_pane).unwrap_or_else(|| self.terminal_center.first_pane());
         self.active_terminal_pane = active_pane.clone();
         window.focus(&active_pane.focus_handle(cx), cx);
 

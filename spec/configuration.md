@@ -29,8 +29,9 @@ migrator, or Vim/Helix mode.
     once a project on it opens. Removing a server drops its recent projects.
     There are no per-server nicknames, ssh args or port forwards.
   - `<first root folder>/.ed/workspace.json`, per project: the pane tree with
-    each tab's kind and its own JSON state, pinned/active/preview tabs, dock
-    visibility/active panel/zoom, and recent navigation history. Remote
+    each tab's kind and its own JSON state, pinned/active/preview tabs, which
+    pane is zoomed, dock visibility/active panel/zoom, and recent navigation
+    history. A restored zoomed pane comes back zoomed and active. Remote
     projects keep it on the server, read through the project's buffers and
     written through the worktree after connecting. Unreadable files are
     ignored.
@@ -184,7 +185,8 @@ migrator, or Vim/Helix mode.
   splits are not restored after a restart, and the panel opens a fresh shell
   when it is first shown empty.
 - Terminal mode's layout is saved in `.ed/workspace.json` (`terminal`): its
-  splits and, per tab, the shell's working directory (local projects only;
+  splits, which pane is zoomed (restored zoomed and active) and, per tab, the
+  shell's working directory (local projects only;
   remote shells report none). Shells start afresh there, without output,
   processes or custom titles. Restoring is lazy: nothing starts until terminal
   mode is first shown in the window, and until then the saved layout is

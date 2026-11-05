@@ -69,6 +69,9 @@ pub(crate) struct SerializedTerminalPane {
     pub(crate) active_tab: usize,
     #[serde(default)]
     pub(crate) tabs: Vec<SerializedTerminalTab>,
+    /// Whether this pane is zoomed over the others.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) zoomed: bool,
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
@@ -145,7 +148,7 @@ pub(crate) enum SerializedPaneGroup {
 
 impl Default for SerializedPaneGroup {
     fn default() -> SerializedPaneGroup {
-        SerializedPaneGroup::Pane(SerializedPane { active: true, children: Vec::new(), pinned_count: 0 })
+        SerializedPaneGroup::Pane(SerializedPane { active: true, children: Vec::new(), pinned_count: 0, zoomed: false })
     }
 }
 
@@ -194,6 +197,9 @@ impl SerializedPaneGroup {
 
                 if pane.read_with(cx, |pane, _| pane.items_len() != 0).log_err()? {
                     let pane = pane.upgrade()?;
+                    if serialized_pane.zoomed {
+                        pane.update(cx, |pane, cx| pane.set_zoomed(true, cx));
+                    }
                     Some((Member::Pane(pane.clone()), active.then_some(pane), new_items))
                 } else {
                     let pane = pane.upgrade()?;
@@ -215,11 +221,14 @@ pub struct SerializedPane {
     pub(crate) children: Vec<SerializedItem>,
     #[serde(default)]
     pub(crate) pinned_count: usize,
+    /// Whether this pane is zoomed over the others.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) zoomed: bool,
 }
 
 impl SerializedPane {
-    pub const fn new(children: Vec<SerializedItem>, active: bool, pinned_count: usize) -> Self {
-        SerializedPane { children, active, pinned_count }
+    pub const fn new(children: Vec<SerializedItem>, active: bool, pinned_count: usize, zoomed: bool) -> Self {
+        SerializedPane { children, active, pinned_count, zoomed }
     }
 
     pub async fn deserialize_to(
@@ -336,6 +345,7 @@ mod tests {
                         }],
                         true,
                         1,
+                        true,
                     )),
                     SerializedPaneGroup::default(),
                 ],
@@ -348,7 +358,15 @@ mod tests {
             terminal: Some(SerializedTerminalGroup::Group {
                 axis: Axis::Vertical,
                 flexes: None,
-                children: vec![terminal_pane(&[Some("/p")], true), terminal_pane(&[None], false)],
+                children: vec![
+                    terminal_pane(&[Some("/p")], true),
+                    SerializedTerminalGroup::Pane(SerializedTerminalPane {
+                        active: false,
+                        active_tab: 0,
+                        tabs: vec![SerializedTerminalTab::default()],
+                        zoomed: true,
+                    }),
+                ],
             }),
         };
         let json = serde_json::to_string_pretty(&workspace).unwrap();
@@ -366,6 +384,25 @@ mod tests {
         };
         assert_eq!(pane.children[0].state, serde_json::Value::Null);
         assert!(!pane.children[0].active);
+        assert!(!pane.zoomed);
+
+        let workspace = parse_workspace_state(r#"{"terminal": {"type": "pane", "tabs": [{}]}}"#).unwrap();
+        let Some(SerializedTerminalGroup::Pane(terminal_pane)) = workspace.terminal else {
+            panic!("expected a terminal pane");
+        };
+        assert!(!terminal_pane.zoomed);
+    }
+
+    #[test]
+    fn test_zoomed_is_written_only_when_set() {
+        let pane = SerializedPane::new(Vec::new(), true, 0, false);
+        assert!(!serde_json::to_string(&pane).unwrap().contains("zoomed"));
+        let pane = SerializedPane::new(Vec::new(), true, 0, true);
+        assert!(serde_json::to_string(&pane).unwrap().contains(r#""zoomed":true"#));
+
+        let terminal = SerializedTerminalPane { zoomed: true, ..SerializedTerminalPane::default() };
+        assert!(serde_json::to_string(&terminal).unwrap().contains(r#""zoomed":true"#));
+        assert!(!serde_json::to_string(&SerializedTerminalPane::default()).unwrap().contains("zoomed"));
     }
 
     fn terminal_pane(working_directories: &[Option<&str>], active: bool) -> SerializedTerminalGroup {
@@ -376,6 +413,7 @@ mod tests {
                 .iter()
                 .map(|dir| SerializedTerminalTab { working_directory: dir.map(PathBuf::from) })
                 .collect(),
+            zoomed: false,
         })
     }
 

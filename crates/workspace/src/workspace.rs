@@ -4657,7 +4657,22 @@ impl Workspace {
                     workspace.center.set_is_center(true);
                     workspace.center.mark_positions(cx);
 
-                    if let Some(active_pane) = active_pane {
+                    // Only one pane stays zoomed, and it covers the others, so
+                    // it is the one to activate.
+                    let zoomed_pane =
+                        workspace.center.panes().into_iter().find(|pane| pane.read(cx).is_zoomed()).cloned();
+                    for pane in workspace.center.panes() {
+                        if Some(pane) != zoomed_pane.as_ref() && pane.read(cx).is_zoomed() {
+                            pane.update(cx, |pane, cx| pane.set_zoomed(false, cx));
+                        }
+                    }
+                    if let Some(zoomed_pane) = &zoomed_pane {
+                        workspace.zoomed = Some(zoomed_pane.downgrade().into());
+                        workspace.zoomed_position = None;
+                        cx.emit(Event::ZoomChanged);
+                    }
+
+                    if let Some(active_pane) = restored_active_pane(active_pane, zoomed_pane) {
                         workspace.set_active_pane(&active_pane, window, cx);
                         cx.focus_self(window);
                     } else {
@@ -5734,7 +5749,7 @@ fn serialize_pane_handle(
     window: &Window,
     cx: &App,
 ) -> SerializedPane {
-    let (items, active, pinned_count) = {
+    let (items, active, pinned_count, zoomed) = {
         let pane = pane_handle.read(cx);
         let active_item_id = pane.active_item().map(|item| item.item_id());
         // Pinned tabs are the leading tabs of a pane, so the pinned count has to
@@ -5766,10 +5781,10 @@ fn serialize_pane_handle(
             })
             .collect::<Vec<_>>();
 
-        (items, pane.has_focus(window, cx), pinned_count)
+        (items, pane.has_focus(window, cx), pinned_count, pane.is_zoomed())
     };
 
-    SerializedPane::new(items, active, pinned_count)
+    SerializedPane::new(items, active, pinned_count, zoomed)
 }
 
 fn workspace_is_at_location(workspace: &Entity<Workspace>, location: &SerializedWorkspaceLocation, cx: &App) -> bool {
@@ -6344,6 +6359,12 @@ pub fn with_active_or_new_workspace(
     }
 }
 
+/// The pane to activate when restoring a pane tree: the zoomed one, since it
+/// covers the others, else the one saved as active.
+pub(crate) fn restored_active_pane<T>(active: Option<T>, zoomed: Option<T>) -> Option<T> {
+    zoomed.or(active)
+}
+
 /// A dock is hidden when something other than that dock is zoomed.
 fn hidden_by_zoom(zoomed: bool, zoomed_position: Option<DockPosition>, position: DockPosition) -> bool {
     zoomed && zoomed_position != Some(position)
@@ -6360,6 +6381,16 @@ mod tests {
         // The built-in keymap binds `cmd-1` / `cmd-2` by these names.
         assert_eq!(ed_actions::mode::Editor::name_for_type(), "mode::Editor");
         assert_eq!(ed_actions::mode::GitHistory::name_for_type(), "mode::GitHistory");
+    }
+
+    #[test]
+    fn test_restored_active_pane() {
+        use super::restored_active_pane;
+
+        assert_eq!(restored_active_pane(Some(1), None), Some(1));
+        assert_eq!(restored_active_pane(Some(1), Some(2)), Some(2));
+        assert_eq!(restored_active_pane(None, Some(2)), Some(2));
+        assert_eq!(restored_active_pane::<i32>(None, None), None);
     }
 
     #[test]
