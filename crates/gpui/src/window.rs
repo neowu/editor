@@ -4408,7 +4408,11 @@ impl Window {
     fn reset_cursor_style(&self, cx: &App) {
         // Set the cursor only if we're the active window.
         if self.is_window_hovered() {
-            let style = self.rendered_frame.cursor_style(self).unwrap_or(CursorStyle::Arrow);
+            // A drag can start before the next paint records its cursor in the frame.
+            let style = cx
+                .active_drag_cursor_style()
+                .or_else(|| self.rendered_frame.cursor_style(self))
+                .unwrap_or(CursorStyle::Arrow);
             cx.platform.set_cursor_style(style);
         }
     }
@@ -4525,11 +4529,7 @@ impl Window {
     }
 
     fn dispatch_mouse_event(&mut self, event: &dyn Any, cx: &mut App) {
-        let hit_test = self.rendered_frame.hit_test(self.mouse_position());
-        if hit_test != self.mouse_hit_test {
-            self.mouse_hit_test = hit_test;
-            self.reset_cursor_style(cx);
-        }
+        self.mouse_hit_test = self.rendered_frame.hit_test(self.mouse_position());
 
         let mut mouse_listeners = mem::take(&mut self.rendered_frame.mouse_listeners);
 
@@ -4573,6 +4573,10 @@ impl Window {
         if event.is::<MouseUpEvent>() && self.captured_hitbox.is_some() {
             self.captured_hitbox = None;
         }
+
+        // Runs after the listeners so that a drag they start takes effect in this event. Resolving
+        // the cursor any earlier would briefly select whatever is under the pointer instead.
+        self.reset_cursor_style(cx);
     }
 
     // If modifiers are not excessive (e.g. AltGr), and the input handler is accepting text input,
