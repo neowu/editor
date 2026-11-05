@@ -27,3 +27,6 @@
 
 # lsp
 - display "not installed", e.g. for terraform
+
+# git
+- smart pull (like stash then pull)
