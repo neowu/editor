@@ -75,8 +75,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
   menus open downward. The switch groups its icon buttons on a faint, borderless
   track (2px inset) so the modes read as one control as more are added; the
   shown mode's button is filled with its icon in the accent colour. The
-  buttons keep the top-row size, so the track is 4px taller than them rather
-  than shrinking them; an outlined switch looked heavier.
+  buttons keep the top-row width and 16px icon but are 22px high, so the 26px
+  track sits on the row's centre line with clear space above and below; a
+  track of full-height buttons filled the row and nearly touched the card
+  below. An outlined switch looked heavier.
   Every header text button (project, worktree, branch, remote host) shares one
   style (`title_bar::worktree_branch::header_text_button`): 28px high like the
   icon buttons, the tab label's size and regular weight (semibold was too
@@ -86,7 +88,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
   and an accent label; the remote host keeps its connection-status dot on the
   server icon (`Button::start_slot`).
   Every top-row icon button (Go Back / Go Forward, the switch, and the tab bar
-  ends' New File, preview and Zoom) is a 16px icon in a 28px square
+  ends' New File, preview and Zoom) is a 16px icon in a 28px square (the
+  switch's are shorter, above)
   (`workspace::pane::top_row_icon_button`), 4px apart, so both ends of the row
   match; the header's controls are 8px from the project name and from each
   other's group. It sits on a strip above the
@@ -107,9 +110,18 @@ because it hurt readability; an opaque window is also cheaper to composite.
   with the tabs' bottom edge, so the tabs
   sit as far from the edge as the cards do from the sides. macOS doesn't fix
   the titlebar height for a transparent, full-size-content window: the row is
-  ours. The traffic lights are placed at (16, 19) (`ui::utils::TRAFFIC_LIGHT_POSITION`):
-  centred in the tab row below the gap, and far enough from the left edge to
-  clear the window's rounded corner. At (9, 9) they looked jammed into it.
+  ours. The top row is laid out like every other pane row: the card gap, then
+  the tab row, then the card. Everything in it (the traffic lights, the window
+  header, tab labels, the tab bars' buttons) sits on the tab row's centre line,
+  with no per-element offsets, the browser-tab layout. Centring the controls
+  in the whole strip from the window's edge instead (like native toolbars) was
+  tried: with tabs joined to the card, tab labels can't share that line
+  (they're half the gap lower), so either the labels sat high in their tabs or
+  the controls and labels split onto two lines. Getting the native look
+  properly would need pill tabs that don't join the card. `CARD_GAP` is in
+  `ui::utils`, and the traffic light position is derived from it and the tab
+  row height: (16, 19), far enough from the left edge to clear the window's
+  rounded corner (at (9, 9) they looked jammed into it).
 - The header strip, the traffic light room and the empty tab bar space of every
   pane in the top row (columns of side-by-side splits, the first row of
   stacked ones) act as a titlebar: dragging moves the window and a double click

@@ -192,7 +192,7 @@ pub const SERIALIZATION_THROTTLE_TIME: Duration = Duration::from_millis(200);
 pub const MAX_RECENT_SELECTIONS: usize = 20;
 
 /// Space between the floating pane cards, and between them and the surrounding chrome.
-pub const CARD_GAP: Pixels = px(8.);
+pub use ui::utils::CARD_GAP;
 /// Corner radius of the floating pane cards.
 pub const CARD_RADIUS: Pixels = px(10.);
 /// GPUI clips children to rectangles only, so the card's content is inset just enough

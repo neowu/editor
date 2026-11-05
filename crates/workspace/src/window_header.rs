@@ -218,6 +218,11 @@ const fn tab_bars_are_titlebar(mode: WorkspaceMode) -> bool {
 /// Inset of the mode switch's buttons within its track.
 const MODE_SWITCH_PADDING: Pixels = px(2.);
 
+/// Size of the mode switch's buttons: shorter (22px) than a top-row button so
+/// the filled track clears the row's edges, and the card below, instead of
+/// filling the row. They keep the top-row width and icon.
+const MODE_SWITCH_BUTTON_SIZE: ButtonSize = ButtonSize::Default;
+
 /// The modes the switch offers, in key order (`cmd-1`, `cmd-2`, `cmd-3`):
 /// Git History needs a repository, Terminal a project that runs terminals.
 fn switchable_modes(has_repository: bool, has_terminal_mode: bool) -> Vec<WorkspaceMode> {
@@ -253,6 +258,7 @@ fn render_mode_switch(shown_mode: WorkspaceMode, modes: &[WorkspaceMode], cx: &A
         let shown = mode == shown_mode;
         let tooltip_action = action.boxed_clone();
         top_row_icon_button(id, icon)
+            .size(MODE_SWITCH_BUTTON_SIZE)
             .icon_color(if shown { Color::Accent } else { Color::Muted })
             .when(shown, |this| this.style(ButtonStyle::Filled))
             .tooltip(move |_window, cx| Tooltip::for_action(label, tooltip_action.as_ref(), cx))
@@ -426,6 +432,8 @@ mod tests {
     use gpui::px;
     use ui::utils::TRAFFIC_LIGHT_PADDING;
 
+    use super::MODE_SWITCH_BUTTON_SIZE;
+    use super::MODE_SWITCH_PADDING;
     use super::TAB_BAR_START_OFFSET;
     use super::sidebar_header_overhang;
     use super::switchable_modes;
@@ -450,6 +458,17 @@ mod tests {
             switchable_modes(true, true),
             [WorkspaceMode::Editor, WorkspaceMode::GitHistory, WorkspaceMode::Terminal]
         );
+    }
+
+    #[test]
+    fn test_mode_switch_track_clears_top_row() {
+        use crate::pane::TOP_ROW_BUTTON_SIZE;
+        let track = MODE_SWITCH_BUTTON_SIZE.rems().to_pixels(px(16.)) + MODE_SWITCH_PADDING * 2.;
+        // Shorter than a 32px track of top-row buttons, leaving at least 4px
+        // clear above and below in the 36px top row.
+        assert_eq!(track, px(26.));
+        assert!(track < TOP_ROW_BUTTON_SIZE + MODE_SWITCH_PADDING * 2.);
+        assert!((px(36.) - track) / 2. >= px(4.));
     }
 
     #[test]

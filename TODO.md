@@ -27,4 +27,4 @@
 - pick the diagrams will use
 
 # picker
-- i probably do not need preview and action
+- unify command palette and file picker and tab switcher? so i can use cmd+T on terminal mode
