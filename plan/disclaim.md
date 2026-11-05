@@ -105,3 +105,7 @@ None of this has been measured yet.
   `terminal_panel::ToggleFocus` until the first prompt via `edctl wait`.
 - `git fetch` wall time with and without disclaim. Expect it to be lost in
   network noise.
+
+## Alternative
+
+- or just prompt "background job is running" then not quit?
