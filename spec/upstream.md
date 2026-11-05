@@ -69,6 +69,9 @@ from upstream in layout as well as in behaviour.
   The only performance change (#66487) was reverted upstream in the same
   range. Fork-relevant fixes and features from that range are listed under
   Pending; the next full review still starts at `02d47bf64f`.
+- 2026-11-05 fixes from that range: ported #66474, #65744, #66472, #66540,
+  #66195 (only the `BasicContextProvider` worktree-root part; the rest is
+  `tasks_ui`) and #66459.
 
 ### Pending
 
@@ -84,11 +87,6 @@ Fork-relevant commits from `02d47bf64f..504a7f2c` not yet decided:
 
 Fork-relevant commits from `504a7f2c..dcf3f98c9a` not yet decided:
 
-- Fixes: #66474 (no panic when a grammar fails to parse for highlighting),
-  #65744 (macOS key equivalents for backspace/delete), #66472 (activate the
-  panel before opening its dock), #66540 (drag cursor applied immediately;
-  resolves the cursor on every mouse event), #66195 (task file variables in
-  single-file worktrees), #66459 (animated WebP in `Image::to_image_data`).
 - UI: #66461, #66336, #66496, #66531 (context menu submenus: embedded views,
   persistent refresh, side placement, custom triggers), #66144 (call
   hierarchy name/detail gap), #66384 (worktree picker matches branch names),

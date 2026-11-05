@@ -24,6 +24,9 @@ clients as JSON.
 - Clicking the icon (or `editor::SpawnNearestTask`) resolves the template with
   `$ED_*` variables and spawns it in the terminal panel. The icon shows
   running / passed / failed state.
+- In a single-file worktree (a file opened without its folder) there is no
+  worktree root: `$ED_WORKTREE_ROOT`, the relative path variables and the
+  default cwd are unset, so templates that need them don't resolve.
 - A task always runs in the terminal dock with the default system shell (the
   remote shell on a remote project), saves nothing first, and leaves its tab
   open with no summary lines when it finishes. Running a task whose tab
