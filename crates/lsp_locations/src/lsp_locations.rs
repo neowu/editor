@@ -130,10 +130,9 @@ async fn run_picker_query(
     kind: LspPickerKind,
     editor: &WeakEntity<Editor>,
     workspace: &WeakEntity<Workspace>,
-    project: &Entity<Project>,
     cx: &mut AsyncWindowContext,
 ) -> Option<Vec<Location>> {
-    let query = editor.update(cx, |editor, cx| kind.run_query(editor, project, cx)).ok().flatten()?;
+    let query = editor.update(cx, |editor, cx| kind.run_query(editor, cx)).ok().flatten()?;
     match query.await {
         Ok(locations) => Some(locations),
         Err(error) => {
@@ -149,10 +148,9 @@ async fn run_picker_matches(
     kind: LspPickerKind,
     editor: &WeakEntity<Editor>,
     workspace: &WeakEntity<Workspace>,
-    project: &Entity<Project>,
     cx: &mut AsyncWindowContext,
 ) -> Option<Vec<LocationMatch>> {
-    let locations = run_picker_query(kind, editor, workspace, project, cx).await?;
+    let locations = run_picker_query(kind, editor, workspace, cx).await?;
     editor.update(cx, |_, cx| build_location_matches(&locations, cx)).ok()
 }
 
@@ -200,14 +198,9 @@ impl LspPickerKind {
 
     /// Runs the query for this kind against the active editor, returning the raw
     /// locations to populate the picker.
-    fn run_query(
-        self,
-        editor: &mut Editor,
-        project: &Entity<Project>,
-        cx: &mut Context<Editor>,
-    ) -> Option<Task<anyhow::Result<Vec<Location>>>> {
+    fn run_query(self, editor: &mut Editor, cx: &mut Context<Editor>) -> Option<Task<anyhow::Result<Vec<Location>>>> {
         match self {
-            LspPickerKind::References => editor.find_all_references_locations(project, cx),
+            LspPickerKind::References => editor.find_all_references_locations(cx),
             LspPickerKind::Definition => editor.definition_locations_of_kind(GotoDefinitionKind::Symbol, cx),
             LspPickerKind::Declaration => editor.definition_locations_of_kind(GotoDefinitionKind::Declaration, cx),
             LspPickerKind::Implementation => {
@@ -258,13 +251,13 @@ impl LspLocationsPicker {
             // range and exclude fileless results, so a single distinct result
             // jumps directly and a fileless-only result reports "no results"
             // instead of opening a blank picker.
-            let Some(mut matches) = run_picker_matches(kind, &editor, &workspace, &project, cx).await else {
+            let Some(mut matches) = run_picker_matches(kind, &editor, &workspace, cx).await else {
                 return;
             };
 
             if matches.is_empty() && kind == LspPickerKind::Definition {
                 kind = LspPickerKind::References;
-                let Some(references) = run_picker_matches(kind, &editor, &workspace, &project, cx).await else {
+                let Some(references) = run_picker_matches(kind, &editor, &workspace, cx).await else {
                     return;
                 };
                 matches = references;

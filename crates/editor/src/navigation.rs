@@ -907,9 +907,7 @@ impl Editor {
         let multi_buffer = self.buffer.read(cx);
 
         let (buffer, text_head) = multi_buffer.text_anchor_for_position(head, cx)?;
-        let workspace = self.workspace()?;
-        let project = workspace.read(cx).project().clone();
-        let references = project.update(cx, |project, cx| project.references(&buffer, text_head, cx));
+        let references = self.semantics_provider.clone()?.references(&buffer, text_head, cx)?;
         Some(cx.spawn_in(window, async move |editor, cx| -> Result<()> {
             let Some(locations) = references.await? else {
                 return Ok(());
@@ -1020,18 +1018,15 @@ impl Editor {
     /// Runs an LSP "find all references" query for the symbol under the cursor
     /// and returns the raw [`Location`]s. Unlike [`Self::find_all_references`],
     /// this does not group the results or open any UI
-    pub fn find_all_references_locations(
-        &mut self,
-        project: &Entity<Project>,
-        cx: &mut Context<Self>,
-    ) -> Option<Task<Result<Vec<Location>>>> {
+    pub fn find_all_references_locations(&mut self, cx: &mut Context<Self>) -> Option<Task<Result<Vec<Location>>>> {
+        let provider = self.semantics_provider.clone()?;
         let selection = self.selections.newest_anchor();
         let multi_buffer = self.buffer.read(cx);
         let multi_buffer_snapshot = multi_buffer.snapshot(cx);
         let head = selection.map(|anchor| anchor.to_offset(&multi_buffer_snapshot)).head();
 
         let (buffer, head) = multi_buffer.text_anchor_for_position(head, cx)?;
-        let references = project.update(cx, |project, cx| project.references(&buffer, head, cx));
+        let references = provider.references(&buffer, head, cx)?;
         // Keep every reference, including the one under the cursor, to match the
         // default `find_all_references` multibuffer (`always_open_multibuffer`).
         Some(cx.spawn(async move |_, _| Ok(references.await?.unwrap_or_default())))
@@ -1069,8 +1064,7 @@ impl Editor {
 
         let (buffer, head) = multi_buffer.text_anchor_for_position(head, cx)?;
         let workspace = self.workspace()?;
-        let project = workspace.read(cx).project().clone();
-        let references = project.update(cx, |project, cx| project.references(&buffer, head, cx));
+        let references = self.semantics_provider.clone()?.references(&buffer, head, cx)?;
         Some(cx.spawn_in(window, async move |editor, cx| {
             let _cleanup = cx.on_drop(&editor, move |editor, cx| {
                 let multi_buffer_snapshot = editor.buffer.read(cx).snapshot(cx);

@@ -42,7 +42,9 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
   selections. `screenshot` renders the last frame offscreen at device
   resolution, so the window may be hidden or covered.
 - `action`, `keys` (keymap syntax), `type`, `click`, `mouse`, and `scroll`
-  inject input as the platform would. Each event is dispatched in its own
+  inject input as the platform would, except that injected keystrokes don't
+  hide the cursor: only a real mouse move shows it again, and hover features
+  (e.g. cmd+hover links) ignore a hidden cursor. Each event is dispatched in its own
   update and followed by a draw, so the next event sees the new focus and key
   contexts. Mutating commands return once the window has stayed clean for a
   few frames (at most 1s). `click`/`scroll` target `--id`, `--text`, or `--at`;

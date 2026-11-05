@@ -199,6 +199,7 @@ pub fn deploy_context_menu(
         });
 
         let format_selections = window.is_action_available(&FormatSelections, cx);
+        let can_edit = !editor.read_only(cx);
 
         let can_preview = window.is_action_available(&workspace::preview::OpenPreview, cx);
 
@@ -211,15 +212,21 @@ pub fn deploy_context_menu(
                 .action("Go to Implementation", Box::new(GoToImplementation::default()))
                 .action("Find All References", Box::new(FindAllReferences::default()))
                 .separator()
-                .action("Rename Symbol", Box::new(Rename))
-                .action("Format Buffer", Box::new(Format))
-                .when(format_selections, |cx| cx.action("Format Selections", Box::new(FormatSelections)))
-                .action("Show Code Actions", Box::new(ToggleCodeActions { deployed_from: None, quick_launch: false }))
+                .action_disabled_when(!can_edit, "Rename Symbol", Box::new(Rename))
+                .action_disabled_when(!can_edit, "Format Buffer", Box::new(Format))
+                .when(format_selections, |cx| {
+                    cx.action_disabled_when(!can_edit, "Format Selections", Box::new(FormatSelections))
+                })
+                .action_disabled_when(
+                    !can_edit,
+                    "Show Code Actions",
+                    Box::new(ToggleCodeActions { deployed_from: None, quick_launch: false }),
+                )
                 .separator()
-                .action("Cut", Box::new(Cut))
+                .action_disabled_when(!can_edit, "Cut", Box::new(Cut))
                 .action("Copy", Box::new(Copy))
                 .action("Copy and Trim", Box::new(CopyAndTrim))
-                .action("Paste", Box::new(Paste))
+                .action_disabled_when(!can_edit, "Paste", Box::new(Paste))
                 .separator()
                 .action_disabled_when(
                     !has_reveal_target,

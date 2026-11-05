@@ -2,6 +2,7 @@ use std::any::Any;
 use std::any::TypeId;
 use std::ops::Range;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -16,6 +17,7 @@ use editor::EditorEvent;
 use editor::HiddenDiffHunkRenderer;
 use editor::MultiBuffer;
 use editor::SelectionEffects;
+use editor::SemanticsProvider;
 use editor::SplittableEditor;
 use editor::scroll::Autoscroll;
 use editor::scroll::ScrollAnchor;
@@ -96,6 +98,7 @@ use workspace::searchable::SearchableItemHandle;
 use crate::commit_details_panel::CommitDetailsEvent;
 use crate::commit_details_panel::CommitDetailsPanel;
 use crate::git_panel::GitPanel;
+use crate::revision_semantics::RevisionSemanticsProvider;
 
 actions!(git, [ApplyCurrentStash, PopCurrentStash, DropCurrentStash, OpenFileAtHead,]);
 
@@ -152,6 +155,19 @@ pub(crate) fn worktree_id_for_repo_path(
         .or_else(|| project.worktrees(cx).next().map(|worktree| worktree.read(cx).id()))
 }
 
+/// The project path of `repo_path` while it is still a file in the project.
+pub(crate) fn project_file_path(
+    project: &Entity<Project>,
+    repository: &Entity<Repository>,
+    repo_path: &RepoPath,
+    cx: &App,
+) -> Option<ProjectPath> {
+    repository
+        .read(cx)
+        .repo_path_to_project_path(repo_path, cx)
+        .filter(|project_path| project.read(cx).entry_for_path(project_path, cx).is_some_and(|entry| entry.is_file()))
+}
+
 /// Opens the project file at `repo_path`, or shows a toast when the commit's
 /// file is no longer in the project.
 pub(crate) fn open_file_in_project(
@@ -164,9 +180,7 @@ pub(crate) fn open_file_in_project(
     let Some(workspace) = workspace.upgrade() else {
         return;
     };
-    let project_path = repository.read(cx).repo_path_to_project_path(repo_path, cx).filter(|project_path| {
-        workspace.read(cx).project().read(cx).entry_for_path(project_path, cx).is_some_and(|entry| entry.is_file())
-    });
+    let project_path = project_file_path(workspace.read(cx).project(), repository, repo_path, cx);
     workspace.update(cx, |workspace, cx| match project_path {
         Some(project_path) => {
             workspace.open_path_preview(project_path, None, true, false, true, window, cx).detach_and_log_err(cx);
@@ -738,7 +752,8 @@ impl CommitView {
     }
 
     /// Gives a tab showing one of this commit's file revisions the commit's
-    /// sidebar, revealing that file whenever the tab is focused.
+    /// sidebar, revealing that file whenever the tab is focused, and go to
+    /// definition through the file's current version.
     fn adopt_revision_editor(&mut self, editor: &Entity<Editor>, window: &mut Window, cx: &mut Context<Self>) {
         let Some(buffer) = self.revision_buffer(editor, cx) else {
             return;
@@ -747,7 +762,17 @@ impl CommitView {
             return;
         };
         let repo_path = RepoPath::from_rel_path(file.path());
-        editor.update(cx, |editor, _| editor.set_side_card(Some(self.details.clone().into())));
+        let provider = self.workspace.upgrade().map(|workspace| {
+            let project = workspace.read(cx).project().clone();
+            let live_path = project_file_path(&project, &self.repository, &repo_path, cx);
+            Rc::new(RevisionSemanticsProvider::new(project.downgrade(), live_path)) as Rc<dyn SemanticsProvider>
+        });
+        editor.update(cx, |editor, _| {
+            editor.set_side_card(Some(self.details.clone().into()));
+            if provider.is_some() {
+                editor.set_semantics_provider(provider);
+            }
+        });
         self.details.update(cx, |details, cx| details.reveal_file(&repo_path, cx));
         let focus_handle = editor.read(cx).focus_handle(cx);
         self._revision_subscriptions.push(cx.on_focus_in(&focus_handle, window, move |this, _, cx| {

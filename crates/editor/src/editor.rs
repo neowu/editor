@@ -2691,6 +2691,10 @@ impl Editor {
         self.semantics_provider.clone()
     }
 
+    pub fn set_semantics_provider(&mut self, provider: Option<Rc<dyn SemanticsProvider>>) {
+        self.semantics_provider = provider;
+    }
+
     pub fn placeholder_text(&self, cx: &mut App) -> Option<String> {
         self.placeholder_display_map
             .as_ref()
@@ -8149,6 +8153,13 @@ pub trait SemanticsProvider {
         cx: &mut App,
     ) -> Option<Task<Result<Option<Vec<LocationLink>>>>>;
 
+    fn references(
+        &self,
+        buffer: &Entity<Buffer>,
+        position: text::Anchor,
+        cx: &mut App,
+    ) -> Option<Task<Result<Option<Vec<Location>>>>>;
+
     fn range_for_rename(
         &self,
         buffer: &Entity<Buffer>,
@@ -8199,6 +8210,15 @@ impl SemanticsProvider for WeakEntity<Project> {
             GotoDefinitionKind::Implementation => project.implementations(buffer, position, cx),
         })
         .ok()
+    }
+
+    fn references(
+        &self,
+        buffer: &Entity<Buffer>,
+        position: text::Anchor,
+        cx: &mut App,
+    ) -> Option<Task<Result<Option<Vec<Location>>>>> {
+        self.update(cx, |project, cx| project.references(buffer, position, cx)).ok()
     }
 
     fn supports_inlay_hints(&self, buffer: &Entity<Buffer>, cx: &mut App) -> bool {

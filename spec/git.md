@@ -136,6 +136,18 @@ blobs with no language server, so they are not mixed into editor panes.
   the tab is focused. It shows the minimap like any editor: "active editor"
   means the active item of the pane shown in the current mode (the active
   history pane in Git History mode), not the last active editor pane.
+- Revisions get go to definition (cmd+hover underline, cmd+click, shift for
+  the type) and find references from the project's language servers, answered
+  for the file as it is now: language servers only know the current project,
+  so revisions are never sent to them. When the line is unchanged between the
+  revision and the current file, the request goes to the same spot in the
+  current file. Otherwise the word is looked up by exact name in the project's
+  symbols, preferring the revision's own file when it defines it; references
+  then come from that definition, only when the name matches exactly one. A
+  name that no longer exists gets no result. Results are current project
+  files, so opening one switches to Workspace mode.
+- A revision's right-click menu disables, as in any read-only editor, Rename,
+  Format, Code Actions, Cut and Paste.
 - Focusing a dock panel or an editor pane (opening a file, Open File in Project
   from a commit, File Finder, …) switches back to Workspace mode. Closing the
   last tab of the last history pane does too.
