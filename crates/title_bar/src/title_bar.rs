@@ -25,11 +25,9 @@ use project::repo_identity_path;
 use remote::RemoteConnectionOptions;
 use settings::Settings as _;
 use theme::ActiveTheme;
-use ui::ButtonLike;
 use ui::IconWithIndicator;
 use ui::Indicator;
 use ui::PopoverMenu;
-use ui::TintColor;
 use ui::Tooltip;
 use ui::prelude::*;
 use workspace::Workspace;
@@ -281,23 +279,17 @@ impl TitleBar {
                     Some(recent_projects::RemoteServerProjects::popover(workspace.clone(), None, window, cx))
                 })
                 .trigger_with_tooltip(
-                    ButtonLike::new("remote_project")
-                        .size(ButtonSize::Medium)
-                        .selected_style(ButtonStyle::Tinted(TintColor::Accent))
-                        .child(
-                            h_flex()
-                                .gap_2()
-                                .max_w_32()
-                                .child(
-                                    IconWithIndicator::new(
-                                        Icon::new(icon).size(IconSize::Small).color(icon_color),
-                                        Some(Indicator::dot().color(indicator_color)),
-                                    )
-                                    .indicator_border_color(Some(cx.theme().colors().title_bar_background))
-                                    .into_any_element(),
-                                )
-                                .child(Label::new(nickname).truncate()),
-                        ),
+                    header_text_button(
+                        "remote_project",
+                        util::truncate_and_trailoff(&nickname, MAX_PROJECT_NAME_LENGTH),
+                    )
+                    .start_slot(
+                        IconWithIndicator::new(
+                            Icon::new(icon).size(IconSize::Small).color(icon_color),
+                            Some(Indicator::dot().color(indicator_color)),
+                        )
+                        .indicator_border_color(Some(cx.theme().colors().title_bar_background)),
+                    ),
                     move |_window, cx| {
                         Tooltip::with_meta(tooltip_title, Some(&OpenRemote::default()), meta.clone(), cx)
                     },

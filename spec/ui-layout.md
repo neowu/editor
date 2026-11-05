@@ -78,7 +78,9 @@ because it hurt readability; an opaque window is also cheaper to composite.
   icon buttons, the tab label's size and regular weight (semibold was too
   loud), with a 14px leading icon. The project name is full contrast; worktree
   and branch are muted, so the row reads as a breadcrumb. The branch icon keeps
-  its change-status colour.
+  its change-status colour. While its menu is open, each gets the accent tint
+  and an accent label; the remote host keeps its connection-status dot on the
+  server icon (`Button::start_slot`).
   Every top-row icon button (Go Back / Go Forward, the switch, and the tab bar
   ends' New File, preview and Zoom) is a 16px icon in a 28px square
   (`workspace::pane::top_row_icon_button`), 4px apart, so both ends of the row

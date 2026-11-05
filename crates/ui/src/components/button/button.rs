@@ -91,6 +91,7 @@ pub struct Button {
     selected_label: Option<SharedString>,
     selected_label_color: Option<Color>,
     start_icon: Option<Icon>,
+    start_slot: Option<AnyElement>,
     end_icon: Option<Icon>,
     key_binding: Option<KeyBinding>,
     key_binding_position: KeybindingPosition,
@@ -115,6 +116,7 @@ impl Button {
             selected_label: None,
             selected_label_color: None,
             start_icon: None,
+            start_slot: None,
             end_icon: None,
             key_binding: None,
             key_binding_position: KeybindingPosition::default(),
@@ -153,6 +155,14 @@ impl Button {
     /// The icon's color will be overridden to `Color::Disabled` when the button is disabled.
     pub fn start_icon(mut self, icon: impl Into<Option<Icon>>) -> Self {
         self.start_icon = icon.into();
+        self
+    }
+
+    /// Sets an element to display at the start (left) of the button label,
+    /// after the start icon, for leading content an [`Icon`] cannot express
+    /// (e.g. an icon with a status indicator). Hidden while loading.
+    pub fn start_slot(mut self, slot: impl IntoElement) -> Self {
+        self.start_slot = Some(slot.into_any_element());
         self
     }
 
@@ -408,6 +418,7 @@ impl RenderOnce for Button {
                         this.when_some(self.start_icon, |this, icon| {
                             this.child(if is_disabled { icon.color(Color::Disabled) } else { icon })
                         })
+                        .children(self.start_slot)
                     },
                 )
                 .child(
@@ -429,5 +440,20 @@ impl RenderOnce for Button {
                     this.child(if is_disabled { icon.color(Color::Disabled) } else { icon })
                 }),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn start_slot_is_kept_alongside_start_icon() {
+        let button = Button::new("button", "label");
+        assert!(button.start_slot.is_none());
+
+        let button = button.start_icon(Icon::new(IconName::Server)).start_slot(gpui::div());
+        assert!(button.start_icon.is_some());
+        assert!(button.start_slot.is_some());
     }
 }
