@@ -472,15 +472,9 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("cmd-shift-s", "workspace::SaveAs"),
             KeyBindingSpec::new("cmd-shift-n", "workspace::NewWindow"),
             KeyBindingSpec::new("ctrl-`", "terminal_panel::Toggle"),
-            KeyBindingSpec::new("cmd-1", "workspace::ActivatePane").with_input(json!(0)),
-            KeyBindingSpec::new("cmd-2", "workspace::ActivatePane").with_input(json!(1)),
-            KeyBindingSpec::new("cmd-3", "workspace::ActivatePane").with_input(json!(2)),
-            KeyBindingSpec::new("cmd-4", "workspace::ActivatePane").with_input(json!(3)),
-            KeyBindingSpec::new("cmd-5", "workspace::ActivatePane").with_input(json!(4)),
-            KeyBindingSpec::new("cmd-6", "workspace::ActivatePane").with_input(json!(5)),
-            KeyBindingSpec::new("cmd-7", "workspace::ActivatePane").with_input(json!(6)),
-            KeyBindingSpec::new("cmd-8", "workspace::ActivatePane").with_input(json!(7)),
-            KeyBindingSpec::new("cmd-9", "workspace::ActivatePane").with_input(json!(8)),
+            KeyBindingSpec::new("cmd-1", "workspace::ShowEditor"),
+            KeyBindingSpec::new("cmd-2", "git_graph::Show"),
+            KeyBindingSpec::new("cmd-`", "workspace::ToggleZoom"),
             KeyBindingSpec::new("cmd-b", "workspace::ToggleLeftDock"),
             KeyBindingSpec::new("cmd-alt-b", "workspace::ToggleRightDock"),
             KeyBindingSpec::new("cmd-r", "workspace::ToggleRightDock"),
@@ -948,18 +942,8 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("cmd-+", "image_viewer::ZoomIn"),
             KeyBindingSpec::new("cmd--", "image_viewer::ZoomOut"),
             KeyBindingSpec::new("cmd-0", "image_viewer::ResetZoom"),
-            KeyBindingSpec::new("cmd-1", "image_viewer::ZoomToActualSize"),
             // KeyBindingSpec::new("cmd-k r", "editor::RevealInFileManager"),
             KeyBindingSpec::new("cmd-shift-0", "image_viewer::FitToView"),
-        ],
-    );
-    add_bindings(
-        &mut keymap,
-        Some("GitPicker"),
-        false,
-        [
-            KeyBindingSpec::new("cmd-1", "git_picker::ActivateBranchesTab"),
-            KeyBindingSpec::new("cmd-2", "git_picker::ActivateStashTab"),
         ],
     );
     add_bindings(

@@ -66,8 +66,9 @@ because it hurt readability; an opaque window is also cheaper to composite.
   lights, the project name (the active folder, see `git.md`; with the remote
   host for remote projects), the
   worktree and branch pickers as `worktree / branch` (shown only for a project
-  in a git repository), then an icon-only, segmented Workspace / Git History
-  switch (also git only), then Go Back / Go Forward. The pickers moved here from
+  in a git repository), then an icon-only, segmented Editor / Git History
+  switch (also git only; `cmd-1` Editor via `workspace::ShowEditor`, `cmd-2`
+  Git History via `git_graph::Show`, in any mode), then Go Back / Go Forward. The pickers moved here from
   the status bar so everything that names the project sits together; their
   menus open downward. The switch groups its icon buttons on a faint, borderless
   track (2px inset) so the modes read as one control as more are added; the
@@ -178,7 +179,7 @@ because it hurt readability; an opaque window is also cheaper to composite.
   - Focus never follows the mouse.
   - Window: native macOS fullscreen. Text uses the platform's default
     rendering mode.
-  - Status bar: shown only in Workspace mode (and not while zoomed), with the language and
+  - Status bar: shown only in Editor mode (and not while zoomed), with the language and
     cursor position buttons; the encoding button only for non-UTF-8 or
     UTF-8-with-BOM buffers.
   - Preview tabs are always on (`TogglePreviewTab` always works). A single
@@ -194,10 +195,15 @@ because it hurt readability; an opaque window is also cheaper to composite.
   something is zoomed, so the zoomed view reaches down to the bottom gap. The
   window header moves into the zoomed view's top row, since the macOS window
   controls sit there.
-- A zoomed dock (e.g. an expanded terminal) belongs to Workspace mode: Git
+- A zoomed dock (e.g. an expanded terminal) belongs to Editor mode: Git
   History mode hides it, and switching back to
-  Workspace focuses it again, so it is still open and zoomed rather than
+  Editor mode focuses it again, so it is still open and zoomed rather than
   closed.
+- Zoom (`workspace::ToggleZoom`, `` cmd-` ``, also `shift-escape`) expands the
+  focused pane. In the terminal dock that is the focused terminal pane alone,
+  not every split, as zooming an editor pane hides the other panes.
+- `cmd-1`…`cmd-9` don't activate panes, and the image viewer and branch/stash
+  picker have no `cmd-1`/`cmd-2`, so the mode shortcuts work everywhere.
 - An 8px gap separates the cards from the window edges and from open docks.
   There is no gap at the top: tab bars and the sidebar header start at the
   window's top edge. When the status bar is shown, it replaces

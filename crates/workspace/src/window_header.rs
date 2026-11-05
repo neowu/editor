@@ -1,5 +1,5 @@
 //! The window has no title bar row. The window header (room for the macOS
-//! traffic lights, the project name, worktree and branch, the Workspace / Git
+//! traffic lights, the project name, worktree and branch, the Editor / Git
 //! History switch, and Go Back / Go Forward) sits above the sidebar when one is shown, otherwise at
 //! the start of the top-left tab bar. Above a sidebar narrower than the header,
 //! the header overhangs it and the top-left tab bar starts after the header.
@@ -213,7 +213,7 @@ fn render_nav_buttons(workspace: &WeakEntity<Workspace>, state: WindowHeaderStat
 /// Inset of the mode switch's buttons within its track.
 const MODE_SWITCH_PADDING: Pixels = px(2.);
 
-/// Icon-only mode switch ("Workspace" / "Git History"): top-row icon buttons
+/// Icon-only mode switch ("Editor" / "Git History"): top-row icon buttons
 /// grouped on a faint track, so the modes read as one control, with the shown
 /// mode's button filled and its icon in the accent colour.
 fn render_mode_switch(workspace: &WeakEntity<Workspace>, mode: WorkspaceMode, cx: &App) -> impl IntoElement {
@@ -225,7 +225,7 @@ fn render_mode_switch(workspace: &WeakEntity<Workspace>, mode: WorkspaceMode, cx
 
     let editor_workspace = workspace.clone();
     let show_editor = segment("workspace-mode-editor", IconName::Code, mode == WorkspaceMode::Editor)
-        .tooltip(|_window, cx| Tooltip::for_action("Workspace", &ShowEditor, cx))
+        .tooltip(|_window, cx| Tooltip::for_action("Editor", &ShowEditor, cx))
         .on_click(move |_, window, cx| {
             editor_workspace
                 .update(cx, |workspace, cx| workspace.set_mode(WorkspaceMode::Editor, window, cx))

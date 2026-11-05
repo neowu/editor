@@ -669,6 +669,12 @@ impl TerminalPanel {
         self.active_pane.read(cx).items_len() == 0 && self.pending_terminals_to_add == 0
     }
 
+    /// The pane a zoomed panel shows alone: zoom expands the active terminal
+    /// pane, not every split, as zooming an editor pane does.
+    fn zoomed_pane(&self, cx: &App) -> Option<&Entity<Pane>> {
+        (self.active_pane.read(cx).is_zoomed() && self.center.panes().len() > 1).then_some(&self.active_pane)
+    }
+
     /// Returns all panes in the terminal panel.
     pub fn panes(&self) -> Vec<&Entity<Pane>> {
         self.center.panes()
@@ -904,16 +910,19 @@ impl Render for TerminalPanel {
                     .track_focus(&self.focus_handle)
                     .size_full()
                     .relative()
-                    .child(self.center.render(
-                        workspace.zoomed_item(),
-                        None,
-                        &workspace::PaneRenderContext {
-                            active_pane: &self.active_pane,
-                            workspace: &workspace.weak_handle(),
-                        },
-                        window,
-                        cx,
-                    ))
+                    .map(|this| match self.zoomed_pane(cx) {
+                        Some(pane) => this.child(pane.clone()),
+                        None => this.child(self.center.render(
+                            workspace.zoomed_item(),
+                            None,
+                            &workspace::PaneRenderContext {
+                                active_pane: &self.active_pane,
+                                workspace: &workspace.weak_handle(),
+                            },
+                            window,
+                            cx,
+                        )),
+                    })
                     .children(starting_placeholder)
             })
             .ok()

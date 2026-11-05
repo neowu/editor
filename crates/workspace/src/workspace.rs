@@ -276,7 +276,7 @@ actions!(
         GoForward,
         /// Creates a new file.
         NewFile,
-        /// Switches the window from Git History mode back to the editor.
+        /// Switches the window to Editor mode.
         ShowEditor,
         /// Creates a new file in a vertical split.
         NewFileSplitVertical,

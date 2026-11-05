@@ -106,7 +106,7 @@ impl Workspace {
 
     /// What the history sidebar shows: the active history item's side card.
     /// A zoomed history pane fills the area alone, without the sidebar, as
-    /// zooming hides docks and other panes in Workspace mode.
+    /// zooming hides docks and other panes in Editor mode.
     pub(crate) fn git_history_side_card(&self, cx: &App) -> Option<gpui::AnyView> {
         if self.has_zoomed(WorkspaceMode::GitHistory, cx) {
             return None;

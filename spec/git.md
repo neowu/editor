@@ -55,7 +55,7 @@ repository's `$PATH`; if none is found, the repository is not opened.
   active row; then recent projects. Nested rows can't be removed. The menu's
   folder section shows whenever there is more than one row.
 - A folder outside any repository can be picked: the header then shows only
-  its name (no worktree / branch, no Workspace / Git History switch) and the
+  its name (no worktree / branch, no Editor / Git History switch) and the
   git panel offers to initialize a repository.
 - Two folders in one repository are separate rows; the check follows the one
   picked. With a nested repository active the header reads
@@ -109,7 +109,7 @@ mode (docks, editor panes) or in Git History mode, which shows only
 one pane holding the git graph and commit tabs. Commit buffers are read-only
 blobs with no language server, so they are not mixed into editor panes.
 
-- An icon-only, segmented "Workspace" / "Git History" switch at the end of the
+- An icon-only, segmented "Editor" / "Git History" switch at the end of the
   window header, after Go Back / Go Forward, switches modes (`ui-layout.md`).
   It is shown whenever the project is in a git repository. "Git
   History" (`git_graph::Show`) follows the active repository (the folder picked
@@ -134,14 +134,14 @@ blobs with no language server, so they are not mixed into editor panes.
   card, the same toolbar items as editor panes) that split like editor panes:
   dragging a tab to a pane edge, `pane::Split*`, and "open to the side"
   (Option-click on a preview button) all split within the history group and
-  stay in Git History mode. As in Workspace mode, splitting for "open to the
+  stay in Git History mode. As in Editor mode, splitting for "open to the
   side" neither activates nor focuses the new pane: focus stays where it was,
   and the focused pane is always the active one. Preview actions from the keyboard target the
   history tab when Git History is shown.
   Its tab bars have, on the focused pane, Zoom
-  (back/forward is the window header's, shared with Workspace mode); there is no New… menu, since files and terminals belong
-  to Workspace mode. Zoom shows only that pane, without the commit sidebar
-  (as zooming hides docks, other panes and the status bar in Workspace mode). Every history tab is read-only, so the tab context menu
+  (back/forward is the window header's, shared with Editor mode); there is no New… menu, since files and terminals belong
+  to Editor mode. Zoom shows only that pane, without the commit sidebar
+  (as zooming hides docks, other panes and the status bar in Editor mode). Every history tab is read-only, so the tab context menu
   leaves out "Close Clean", "Close Multibuffers" and "Make Tab Read-Only". History tabs and
   splits are not restored after a restart, but survive switching modes.
 - The graph and commit views open in the active history pane (the last
@@ -173,7 +173,7 @@ blobs with no language server, so they are not mixed into editor panes.
   symbols, preferring the revision's own file when it defines it; references
   then come from that definition, only when the name matches exactly one. A
   name that no longer exists gets no result. Results are current project
-  files, so opening one switches to Workspace mode. The commit diff does the
+  files, so opening one switches to Editor mode. The commit diff does the
   same on its new side (added and unchanged lines); a commit's diff and its
   revision tabs share the current files they keep open. Deleted lines, and the
   old side of a split diff, get none: in any diff, a deleted line's text isn't
@@ -181,7 +181,7 @@ blobs with no language server, so they are not mixed into editor panes.
 - A revision's right-click menu disables, as in any read-only editor, Rename,
   Format, Code Actions, Cut and Paste.
 - Focusing a dock panel or an editor pane (opening a file, Open File in Project
-  from a commit, File Finder, …) switches back to Workspace mode. Closing the
+  from a commit, File Finder, …) switches back to Editor mode. Closing the
   last tab of the last history pane does too.
 - A preview (Markdown, tabular data) of a revision keeps its commit's sidebar,
   since the sidebar follows the commit the active tab belongs to.
@@ -230,7 +230,7 @@ view) offers:
 
 - "Open Revision": opens the file's revision tab at that commit. From the
   graph this opens the commit view, then its revision.
-- "Open File in Project": opens the file from the project in Workspace mode. If
+- "Open File in Project": opens the file from the project in Editor mode. If
   the path is no longer a file in the project (moved or deleted since the
   commit), a toast says so instead. The commit diff's buffer header menu has
   the same entry (same label, same behaviour), shown only while the file is in
