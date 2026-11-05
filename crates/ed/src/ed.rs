@@ -144,7 +144,7 @@ pub fn build_window_options(display_uuid: Option<Uuid>, cx: &mut App) -> WindowO
                 px(ui::utils::TRAFFIC_LIGHT_POSITION.1),
             )),
         }),
-        window_bounds: None,
+        window_bounds: Some(workspace::new_window_bounds(display.as_ref().map(|display| display.id()), cx)),
         focus: false,
         show: false,
         kind: WindowKind::Normal,

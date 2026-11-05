@@ -67,6 +67,8 @@ use gpui::AppContext;
 use gpui::AsyncApp;
 use gpui::Bounds;
 use gpui::Context;
+use gpui::DEFAULT_WINDOW_SIZE;
+use gpui::DisplayId;
 use gpui::Entity;
 use gpui::EntityId;
 use gpui::EventEmitter;
@@ -120,7 +122,6 @@ pub use persistence::ProjectsStore;
 pub use persistence::RecentServer;
 pub use persistence::RecentWorkspace;
 pub use persistence::RemoteServer;
-use persistence::SavedWindowBounds;
 pub use persistence::WORKSPACE_STATE_DIR;
 pub use persistence::delete_recent_workspace_group;
 pub use persistence::last_session_workspaces;
@@ -144,7 +145,6 @@ use project::WorktreeSettings;
 use remote::RemoteClientDelegate;
 use remote::RemoteConnection;
 pub use remote::RemoteConnectionIdentity;
-use remote::RemoteConnectionOptions;
 use remote::remote_client::ConnectionIdentifier;
 pub use remote::remote_connection_identity;
 pub use remote::same_remote_connection_identity;
@@ -1243,12 +1243,7 @@ impl Workspace {
 
         let subscriptions = vec![
             cx.observe_window_activation(window, Self::on_window_activation_changed),
-            cx.observe_window_bounds(window, move |this, window, cx| {
-                if window.is_window_active() {
-                    this.serialize_workspace(window, cx);
-                }
-                cx.notify();
-            }),
+            cx.observe_window_bounds(window, |_, _, cx| cx.notify()),
             cx.on_release({
                 let weak_handle = weak_handle.clone();
                 move |this, cx| {
@@ -1360,8 +1355,6 @@ impl Workspace {
                 None => None,
             };
 
-            let position = cx.update(|cx| workspace_position(&paths_to_open, None, cx));
-
             // Get project paths for all of the abs_paths
             let mut project_paths: Vec<(PathBuf, Option<ProjectPath>)> = Vec::with_capacity(paths_to_open.len());
 
@@ -1398,8 +1391,7 @@ impl Workspace {
                     })?;
                     (window, workspace)
                 } else {
-                    let mut options = cx.update(|cx| (app_state.build_window_options)(position.display, cx));
-                    options.window_bounds = position.window_bounds;
+                    let options = cx.update(|cx| (app_state.build_window_options)(None, cx));
                     let window = cx.open_window(options, {
                         let app_state = app_state.clone();
                         let project_handle = project_handle.clone();
@@ -4457,12 +4449,6 @@ impl Workspace {
         let Some(location) = self.project_location(cx) else {
             return Task::ready(());
         };
-        if let Some(display) = window.display(cx).and_then(|display| display.uuid().ok())
-            && let Some(store) = ProjectsStore::try_global(cx)
-        {
-            let window = SavedWindowBounds { bounds: window.window_bounds().into(), display };
-            store.set_window_bounds(&location, window, cx);
-        }
         let Some(root) = location.paths.into_iter().next() else {
             return Task::ready(());
         };
@@ -5612,24 +5598,22 @@ pub async fn restore_workspace(
     Ok(window_handle)
 }
 
-/// Window bounds and display to open a project's window with: the
-/// environment override, else where its window last was.
-fn restored_window_bounds(saved: Option<SavedWindowBounds>) -> WorkspacePosition {
-    if let Some(bounds) = window_bounds_env_override() {
-        return WorkspacePosition { window_bounds: Some(WindowBounds::Windowed(bounds)), display: None };
-    }
-    match saved {
-        Some(saved) => WorkspacePosition { window_bounds: Some(saved.bounds.into()), display: Some(saved.display) },
-        None => WorkspacePosition { window_bounds: None, display: None },
-    }
+/// Bounds every new window opens with on the display `display_id`: the
+/// environment override, else maximized. Windows don't remember their bounds.
+pub fn new_window_bounds(display_id: Option<DisplayId>, cx: &App) -> WindowBounds {
+    window_bounds_or_maximized(window_bounds_env_override(), || Bounds::centered(display_id, DEFAULT_WINDOW_SIZE, cx))
 }
 
-/// Where to open the window of the local project (`remote` is `None`) or remote
-/// project with root folders `paths`. Read from `projects.json`, so a remote
-/// project's window can be placed before connecting.
-pub fn workspace_position(paths: &[PathBuf], remote: Option<&RemoteConnectionOptions>, cx: &App) -> WorkspacePosition {
-    let saved = ProjectsStore::try_global(cx).and_then(|store| store.window_bounds(paths, remote));
-    restored_window_bounds(saved)
+/// `env_override` as a windowed window, else maximized, restoring to
+/// `unmaximized` bounds.
+fn window_bounds_or_maximized(
+    env_override: Option<Bounds<Pixels>>,
+    unmaximized: impl FnOnce() -> Bounds<Pixels>,
+) -> WindowBounds {
+    match env_override {
+        Some(bounds) => WindowBounds::Windowed(bounds),
+        None => WindowBounds::Maximized(unmaximized()),
+    }
 }
 
 actions!(
@@ -6236,12 +6220,6 @@ pub fn move_active_item(
     });
 }
 
-#[derive(Debug, PartialEq)]
-pub struct WorkspacePosition {
-    pub window_bounds: Option<WindowBounds>,
-    pub display: Option<Uuid>,
-}
-
 pub fn with_active_or_new_workspace(
     cx: &mut App,
     f: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + Send + 'static,
@@ -6290,22 +6268,17 @@ mod tests {
     }
 
     #[test]
-    fn test_restored_window_bounds_uses_saved_window() {
-        use super::WorkspacePosition;
-        use super::persistence::SavedWindowBounds;
-        use super::persistence::WindowBoundsJson;
-        use super::restored_window_bounds;
+    fn test_window_bounds_or_maximized() {
+        use gpui::Bounds;
+        use gpui::WindowBounds;
+        use gpui::point;
+        use gpui::px;
+        use gpui::size;
 
-        if super::window_bounds_env_override().is_some() {
-            return;
-        }
-        let bounds = WindowBoundsJson::Windowed { x: 1, y: 2, width: 300, height: 400 };
-        let display = uuid::Uuid::from_u128(7);
-        assert_eq!(
-            restored_window_bounds(Some(SavedWindowBounds { bounds, display })),
-            WorkspacePosition { window_bounds: Some(bounds.into()), display: Some(display) }
-        );
-        assert_eq!(restored_window_bounds(None), WorkspacePosition { window_bounds: None, display: None });
+        let env = Bounds::new(point(px(1.), px(2.)), size(px(300.), px(400.)));
+        let unmaximized = Bounds::new(point(px(0.), px(0.)), size(px(800.), px(600.)));
+        assert_eq!(super::window_bounds_or_maximized(Some(env), || unmaximized), WindowBounds::Windowed(env));
+        assert_eq!(super::window_bounds_or_maximized(None, || unmaximized), WindowBounds::Maximized(unmaximized));
     }
 
     #[test]

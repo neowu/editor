@@ -18,11 +18,7 @@ migrator, or Vim/Helix mode.
   - `~/.local/share/ed/projects.json`: recent projects (root folders in open
     order, plus the SSH host/user/port for remote ones), most recent first and
     capped at 100, each flagged `open` while it has a window (the open list
-    is the recents, not a separate list), and the window's last bounds and
-    display. Window placement lives here, not in `workspace.json`: it
-    describes this machine's displays, and a remote project's window opens
-    (showing the connection modal) before its server can be read, so both
-    local and remote windows open at their saved place. It is
+    is the recents, not a separate list). Window bounds are not saved. It is
     read once at launch; unreadable contents count as empty. Every change
     rewrites the whole file. A project moves to the front of the recents when
     opened or its window is focused.
@@ -60,7 +56,8 @@ migrator, or Vim/Helix mode.
   window deactivates, formatting on save; closing a dirty, autosavable buffer
   saves it instead of prompting. Reopening a file in the same pane restores
   its selections, folds and scroll position.
-- Not persisted: panel sizes, default window bounds and dock layout for new
+- Not persisted: panel sizes, window bounds (every new window, restored
+  ones included, opens maximized so all windows match), dock layout for new
   windows, native (macOS) window state, the Text Finder's last query and
   filters, git panel commit drafts/signoff/commit-editor collapse, outline panel
   state, and the registry of git worktrees ed created.
