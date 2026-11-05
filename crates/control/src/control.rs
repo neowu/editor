@@ -221,11 +221,14 @@ pub struct State {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorkspaceState {
     pub roots: Vec<PathBuf>,
-    /// "editor" or "git_history".
+    /// "editor", "git_history" or "terminal".
     pub mode: String,
     pub panes: Vec<PaneState>,
     /// The Git History mode panes, kept apart from the editor panes.
     pub git_history_panes: Vec<PaneState>,
+    /// The Terminal mode panes, kept apart from the editor panes.
+    #[serde(default)]
+    pub terminal_panes: Vec<PaneState>,
     /// The left, bottom and right docks, in that order.
     pub docks: Vec<DockState>,
     /// The active item, when it is an editor.

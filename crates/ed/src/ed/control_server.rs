@@ -453,6 +453,8 @@ fn state(window: &Window, cx: &mut App) -> control::State {
     let panes = workspace.panes().iter().map(|pane| pane_state(pane, workspace.active_pane())).collect();
     let git_history_panes =
         workspace.git_history_panes().into_iter().map(|pane| pane_state(pane, workspace.git_history_pane())).collect();
+    let terminal_panes =
+        workspace.terminal_panes().into_iter().map(|pane| pane_state(pane, workspace.terminal_pane())).collect();
     let docks = workspace
         .all_docks()
         .into_iter()
@@ -469,6 +471,7 @@ fn state(window: &Window, cx: &mut App) -> control::State {
     let mode = match workspace.mode() {
         WorkspaceMode::Editor => "editor",
         WorkspaceMode::GitHistory => "git_history",
+        WorkspaceMode::Terminal => "terminal",
     }
     .to_string();
 
@@ -523,6 +526,7 @@ fn state(window: &Window, cx: &mut App) -> control::State {
             mode,
             panes,
             git_history_panes,
+            terminal_panes,
             docks,
             active_editor,
             language_servers,

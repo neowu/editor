@@ -61,7 +61,7 @@ repository's `$PATH`; if none is found, the repository is not opened.
   active row; then recent projects. Nested rows can't be removed. The menu's
   folder section shows whenever there is more than one row.
 - A folder outside any repository can be picked: the header then shows only
-  its name (no worktree / branch, no Editor / Git History switch) and the
+  its name (no worktree / branch, no Git History button in the mode switch) and the
   git panel offers to initialize a repository.
 - Two folders in one repository are separate rows; the check follows the one
   picked. With a nested repository active the header reads

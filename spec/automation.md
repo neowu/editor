@@ -51,7 +51,8 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
   ambiguous matches fail and list candidates for `--nth`.
 - `wait` polls `tree` for an element or text to appear or disappear, or for
   focus to move to an id.
-- `state` lists the editor panes and, separately, the Git History panes, each
+- `state` lists the editor panes and, separately, the Git History and
+  Terminal mode panes, each
   with whether it is the workspace's focused pane, the active pane of its
   group, and whether it holds keyboard focus, plus the current mode.
 - GPUI only sends focus-in/out events while the window is active (frontmost),

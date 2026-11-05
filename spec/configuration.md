@@ -182,10 +182,16 @@ migrator, or Vim/Helix mode.
   preview layout and size, and a resize or preview-layout change lasts only
   until it closes (switching layouts resets to that layout's default size).
   `PickerDelegate` has no `name()` key.
-- Terminals keep no persisted state: neither terminal-panel terminals
-  (and their splits) nor terminal tabs in the center are restored after a
-  restart, and a terminal's custom title and working directory are not saved.
-  The terminal panel opens a fresh shell when it is first shown empty.
+- Terminal-panel (dock) terminals keep no persisted state: they and their
+  splits are not restored after a restart, and the panel opens a fresh shell
+  when it is first shown empty.
+- Terminal mode's layout is saved in `.ed/workspace.json` (`terminal`): its
+  splits and, per tab, the shell's working directory (local projects only;
+  remote shells report none). Shells start afresh there, without output,
+  processes or custom titles. Restoring is lazy: nothing starts until terminal
+  mode is first shown in the window, and until then the saved layout is
+  written back unchanged. A directory that no longer exists falls back to the
+  default. With no terminals left, nothing is saved.
 - App-level actions (quit, about, font size, `NoAction`/`Unbind`, ...)
   use the `ed` namespace (`ed::Quit`, shown as "ed: quit"), not upstream's
   `zed`. Keymaps using `zed::*` names do not resolve.

@@ -476,6 +476,7 @@ pub struct Pane {
     double_click_dispatch_action: Box<dyn Action>,
     save_modals_spawned: HashSet<EntityId>,
     close_pane_if_empty: bool,
+    empty_pane_hints: EmptyPaneHints,
     /// Every tab is read-only, so the tab menu leaves out entries about
     /// saving or editing.
     read_only_tabs: bool,
@@ -626,6 +627,7 @@ impl Pane {
             double_click_dispatch_action,
             save_modals_spawned: HashSet::default(),
             close_pane_if_empty: true,
+            empty_pane_hints: EmptyPaneHints::Files,
             read_only_tabs: false,
             pinned_tab_count: 0,
             zoom_out_on_close: true,
@@ -2920,12 +2922,14 @@ impl Pane {
     /// Keybinding hints shown in an empty pane, styled like the project search landing page.
     fn render_empty_pane_hints(&self, cx: &App) -> impl IntoElement {
         let focus_handle = self.focus_handle.clone();
-        v_flex().gap_1().children(empty_pane_hints().into_iter().map(|(id, label, icon, action)| {
-            Button::new(id, label)
-                .start_icon(Icon::new(icon).size(IconSize::Small))
-                .key_binding(KeyBinding::for_action_in(action.as_ref(), &focus_handle, cx))
-                .on_click(move |_event, window, cx| window.dispatch_action(action.boxed_clone(), cx))
-        }))
+        v_flex().gap_1().children(empty_pane_hints(self.empty_pane_hints).into_iter().map(
+            |(id, label, icon, action)| {
+                Button::new(id, label)
+                    .start_icon(Icon::new(icon).size(IconSize::Small))
+                    .key_binding(KeyBinding::for_action_in(action.as_ref(), &focus_handle, cx))
+                    .on_click(move |_event, window, cx| window.dispatch_action(action.boxed_clone(), cx))
+            },
+        ))
     }
 
     pub fn set_zoomed(&mut self, zoomed: bool, cx: &mut Context<Self>) {
@@ -3175,6 +3179,10 @@ impl Pane {
         self.drag_split_direction
     }
 
+    pub const fn set_empty_pane_hints(&mut self, empty_pane_hints: EmptyPaneHints) {
+        self.empty_pane_hints = empty_pane_hints;
+    }
+
     pub const fn set_zoom_out_on_close(&mut self, zoom_out_on_close: bool) {
         self.zoom_out_on_close = zoom_out_on_close;
     }
@@ -3211,20 +3219,42 @@ pub fn render_tab_bar_zoom_button(pane: &Pane, cx: &mut Context<Pane>) -> AnyEle
         .into_any_element()
 }
 
+/// Which actions an empty pane offers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EmptyPaneHints {
+    /// Editor panes: opening files.
+    Files,
+    /// Terminal mode panes: a new terminal.
+    Terminal,
+}
+
 /// Rows of the empty pane's hints, top to bottom: id, label, icon, action.
-/// New File leads because a double click on a titlebar tab bar can't create one.
-fn empty_pane_hints() -> [(&'static str, &'static str, IconName, Box<dyn Action>); 4] {
-    [
-        ("empty-pane-new-file", "New File", IconName::Plus, NewFile.boxed_clone()),
-        ("empty-pane-open-file", "Open File", IconName::FolderOpen, Open::DEFAULT.boxed_clone()),
-        ("empty-pane-go-to-file", "Go to File", IconName::MagnifyingGlass, ToggleFileFinder::default().boxed_clone()),
-        (
-            "empty-pane-command-palette",
-            "Command Palette",
-            IconName::Command,
-            ed_actions::command_palette::Toggle.boxed_clone(),
-        ),
-    ]
+/// The "new" entry leads because a double click on a titlebar tab bar can't
+/// create one.
+fn empty_pane_hints(hints: EmptyPaneHints) -> Vec<(&'static str, &'static str, IconName, Box<dyn Action>)> {
+    let command_palette = (
+        "empty-pane-command-palette",
+        "Command Palette",
+        IconName::Command,
+        ed_actions::command_palette::Toggle.boxed_clone(),
+    );
+    match hints {
+        EmptyPaneHints::Files => vec![
+            ("empty-pane-new-file", "New File", IconName::Plus, NewFile.boxed_clone()),
+            ("empty-pane-open-file", "Open File", IconName::FolderOpen, Open::DEFAULT.boxed_clone()),
+            (
+                "empty-pane-go-to-file",
+                "Go to File",
+                IconName::MagnifyingGlass,
+                ToggleFileFinder::default().boxed_clone(),
+            ),
+            command_palette,
+        ],
+        EmptyPaneHints::Terminal => vec![
+            ("empty-pane-new-terminal", "New Terminal", IconName::Plus, crate::NewTerminal::default().boxed_clone()),
+            command_palette,
+        ],
+    }
 }
 
 /// Center (editor) panes get a "+" left of the shared buttons that opens an
@@ -3922,6 +3952,7 @@ mod tests {
     use gpui::WeakEntity;
     use gpui::px;
 
+    use super::EmptyPaneHints;
     use super::NavHistory;
     use super::Pane;
     use super::TabDropSide;
@@ -3968,10 +3999,15 @@ mod tests {
 
     #[test]
     fn test_empty_pane_hints() {
-        let hints = empty_pane_hints();
+        let hints = empty_pane_hints(EmptyPaneHints::Files);
         let labels: Vec<_> = hints.iter().map(|(_, label, _, _)| *label).collect();
         assert_eq!(labels, ["New File", "Open File", "Go to File", "Command Palette"]);
         assert!(hints[0].3.partial_eq(&crate::NewFile));
+
+        let hints = empty_pane_hints(EmptyPaneHints::Terminal);
+        let labels: Vec<_> = hints.iter().map(|(_, label, _, _)| *label).collect();
+        assert_eq!(labels, ["New Terminal", "Command Palette"]);
+        assert!(hints[0].3.partial_eq(&crate::NewTerminal::default()));
     }
 
     #[test]

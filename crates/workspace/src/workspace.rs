@@ -179,6 +179,10 @@ use uuid::Uuid;
 use crate::item::ItemBufferKind;
 use crate::mode::GIT_HISTORY_SIDEBAR_WIDTH;
 use crate::mode::ModeView;
+use crate::mode::TerminalLayout;
+pub use crate::mode::TerminalModeDelegate;
+use crate::mode::is_dragged_terminal;
+pub use crate::mode::set_terminal_mode_delegate;
 use crate::notifications::NotificationId;
 use crate::persistence::model::SerializedItem;
 use crate::persistence::model::SerializedPane;
@@ -450,16 +454,6 @@ pub struct ToggleFileFinder {
     pub separate_history: bool,
     #[serde(default)]
     pub include_ignored: Option<bool>,
-}
-
-/// Opens a new terminal in the center.
-#[derive(Default, PartialEq, Eq, Clone, Deserialize, Action)]
-#[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
-pub struct NewCenterTerminal {
-    /// If true, creates a local terminal even in remote projects.
-    #[serde(default)]
-    pub local: bool,
 }
 
 /// Opens a new terminal.
@@ -907,6 +901,8 @@ pub enum WorkspaceMode {
     Editor,
     /// Only the git history pane (git graph and commit tabs).
     GitHistory,
+    /// Only terminal panes.
+    Terminal,
 }
 
 impl WorkspaceMode {
@@ -1038,6 +1034,12 @@ pub struct Workspace {
     git_history_sidebar_width: Pixels,
     editor_view: Entity<ModeView>,
     git_history_view: Entity<ModeView>,
+    /// Hosts terminal mode's terminals; its panes are never part of `center`
+    /// or `panes`.
+    terminal_center: PaneGroup,
+    active_terminal_pane: Entity<Pane>,
+    terminal_layout: TerminalLayout,
+    terminal_mode_view: Entity<ModeView>,
     window_header: Entity<window_header::WindowHeader>,
 
     status_bar: Entity<StatusBar>,
@@ -1191,7 +1193,7 @@ impl Workspace {
                 weak_handle.clone(),
                 project.clone(),
                 pane_history_timestamp.clone(),
-                None,
+                Some(Arc::new(|dragged, _, cx| !is_dragged_terminal(dragged, cx))),
                 NewFile.boxed_clone(),
                 window,
                 cx,
@@ -1215,6 +1217,8 @@ impl Workspace {
             window,
             cx,
         );
+
+        let terminal_pane = Self::new_terminal_pane(weak_handle.clone(), project.clone(), window, cx);
 
         let any_window_handle = window.window_handle();
         app_state.workspace_store.update(cx, |store, _| {
@@ -1253,6 +1257,7 @@ impl Workspace {
             )
         });
         let git_history_view = cx.new(|cx| ModeView::new(&workspace, WorkspaceMode::GitHistory, &[], cx));
+        let terminal_mode_view = cx.new(|cx| ModeView::new(&workspace, WorkspaceMode::Terminal, &[], cx));
         let window_header = cx.new(|cx| window_header::WindowHeader::new(&workspace, &left_dock, &project, cx));
 
         let subscriptions = vec![
@@ -1294,6 +1299,10 @@ impl Workspace {
             git_history_sidebar_width: GIT_HISTORY_SIDEBAR_WIDTH,
             editor_view,
             git_history_view,
+            terminal_center: PaneGroup::new(terminal_pane.clone()),
+            active_terminal_pane: terminal_pane,
+            terminal_layout: TerminalLayout::Pending(None),
+            terminal_mode_view,
             window_header,
 
             status_bar,
@@ -1636,6 +1645,7 @@ impl Workspace {
         match self.mode {
             WorkspaceMode::Editor => &self.active_pane,
             WorkspaceMode::GitHistory => &self.active_git_history_pane,
+            WorkspaceMode::Terminal => &self.active_terminal_pane,
         }
     }
 
@@ -2066,6 +2076,9 @@ impl Workspace {
             }
             self.set_active_git_history_pane(pane, window, cx);
             self.switch_mode(WorkspaceMode::GitHistory, cx);
+        } else if self.terminal_center.root.contains_pane(pane) {
+            self.set_active_terminal_pane(pane, cx);
+            self.switch_mode(WorkspaceMode::Terminal, cx);
         } else {
             self.switch_mode(WorkspaceMode::Editor, cx);
             if self.active_pane != *pane {
@@ -3185,7 +3198,7 @@ impl Workspace {
                 self.weak_handle(),
                 self.project.clone(),
                 self.pane_history_timestamp.clone(),
-                None,
+                Some(Arc::new(|dragged, _, cx| !is_dragged_terminal(dragged, cx))),
                 NewFile.boxed_clone(),
                 window,
                 cx,
@@ -4107,6 +4120,9 @@ impl Workspace {
             self.notify_mode(WorkspaceMode::GitHistory, cx);
             return new_pane;
         }
+        if self.terminal_center.root.contains_pane(&pane_to_split) {
+            return self.split_terminal_pane_for_drop(&pane_to_split, split_direction, window, cx);
+        }
         let new_pane = self.add_pane(window, cx);
         self.center.split(&pane_to_split, &new_pane, split_direction, cx);
         self.notify_mode(WorkspaceMode::Editor, cx);
@@ -4217,6 +4233,8 @@ impl Workspace {
         // this mode, so its layout is stale.
         let pane_group = if self.git_history_center.root.contains_pane(origin) {
             &mut self.git_history_center
+        } else if self.terminal_center.root.contains_pane(origin) {
+            &mut self.terminal_center
         } else {
             &mut self.center
         };
@@ -4542,6 +4560,7 @@ impl Workspace {
             center_group: build_serialized_pane_group(&self.center.root, self, window, cx),
             docks: self.capture_dock_state(window, cx),
             recent_navigation_history: self.persisted_recent_navigation_history.clone(),
+            terminal: self.terminal_layout_to_save(cx),
         };
         let Some(json) = serde_json::to_string_pretty(&serialized_workspace).log_err() else {
             return Task::ready(());
@@ -4593,8 +4612,12 @@ impl Workspace {
     ) -> Task<Result<Vec<Option<Box<dyn ItemHandle>>>>> {
         cx.spawn_in(window, async move |workspace, cx| {
             let recent_navigation_history = serialized_workspace.recent_navigation_history.clone();
+            let terminal_layout = serialized_workspace.terminal.clone();
             workspace.update(cx, |workspace, _| {
                 workspace.persisted_recent_navigation_history = recent_navigation_history;
+                if matches!(workspace.terminal_layout, TerminalLayout::Pending(_)) {
+                    workspace.terminal_layout = TerminalLayout::Pending(terminal_layout);
+                }
                 workspace.restoring_workspace = true;
             })?;
             let project = workspace.read_with(cx, |workspace, _| workspace.project().clone())?;
@@ -4858,6 +4881,9 @@ impl Workspace {
             }))
             .on_action(cx.listener(|workspace: &mut Workspace, _: &ed_actions::mode::Editor, window, cx| {
                 workspace.set_mode(WorkspaceMode::Editor, window, cx);
+            }))
+            .on_action(cx.listener(|workspace: &mut Workspace, _: &ed_actions::mode::Terminal, window, cx| {
+                workspace.show_terminal_mode(true, window, cx);
             }))
             .on_action(cx.listener(|workspace: &mut Workspace, _: &CloseAllDocks, window, cx| {
                 workspace.close_all_docks(window, cx);

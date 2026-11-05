@@ -4,7 +4,6 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use anyhow::Result;
-use anyhow::anyhow;
 use collections::HashMap;
 use futures::channel::oneshot;
 use futures::future::join_all;
@@ -63,6 +62,7 @@ use workspace::SwapPaneLeft;
 use workspace::SwapPaneRight;
 use workspace::SwapPaneUp;
 use workspace::Workspace;
+use workspace::WorkspaceMode;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
 use workspace::dock::PanelEvent;
@@ -340,27 +340,14 @@ impl TerminalPanel {
         }
     }
 
+    /// "Open in Terminal" opens a shell in that directory in terminal mode.
     pub fn open_terminal(
         workspace: &mut Workspace,
         action: &workspace::OpenTerminal,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
-        let Some(terminal_panel) = workspace.panel::<Self>(cx) else {
-            return;
-        };
-
-        terminal_panel
-            .update(cx, |panel, cx| {
-                panel.add_terminal_shell(
-                    action.local,
-                    Some(action.working_directory.clone()),
-                    RevealStrategy::Always,
-                    window,
-                    cx,
-                )
-            })
-            .detach_and_log_err(cx);
+        workspace.open_terminal_mode_shell(Some(action.working_directory.clone()), window, cx);
     }
 
     pub fn spawn_task(
@@ -400,29 +387,17 @@ impl TerminalPanel {
         cx.spawn(async move |_, _| rx.await?)
     }
 
-    /// Create a new Terminal in the current working directory or the user's home directory
+    /// Opens a shell in the project's default directory: in terminal mode's
+    /// active pane while that mode is shown, else in the terminal panel.
     fn new_terminal(
         workspace: &mut Workspace,
         action: &workspace::NewTerminal,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
-        let center_pane = workspace.active_pane();
-        let center_pane_has_focus = center_pane.focus_handle(cx).contains_focused(window, cx);
-        let active_center_item_is_terminal =
-            center_pane.read(cx).active_item().is_some_and(|item| item.downcast::<TerminalView>().is_some());
-
-        if center_pane_has_focus && active_center_item_is_terminal {
+        if workspace.mode() == WorkspaceMode::Terminal {
             let working_directory = default_working_directory(workspace, cx);
-            let local = action.local;
-            Self::add_center_terminal(workspace, window, cx, move |project, cx| {
-                if local {
-                    project.create_local_terminal(cx)
-                } else {
-                    project.create_terminal_shell(working_directory, cx)
-                }
-            })
-            .detach_and_log_err(cx);
+            workspace.open_terminal_mode_shell(working_directory, window, cx);
             return;
         }
 
@@ -444,10 +419,6 @@ impl TerminalPanel {
     }
 
     fn terminals_for_task(&self, label: &str, cx: &App) -> Vec<(usize, Entity<Pane>, Entity<TerminalView>)> {
-        let Some(workspace) = self.workspace.upgrade() else {
-            return Vec::new();
-        };
-
         let pane_terminal_views = |pane: Entity<Pane>| {
             pane.read(cx)
                 .items()
@@ -465,7 +436,6 @@ impl TerminalPanel {
             .into_iter()
             .cloned()
             .flat_map(pane_terminal_views)
-            .chain(workspace.read(cx).panes().iter().cloned().flat_map(pane_terminal_views))
             .sorted_by_key(|(_, _, terminal_view)| terminal_view.entity_id())
             .collect()
     }
@@ -479,39 +449,6 @@ impl TerminalPanel {
         cx: &mut App,
     ) {
         pane.update(cx, |pane, cx| pane.activate_item(item_index, true, focus, window, cx))
-    }
-
-    pub fn add_center_terminal(
-        workspace: &mut Workspace,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-        create_terminal: impl FnOnce(&mut Project, &mut Context<Project>) -> Task<Result<Entity<Terminal>>> + 'static,
-    ) -> Task<Result<WeakEntity<Terminal>>> {
-        if !is_enabled_in_workspace(workspace, cx) {
-            return Task::ready(Err(anyhow!("terminal not yet supported for remote projects")));
-        }
-        let project = workspace.project().downgrade();
-        cx.spawn_in(window, async move |workspace, cx| {
-            let terminal = project.update(cx, create_terminal)?.await?;
-
-            workspace.update_in(cx, |workspace, window, cx| {
-                let terminal_view = cx.new(|cx| {
-                    TerminalView::new(
-                        terminal.clone(),
-                        workspace.weak_handle(),
-                        workspace.project().downgrade(),
-                        window,
-                        cx,
-                    )
-                });
-                // Don't steal focus from an open modal (e.g. the command palette):
-                // a background terminal can finish starting up after the user has
-                // moved on, and focusing it would dismiss whatever they opened.
-                let focus_item = !workspace.has_active_modal(window, cx);
-                workspace.add_item_to_active_pane(Box::new(terminal_view), None, focus_item, window, cx);
-            })?;
-            Ok(terminal.downgrade())
-        })
     }
 
     pub fn add_terminal_task(
@@ -677,12 +614,9 @@ impl TerminalPanel {
                 terminal_to_replace.set_terminal(new_terminal.clone(), window, cx);
             })?;
 
-            // The task's tab may have been moved from the dock into the center pane group.
-            let in_dock =
-                terminal_panel.update(cx, |panel, _| panel.center.panes().iter().any(|p| **p == task_pane))?;
-
+            // Task tabs stay in the terminal panel: editor panes refuse terminals.
             match reveal {
-                RevealStrategy::Always if in_dock => {
+                RevealStrategy::Always => {
                     terminal_panel.update_in(cx, |terminal_panel, window, cx| {
                         terminal_panel.activate_terminal_view(&task_pane, terminal_item_index, true, window, cx)
                     })?;
@@ -694,16 +628,7 @@ impl TerminalPanel {
                     })
                     .detach();
                 }
-                RevealStrategy::Always => {
-                    task_workspace.update_in(cx, |workspace, window, cx| {
-                        let did_activate = workspace.activate_item(&terminal_to_replace, true, true, window, cx);
-
-                        anyhow::ensure!(did_activate, "Failed to retrieve terminal pane");
-
-                        anyhow::Ok(())
-                    })??;
-                }
-                RevealStrategy::NoFocus if in_dock => {
+                RevealStrategy::NoFocus => {
                     terminal_panel.update_in(cx, |terminal_panel, window, cx| {
                         terminal_panel.activate_terminal_view(&task_pane, terminal_item_index, false, window, cx)
                     })?;
@@ -714,11 +639,6 @@ impl TerminalPanel {
                             .ok()
                     })
                     .detach();
-                }
-                RevealStrategy::NoFocus => {
-                    task_workspace.update_in(cx, |workspace, window, cx| {
-                        workspace.active_pane().focus_handle(cx).focus(window, cx);
-                    })?;
                 }
                 RevealStrategy::Never => {}
             }
@@ -795,7 +715,9 @@ fn is_enabled_in_workspace(workspace: &Workspace, cx: &App) -> bool {
 
 /// The "+" opens a terminal right away: every entry of the generic new-item
 /// menu other than "New Terminal" is unrelated to the terminal panel.
-fn set_terminal_tab_bar_buttons(pane: &mut Pane, cx: &mut Context<Pane>) {
+/// Terminal mode's panes also get Split Right / Split Down, which open a shell
+/// in the active terminal's directory beside the pane.
+pub(crate) fn set_terminal_tab_bar_buttons(pane: &mut Pane, with_splits: bool, cx: &mut Context<Pane>) {
     pane.set_render_tab_bar_buttons(cx, move |pane, window, cx| {
         let has_focused_rename_editor = pane
             .active_item()
@@ -813,6 +735,22 @@ fn set_terminal_tab_bar_buttons(pane: &mut Pane, cx: &mut Context<Pane>) {
                     })
                     .tooltip(Tooltip::for_action_title("New Terminal", &workspace::NewTerminal::default())),
             )
+            .when(with_splits, |this| {
+                this.child(
+                    workspace::pane::top_row_icon_button("split-right", IconName::SplitRight)
+                        .on_click(cx.listener(|pane, _, window, cx| {
+                            pane.split(SplitDirection::Right, SplitMode::ClonePane, window, cx);
+                        }))
+                        .tooltip(Tooltip::for_action_title("Split Right", &workspace::SplitRight::default())),
+                )
+                .child(
+                    workspace::pane::top_row_icon_button("split-down", IconName::SplitDown)
+                        .on_click(cx.listener(|pane, _, window, cx| {
+                            pane.split(SplitDirection::Down, SplitMode::ClonePane, window, cx);
+                        }))
+                        .tooltip(Tooltip::for_action_title("Split Down", &workspace::SplitDown::default())),
+                )
+            })
             .children(workspace::pane::render_tab_bar_pane_buttons(pane, cx))
             .into_any_element()
             .into();
@@ -842,7 +780,7 @@ pub fn new_terminal_pane(
         pane.set_can_navigate(false, cx);
         pane.set_tab_style(ui::TabStyle::Pill);
         pane.set_zoom_out_on_close(false);
-        set_terminal_tab_bar_buttons(&mut pane, cx);
+        set_terminal_tab_bar_buttons(&mut pane, false, cx);
 
         let split_closure_terminal_panel = terminal_panel.downgrade();
         pane.set_can_split(Some(Arc::new(move |pane, dragged_item, _window, cx| {
@@ -899,9 +837,9 @@ async fn wait_for_terminals_tasks(
     join_all(pending_tasks).await;
 }
 
-struct FailedToSpawnTerminal {
-    error: String,
-    focus_handle: FocusHandle,
+pub(crate) struct FailedToSpawnTerminal {
+    pub(crate) error: String,
+    pub(crate) focus_handle: FocusHandle,
 }
 
 impl Focusable for FailedToSpawnTerminal {

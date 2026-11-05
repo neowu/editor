@@ -3,6 +3,7 @@
 
 mod editor;
 mod git_history;
+mod terminal;
 
 pub(crate) use git_history::GIT_HISTORY_SIDEBAR_WIDTH;
 use gpui::AnyElement;
@@ -15,6 +16,10 @@ use gpui::Subscription;
 use gpui::WeakEntity;
 use gpui::Window;
 use gpui::div;
+pub(crate) use terminal::TerminalLayout;
+pub use terminal::TerminalModeDelegate;
+pub(crate) use terminal::is_dragged_terminal;
+pub use terminal::set_terminal_mode_delegate;
 use ui::prelude::*;
 
 use crate::CARD_GAP;
@@ -78,6 +83,7 @@ impl Workspace {
         match mode {
             WorkspaceMode::Editor => self.render_editor_mode(window, cx),
             WorkspaceMode::GitHistory => self.mode_container(cx).child(self.render_git_history(window, cx)),
+            WorkspaceMode::Terminal => self.render_terminal_mode(window, cx),
         }
         .children(header_overlay)
         .into_any_element()
@@ -102,6 +108,9 @@ impl Workspace {
             WorkspaceMode::GitHistory => {
                 self.git_history_center.panes().into_iter().find(|pane| pane.read(cx).is_zoomed()).cloned()
             }
+            WorkspaceMode::Terminal => {
+                self.terminal_center.panes().into_iter().find(|pane| pane.read(cx).is_zoomed()).cloned()
+            }
         }
     }
 
@@ -109,7 +118,7 @@ impl Workspace {
     pub(crate) fn has_zoomed(&self, mode: WorkspaceMode, cx: &App) -> bool {
         match mode {
             WorkspaceMode::Editor => self.zoomed.is_some(),
-            WorkspaceMode::GitHistory => self.zoomed_pane(mode, cx).is_some(),
+            WorkspaceMode::GitHistory | WorkspaceMode::Terminal => self.zoomed_pane(mode, cx).is_some(),
         }
     }
 
@@ -117,6 +126,7 @@ impl Workspace {
         match mode {
             WorkspaceMode::Editor => &self.editor_view,
             WorkspaceMode::GitHistory => &self.git_history_view,
+            WorkspaceMode::Terminal => &self.terminal_mode_view,
         }
     }
 

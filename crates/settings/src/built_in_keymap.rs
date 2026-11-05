@@ -448,6 +448,7 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("cmd-shift-n", "workspace::NewWindow"),
             KeyBindingSpec::new("cmd-1", "mode::Editor"),
             KeyBindingSpec::new("cmd-2", "mode::GitHistory"),
+            KeyBindingSpec::new("cmd-3", "mode::Terminal"),
             KeyBindingSpec::new("cmd-`", "workspace::ToggleZoom"),
             KeyBindingSpec::new("cmd-b", "workspace::CycleLeftDock"),
             KeyBindingSpec::new("cmd-r", "workspace::CycleRightDock"),

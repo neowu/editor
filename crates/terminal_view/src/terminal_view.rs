@@ -1,4 +1,5 @@
 pub mod terminal_element;
+mod terminal_mode;
 pub mod terminal_panel;
 mod terminal_path_like_target;
 pub mod terminal_scrollbar;
@@ -36,7 +37,6 @@ use gpui::ScrollWheelEvent;
 use gpui::Styled;
 use gpui::Subscription;
 use gpui::Task;
-use gpui::TaskExt;
 use gpui::WeakEntity;
 use gpui::actions;
 use gpui::anchored;
@@ -93,7 +93,6 @@ use util::ResultExt;
 use workspace::CloseActiveItem;
 use workspace::DraggedSelection;
 use workspace::DraggedTab;
-use workspace::NewCenterTerminal;
 use workspace::NewTerminal;
 use workspace::Pane;
 use workspace::Workspace;
@@ -149,11 +148,7 @@ pub struct RenameTerminal;
 
 pub fn init(cx: &mut App) {
     terminal_panel::init(cx);
-
-    cx.observe_new(|workspace: &mut Workspace, _window, _cx| {
-        workspace.register_action(TerminalView::deploy);
-    })
-    .detach();
+    terminal_mode::init(cx);
 }
 
 pub struct BlockProperties {
@@ -210,21 +205,6 @@ impl Focusable for TerminalView {
 }
 
 impl TerminalView {
-    ///Create a new Terminal in the current working directory or the user's home directory
-    pub fn deploy(
-        workspace: &mut Workspace,
-        action: &NewCenterTerminal,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) {
-        let local = action.local;
-        let working_directory = default_working_directory(workspace, cx);
-        TerminalPanel::add_center_terminal(workspace, window, cx, move |project, cx| {
-            if local { project.create_local_terminal(cx) } else { project.create_terminal_shell(working_directory, cx) }
-        })
-        .detach_and_log_err(cx);
-    }
-
     pub fn new(
         terminal: Entity<Terminal>,
         workspace: WeakEntity<Workspace>,
@@ -422,7 +402,6 @@ impl TerminalView {
         let context_menu = ContextMenu::build(window, cx, |menu, _, _| {
             menu.context(self.focus_handle.clone())
                 .action("New Terminal", Box::new(NewTerminal::default()))
-                .action("New Center Terminal", Box::new(NewCenterTerminal::default()))
                 .separator()
                 .action("Copy", Box::new(Copy))
                 .action("Paste", Box::new(Paste))

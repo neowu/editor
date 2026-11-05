@@ -42,6 +42,73 @@ pub(crate) struct SerializedWorkspace {
     pub(crate) docks: DockStructure,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub(crate) recent_navigation_history: Vec<PathBuf>,
+    /// Terminal mode's layout, if it has any terminals.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) terminal: Option<SerializedTerminalGroup>,
+}
+
+/// Terminal mode's splits and each terminal's working directory. Shells are
+/// started afresh in those directories; output and processes aren't kept.
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub(crate) enum SerializedTerminalGroup {
+    Group {
+        axis: Axis,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        flexes: Option<Vec<f32>>,
+        children: Vec<SerializedTerminalGroup>,
+    },
+    Pane(SerializedTerminalPane),
+}
+
+#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct SerializedTerminalPane {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) active: bool,
+    #[serde(default)]
+    pub(crate) active_tab: usize,
+    #[serde(default)]
+    pub(crate) tabs: Vec<SerializedTerminalTab>,
+}
+
+#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct SerializedTerminalTab {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) working_directory: Option<PathBuf>,
+}
+
+impl SerializedTerminalGroup {
+    /// Drops panes without tabs and groups left with a single child, so a
+    /// restored layout has no empty splits. `None` when no tab is left.
+    pub(crate) fn prune(self) -> Option<SerializedTerminalGroup> {
+        match self {
+            SerializedTerminalGroup::Pane(pane) => {
+                (!pane.tabs.is_empty()).then_some(SerializedTerminalGroup::Pane(pane))
+            }
+            SerializedTerminalGroup::Group { axis, flexes, children } => {
+                let flexes = flexes.filter(|flexes| flexes.len() == children.len());
+                let mut kept_children = Vec::new();
+                let mut kept_flexes = Vec::new();
+                for (index, child) in children.into_iter().enumerate() {
+                    if let Some(child) = child.prune() {
+                        kept_children.push(child);
+                        if let Some(flexes) = &flexes {
+                            kept_flexes.push(flexes[index]);
+                        }
+                    }
+                }
+                match kept_children.len() {
+                    0 => None,
+                    1 => kept_children.pop(),
+                    _ => Some(SerializedTerminalGroup::Group {
+                        axis,
+                        flexes: flexes.map(|_| kept_flexes),
+                        children: kept_children,
+                    }),
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
@@ -247,6 +314,9 @@ mod tests {
     use super::SerializedItem;
     use super::SerializedPane;
     use super::SerializedPaneGroup;
+    use super::SerializedTerminalGroup;
+    use super::SerializedTerminalPane;
+    use super::SerializedTerminalTab;
     use super::SerializedWorkspace;
     use crate::persistence::parse_workspace_state;
 
@@ -275,6 +345,11 @@ mod tests {
                 ..DockStructure::default()
             },
             recent_navigation_history: vec![PathBuf::from("/p/a.rs")],
+            terminal: Some(SerializedTerminalGroup::Group {
+                axis: Axis::Vertical,
+                flexes: None,
+                children: vec![terminal_pane(&[Some("/p")], true), terminal_pane(&[None], false)],
+            }),
         };
         let json = serde_json::to_string_pretty(&workspace).unwrap();
         assert_eq!(parse_workspace_state(&json), Some(workspace));
@@ -291,5 +366,73 @@ mod tests {
         };
         assert_eq!(pane.children[0].state, serde_json::Value::Null);
         assert!(!pane.children[0].active);
+    }
+
+    fn terminal_pane(working_directories: &[Option<&str>], active: bool) -> SerializedTerminalGroup {
+        SerializedTerminalGroup::Pane(SerializedTerminalPane {
+            active,
+            active_tab: 0,
+            tabs: working_directories
+                .iter()
+                .map(|dir| SerializedTerminalTab { working_directory: dir.map(PathBuf::from) })
+                .collect(),
+        })
+    }
+
+    #[test]
+    fn test_prune_terminal_group() {
+        assert_eq!(terminal_pane(&[], true).prune(), None);
+        assert_eq!(terminal_pane(&[None], true).prune(), Some(terminal_pane(&[None], true)));
+
+        // An empty split goes, and its flex with it.
+        let group = SerializedTerminalGroup::Group {
+            axis: Axis::Horizontal,
+            flexes: Some(vec![0.2, 0.3, 0.5]),
+            children: vec![
+                terminal_pane(&[Some("/a")], true),
+                terminal_pane(&[], false),
+                terminal_pane(&[None], false),
+            ],
+        };
+        assert_eq!(
+            group.prune(),
+            Some(SerializedTerminalGroup::Group {
+                axis: Axis::Horizontal,
+                flexes: Some(vec![0.2, 0.5]),
+                children: vec![terminal_pane(&[Some("/a")], true), terminal_pane(&[None], false)],
+            })
+        );
+
+        // A group left with one child collapses into it, nested ones too.
+        let group = SerializedTerminalGroup::Group {
+            axis: Axis::Horizontal,
+            flexes: None,
+            children: vec![
+                terminal_pane(&[], false),
+                SerializedTerminalGroup::Group {
+                    axis: Axis::Vertical,
+                    flexes: Some(vec![0.5, 0.5]),
+                    children: vec![terminal_pane(&[Some("/b")], true), terminal_pane(&[], false)],
+                },
+            ],
+        };
+        assert_eq!(group.prune(), Some(terminal_pane(&[Some("/b")], true)));
+
+        // Nothing left.
+        let group = SerializedTerminalGroup::Group {
+            axis: Axis::Vertical,
+            flexes: None,
+            children: vec![terminal_pane(&[], false), terminal_pane(&[], true)],
+        };
+        assert_eq!(group.prune(), None);
+    }
+
+    #[test]
+    fn test_parse_terminal_layout() {
+        let workspace = parse_workspace_state(
+            r#"{"terminal": {"type": "pane", "active": true, "tabs": [{"working_directory": "/p"}, {}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(workspace.terminal, Some(terminal_pane(&[Some("/p"), None], true)));
     }
 }

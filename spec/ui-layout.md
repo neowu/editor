@@ -66,9 +66,11 @@ because it hurt readability; an opaque window is also cheaper to composite.
   lights, the project name (the active folder, see `git.md`; with the remote
   host for remote projects), the
   worktree and branch pickers as `worktree / branch` (shown only for a project
-  in a git repository), then an icon-only, segmented Editor / Git History
-  switch (also git only; `cmd-1` Editor via `mode::Editor`, `cmd-2`
-  Git History via `mode::GitHistory`, in any mode), then Go Back / Go Forward. The pickers moved here from
+  in a git repository), then an icon-only, segmented mode switch, then Go
+  Back / Go Forward. The switch offers Editor (`cmd-1`, `mode::Editor`), Git
+  History (`cmd-2`, `mode::GitHistory`, git only) and Terminal (`cmd-3`,
+  `mode::Terminal`, projects that can run terminals), in that order, and is
+  shown whenever more than one mode is available; the keys work in any mode. The pickers moved here from
   the status bar so everything that names the project sits together; their
   menus open downward. The switch groups its icon buttons on a faint, borderless
   track (2px inset) so the modes read as one control as more are added; the
@@ -122,13 +124,48 @@ because it hurt readability; an opaque window is also cheaper to composite.
   belongs to one mode, rendered by that mode's own cached view, and only the
   shown mode's view is drawn. Changes in a hidden mode redraw nothing (it
   re-renders when shown again), and redraws of the shared chrome reuse the
-  shown mode's layout. A new mode (e.g. a terminal-only mode) adds its
-  own view and module rather than branching inside another mode's layout.
+  shown mode's layout. A new mode adds its own view and module rather than
+  branching inside another mode's layout.
 - In Git History mode (`git.md`) the history sidebar and panes fill the area of
   the docks and center panes. The status bar is hidden there (it offers too
   little in history to be worth the space), leaving the bottom gap. The sidebar shows the active history
   item's `Item::side_card` and is styled like a left dock (flat, resizable, 8px
   gap before the panes), so the tab bars start after it rather than above it.
+- Terminal mode (`cmd-3`) fills the area of the docks and center panes with
+  terminal panes, split like editor panes; the status bar is hidden, as in Git
+  History. The workspace owns these panes (like Git History's), apart from
+  the terminal panel's; the terminal crate plugs in through
+  `TerminalModeDelegate` (pane setup, opening shells, reading a terminal's
+  directory), since it depends on `workspace`.
+  - The two terminal sets have separate jobs: terminal mode for work in
+    shells, the bottom dock (`cmd-j`) for a quick shell and task output beside
+    the code. Tasks always run in the dock.
+  - Showing the mode with no terminals starts a shell, except that a repeated
+    `cmd-3` while it is shown does not. Closing the last terminal keeps one
+    empty pane offering "New Terminal" (`EmptyPaneHints::Terminal`) instead of
+    leaving the mode. The first time the mode is shown in a window it restores
+    the saved layout instead (`configuration.md`).
+  - The top row holds only the window header, on a strip like the sidebar
+    header (it moves the window), so the header sits exactly where it does in
+    the other modes and the cards start at the same height. Below it, panes
+    use the terminal panel's pill tabs inside their cards; their tab bars are
+    not titlebar space. Folder tabs looked like editor tabs, and pills in a
+    top-row tab bar shifted the header by the card inset.
+  - Tab bars are the exception to
+    "no split buttons": `+` (new shell in the project's default directory),
+    Split Right, Split Down, then Zoom. A split (button, `pane::Split*`) opens
+    a new pane with a shell in the active terminal's working directory;
+    dragging a tab to an edge moves it, as elsewhere.
+  - `workspace::NewTerminal` opens in terminal mode's active pane while that
+    mode is shown, else in the terminal panel. "Open in Terminal"
+    (`workspace::OpenTerminal`, from the project panel, outline panel, tab and
+    file header menus) opens a shell in that directory in terminal mode and
+    switches to it.
+  - Pane navigation (`ActivatePane*`, next/previous pane) stays among the
+    terminal panes; Zoom expands one terminal pane over the others.
+- There are no terminals in editor panes: the `NewCenterTerminal` action is
+  gone, and editor panes refuse dropped terminal tabs, so a terminal never
+  lands among files.
 - Docks have no border and blend into the chrome. Panes inside them (the
   terminal) draw their own cards; a non-pane panel docked at the bottom just
   sits on the chrome.
@@ -201,7 +238,7 @@ because it hurt readability; an opaque window is also cheaper to composite.
   closed.
 - Actions act only in the mode they belong to; in other modes they are ignored
   rather than switching modes, so switching is always explicit (`cmd-1`,
-  `cmd-2`). Docks belong to Editor mode: toggling, opening, closing, focusing
+  `cmd-2`, `cmd-3`). Docks belong to Editor mode: toggling, opening, closing, focusing
   or resizing docks and panels (`cmd-b`, `cmd-r`, `cmd-j`, …)
   does nothing in Git History.
 - One key per dock, no per-panel shortcuts (the panel `ToggleFocus` actions
@@ -224,7 +261,7 @@ because it hurt readability; an opaque window is also cheaper to composite.
   focused pane. In the terminal dock that is the focused terminal pane alone,
   not every split, as zooming an editor pane hides the other panes.
 - `cmd-1`…`cmd-9` don't activate panes, and the image viewer and branch/stash
-  picker have no `cmd-1`/`cmd-2`, so the mode shortcuts work everywhere.
+  picker have no `cmd-1`/`cmd-2`/`cmd-3`, so the mode shortcuts work everywhere.
 - An 8px gap separates the cards from the window edges and from open docks.
   There is no gap at the top: tab bars and the sidebar header start at the
   window's top edge. When the status bar is shown, it replaces

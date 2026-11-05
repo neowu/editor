@@ -76,6 +76,7 @@ struct WindowHeaderState {
     can_go_forward: bool,
     mode: WorkspaceMode,
     has_repository: bool,
+    has_terminal_mode: bool,
 }
 
 impl WindowHeaderState {
@@ -86,6 +87,7 @@ impl WindowHeaderState {
             can_go_forward: workspace.can_go_forward(),
             mode: workspace.mode(),
             has_repository: project.read(cx).active_repository(cx).is_some(),
+            has_terminal_mode: workspace.supports_terminal_mode(cx),
         }
     }
 }
@@ -150,8 +152,9 @@ impl Render for WindowHeader {
                     .gap_2()
                     // Clicks on the controls must not move the window.
                     .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .when(self.shown.has_repository, |this| {
-                        this.child(render_mode_switch(self.shown.mode, cx))
+                    .map(|this| {
+                        let modes = switchable_modes(self.shown.has_repository, self.shown.has_terminal_mode);
+                        this.when(modes.len() > 1, |this| this.child(render_mode_switch(self.shown.mode, &modes, cx)))
                     })
                     .child(render_nav_buttons(&self.workspace, self.shown)),
             )
@@ -206,50 +209,80 @@ fn render_nav_buttons(workspace: &WeakEntity<Workspace>, state: WindowHeaderStat
     h_flex().gap_1().child(go_back).child(go_forward)
 }
 
+/// Whether `mode`'s top-row tab bars are part of the window's top row. Terminal
+/// mode has a header row above its panes instead, which moves the window.
+const fn tab_bars_are_titlebar(mode: WorkspaceMode) -> bool {
+    !matches!(mode, WorkspaceMode::Terminal)
+}
+
 /// Inset of the mode switch's buttons within its track.
 const MODE_SWITCH_PADDING: Pixels = px(2.);
 
-/// Icon-only mode switch ("Editor" / "Git History"): top-row icon buttons
-/// grouped on a faint track, so the modes read as one control, with the shown
-/// mode's button filled and its icon in the accent colour.
-fn render_mode_switch(mode: WorkspaceMode, cx: &App) -> impl IntoElement {
-    let segment = |id: &'static str, icon: IconName, shown: bool| {
+/// The modes the switch offers, in key order (`cmd-1`, `cmd-2`, `cmd-3`):
+/// Git History needs a repository, Terminal a project that runs terminals.
+fn switchable_modes(has_repository: bool, has_terminal_mode: bool) -> Vec<WorkspaceMode> {
+    [
+        (WorkspaceMode::Editor, true),
+        (WorkspaceMode::GitHistory, has_repository),
+        (WorkspaceMode::Terminal, has_terminal_mode),
+    ]
+    .into_iter()
+    .filter_map(|(mode, available)| available.then_some(mode))
+    .collect()
+}
+
+/// Icon-only mode switch (Editor / Git History / Terminal): top-row icon
+/// buttons grouped on a faint track, so the modes read as one control, with
+/// the shown mode's button filled and its icon in the accent colour.
+fn render_mode_switch(shown_mode: WorkspaceMode, modes: &[WorkspaceMode], cx: &App) -> impl IntoElement {
+    let segment = |mode: WorkspaceMode| {
+        let (id, icon, label, action): (&'static str, IconName, &'static str, Box<dyn gpui::Action>) = match mode {
+            WorkspaceMode::Editor => {
+                ("workspace-mode-editor", IconName::Code, "Editor", Box::new(ed_actions::mode::Editor))
+            }
+            WorkspaceMode::GitHistory => (
+                "workspace-mode-git-history",
+                IconName::GitGraph,
+                "Git History",
+                Box::new(ed_actions::mode::GitHistory),
+            ),
+            WorkspaceMode::Terminal => {
+                ("workspace-mode-terminal", IconName::TerminalAlt, "Terminal", Box::new(ed_actions::mode::Terminal))
+            }
+        };
+        let shown = mode == shown_mode;
+        let tooltip_action = action.boxed_clone();
         top_row_icon_button(id, icon)
             .icon_color(if shown { Color::Accent } else { Color::Muted })
             .when(shown, |this| this.style(ButtonStyle::Filled))
+            .tooltip(move |_window, cx| Tooltip::for_action(label, tooltip_action.as_ref(), cx))
+            .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
     };
-
-    let show_editor = segment("workspace-mode-editor", IconName::Code, mode == WorkspaceMode::Editor)
-        .tooltip(|_window, cx| Tooltip::for_action("Editor", &ed_actions::mode::Editor, cx))
-        .on_click(|_, window, cx| window.dispatch_action(Box::new(ed_actions::mode::Editor), cx));
-
-    let show_history = segment("workspace-mode-git-history", IconName::GitGraph, mode == WorkspaceMode::GitHistory)
-        .tooltip(|_window, cx| Tooltip::for_action("Git History", &ed_actions::mode::GitHistory, cx))
-        .on_click(|_, window, cx| window.dispatch_action(Box::new(ed_actions::mode::GitHistory), cx));
 
     h_flex()
         .p(MODE_SWITCH_PADDING)
         .gap(MODE_SWITCH_PADDING)
         .rounded_lg()
         .bg(cx.theme().colors().element_background.opacity(0.4))
-        .child(show_editor)
-        .child(show_history)
+        .children(modes.iter().map(|mode| segment(*mode)))
 }
 
 impl Workspace {
     /// Whether the window header sits in the tab bar because no sidebar is
-    /// shown to hold it.
+    /// shown to hold it. Terminal mode never puts it there: its pill tabs sit
+    /// inside the cards, so it has a header row of its own.
     pub(crate) fn window_header_in_tab_bar(&self, cx: &App) -> bool {
         match self.mode {
             WorkspaceMode::Editor => {
                 self.has_zoomed(WorkspaceMode::Editor, cx) || self.left_dock.read(cx).visible_panel().is_none()
             }
             WorkspaceMode::GitHistory => self.git_history_side_card(cx).is_none(),
+            WorkspaceMode::Terminal => false,
         }
     }
 
-    /// The strip above a sidebar (left dock or Git History sidebar) that the
-    /// window header sits on: it moves the window and is as high as a top-row
+    /// The strip above a sidebar (left dock or Git History sidebar), or above
+    /// terminal mode's panes, that the window header sits on: it moves the window and is as high as a top-row
     /// tab bar with its gap, so the sidebar content lines up with the cards.
     pub(crate) fn render_sidebar_header(&self, cx: &App) -> impl IntoElement {
         window_drag_area(div().id("sidebar-header")).flex_none().w_full().h(CARD_GAP + Tab::container_height(cx))
@@ -284,6 +317,7 @@ impl Workspace {
                 Some(size.max(min_size))
             }
             WorkspaceMode::GitHistory => Some(self.git_history_sidebar_width),
+            WorkspaceMode::Terminal => None,
         }
     }
 
@@ -336,6 +370,9 @@ impl Workspace {
             WorkspaceMode::GitHistory => {
                 Some(self.zoomed_pane(mode, cx).unwrap_or_else(|| self.git_history_center.first_pane()))
             }
+            WorkspaceMode::Terminal => {
+                Some(self.zoomed_pane(mode, cx).unwrap_or_else(|| self.terminal_center.first_pane()))
+            }
         }
     }
 
@@ -347,6 +384,7 @@ impl Workspace {
         let group = match mode {
             WorkspaceMode::Editor => &self.center,
             WorkspaceMode::GitHistory => &self.git_history_center,
+            WorkspaceMode::Terminal => &self.terminal_center,
         };
         let header_pane = self.window_header_in_tab_bar(cx).then(|| self.tab_bar_header_pane(mode, cx)).flatten();
         let header_width = self.window_header.read(cx).sidebar_width;
@@ -355,7 +393,8 @@ impl Workspace {
             .map(|sidebar_width| sidebar_header_overhang(header_width, sidebar_width, DynamicSpacing::Base06.px(cx)))
             .filter(|overhang| *overhang > px(0.))
             .and_then(|overhang| Some((self.tab_bar_header_pane(mode, cx)?, overhang)));
-        let top_row: Vec<Entity<Pane>> = group.top_row_panes().into_iter().cloned().collect();
+        let top_row: Vec<Entity<Pane>> =
+            if tab_bars_are_titlebar(mode) { group.top_row_panes().into_iter().cloned().collect() } else { Vec::new() };
         let panes: Vec<Entity<Pane>> = group.panes().into_iter().cloned().collect();
         for pane in panes {
             let has_header = header_pane.as_ref() == Some(&pane);
@@ -389,7 +428,29 @@ mod tests {
 
     use super::TAB_BAR_START_OFFSET;
     use super::sidebar_header_overhang;
+    use super::switchable_modes;
+    use super::tab_bars_are_titlebar;
     use super::traffic_light_room;
+
+    #[test]
+    fn test_tab_bars_are_titlebar() {
+        use crate::WorkspaceMode;
+        assert!(tab_bars_are_titlebar(WorkspaceMode::Editor));
+        assert!(tab_bars_are_titlebar(WorkspaceMode::GitHistory));
+        assert!(!tab_bars_are_titlebar(WorkspaceMode::Terminal));
+    }
+
+    #[test]
+    fn test_switchable_modes() {
+        use crate::WorkspaceMode;
+        assert_eq!(switchable_modes(false, false), [WorkspaceMode::Editor]);
+        assert_eq!(switchable_modes(true, false), [WorkspaceMode::Editor, WorkspaceMode::GitHistory]);
+        assert_eq!(switchable_modes(false, true), [WorkspaceMode::Editor, WorkspaceMode::Terminal]);
+        assert_eq!(
+            switchable_modes(true, true),
+            [WorkspaceMode::Editor, WorkspaceMode::GitHistory, WorkspaceMode::Terminal]
+        );
+    }
 
     #[test]
     fn test_traffic_light_room() {
