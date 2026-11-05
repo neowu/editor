@@ -172,9 +172,11 @@ const DEFAULT_WIDTH: Pixels = px(360.0);
 /// Initial branch for `git init` when git has no `init.defaultBranch`.
 const FALLBACK_BRANCH_NAME: &str = "main";
 // TODO: We should revise this part. It seems the indentation width is not aligned with the one in project panel
-const TREE_INDENT: f32 = 16.0;
+pub(crate) const TREE_INDENT: f32 = 16.0;
 // Horizontal offset that aligns the tree indent guides with the row icon column.
-const INDENT_GUIDE_LEFT_OFFSET: gpui::Pixels = gpui::px(19.);
+pub(crate) const INDENT_GUIDE_LEFT_OFFSET: gpui::Pixels = gpui::px(19.);
+/// Changed-file row height, shared with the Git History changed files list.
+pub(crate) const LIST_ITEM_HEIGHT: Rems = rems(1.75);
 
 actions!(
     git_panel,
@@ -5297,7 +5299,7 @@ impl GitPanel {
     }
 
     const fn list_item_height(&self) -> Rems {
-        rems(1.75)
+        LIST_ITEM_HEIGHT
     }
 
     fn render_list_header(

@@ -194,6 +194,9 @@ blobs with no language server, so they are not mixed into editor panes.
   loaded (graph reopened) or arrive later (unless a specific commit is being
   selected, e.g. "Show in Git History"), so the sidebar is always shown except
   for an empty history. One rule (`select_newest_if_unselected`) serves both.
+- Its changed files rows match the git panel's (row height, padding, tree
+  indent and guides, icon gap, default-size labels), sharing the git panel's
+  constants, so the list reads the same in Editor and Git History mode.
 - In a file history graph (View History / File History), the sidebar reveals
   that file in each selected commit's changed files (folders expanded, row
   highlighted, scrolled into view once the files load).

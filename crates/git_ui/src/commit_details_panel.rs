@@ -28,6 +28,7 @@ use gpui::Point;
 use gpui::ScrollHandle;
 use gpui::ScrollStrategy;
 use gpui::SharedString;
+use gpui::Stateful;
 use gpui::Subscription;
 use gpui::Task;
 use gpui::UniformListScrollHandle;
@@ -53,8 +54,6 @@ use ui::DiffStat;
 use ui::Disclosure;
 use ui::Divider;
 use ui::IndentGuideColors;
-use ui::ListItem;
-use ui::ListItemSpacing;
 use ui::Tooltip;
 use ui::WithScrollbar;
 use ui::prelude::*;
@@ -62,10 +61,12 @@ use util::ResultExt;
 
 use crate::git_graph::ToggleChangedFilesView;
 use crate::git_graph::format_timestamp;
+use crate::git_panel::INDENT_GUIDE_LEFT_OFFSET;
+use crate::git_panel::LIST_ITEM_HEIGHT;
+use crate::git_panel::TREE_INDENT;
 use crate::git_status_icon;
 
 const COPIED_STATE_DURATION: Duration = Duration::from_secs(2);
-const TREE_INDENT: f32 = 20.0;
 
 pub enum CommitDetailsEvent {
     /// A changed file was clicked.
@@ -554,6 +555,7 @@ impl CommitDetailsPanel {
                                                 None,
                                                 is_revealed(&entry.entry),
                                                 panel.clone(),
+                                                cx,
                                             ),
                                         }
                                     } else {
@@ -565,6 +567,7 @@ impl CommitDetailsPanel {
                                             directory_label,
                                             is_revealed(&flat_entries[ix]),
                                             panel.clone(),
+                                            cx,
                                         )
                                     }
                                 })
@@ -573,7 +576,7 @@ impl CommitDetailsPanel {
                         .when(is_tree_view, |list| {
                             list.with_decoration(
                                 ui::indent_guides(px(TREE_INDENT), IndentGuideColors::panel(cx))
-                                    .with_left_offset(ui::LIST_ITEM_INDENT_GUIDE_LEFT_OFFSET - px(2.))
+                                    .with_left_offset(INDENT_GUIDE_LEFT_OFFSET)
                                     .with_compute_indents_fn(cx.entity(), move |_, range, _window, _cx| {
                                         range
                                             .map(|ix| match indent_tree_entries.get(ix) {
@@ -744,20 +747,21 @@ impl ChangedFileEntry {
         directory_label: Option<SharedString>,
         is_revealed: bool,
         panel: WeakEntity<CommitDetailsPanel>,
+        cx: &App,
     ) -> AnyElement {
         let file_name = self.file_name.clone();
         let repo_path = self.repo_path.clone();
 
-        ListItem::new(("changed-file", ix))
-            .spacing(ListItemSpacing::Sparse)
-            .indent_level(depth)
-            .indent_step_size(px(TREE_INDENT))
-            .toggle_state(is_revealed)
-            .start_slot(git_status_icon(self.status))
-            .child(Label::new(file_name).size(LabelSize::Small).truncate())
-            .when_some(directory_label, |this, directory_label| {
-                this.child(Label::new(directory_label).size(LabelSize::Small).color(Color::Muted).truncate_start())
-            })
+        let content = [
+            git_status_icon(self.status).into_any_element(),
+            Label::new(file_name).single_line().truncate().into_any_element(),
+        ]
+        .into_iter()
+        .chain(directory_label.map(|directory_label| {
+            Label::new(directory_label).single_line().color(Color::Muted).truncate_start().into_any_element()
+        }));
+
+        changed_file_row(("changed-file", ix), depth, is_revealed, content, cx)
             .on_click({
                 let panel = panel.clone();
                 let repo_path = repo_path.clone();
@@ -765,7 +769,7 @@ impl ChangedFileEntry {
                     panel.update(cx, |_, cx| cx.emit(CommitDetailsEvent::OpenFile(repo_path.clone()))).ok();
                 }
             })
-            .on_secondary_mouse_down(move |event, window, cx| {
+            .on_mouse_down(MouseButton::Right, move |event, window, cx| {
                 cx.stop_propagation();
                 panel
                     .update(cx, |panel, cx| {
@@ -828,12 +832,11 @@ impl ChangedFileDirectoryEntry {
                 Icon::new(icon).size(IconSize::Small).color(Color::Muted)
             });
 
-        ListItem::new(("changed-file-dir", ix))
-            .spacing(ListItemSpacing::Sparse)
-            .indent_level(self.depth)
-            .indent_step_size(px(TREE_INDENT))
-            .start_slot(folder_icon)
-            .child(Label::new(self.name.clone()).size(LabelSize::Small).color(Color::Muted).truncate())
+        let content = [
+            folder_icon.into_any_element(),
+            Label::new(self.name.clone()).single_line().color(Color::Muted).truncate().into_any_element(),
+        ];
+        changed_file_row(("changed-file-dir", ix), self.depth, false, content, cx)
             .tooltip({
                 let name = self.name.clone();
                 move |_, cx| Tooltip::with_meta("Toggle Folder", None, name.clone(), cx)
@@ -848,6 +851,35 @@ impl ChangedFileDirectoryEntry {
             })
             .into_any_element()
     }
+}
+
+/// A changed files row laid out like the git panel's (height, padding, tree
+/// indent, icon gap), so the two lists read the same.
+fn changed_file_row(
+    id: impl Into<ElementId>,
+    depth: usize,
+    selected: bool,
+    content: impl IntoIterator<Item = AnyElement>,
+    cx: &App,
+) -> Stateful<Div> {
+    let colors = cx.theme().colors();
+    h_flex()
+        .id(id)
+        .h(LIST_ITEM_HEIGHT)
+        .w_full()
+        .min_w_0()
+        .pl_2p5()
+        .pr_1()
+        .border_l_1()
+        .cursor_pointer()
+        .child(h_flex().min_w_0().flex_1().gap_1().pl(changed_file_row_indent(depth)).children(content))
+        .when(selected, |this| this.bg(colors.ghost_element_selected))
+        .hover(|style| style.bg(colors.ghost_element_hover))
+        .active(|style| style.bg(colors.ghost_element_active))
+}
+
+fn changed_file_row_indent(depth: usize) -> Pixels {
+    px(depth as f32 * TREE_INDENT)
 }
 
 #[derive(Default)]
@@ -1080,5 +1112,11 @@ mod tests {
         assert!(ChangedFilesViewMode::Tree.is_tree());
         assert_eq!(ChangedFilesViewMode::Tree.toggled(), ChangedFilesViewMode::Flat);
         assert_eq!(ChangedFilesViewMode::Flat.toggled(), ChangedFilesViewMode::Tree);
+    }
+
+    #[test]
+    fn test_changed_file_row_indent() {
+        assert_eq!(changed_file_row_indent(0), px(0.));
+        assert_eq!(changed_file_row_indent(2), px(2. * TREE_INDENT));
     }
 }
