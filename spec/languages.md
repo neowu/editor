@@ -84,6 +84,9 @@
   in the order they were sent, through one queue. Notifications are serialized
   lazily but never overtake an earlier request, so e.g. a formatting request
   always sees the document version from the `didChange` sent before it.
+- `initialize` sends the workspace as `workspaceFolders` plus `rootUri` (for
+  servers that predate workspace folders); the long-deprecated `rootPath` is
+  not sent.
 - `editor::RestartLanguageServer` restarts the servers relevant to the current
   buffer, including servers previously stopped with `editor::StopLanguageServer`.
 - The status-bar LSP menu keeps a stopped server listed as "Stopped" under the

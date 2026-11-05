@@ -1083,21 +1083,7 @@ impl Worktree {
         mut cx: AsyncApp,
     ) -> Result<proto::ProjectEntryResponse> {
         let (scan_id, task) = this.update(&mut cx, |this, cx| {
-            // While the `use_trash` field is deprecated but not removed, we
-            // still need to support either trashing or deleting the file.
-            // Otherwise, if an older client sends the `DeleteProjectEntry {
-            // use_trash: true }` rather than the newer `TrashProjectEntry`, and
-            // the flag was ignored, we'd permanently delete a file that was
-            // actually meant to be trashed.
-            #[allow(deprecated)]
-            let task = if request.use_trash {
-                this.trash_entry(ProjectEntryId::from_proto(request.entry_id), cx)
-                    .map(|task| cx.background_spawn(async move { task.await.map(|_| ()) }))
-            } else {
-                this.delete_entry(ProjectEntryId::from_proto(request.entry_id), cx)
-            };
-
-            (this.scan_id(), task)
+            (this.scan_id(), this.delete_entry(ProjectEntryId::from_proto(request.entry_id), cx))
         });
         task.ok_or_else(|| anyhow::anyhow!("invalid entry"))?.await?;
         Ok(proto::ProjectEntryResponse { entry: None, worktree_scan_id: scan_id as u64 })
@@ -2038,10 +2024,6 @@ impl RemoteWorktree {
         let response = self.client.request(proto::DeleteProjectEntry {
             project_id: self.project_id,
             entry_id: entry_id.to_proto(),
-            // The `use_trash` field is being deprecated but it's still required
-            // in the message, hence the `#[allow(deprecated)]` attribute.
-            #[allow(deprecated)]
-            use_trash: false,
         });
 
         cx.spawn(async move |this, cx| {

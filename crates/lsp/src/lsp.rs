@@ -834,15 +834,8 @@ impl LanguageServer {
             |folders| folders.lock().iter().cloned().map(workspace_folder_for_uri).collect(),
         );
 
-        #[allow(deprecated)]
         InitializeParams {
             process_id: Some(std::process::id()),
-            root_path: Some(
-                self.root_uri
-                    .to_file_path()
-                    .map(|path| path.to_string_lossy().into_owned())
-                    .unwrap_or_else(|_| self.root_uri.path().to_string()),
-            ),
             root_uri: Some(self.root_uri.clone()),
             initialization_options: None,
             capabilities: ClientCapabilities {

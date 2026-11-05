@@ -1165,17 +1165,11 @@ pub struct InitializeParams {
     /// If the parent process is not alive then the server should exit (see exit notification) its process.
     pub process_id: Option<u32>,
 
-    /// The rootPath of the workspace. Is null
-    /// if no folder is open.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[deprecated(note = "Use `root_uri` instead when possible")]
-    pub root_path: Option<String>,
-
-    /// The rootUri of the workspace. Is null if no
-    /// folder is open. If both `rootPath` and `rootUri` are set
-    /// `rootUri` wins.
+    /// The rootUri of the workspace. Is null if no folder is open.
+    ///
+    /// The spec prefers `workspace_folders`, but servers that predate
+    /// workspace folders only read this field, so clients keep sending both.
     #[serde(default)]
-    #[deprecated(note = "Use `workspace_folders` instead when possible")]
     pub root_uri: Option<Uri>,
 
     /// User provided initialization options.
@@ -2906,6 +2900,17 @@ mod tests {
     #[test]
     fn root_uri_can_be_missing() {
         serde_json::from_str::<InitializeParams>(r#"{ "capabilities": {} }"#).unwrap();
+    }
+
+    #[test]
+    fn initialize_params_sends_root_uri_without_root_path() {
+        let params = InitializeParams {
+            root_uri: Some(Uri::from_str("file:///project").unwrap()),
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&params).unwrap();
+        assert_eq!(json["rootUri"], "file:///project");
+        assert!(json.get("rootPath").is_none());
     }
 
     #[test]

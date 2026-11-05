@@ -59,6 +59,8 @@
   context-menu item. It always moves entries to the system trash; the panel
   never permanently deletes. Every successful delete is recorded on the
   panel's undo stack, and undo restores it from the trash.
+- Remote trash and permanent delete are separate RPCs (`TrashProjectEntry`,
+  `DeleteProjectEntry`); `DeleteProjectEntry` has no trash flag.
 - Backspace/Delete prompt first; Cmd-Backspace/Cmd-Delete skip the prompt
   (`skip_prompt: true`).
 - Undo only works within the session: the mapping from undo entries to trashed

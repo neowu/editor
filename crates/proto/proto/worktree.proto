@@ -122,11 +122,8 @@ message CopyProjectEntry {
 message DeleteProjectEntry {
   uint64 project_id = 1;
   uint64 entry_id = 2;
-  // Deprecated in favor of `TrashProjectEntry`.
-  //
-  // TODO(yara|dino): once all supported peers use `TrashProjectEntry`, remove
-  // this field and replace it with `reserved 3;` so the tag is never reused.
-  bool use_trash = 3 [deprecated = true];
+  // Was `use_trash`; trashing uses `TrashProjectEntry`.
+  reserved 3;
 }
 
 message TrashProjectEntry {
