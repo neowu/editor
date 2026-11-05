@@ -65,6 +65,10 @@ from upstream in layout as well as in behaviour.
 - 2026-11-03 correctness pass over the same range: ported #66293, #55800,
   #65951, #66364, #66289, #66360, #66283, #66299, #66404, #50882 and
   #66264.
+- 2026-11-05 performance pass over `504a7f2c..dcf3f98c9a`: nothing to port.
+  The only performance change (#66487) was reverted upstream in the same
+  range. Fork-relevant fixes and features from that range are listed under
+  Pending; the next full review still starts at `02d47bf64f`.
 
 ### Pending
 
@@ -76,8 +80,20 @@ Fork-relevant commits from `02d47bf64f..504a7f2c` not yet decided:
   error diagnostics).
 - Features: #64624 (UAX #14 line breaking), #53089 (git auto fetch), #66284
   (no worktree hooks in restricted mode), #66423 (drag git panel files to the
-  terminal), #66296 (mouse wheel zoom in terminals and diffs), #66294
-  (remove unreferenced notification bits).
+  terminal), #66296 (mouse wheel zoom in terminals and diffs).
+
+Fork-relevant commits from `504a7f2c..dcf3f98c9a` not yet decided:
+
+- Fixes: #66474 (no panic when a grammar fails to parse for highlighting),
+  #65744 (macOS key equivalents for backspace/delete), #66472 (activate the
+  panel before opening its dock), #66540 (drag cursor applied immediately;
+  resolves the cursor on every mouse event), #66195 (task file variables in
+  single-file worktrees), #66459 (animated WebP in `Image::to_image_data`).
+- UI: #66461, #66336, #66496, #66531 (context menu submenus: embedded views,
+  persistent refresh, side placement, custom triggers), #66144 (call
+  hierarchy name/detail gap), #66384 (worktree picker matches branch names),
+  #66330 and #66137 (JetBrains keymap fixes).
+- Features: #66450 (setting to hide the edit prediction status bar button).
 
 ### Declined
 
@@ -131,6 +147,16 @@ upstream change depends on them or the need changes.
   #55455 (helix/vim), #66182 (git hosting providers), #66430 (http_client),
   #64133, #66435 (debugger), #64612, #66207, #66224, #66290, #66295, #66367,
   #66425 (agent/ACP/language model), #66308 (collab), #66413 (docs site).
+- Removed areas in `504a7f2c..dcf3f98c9a`: #66468, #65580, #66501
+  (Windows), #66437, #66438, #66473 (crates.io client tooling), #66440,
+  #66446, #64938, #66527, #66335 (agent/ACP/language model), #66494
+  (organization accounts), #66118, #66515 (vim), #66410, #66534 (docs and
+  settings docs only), #66532 (version bump).
+- #66487 and its revert #66517 (parallel LSP definition/reference loads,
+  completion resolves and diff reads): reverted upstream to bake after the
+  release. Re-evaluate if it relands.
+- #66294 (unreferenced `notification_store` bits): the fork already removed
+  `notification_store` entirely.
 
 ### Things to do on the next pass
 
