@@ -519,10 +519,10 @@ impl<D: PickerDelegate> Picker<D> {
         self.delegate.set_hovered_index(ix, window, cx);
         let current_index = self.delegate.selected_index();
 
-        if previous_index != current_index {
-            if let Some(action) = self.delegate.selected_index_changed(ix, window, cx) {
-                action(window, cx);
-            }
+        if previous_index != current_index
+            && let Some(action) = self.delegate.selected_index_changed(ix, window, cx)
+        {
+            action(window, cx);
         }
     }
 
