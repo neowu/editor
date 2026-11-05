@@ -919,6 +919,12 @@ const fn status_bar_shown(mode: WorkspaceMode, zoomed: bool) -> bool {
     matches!(mode, WorkspaceMode::Editor) && !zoomed
 }
 
+/// Whether a dock is on screen: open, in Editor mode (other modes hide the
+/// docks), and not covered by another zoomed dock.
+const fn dock_shown(mode: WorkspaceMode, dock_open: bool, other_is_zoomed: bool) -> bool {
+    matches!(mode, WorkspaceMode::Editor) && dock_open && !other_is_zoomed
+}
+
 pub enum Event {
     PaneAdded(Entity<Pane>),
     PaneRemoved,
@@ -2839,7 +2845,9 @@ impl Workspace {
         let mut reveal_dock = false;
 
         let other_is_zoomed = self.zoomed.is_some() && self.zoomed_position != Some(dock_side);
-        let was_visible = self.is_dock_at_position_open(dock_side, cx) && !other_is_zoomed;
+        let was_visible = dock_shown(self.mode, self.is_dock_at_position_open(dock_side, cx), other_is_zoomed);
+        // Docks live in Editor mode: from another mode, toggling shows Editor mode with the dock open.
+        let switched_mode = self.switch_mode(WorkspaceMode::Editor, cx);
 
         if was_visible {
             self.save_open_dock_positions(cx);
@@ -2875,6 +2883,11 @@ impl Workspace {
 
         if focus_center {
             self.active_pane.update(cx, |pane, cx| window.focus(&pane.focus_handle(cx), cx))
+        }
+
+        // Focus must not stay in the now hidden mode.
+        if switched_mode && !reveal_dock {
+            window.focus(&self.fallback_focus_handle(window, cx), cx);
         }
 
         cx.notify();
@@ -2939,7 +2952,13 @@ impl Workspace {
     fn toggle_all_docks(&mut self, _: &ToggleAllDocks, window: &mut Window, cx: &mut Context<Self>) {
         let open_dock_positions = self.get_open_dock_positions(cx);
 
-        if !open_dock_positions.is_empty() {
+        // From another mode, the hidden docks are shown rather than closed unseen.
+        if self.switch_mode(WorkspaceMode::Editor, cx) {
+            if open_dock_positions.is_empty() {
+                self.restore_last_open_docks(window, cx);
+            }
+            window.focus(&self.fallback_focus_handle(window, cx), cx);
+        } else if !open_dock_positions.is_empty() {
             self.close_all_docks(window, cx);
         } else if !self.last_open_dock_positions.is_empty() {
             self.restore_last_open_docks(window, cx);
@@ -2998,9 +3017,10 @@ impl Workspace {
     ) -> Option<Arc<dyn PanelHandle>> {
         let mut result_panel = None;
         let mut serialize = false;
-        for dock in self.all_docks() {
+        for dock in self.all_docks().map(Entity::clone) {
             if let Some(panel_index) = dock.read(cx).panel_index_for_type::<T>() {
                 let mut focus_center = false;
+                let mut focused_panel = false;
                 let panel = dock.update(cx, |dock, cx| {
                     dock.activate_panel(panel_index, window, cx);
 
@@ -3009,6 +3029,7 @@ impl Workspace {
                         if should_focus(&**panel, window, cx) {
                             dock.set_open(true, window, cx);
                             panel.activation_focus_handle(cx).focus(window, cx);
+                            focused_panel = true;
                         } else {
                             focus_center = true;
                         }
@@ -3018,6 +3039,10 @@ impl Workspace {
 
                 if focus_center {
                     self.active_pane.update(cx, |pane, cx| window.focus(&pane.focus_handle(cx), cx))
+                }
+                // Docks are hidden outside Editor mode, so a focused panel shows it.
+                if focused_panel {
+                    self.switch_mode(WorkspaceMode::Editor, cx);
                 }
 
                 result_panel = panel;
@@ -3034,14 +3059,17 @@ impl Workspace {
         result_panel
     }
 
-    /// Open the panel of the given type
+    /// Open the panel of the given type, showing Editor mode where the docks live.
     pub fn open_panel<T: Panel>(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        for dock in self.all_docks() {
+        for dock in self.all_docks().map(Entity::clone) {
             if let Some(panel_index) = dock.read(cx).panel_index_for_type::<T>() {
                 dock.update(cx, |dock, cx| {
                     dock.activate_panel(panel_index, window, cx);
                     dock.set_open(true, window, cx);
                 });
+                if self.switch_mode(WorkspaceMode::Editor, cx) {
+                    window.focus(&self.fallback_focus_handle(window, cx), cx);
+                }
             }
         }
     }
@@ -6257,6 +6285,17 @@ mod tests {
         assert!(!status_bar_shown(WorkspaceMode::Editor, true));
         assert!(!status_bar_shown(WorkspaceMode::GitHistory, false));
         assert!(!status_bar_shown(WorkspaceMode::GitHistory, true));
+    }
+
+    #[test]
+    fn test_dock_shown() {
+        use super::dock_shown;
+
+        assert!(dock_shown(WorkspaceMode::Editor, true, false));
+        assert!(!dock_shown(WorkspaceMode::Editor, false, false));
+        assert!(!dock_shown(WorkspaceMode::Editor, true, true));
+        assert!(!dock_shown(WorkspaceMode::GitHistory, true, false));
+        assert!(!dock_shown(WorkspaceMode::GitHistory, false, false));
     }
 
     #[test]

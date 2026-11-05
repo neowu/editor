@@ -199,6 +199,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
   History mode hides it, and switching back to
   Editor mode focuses it again, so it is still open and zoomed rather than
   closed.
+- Docks belong to Editor mode, so dock shortcuts from another mode never act on
+  hidden docks: toggling a dock (`cmd-b`, `cmd-r`, `cmd-j`), toggling all docks,
+  and focusing or opening a panel (`ctrl-``, `cmd-shift-e`, …) switch to Editor
+  mode and show the dock open, rather than closing it unseen.
 - Zoom (`workspace::ToggleZoom`, `` cmd-` ``, also `shift-escape`) expands the
   focused pane. In the terminal dock that is the focused terminal pane alone,
   not every split, as zooming an editor pane hides the other panes.
