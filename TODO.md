@@ -18,6 +18,7 @@
 
 # terminal mode
 - think about if we need external terminal, just do everything in ed?
+- and no need for central terminal anymore
 
 # should add low power mode? or my laptop is powerful enough
 - Frame pacing (#63477, #66237): large changes to window.rs, and the macOS Low Power Mode part drags in Linux and Windows power code. I’d skip them unless you’ve noticed stutter in Low Power Mode.
