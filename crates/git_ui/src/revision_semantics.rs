@@ -14,6 +14,7 @@ use editor::GotoDefinitionKind;
 use editor::RenameTarget;
 use editor::SemanticsProvider;
 use futures::future::Shared;
+use git::repository::RepoPath;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::AsyncApp;
@@ -40,48 +41,60 @@ use project::Project;
 use project::ProjectPath;
 use project::ProjectTransaction;
 use project::Symbol;
+use project::git_store::Repository;
 use project::lsp_store::BufferSemanticTokens;
 use project::lsp_store::CacheInlayHints;
 use project::lsp_store::OpenLspBufferHandle;
 use project::lsp_store::SymbolLocation;
 use util::ResultExt as _;
 
-/// The project's semantics for a revision tab, with definitions looked up
-/// through `live_path`, the revision's file in the project (if it still is).
+use crate::commit_view::project_file_path;
+
+/// The project's semantics for a commit's file revisions, in its diff and
+/// revision tabs, with definitions looked up through each revision's file in
+/// the project (if it still is).
 pub(crate) struct RevisionSemanticsProvider {
     project: WeakEntity<Project>,
-    live_path: Option<ProjectPath>,
-    live_buffer: Rc<RefCell<Option<LiveBuffer>>>,
+    repository: WeakEntity<Repository>,
+    live_buffers: Rc<RefCell<HashMap<ProjectPath, LiveBuffer>>>,
 }
 
-/// The file's current buffer, kept open with its language servers for as
-/// long as the revision tab is.
+/// A file's current buffer, kept open with its language servers for as long
+/// as the provider is.
 struct LiveBuffer {
     buffer: Entity<Buffer>,
     _lsp_handle: OpenLspBufferHandle,
 }
 
 impl RevisionSemanticsProvider {
-    pub(crate) fn new(project: WeakEntity<Project>, live_path: Option<ProjectPath>) -> RevisionSemanticsProvider {
-        RevisionSemanticsProvider { project, live_path, live_buffer: Rc::default() }
+    pub(crate) fn new(project: WeakEntity<Project>, repository: WeakEntity<Repository>) -> RevisionSemanticsProvider {
+        RevisionSemanticsProvider { project, repository, live_buffers: Rc::default() }
     }
 
-    /// Opens the revision's current file and registers it with its language
-    /// servers, once.
-    fn open_live_buffer(&self, cx: &mut App) -> Option<Task<Result<Entity<Buffer>>>> {
-        if let Some(live_buffer) = self.live_buffer.borrow().as_ref() {
+    /// The project file that `revision` is a version of, while it still is one.
+    fn live_path(&self, revision: &Entity<Buffer>, cx: &App) -> Option<ProjectPath> {
+        let file = revision.read(cx).file()?;
+        let project = self.project.upgrade()?;
+        let repository = self.repository.upgrade()?;
+        project_file_path(&project, &repository, &RepoPath::from_rel_path(file.path()), cx)
+    }
+
+    /// Opens the current file at `live_path` and registers it with its
+    /// language servers, once.
+    fn open_live_buffer(&self, live_path: Option<ProjectPath>, cx: &mut App) -> Option<Task<Result<Entity<Buffer>>>> {
+        let live_path = live_path?;
+        if let Some(live_buffer) = self.live_buffers.borrow().get(&live_path) {
             return Some(Task::ready(Ok(live_buffer.buffer.clone())));
         }
-        let live_path = self.live_path.clone()?;
         let project = self.project.upgrade()?;
-        let open = project.update(cx, |project, cx| project.open_buffer(live_path, cx));
-        let cache = self.live_buffer.clone();
+        let open = project.update(cx, |project, cx| project.open_buffer(live_path.clone(), cx));
+        let cache = self.live_buffers.clone();
         Some(cx.spawn(async move |cx| {
             let buffer = open.await?;
-            if cache.borrow().is_none() {
+            if !cache.borrow().contains_key(&live_path) {
                 let lsp_handle =
                     project.update(cx, |project, cx| project.register_buffer_with_language_servers(&buffer, cx));
-                *cache.borrow_mut() = Some(LiveBuffer { buffer: buffer.clone(), _lsp_handle: lsp_handle });
+                cache.borrow_mut().insert(live_path, LiveBuffer { buffer: buffer.clone(), _lsp_handle: lsp_handle });
             }
             Ok(buffer)
         }))
@@ -337,9 +350,9 @@ impl SemanticsProvider for RevisionSemanticsProvider {
     ) -> Option<Task<Result<Option<Vec<LocationLink>>>>> {
         let revision = buffer.read(cx).snapshot();
         let point = position.to_point(&revision);
-        let live_buffer = self.open_live_buffer(cx);
+        let live_path = self.live_path(buffer, cx);
+        let live_buffer = self.open_live_buffer(live_path.clone(), cx);
         let project = self.project.clone();
-        let live_path = self.live_path.clone();
         let revision_buffer = buffer.clone();
         Some(cx.spawn(async move |cx| {
             if let Some(live_buffer) = live_buffer {
@@ -374,9 +387,9 @@ impl SemanticsProvider for RevisionSemanticsProvider {
     ) -> Option<Task<Result<Option<Vec<Location>>>>> {
         let revision = buffer.read(cx).snapshot();
         let point = position.to_point(&revision);
-        let live_buffer = self.open_live_buffer(cx);
+        let live_path = self.live_path(buffer, cx);
+        let live_buffer = self.open_live_buffer(live_path.clone(), cx);
         let project = self.project.clone();
-        let live_path = self.live_path.clone();
         let revision_buffer = buffer.clone();
         Some(cx.spawn(async move |cx| {
             if let Some(live_buffer) = live_buffer {

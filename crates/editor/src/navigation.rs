@@ -904,9 +904,7 @@ impl Editor {
         let selection = self.selections.newest_anchor();
         let head = selection.head();
 
-        let multi_buffer = self.buffer.read(cx);
-
-        let (buffer, text_head) = multi_buffer.text_anchor_for_position(head, cx)?;
+        let (buffer, text_head) = self.semantics_position(head, cx)?;
         let references = self.semantics_provider.clone()?.references(&buffer, text_head, cx)?;
         Some(cx.spawn_in(window, async move |editor, cx| -> Result<()> {
             let Some(locations) = references.await? else {
@@ -998,7 +996,7 @@ impl Editor {
         let multi_buffer_snapshot = multi_buffer.snapshot(cx);
         let head = selection.map(|anchor| anchor.to_offset(&multi_buffer_snapshot)).head();
 
-        let (buffer, head) = multi_buffer.text_anchor_for_position(head, cx)?;
+        let (buffer, head) = self.semantics_position(head, cx)?;
         let definitions = provider.definitions(&buffer, head, kind, cx)?;
         Some(cx.spawn(async move |editor, cx| {
             let definitions = definitions.await?.unwrap_or_default();
@@ -1025,7 +1023,7 @@ impl Editor {
         let multi_buffer_snapshot = multi_buffer.snapshot(cx);
         let head = selection.map(|anchor| anchor.to_offset(&multi_buffer_snapshot)).head();
 
-        let (buffer, head) = multi_buffer.text_anchor_for_position(head, cx)?;
+        let (buffer, head) = self.semantics_position(head, cx)?;
         let references = provider.references(&buffer, head, cx)?;
         // Keep every reference, including the one under the cursor, to match the
         // default `find_all_references` multibuffer (`always_open_multibuffer`).
@@ -1062,7 +1060,7 @@ impl Editor {
             }
         }
 
-        let (buffer, head) = multi_buffer.text_anchor_for_position(head, cx)?;
+        let (buffer, head) = self.semantics_position(head, cx)?;
         let workspace = self.workspace()?;
         let references = self.semantics_provider.clone()?.references(&buffer, head, cx)?;
         Some(cx.spawn_in(window, async move |editor, cx| {
@@ -1823,6 +1821,21 @@ impl Editor {
         self.buffer.update(cx, |buffer, cx| buffer.expand_excerpts(excerpt_anchors, lines, direction, cx))
     }
 
+    /// The buffer position that definitions and references are asked for at
+    /// `position`, or `None` on a deleted diff line: its text isn't in the
+    /// buffer, whose position there belongs to the line after the hunk.
+    pub(crate) fn semantics_position<T: ToOffset + std::marker::Copy>(
+        &self,
+        position: T,
+        cx: &App,
+    ) -> Option<(Entity<Buffer>, text::Anchor)> {
+        let multi_buffer = self.buffer.read(cx);
+        if multi_buffer.read(cx).anchor_before(position).diff_base_anchor().is_some() {
+            return None;
+        }
+        multi_buffer.text_anchor_for_position(position, cx)
+    }
+
     pub(crate) fn go_to_definition_of_kind(
         &self,
         kind: GotoDefinitionKind,
@@ -1834,8 +1847,7 @@ impl Editor {
             return Task::ready(Ok(Navigated::No));
         };
         let head = self.selections.newest::<MultiBufferOffset>(&self.display_snapshot(cx)).head();
-        let buffer = self.buffer.read(cx);
-        let Some((buffer, head)) = buffer.text_anchor_for_position(head, cx) else {
+        let Some((buffer, head)) = self.semantics_position(head, cx) else {
             return Task::ready(Ok(Navigated::No));
         };
         let Some(definitions) = provider.definitions(&buffer, head, kind, cx) else {

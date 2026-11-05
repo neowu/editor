@@ -173,7 +173,11 @@ blobs with no language server, so they are not mixed into editor panes.
   symbols, preferring the revision's own file when it defines it; references
   then come from that definition, only when the name matches exactly one. A
   name that no longer exists gets no result. Results are current project
-  files, so opening one switches to Workspace mode.
+  files, so opening one switches to Workspace mode. The commit diff does the
+  same on its new side (added and unchanged lines); a commit's diff and its
+  revision tabs share the current files they keep open. Deleted lines, and the
+  old side of a split diff, get none: in any diff, a deleted line's text isn't
+  in the buffer, so definitions and references are never asked for there.
 - A revision's right-click menu disables, as in any read-only editor, Rename,
   Format, Code Actions, Cut and Paste.
 - Focusing a dock panel or an editor pane (opening a file, Open File in Project

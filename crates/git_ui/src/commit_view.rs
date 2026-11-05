@@ -17,7 +17,6 @@ use editor::EditorEvent;
 use editor::HiddenDiffHunkRenderer;
 use editor::MultiBuffer;
 use editor::SelectionEffects;
-use editor::SemanticsProvider;
 use editor::SplittableEditor;
 use editor::scroll::Autoscroll;
 use editor::scroll::ScrollAnchor;
@@ -127,6 +126,8 @@ pub struct CommitView {
     workspace: WeakEntity<Workspace>,
     is_shallow_boundary: bool,
     file_filter: Option<RepoPath>,
+    /// Go to definition and find references for the diff and its revision tabs.
+    semantics_provider: Rc<RevisionSemanticsProvider>,
     _load_diff_task: Task<Result<()>>,
     _revision_subscriptions: Vec<Subscription>,
 }
@@ -514,6 +515,7 @@ impl CommitView {
         })
         .detach();
 
+        let semantics_provider = Rc::new(RevisionSemanticsProvider::new(project.downgrade(), repository.downgrade()));
         let commit_view = cx.weak_entity();
         let editor = cx.new(|cx| {
             let editor = SplittableEditor::new(
@@ -527,6 +529,7 @@ impl CommitView {
             editor.set_diff_hunk_renderer(Some(Arc::new(HiddenDiffHunkRenderer)), cx);
             editor.rhs_editor().update(cx, |editor, _cx| {
                 editor.register_addon(CommitDiffAddon { file_statuses: HashMap::default(), commit_view });
+                editor.set_semantics_provider(Some(semantics_provider.clone()));
             });
 
             editor
@@ -634,6 +637,7 @@ impl CommitView {
             workspace,
             is_shallow_boundary,
             file_filter,
+            semantics_provider,
             _load_diff_task: load_diff_task,
             _revision_subscriptions: Vec::new(),
         }
@@ -752,8 +756,8 @@ impl CommitView {
     }
 
     /// Gives a tab showing one of this commit's file revisions the commit's
-    /// sidebar, revealing that file whenever the tab is focused, and go to
-    /// definition through the file's current version.
+    /// sidebar, revealing that file whenever the tab is focused, and the
+    /// diff's go to definition through the file's current version.
     fn adopt_revision_editor(&mut self, editor: &Entity<Editor>, window: &mut Window, cx: &mut Context<Self>) {
         let Some(buffer) = self.revision_buffer(editor, cx) else {
             return;
@@ -762,16 +766,10 @@ impl CommitView {
             return;
         };
         let repo_path = RepoPath::from_rel_path(file.path());
-        let provider = self.workspace.upgrade().map(|workspace| {
-            let project = workspace.read(cx).project().clone();
-            let live_path = project_file_path(&project, &self.repository, &repo_path, cx);
-            Rc::new(RevisionSemanticsProvider::new(project.downgrade(), live_path)) as Rc<dyn SemanticsProvider>
-        });
+        let provider = self.semantics_provider.clone();
         editor.update(cx, |editor, _| {
             editor.set_side_card(Some(self.details.clone().into()));
-            if provider.is_some() {
-                editor.set_semantics_provider(provider);
-            }
+            editor.set_semantics_provider(Some(provider));
         });
         self.details.update(cx, |details, cx| details.reveal_file(&repo_path, cx));
         let focus_handle = editor.read(cx).focus_handle(cx);

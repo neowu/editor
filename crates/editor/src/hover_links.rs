@@ -236,7 +236,7 @@ impl Editor {
             self.select(SelectPhase::Begin { position: point.next_valid, add: false, click_count: 1 }, window, cx);
         }
         self.select(SelectPhase::End, window, cx);
-        let Some((buffer, anchor)) = self.buffer.read(cx).text_anchor_for_position(position, cx) else {
+        let Some((buffer, anchor)) = self.semantics_position(position, cx) else {
             return;
         };
         links.retain(|link| match link {
@@ -351,6 +351,12 @@ pub fn show_link_definition(
     }
 
     let anchor = trigger_point.anchor().bias_left(snapshot.buffer_snapshot());
+    // A deleted diff line's text isn't in the buffer, whose position there
+    // belongs to the line after the hunk.
+    if anchor.diff_base_anchor().is_some() {
+        editor.hide_hovered_link(cx);
+        return;
+    }
     let Some((anchor, _)) = snapshot.buffer_snapshot().anchor_to_buffer_anchor(anchor) else {
         return;
     };
