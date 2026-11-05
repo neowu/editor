@@ -88,7 +88,7 @@ use crate::AppleDispatcher;
 use crate::MacDisplay;
 use crate::MacKeyboardLayout;
 use crate::MacWindow;
-use crate::events::key_to_native;
+use crate::events::key_to_menu_equivalent;
 use crate::ns::NSInteger;
 use crate::ns::NSUInteger;
 use crate::ns::array_iter;
@@ -473,7 +473,7 @@ impl MacPlatform {
                                 }
                             }
 
-                            item = new_menu_item(name, selector, key_to_native(keystroke.key()).as_ref());
+                            item = new_menu_item(name, selector, key_to_menu_equivalent(keystroke.key()).as_ref());
                             let _: () = msg_send![item, setAllowsAutomaticKeyEquivalentLocalization: false];
                             let _: () = msg_send![item, setKeyEquivalentModifierMask: mask.0];
                         } else {

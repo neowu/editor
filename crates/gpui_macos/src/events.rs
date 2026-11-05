@@ -105,8 +105,14 @@ pub(crate) const ESCAPE_KEY: u16 = 0x1b;
 const TAB_KEY: u16 = 0x09;
 const SHIFT_TAB_KEY: u16 = 0x19;
 
-pub fn key_to_native(key: &str) -> Cow<'_, str> {
-    use function_keys::NSDeleteFunctionKey;
+// Menu key equivalents use different character values than the ones NSEvent
+// reports for the same physical keys.
+//
+// See https://developer.apple.com/documentation/appkit/nsmenuitem/keyequivalent#Discussion
+const BACKSPACE_KEY_EQUIVALENT: u16 = 0x08;
+const DELETE_KEY_EQUIVALENT: u16 = 0x7f;
+
+pub(crate) fn key_to_menu_equivalent(key: &str) -> Cow<'_, str> {
     use function_keys::NSDownArrowFunctionKey;
     use function_keys::NSEndFunctionKey;
     use function_keys::NSF1FunctionKey;
@@ -153,7 +159,7 @@ pub fn key_to_native(key: &str) -> Cow<'_, str> {
     use function_keys::NSUpArrowFunctionKey;
     let code = match key {
         "space" => SPACE_KEY,
-        "backspace" => BACKSPACE_KEY,
+        "backspace" => BACKSPACE_KEY_EQUIVALENT,
         "escape" => ESCAPE_KEY,
         "up" => NSUpArrowFunctionKey,
         "down" => NSDownArrowFunctionKey,
@@ -163,7 +169,7 @@ pub fn key_to_native(key: &str) -> Cow<'_, str> {
         "pagedown" => NSPageDownFunctionKey,
         "home" => NSHomeFunctionKey,
         "end" => NSEndFunctionKey,
-        "delete" => NSDeleteFunctionKey,
+        "delete" => DELETE_KEY_EQUIVALENT,
         "insert" => NSHelpFunctionKey,
         "f1" => NSF1FunctionKey,
         "f2" => NSF2FunctionKey,
@@ -688,4 +694,16 @@ fn chars_for_modified_key(code: CGKeyCode, modifiers: u32) -> String {
         let _: () = msg_send![keyboard, release];
     }
     String::from_utf16(&buffer[..buffer_size]).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::key_to_menu_equivalent;
+
+    #[test]
+    fn menu_equivalents_use_appkit_delete_characters() {
+        assert_eq!(key_to_menu_equivalent("backspace"), "\u{8}");
+        assert_eq!(key_to_menu_equivalent("delete"), "\u{7f}");
+        assert_eq!(key_to_menu_equivalent("a"), "a");
+    }
 }
