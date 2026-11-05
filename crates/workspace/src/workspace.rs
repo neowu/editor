@@ -154,7 +154,6 @@ use rpc::proto::{self};
 use serde::Deserialize;
 use settings::Settings;
 use status_bar::StatusBar;
-pub use status_bar::StatusItemModes;
 pub use status_bar::StatusItemView;
 pub use status_bar::status_item_color;
 use task::SpawnInTerminal;
@@ -914,6 +913,12 @@ impl WorkspaceMode {
     }
 }
 
+/// Whether the status bar is drawn: only in Editor mode, and not while
+/// something is zoomed there. Git History mode has no use for it.
+const fn status_bar_shown(mode: WorkspaceMode, zoomed: bool) -> bool {
+    matches!(mode, WorkspaceMode::Editor) && !zoomed
+}
+
 pub enum Event {
     PaneAdded(Entity<Pane>),
     PaneRemoved,
@@ -1223,9 +1228,9 @@ impl Workspace {
         let right_dock_buttons = cx.new(|cx| PanelButtons::new(right_dock.clone(), cx));
         let status_bar = cx.new(|cx| {
             let mut status_bar = StatusBar::new(&center_pane.clone(), window, cx);
-            status_bar.add_left_item_in(left_dock_buttons, StatusItemModes::Editor, window, cx);
-            status_bar.add_right_item_in(right_dock_buttons, StatusItemModes::Editor, window, cx);
-            status_bar.add_right_item_in(bottom_dock_buttons, StatusItemModes::Editor, window, cx);
+            status_bar.add_left_item(left_dock_buttons, window, cx);
+            status_bar.add_right_item(right_dock_buttons, window, cx);
+            status_bar.add_right_item(bottom_dock_buttons, window, cx);
             status_bar
         });
 
@@ -1606,10 +1611,10 @@ impl Workspace {
         &self.status_bar
     }
 
-    /// The status bar is hidden while the shown mode has something zoomed, so
-    /// the zoomed view extends down to the window edge.
+    /// The status bar is shown only in Editor mode, and hidden there while
+    /// something is zoomed, so the zoomed view extends down to the window edge.
     pub fn status_bar_visible(&self, cx: &App) -> bool {
-        !self.has_zoomed(self.mode, cx)
+        status_bar_shown(self.mode, self.has_zoomed(self.mode, cx))
     }
 
     pub const fn mode(&self) -> WorkspaceMode {
@@ -1628,7 +1633,7 @@ impl Workspace {
     /// Switches what fills the window and moves focus into it. A zoomed dock
     /// panel takes focus back in Editor mode, so it is still zoomed on return.
     pub fn set_mode(&mut self, mode: WorkspaceMode, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.switch_mode(mode, window, cx) {
+        if !self.switch_mode(mode, cx) {
             return;
         }
         window.focus(&self.fallback_focus_handle(window, cx), cx);
@@ -1636,13 +1641,11 @@ impl Workspace {
 
     /// Switches the mode without touching focus, for when focus already moved
     /// into the newly shown area. Returns whether the mode changed.
-    fn switch_mode(&mut self, mode: WorkspaceMode, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    fn switch_mode(&mut self, mode: WorkspaceMode, cx: &mut Context<Self>) -> bool {
         if self.mode == mode {
             return false;
         }
         self.mode = mode;
-        let pane = self.shown_pane().clone();
-        self.status_bar.update(cx, |status_bar, cx| status_bar.set_mode(mode, &pane, window, cx));
         cx.notify();
         true
     }
@@ -2053,9 +2056,9 @@ impl Workspace {
                 self.zoom_git_history_pane(None, cx);
             }
             self.set_active_git_history_pane(pane, window, cx);
-            self.switch_mode(WorkspaceMode::GitHistory, window, cx);
+            self.switch_mode(WorkspaceMode::GitHistory, cx);
         } else {
-            self.switch_mode(WorkspaceMode::Editor, window, cx);
+            self.switch_mode(WorkspaceMode::Editor, cx);
             if self.active_pane != *pane {
                 self.set_active_pane(pane, window, cx);
             }
@@ -3834,7 +3837,7 @@ impl Workspace {
         if self.panes.contains(&pane) {
             self.content_pane_focused(&pane, window, cx);
         }
-        self.switch_mode(WorkspaceMode::Editor, window, cx);
+        self.switch_mode(WorkspaceMode::Editor, cx);
         self.flush_deferred_saves(window, cx);
 
         // This is explicitly hoisted out of the following check for pane identity as
@@ -3895,7 +3898,7 @@ impl Workspace {
     }
 
     fn handle_panel_focused(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.switch_mode(WorkspaceMode::Editor, window, cx);
+        self.switch_mode(WorkspaceMode::Editor, cx);
         self.flush_deferred_saves(window, cx);
     }
 
@@ -3952,7 +3955,7 @@ impl Workspace {
                 // Center panes aren't rendered in Git History mode, so focusing one never
                 // reaches `handle_pane_focused`; show them when an item asks for focus.
                 if *focus_changed {
-                    self.switch_mode(WorkspaceMode::Editor, window, cx);
+                    self.switch_mode(WorkspaceMode::Editor, cx);
                 }
 
                 pane.update(cx, |pane, _| {
@@ -6245,6 +6248,16 @@ pub fn with_active_or_new_workspace(
 #[cfg(test)]
 mod tests {
     use super::WorkspaceMode;
+
+    #[test]
+    fn test_status_bar_shown() {
+        use super::status_bar_shown;
+
+        assert!(status_bar_shown(WorkspaceMode::Editor, false));
+        assert!(!status_bar_shown(WorkspaceMode::Editor, true));
+        assert!(!status_bar_shown(WorkspaceMode::GitHistory, false));
+        assert!(!status_bar_shown(WorkspaceMode::GitHistory, true));
+    }
 
     #[test]
     fn test_window_title() {

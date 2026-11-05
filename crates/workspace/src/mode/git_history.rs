@@ -267,7 +267,7 @@ impl Workspace {
             pane::Event::Focus => {
                 self.content_pane_focused(pane, window, cx);
                 self.set_active_git_history_pane(pane, window, cx);
-                self.switch_mode(WorkspaceMode::GitHistory, window, cx);
+                self.switch_mode(WorkspaceMode::GitHistory, cx);
             }
             pane::Event::ChangeItemTitle | pane::Event::ActivateItem { .. } | pane::Event::RemovedItem { .. } => {
                 self.notify_mode(WorkspaceMode::GitHistory, cx)

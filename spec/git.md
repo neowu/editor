@@ -127,12 +127,9 @@ blobs with no language server, so they are not mixed into editor panes.
   or another repository's graph. The active tab has no fill: it shows full-contrast text and an
   accent-coloured icon, while inactive tabs are muted. Both show the ghost
   hover background, so the filled pill no longer pulls focus from the content.
-- Git History mode hides the docks and editor panes. The status bar stays and
-  follows the active history tab, but shows only what applies there: the
-  cursor position and language of revisions. There is no Git Graph button;
-  picking a folder in the window header returns to its graph (below). Editor tools (search, diagnostics, …)
-  and dock buttons are hidden. Each status item declares the modes it is shown
-  in. The history area is
+- Git History mode hides the docks, editor panes and the status bar (it
+  offers too little there to be worth the space). There is no Git Graph button;
+  picking a folder in the window header returns to its graph (below). The history area is
   its own pane group, apart from the editor panes: normal panes (folder tabs,
   card, the same toolbar items as editor panes) that split like editor panes:
   dragging a tab to a pane edge, `pane::Split*`, and "open to the side"
@@ -143,9 +140,8 @@ blobs with no language server, so they are not mixed into editor panes.
   history tab when Git History is shown.
   Its tab bars have, on the focused pane, Zoom
   (back/forward is the window header's, shared with Workspace mode); there is no New… menu, since files and terminals belong
-  to Workspace mode. Zoom shows only that pane, without the commit sidebar or
-  the status bar (as zooming hides docks, other panes and the status bar in
-  Workspace mode). Every history tab is read-only, so the tab context menu
+  to Workspace mode. Zoom shows only that pane, without the commit sidebar
+  (as zooming hides docks, other panes and the status bar in Workspace mode). Every history tab is read-only, so the tab context menu
   leaves out "Close Clean", "Close Multibuffers" and "Make Tab Read-Only". History tabs and
   splits are not restored after a restart, but survive switching modes.
 - The graph and commit views open in the active history pane (the last

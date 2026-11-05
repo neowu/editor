@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use gpui::AnyView;
 use gpui::App;
 use gpui::Context;
@@ -16,7 +14,6 @@ use ui::prelude::*;
 
 use crate::ItemHandle;
 use crate::Pane;
-use crate::WorkspaceMode;
 
 pub trait StatusItemView: Render {
     /// Event callback that is triggered when the active pane item changes.
@@ -39,47 +36,10 @@ pub const fn status_item_color(active: bool) -> Color {
     if active { Color::Accent } else { Color::Default }
 }
 
-/// The workspace modes a status bar item is shown in.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StatusItemModes {
-    Editor,
-    GitHistory,
-    All,
-}
-
-impl StatusItemModes {
-    fn includes(self, mode: WorkspaceMode) -> bool {
-        match self {
-            StatusItemModes::Editor => mode == WorkspaceMode::Editor,
-            StatusItemModes::GitHistory => mode == WorkspaceMode::GitHistory,
-            StatusItemModes::All => true,
-        }
-    }
-
-    /// Whether an item shown in `from` is hidden after switching to `to`.
-    fn hidden_by_switch(self, from: WorkspaceMode, to: WorkspaceMode) -> bool {
-        self.includes(from) && !self.includes(to)
-    }
-}
-
-struct StatusItem {
-    view: Box<dyn StatusItemViewHandle>,
-    modes: StatusItemModes,
-}
-
-impl Deref for StatusItem {
-    type Target = dyn StatusItemViewHandle;
-
-    fn deref(&self) -> &Self::Target {
-        self.view.as_ref()
-    }
-}
-
 pub struct StatusBar {
-    left_items: Vec<StatusItem>,
-    right_items: Vec<StatusItem>,
+    left_items: Vec<Box<dyn StatusItemViewHandle>>,
+    right_items: Vec<Box<dyn StatusItemViewHandle>>,
     active_pane: Entity<Pane>,
-    mode: WorkspaceMode,
     focus_handle: FocusHandle,
     _observe_active_pane: Subscription,
 }
@@ -134,7 +94,7 @@ impl StatusBar {
             .gap_1()
             .min_w_0()
             .overflow_x_hidden()
-            .children(self.shown_items(&self.left_items).map(|item| item.to_any()))
+            .children(self.left_items.iter().map(|item| item.to_any()))
     }
 
     fn render_right_tools(&self) -> impl IntoElement {
@@ -142,7 +102,7 @@ impl StatusBar {
             .flex_shrink_0()
             .gap_1()
             .overflow_x_hidden()
-            .children(self.shown_items(&self.right_items).rev().map(|item| item.to_any()))
+            .children(self.right_items.iter().rev().map(|item| item.to_any()))
     }
 }
 
@@ -152,7 +112,6 @@ impl StatusBar {
             left_items: Vec::default(),
             right_items: Vec::default(),
             active_pane: active_pane.clone(),
-            mode: WorkspaceMode::default(),
             focus_handle: cx.focus_handle(),
             _observe_active_pane: cx
                 .observe_in(active_pane, window, |this, _, window, cx| this.update_active_pane_item(window, cx)),
@@ -161,70 +120,34 @@ impl StatusBar {
         this
     }
 
-    /// Switches the shown items and the pane they follow. Items that become
-    /// hidden drop the active item, so they stop tracking it while hidden.
-    pub fn set_mode(
-        &mut self,
-        mode: WorkspaceMode,
-        active_pane: &Entity<Pane>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        for item in self.left_items.iter().chain(&self.right_items) {
-            if item.modes.hidden_by_switch(self.mode, mode) {
-                item.set_active_pane_item(None, window, cx);
-            }
-        }
-        self.mode = mode;
-        self.set_active_pane(active_pane, window, cx);
-        cx.notify();
-    }
-
-    fn shown_items<'a>(&self, items: &'a [StatusItem]) -> impl DoubleEndedIterator<Item = &'a StatusItem> {
-        let mode = self.mode;
-        items.iter().filter(move |item| item.modes.includes(mode))
-    }
-
-    pub fn add_left_item_in<T>(
-        &mut self,
-        item: Entity<T>,
-        modes: StatusItemModes,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) where
+    pub fn add_left_item<T>(&mut self, item: Entity<T>, window: &mut Window, cx: &mut Context<Self>)
+    where
         T: 'static + StatusItemView,
     {
-        let item = self.new_item(item, modes, window, cx);
+        let item = self.new_item(item, window, cx);
         self.left_items.push(item);
         cx.notify();
     }
 
-    /// Wraps `item`, giving it the active pane item if it is shown now.
-    fn new_item<T>(&self, item: Entity<T>, modes: StatusItemModes, window: &mut Window, cx: &mut App) -> StatusItem
+    /// Wraps `item`, giving it the active pane item.
+    fn new_item<T>(&self, item: Entity<T>, window: &mut Window, cx: &mut App) -> Box<dyn StatusItemViewHandle>
     where
         T: 'static + StatusItemView,
     {
-        if modes.includes(self.mode) {
-            let active_pane_item = self.active_pane.read(cx).active_item();
-            item.set_active_pane_item(active_pane_item.as_deref(), window, cx);
-        }
-        StatusItem { view: Box::new(item), modes }
+        let active_pane_item = self.active_pane.read(cx).active_item();
+        item.set_active_pane_item(active_pane_item.as_deref(), window, cx);
+        Box::new(item)
     }
 
     pub fn item_of_type<T: StatusItemView>(&self) -> Option<Entity<T>> {
         self.left_items.iter().chain(&self.right_items).find_map(|item| item.to_any().downcast().ok())
     }
 
-    pub fn add_right_item_in<T>(
-        &mut self,
-        item: Entity<T>,
-        modes: StatusItemModes,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) where
+    pub fn add_right_item<T>(&mut self, item: Entity<T>, window: &mut Window, cx: &mut Context<Self>)
+    where
         T: 'static + StatusItemView,
     {
-        let item = self.new_item(item, modes, window, cx);
+        let item = self.new_item(item, window, cx);
         self.right_items.push(item);
         cx.notify();
     }
@@ -238,7 +161,7 @@ impl StatusBar {
 
     fn update_active_pane_item(&self, window: &mut Window, cx: &mut Context<Self>) {
         let active_pane_item = self.active_pane.read(cx).active_item();
-        for item in self.shown_items(&self.left_items).chain(self.shown_items(&self.right_items)) {
+        for item in self.left_items.iter().chain(&self.right_items) {
             item.set_active_pane_item(active_pane_item.as_deref(), window, cx);
         }
     }
@@ -282,34 +205,11 @@ impl From<&dyn StatusItemViewHandle> for AnyView {
 mod tests {
     use ui::Color;
 
-    use super::StatusItemModes;
     use super::status_item_color;
-    use crate::WorkspaceMode;
 
     #[test]
     fn test_status_item_color() {
         assert_eq!(status_item_color(true), Color::Accent);
         assert_eq!(status_item_color(false), Color::Default);
-    }
-
-    #[test]
-    fn test_status_item_modes_includes() {
-        assert!(StatusItemModes::Editor.includes(WorkspaceMode::Editor));
-        assert!(!StatusItemModes::Editor.includes(WorkspaceMode::GitHistory));
-        assert!(!StatusItemModes::GitHistory.includes(WorkspaceMode::Editor));
-        assert!(StatusItemModes::GitHistory.includes(WorkspaceMode::GitHistory));
-        assert!(StatusItemModes::All.includes(WorkspaceMode::Editor));
-        assert!(StatusItemModes::All.includes(WorkspaceMode::GitHistory));
-    }
-
-    #[test]
-    fn test_status_item_modes_hidden_by_switch() {
-        assert!(StatusItemModes::Editor.hidden_by_switch(WorkspaceMode::Editor, WorkspaceMode::GitHistory));
-        assert!(!StatusItemModes::Editor.hidden_by_switch(WorkspaceMode::GitHistory, WorkspaceMode::Editor));
-        assert!(!StatusItemModes::Editor.hidden_by_switch(WorkspaceMode::Editor, WorkspaceMode::Editor));
-        assert!(StatusItemModes::GitHistory.hidden_by_switch(WorkspaceMode::GitHistory, WorkspaceMode::Editor));
-        assert!(!StatusItemModes::GitHistory.hidden_by_switch(WorkspaceMode::Editor, WorkspaceMode::GitHistory));
-        assert!(!StatusItemModes::All.hidden_by_switch(WorkspaceMode::Editor, WorkspaceMode::GitHistory));
-        assert!(!StatusItemModes::All.hidden_by_switch(WorkspaceMode::GitHistory, WorkspaceMode::Editor));
     }
 }

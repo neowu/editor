@@ -117,16 +117,15 @@ because it hurt readability; an opaque window is also cheaper to composite.
 - The status bar has no worktree or branch pickers; they are in the window
   header.
 - Modes are strictly isolated for rendering. Only the window header and status bar
-  (plus notifications, toasts and modals) are shared; everything between them
+  (plus notifications, toasts and modals) are drawn outside the modes; everything between them
   belongs to one mode, rendered by that mode's own cached view, and only the
   shown mode's view is drawn. Changes in a hidden mode redraw nothing (it
   re-renders when shown again), and redraws of the shared chrome reuse the
-  shown mode's layout. Status items hidden in the current mode get no active
-  item, so they don't track it. A new mode (e.g. a terminal-only mode) adds its
+  shown mode's layout. A new mode (e.g. a terminal-only mode) adds its
   own view and module rather than branching inside another mode's layout.
 - In Git History mode (`git.md`) the history sidebar and panes fill the area of
-  the docks and center panes. The status bar stays, so the card's bottom edge
-  doesn't move when switching modes. The sidebar shows the active history
+  the docks and center panes. The status bar is hidden there (it offers too
+  little in history to be worth the space), leaving the bottom gap. The sidebar shows the active history
   item's `Item::side_card` and is styled like a left dock (flat, resizable, 8px
   gap before the panes), so the tab bars start after it rather than above it.
 - Docks have no border and blend into the chrome. Panes inside them (the
@@ -179,7 +178,7 @@ because it hurt readability; an opaque window is also cheaper to composite.
   - Focus never follows the mouse.
   - Window: native macOS fullscreen. Text uses the platform's default
     rendering mode.
-  - Status bar: always shown (except while zoomed), with the language and
+  - Status bar: shown only in Workspace mode (and not while zoomed), with the language and
     cursor position buttons; the encoding button only for non-UTF-8 or
     UTF-8-with-BOM buffers.
   - Preview tabs are always on (`TogglePreviewTab` always works). A single
@@ -196,7 +195,7 @@ because it hurt readability; an opaque window is also cheaper to composite.
   window header moves into the zoomed view's top row, since the macOS window
   controls sit there.
 - A zoomed dock (e.g. an expanded terminal) belongs to Workspace mode: Git
-  History mode hides it and shows the status bar, and switching back to
+  History mode hides it, and switching back to
   Workspace focuses it again, so it is still open and zoomed rather than
   closed.
 - An 8px gap separates the cards from the window edges and from open docks.
