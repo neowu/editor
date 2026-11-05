@@ -113,9 +113,10 @@ impl ContextProvider for BasicContextProvider {
             .map(|file| file.worktree_id(cx))
             .and_then(|worktree_id| self.worktree_store.read(cx).worktree_for_id(worktree_id, cx));
 
-        if let Some(worktree) = worktree {
-            let worktree = worktree.read(cx);
-            task_variables.insert(VariableName::WorktreeRoot, worktree.abs_path().to_string_lossy().into_owned());
+        if let Some(worktree) = worktree
+            && let Some(worktree_root) = worktree.read(cx).root_dir()
+        {
+            task_variables.insert(VariableName::WorktreeRoot, worktree_root.to_string_lossy().into_owned());
             if let Some(current_file) = current_file.as_ref() {
                 let relative_path = current_file.path();
                 task_variables.insert(VariableName::RelativeFile, relative_path.display().to_string());
