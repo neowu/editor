@@ -34,8 +34,8 @@ use picker::PickerDelegate;
 use picker::ScrollBehavior;
 use picker::highlighted_match_with_paths::HighlightedMatch;
 use picker::highlighted_match_with_paths::HighlightedMatchWithPaths;
-use project::Worktree;
 use project::git_store::Repository;
+use project::git_store::RepositoryId;
 use remote::RemoteConnectionOptions;
 use remote::same_remote_connection_identity;
 pub use remote_connection::RemoteConnectionModal;
@@ -49,6 +49,7 @@ use ui::ButtonLike;
 use ui::ContextMenu;
 use ui::Divider;
 use ui::HighlightedLabel;
+use ui::Indicator;
 use ui::KeyBinding;
 use ui::ListItem;
 use ui::ListItemSpacing;
@@ -70,6 +71,7 @@ use workspace::ProjectsStore;
 use workspace::RecentWorkspace;
 use workspace::SerializedWorkspaceLocation;
 use workspace::Workspace;
+use workspace::WorkspaceMode;
 use workspace::notifications::DetachAndPromptErr;
 use workspace::with_active_or_new_workspace;
 
@@ -78,9 +80,13 @@ actions!(recent_projects, [ToggleActionsMenu, RemoveSelected, AddToWorkspace,]);
 #[derive(Clone, Debug)]
 struct OpenFolderEntry {
     worktree_id: WorktreeId,
+    /// Set for a repository nested inside the folder (submodule, vendored
+    /// repository), listed indented under its folder.
+    nested_repository: Option<RepositoryId>,
     name: SharedString,
     path: PathBuf,
     branch: Option<SharedString>,
+    has_changes: bool,
     is_active: bool,
     connection_options: Option<RemoteConnectionOptions>,
 }
@@ -115,26 +121,15 @@ enum ProjectPickerStyle {
     Popover,
 }
 
+/// The open folders, each followed by the repositories nested in it. Empty
+/// when there is nothing to switch between.
 fn get_open_folders(workspace: &Workspace, cx: &App) -> Vec<OpenFolderEntry> {
     let project = workspace.project().read(cx);
     let connection_options = project.remote_connection_options(cx);
     let visible_worktrees: Vec<_> = project.visible_worktrees(cx).collect();
-
-    if visible_worktrees.len() <= 1 {
-        return Vec::new();
-    }
-
-    let active_worktree_id = if let Some(repo) = project.active_repository(cx) {
-        let repo = repo.read(cx);
-        let repo_path = &repo.work_directory_abs_path;
-        project.visible_worktrees(cx).find_map(|worktree| {
-            let worktree_path = worktree.read(cx).abs_path();
-            (worktree_path == *repo_path || worktree_path.starts_with(repo_path.as_ref()))
-                .then(|| worktree.read(cx).id())
-        })
-    } else {
-        project.visible_worktrees(cx).next().map(|wt| wt.read(cx).id())
-    };
+    let git_store = project.git_store().read(cx);
+    let active_worktree_id = git_store.active_worktree(cx).map(|worktree| worktree.read(cx).id());
+    let active_repo_id = git_store.active_repository().map(|repo| repo.read(cx).id);
 
     let mut all_paths: Vec<PathBuf> = visible_worktrees.iter().map(|wt| wt.read(cx).abs_path().to_path_buf()).collect();
     all_paths.sort_unstable();
@@ -144,10 +139,7 @@ fn get_open_folders(workspace: &Workspace, cx: &App) -> Vec<OpenFolderEntry> {
     });
     let path_detail_map: std::collections::HashMap<PathBuf, usize> = all_paths.into_iter().zip(path_details).collect();
 
-    let git_store = project.git_store().read(cx);
-    let repositories: Vec<_> = git_store.repositories().values().cloned().collect();
-
-    let mut entries: Vec<OpenFolderEntry> = visible_worktrees
+    let mut folders: Vec<(OpenFolderEntry, Vec<OpenFolderEntry>)> = visible_worktrees
         .into_iter()
         .map(|worktree| {
             let worktree_ref = worktree.read(cx);
@@ -155,33 +147,50 @@ fn get_open_folders(workspace: &Workspace, cx: &App) -> Vec<OpenFolderEntry> {
             let path = worktree_ref.abs_path().to_path_buf();
             let detail = path_detail_map.get(&path).copied().unwrap_or(0);
             let name = SharedString::from(project::path_suffix(&path, detail));
-            let branch = get_branch_for_worktree(worktree_ref, &repositories, cx);
-            let is_active = active_worktree_id == Some(worktree_id);
-            OpenFolderEntry {
+            let nested: Vec<OpenFolderEntry> = git_store
+                .nested_repositories(worktree_id, cx)
+                .into_iter()
+                .map(|repo| {
+                    let repo = repo.read(cx);
+                    let repo_path = repo.work_directory_abs_path.to_path_buf();
+                    let name = repo_path.strip_prefix(&path).unwrap_or(&repo_path).to_string_lossy().to_string();
+                    OpenFolderEntry {
+                        worktree_id,
+                        nested_repository: Some(repo.id),
+                        name: name.into(),
+                        path: repo_path,
+                        branch: repository_branch(repo),
+                        has_changes: repo.status_summary().count > 0,
+                        is_active: active_repo_id == Some(repo.id),
+                        connection_options: connection_options.clone(),
+                    }
+                })
+                .collect();
+            let folder_repo = git_store.repository_for_worktree(worktree_id, cx);
+            let folder_repo = folder_repo.as_ref().map(|repo| repo.read(cx));
+            let nested_is_active = nested.iter().any(|entry| entry.is_active);
+            let folder = OpenFolderEntry {
                 worktree_id,
+                nested_repository: None,
                 name,
                 path,
-                branch,
-                is_active,
+                branch: folder_repo.and_then(repository_branch),
+                has_changes: folder_repo.is_some_and(|repo| repo.status_summary().count > 0),
+                is_active: active_worktree_id == Some(worktree_id) && !nested_is_active,
                 connection_options: connection_options.clone(),
-            }
+            };
+            (folder, nested)
         })
         .collect();
 
-    entries.sort_by_key(|entry| entry.name.to_lowercase());
-    entries
+    folders.sort_by_key(|(folder, _)| folder.name.to_lowercase());
+    let entries: Vec<OpenFolderEntry> =
+        folders.into_iter().flat_map(|(folder, nested)| std::iter::once(folder).chain(nested)).collect();
+    if entries.len() <= 1 { Vec::new() } else { entries }
 }
 
-fn get_branch_for_worktree(worktree: &Worktree, repositories: &[Entity<Repository>], cx: &App) -> Option<SharedString> {
-    let worktree_abs_path = worktree.abs_path();
-    repositories
-        .iter()
-        .filter(|repo| {
-            let repo_path = &repo.read(cx).work_directory_abs_path;
-            *repo_path == worktree_abs_path || worktree_abs_path.starts_with(repo_path.as_ref())
-        })
-        .max_by_key(|repo| repo.read(cx).work_directory_abs_path.as_os_str().len())
-        .and_then(|repo| repo.read(cx).branch.as_ref().map(|branch| SharedString::from(branch.name().to_string())))
+fn repository_branch(repo: &Repository) -> Option<SharedString> {
+    repo.branch.as_ref().map(|branch| SharedString::from(branch.name().to_string()))
 }
 
 pub fn init(cx: &mut App) {
@@ -373,7 +382,13 @@ impl RecentProjects {
 
             match picker.delegate.filtered_entries.get(ix) {
                 Some(ProjectPickerEntry::OpenFolder { index, .. }) => {
-                    if let Some(worktree_id) = picker.delegate.open_folders.get(*index).map(|f| f.worktree_id) {
+                    if let Some(worktree_id) = picker
+                        .delegate
+                        .open_folders
+                        .get(*index)
+                        .filter(|folder| folder.nested_repository.is_none())
+                        .map(|folder| folder.worktree_id)
+                    {
                         RecentProjectsDelegate::remove_open_folder(picker, worktree_id, window, cx);
                     }
                 }
@@ -600,12 +615,19 @@ impl PickerDelegate for RecentProjectsDelegate {
                     return;
                 };
                 let worktree_id = folder.worktree_id;
+                let nested_repository = folder.nested_repository;
                 if let Some(workspace) = self.workspace.upgrade() {
                     workspace.update(cx, |workspace, cx| {
                         let git_store = workspace.project().read(cx).git_store().clone();
-                        git_store.update(cx, |git_store, cx| {
-                            git_store.set_active_repo_for_worktree(worktree_id, cx);
+                        git_store.update(cx, |git_store, cx| match nested_repository {
+                            Some(repo_id) => git_store.set_active_repository(repo_id, cx),
+                            None => git_store.set_active_worktree(worktree_id, cx),
                         });
+                        // In Git History, picking a folder (even the current
+                        // one) brings its repository graph to the front.
+                        if workspace.mode() == WorkspaceMode::GitHistory {
+                            window.dispatch_action(Box::new(ed_actions::git_graph::Open), cx);
+                        }
                     });
                 }
                 cx.emit(DismissEvent);
@@ -652,29 +674,33 @@ impl PickerDelegate for RecentProjectsDelegate {
                 let branch = folder.branch.clone();
                 let is_active = folder.is_active;
                 let worktree_id = folder.worktree_id;
+                let is_nested = folder.nested_repository.is_some();
+                let has_changes = folder.has_changes;
                 let positions = positions.clone();
                 let show_path = self.style == ProjectPickerStyle::Modal;
 
                 let secondary_actions = h_flex()
                     .gap_1()
-                    .child(
-                        IconButton::new(("remove-folder", worktree_id.to_usize()), IconName::Close)
-                            .icon_size(IconSize::Small)
-                            .tooltip({
-                                let focus_handle = self.focus_handle.clone();
-                                move |_, cx| {
-                                    Tooltip::for_action_in(
-                                        "Remove Folder from Project",
-                                        &RemoveSelected,
-                                        &focus_handle,
-                                        cx,
-                                    )
-                                }
-                            })
-                            .on_click(cx.listener(move |picker, _, window, cx| {
-                                RecentProjectsDelegate::remove_open_folder(picker, worktree_id, window, cx);
-                            })),
-                    )
+                    .when(!is_nested, |this| {
+                        this.child(
+                            IconButton::new(("remove-folder", worktree_id.to_usize()), IconName::Close)
+                                .icon_size(IconSize::Small)
+                                .tooltip({
+                                    let focus_handle = self.focus_handle.clone();
+                                    move |_, cx| {
+                                        Tooltip::for_action_in(
+                                            "Remove Folder from Project",
+                                            &RemoveSelected,
+                                            &focus_handle,
+                                            cx,
+                                        )
+                                    }
+                                })
+                                .on_click(cx.listener(move |picker, _, window, cx| {
+                                    RecentProjectsDelegate::remove_open_folder(picker, worktree_id, window, cx);
+                                })),
+                        )
+                    })
                     .into_any_element();
 
                 let icon = icon_for_remote_connection(folder.connection_options.as_ref());
@@ -694,7 +720,9 @@ impl PickerDelegate for RecentProjectsDelegate {
                                 .w_full()
                                 .min_w_0()
                                 .gap_2p5()
-                                .when(show_icon, |this| this.child(Icon::new(icon).color(Color::Muted)))
+                                .when(is_nested, |this| this.pl_5())
+                                .when(show_icon && !is_nested, |this| this.child(Icon::new(icon).color(Color::Muted)))
+                                .when(is_nested, |this| this.child(Icon::new(IconName::FileGit).color(Color::Muted)))
                                 .child(
                                     v_flex()
                                         .min_w_0()
@@ -711,6 +739,9 @@ impl PickerDelegate for RecentProjectsDelegate {
                                                             .size(IconSize::Small)
                                                             .color(Color::Accent),
                                                     )
+                                                })
+                                                .when(has_changes, |this| {
+                                                    this.child(Indicator::dot().color(Color::Warning))
                                                 }),
                                         )
                                         .when(show_path, |this| {
@@ -977,7 +1008,14 @@ impl PickerDelegate for RecentProjectsDelegate {
 
         let selected_entry = self.filtered_entries.get(self.selected_index);
 
+        let selected_is_nested_repository = match selected_entry {
+            Some(ProjectPickerEntry::OpenFolder { index, .. }) => {
+                self.open_folders.get(*index).is_some_and(|folder| folder.nested_repository.is_some())
+            }
+            _ => false,
+        };
         let secondary_footer_actions: Option<AnyElement> = match selected_entry {
+            Some(ProjectPickerEntry::OpenFolder { .. }) if selected_is_nested_repository => None,
             Some(ProjectPickerEntry::OpenFolder { .. }) => Some(
                 Button::new("remove_selected", "Remove Folder")
                     .key_binding(KeyBinding::for_action_in(&RemoveSelected, &focus_handle, cx))
@@ -1405,7 +1443,7 @@ impl RecentProjectsDelegate {
         };
 
         for workspace_path in workspace.paths.paths() {
-            for open_folder in &self.open_folders {
+            for open_folder in self.open_folders.iter().filter(|folder| folder.nested_repository.is_none()) {
                 if workspace_path == &open_folder.path
                     && same_remote_connection_identity(workspace_host, open_folder.connection_options.as_ref())
                 {

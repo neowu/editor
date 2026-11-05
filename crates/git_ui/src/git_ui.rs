@@ -63,7 +63,6 @@ pub mod commit_view;
 mod conflict_view;
 mod diff_multibuffer;
 pub mod git_graph;
-pub mod git_history_button;
 pub mod git_panel;
 mod git_panel_view_options;
 pub mod git_picker;
@@ -71,7 +70,6 @@ pub mod multi_diff_view;
 pub mod picker_prompt;
 pub mod project_diff;
 pub(crate) mod remote_output;
-pub mod repository_selector;
 mod revision_semantics;
 pub mod solo_diff_view;
 pub mod staged_diff;
@@ -123,7 +121,6 @@ pub fn init(cx: &mut App) {
         unstaged_diff::UnstagedDiff::register(workspace, cx);
         branch_diff::BranchDiff::register(workspace, cx);
         git_panel::register(workspace);
-        repository_selector::register(workspace);
         git_picker::register(workspace);
 
         workspace.register_action(|workspace, action: &ed_actions::CreateWorktree, window, cx| {

@@ -177,6 +177,9 @@ pub struct GitStore {
     parked_repositories: Vec<ParkedRepository>,
     worktree_ids: HashMap<RepositoryId, HashSet<WorktreeId>>,
     active_repo_id: Option<RepositoryId>,
+    /// The folder the user is working in. `None` derives it from the active
+    /// repository (see `active_worktree`).
+    active_worktree_id: Option<WorktreeId>,
     #[allow(clippy::type_complexity)]
     loading_diffs: HashMap<(BufferId, DiffKind), Shared<Task<Result<Entity<BufferDiff>, Arc<anyhow::Error>>>>>,
     diffs: HashMap<BufferId, Entity<BufferGitState>>,
@@ -787,6 +790,9 @@ pub struct JobsUpdated;
 #[derive(Debug)]
 pub enum GitStoreEvent {
     ActiveRepositoryChanged(Option<RepositoryId>),
+    /// The active folder changed without necessarily changing the active
+    /// repository (two folders of one repository).
+    ActiveWorktreeChanged,
     /// Bool is true when the repository that's updated is the active repository
     RepositoryUpdated(RepositoryId, RepositoryEvent, bool),
     RepositoryAdded,
@@ -918,6 +924,7 @@ impl GitStore {
             parked_repositories: Vec::new(),
             worktree_ids: HashMap::default(),
             active_repo_id: None,
+            active_worktree_id: None,
             _subscriptions,
             loading_diffs: HashMap::default(),
             shared_diffs: HashMap::default(),
@@ -991,45 +998,137 @@ impl GitStore {
         matches!(self.state, GitStoreState::Local { .. })
     }
 
-    fn set_active_repo_id(&mut self, repo_id: RepositoryId, cx: &mut Context<Self>) {
-        if self.active_repo_id != Some(repo_id) {
+    /// Sets the active folder and repository together, emitting an event for
+    /// each that changed.
+    fn set_active(&mut self, worktree_id: Option<WorktreeId>, repo_id: Option<RepositoryId>, cx: &mut Context<Self>) {
+        if self.active_worktree_id != worktree_id {
+            self.active_worktree_id = worktree_id;
+            cx.emit(GitStoreEvent::ActiveWorktreeChanged);
+        }
+        if self.active_repo_id != repo_id {
+            self.active_repo_id = repo_id;
+            cx.emit(GitStoreEvent::ActiveRepositoryChanged(repo_id));
+        }
+    }
+
+    /// Follows the focused file: its folder becomes active (when visible) along
+    /// with the innermost repository containing it, or none.
+    pub fn set_active_repo_for_path(&mut self, project_path: &ProjectPath, cx: &mut Context<Self>) {
+        let repo_id = self.repository_and_path_for_project_path(project_path, cx).map(|(repo, _)| repo.read(cx).id);
+        let is_visible = self
+            .worktree_store
+            .read(cx)
+            .worktree_for_id(project_path.worktree_id, cx)
+            .is_some_and(|worktree| worktree.read(cx).is_visible());
+        if is_visible {
+            self.set_active(Some(project_path.worktree_id), repo_id, cx);
+        } else if let Some(repo_id) = repo_id {
+            self.set_active(self.active_worktree_id, Some(repo_id), cx);
+        }
+    }
+
+    /// Makes a folder active, with the innermost repository containing it (or
+    /// none, for a folder outside any repository).
+    pub fn set_active_worktree(&mut self, worktree_id: WorktreeId, cx: &mut Context<Self>) {
+        let repo_id = self.repository_for_worktree(worktree_id, cx).map(|repo| repo.read(cx).id);
+        self.set_active(Some(worktree_id), repo_id, cx);
+    }
+
+    /// Makes a repository active. The active folder is kept when it belongs to
+    /// the repository (or contains it), else the first such folder is chosen.
+    pub fn set_active_repository(&mut self, repo_id: RepositoryId, cx: &mut Context<Self>) {
+        let Some(repo) = self.repositories.get(&repo_id) else {
+            return;
+        };
+        let repo_path = repo.read(cx).work_directory_abs_path.clone();
+        let related = |worktree: &Entity<Worktree>| paths_overlap(&worktree.read(cx).abs_path(), &repo_path);
+        let worktree_store = self.worktree_store.read(cx);
+        let keeps_folder = self
+            .active_worktree_id
+            .and_then(|id| worktree_store.worktree_for_id(id, cx))
+            .is_some_and(|worktree| related(&worktree));
+        let worktree_id = if keeps_folder {
+            self.active_worktree_id
+        } else {
+            worktree_store
+                .visible_worktrees(cx)
+                .find(|worktree| related(worktree))
+                .map(|worktree| worktree.read(cx).id())
+        };
+        self.set_active(worktree_id, Some(repo_id), cx);
+    }
+
+    /// The innermost repository containing the folder's root.
+    pub fn repository_for_worktree(&self, worktree_id: WorktreeId, cx: &App) -> Option<Entity<Repository>> {
+        let worktree = self.worktree_store.read(cx).worktree_for_id(worktree_id, cx)?;
+        let worktree_path = worktree.read(cx).abs_path();
+        let id = innermost_containing(
+            &worktree_path,
+            self.repositories.iter().map(|(id, repo)| (*id, repo.read(cx).work_directory_abs_path.clone())),
+        )?;
+        self.repositories.get(&id).cloned()
+    }
+
+    /// Repositories inside the folder other than the one containing its root
+    /// (submodules, vendored repositories), sorted by path.
+    pub fn nested_repositories(&self, worktree_id: WorktreeId, cx: &App) -> Vec<Entity<Repository>> {
+        let Some(worktree) = self.worktree_store.read(cx).worktree_for_id(worktree_id, cx) else {
+            return Vec::new();
+        };
+        let worktree_path = worktree.read(cx).abs_path();
+        let mut nested: Vec<_> = self
+            .repositories
+            .values()
+            .filter(|repo| is_strictly_inside(&repo.read(cx).work_directory_abs_path, &worktree_path))
+            .cloned()
+            .collect();
+        nested.sort_by_key(|repo| repo.read(cx).work_directory_abs_path.clone());
+        nested
+    }
+
+    /// The folder the window is working in: the one picked, else the first
+    /// visible folder belonging to the active repository, else the first
+    /// visible folder.
+    pub fn active_worktree(&self, cx: &App) -> Option<Entity<Worktree>> {
+        let worktree_store = self.worktree_store.read(cx);
+        if let Some(worktree) = self
+            .active_worktree_id
+            .and_then(|id| worktree_store.worktree_for_id(id, cx))
+            .filter(|worktree| worktree.read(cx).is_visible())
+        {
+            return Some(worktree);
+        }
+        if let Some(repo) = self.active_repository() {
+            let repo_path = repo.read(cx).work_directory_abs_path.clone();
+            if let Some(worktree) = worktree_store
+                .visible_worktrees(cx)
+                .find(|worktree| paths_overlap(&worktree.read(cx).abs_path(), &repo_path))
+            {
+                return Some(worktree);
+            }
+        }
+        worktree_store.visible_worktrees(cx).next()
+    }
+
+    /// Activates a newly added repository when nothing is active and it
+    /// belongs to the active folder (or no folder was picked yet).
+    fn activate_added_repository(&mut self, repo_id: RepositoryId, cx: &mut Context<Self>) {
+        if self.active_repo_id.is_some() {
+            return;
+        }
+        let Some(repo) = self.repositories.get(&repo_id) else {
+            return;
+        };
+        let repo_path = repo.read(cx).work_directory_abs_path.clone();
+        let fits_folder =
+            match self.active_worktree_id.and_then(|id| self.worktree_store.read(cx).worktree_for_id(id, cx)) {
+                Some(worktree) => paths_overlap(&worktree.read(cx).abs_path(), &repo_path),
+                None => true,
+            };
+        if fits_folder {
             self.active_repo_id = Some(repo_id);
             cx.emit(GitStoreEvent::ActiveRepositoryChanged(Some(repo_id)));
         }
-    }
-
-    pub fn set_active_repo_for_path(&mut self, project_path: &ProjectPath, cx: &mut Context<Self>) {
-        if let Some((repo, _)) = self.repository_and_path_for_project_path(project_path, cx) {
-            self.set_active_repo_id(repo.read(cx).id, cx);
-        }
-    }
-
-    pub fn set_active_repo_for_worktree(&mut self, worktree_id: WorktreeId, cx: &mut Context<Self>) {
-        let Some(worktree) = self.worktree_store.read(cx).worktree_for_id(worktree_id, cx) else {
-            return;
-        };
-        let worktree_abs_path = worktree.read(cx).abs_path();
-        let Some(repo_id) = self
-            .repositories
-            .values()
-            .filter(|repo| {
-                let repo_path = &repo.read(cx).work_directory_abs_path;
-                // The folder opened in ed isn't necessarily the repo root; it may be
-                // a subdirectory of it, e.g. opening `~/code/myrepo/backend` when the
-                // repo lives at `~/code/myrepo`. So match any repo whose work directory
-                // contains the folder. Nested repos can produce multiple matches, e.g.
-                // opening `~/code/myrepo/vendor/lib` where `vendor/lib` is a submodule
-                // matches both `myrepo` and the submodule; `max_by_key` then picks the
-                // innermost match (the submodule), which the folder actually belongs to.
-                worktree_abs_path.starts_with(repo_path.as_ref())
-            })
-            .max_by_key(|repo| repo.read(cx).work_directory_abs_path.as_os_str().len())
-            .map(|repo| repo.read(cx).id)
-        else {
-            return;
-        };
-
-        self.set_active_repo_id(repo_id, cx);
     }
 
     pub fn shared(&mut self, project_id: u64, client: AnyProtoClient, cx: &mut Context<Self>) {
@@ -1896,6 +1995,10 @@ impl GitStore {
                     .collect();
                 let is_active_repo_removed =
                     repos_without_worktree.iter().any(|repo_id| self.active_repo_id == Some(*repo_id));
+                if self.active_worktree_id == Some(*worktree_id) {
+                    self.active_worktree_id = None;
+                    cx.emit(GitStoreEvent::ActiveWorktreeChanged);
+                }
 
                 for repo_id in repos_without_worktree {
                     self.repositories.remove(&repo_id);
@@ -1912,10 +2015,16 @@ impl GitStore {
             _ => {}
         }
     }
-    /// Makes a remaining repository active, or none when the last one is gone.
+    /// After the active repository is removed: the active folder's repository
+    /// when that folder is still open, else any remaining repository.
     fn select_fallback_active_repository(&mut self, cx: &mut Context<Self>) {
-        self.active_repo_id = self.repositories.keys().next().copied();
-        cx.emit(GitStoreEvent::ActiveRepositoryChanged(self.active_repo_id));
+        let worktree_id =
+            self.active_worktree_id.filter(|id| self.worktree_store.read(cx).worktree_for_id(*id, cx).is_some());
+        let repo_id = match worktree_id {
+            Some(worktree_id) => self.repository_for_worktree(worktree_id, cx).map(|repo| repo.read(cx).id),
+            None => self.repositories.keys().next().copied(),
+        };
+        self.set_active(worktree_id, repo_id, cx);
     }
 
     fn on_repository_event(&mut self, repo: Entity<Repository>, event: &RepositoryEvent, cx: &mut Context<Self>) {
@@ -2212,10 +2321,7 @@ impl GitStore {
         self.repositories.insert(id, repo);
         self.worktree_ids.insert(id, worktree_ids);
         cx.emit(GitStoreEvent::RepositoryAdded);
-        self.active_repo_id.get_or_insert_with(|| {
-            cx.emit(GitStoreEvent::ActiveRepositoryChanged(Some(id)));
-            id
-        });
+        self.activate_added_repository(id, cx);
         self.activate_parked_repositories_under(&repository.work_directory_abs_path, cx);
     }
 
@@ -2560,10 +2666,7 @@ impl GitStore {
                 |repo, cx| repo.apply_remote_update(update, cx)
             })?;
 
-            this.active_repo_id.get_or_insert_with(|| {
-                cx.emit(GitStoreEvent::ActiveRepositoryChanged(Some(id)));
-                id
-            });
+            this.activate_added_repository(id, cx);
 
             if let Some((client, project_id)) = this.downstream_client() {
                 update.project_id = project_id.to_proto();
@@ -5132,8 +5235,7 @@ impl Repository {
             let Some((&id, _)) = git_store.repositories.iter().find(|(_, handle)| *handle == &entity) else {
                 return;
             };
-            git_store.active_repo_id = Some(id);
-            cx.emit(GitStoreEvent::ActiveRepositoryChanged(Some(id)));
+            git_store.set_active_repository(id, cx);
         });
     }
 
@@ -8736,5 +8838,60 @@ const fn tracked_status_to_proto(code: StatusCode) -> i32 {
         StatusCode::TypeChanged => proto::GitStatus::TypeChanged as _,
         StatusCode::Copied => proto::GitStatus::Copied as _,
         StatusCode::Unmodified => proto::GitStatus::Unmodified as _,
+    }
+}
+
+/// Whether one path contains the other: a folder inside a repository, or a
+/// repository nested in a folder.
+fn paths_overlap(a: &Path, b: &Path) -> bool {
+    a.starts_with(b) || b.starts_with(a)
+}
+
+/// Whether `path` is below `ancestor` and not `ancestor` itself.
+fn is_strictly_inside(path: &Path, ancestor: &Path) -> bool {
+    path != ancestor && path.starts_with(ancestor)
+}
+
+/// The candidate with the longest path that contains `path`.
+fn innermost_containing<Id, P: AsRef<Path>>(path: &Path, candidates: impl Iterator<Item = (Id, P)>) -> Option<Id> {
+    candidates
+        .filter(|(_, candidate)| path.starts_with(candidate.as_ref()))
+        .max_by_key(|(_, candidate)| candidate.as_ref().as_os_str().len())
+        .map(|(id, _)| id)
+}
+
+#[cfg(test)]
+mod active_folder_tests {
+    use std::path::Path;
+
+    use super::innermost_containing;
+    use super::is_strictly_inside;
+    use super::paths_overlap;
+
+    #[test]
+    fn test_paths_overlap() {
+        assert!(paths_overlap(Path::new("/r"), Path::new("/r")));
+        assert!(paths_overlap(Path::new("/r/sub"), Path::new("/r")));
+        assert!(paths_overlap(Path::new("/r"), Path::new("/r/vendor/lib")));
+        assert!(!paths_overlap(Path::new("/r"), Path::new("/other")));
+        assert!(!paths_overlap(Path::new("/r"), Path::new("/rr")));
+    }
+
+    #[test]
+    fn test_is_strictly_inside() {
+        assert!(is_strictly_inside(Path::new("/r/vendor/lib"), Path::new("/r")));
+        assert!(!is_strictly_inside(Path::new("/r"), Path::new("/r")));
+        assert!(!is_strictly_inside(Path::new("/r"), Path::new("/r/sub")));
+        assert!(!is_strictly_inside(Path::new("/rr"), Path::new("/r")));
+    }
+
+    #[test]
+    fn test_innermost_containing() {
+        let repos = [(1, "/r"), (2, "/r/vendor/lib"), (3, "/other")];
+        let find = |path: &str| innermost_containing(Path::new(path), repos.iter().map(|(id, p)| (*id, Path::new(p))));
+        assert_eq!(find("/r"), Some(1));
+        assert_eq!(find("/r/src"), Some(1));
+        assert_eq!(find("/r/vendor/lib/x"), Some(2));
+        assert_eq!(find("/scratch"), None);
     }
 }

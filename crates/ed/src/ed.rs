@@ -225,7 +225,6 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
         }
 
         let search_button = cx.new(|_| search::search_status_button::SearchButton::new());
-        let git_history_button = cx.new(|_| git_ui::git_history_button::GitHistoryButton::new());
         let diagnostic_summary = cx.new(|cx| diagnostics::items::DiagnosticIndicator::new(workspace, cx));
         let activity_indicator = activity_indicator::ActivityIndicator::new(workspace, window, cx);
         let active_buffer_encoding = cx.new(|_| encoding_selector::ActiveBufferEncoding::new(workspace));
@@ -250,7 +249,6 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
             status_bar.add_right_item_in(active_buffer_language, StatusItemModes::All, window, cx);
             status_bar.add_right_item_in(cursor_position, StatusItemModes::All, window, cx);
             status_bar.add_right_item_in(image_info, StatusItemModes::All, window, cx);
-            status_bar.add_left_item_in(git_history_button, StatusItemModes::GitHistory, window, cx);
         });
 
         let panels_task = initialize_panels(window, cx);

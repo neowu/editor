@@ -63,7 +63,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
 - There is no title bar row; the window's top row is the sidebar and the tab
   bars, to give the content the most room. The window header is one group,
   read left to right as "where, then how": empty room for the macOS traffic
-  lights, the project name (with the remote host for remote projects), the
+  lights, the project name (the active folder, see `git.md`; with the remote
+  host for remote projects), the
   worktree and branch pickers as `worktree / branch` (shown only for a project
   in a git repository), then an icon-only, segmented Workspace / Git History
   switch (also git only), then Go Back / Go Forward. The pickers moved here from

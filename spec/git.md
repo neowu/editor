@@ -41,7 +41,36 @@ repository's `$PATH`; if none is found, the repository is not opened.
   Branch" editor menu toggle are removed. Branch diffs remain available
   explicitly via `git::DiffBranch` / Compare With Branch.
 
+## Active folder and repository
+
+- The project has one active folder (a visible worktree) and an optional
+  active repository: the innermost repository containing the folder, or a
+  repository nested inside it that was picked explicitly. Picking a repository
+  also makes its folder active. Both are session-only.
+- The window header's project menu is the only switcher (no repository picker
+  in the git panel or Git History); `git::SelectRepo` and
+  `title_bar::ToggleProjectMenu` open it. It lists every open folder, each
+  followed by the repositories nested in it (submodules, vendored repositories)
+  as indented rows, with branch, a dot when it has changes, and a check on the
+  active row; then recent projects. Nested rows can't be removed. The menu's
+  folder section shows whenever there is more than one row.
+- A folder outside any repository can be picked: the header then shows only
+  its name (no worktree / branch, no Workspace / Git History switch) and the
+  git panel offers to initialize a repository.
+- Two folders in one repository are separate rows; the check follows the one
+  picked. With a nested repository active the header reads
+  `folder/path/to/repo`.
+- Focusing a file makes its folder and innermost repository active (none for
+  a file outside any repository).
+- When the active repository is removed, the active folder's own repository
+  takes over (or none); when the active folder is removed, any remaining
+  repository does.
+
 ## Git panel
+
+- The panel never names the repository or branch: the window header right
+  above does. The row above the commit card only holds the remote button
+  (Fetch / Push / Pull / Publish), and is left out without one.
 
 - The panel shows only changes: no tab bar, no "Changes" title and no History
   tab. Commit history lives in Git History mode only.
@@ -91,14 +120,17 @@ blobs with no language server, so they are not mixed into editor panes.
   from the keyboard.
 - While Git History is shown, picking another folder (changing the active
   repository) applies the same rule, so the history switches to that
-  repository's graph; tabs of other repositories stay open. The active tab has no fill: it shows full-contrast text and an
+  repository's graph; tabs of other repositories stay open. Picking a folder
+  or repository from the header menu while Git History is shown always brings
+  its repository graph to the front (`git_graph::Open`), even when it is
+  already the active one, so re-picking the current folder leaves a commit tab
+  or another repository's graph. The active tab has no fill: it shows full-contrast text and an
   accent-coloured icon, while inactive tabs are muted. Both show the ghost
   hover background, so the filled pill no longer pulls focus from the content.
 - Git History mode hides the docks and editor panes. The status bar stays and
-  follows the active history tab, but shows only what applies there: a Git
-  Graph button (`git_graph::Open`, returning to the repository graph),
-  accent-coloured while a graph is the active history tab, and the cursor
-  position and language of revisions. Editor tools (search, diagnostics, …)
+  follows the active history tab, but shows only what applies there: the
+  cursor position and language of revisions. There is no Git Graph button;
+  picking a folder in the window header returns to its graph (below). Editor tools (search, diagnostics, …)
   and dock buttons are hidden. Each status item declares the modes it is shown
   in. The history area is
   its own pane group, apart from the editor panes: normal panes (folder tabs,

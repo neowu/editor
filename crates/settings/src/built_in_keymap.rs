@@ -682,7 +682,7 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
     );
     add_bindings(
         &mut keymap,
-        Some("GitPanel && ChangesList && !GitBranchSelector && !GitRepositorySelector"),
+        Some("GitPanel && ChangesList && !GitBranchSelector"),
         true,
         [
             KeyBindingSpec::new("up", "menu::SelectPrevious"),
@@ -695,7 +695,7 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
     );
     add_bindings(
         &mut keymap,
-        Some("GitPanel && ChangesList && !GitBranchSelector && !GitRepositorySelector"),
+        Some("GitPanel && ChangesList && !GitBranchSelector"),
         true,
         [
             KeyBindingSpec::new("up", "git_panel::PreviousEntry"),

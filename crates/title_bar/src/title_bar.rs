@@ -28,6 +28,7 @@ use theme::ActiveTheme;
 use ui::IconWithIndicator;
 use ui::Indicator;
 use ui::PopoverMenu;
+use ui::PopoverMenuHandle;
 use ui::Tooltip;
 use ui::prelude::*;
 use workspace::Workspace;
@@ -61,9 +62,26 @@ pub fn init(cx: &mut App) {
             return;
         };
         let item = cx.new(|cx| TitleBar::new(workspace, window, cx));
+        // The project menu is the only folder and repository switcher.
+        let title_bar = item.downgrade();
+        workspace.register_action(move |_, _: &ToggleProjectMenu, window, cx| {
+            toggle_project_menu(title_bar.clone(), window, cx);
+        });
+        let title_bar = item.downgrade();
+        workspace.register_action(move |_, _: &ed_actions::git::SelectRepo, window, cx| {
+            toggle_project_menu(title_bar.clone(), window, cx);
+        });
         workspace.set_titlebar_item(item.into(), window, cx);
     })
     .detach();
+}
+
+/// Toggles the header's project menu. Deferred because building the menu
+/// reads the workspace, which is being updated while its actions run.
+fn toggle_project_menu(title_bar: WeakEntity<TitleBar>, window: &Window, cx: &mut App) {
+    window.defer(cx, move |window, cx| {
+        title_bar.update(cx, |title_bar, cx| title_bar.project_menu_handle.toggle(window, cx)).ok();
+    });
 }
 
 /// The project's remote host, name, worktree and branch, shown in the
@@ -73,6 +91,7 @@ pub struct TitleBar {
 
     workspace: WeakEntity<Workspace>,
     application_menu: Option<Entity<ApplicationMenu>>,
+    project_menu_handle: PopoverMenuHandle<recent_projects::RecentProjects>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -94,8 +113,8 @@ impl Render for TitleBar {
     }
 }
 
-/// The repository the window shows: the one owning the project's active
-/// repository's worktree, else the first visible worktree's.
+/// What the header names: the active folder, and the active repository when it
+/// contains the folder or is nested in it.
 struct ActiveRepository {
     project_name: Option<SharedString>,
     repository: Option<Entity<project::git_store::Repository>>,
@@ -105,17 +124,28 @@ struct ActiveRepository {
 impl ActiveRepository {
     fn of(project: &Entity<Project>, cx: &App) -> ActiveRepository {
         let mut active = ActiveRepository { project_name: None, repository: None, linked_worktree_name: None };
-        let Some(worktree) = effective_active_worktree(project, cx) else {
+        let git_store = project.read(cx).git_store().read(cx);
+        let Some(worktree) = git_store.active_worktree(cx) else {
             return active;
         };
-        active.repository = repository_for_worktree(project, &worktree, cx);
         let worktree_abs_path = worktree.read(cx).abs_path();
+        active.repository = git_store.active_repository().filter(|repo| {
+            let repo_path = &repo.read(cx).work_directory_abs_path;
+            worktree_abs_path.starts_with(repo_path.as_ref()) || repo_path.starts_with(&worktree_abs_path)
+        });
         active.project_name =
             worktree.read(cx).root_name().file_name().map(|name| SharedString::from(name.to_string()));
-        let Some(repo) = &active.repository else {
+        let Some(active_repo) = &active.repository else {
             return active;
         };
-        let repo = repo.read(cx);
+        let nested_label = active.project_name.as_ref().and_then(|folder_name| {
+            nested_repository_label(folder_name, &worktree_abs_path, &active_repo.read(cx).work_directory_abs_path)
+        });
+        if let Some(label) = nested_label {
+            active.project_name = Some(label.into());
+            return active;
+        }
+        let repo = active_repo.read(cx);
         let identity = repo_identity_path(&repo.common_dir_abs_path);
         active.linked_worktree_name =
             linked_worktree_name_anchor(repo.main_worktree_abs_path(), Some(identity), repo.is_linked_worktree())
@@ -145,45 +175,14 @@ impl ActiveRepository {
     }
 }
 
-/// Returns the worktree to display in the window header.
-/// - Prefer the worktree owning the project's active repository
-/// - Fall back to the first visible worktree
-fn effective_active_worktree(project: &Entity<Project>, cx: &App) -> Option<Entity<project::Worktree>> {
-    let project = project.read(cx);
-
-    if let Some(repo) = project.active_repository(cx) {
-        let repo = repo.read(cx);
-        let repo_path = &repo.work_directory_abs_path;
-
-        for worktree in project.visible_worktrees(cx) {
-            let worktree_path = worktree.read(cx).abs_path();
-            if worktree_path == *repo_path || worktree_path.starts_with(repo_path.as_ref()) {
-                return Some(worktree);
-            }
-        }
+/// The header name while a repository nested inside the folder is active:
+/// `folder/path/to/repo`. `None` when the repository contains the folder.
+fn nested_repository_label(folder_name: &str, worktree_path: &Path, repo_path: &Path) -> Option<String> {
+    let relative = repo_path.strip_prefix(worktree_path).ok()?;
+    if relative.as_os_str().is_empty() {
+        return None;
     }
-
-    project.visible_worktrees(cx).next()
-}
-
-fn repository_for_worktree(
-    project: &Entity<Project>,
-    worktree: &Entity<project::Worktree>,
-    cx: &App,
-) -> Option<Entity<project::git_store::Repository>> {
-    let project = project.read(cx);
-    let git_store = project.git_store().read(cx);
-    let worktree_path = worktree.read(cx).abs_path();
-
-    git_store
-        .repositories()
-        .values()
-        .filter(|repo| {
-            let repo_path = &repo.read(cx).work_directory_abs_path;
-            worktree_path == *repo_path || worktree_path.starts_with(repo_path.as_ref())
-        })
-        .max_by_key(|repo| repo.read(cx).work_directory_abs_path.as_os_str().len())
-        .cloned()
+    Some(format!("{folder_name}/{}", relative.display()))
 }
 
 fn visible_worktrees_in_repository(
@@ -215,7 +214,9 @@ impl TitleBar {
 
         let mut subscriptions = Vec::new();
         subscriptions.push(cx.subscribe(&git_store, move |_, _, event, cx| match event {
-            GitStoreEvent::ActiveRepositoryChanged(_) | GitStoreEvent::RepositoryUpdated(_, _, true) => {
+            GitStoreEvent::ActiveRepositoryChanged(_)
+            | GitStoreEvent::ActiveWorktreeChanged
+            | GitStoreEvent::RepositoryUpdated(_, _, true) => {
                 cx.notify();
             }
             _ => {}
@@ -229,11 +230,24 @@ impl TitleBar {
             }));
         }
 
-        Self { application_menu, workspace: workspace.weak_handle(), project, _subscriptions: subscriptions }
+        Self {
+            application_menu,
+            workspace: workspace.weak_handle(),
+            project,
+            project_menu_handle: PopoverMenuHandle::default(),
+            _subscriptions: subscriptions,
+        }
     }
 
-    fn worktree_count(&self, cx: &App) -> usize {
-        self.project.read(cx).visible_worktrees(cx).count()
+    /// Whether the project menu has more than one folder or repository to
+    /// switch to.
+    fn has_location_choices(&self, cx: &App) -> bool {
+        let project = self.project.read(cx);
+        let git_store = project.git_store().read(cx);
+        let mut worktrees = project.visible_worktrees(cx);
+        let first = worktrees.next();
+        worktrees.next().is_some()
+            || first.is_some_and(|worktree| !git_store.nested_repositories(worktree.read(cx).id(), cx).is_empty())
     }
 
     fn render_remote_project_connection(&self, cx: &Context<Self>) -> Option<AnyElement> {
@@ -320,6 +334,7 @@ impl TitleBar {
         let workspace = self.workspace.clone();
 
         let is_project_selected = name.is_some();
+        let has_choices = self.has_location_choices(cx);
 
         let display_name = if let Some(ref name) = name {
             util::truncate_and_trailoff(name, MAX_PROJECT_NAME_LENGTH)
@@ -331,6 +346,7 @@ impl TitleBar {
             workspace.upgrade().map(|w| w.read(cx).focus_handle(cx)).unwrap_or_else(|| cx.focus_handle());
 
         PopoverMenu::new("recent-projects-menu")
+            .with_handle(self.project_menu_handle.clone())
             .menu(move |window, cx| {
                 Some(recent_projects::RecentProjects::popover(
                     workspace.clone(),
@@ -342,13 +358,34 @@ impl TitleBar {
             })
             .trigger_with_tooltip(
                 header_text_button("project_name_trigger", display_name)
-                    .when(self.worktree_count(cx) > 1, |this| {
+                    .when(has_choices, |this| {
                         this.end_icon(Icon::new(IconName::ChevronDown).size(IconSize::XSmall).color(Color::Muted))
                     })
                     .when(!is_project_selected, |s| s.color(Color::Muted)),
-                move |_window, cx| Tooltip::for_action("Recent Projects", &ed_actions::OpenRecent::default(), cx),
+                move |_window, cx| {
+                    let title = if has_choices { "Switch Folder" } else { "Recent Projects" };
+                    Tooltip::for_action(title, &ed_actions::OpenRecent::default(), cx)
+                },
             )
             .anchor(gpui::Anchor::TopLeft)
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::nested_repository_label;
+
+    #[test]
+    fn test_nested_repository_label() {
+        let folder = Path::new("/code/notebook");
+        assert_eq!(
+            nested_repository_label("notebook", folder, Path::new("/code/notebook/vendor/katex")).as_deref(),
+            Some("notebook/vendor/katex")
+        );
+        assert_eq!(nested_repository_label("notebook", folder, folder), None);
+        assert_eq!(nested_repository_label("notebook", folder, Path::new("/code")), None);
     }
 }
