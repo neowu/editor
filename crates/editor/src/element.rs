@@ -102,8 +102,6 @@ use multi_buffer::MultiBufferSnapshot;
 use multi_buffer::RowInfo;
 use multi_buffer::ToOffset;
 use project::project_settings::ProjectSettings;
-use settings::GitGutterSetting;
-use settings::GitHunkStyleSetting;
 use settings::IndentGuideBackgroundColoring;
 use settings::IndentGuideColoring;
 use settings::Settings;
@@ -1282,7 +1280,7 @@ impl EditorElement {
             let is_singleton = editor.buffer_kind(cx) == ItemBufferKind::Singleton;
             let supports_git_diff_markers = is_singleton || editor.allow_git_diff_scrollbar_markers;
             // Git
-            (supports_git_diff_markers && ProjectSettings::get_global(cx).git.enabled.diff && snapshot.buffer_snapshot().has_diff_hunks())
+            (supports_git_diff_markers && snapshot.buffer_snapshot().has_diff_hunks())
             ||
             // Buffer Search Results
             (is_singleton && editor.has_background_highlights(HighlightKey::BufferSearchHighlights))
@@ -1421,14 +1419,11 @@ impl EditorElement {
             .display_diff_hunks_for_rows(display_rows, folded_buffers)
             .map(|hunk| (hunk, None))
             .collect::<Vec<_>>();
-        let git_gutter_setting = ProjectSettings::get_global(cx).git.git_gutter;
-        if let GitGutterSetting::TrackedFiles = git_gutter_setting {
-            for (hunk, hitbox) in &mut display_hunks {
-                if matches!(hunk, DisplayDiffHunk::Unfolded { .. }) {
-                    let hunk_bounds =
-                        Self::diff_hunk_bounds(scroll_position, line_height, gutter_hitbox.bounds, hunk, snapshot);
-                    *hitbox = Some(window.insert_hitbox(hunk_bounds, HitboxBehavior::BlockMouse));
-                }
+        for (hunk, hitbox) in &mut display_hunks {
+            if matches!(hunk, DisplayDiffHunk::Unfolded { .. }) {
+                let hunk_bounds =
+                    Self::diff_hunk_bounds(scroll_position, line_height, gutter_hitbox.bounds, hunk, snapshot);
+                *hitbox = Some(window.insert_hitbox(hunk_bounds, HitboxBehavior::BlockMouse));
             }
         }
 
@@ -4015,10 +4010,7 @@ impl EditorElement {
             }
         }
 
-        let show_git_gutter = layout.position_map.snapshot.show_git_diff_gutter.unwrap_or_else(|| {
-            matches!(ProjectSettings::get_global(cx).git.git_gutter, GitGutterSetting::TrackedFiles)
-        });
-        if show_git_gutter {
+        if layout.position_map.snapshot.show_git_diff_gutter.unwrap_or(true) {
             self.paint_gutter_diff_hunks(layout, self.split_side, window, cx)
         }
 
@@ -4607,11 +4599,8 @@ impl EditorElement {
     }
 
     fn diff_hunk_hollow(&self, status: DiffHunkStatus, cx: &App) -> bool {
-        let unstaged = !self.editor.read(cx).diff_hunk_renderer().render_hunk_as_staged(&status, cx);
-        let unstaged_hollow =
-            matches!(ProjectSettings::get_global(cx).git.hunk_style, GitHunkStyleSetting::UnstagedHollow);
-
-        unstaged == unstaged_hollow
+        // Unstaged hunks are filled, staged hunks are hollow.
+        self.editor.read(cx).diff_hunk_renderer().render_hunk_as_staged(&status, cx)
     }
 
     #[cfg(debug_assertions)]

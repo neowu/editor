@@ -1001,13 +1001,12 @@ pub fn render_diff_hunk_controls(
         .buffer_id()
         .and_then(|buffer_id| editor.read(cx).buffer().read(cx).diff_for(buffer_id))
         .and_then(|diff| diff.read(cx).operations());
-    let show_stage_restore = ProjectSettings::get_global(cx).git.show_stage_restore_buttons;
     let supports_staging = operations.as_ref().is_some_and(|operations| operations.supports_staging());
     let supports_unstaging = operations.as_ref().is_some_and(|operations| operations.supports_unstaging());
     let supports_restore = operations.as_ref().is_some_and(|operations| operations.supports_restore());
-    let show_stage_or_unstage = show_stage_restore
-        && ((status.has_secondary_hunk() && supports_staging) || (!status.has_secondary_hunk() && supports_unstaging));
-    let show_restore = show_stage_restore && supports_restore;
+    let show_stage_or_unstage =
+        (status.has_secondary_hunk() && supports_staging) || (!status.has_secondary_hunk() && supports_unstaging);
+    let show_restore = supports_restore;
     let show_hunk_navigation = !editor.read(cx).buffer().read(cx).all_diff_hunks_expanded();
 
     if !show_stage_or_unstage && !show_restore && !show_hunk_navigation {

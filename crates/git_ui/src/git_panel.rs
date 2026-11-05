@@ -107,10 +107,7 @@ use project::git_store::Repository;
 use project::git_store::RepositoryEvent;
 use project::git_store::RepositoryId;
 use project::git_store::pending_op;
-use project::project_settings::GitPathStyle;
-use project::project_settings::ProjectSettings;
 use settings::FolderIndicator;
-use settings::Settings;
 use smallvec::SmallVec;
 use strum::IntoEnumIterator;
 use strum::VariantNames;
@@ -5607,7 +5604,6 @@ impl GitPanel {
         cx: &Context<Self>,
     ) -> AnyElement {
         let tree_view = GitPanelViewOptions::get(cx).tree_view;
-        let git_path_style = ProjectSettings::get_global(cx).git.path_style;
         let display_name = entry.display_name();
 
         let selected = self.selected_entry == Some(ix);
@@ -5673,7 +5669,6 @@ impl GitPanel {
                     path_color,
                     display_name,
                     label_color,
-                    git_path_style,
                     status.is_deleted(),
                 ))
             }
@@ -5932,29 +5927,20 @@ impl GitPanel {
         path_color: Color,
         file_name: String,
         label_color: Color,
-        git_path_style: GitPathStyle,
         strikethrough: bool,
     ) -> Div {
-        let file_name_first = git_path_style == GitPathStyle::FileNameFirst;
-        let file_path_first = git_path_style == GitPathStyle::FilePathFirst;
-
         let file_name = format!("{} ", file_name);
 
         h_flex()
             .min_w_0()
             .overflow_hidden()
-            .when(file_path_first, |this| this.flex_row_reverse())
             .child(
                 div()
                     .flex_none()
                     .child(self.entry_label(file_name, label_color).when(strikethrough, Label::strikethrough)),
             )
             .when_some(directory, |this, dir| {
-                let path_name = if file_name_first { dir } else { format!("{dir}{}", "/") };
-
-                this.child(
-                    self.entry_label(path_name, path_color).truncate_start().when(strikethrough, Label::strikethrough),
-                )
+                this.child(self.entry_label(dir, path_color).truncate_start().when(strikethrough, Label::strikethrough))
             })
     }
 

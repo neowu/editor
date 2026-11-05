@@ -1,7 +1,6 @@
 mod biome;
 pub mod buffer_store;
 pub mod color_extractor;
-pub mod debounced_delay;
 pub mod git_store;
 pub mod image_store;
 pub mod library;
@@ -33,7 +32,6 @@ use std::pin::pin;
 use std::str::FromStr;
 use std::str::{self};
 use std::sync::Arc;
-use std::time::Duration;
 
 use ::git::blame::Blame;
 use ::git::status::FileStatus;
@@ -46,7 +44,6 @@ pub use buffer_store::ProjectTransaction;
 use clock::ReplicaId;
 use collections::HashMap;
 use collections::HashSet;
-use debounced_delay::DebouncedDelay;
 pub use environment::ProjectEnvironment;
 pub use fs::*;
 use futures::StreamExt;
@@ -132,7 +129,6 @@ pub use manifest_tree::ManifestTree;
 use parking_lot::Mutex;
 pub use project_search::Search;
 pub use project_search::SearchResults;
-use project_settings::ProjectSettings;
 use remote::RemoteClient;
 use remote::RemoteConnectionOptions;
 use rpc::AnyProtoClient;
@@ -145,7 +141,6 @@ use search::SearchInputKind;
 use search::SearchQuery;
 use search::SearchResult;
 use search_history::SearchHistory;
-use settings::Settings;
 use snippet::Snippet;
 pub use task_inventory::BasicContextProvider;
 pub use task_inventory::ContextProviderWithTasks;
@@ -221,7 +216,6 @@ pub struct Project {
     lsp_store: Entity<LspStore>,
     _subscriptions: Vec<gpui::Subscription>,
     buffers_needing_diff: HashSet<WeakEntity<Buffer>>,
-    git_diff_debouncer: DebouncedDelay<Self>,
     remotely_created_models: Arc<Mutex<RemotelyCreatedModels>>,
     terminals: Terminals,
     search_history: SearchHistory,
@@ -1038,7 +1032,6 @@ impl Project {
                 remote_client: None,
 
                 buffers_needing_diff: HashSet::default(),
-                git_diff_debouncer: DebouncedDelay::new(),
                 terminals: Terminals { local_handles: Vec::new() },
                 search_history: Self::new_search_history(),
                 environment,
@@ -1155,7 +1148,6 @@ impl Project {
                 fs,
                 remote_client: Some(remote.clone()),
                 buffers_needing_diff: HashSet::default(),
-                git_diff_debouncer: DebouncedDelay::new(),
                 terminals: Terminals { local_handles: Vec::new() },
                 search_history: Self::new_search_history(),
                 environment,
@@ -2170,29 +2162,16 @@ impl Project {
 
     fn request_buffer_diff_recalculation(&mut self, buffer: &Entity<Buffer>, cx: &mut Context<Self>) {
         self.buffers_needing_diff.insert(buffer.downgrade());
-        let first_insertion = self.buffers_needing_diff.len() == 1;
-        let settings = ProjectSettings::get_global(cx);
-        let delay = settings.git.gutter_debounce;
-
-        if delay == 0 {
-            if first_insertion {
-                let this = cx.weak_entity();
-                cx.defer(move |cx| {
-                    if let Some(this) = this.upgrade() {
-                        this.update(cx, |this, cx| {
-                            this.recalculate_buffer_diffs(cx).detach();
-                        });
-                    }
-                });
-            }
-            return;
+        if self.buffers_needing_diff.len() == 1 {
+            let this = cx.weak_entity();
+            cx.defer(move |cx| {
+                if let Some(this) = this.upgrade() {
+                    this.update(cx, |this, cx| {
+                        this.recalculate_buffer_diffs(cx).detach();
+                    });
+                }
+            });
         }
-
-        const MIN_DELAY: u64 = 50;
-        let delay = delay.max(MIN_DELAY);
-        let duration = Duration::from_millis(delay);
-
-        self.git_diff_debouncer.fire_new(duration, cx, move |this, cx| this.recalculate_buffer_diffs(cx));
     }
 
     fn recalculate_buffer_diffs(&self, cx: &Context<Self>) -> Task<()> {

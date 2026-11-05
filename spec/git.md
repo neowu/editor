@@ -40,6 +40,12 @@ repository's `$PATH`; if none is found, the repository is not opened.
   `git::DiffHead`/`git::ToggleDiffBase` actions and the "Diff Against Default
   Branch" editor menu toggle are removed. Branch diffs remain available
   explicitly via `git::DiffBranch` / Compare With Branch.
+- There are no `git` settings; the former defaults are hardcoded: git status
+  and diffs always on; gutter hunks in tracked files, recalculated without
+  debounce; unstaged hunks filled, staged hollow; stage/restore hunk buttons
+  shown; git panel paths show the file name first; the branch picker shows
+  commit authors; file diffs open showing the full file; linked worktrees are
+  created under `<repo parent>/worktrees/<repo name>/`.
 
 ## Active folder and repository
 

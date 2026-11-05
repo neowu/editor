@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use collections::HashMap;
-use git::repository::DEFAULT_WORKTREE_DIRECTORY;
 use lsp::DEFAULT_LSP_REQUEST_TIMEOUT_SECS;
 use lsp::LanguageServerName;
 use serde::Deserialize;
@@ -31,9 +30,6 @@ pub struct ProjectSettings {
     pub global_lsp_settings: GlobalLspSettings,
 
     pub diagnostics: DiagnosticsSettings,
-
-    /// Configuration for Git-related features
-    pub git: GitSettings,
 }
 
 settings::register_setting!(ProjectSettings);
@@ -204,89 +200,6 @@ impl GoToDiagnosticSeverityFilter {
 }
 
 #[derive(Clone, Debug)]
-pub struct GitSettings {
-    /// Whether or not git integration is enabled.
-    ///
-    /// Default: true
-    pub enabled: GitEnabledSettings,
-    /// Whether or not to show the git gutter.
-    ///
-    /// Default: tracked_files
-    pub git_gutter: settings::GitGutterSetting,
-    /// Sets the debounce threshold (in milliseconds) after which changes are reflected in the git gutter.
-    ///
-    /// Default: 0
-    pub gutter_debounce: u64,
-    /// Which information to show in the branch picker.
-    ///
-    /// Default: on
-    pub branch_picker: BranchPickerSettings,
-    /// How hunks are displayed visually in the editor.
-    ///
-    /// Default: staged_hollow
-    pub hunk_style: settings::GitHunkStyleSetting,
-    /// How file paths are displayed in the git gutter.
-    ///
-    /// Default: file_name_first
-    pub path_style: GitPathStyle,
-    /// Whether to show the stage and restore buttons on diff hunks.
-    ///
-    /// Default: true
-    pub show_stage_restore_buttons: bool,
-    /// Directory where git worktrees are created, relative to the repository
-    /// working directory. When the resolved directory is outside the project
-    /// root, the project's directory name is automatically appended so that
-    /// sibling repos don't collide.
-    ///
-    /// Default: ../worktrees
-    pub worktree_directory: String,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct GitEnabledSettings {
-    /// Whether git integration is enabled for showing git status.
-    ///
-    /// Default: true
-    pub status: bool,
-    /// Whether git integration is enabled for showing diffs.
-    ///
-    /// Default: true
-    pub diff: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Default)]
-pub enum GitPathStyle {
-    #[default]
-    FileNameFirst,
-    FilePathFirst,
-}
-
-impl From<settings::GitPathStyle> for GitPathStyle {
-    fn from(style: settings::GitPathStyle) -> Self {
-        match style {
-            settings::GitPathStyle::FileNameFirst => GitPathStyle::FileNameFirst,
-            settings::GitPathStyle::FilePathFirst => GitPathStyle::FilePathFirst,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub struct BranchPickerSettings {
-    /// Whether to show author name as part of the commit information.
-    ///
-    /// Default: false
-    #[serde(default)]
-    pub show_author_name: bool,
-}
-
-impl Default for BranchPickerSettings {
-    fn default() -> Self {
-        Self { show_author_name: true }
-    }
-}
-
-#[derive(Clone, Debug)]
 pub struct DiagnosticsSettings {
     /// Whether to show the project diagnostics button in the status bar.
     pub button: bool,
@@ -340,29 +253,6 @@ impl Settings for ProjectSettings {
         let lsp_pull_diagnostics = diagnostics.lsp_pull_diagnostics.as_ref().unwrap();
         let inline_diagnostics = diagnostics.inline.as_ref().unwrap();
 
-        let git = content.git.as_ref().unwrap();
-        let git_enabled = {
-            GitEnabledSettings {
-                status: git.enabled.as_ref().unwrap().is_git_status_enabled(),
-                diff: git.enabled.as_ref().unwrap().is_git_diff_enabled(),
-            }
-        };
-        let git_settings = GitSettings {
-            enabled: git_enabled,
-            git_gutter: git.git_gutter.unwrap(),
-            gutter_debounce: git.gutter_debounce.unwrap_or_default(),
-            branch_picker: {
-                let branch_picker = git.branch_picker.unwrap();
-                BranchPickerSettings { show_author_name: branch_picker.show_author_name.unwrap() }
-            },
-            hunk_style: git.hunk_style.unwrap(),
-            path_style: git.path_style.unwrap().into(),
-            show_stage_restore_buttons: git.show_stage_restore_buttons.unwrap_or(true),
-            worktree_directory: git
-                .worktree_directory
-                .clone()
-                .unwrap_or_else(|| DEFAULT_WORKTREE_DIRECTORY.to_string()),
-        };
         Self {
             lsp: project.lsp.clone().into_iter().map(|(key, value)| (LanguageServerName(key.into()), value)).collect(),
             global_lsp_settings: GlobalLspSettings {
@@ -401,7 +291,6 @@ impl Settings for ProjectSettings {
                     max_severity: inline_diagnostics.max_severity.map(Into::into),
                 },
             },
-            git: git_settings,
         }
     }
 }

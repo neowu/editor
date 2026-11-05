@@ -33,8 +33,6 @@ use project::Project;
 use project::ProjectPath;
 use project::git_store::diff_buffer_list::DiffBase;
 use project::git_store::diff_buffer_list::DiffBufferList;
-use project::project_settings::ProjectSettings;
-use settings::Settings;
 use ui::DiffStat;
 use ui::Divider;
 use ui::Icon;
@@ -72,9 +70,6 @@ impl DiffHunkRenderer for StagedDiffHunkRenderer {
         _window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
-        if !ProjectSettings::get_global(cx).git.show_stage_restore_buttons {
-            return gpui::Empty.into_any_element();
-        }
         let hunk_range = hunk_range.start..hunk_range.start;
         h_flex()
             .h(line_height)

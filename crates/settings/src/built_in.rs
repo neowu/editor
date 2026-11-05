@@ -2,7 +2,6 @@ use collections::HashMap;
 use settings_content::AllLanguageSettingsContent;
 use settings_content::AlternateScroll;
 use settings_content::AutoIndentMode;
-use settings_content::BranchPickerSettingsContent;
 use settings_content::CompletionSettingsContent;
 use settings_content::CursorShapeContent;
 use settings_content::DelayMs;
@@ -10,18 +9,12 @@ use settings_content::DiagnosticSeverityContent;
 use settings_content::DiagnosticsSettingsContent;
 use settings_content::DocumentFoldingRanges;
 use settings_content::DocumentSymbols;
-use settings_content::FileDiffSettingsContent;
 use settings_content::FileFinderSettingsContent;
 use settings_content::FileTypeMap;
 use settings_content::FontWeightContent;
 use settings_content::FormatOnSave;
 use settings_content::Formatter;
 use settings_content::FormatterList;
-use settings_content::GitEnabledSettings;
-use settings_content::GitGutterSetting;
-use settings_content::GitHunkStyleSetting;
-use settings_content::GitPathStyle;
-use settings_content::GitSettings;
 use settings_content::GlobalLspSettingsContent;
 use settings_content::ImageFileSizeUnit;
 use settings_content::ImageViewerSettingsContent;
@@ -89,21 +82,6 @@ pub fn settings() -> SettingsContent {
                 min_column: Some(0),
                 max_severity: Some(DiagnosticSeverityContent::Error),
             }),
-        }),
-        git: Some(GitSettings {
-            enabled: Some(GitEnabledSettings {
-                disable_git: Some(false),
-                enable_status: Some(true),
-                enable_diff: Some(true),
-            }),
-            git_gutter: Some(GitGutterSetting::TrackedFiles),
-            gutter_debounce: Some(0),
-            branch_picker: Some(BranchPickerSettingsContent { show_author_name: Some(true) }),
-            file_diff: Some(FileDiffSettingsContent { show_full_file: Some(true) }),
-            hunk_style: Some(GitHunkStyleSetting::StagedHollow),
-            path_style: Some(GitPathStyle::FileNameFirst),
-            show_stage_restore_buttons: Some(true),
-            worktree_directory: Some("../worktrees".into()),
         }),
         global_lsp_settings: Some(GlobalLspSettingsContent {
             button: Some(true),

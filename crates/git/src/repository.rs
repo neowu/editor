@@ -75,9 +75,6 @@ static SEARCH_COMMIT_FORMAT: &str = "--format=%H";
 /// Number of commits to load per chunk for the git graph.
 pub const GRAPH_CHUNK_SIZE: usize = 1000;
 
-/// Default value for the `git.worktree_directory` setting.
-pub const DEFAULT_WORKTREE_DIRECTORY: &str = "../worktrees";
-
 /// Given the git common directory (from `commondir()`), derive the original
 /// repository's working directory.
 ///

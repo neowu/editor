@@ -97,6 +97,7 @@ migrator, or Vim/Helix mode.
     bottom (no `dock` or `default_width` setting);
   - git panel: no file icons, no count badge, does not open on startup;
     there are no git panel settings (see `git.md`);
+  - git: there are no `git` settings (see `git.md`);
   - project panel: folder labels are not bold; there are no project panel
     settings (see `project-panel.md`);
   - status bar: no active file name item; the cursor position item always

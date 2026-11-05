@@ -112,13 +112,11 @@ use project::git_store::GitStoreEvent;
 use project::git_store::RepositoryEvent;
 use project::git_store::git_traversal::ChildEntriesGitIter;
 use project::project_settings::GoToDiagnosticSeverityFilter;
-use project::project_settings::ProjectSettings;
 use rayon::slice::ParallelSliceMut;
 use rpc::ErrorCode;
 use rpc::ErrorExt;
 use serde::Deserialize;
 use settings::FolderIndicator;
-use settings::Settings;
 use smallvec::SmallVec;
 use svg_preview::svg_preview_view::SvgPreviewView;
 use ui::ContextMenu;
@@ -4657,7 +4655,6 @@ impl ProjectPanel {
                 ix = end_ix;
                 continue;
             }
-            let git_status_setting = ProjectSettings::get_global(cx).git.enabled.status;
             if let Some(worktree) = self.project.read(cx).worktree_for_id(visible.worktree_id, cx) {
                 let snapshot = worktree.read(cx).snapshot();
                 let root_name = snapshot.root_name();
@@ -4665,7 +4662,7 @@ impl ProjectPanel {
                 let entry_range = range.start.saturating_sub(ix)..end_ix - ix;
                 let entries = visible.index.get_or_init(|| visible.entries.iter().map(|e| e.path.clone()).collect());
                 for entry in &visible.entries[entry_range] {
-                    let status = if git_status_setting { entry.git_summary } else { GitSummary::default() };
+                    let status = entry.git_summary;
 
                     let mut details = self.details_for_entry(
                         entry,
@@ -6062,14 +6059,9 @@ impl ProjectPanel {
 
         sticky_parents.reverse();
 
-        let git_status_enabled = ProjectSettings::get_global(cx).git.enabled.status;
         let root_name = worktree.root_name();
 
-        let git_summaries_by_id = if git_status_enabled {
-            visible.entries.iter().map(|e| (e.id, e.git_summary)).collect::<HashMap<_, _>>()
-        } else {
-            HashMap::default()
-        };
+        let git_summaries_by_id = visible.entries.iter().map(|e| (e.id, e.git_summary)).collect::<HashMap<_, _>>();
 
         // already checked if non empty above
         let last_item_index = sticky_parents.len() - 1;

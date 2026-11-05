@@ -164,7 +164,6 @@ use crate::ProjectItem;
 use crate::ProjectPath;
 use crate::buffer_store::BufferStore;
 use crate::buffer_store::BufferStoreEvent;
-use crate::project_settings::ProjectSettings;
 use crate::worktree_store::WorktreeStore;
 use crate::worktree_store::WorktreeStoreEvent;
 
@@ -4719,16 +4718,12 @@ impl RepositorySnapshot {
     }
 
     /// Computes the path where a new linked worktree for this repository
-    /// would be created, based on the `git.worktree_directory` setting.
-    pub fn path_for_new_linked_worktree(
-        &self,
-        worktree_name: &str,
-        worktree_directory_setting: &str,
-    ) -> Result<PathBuf> {
+    /// would be created, under [`worktrees_directory_for_repo`].
+    pub fn path_for_new_linked_worktree(&self, worktree_name: &str) -> Result<PathBuf> {
         let repository_anchor = self.linked_worktree_anchor_path();
         let project_name =
             repository_anchor.file_name().ok_or_else(|| anyhow!("git repo must have a directory name"))?;
-        let directory = worktrees_directory_for_repo(repository_anchor, worktree_directory_setting)?;
+        let directory = worktrees_directory_for_repo(repository_anchor)?;
         let directory = path::join_path(&directory, worktree_name)?;
         path::join_path(&directory, project_name)
     }
@@ -7243,7 +7238,7 @@ impl Repository {
     pub fn remove_worktree(&mut self, path: PathBuf, force: bool) -> oneshot::Receiver<Result<()>> {
         let id = self.id;
         let repository_anchor_path: Arc<Path> = self.linked_worktree_anchor_path().into();
-        self.send_job(Some(format!("git worktree remove: {}", path.display()).into()), move |repo, cx| async move {
+        self.send_job(Some(format!("git worktree remove: {}", path.display()).into()), move |repo, _cx| async move {
             match repo {
                 RepositoryState::Local(LocalRepositoryState { backend, fs, .. }) => {
                     // When forcing, delete the worktree directory ourselves before
@@ -7273,10 +7268,7 @@ impl Repository {
 
                     backend.remove_worktree(path.clone(), force).await?;
 
-                    let managed_worktree_base = cx.update(|cx| {
-                        let setting = &ProjectSettings::get_global(cx).git.worktree_directory;
-                        worktrees_directory_for_repo(&repository_anchor_path, setting).log_err()
-                    });
+                    let managed_worktree_base = worktrees_directory_for_repo(&repository_anchor_path).log_err();
 
                     if let Some(managed_worktree_base) = managed_worktree_base {
                         remove_empty_managed_worktree_ancestors(fs.as_ref(), &path, &managed_worktree_base).await;
@@ -8132,53 +8124,12 @@ pub async fn resolve_git_worktree_to_main_repo(fs: &dyn Fs, path: &Path) -> Opti
     Some(repo_identity_path(&common_dir).to_path_buf())
 }
 
-/// Validates that the resolved worktree directory is acceptable:
-/// - The setting must not be an absolute path.
-/// - The resolved path must be either a subdirectory of the working
-///   directory or a subdirectory of its parent (i.e., a sibling).
-///
-/// Returns `Ok(resolved_path)` or an error with a user-facing message.
-pub fn worktrees_directory_for_repo(
-    repository_anchor_path: &Path,
-    worktree_directory_setting: &str,
-) -> Result<PathBuf> {
-    // Check the original setting before trimming, since a path like "///"
-    // is absolute but becomes "" after stripping trailing separators.
-    // Use `has_root` here because `/tmp/worktrees` is also not a relative path
-    if Path::new(worktree_directory_setting).has_root() {
-        anyhow::bail!("git.worktree_directory must be a relative path, got: {worktree_directory_setting:?}");
-    }
-
-    if worktree_directory_setting.is_empty() {
-        anyhow::bail!("git.worktree_directory must not be empty");
-    }
-
-    let trimmed = worktree_directory_setting.trim_end_matches(['/', '\\']);
-    if trimmed == ".." {
-        anyhow::bail!("git.worktree_directory must not be \"..\" (use \"../some-name\" instead)");
-    }
-
-    let joined = path::join_path(repository_anchor_path, trimmed)?;
-    let resolved = joined;
-    let resolved = if resolved.as_path().starts_with(repository_anchor_path) {
-        resolved
-    } else if let Some(repo_dir_name) = repository_anchor_path.file_name().and_then(|name| name.to_str()) {
-        path::join_path(&resolved, repo_dir_name)?
-    } else {
-        resolved
-    };
-
-    let parent = repository_anchor_path.parent().unwrap_or(repository_anchor_path);
-
-    if !resolved.as_path().starts_with(parent) {
-        anyhow::bail!(
-            "git.worktree_directory resolved to {resolved:?}, which is outside \
-             the project root and its parent directory. It must resolve to a \
-             subdirectory of {repository_anchor_path:?} or a sibling of it."
-        );
-    }
-
-    Ok(resolved)
+/// Directory holding new linked worktrees of a repository: `<parent>/worktrees/<repo name>`,
+/// a sibling of the repository, scoped by its name so sibling repos don't collide.
+pub fn worktrees_directory_for_repo(repository_anchor_path: &Path) -> Result<PathBuf> {
+    let parent = repository_anchor_path.parent().ok_or_else(|| anyhow!("git repo must have a parent directory"))?;
+    let repo_name = repository_anchor_path.file_name().ok_or_else(|| anyhow!("git repo must have a directory name"))?;
+    Ok(parent.join("worktrees").join(repo_name))
 }
 
 async fn remove_empty_managed_worktree_ancestors(fs: &dyn Fs, child_path: &Path, base_path: &Path) {
@@ -8873,6 +8824,7 @@ mod active_folder_tests {
     use super::innermost_containing;
     use super::is_strictly_inside;
     use super::paths_overlap;
+    use super::worktrees_directory_for_repo;
 
     #[test]
     fn test_paths_overlap() {
@@ -8889,6 +8841,12 @@ mod active_folder_tests {
         assert!(!is_strictly_inside(Path::new("/r"), Path::new("/r")));
         assert!(!is_strictly_inside(Path::new("/r"), Path::new("/r/sub")));
         assert!(!is_strictly_inside(Path::new("/rr"), Path::new("/r")));
+    }
+
+    #[test]
+    fn test_worktrees_directory_for_repo() {
+        assert_eq!(worktrees_directory_for_repo(Path::new("/code/ed")).unwrap(), Path::new("/code/worktrees/ed"));
+        assert!(worktrees_directory_for_repo(Path::new("/")).is_err());
     }
 
     #[test]

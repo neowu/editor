@@ -27,7 +27,6 @@ proto.workspace = true
 rand.workspace = true
 remote.workspace = true
 remote_connection.workspace = true
-settings.workspace = true
 terminal.workspace = true
 ui.workspace = true
 util.workspace = true

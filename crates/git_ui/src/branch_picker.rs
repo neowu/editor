@@ -37,8 +37,6 @@ use picker::PickerDelegate;
 use picker::PickerEditorPosition;
 use project::git_store::Repository;
 use project::git_store::RepositoryEvent;
-use project::project_settings::ProjectSettings;
-use settings::Settings;
 use time::OffsetDateTime;
 use ui::Banner;
 use ui::ContextMenu;
@@ -1483,11 +1481,9 @@ impl PickerDelegate for BranchListDelegate {
                                 };
 
                                 if matches!(entry, Entry::Branch { .. }) {
-                                    let show_author_name =
-                                        ProjectSettings::get_global(cx).git.branch_picker.show_author_name;
-                                    let has_author = show_author_name && author_name.is_some();
+                                    let has_author = author_name.is_some();
                                     let has_commit = commit_time.is_some();
-                                    let author_for_meta = if show_author_name { author_name } else { None };
+                                    let author_for_meta = author_name;
 
                                     let dot = || Label::new("•").alpha(0.5).color(Color::Muted).size(LabelSize::Small);
 

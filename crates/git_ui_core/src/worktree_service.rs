@@ -22,9 +22,7 @@ use gpui::TaskExt;
 use gpui::WeakEntity;
 use project::Project;
 use project::git_store::Repository;
-use project::project_settings::ProjectSettings;
 use remote::RemoteConnectionOptions;
-use settings::Settings;
 use ui::prelude::*;
 use util::ResultExt as _;
 use workspace::CloseIntent;
@@ -389,7 +387,6 @@ fn start_worktree_creations(
     existing_worktree_names: &[String],
     existing_worktree_paths: &HashSet<PathBuf>,
     base_ref: Option<String>,
-    worktree_directory_setting: &str,
     rng: &mut impl rand::Rng,
     cx: &mut gpui::App,
 ) -> anyhow::Result<(
@@ -407,7 +404,7 @@ fn start_worktree_creations(
 
     for repo in git_repos {
         let (work_dir, new_path, receiver) = repo.update(cx, |repo, _cx| {
-            let new_path = repo.path_for_new_linked_worktree(&worktree_name, worktree_directory_setting)?;
+            let new_path = repo.path_for_new_linked_worktree(&worktree_name)?;
             if existing_worktree_paths.contains(&new_path) {
                 anyhow::bail!("A worktree already exists at {}", new_path.display());
             }
@@ -713,8 +710,6 @@ async fn do_create_worktree(
     // List existing worktrees from all repos to detect name collisions
     let worktree_receivers: Vec<_> =
         cx.update(|_, cx| git_repos.iter().map(|repo| repo.update(cx, |repo, _cx| repo.worktrees())).collect())?;
-    let worktree_directory_setting =
-        cx.update(|_, cx| ProjectSettings::get_global(cx).git.worktree_directory.clone())?;
 
     let mut existing_worktree_names = Vec::new();
     let mut existing_worktree_paths = HashSet::default();
@@ -756,7 +751,6 @@ async fn do_create_worktree(
             &existing_worktree_names,
             &existing_worktree_paths,
             base_ref,
-            &worktree_directory_setting,
             &mut rng,
             cx,
         )

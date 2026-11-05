@@ -20,10 +20,8 @@ use gpui::actions;
 use project::Project;
 use project::git_store::GitStoreEvent;
 use project::linked_worktree_short_name;
-use project::project_settings::ProjectSettings;
 use project::repo_identity_path;
 use remote::RemoteConnectionOptions;
-use settings::Settings as _;
 use theme::ActiveTheme;
 use ui::IconWithIndicator;
 use ui::Indicator;
@@ -103,7 +101,6 @@ impl Render for TitleBar {
         h_flex().h_full().children(self.application_menu.clone()).when_some(active, |title_bar, active| {
             let worktree_and_branch = active
                 .repository
-                .filter(|_| ProjectSettings::get_global(cx).git.enabled.status)
                 .and_then(|repository| self.render_worktree_and_branch(repository, active.linked_worktree_name, cx));
             title_bar
                 .children(self.render_project_host(cx))

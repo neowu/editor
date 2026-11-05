@@ -11,7 +11,6 @@ use editor::DiffViewStyle;
 use editor::Direction;
 use editor::Editor;
 use editor::EditorEvent;
-use editor::EditorSettings;
 use editor::GlobalDiffViewStyle;
 use editor::SplittableEditor;
 use editor::ToggleSplitDiff;
@@ -52,7 +51,6 @@ use project::Project;
 use project::ProjectPath;
 use project::git_store::Repository;
 use project::git_store::RepositoryId;
-use settings::Settings;
 use ui::DiffStat;
 use ui::Divider;
 use ui::Tooltip;
@@ -141,8 +139,8 @@ impl SoloDiffView {
         cx: &mut Context<Self>,
     ) -> Self {
         let repository_id = repository.read(cx).id;
-        let showing_full_file = EditorSettings::get_global(cx).file_diff.show_full_file;
-        let multibuffer = cx.new(|cx| Self::build_multibuffer(buffer.clone(), diff.clone(), showing_full_file, cx));
+        // New file diffs open showing the full file.
+        let multibuffer = cx.new(|cx| Self::build_multibuffer(buffer.clone(), diff.clone(), true, cx));
         let editor = cx.new(|cx| {
             let editor = SplittableEditor::new(
                 DiffViewStyle::global(cx),
@@ -154,7 +152,7 @@ impl SoloDiffView {
             );
             editor.rhs_editor().update(cx, |editor, cx| {
                 editor.set_should_serialize(false);
-                editor.set_allow_git_diff_scrollbar_markers(showing_full_file, cx);
+                editor.set_allow_git_diff_scrollbar_markers(true, cx);
                 let snapshot = editor.snapshot(window, cx);
                 editor.go_to_hunk_before_or_after_position(
                     &snapshot,
@@ -190,7 +188,7 @@ impl SoloDiffView {
             diff,
             editor,
             workspace: workspace.downgrade(),
-            showing_full_file,
+            showing_full_file: true,
             _settings_subscription: settings_subscription,
         }
     }

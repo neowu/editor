@@ -7,7 +7,6 @@ pub mod display_map;
 mod document_colors;
 mod document_links;
 mod document_symbols;
-mod editor_settings;
 mod element;
 mod fold;
 mod folding_ranges;
@@ -370,7 +369,6 @@ use document_links::LspDocumentLinks;
 use ed_actions::editor::MoveDown;
 use ed_actions::editor::MoveUp;
 pub use ed_actions::editor::RevealInFileManager;
-pub use editor_settings::EditorSettings;
 pub use element::CursorLayout;
 pub use element::EditorElement;
 pub use element::HighlightedRange;
@@ -570,7 +568,6 @@ use selections_collection::MutableSelectionsCollection;
 use selections_collection::SelectionsCollection;
 use serde::Deserialize;
 use serde::Serialize;
-use settings::GitGutterSetting;
 pub use settings::OpenResultsIn;
 use settings::Settings;
 use settings::SettingsStore;
@@ -8510,9 +8507,7 @@ impl EditorSnapshot {
             && let Some(ch_width) = cx.text_system().ch_width(font_id, font_size).log_err()
             && let Some(ch_advance) = cx.text_system().ch_advance(font_id, font_size).log_err()
         {
-            let show_git_gutter = self.show_git_diff_gutter.unwrap_or_else(|| {
-                matches!(ProjectSettings::get_global(cx).git.git_gutter, GitGutterSetting::TrackedFiles)
-            });
+            let show_git_gutter = self.show_git_diff_gutter.unwrap_or(true);
             let show_line_numbers = self.show_line_numbers;
             let line_gutter_width = if show_line_numbers {
                 // Avoid flicker-like gutter resizes when the line number gains another digit by

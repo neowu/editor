@@ -18,8 +18,6 @@ use gpui::canvas;
 use gpui::div;
 use project::Project;
 use project::git_store::GitStoreEvent;
-use project::project_settings::ProjectSettings;
-use settings::Settings as _;
 use ui::Tab;
 use ui::Tooltip;
 use ui::prelude::*;
@@ -88,8 +86,7 @@ impl WindowHeaderState {
             can_go_back: workspace.can_go_back(),
             can_go_forward: workspace.can_go_forward(),
             mode: workspace.mode(),
-            has_repository: ProjectSettings::get_global(cx).git.enabled.status
-                && project.read(cx).active_repository(cx).is_some(),
+            has_repository: project.read(cx).active_repository(cx).is_some(),
         }
     }
 }

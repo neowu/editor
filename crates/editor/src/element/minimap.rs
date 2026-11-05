@@ -38,8 +38,6 @@ use gpui::quad;
 use gpui::size;
 use itertools::Itertools;
 use multi_buffer::MultiBufferPoint;
-use project::project_settings::ProjectSettings;
-use settings::Settings;
 use theme::ActiveTheme;
 use workspace::item::Item as _;
 use workspace::item::ItemBufferKind;
@@ -252,8 +250,7 @@ impl EditorElement {
     ) {
         self.editor.update(cx, |editor, cx| {
             let is_singleton = editor.buffer_kind(cx) == ItemBufferKind::Singleton;
-            let show_git_diff_markers = ProjectSettings::get_global(cx).git.enabled.diff
-                && (is_singleton || editor.allow_git_diff_scrollbar_markers);
+            let show_git_diff_markers = is_singleton || editor.allow_git_diff_scrollbar_markers;
             if !is_singleton && !show_git_diff_markers {
                 editor.scrollbar_marker_state.dirty = true;
                 editor.scrollbar_marker_state.markers = Arc::default();

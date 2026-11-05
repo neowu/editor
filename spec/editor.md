@@ -48,8 +48,8 @@
   margin; full editors scroll one page past the last line. The minimap shows
   only in the active editor (toggleable per editor), up to 80 columns wide,
   with an always-visible borderless thumb.
-- The editor has no settings at all (`EditorSettingsContent` is gone; only
-  the git `file_diff` setting remains in `EditorSettings`). Also fixed:
+- The editor has no settings at all (no `EditorSettingsContent` or
+  `EditorSettings`). Also fixed:
   - Mouse: alt adds cursors, cmd/ctrl follows links; shift+cmd/ctrl or
     shift+alt starts a columnar selection. Alt scrolls 4x faster. Clicks never
     autoscroll. No drag-and-drop of selected text and no middle-click paste.
