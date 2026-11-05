@@ -2343,14 +2343,17 @@ impl GitGraph {
             .tab_group()
             .tab_stop(false)
             .w_full()
-            .p_1p5()
-            .gap_1p5()
+            .py(DynamicSpacing::Base06.rems())
+            .px(DynamicSpacing::Base08.rems())
+            .gap_2()
+            .bg(color.toolbar_background)
             .child(
                 h_flex()
                     .h_8()
                     .flex_1()
                     .min_w_0()
-                    .px_1p5()
+                    .pl_2()
+                    .pr_1()
                     .gap_1()
                     .track_focus(&query_focus_handle)
                     .border_1()
@@ -2394,7 +2397,6 @@ impl GitGraph {
                         let focus_handle = self.focus_handle.clone();
                         IconButton::new("git-graph-search-prev", IconName::ChevronLeft)
                             .shape(ui::IconButtonShape::Square)
-                            .icon_size(IconSize::Small)
                             .tooltip(move |_, cx| {
                                 Tooltip::for_action_in("Select Previous Match", &SelectPreviousMatch, &focus_handle, cx)
                             })
@@ -2412,7 +2414,6 @@ impl GitGraph {
                         let focus_handle = self.focus_handle.clone();
                         IconButton::new("git-graph-search-next", IconName::ChevronRight)
                             .shape(ui::IconButtonShape::Square)
-                            .icon_size(IconSize::Small)
                             .tooltip(move |_, cx| {
                                 Tooltip::for_action_in("Select Next Match", &SelectNextMatch, &focus_handle, cx)
                             })
@@ -2459,23 +2460,20 @@ impl GitGraph {
 
     /// The row above the graph: the branch filter on the left (repository graph
     /// only), search and refresh on the right.
-    fn render_toolbar(&self, is_loading: bool, cx: &Context<Self>) -> impl IntoElement {
+    fn render_toolbar(&self, is_loading: bool, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let icon_button_size = IconSize::Medium.square(window, cx);
         let focus_handle = self.focus_handle.clone();
         let search_shown = self.search_state.shown;
 
-        h_flex()
-            .w_full()
-            .px_1p5()
-            .py_1()
+        let row = h_flex()
+            .h_8()
             .gap_1()
-            .border_b_1()
-            .border_color(cx.theme().colors().border_variant)
             .when(is_repository_graph(&self.log_source), |this| this.child(self.render_branch_filter(cx)))
             .child(div().flex_1())
             .child({
                 let focus_handle = focus_handle.clone();
                 IconButton::new("git-graph-search", IconName::MagnifyingGlass)
-                    .icon_size(IconSize::Small)
+                    .shape(ui::IconButtonShape::Square)
                     .toggle_state(search_shown)
                     .tooltip(move |_, cx| {
                         Tooltip::for_action_in("Search Commits", &buffer_search::Deploy::find(), &focus_handle, cx)
@@ -2491,11 +2489,11 @@ impl GitGraph {
             .child(if is_loading {
                 h_flex()
                     .id("git-graph-refreshing")
-                    .size_6()
+                    .size(icon_button_size)
                     .justify_center()
                     .child(
                         Icon::new(IconName::ArrowCircle)
-                            .size(IconSize::Small)
+                            .size(IconSize::Medium)
                             .color(Color::Muted)
                             .with_rotate_animation(2),
                     )
@@ -2503,11 +2501,22 @@ impl GitGraph {
                     .into_any_element()
             } else {
                 IconButton::new("git-graph-refresh", IconName::ArrowCircle)
-                    .icon_size(IconSize::Small)
+                    .shape(ui::IconButtonShape::Square)
                     .tooltip(move |_, cx| Tooltip::for_action_in("Refresh", &Refresh, &focus_handle, cx))
                     .on_click(cx.listener(|this, _, window, cx| this.refresh(&Refresh, window, cx)))
                     .into_any_element()
-            })
+            });
+
+        // Same metrics as the pane toolbar (`workspace::Toolbar`), so this row
+        // matches the buffer search bar and diff toolbars.
+        div()
+            .w_full()
+            .py(DynamicSpacing::Base06.rems())
+            .px(DynamicSpacing::Base08.rems())
+            .bg(cx.theme().colors().toolbar_background)
+            .border_b_1()
+            .border_color(cx.theme().colors().border_variant)
+            .child(row)
     }
 
     /// The branch the repository graph is limited to, picked from the branch
@@ -2549,21 +2558,20 @@ impl GitGraph {
                     })
                     .trigger_with_tooltip(
                         Button::new("git-graph-branch-filter", label)
-                            .label_size(LabelSize::Small)
                             .when(branch_filter.is_some(), |this| this.color(Color::Accent))
                             .start_icon(
                                 Icon::new(IconName::GitBranch)
-                                    .size(IconSize::Small)
+                                    .size(IconSize::Medium)
                                     .color(if branch_filter.is_some() { Color::Accent } else { Color::Muted }),
                             )
-                            .end_icon(Icon::new(IconName::ChevronDown).size(IconSize::XSmall).color(Color::Muted)),
+                            .end_icon(Icon::new(IconName::ChevronDown).size(IconSize::Small).color(Color::Muted)),
                         Tooltip::text("Filter by Branch"),
                     ),
             )
             .when(branch_filter.is_some(), |this| {
                 this.child(
                     IconButton::new("git-graph-clear-branch-filter", IconName::Close)
-                        .icon_size(IconSize::XSmall)
+                        .shape(ui::IconButtonShape::Square)
                         .tooltip(Tooltip::text("Show All Branches"))
                         .on_click(cx.listener(|this, _, _, cx| this.set_branch_filter(None, cx))),
                 )
@@ -3437,7 +3445,7 @@ impl Render for GitGraph {
             .child(
                 v_flex()
                     .size_full()
-                    .child(self.render_toolbar(is_loading || self.refreshing.is_some(), cx))
+                    .child(self.render_toolbar(is_loading || self.refreshing.is_some(), window, cx))
                     .when(self.search_state.shown, |this| this.child(self.render_search_bar(cx)))
                     .child(
                         div()

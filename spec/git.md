@@ -245,6 +245,7 @@ view) offers:
 - A toolbar row sits above the graph (the commit sidebar only describes the
   selected commit, so controls that change what the graph shows live here):
   the branch filter on the left, Search and Refresh icon buttons on the right.
+  It and the search row use the pane toolbar metrics (`ui-layout.md`).
 - Branch filter (repository graph only, not file history): "All Branches" by
   default; it opens the branch picker in select mode (local and remote
   branches, "Select a branch…") and limits the graph to that branch's history

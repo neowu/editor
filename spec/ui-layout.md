@@ -307,7 +307,11 @@ because it hurt readability; an opaque window is also cheaper to composite.
   pane gets these buttons in `new_terminal_pane`, so panes created by moving
   a tab into a split get them too.
 - Pane toolbars (search bars, diff controls) have no bottom line either; they
-  sit flat inside the card. Right-side toolbar items (e.g. image viewer
+  sit flat inside the card. Every toolbar-like row (pane toolbars, the Git
+  History header and its search row) shares one set of metrics so they line up
+  when switching tabs or modes: 6px vertical and 8px horizontal padding around
+  a 32px row, square icon buttons with 16px (`IconSize::Medium`) icons, and
+  14px (default label size) control text; counts and stats stay small. Right-side toolbar items (e.g. image viewer
   controls) stay right-aligned even when nothing is on the left. Editor panes have no breadcrumbs or quick action
   bar (see editor.md).
 - An empty pane leaves a blank strip of tab-bar height

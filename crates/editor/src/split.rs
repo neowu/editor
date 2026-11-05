@@ -441,7 +441,7 @@ impl RenderOnce for DiffStyleControls {
             .gap_1()
             .child(
                 IconButton::new("diff-style-unified", IconName::DiffUnified)
-                    .icon_size(IconSize::Small)
+                    .shape(ui::IconButtonShape::Square)
                     .toggle_state(diff_view_style == DiffViewStyle::Unified)
                     .tooltip(Tooltip::text("Unified"))
                     .on_click({
@@ -453,7 +453,7 @@ impl RenderOnce for DiffStyleControls {
             )
             .child(
                 IconButton::new("diff-style-split", split_icon)
-                    .icon_size(IconSize::Small)
+                    .shape(ui::IconButtonShape::Square)
                     .toggle_state(is_split_set)
                     .tooltip(move |_, cx| {
                         let message = if is_split_pending {

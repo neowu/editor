@@ -1384,7 +1384,7 @@ impl Render for CommitViewToolbar {
             .when(!is_stash, |this| {
                 this.child(
                     IconButton::new("show-in-git-history", IconName::GitGraph)
-                        .icon_size(IconSize::Small)
+                        .shape(ui::IconButtonShape::Square)
                         .tooltip(Tooltip::text("Show in Git History"))
                         .on_click(move |_, window, cx| {
                             window.dispatch_action(
