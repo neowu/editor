@@ -178,9 +178,7 @@ migrator, or Vim/Helix mode.
 - The command palette keeps no persisted state: commands are listed
   alphabetically with no usage-based ranking, there is no query history
   (up/down only moves the selection), and no `command_palette` setting.
-- Pickers keep no persisted state: every picker opens with the default
-  preview layout and size, and a resize or preview-layout change lasts only
-  until it closes (switching layouts resets to that layout's default size).
+- Pickers keep no persisted state: every picker opens at its fixed size.
   `PickerDelegate` has no `name()` key.
 - Terminal-panel (dock) terminals keep no persisted state: they and their
   splits are not restored after a restart, and the panel opens a fresh shell

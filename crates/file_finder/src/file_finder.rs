@@ -35,7 +35,6 @@ use gpui::ParentElement;
 use gpui::Render;
 use gpui::Styled;
 use gpui::Task;
-use gpui::TaskExt;
 use gpui::WeakEntity;
 use gpui::Window;
 use gpui::actions;
@@ -65,10 +64,8 @@ use workspace::MAX_RECENT_SELECTIONS;
 use workspace::ModalView;
 use workspace::OpenOptions;
 use workspace::OpenVisible;
-use workspace::SplitDirection;
 use workspace::Workspace;
 use workspace::notifications::NotifyResultExt;
-use workspace::pane;
 
 actions!(
     file_finder,
@@ -190,12 +187,9 @@ impl FileFinder {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let project = delegate.project.clone();
         let modal_max_width = Self::modal_max_width(window);
-        let preview = picker_preview::editor_preview(project, window, cx);
         let picker = cx.new(|cx| {
-            Picker::uniform_list_with_preview(delegate, preview, window, cx)
-                .initial_width(Rems::from_pixels(modal_max_width, window))
+            Picker::uniform_list(delegate, window, cx).initial_width(Rems::from_pixels(modal_max_width, window))
         });
         let picker_focus_handle = picker.focus_handle(cx);
         picker.update(cx, |picker, cx| {
@@ -240,48 +234,6 @@ impl FileFinder {
         });
     }
 
-    fn go_to_file_split_left(&mut self, _: &pane::SplitLeft, window: &mut Window, cx: &mut Context<Self>) {
-        self.go_to_file_split_inner(SplitDirection::Left, window, cx)
-    }
-
-    fn go_to_file_split_right(&mut self, _: &pane::SplitRight, window: &mut Window, cx: &mut Context<Self>) {
-        self.go_to_file_split_inner(SplitDirection::Right, window, cx)
-    }
-
-    fn go_to_file_split_up(&mut self, _: &pane::SplitUp, window: &mut Window, cx: &mut Context<Self>) {
-        self.go_to_file_split_inner(SplitDirection::Up, window, cx)
-    }
-
-    fn go_to_file_split_down(&mut self, _: &pane::SplitDown, window: &mut Window, cx: &mut Context<Self>) {
-        self.go_to_file_split_inner(SplitDirection::Down, window, cx)
-    }
-
-    fn go_to_file_split_inner(&self, split_direction: SplitDirection, window: &mut Window, cx: &mut Context<Self>) {
-        self.picker.update(cx, |picker, cx| {
-            let delegate = &mut picker.delegate;
-            if !delegate.selected_matches.is_empty() {
-                delegate.open_selected_in_one_split(split_direction, window, cx);
-                return;
-            }
-            if let Some(workspace) = delegate.workspace.upgrade()
-                && let Some(m) = delegate.matches.get(delegate.selected_index())
-            {
-                let path = match m {
-                    Match::History { path, .. } => {
-                        let worktree_id = path.project.worktree_id;
-                        ProjectPath { worktree_id, path: Arc::clone(&path.project.path) }
-                    }
-                    Match::Search(m) => project_path_for_search_match(&delegate.project, &m.0, cx),
-                    Match::CreateNew(p) => p.clone(),
-                };
-                let open_task = workspace.update(cx, move |workspace, cx| {
-                    workspace.split_path_preview(path, false, Some(split_direction), window, cx)
-                });
-                open_task.detach_and_log_err(cx);
-            }
-        })
-    }
-
     fn open_without_dismiss(&mut self, _: &OpenWithoutDismiss, window: &mut Window, cx: &mut Context<Self>) {
         self.picker.update(cx, |picker, cx| {
             picker.delegate.confirm_without_dismiss(window, cx);
@@ -320,10 +272,6 @@ impl Render for FileFinder {
             .on_modifiers_changed(cx.listener(Self::handle_modifiers_changed))
             .on_action(cx.listener(Self::handle_select_prev))
             .on_action(cx.listener(Self::handle_toggle_ignored))
-            .on_action(cx.listener(Self::go_to_file_split_left))
-            .on_action(cx.listener(Self::go_to_file_split_right))
-            .on_action(cx.listener(Self::go_to_file_split_up))
-            .on_action(cx.listener(Self::go_to_file_split_down))
             .on_action(cx.listener(Self::open_without_dismiss))
             .child(self.picker.clone())
     }
@@ -1422,49 +1370,6 @@ impl FileFinderDelegate {
     fn confirm_without_dismiss(&self, window: &mut Window, cx: &mut Context<Picker<FileFinderDelegate>>) {
         self.open_selected_file(false, false, window, cx);
     }
-
-    /// Opens every multi-selected file as a tab in a single new split, then
-    /// dismisses the finder.
-    fn open_selected_in_one_split(
-        &mut self,
-        split_direction: SplitDirection,
-        window: &mut Window,
-        cx: &mut Context<Picker<FileFinderDelegate>>,
-    ) {
-        let Some(workspace) = self.workspace.upgrade() else {
-            return;
-        };
-        let selected = std::mem::take(&mut self.selected_matches);
-        let paths: Vec<ProjectPath> = selected
-            .iter()
-            .filter_map(|selected| match &selected.0 {
-                Match::History { path, .. } => {
-                    Some(ProjectPath { worktree_id: path.project.worktree_id, path: Arc::clone(&path.project.path) })
-                }
-                Match::Search(m) => Some(project_path_for_search_match(&self.project, &m.0, cx)),
-                Match::CreateNew(_) => None,
-            })
-            .collect();
-        if paths.is_empty() {
-            return;
-        }
-        workspace.update(cx, |workspace, cx| {
-            let new_pane = workspace.split_pane(workspace.active_pane().clone(), split_direction, window, cx);
-            let count = paths.len();
-            for (i, path) in paths.into_iter().enumerate() {
-                let focus_item = i + 1 == count;
-                workspace
-                    .open_path_preview(path, Some(new_pane.downgrade()), focus_item, false, true, window, cx)
-                    .detach_and_log_err(cx);
-            }
-        });
-        // Deferred because this runs from a `FileFinder` action handler, so
-        // the entity is already being updated.
-        let finder = self.file_finder.clone();
-        cx.defer(move |cx| {
-            finder.update(cx, |_, cx| cx.emit(DismissEvent)).log_err();
-        });
-    }
 }
 
 fn full_path_budget(file_name: &str, normal_em: Pixels, small_em: Pixels, max_width: Pixels) -> usize {
@@ -1678,22 +1583,6 @@ impl PickerDelegate for FileFinderDelegate {
         self.file_finder.update(cx, |_, cx| cx.emit(DismissEvent)).ok();
     }
 
-    fn try_get_preview_data_for_match(&self, cx: &App) -> Option<picker::PreviewUpdate> {
-        let m = self.matches.get(self.selected_index)?;
-        match m {
-            Match::CreateNew(project_path) => {
-                let path_highlight =
-                    gpui::HighlightStyle { color: Some(cx.theme().colors().text_accent), ..Default::default() };
-                let mut message = picker::HighlightedTextBuilder::default();
-                message.push_plain("Create file ");
-                message.push_styled(project_path.path.display(), path_highlight);
-                message.push_plain("?");
-                Some(picker::PreviewUpdate::message(message.build()))
-            }
-            _ => Some(picker::PreviewUpdate::from_path(m.abs_path(&self.project, cx)?)),
-        }
-    }
-
     fn render_match(
         &self,
         ix: usize,
@@ -1713,20 +1602,6 @@ impl PickerDelegate for FileFinderDelegate {
         cx: &mut Context<Picker<Self>>,
     ) -> Option<Self::ListItem> {
         self.render_match_impl(ix, selected, Some(checkbox), window, cx)
-    }
-
-    fn actions_menu(&self, _window: &mut Window, _cx: &mut Context<Picker<Self>>) -> Vec<picker::PickerAction> {
-        let open_label: SharedString =
-            if self.selected_matches.len() > 1 { "Open multiple".into() } else { "Open File".into() };
-        vec![
-            picker::PickerAction::header("Split…"),
-            picker::PickerAction::button("Left", pane::SplitLeft::default().boxed_clone()),
-            picker::PickerAction::button("Right", pane::SplitRight::default().boxed_clone()),
-            picker::PickerAction::button("Up", pane::SplitUp::default().boxed_clone()),
-            picker::PickerAction::button("Down", pane::SplitDown::default().boxed_clone()),
-            picker::PickerAction::separator(),
-            picker::PickerAction::button(open_label, menu::Confirm.boxed_clone()),
-        ]
     }
 }
 

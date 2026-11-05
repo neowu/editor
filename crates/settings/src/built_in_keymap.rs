@@ -823,6 +823,7 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("ctrl-alt-left", "pane::SplitLeft"),
             KeyBindingSpec::new("ctrl-alt-right", "pane::SplitRight"),
             KeyBindingSpec::new("cmd-d", "pane::SplitRight"),
+            KeyBindingSpec::new("cmd-shift-d", "pane::SplitDown"),
             KeyBindingSpec::new("cmd-alt-r", "terminal::RerunTask"),
         ],
     );
@@ -937,21 +938,7 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
         &mut keymap,
         Some("Picker > Editor"),
         true,
-        [
-            KeyBindingSpec::new("cmd-shift-a", "picker::ToggleActionsMenu"),
-            KeyBindingSpec::new("cmd-shift-s", "picker::ToggleMultiSelect"),
-        ],
-    );
-    add_bindings(
-        &mut keymap,
-        Some("(Picker && with_preview) > Editor"),
-        true,
-        [
-            KeyBindingSpec::new("cmd-alt-p", "picker::TogglePreview"),
-            KeyBindingSpec::new("cmd-alt-right", "picker::SetPreviewRight"),
-            KeyBindingSpec::new("cmd-alt-down", "picker::SetPreviewBelow"),
-            KeyBindingSpec::new("cmd-alt-up", "picker::SetPreviewHidden"),
-        ],
+        [KeyBindingSpec::new("cmd-shift-s", "picker::ToggleMultiSelect")],
     );
     add_bindings(
         &mut keymap,
@@ -960,10 +947,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
         [
             KeyBindingSpec::new("cmd-shift-p", "file_finder::SelectPrevious"),
             KeyBindingSpec::new("tab", "picker::MultiSelectNext"),
-            KeyBindingSpec::new("cmd-j", "pane::SplitDown"),
-            KeyBindingSpec::new("cmd-k", "pane::SplitUp"),
-            KeyBindingSpec::new("cmd-h", "pane::SplitLeft"),
-            KeyBindingSpec::new("cmd-l", "pane::SplitRight"),
         ],
     );
     add_bindings(
@@ -1021,4 +1004,19 @@ fn add_bindings(
         binding.use_key_equivalents = use_key_equivalents;
         binding
     }));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_terminal_split_down_binding() {
+        let keymap = keymap();
+        let split_down = keymap
+            .iter()
+            .find(|binding| binding.context == Some("Terminal") && binding.keystrokes == "cmd-shift-d")
+            .expect("terminal binds cmd-shift-d");
+        assert_eq!(split_down.action, Some("pane::SplitDown"));
+    }
 }

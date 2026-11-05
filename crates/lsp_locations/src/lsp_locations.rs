@@ -37,7 +37,6 @@ use picker::Picker;
 use picker::PickerDelegate;
 use project::Location;
 use project::LocationLink;
-use project::Project;
 use project::ProjectPath;
 use text::Anchor;
 use text::Point;
@@ -224,22 +223,13 @@ impl LspLocationsPicker {
         let Some(workspace) = editor.read(cx).workspace() else {
             return;
         };
-        workspace.update(cx, |workspace, cx| {
-            Self::open(kind, editor, workspace, window, cx);
-        });
+        workspace.update(cx, |_, cx| Self::open(kind, editor, window, cx));
     }
 
     /// Opens the picker for `kind`: runs a fresh LSP query and shows the
     /// results. An empty definitions query falls back to references, matching
     /// [`Editor::go_to_definition`].
-    fn open(
-        kind: LspPickerKind,
-        editor: Entity<Editor>,
-        workspace: &Workspace,
-        window: &Window,
-        cx: &Context<Workspace>,
-    ) {
-        let project = workspace.project().clone();
+    fn open(kind: LspPickerKind, editor: Entity<Editor>, window: &Window, cx: &Context<Workspace>) {
         let editor = editor.downgrade();
         cx.spawn_in(window, async move |workspace, cx| {
             // The kind the user invoked, kept for user-facing messages even if
@@ -282,9 +272,7 @@ impl LspLocationsPicker {
 
             workspace
                 .update_in(cx, |workspace, window, cx| {
-                    workspace.toggle_modal(window, cx, |window, cx| {
-                        Self::new(kind, matches, project, editor, None, window, cx)
-                    });
+                    workspace.toggle_modal(window, cx, |window, cx| Self::new(kind, matches, editor, None, window, cx));
                 })
                 .log_err();
         })
@@ -294,15 +282,13 @@ impl LspLocationsPicker {
     fn new(
         kind: LspPickerKind,
         matches: Vec<LocationMatch>,
-        project: Entity<Project>,
         editor: WeakEntity<Editor>,
         origin: Option<NavigationEntry>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let preview = picker_preview::editor_preview(project, window, cx);
         let delegate = LspLocationsDelegate::new(kind, matches, editor, origin);
-        let picker = cx.new(|cx| Picker::list_with_preview(delegate, preview, window, cx));
+        let picker = cx.new(|cx| Picker::list(delegate, window, cx));
         let subscription = cx.subscribe(&picker, |_, _, _: &DismissEvent, cx| {
             cx.emit(DismissEvent);
         });
@@ -589,17 +575,6 @@ impl PickerDelegate for LspLocationsDelegate {
 
     fn dismissed(&mut self, _window: &mut Window, cx: &mut Context<Picker<Self>>) {
         cx.emit(DismissEvent);
-    }
-
-    fn try_get_preview_data_for_match(&self, _cx: &App) -> Option<picker::PreviewUpdate> {
-        let location_match = self.selected_location_match()?;
-        Some(picker::PreviewUpdate::from_buffer(
-            location_match.buffer.clone(),
-            picker::MatchLocation {
-                anchor_range: location_match.anchor_range.clone(),
-                range: location_match.range.clone(),
-            },
-        ))
     }
 
     fn render_match(

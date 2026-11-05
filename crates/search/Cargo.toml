@@ -25,7 +25,6 @@ log.workspace = true
 menu.workspace = true
 multi_buffer.workspace = true
 picker.workspace = true
-picker_preview.workspace = true
 project.workspace = true
 regex.workspace = true
 settings.workspace = true

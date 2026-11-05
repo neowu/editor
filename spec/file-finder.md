@@ -8,3 +8,10 @@
 - Path ranking (`fuzzy_nucleo`) adds a small bonus for matches near the end of
   the path, so a path that repeats the query (`x/x.py` for `x`) ranks above one
   matching only once (`y/x.py`).
+- Pickers are a plain results list: there is no preview pane (the
+  `picker_preview` crate is gone), no Actions… footer menu, and no drag
+  resizing. A picker has a fixed width and a max height it shrinks below to
+  fit its content.
+- The file finder only opens files (`enter`, `OpenWithoutDismiss`, and
+  multi-select); it has no open-in-split actions. The text finder keeps its
+  split keys (`cmd-h/j/k/l`).

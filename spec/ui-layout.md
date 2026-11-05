@@ -153,7 +153,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
     top-row tab bar shifted the header by the card inset.
   - Tab bars are the exception to
     "no split buttons": `+` (new shell in the project's default directory),
-    Split Right, Split Down, then Zoom. A split (button, `pane::Split*`) opens
+    Split Right (`cmd-d`), Split Down (`cmd-shift-d`), then Zoom. A split
+    (button, `pane::Split*`) opens
     a new pane with a shell in the active terminal's working directory;
     dragging a tab to an edge moves it, as elsewhere.
   - `workspace::NewTerminal` opens in terminal mode's active pane while that

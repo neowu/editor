@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use gpui::Action as _;
 use gpui::Focusable as _;
-use gpui::KeyContext;
 use gpui::canvas;
-use ui::ActiveTheme;
 use ui::Color;
 use ui::Context;
 use ui::Disableable;
@@ -39,62 +37,12 @@ use crate::ElementContainer;
 use crate::Picker;
 use crate::PickerDelegate;
 use crate::PickerEditorPosition;
-use crate::Preview;
 use crate::ToggleMultiSelect;
 use crate::head::Head;
-use crate::preview;
-use crate::preview::Layout;
-use crate::render::window_controls::Bottom;
-use crate::render::window_controls::Left;
-use crate::render::window_controls::LeftCorner;
-use crate::render::window_controls::Middle;
-use crate::render::window_controls::Right;
-use crate::render::window_controls::RightCorner;
-use crate::shape::Shape;
-
-pub mod window_controls;
 
 impl<D: PickerDelegate> Render for Picker<D> {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.finish_any_completed_resize(window, cx);
-        // toggle between BelowForced and Right based on whether it'd clamp if
-        // horizontal
-        let rendered_layout = self.preview_layout_rendered(window);
-        let content = match &self.preview {
-            Some(preview @ Preview { layout: Layout::Below, .. }) => {
-                self.render_with_preview_below(preview, window, cx).into_any_element()
-            }
-            // render sideways based on bounds
-            Some(preview @ Preview { layout: Layout::Right, .. }) if rendered_layout == Some(Layout::Below) => {
-                self.render_with_preview_below(preview, window, cx).into_any_element()
-            }
-            Some(preview @ Preview { layout: Layout::Right, .. }) => {
-                self.render_with_preview_right(preview, window, cx).into_any_element()
-            }
-            Some(Preview { layout: Layout::Hidden, .. }) | None => self.render_results(window, cx).into_any_element(),
-        };
-
-        // The border, background and rounding wrap the whole picker (results and
-        // preview together). When there's a preview, clip the contents so its
-        // corners follow the rounded border. Avoid clipping otherwise, so a
-        // documentation aside (which is positioned outside the picker) isn't cut
-        // off.
-        let has_preview = self.preview.is_some();
-        let content = div()
-            .when(self.draws_own_container(), |this| this.elevation_3(cx))
-            .when(has_preview, |this| this.overflow_hidden())
-            .child(content);
-
-        let layout = self.preview_layout_rendered(window).unwrap_or(Layout::Hidden);
-
-        div().relative().child(content).when(self.is_resizable(), |this| {
-            this.left(self.shape.horizontal_offset(window))
-                .child(self.render_resize(Left, window, cx))
-                .child(self.render_resize(Right(layout), window, cx))
-                .child(self.render_resize(Bottom(layout), window, cx))
-                .child(self.render_resize(LeftCorner(layout), window, cx))
-                .child(self.render_resize(RightCorner(layout), window, cx))
-        })
+        div().when(self.draws_own_container(), |this| this.elevation_3(cx)).child(self.render_results(window, cx))
     }
 }
 
@@ -149,24 +97,10 @@ impl<D: PickerDelegate> Picker<D> {
         let editor_position = self.delegate.editor_position();
         let picker_bounds = self.picker_bounds.clone();
 
-        let mut key_context = KeyContext::default();
-        key_context.add("Picker");
-        if self.preview.is_some() {
-            key_context.add("with_preview");
-        }
-
         let menu = v_flex()
-            .key_context(key_context)
+            .key_context("Picker")
             .relative()
-            .map(|this| {
-                self.shape.apply_results_size(
-                    self.preview_layout_rendered(window),
-                    &self.size_bounds,
-                    self.fill_height(),
-                    this,
-                    window,
-                )
-            })
+            .w(self.shape.width(window))
             .child(
                 canvas(
                     move |bounds, _window, _cx| {
@@ -192,11 +126,6 @@ impl<D: PickerDelegate> Picker<D> {
             .on_action(cx.listener(Self::secondary_confirm))
             .on_action(cx.listener(Self::confirm_completion))
             .on_action(cx.listener(Self::confirm_input))
-            .on_action(cx.listener(Self::toggle_preview))
-            .on_action(cx.listener(Self::set_preview_right))
-            .on_action(cx.listener(Self::set_preview_below))
-            .on_action(cx.listener(Self::set_preview_hidden))
-            .on_action(cx.listener(Self::toggle_actions_menu))
             .on_action(cx.listener(Self::toggle_multi_select))
             .on_action(cx.listener(Self::multi_select_next))
             .children(match &self.head {
@@ -217,10 +146,7 @@ impl<D: PickerDelegate> Picker<D> {
                         .relative()
                         .flex_grow_1()
                         .min_h_0()
-                        .when_some(
-                            self.shape.results_max_height(&self.size_bounds, self.fill_height(), window),
-                            |this, max_height| this.max_h(max_height),
-                        )
+                        .max_h(self.shape.max_height(window))
                         .overflow_hidden()
                         .children(self.delegate.render_header(window, cx))
                         .child(self.render_element_container(cx))
@@ -255,7 +181,7 @@ impl<D: PickerDelegate> Picker<D> {
                     )
                 })
             })
-            .children(self.render_footer(window, cx))
+            .children(self.delegate.render_footer(window, cx))
             .children(match &self.head {
                 Head::Editor(editor) => {
                     if editor_position == PickerEditorPosition::End {
@@ -315,73 +241,6 @@ impl<D: PickerDelegate> Picker<D> {
                 })
         } else {
             v_flex().w_full().gap_1().justify_end().child(render_aside(aside, cx)).child(menu)
-        }
-    }
-
-    fn render_with_preview_below(
-        &self,
-        preview: &Preview,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        h_flex()
-            .relative()
-            .child(
-                v_flex()
-                    .h(self.shape.height(Some(preview::Layout::Below), &self.size_bounds, window))
-                    .child(
-                        div()
-                            .h(self.shape.results_height(preview::Layout::Below, &self.size_bounds, window))
-                            .overflow_hidden()
-                            .child(self.render_results(window, cx)),
-                    )
-                    .child(
-                        div()
-                            .h(self.shape.preview_height(preview::Layout::Below, &self.size_bounds, window))
-                            .border_t_1()
-                            .border_color(cx.theme().colors().border_variant)
-                            .child(preview.render(cx)),
-                    ),
-            )
-            .when(self.is_resizable(), |this| {
-                this.child(self.render_resize(window_controls::Middle(preview::Layout::Below), window, cx))
-            })
-    }
-
-    pub(crate) fn render_with_preview_right(
-        &self,
-        preview: &Preview,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        v_flex()
-            .relative()
-            .child(
-                h_flex()
-                    .h(self.shape.height(Some(Layout::Right), &self.size_bounds, window))
-                    .child(div().flex_1().h_full().overflow_hidden().child(self.render_results(window, cx)))
-                    .child(
-                        div()
-                            .w(self.shape.preview_width(Layout::Right, &self.size_bounds, window))
-                            .map(|this| self.shape.apply_height(Some(Layout::Right), &self.size_bounds, this, window))
-                            .border_l_1()
-                            .border_color(cx.theme().colors().border_variant)
-                            .overflow_hidden()
-                            .child(preview.render(cx)),
-                    ),
-            )
-            .when(self.is_resizable(), |this| this.child(self.render_resize(Middle(Layout::Right), window, cx)))
-    }
-
-    fn finish_any_completed_resize(&mut self, window: &mut Window, cx: &mut Context<'_, Picker<D>>) {
-        if let Shape::Resizing(pos) = self.shape
-            && !cx.has_active_drag()
-        {
-            let centered = Shape::centered_and_relative(pos, self.preview_layout_rendered(window), window);
-            self.shape = Shape::HorizontallyCentered(centered);
-            if let Some(preview) = &mut self.preview {
-                preview.adjust_to_new_size(window, cx);
-            }
         }
     }
 }

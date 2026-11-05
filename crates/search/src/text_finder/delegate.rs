@@ -698,23 +698,6 @@ impl PickerDelegate for Delegate {
         )
     }
 
-    fn actions_menu(&self, _window: &mut Window, _cx: &mut Context<Picker<Self>>) -> Vec<picker::PickerAction> {
-        use gpui::Action as _;
-        vec![
-            picker::PickerAction::header("Split…"),
-            picker::PickerAction::button("Left", workspace::pane::SplitLeft::default().boxed_clone()),
-            picker::PickerAction::button("Right", workspace::pane::SplitRight::default().boxed_clone()),
-            picker::PickerAction::button("Up", workspace::pane::SplitUp::default().boxed_clone()),
-            picker::PickerAction::button("Down", workspace::pane::SplitDown::default().boxed_clone()),
-            picker::PickerAction::separator(),
-            picker::PickerAction::button(
-                if self.selected_matches.len() > 1 { "Open Multiple" } else { "Open File" },
-                menu::Confirm.boxed_clone(),
-            ),
-            picker::PickerAction::button("Open as Tab", super::ToProjectSearch.boxed_clone()),
-        ]
-    }
-
     fn match_count(&self) -> usize {
         self.entries.len()
     }
@@ -887,14 +870,6 @@ impl PickerDelegate for Delegate {
 
     fn dismissed(&mut self, _window: &mut Window, cx: &mut Context<Picker<Self>>) {
         cx.emit(DismissEvent);
-    }
-
-    fn try_get_preview_data_for_match(&self, _cx: &App) -> Option<picker::PreviewUpdate> {
-        let m = self.selected_search_match()?;
-        Some(picker::PreviewUpdate::from_buffer(
-            m.buffer.clone(),
-            picker::MatchLocation { anchor_range: m.anchor_range.clone(), range: m.range.clone() },
-        ))
     }
 
     fn render_match(

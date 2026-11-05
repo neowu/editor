@@ -1141,7 +1141,6 @@ dependencies = [
  "menu",
  "open_path_prompt",
  "picker",
- "picker_preview",
  "project",
  "settings",
  "ui",
@@ -2516,7 +2515,6 @@ dependencies = [
  "language",
  "log",
  "picker",
- "picker_preview",
  "project",
  "text",
  "ui",
@@ -3225,21 +3223,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "picker_preview"
-version = "0.1.0"
-dependencies = [
- "editor",
- "gpui",
- "language",
- "multi_buffer",
- "picker",
- "project",
- "rope",
- "ui",
- "util",
-]
-
-[[package]]
 name = "pico-args"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3478,7 +3461,6 @@ dependencies = [
  "gpui",
  "ordered-float",
  "picker",
- "picker_preview",
  "project",
  "theme",
  "ui",
@@ -4039,7 +4021,6 @@ dependencies = [
  "menu",
  "multi_buffer",
  "picker",
- "picker_preview",
  "project",
  "regex",
  "settings",

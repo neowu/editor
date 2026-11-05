@@ -13,7 +13,6 @@ fuzzy.workspace = true
 gpui.workspace = true
 ordered-float.workspace = true
 picker.workspace = true
-picker_preview.workspace = true
 project.workspace = true
 theme.workspace = true
 ui.workspace = true

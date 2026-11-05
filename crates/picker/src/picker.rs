@@ -37,38 +37,24 @@ use gpui::uniform_list;
 use head::Head;
 use serde::Deserialize;
 use ui::Checkbox;
-use ui::ContextMenu;
 use ui::Divider;
 use ui::DocumentationAside;
 use ui::KeyBinding;
-use ui::PopoverMenuHandle;
 use ui::Tooltip;
 use ui::prelude::*;
 use ui_input::ErasedEditorEvent;
 use workspace::ModalView;
 
-mod footer;
 mod head;
 pub mod highlighted_match_with_paths;
 pub mod parts;
 pub mod popover_menu;
-mod preview;
 mod render;
 mod shape;
 
-pub use footer::PickerAction;
 pub use language::HighlightedText;
 pub use language::HighlightedTextBuilder;
-pub use preview::Layout as PreviewLayout;
-pub use preview::MatchLocation;
-pub use preview::Preview;
-pub use preview::PreviewBackend;
-pub use preview::PreviewSource;
-pub use preview::Update as PreviewUpdate;
 pub use ui_input::ErasedEditor;
-
-use crate::shape::RelativeHeight;
-use crate::shape::RelativeWidth;
 
 pub const DEFAULT_MODAL_WIDTH: Rems = Rems(34.0);
 pub const DEFAULT_MODAL_MAX_HEIGHT: Rems = Rems(24.0);
@@ -94,16 +80,6 @@ actions!(
     [
         /// Confirms the selected completion in the picker.
         ConfirmCompletion,
-        /// Toggles the preview between hidden and visible.
-        TogglePreview,
-        /// Shows the preview to the right of the results.
-        SetPreviewRight,
-        /// Shows the preview below the results.
-        SetPreviewBelow,
-        /// Hides the preview.
-        SetPreviewHidden,
-        /// Opens the footer's actions menu.
-        ToggleActionsMenu,
         /// Toggles multi-select mode, in which clicking items adds them to
         /// the selection instead of opening them
         ToggleMultiSelect,
@@ -131,40 +107,25 @@ struct PendingUpdateMatches {
 #[derive(Clone, Copy)]
 enum Presentation {
     /// A self-contained modal: draws its own elevated background and dismisses
-    /// when it loses focus. May optionally be resized (persisting its size);
-    /// resizing only makes sense for modals.
-    Modal { resizable: bool },
+    /// when it loses focus.
+    Modal,
     /// A popover attached to a menu/trigger: draws its own elevated background
-    /// and dismisses when it loses focus, but is never resizable.
+    /// and dismisses when it loses focus.
     Popover,
     /// Embedded inside a larger container (e.g. another modal) that provides its
     /// own chrome and handles dismissal.
     Embedded,
 }
 
-/// The default size for a given preview layout. With the preview hidden the
-/// picker uses its standard size; showing a preview expands it to the larger
-/// "telescope" size so the results pane isn't cramped beside the preview.
-fn default_shape_for_layout(hidden: shape::Centered, layout: preview::Layout) -> shape::Centered {
-    match layout {
-        preview::Layout::Hidden => hidden,
-        preview::Layout::Right | preview::Layout::Below => shape::Centered::default(),
-    }
-}
-
 pub struct Picker<D: PickerDelegate> {
     pub delegate: D,
     element_container: ElementContainer,
     head: Head,
-    preview: Option<Preview>,
     pending_update_matches: Option<PendingUpdateMatches>,
     confirm_on_update: Option<bool>,
     select_instead_of_open: bool,
+    /// The picker's width and max height; see [`Picker::initial_width`].
     shape: shape::Shape,
-    /// The size the picker opens at (and resets to). Defaults depend on whether
-    /// the picker has a preview; see [`Picker::initial_width`] / [`Picker::max_height`].
-    default_shape: shape::Centered,
-    size_bounds: shape::SizeBounds,
     /// An external control to display a scrollbar in the `Picker`.
     show_scrollbar: bool,
     /// How the picker is presented, which controls its chrome and behavior.
@@ -173,9 +134,6 @@ pub struct Picker<D: PickerDelegate> {
     picker_bounds: Rc<Cell<Option<Bounds<Pixels>>>>,
     /// Bounds tracking for items (for aside positioning) - maps item index to bounds
     item_bounds: Rc<RefCell<HashMap<usize, Bounds<Pixels>>>>,
-    /// Handle for the default footer's Actions popover menu. Used to keep the
-    /// picker open while that menu has focus.
-    actions_menu_handle: PopoverMenuHandle<ContextMenu>,
     reopenable: bool,
 }
 
@@ -310,9 +268,8 @@ pub trait PickerDelegate: Sized + 'static {
         PickerEditorPosition::default()
     }
 
-    /// Prevent closing the modal on clicking in a popover menu that portrudes out
-    /// This is already set by the Actions menu from the picker, this is here to
-    /// support extra menus added by the delegate.
+    /// Prevent closing the modal on clicking in a popover menu that protrudes
+    /// out, for menus added by the delegate.
     fn has_another_open_menu(&self, _window: &Window, _cx: &App) -> bool {
         false
     }
@@ -337,14 +294,6 @@ pub trait PickerDelegate: Sized + 'static {
         None
     }
 
-    fn try_get_preview_data_for_match(&self, _cx: &App) -> Option<PreviewUpdate> {
-        None
-    }
-
-    /// Called on the delegate when opening a preview to the side. Delegates can
-    /// then change how much space they use for rendering the match
-    fn preview_layout_changed(&mut self, _layout_is_horizontal: bool) {}
-
     fn render_match(
         &self,
         ix: usize,
@@ -368,17 +317,9 @@ pub trait PickerDelegate: Sized + 'static {
         None
     }
 
-    /// Overrides the picker's footer.
-    ///
-    /// Note there normally isn't a footer unless this is set or the picker has
-    /// a preview. If the picker has a preview add actions to it using picker_actions.
+    /// The picker's footer; there is none unless the delegate renders one.
     fn render_footer(&self, _window: &mut Window, _: &mut Context<Picker<Self>>) -> Option<AnyElement> {
         None
-    }
-
-    /// Make this non-empty to have an `Actions` menu show up in the footer
-    fn actions_menu(&self, _window: &mut Window, _cx: &mut Context<Picker<Self>>) -> Vec<footer::PickerAction> {
-        Vec::new()
     }
 
     fn documentation_aside(&self, _window: &mut Window, _cx: &mut Context<Picker<Self>>) -> Option<DocumentationAside> {
@@ -415,42 +356,13 @@ impl<D: PickerDelegate> Picker<D> {
     pub fn uniform_list(delegate: D, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let head = Head::editor(delegate.placeholder_text(window, cx), Self::on_input_editor_event, window, cx);
 
-        Self::new(delegate, ContainerKind::UniformList, head, None, window, cx)
+        Self::new(delegate, ContainerKind::UniformList, head, window, cx)
     }
 
-    /// A picker similar to [`uniform_list()`](Self::uniform_list) however this picker has a
-    /// preview window where it shows extra information.
-    pub fn uniform_list_with_preview(
+    /// A picker like [`list()`](Self::list) whose query editor is supplied by
+    /// the caller.
+    pub fn list_with_query_editor(
         delegate: D,
-        preview: Arc<dyn PreviewBackend>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        let head = Head::editor(delegate.placeholder_text(window, cx), Self::on_input_editor_event, window, cx);
-
-        let preview = Preview::new(preview);
-        Self::new(delegate, ContainerKind::UniformList, head, Some(preview), window, cx)
-    }
-
-    /// A picker similar to [`list()`](Self::list) (variable-height rows) but with
-    /// a preview window. Use this instead of [`uniform_list_with_preview()`](Self::uniform_list_with_preview)
-    /// when [`PickerDelegate::render_match`] can return rows of different heights
-    /// (e.g. section headers and separators interleaved with matches).
-    pub fn list_with_preview(
-        delegate: D,
-        preview: Arc<dyn PreviewBackend>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        let head = Head::editor(delegate.placeholder_text(window, cx), Self::on_input_editor_event, window, cx);
-
-        let preview = Preview::new(preview);
-        Self::new(delegate, ContainerKind::List, head, Some(preview), window, cx)
-    }
-
-    pub fn list_with_preview_and_query_editor(
-        delegate: D,
-        preview: Arc<dyn PreviewBackend>,
         query_editor: Arc<dyn ErasedEditor>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -463,8 +375,7 @@ impl<D: PickerDelegate> Picker<D> {
             cx,
         );
 
-        let preview = Preview::new(preview);
-        Self::new(delegate, ContainerKind::List, head, Some(preview), window, cx)
+        Self::new(delegate, ContainerKind::List, head, window, cx)
     }
 
     /// A picker, which displays its matches using `gpui::uniform_list`, all matches should have the same height.
@@ -472,7 +383,7 @@ impl<D: PickerDelegate> Picker<D> {
     pub fn nonsearchable_uniform_list(delegate: D, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let head = Head::empty(Self::on_empty_head_blur, window, cx);
 
-        Self::new(delegate, ContainerKind::UniformList, head, None, window, cx)
+        Self::new(delegate, ContainerKind::UniformList, head, window, cx)
     }
 
     /// A picker, which displays its matches using `gpui::list`, matches can have different heights.
@@ -481,7 +392,7 @@ impl<D: PickerDelegate> Picker<D> {
     pub fn nonsearchable_list(delegate: D, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let head = Head::empty(Self::on_empty_head_blur, window, cx);
 
-        Self::new(delegate, ContainerKind::List, head, None, window, cx)
+        Self::new(delegate, ContainerKind::List, head, window, cx)
     }
 
     /// A picker, which displays its matches using `gpui::list`, matches can have different heights.
@@ -490,32 +401,11 @@ impl<D: PickerDelegate> Picker<D> {
     pub fn list(delegate: D, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let head = Head::editor(delegate.placeholder_text(window, cx), Self::on_input_editor_event, window, cx);
 
-        Self::new(delegate, ContainerKind::List, head, None, window, cx)
+        Self::new(delegate, ContainerKind::List, head, window, cx)
     }
 
-    fn new(
-        delegate: D,
-        container: ContainerKind,
-        head: Head,
-        preview: Option<Preview>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    fn new(delegate: D, container: ContainerKind, head: Head, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let element_container = Self::create_element_container(container);
-        let has_preview = preview.is_some();
-        // Every picker opens at the standard "simple" size: a fixed width and a
-        // standard max height it shrinks below when there's little content.
-        // Showing a preview expands it to the larger "telescope" size (see
-        // `default_shape_for_layout`).
-        let default_shape = shape::Centered::simple();
-        let initial_layout = preview.as_ref().map(|p| p.layout).unwrap_or(preview::Layout::Hidden);
-        let mut size_bounds = shape::SizeBounds::default();
-        // For a plain picker the whole-picker minimum is just its opening width,
-        // so it can't be resized/clamped narrower than it opens. Preview pickers
-        // keep the standard per-pane minimums.
-        if !has_preview && let Some(width) = default_shape.width.as_rems() {
-            size_bounds.min_results.width = width;
-        }
         let mut this = Self {
             delegate,
             head,
@@ -523,19 +413,13 @@ impl<D: PickerDelegate> Picker<D> {
             pending_update_matches: None,
             confirm_on_update: None,
             select_instead_of_open: false,
-            preview,
-            shape: shape::Shape::HorizontallyCentered(default_shape_for_layout(default_shape, initial_layout)),
-            default_shape,
+            shape: shape::Shape::default(),
             show_scrollbar: false,
-            presentation: Presentation::Modal { resizable: has_preview },
+            presentation: Presentation::Modal,
             picker_bounds: Rc::new(Cell::new(None)),
             item_bounds: Rc::new(RefCell::new(HashMap::default())),
-            size_bounds,
-            actions_menu_handle: PopoverMenuHandle::default(),
             reopenable: true,
         };
-        // give delegate the initial preview layout
-        this.delegate.preview_layout_changed(matches!(initial_layout, preview::Layout::Right));
         if this.reopenable {
             let focus_handle = this.focus_handle(cx);
             workspace::register_reopenable_picker(&focus_handle, cx);
@@ -553,54 +437,12 @@ impl<D: PickerDelegate> Picker<D> {
         }
     }
 
-    /// Overrides the width the picker opens at (and resets to). Plain pickers
-    /// default to [`DEFAULT_MODAL_WIDTH`]; only call this for pickers that need a
-    /// different width (e.g. narrow popover selectors).
-    ///
-    /// For a plain (no-preview) picker the opening width is also its minimum, so
-    /// it can't be resized or clamped narrower than it opens.
-    pub fn initial_width(mut self, width: impl Into<RelativeWidth>) -> Self {
-        let width = width.into();
-        self.default_shape.width = width;
-        if self.live_shape_is_hidden_default() {
-            self.shape.set_initial_width(width);
-        }
-        // A plain picker's whole-picker minimum tracks its opening width. Preview
-        // pickers keep the standard per-pane minimums.
-        if self.preview.is_none()
-            && let Some(rems) = width.as_rems()
-        {
-            self.size_bounds.min_results.width = rems;
-        }
+    /// Overrides the picker's width. Pickers default to [`DEFAULT_MODAL_WIDTH`];
+    /// only call this for pickers that need a different width (e.g. narrow
+    /// popover selectors). The width is also the picker's minimum.
+    pub const fn initial_width(mut self, width: Rems) -> Self {
+        self.shape.width = width;
         self
-    }
-
-    /// Overrides the picker's max height. Plain pickers default to
-    /// [`DEFAULT_MODAL_MAX_HEIGHT`] and shrink below it to fit their content;
-    /// only call this for pickers that want a different cap (e.g. the outline
-    /// view, which is taller).
-    pub fn max_height(mut self, height: impl Into<RelativeHeight>) -> Self {
-        let height = height.into();
-        self.default_shape.height = height;
-        if self.live_shape_is_hidden_default() {
-            self.shape.set_initial_height(height);
-        }
-        self
-    }
-
-    /// Whether the live shape still reflects the hidden-layout default, i.e. it
-    /// currently opens with no preview. Only then may `initial_width`/`max_height` push their
-    /// hidden/no-preview defaults onto it; a picker reopened in a preview layout
-    /// keeps the larger telescope default, which those (smaller) no-preview
-    /// values must not shrink.
-    fn live_shape_is_hidden_default(&self) -> bool {
-        self.preview_layout().unwrap_or(preview::Layout::Hidden) == preview::Layout::Hidden
-    }
-
-    /// Whether the picker fills its full height (preview visible) or shrinks to
-    /// fit its content, treating the height as a maximum (no preview visible).
-    fn fill_height(&self) -> bool {
-        self.preview.as_ref().is_some_and(|preview| preview.layout != preview::Layout::Hidden)
     }
 
     pub const fn show_scrollbar(mut self, show_scrollbar: bool) -> Self {
@@ -646,25 +488,10 @@ impl<D: PickerDelegate> Picker<D> {
         self.presentation = Presentation::Popover;
     }
 
-    /// Controls whether the user can drag to resize the picker (and whether its
-    /// size is persisted). Only applies to modal pickers; no-op otherwise.
-    /// Defaults to `true` for pickers with a preview and `false` otherwise.
-    pub const fn resizable(mut self, resizable: bool) -> Self {
-        if let Presentation::Modal { resizable: r } = &mut self.presentation {
-            *r = resizable;
-        }
-        self
-    }
-
     /// Whether the picker draws its own elevated background and dismisses on
     /// blur (modals and popovers, but not embedded pickers).
     const fn draws_own_container(&self) -> bool {
-        matches!(self.presentation, Presentation::Modal { .. } | Presentation::Popover)
-    }
-
-    /// Whether the picker can be resized (only ever true for modals).
-    const fn is_resizable(&self) -> bool {
-        matches!(self.presentation, Presentation::Modal { resizable: true })
+        matches!(self.presentation, Presentation::Modal | Presentation::Popover)
     }
 
     pub fn list_measure_all(mut self) -> Self {
@@ -695,11 +522,6 @@ impl<D: PickerDelegate> Picker<D> {
         if previous_index != current_index {
             if let Some(action) = self.delegate.selected_index_changed(ix, window, cx) {
                 action(window, cx);
-            }
-            if let Some(preview) = &mut self.preview
-                && let Some(update) = self.delegate.try_get_preview_data_for_match(cx)
-            {
-                preview.update(update, window, cx);
             }
         }
     }
@@ -764,11 +586,6 @@ impl<D: PickerDelegate> Picker<D> {
         if previous_index != current_index {
             if let Some(action) = self.delegate.selected_index_changed(ix, window, cx) {
                 action(window, cx);
-            }
-            if let Some(preview) = &mut self.preview
-                && let Some(update) = self.delegate.try_get_preview_data_for_match(cx)
-            {
-                preview.update(update, window, cx);
             }
             if scroll_to_index {
                 self.scroll_to_item_index(ix);
@@ -921,22 +738,6 @@ impl<D: PickerDelegate> Picker<D> {
         }
     }
 
-    fn set_preview_right(&mut self, _: &SetPreviewRight, window: &mut Window, cx: &mut Context<Self>) {
-        self.set_preview_layout(preview::Layout::Right, window, cx);
-    }
-
-    fn set_preview_below(&mut self, _: &SetPreviewBelow, window: &mut Window, cx: &mut Context<Self>) {
-        self.set_preview_layout(preview::Layout::Below, window, cx);
-    }
-
-    fn set_preview_hidden(&mut self, _: &SetPreviewHidden, window: &mut Window, cx: &mut Context<Self>) {
-        self.set_preview_layout(preview::Layout::Hidden, window, cx);
-    }
-
-    fn toggle_actions_menu(&mut self, _: &ToggleActionsMenu, window: &mut Window, cx: &mut Context<Self>) {
-        self.actions_menu_handle.toggle(window, cx);
-    }
-
     fn handle_click(&mut self, ix: usize, secondary: bool, window: &mut Window, cx: &mut Context<Self>) {
         cx.stop_propagation();
         window.prevent_default();
@@ -977,9 +778,7 @@ impl<D: PickerDelegate> Picker<D> {
             ErasedEditorEvent::Blurred => {
                 // Opening a footer/search-bar menu blurs the editor; don't
                 // dismiss the picker while such a menu is open/focused.
-                let menu_focused = self.actions_menu_handle.is_focused(window, cx)
-                    || self.actions_menu_handle.is_deployed()
-                    || self.delegate.has_another_open_menu(window, cx);
+                let menu_focused = self.delegate.has_another_open_menu(window, cx);
                 if self.draws_own_container() && window.is_window_active() && !menu_focused {
                     self.cancel(&menu::Cancel, window, cx);
                 }
@@ -1026,7 +825,7 @@ impl<D: PickerDelegate> Picker<D> {
     ) {
         let delegate_pending_update_matches = self.delegate.update_matches(query, window, cx);
 
-        self.matches_updated(scroll_behavior, window, cx);
+        self.matches_updated(scroll_behavior, cx);
         // This struct ensures that we can synchronously drop the task returned by the
         // delegate's `update_matches` method and the task that the picker is spawning.
         // If we simply capture the delegate's task into the picker's task, when the picker's
@@ -1041,7 +840,7 @@ impl<D: PickerDelegate> Picker<D> {
                 })?;
                 delegate_pending_update_matches.await;
                 this.update_in(cx, |this, window, cx| {
-                    this.matches_updated(scroll_behavior, window, cx);
+                    this.matches_updated(scroll_behavior, cx);
                     if let Some(secondary) = this.confirm_on_update.take() {
                         this.do_confirm(secondary, window, cx);
                     }
@@ -1050,13 +849,8 @@ impl<D: PickerDelegate> Picker<D> {
         });
     }
 
-    fn matches_updated(&mut self, scroll_behavior: ScrollBehavior, window: &mut Window, cx: &mut Context<Self>) {
+    fn matches_updated(&mut self, scroll_behavior: ScrollBehavior, cx: &mut Context<Self>) {
         let match_count = self.delegate.match_count();
-        if match_count == 0
-            && let Some(preview) = &mut self.preview
-        {
-            preview.clear(cx)
-        }
 
         match &mut self.element_container {
             ElementContainer::List(state) => match scroll_behavior {
@@ -1080,11 +874,6 @@ impl<D: PickerDelegate> Picker<D> {
             },
         }
         self.pending_update_matches = None;
-        if let Some(update) = self.delegate.try_get_preview_data_for_match(cx)
-            && let Some(preview) = &mut self.preview
-        {
-            preview.update(update, window, cx);
-        }
         cx.notify();
     }
 
@@ -1241,10 +1030,9 @@ impl<D: PickerDelegate> Picker<D> {
     }
 
     fn render_element_container(&self, cx: &Context<Self>) -> impl IntoElement {
-        // When the picker shrinks to fit its content, the list infers its size
-        // from its items. When it fills its full height (preview visible), the
-        // list fills the available space.
-        let sizing_behavior = if self.fill_height() { ListSizingBehavior::Auto } else { ListSizingBehavior::Infer };
+        // The picker shrinks to fit its content, so the list infers its size
+        // from its items.
+        let sizing_behavior = ListSizingBehavior::Infer;
 
         match &self.element_container {
             ElementContainer::UniformList(scroll_handle) => uniform_list(
@@ -1269,64 +1057,8 @@ impl<D: PickerDelegate> Picker<D> {
             .into_any_element(),
         }
     }
-
-    fn preview_layout(&self) -> Option<preview::Layout> {
-        self.preview.as_ref().map(|p| p.layout)
-    }
-    fn is_auto_vertical(&self, window: &Window) -> bool {
-        self.preview_layout() == Some(preview::Layout::Right)
-            && self.size_bounds.would_clamp_width_if_horizontal(&self.shape, window)
-    }
-    /// To check whether we're rendering vertically instead of
-    /// horizontally due to the auto override
-    fn preview_layout_rendered(&self, window: &Window) -> Option<preview::Layout> {
-        let would_clamp = matches!(self.preview, Some(Preview { layout: preview::Layout::Right, .. }))
-            && self.is_auto_vertical(window);
-        if would_clamp { Some(preview::Layout::Below) } else { self.preview_layout() }
-    }
-
-    fn toggle_preview(&mut self, _: &TogglePreview, window: &mut Window, cx: &mut Context<Self>) {
-        self.toggle_preview_visible(window, cx);
-    }
-
-    fn toggle_preview_visible(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let next = match self.preview_layout() {
-            Some(preview::Layout::Hidden) | None => preview::Layout::Right,
-            Some(_) => preview::Layout::Hidden,
-        };
-        self.set_preview_layout(next, window, cx);
-    }
-
-    fn set_preview_layout(&mut self, layout: preview::Layout, _window: &mut Window, cx: &mut Context<Self>) {
-        let Some(preview) = &mut self.preview else {
-            return;
-        };
-        preview.layout = layout;
-        // Each layout opens at its default size (simple when hidden, larger when a
-        // preview is shown).
-        self.shape = shape::Shape::HorizontallyCentered(default_shape_for_layout(self.default_shape, layout));
-        self.delegate.preview_layout_changed(matches!(layout, preview::Layout::Right));
-        cx.notify();
-    }
 }
 
 impl<D: PickerDelegate> EventEmitter<DismissEvent> for Picker<D> {}
 impl<D: PickerDelegate> ModalView for Picker<D> {}
 impl<D: PickerDelegate> ui::FluentBuilder for Picker<D> {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn default_shape_for_layout_uses_simple_only_when_hidden() {
-        let hidden = shape::Centered::simple();
-        let shown = shape::Centered::default();
-        for (layout, expected) in
-            [(preview::Layout::Hidden, hidden), (preview::Layout::Right, shown), (preview::Layout::Below, shown)]
-        {
-            let actual = default_shape_for_layout(hidden, layout);
-            assert_eq!(format!("{actual:?}"), format!("{expected:?}"), "{layout:?}");
-        }
-    }
-}
