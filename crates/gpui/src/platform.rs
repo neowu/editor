@@ -570,15 +570,12 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
 
 /// Type alias for runnables with metadata.
 /// Previously an enum with a single variant, now simplified to a direct type alias.
-#[doc(hidden)]
 pub type RunnableVariant = Runnable<RunnableMeta>;
 
-#[doc(hidden)]
+/// Restores the platform's timer resolution when dropped.
 pub type TimerResolutionGuard = gpui_util::Deferred<Box<dyn FnOnce() + Send>>;
 
-/// This type is public so that our test macro can generate and use it, but it should not
-/// be considered part of our public API.
-#[doc(hidden)]
+/// Dispatches executor tasks through the platform's threads and timers.
 pub trait PlatformDispatcher: Send + Sync {
     fn is_main_thread(&self) -> bool;
     fn dispatch(&self, runnable: RunnableVariant, priority: Priority);
@@ -842,14 +839,14 @@ pub trait PlatformAtlas {
     fn remove(&self, key: &AtlasKey);
 }
 
-#[doc(hidden)]
+/// Allocates and releases sprite atlas tiles for a platform.
 pub trait AtlasBackend {
     fn insert(&mut self, kind: AtlasTextureKind, size: Size<DevicePixels>, bytes: &[u8]) -> Result<AtlasTile>;
 
     fn remove(&mut self, tile: AtlasTile);
 }
 
-#[doc(hidden)]
+/// Caches sprite atlas tiles by key using a platform backend.
 pub struct AtlasState<Backend> {
     tiles_by_key: FxHashMap<AtlasKey, AtlasTile>,
     pub backend: Backend,
@@ -945,7 +942,7 @@ impl PlatformAtlas for HeadlessAtlas {
     }
 }
 
-#[doc(hidden)]
+/// Texture slots and reusable indices for a sprite atlas.
 pub struct AtlasTextureList<T> {
     pub textures: Vec<Option<T>>,
     pub free_list: Vec<usize>,

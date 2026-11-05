@@ -242,7 +242,6 @@ impl<T: Render> Entity<T> {
 
 /// The element type for [`View`] implementations. Wraps a `View` and hooks it
 /// into layout, prepaint, and paint. Constructed via [`ViewElement::new`].
-#[doc(hidden)]
 pub struct ViewElement<V: View> {
     view: Option<V>,
     entity_id: Option<EntityId>,

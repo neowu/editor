@@ -93,7 +93,6 @@ impl AccessedEntities {
     }
 }
 
-#[doc(hidden)]
 pub(crate) struct EntityRefCounts {
     counts: SlotMap<EntityId, AtomicUsize>,
     dropped_entity_ids: Vec<EntityId>,

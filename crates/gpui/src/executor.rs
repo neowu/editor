@@ -181,7 +181,7 @@ impl BackgroundExecutor {
         self.dispatcher.is_main_thread()
     }
 
-    #[doc(hidden)]
+    /// Returns the platform dispatcher backing this executor.
     pub fn dispatcher(&self) -> &Arc<dyn PlatformDispatcher> {
         &self.dispatcher
     }
@@ -259,12 +259,12 @@ impl ForegroundExecutor {
         self.inner.block_with_timeout(duration, future)
     }
 
-    #[doc(hidden)]
+    /// Returns the platform dispatcher backing this executor.
     pub fn dispatcher(&self) -> &Arc<dyn PlatformDispatcher> {
         &self.dispatcher
     }
 
-    #[doc(hidden)]
+    /// Returns the underlying scheduler's local executor.
     pub fn scheduler_executor(&self) -> SchedulerLocalExecutor {
         self.inner.clone()
     }

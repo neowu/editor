@@ -657,7 +657,6 @@ pub(crate) const MIN_LINE_NUMBER_DIGITS: usize = 4;
 const MIN_NAVIGATION_HISTORY_ROW_DELTA: i64 = 10;
 const MAX_SELECTION_HISTORY_LEN: usize = 1024;
 
-#[doc(hidden)]
 pub const CODE_ACTIONS_DEBOUNCE_TIMEOUT: Duration = Duration::from_millis(250);
 pub const SELECTION_HIGHLIGHT_DEBOUNCE_TIMEOUT: Duration = Duration::from_millis(100);
 
@@ -1652,7 +1651,6 @@ pub struct RenameTarget {
     language_server_id: Option<LanguageServerId>,
 }
 
-#[doc(hidden)]
 pub struct RenameState {
     pub range: Range<Anchor>,
     pub old_name: Arc<str>,
