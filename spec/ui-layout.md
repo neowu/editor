@@ -199,10 +199,11 @@ because it hurt readability; an opaque window is also cheaper to composite.
   History mode hides it, and switching back to
   Editor mode focuses it again, so it is still open and zoomed rather than
   closed.
-- Docks belong to Editor mode, so dock shortcuts from another mode never act on
-  hidden docks: toggling a dock (`cmd-b`, `cmd-r`, `cmd-j`), toggling all docks,
-  and focusing or opening a panel (`ctrl-``, `cmd-shift-e`, …) switch to Editor
-  mode and show the dock open, rather than closing it unseen.
+- Actions act only in the mode they belong to; in other modes they are ignored
+  rather than switching modes, so switching is always explicit (`cmd-1`,
+  `cmd-2`). Docks belong to Editor mode: toggling, opening, closing, focusing
+  or resizing docks and panels (`cmd-b`, `cmd-r`, `cmd-j`, `` ctrl-` ``,
+  `cmd-shift-e`, …) does nothing in Git History.
 - Zoom (`workspace::ToggleZoom`, `` cmd-` ``, also `shift-escape`) expands the
   focused pane. In the terminal dock that is the focused terminal pane alone,
   not every split, as zooming an editor pane hides the other panes.
