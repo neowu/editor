@@ -46,10 +46,7 @@ use gpui::Div;
 use gpui::DragMoveEvent;
 use gpui::Entity;
 use gpui::EventEmitter;
-use gpui::ExternalDragPayload;
 use gpui::ExternalPaths;
-use gpui::FileDragPaths;
-use gpui::FileDropEvent;
 use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::Hsla;
@@ -145,7 +142,6 @@ use util::rel_path::RelPath;
 use util::rel_path::RelPathBuf;
 use workspace::DraggedSelection;
 use workspace::OpenInTerminal;
-use workspace::OpenMode;
 use workspace::OpenOptions;
 use workspace::OpenVisible;
 use workspace::SelectedEntry;
@@ -4281,39 +4277,6 @@ impl ProjectPanel {
         true && modifiers.alt || false && modifiers.control
     }
 
-    fn file_drag_paths_for_selections(
-        project: &Entity<Project>,
-        selections: impl IntoIterator<Item = SelectedEntry>,
-        cx: &App,
-    ) -> Option<FileDragPaths> {
-        let project = project.read(cx);
-        let paths = selections
-            .into_iter()
-            .filter_map(|selection| {
-                let worktree = project.worktree_for_id(selection.worktree_id, cx)?.read(cx);
-                if !worktree.is_local() {
-                    return None;
-                }
-                let entry = worktree.entry_for_id(selection.entry_id)?;
-                Some((worktree.absolutize(&entry.path), entry.is_dir()))
-            })
-            .collect::<SmallVec<[_; 2]>>();
-
-        (!paths.is_empty()).then(|| FileDragPaths::new(paths))
-    }
-
-    fn external_paths_for_dragged_selection(&self, selections: &DraggedSelection, cx: &App) -> Option<FileDragPaths> {
-        let resolved_selections = selections
-            .items()
-            .map(|selection| SelectedEntry {
-                worktree_id: selection.worktree_id,
-                entry_id: self.resolve_entry(selection.entry_id),
-            })
-            .collect::<BTreeSet<SelectedEntry>>();
-        let entries = self.disjoint_entries(resolved_selections, cx);
-        Self::file_drag_paths_for_selections(&self.project, entries, cx)
-    }
-
     fn drag_onto(
         &mut self,
         selections: &DraggedSelection,
@@ -4948,23 +4911,6 @@ impl ProjectPanel {
         (depth, difference)
     }
 
-    fn highlight_entry_for_external_drag(
-        &self,
-        target_entry: &Entry,
-        target_worktree: &Worktree,
-    ) -> Option<ProjectEntryId> {
-        // Always highlight directory or parent directory if it's file
-        if target_entry.is_dir() {
-            Some(target_entry.id)
-        } else {
-            target_entry
-                .path
-                .parent()
-                .and_then(|parent_path| target_worktree.entry_for_path(parent_path))
-                .map(|parent_entry| parent_entry.id)
-        }
-    }
-
     fn highlight_entry_for_selection_drag(
         &self,
         target_entry: &Entry,
@@ -5159,55 +5105,13 @@ impl ProjectPanel {
             .when(!is_sticky, |this| {
                 this.when(show_drag_highlight, |this| this.border_color(transparent_white()).bg(transparent_white()))
                     .map(|this| {
-                        let path_for_external_paths = path.clone();
                         let path_for_dragged_selection = path.clone();
                         let dragged_selection = DraggedSelection {
                             active_selection: selection,
                             marked_selections: marked_selections.clone(),
                         };
 
-                        this.on_drag_move::<ExternalPaths>(cx.listener(
-                            move |this, event: &DragMoveEvent<ExternalPaths>, _, cx| {
-                                let is_current_target = this.drag_target_entry.as_ref().and_then(|entry| match entry {
-                                    DragTarget::Entry { entry_id: target_id, .. } => Some(*target_id),
-                                    DragTarget::Background => None,
-                                }) == Some(entry_id);
-
-                                if !event.bounds.contains(&event.event.position) {
-                                    // Entry responsible for setting drag target is also responsible to
-                                    // clear it up after drag is out of bounds
-                                    if is_current_target {
-                                        this.drag_target_entry = None;
-                                    }
-                                    return;
-                                }
-
-                                if is_current_target {
-                                    return;
-                                }
-
-                                this.marked_entries.clear();
-
-                                let Some((entry_id, highlight_entry_id)) = (|| {
-                                    let target_worktree =
-                                        this.project.read(cx).worktree_for_id(selection.worktree_id, cx)?.read(cx);
-                                    let target_entry = target_worktree.entry_for_path(&path_for_external_paths)?;
-                                    let highlight_entry_id =
-                                        this.highlight_entry_for_external_drag(target_entry, target_worktree)?;
-                                    Some((target_entry.id, highlight_entry_id))
-                                })() else {
-                                    return;
-                                };
-
-                                this.drag_target_entry = Some(DragTarget::Entry { entry_id, highlight_entry_id });
-                            },
-                        ))
-                        .on_drop(cx.listener(move |this, external_paths: &ExternalPaths, window, cx| {
-                            this.clear_drag_state(cx);
-                            this.drop_external_files(external_paths.paths(), entry_id, window, cx);
-                            cx.stop_propagation();
-                        }))
-                        .on_drag_move::<DraggedSelection>(cx.listener(
+                        this.on_drag_move::<DraggedSelection>(cx.listener(
                             move |this, event: &DragMoveEvent<DraggedSelection>, window, cx| {
                                 let is_current_target = this.drag_target_entry.as_ref().and_then(|entry| match entry {
                                     DragTarget::Entry { entry_id: target_id, .. } => Some(*target_id),
@@ -5305,15 +5209,6 @@ impl ProjectPanel {
                                     selection: selection.active_selection,
                                     selections: selection.marked_selections.clone(),
                                 })
-                            }
-                        })
-                        .external_drag_payload({
-                            let project_panel = cx.entity();
-                            move |selection: &DraggedSelection, _window, cx| {
-                                project_panel
-                                    .read(cx)
-                                    .external_paths_for_dragged_selection(selection, cx)
-                                    .map(ExternalDragPayload::Files)
                             }
                         })
                         .on_drop(cx.listener(
@@ -5670,18 +5565,6 @@ impl ProjectPanel {
                                     this.drag_onto(selections, target_entry_id, is_file, window, cx);
                                 }
                             }))
-                            .on_drag_move(cx.listener(move |this, event: &DragMoveEvent<ExternalPaths>, _, _| {
-                                this.update_folded_directory_drag_target(
-                                    event.bounds.contains(&event.event.position),
-                                    drag_target,
-                                );
-                            }))
-                            .on_drop(cx.listener(move |this, external_paths: &ExternalPaths, window, cx| {
-                                this.clear_drag_state(cx);
-                                if let Some(target_entry_id) = target_entry_id {
-                                    this.drop_external_files(external_paths.paths(), target_entry_id, window, cx);
-                                }
-                            }))
                             .when(
                                 folded_directory_drag_target
                                     .is_some_and(|target| target.entry_id == entry_id && target.index == index),
@@ -5762,20 +5645,8 @@ impl ProjectPanel {
                             this.drag_onto(selections, target_entry_id, is_file, window, cx);
                         }
                     }))
-                    .on_drag_move(cx.listener(move |this, event: &DragMoveEvent<DraggedSelection>, _, _| {
-                        this.update_folded_directory_drag_target(
-                            event.bounds.contains(&event.event.position),
-                            drag_target,
-                        );
-                    }))
-                    .on_drop(cx.listener(move |this, external_paths: &ExternalPaths, window, cx| {
-                        this.clear_drag_state(cx);
-                        if let Some(target_entry_id) = target_entry_id {
-                            this.drop_external_files(external_paths.paths(), target_entry_id, window, cx);
-                        }
-                    }))
                     .on_drag_move(cx.listener(
-                        move |this, event: &DragMoveEvent<ExternalPaths>, _, _| {
+                        move |this, event: &DragMoveEvent<DraggedSelection>, _, _| {
                             this.update_folded_directory_drag_target(
                                 event.bounds.contains(&event.event.position),
                                 drag_target,
@@ -6136,8 +6007,6 @@ impl Render for ProjectPanel {
         let project = self.project.read(cx);
         let show_sticky_entries = self.scroll_handle.is_scrollable() && self.scroll_handle.offset().y < px(0.);
 
-        let is_local = project.is_local();
-
         if has_worktree {
             let item_count = self.state.visible_entries.iter().map(|worktree| worktree.entries.len()).sum();
 
@@ -6210,15 +6079,12 @@ impl Render for ProjectPanel {
                 .id("project-panel")
                 .group("project-panel")
                 .map(|this| {
-                    this.on_drag_move(cx.listener(handle_drag_move::<ExternalPaths>))
-                        .on_drag_move(cx.listener(handle_drag_move::<DraggedSelection>))
-                        .on_mouse_exit(cx.listener(|this, _: &MouseExitEvent, window, cx| {
+                    this.on_drag_move(cx.listener(handle_drag_move::<DraggedSelection>)).on_mouse_exit(cx.listener(
+                        |this, _: &MouseExitEvent, window, cx| {
                             cx.stop_active_drag(window);
                             this.clear_drag_state(cx);
-                        }))
-                        .on_file_drop_exit(cx.listener(|this, _: &FileDropEvent, _window, cx| {
-                            this.clear_drag_state(cx);
-                        }))
+                        },
+                    ))
                 })
                 .size_full()
                 .relative()
@@ -6485,22 +6351,6 @@ impl Render for ProjectPanel {
                                     }),
                                     |div| div.bg(cx.theme().colors().drop_target_background()),
                                 )
-                                .on_drag_move::<ExternalPaths>(cx.listener(
-                                    move |this, event: &DragMoveEvent<ExternalPaths>, _, _| {
-                                        let Some(_last_root_id) = this.state.last_worktree_root_id else {
-                                            return;
-                                        };
-                                        if event.bounds.contains(&event.event.position) {
-                                            this.drag_target_entry = Some(DragTarget::Background);
-                                        } else if this
-                                            .drag_target_entry
-                                            .as_ref()
-                                            .is_some_and(|e| matches!(e, DragTarget::Background))
-                                        {
-                                            this.drag_target_entry = None;
-                                        }
-                                    },
-                                ))
                                 .on_drag_move::<DraggedSelection>(cx.listener(
                                     move |this, event: &DragMoveEvent<DraggedSelection>, _, cx| {
                                         let Some(last_root_id) = this.state.last_worktree_root_id else {
@@ -6524,13 +6374,6 @@ impl Render for ProjectPanel {
                                         }
                                     },
                                 ))
-                                .on_drop(cx.listener(move |this, external_paths: &ExternalPaths, window, cx| {
-                                    this.clear_drag_state(cx);
-                                    if let Some(entry_id) = this.state.last_worktree_root_id {
-                                        this.drop_external_files(external_paths.paths(), entry_id, window, cx);
-                                    }
-                                    cx.stop_propagation();
-                                }))
                                 .on_drop(cx.listener(move |this, selections: &DraggedSelection, window, cx| {
                                     this.clear_drag_state(cx);
                                     if let Some(entry_id) = this.state.last_worktree_root_id {
@@ -6607,62 +6450,27 @@ impl Render for ProjectPanel {
             let workspace = self.workspace.clone();
             let workspace_clone = self.workspace.clone();
 
-            v_flex()
-                .id("empty-project_panel-wrapper")
-                .size_full()
-                .child(
-                    ProjectEmptyState::new(
-                        "Project Panel",
-                        focus_handle.clone(),
-                        KeyBinding::for_action_in(&workspace::Open::default(), &focus_handle, cx),
-                    )
-                    .on_open_project(move |_, window, cx| {
-                        workspace
-                            .update(cx, |_, cx| {
-                                window.dispatch_action(workspace::Open::default().boxed_clone(), cx);
-                            })
-                            .log_err();
-                    })
-                    .on_clone_repo(move |_, window, cx| {
-                        workspace_clone
-                            .update(cx, |_, cx| {
-                                window.dispatch_action(git::Clone.boxed_clone(), cx);
-                            })
-                            .log_err();
-                    }),
+            v_flex().id("empty-project_panel-wrapper").size_full().child(
+                ProjectEmptyState::new(
+                    "Project Panel",
+                    focus_handle.clone(),
+                    KeyBinding::for_action_in(&workspace::Open::default(), &focus_handle, cx),
                 )
-                .when(is_local, |div| {
-                    div.map(|div| {
-                        div.drag_over::<ExternalPaths>(|style, _, _, cx| {
-                            let colors = cx.theme().colors();
-                            style
-                                .rounded(workspace::CARD_RADIUS)
-                                .border_1()
-                                .border_color(colors.drop_target_border())
-                                .bg(colors.drop_target_background())
+                .on_open_project(move |_, window, cx| {
+                    workspace
+                        .update(cx, |_, cx| {
+                            window.dispatch_action(workspace::Open::default().boxed_clone(), cx);
                         })
-                        .on_drop(cx.listener(
-                            move |this, external_paths: &ExternalPaths, window, cx| {
-                                this.clear_drag_state(cx);
-                                if let Some(task) = this
-                                    .workspace
-                                    .update(cx, |workspace, cx| {
-                                        workspace.open_workspace_for_paths(
-                                            OpenMode::Activate,
-                                            external_paths.paths().to_owned(),
-                                            window,
-                                            cx,
-                                        )
-                                    })
-                                    .log_err()
-                                {
-                                    task.detach_and_log_err(cx);
-                                }
-                                cx.stop_propagation();
-                            },
-                        ))
-                    })
+                        .log_err();
                 })
+                .on_clone_repo(move |_, window, cx| {
+                    workspace_clone
+                        .update(cx, |_, cx| {
+                            window.dispatch_action(git::Clone.boxed_clone(), cx);
+                        })
+                        .log_err();
+                }),
+            )
         }
     }
 }

@@ -46,9 +46,6 @@ use crate::Element;
 use crate::ElementId;
 use crate::Entity;
 use crate::EntityId;
-use crate::ExternalDragPayload;
-use crate::ExternalDragPayloadSource;
-use crate::FileDropEvent;
 use crate::FocusHandle;
 use crate::Global;
 use crate::GlobalElementId;
@@ -321,24 +318,6 @@ impl Interactivity {
         }));
     }
 
-    /// Bind the given callback to [`FileDropEvent::Exited`] when a platform file drag
-    /// leaves this element's window while the element is hovered.
-    ///
-    /// This is a window-local exit event, not notification that the platform drag session ended.
-    /// The imperative API equivalent to [`InteractiveElement::on_file_drop_exit`].
-    ///
-    /// See [`Context::listener`](crate::Context::listener) to get access to a view's state from this callback.
-    pub fn on_file_drop_exit(&mut self, listener: impl Fn(&FileDropEvent, &mut Window, &mut App) + 'static) {
-        self.file_drop_exit_listeners.push(Box::new(move |event, phase, hitbox, window, cx| {
-            if phase == DispatchPhase::Bubble
-                && matches!(event, FileDropEvent::Exited)
-                && hitbox.id.is_hovered_ignoring_last_input(window)
-            {
-                (listener)(event, window, cx);
-            }
-        }));
-    }
-
     /// Bind the given callback to the mouse drag event of the given type. Note that this
     /// will be called for all move events, inside or outside of this element, as long as the
     /// drag was started with this element under the mouse. Useful for implementing draggable
@@ -585,35 +564,7 @@ impl Interactivity {
             render: Box::new(move |value, offset, window, cx| {
                 constructor(value.downcast_ref().unwrap(), offset, window, cx).into()
             }),
-            external_payload: None,
         });
-    }
-
-    /// Registers a callback resolving a payload to offer the platform if a drag started by this
-    /// element leaves the window. It is invoked at most once per drag gesture, when the pointer
-    /// exits the viewport. Must be called after [`Self::on_drag`], with the same dragged value
-    /// type `T`.
-    pub fn external_drag_payload<T>(
-        &mut self,
-        resolver: impl Fn(&T, &mut Window, &mut App) -> Option<ExternalDragPayload> + 'static,
-    ) where
-        Self: Sized,
-        T: 'static,
-    {
-        let Some(drag_listener) = self.drag_listener.as_mut() else {
-            debug_assert!(false, "external_drag_payload must be called after on_drag");
-            return;
-        };
-        debug_assert!(
-            drag_listener.value.as_ref().type_id() == TypeId::of::<T>(),
-            "external_drag_payload must use the same dragged value type as on_drag"
-        );
-        debug_assert!(
-            drag_listener.external_payload.is_none(),
-            "calling external_drag_payload more than once on the same element is not supported"
-        );
-        drag_listener.external_payload =
-            Some(Box::new(move |value, window, cx| resolver(value.downcast_ref::<T>()?, window, cx)));
     }
 
     /// Bind the given callback on the hover start and end events of this element. Note that the boolean
@@ -915,18 +866,6 @@ pub trait InteractiveElement: Sized {
     /// See [`Context::listener`](crate::Context::listener) to get access to a view's state from this callback.
     fn on_mouse_exit(mut self, listener: impl Fn(&MouseExitEvent, &mut Window, &mut App) + 'static) -> Self {
         self.interactivity().on_mouse_exit(listener);
-        self
-    }
-
-    /// Bind the given callback to [`FileDropEvent::Exited`] when a platform file drag
-    /// leaves this element's window while the element is hovered.
-    ///
-    /// This is a window-local exit event, not notification that the platform drag session ended.
-    /// The fluent API equivalent to [`Interactivity::on_file_drop_exit`].
-    ///
-    /// See [`Context::listener`](crate::Context::listener) to get access to a view's state from this callback.
-    fn on_file_drop_exit(mut self, listener: impl Fn(&FileDropEvent, &mut Window, &mut App) + 'static) -> Self {
-        self.interactivity().on_file_drop_exit(listener);
         self
     }
 
@@ -1272,23 +1211,6 @@ pub trait StatefulInteractiveElement: InteractiveElement {
         self
     }
 
-    /// Registers a callback resolving a payload to offer the platform if a drag started by this
-    /// element leaves the window. It is invoked at most once per drag gesture, when the pointer
-    /// exits the viewport. Must be called after [`Self::on_drag`], with the same dragged value
-    /// type `T`.
-    /// The fluent API equivalent to [`Interactivity::external_drag_payload`].
-    fn external_drag_payload<T>(
-        mut self,
-        resolver: impl Fn(&T, &mut Window, &mut App) -> Option<ExternalDragPayload> + 'static,
-    ) -> Self
-    where
-        Self: Sized,
-        T: 'static,
-    {
-        self.interactivity().external_drag_payload(resolver);
-        self
-    }
-
     /// Bind the given callback on the hover start and end events of this element. Note that the boolean
     /// passed to the callback is true when the hover starts and false when it ends.
     /// Transitions caused by layout changes under a stationary mouse also invoke the callback.
@@ -1361,9 +1283,6 @@ pub(crate) type MouseMoveListener =
 pub(crate) type MouseExitListener =
     Box<dyn Fn(&MouseExitEvent, DispatchPhase, &Hitbox, &mut Window, &mut App) + 'static>;
 
-pub(crate) type FileDropExitListener =
-    Box<dyn Fn(&FileDropEvent, DispatchPhase, &Hitbox, &mut Window, &mut App) + 'static>;
-
 pub(crate) type ScrollWheelListener =
     Box<dyn Fn(&ScrollWheelEvent, DispatchPhase, &Hitbox, &mut Window, &mut App) + 'static>;
 
@@ -1397,11 +1316,7 @@ impl HoverListenerMode {
 pub(crate) struct DragListener {
     value: Arc<dyn Any>,
     render: Box<dyn Fn(&dyn Any, Point<Pixels>, &mut Window, &mut App) -> AnyView + 'static>,
-    external_payload: Option<ExternalDragPayloadResolver>,
 }
-
-type ExternalDragPayloadResolver =
-    Box<dyn Fn(&dyn Any, &mut Window, &mut App) -> Option<ExternalDragPayload> + 'static>;
 
 type DropListener = Box<dyn Fn(&dyn Any, &mut Window, &mut App) + 'static>;
 
@@ -1695,7 +1610,6 @@ pub struct Interactivity {
     pub(crate) mouse_pressure_listeners: Vec<MousePressureListener>,
     pub(crate) mouse_move_listeners: Vec<MouseMoveListener>,
     pub(crate) mouse_exit_listeners: Vec<MouseExitListener>,
-    pub(crate) file_drop_exit_listeners: Vec<FileDropExitListener>,
     pub(crate) scroll_wheel_listeners: Vec<ScrollWheelListener>,
     pub(crate) pinch_listeners: Vec<PinchListener>,
     pub(crate) key_down_listeners: Vec<KeyDownListener>,
@@ -1857,7 +1771,6 @@ impl Interactivity {
             || !self.mouse_down_listeners.is_empty()
             || !self.mouse_move_listeners.is_empty()
             || !self.mouse_exit_listeners.is_empty()
-            || !self.file_drop_exit_listeners.is_empty()
             || !self.click_listeners.is_empty()
             || !self.aux_click_listeners.is_empty()
             || !self.scroll_wheel_listeners.is_empty()
@@ -2191,13 +2104,6 @@ impl Interactivity {
             })
         }
 
-        for listener in self.file_drop_exit_listeners.drain(..) {
-            let hitbox = hitbox.clone();
-            window.on_mouse_event(move |event: &FileDropEvent, phase, window, cx| {
-                listener(event, phase, &hitbox, window, cx);
-            })
-        }
-
         for listener in self.scroll_wheel_listeners.drain(..) {
             let hitbox = hitbox.clone();
             window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, cx| {
@@ -2335,18 +2241,11 @@ impl Interactivity {
                             *clicked_state.borrow_mut() = ElementClickedState::default();
                             let cursor_offset = event.position - hitbox.origin;
                             let drag = (listener.render)(listener.value.as_ref(), cursor_offset, window, cx);
-                            let external_payload_source = listener.external_payload.map(|external_payload| {
-                                let value = listener.value.clone();
-                                Box::new(move |window: &mut Window, cx: &mut App| {
-                                    external_payload(value.as_ref(), window, cx)
-                                }) as ExternalDragPayloadSource
-                            });
                             cx.active_drag = Some(AnyDrag {
                                 view: drag,
                                 value: listener.value,
                                 cursor_offset,
                                 cursor_style: drag_cursor_style,
-                                external_payload_source,
                             });
                             pending_mouse_down.take();
                             window.refresh();

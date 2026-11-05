@@ -97,6 +97,9 @@ or UNC prefixes. There is no path-style abstraction; code uses
   main-thread event loop, no-op text system, no windows) used on both macOS and Linux.
 - GPUI core has no direct `libc` dependency; native OS integration belongs in
   platform-specific crates.
+- No external drag and drop: GPUI has no file-drop events and windows are not
+  drag sources or destinations for other apps. Drags stay inside the app; files
+  cross to and from other apps only through the clipboard (`ExternalPaths`).
 - No touch or mobile support in GPUI: no raw touch events, tap/long-press/touch-drag
   recognition, touch click events, or touch hover suppression. Input modality is
   mouse or keyboard only. Trackpad input stays: scroll phases (`TouchPhase`),

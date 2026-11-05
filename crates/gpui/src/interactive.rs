@@ -7,15 +7,10 @@ use smallvec::SmallVec;
 
 use crate::Bounds;
 use crate::Capslock;
-use crate::Context;
-use crate::Empty;
-use crate::IntoElement;
 use crate::Keystroke;
 use crate::Modifiers;
 use crate::Pixels;
 use crate::Point;
-use crate::Render;
-use crate::Window;
 use crate::point;
 use crate::seal::Sealed;
 
@@ -594,7 +589,7 @@ impl Deref for MouseExitEvent {
     }
 }
 
-/// A collection of paths from the platform, such as from a file drop.
+/// A collection of file paths exchanged with the platform clipboard.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ExternalPaths(pub SmallVec<[PathBuf; 2]>);
 
@@ -604,72 +599,6 @@ impl ExternalPaths {
         &self.0
     }
 }
-
-/// Data offered to the platform when an internal drag leaves the window and is
-/// promoted to a native drag session.
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum ExternalDragPayload {
-    /// Real on-disk paths, handed to the platform as an outbound file drag.
-    Files(FileDragPaths),
-}
-
-/// Paths handed to the platform for a native file drag. Directory metadata is
-/// provided by the caller to avoid querying it when the platform drag starts.
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
-pub struct FileDragPaths(SmallVec<[(PathBuf, bool); 2]>);
-
-impl FileDragPaths {
-    /// Creates a native file-drag payload from paths paired with whether each path is a directory.
-    pub fn new(entries: impl IntoIterator<Item = (PathBuf, bool)>) -> Self {
-        Self(entries.into_iter().collect())
-    }
-
-    /// The dragged paths, each paired with whether it is a directory.
-    pub fn entries(&self) -> &[(PathBuf, bool)] {
-        &self.0
-    }
-}
-
-impl Render for ExternalPaths {
-    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-        // the platform will render icons for the dragged files
-        Empty
-    }
-}
-
-/// A file drop event from the platform, generated when files are dragged and dropped onto the window.
-#[derive(Debug, Clone)]
-pub enum FileDropEvent {
-    /// The files have entered the window.
-    Entered {
-        /// The position of the mouse relative to the window.
-        position: Point<Pixels>,
-        /// The paths of the files that are being dragged.
-        paths: ExternalPaths,
-    },
-    /// The files are being dragged over the window
-    Pending {
-        /// The position of the mouse relative to the window.
-        position: Point<Pixels>,
-    },
-    /// The files have been dropped onto the window.
-    Submit {
-        /// The position of the mouse relative to the window.
-        position: Point<Pixels>,
-    },
-    /// The user has stopped dragging the files over the window.
-    Exited,
-    /// The platform-owned drag session has ended.
-    Ended,
-}
-
-impl Sealed for FileDropEvent {}
-impl InputEvent for FileDropEvent {
-    fn to_platform_input(self) -> PlatformInput {
-        PlatformInput::FileDrop(self)
-    }
-}
-impl MouseEvent for FileDropEvent {}
 
 /// An enum corresponding to all kinds of platform input events.
 #[derive(Clone, Debug)]
@@ -694,8 +623,6 @@ pub enum PlatformInput {
     ScrollWheel(ScrollWheelEvent),
     /// A pinch gesture was performed.
     Pinch(PinchEvent),
-    /// Files were dragged and dropped onto the window.
-    FileDrop(FileDropEvent),
 }
 
 impl PlatformInput {
@@ -711,7 +638,6 @@ impl PlatformInput {
             PlatformInput::MouseExited(event) => Some(event),
             PlatformInput::ScrollWheel(event) => Some(event),
             PlatformInput::Pinch(event) => Some(event),
-            PlatformInput::FileDrop(event) => Some(event),
         }
     }
 
@@ -727,7 +653,6 @@ impl PlatformInput {
             PlatformInput::MouseExited(_) => None,
             PlatformInput::ScrollWheel(_) => None,
             PlatformInput::Pinch(_) => None,
-            PlatformInput::FileDrop(_) => None,
         }
     }
 }

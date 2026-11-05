@@ -45,7 +45,6 @@ use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::Action;
-use crate::AnyDrag;
 use crate::AnyElement;
 use crate::AnyImageCache;
 use crate::AnyTooltip;
@@ -76,7 +75,6 @@ use crate::Effect;
 use crate::Entity;
 use crate::EntityId;
 use crate::EventEmitter;
-use crate::FileDropEvent;
 use crate::FontId;
 use crate::Global;
 use crate::GlobalElementId;
@@ -97,7 +95,6 @@ use crate::LineLayoutIndex;
 use crate::Modifiers;
 use crate::ModifiersChangedEvent;
 use crate::MonochromeSprite;
-use crate::MouseButton;
 use crate::MouseEvent;
 use crate::MouseMoveEvent;
 use crate::MouseUpEvent;
@@ -4510,58 +4507,6 @@ impl Window {
                 self.modifiers = pinch.modifiers;
                 PlatformInput::Pinch(pinch)
             }
-            // Translate dragging and dropping of external files from the operating system
-            // to internal drag and drop events.
-            PlatformInput::FileDrop(file_drop) => match file_drop {
-                FileDropEvent::Entered { position, paths } => {
-                    self.mouse_position = position;
-                    let source_window = self.handle.window_id();
-                    if !cx.restore_platform_drag(source_window) && cx.active_drag.is_none() {
-                        cx.active_drag = Some(AnyDrag {
-                            value: Arc::new(paths.clone()),
-                            view: cx.new(|_| paths).into(),
-                            cursor_offset: position,
-                            cursor_style: None,
-                            external_payload_source: None,
-                        });
-                    }
-                    PlatformInput::MouseMove(MouseMoveEvent {
-                        position,
-                        pressed_button: Some(MouseButton::Left),
-                        modifiers: Modifiers::default(),
-                    })
-                }
-                FileDropEvent::Pending { position } => {
-                    self.mouse_position = position;
-                    PlatformInput::MouseMove(MouseMoveEvent {
-                        position,
-                        pressed_button: Some(MouseButton::Left),
-                        modifiers: Modifiers::default(),
-                    })
-                }
-                FileDropEvent::Submit { position } => {
-                    cx.activate(true);
-                    self.mouse_position = position;
-                    PlatformInput::MouseUp(MouseUpEvent {
-                        button: MouseButton::Left,
-                        position,
-                        modifiers: Modifiers::default(),
-                        click_count: 1,
-                    })
-                }
-                FileDropEvent::Exited => {
-                    if !cx.hand_restored_drag_to_platform(self.handle.window_id()) {
-                        cx.active_drag.take();
-                    }
-                    self.refresh();
-                    PlatformInput::FileDrop(FileDropEvent::Exited)
-                }
-                FileDropEvent::Ended => {
-                    cx.end_platform_drag(self.handle.window_id());
-                    self.refresh();
-                    PlatformInput::FileDrop(FileDropEvent::Ended)
-                }
-            },
             PlatformInput::KeyDown(_) | PlatformInput::KeyUp(_) => event,
         };
 
@@ -4570,9 +4515,6 @@ impl Window {
         } else if let Some(any_key_event) = event.keyboard_event() {
             self.dispatch_key_event(any_key_event, cx);
         }
-        // Must run after the move is dispatched: the platform owns the gesture afterwards, so this
-        // is the last chance for drag listeners to see the pointer leave and reset their state.
-        self.promote_external_drag_to_platform(&event, cx);
 
         let caused_invalidation = self.invalidator.update_count() > update_count_before;
         if caused_invalidation {
@@ -4580,32 +4522,6 @@ impl Window {
         }
 
         DispatchEventResult { propagate: cx.propagate_event, default_prevented: self.default_prevented }
-    }
-
-    fn promote_external_drag_to_platform(&mut self, event: &PlatformInput, cx: &mut App) {
-        let PlatformInput::MouseMove(mouse_move) = event else {
-            return;
-        };
-        if mouse_move.pressed_button != Some(MouseButton::Left) {
-            return;
-        }
-        if Bounds::new(Point::default(), self.viewport_size).contains(&mouse_move.position) {
-            return;
-        }
-        if !self.platform_window.can_start_external_drag() {
-            return;
-        }
-        let Some(payload_source) = cx.active_drag.as_mut().and_then(|drag| drag.external_payload_source.take()) else {
-            return;
-        };
-        let Some(payload) = payload_source(self, cx) else {
-            return;
-        };
-        if self.platform_window.start_external_drag(&payload)
-            && cx.hand_active_drag_to_platform(self.handle.window_id())
-        {
-            self.refresh();
-        }
     }
 
     fn dispatch_mouse_event(&mut self, event: &dyn Any, cx: &mut App) {

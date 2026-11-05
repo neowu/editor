@@ -152,7 +152,6 @@ objc2-app-kit = {
     "NSApplication",
     "NSButton",
     "NSControl",
-    "NSDraggingItem",
     "NSGraphics",
     "NSImage",
     "NSOpenPanel",

@@ -1,12 +1,7 @@
 use std::cell::Cell;
-use std::ffi::CStr;
-use std::ffi::CString;
-use std::ffi::c_char;
 use std::ffi::c_void;
 use std::mem;
 use std::ops::Range;
-use std::os::unix::ffi::OsStrExt;
-use std::path::PathBuf;
 use std::ptr::NonNull;
 use std::ptr::{self};
 use std::rc::Rc;
@@ -23,9 +18,6 @@ use gpui::BackgroundExecutor;
 use gpui::Bounds;
 use gpui::Capslock;
 use gpui::CursorStyle;
-use gpui::ExternalDragPayload;
-use gpui::ExternalPaths;
-use gpui::FileDropEvent;
 use gpui::ForegroundExecutor;
 use gpui::KeyDownEvent;
 use gpui::Keystroke;
@@ -70,7 +62,6 @@ use objc2::runtime::AnyClass;
 use objc2::runtime::AnyObject;
 use objc2::runtime::NSObject;
 use objc2::runtime::NSObjectProtocol;
-use objc2::runtime::ProtocolObject;
 use objc2::runtime::Sel;
 use objc2::sel;
 use objc2_app_kit::NSAlert;
@@ -79,14 +70,8 @@ use objc2_app_kit::NSAutoresizingMaskOptions;
 use objc2_app_kit::NSBackingStoreType;
 use objc2_app_kit::NSBeep;
 use objc2_app_kit::NSButton as Objc2NSButton;
-use objc2_app_kit::NSDraggingImageComponent;
-use objc2_app_kit::NSDraggingImageComponentIconKey;
-use objc2_app_kit::NSDraggingItem;
-use objc2_app_kit::NSDraggingSource;
 use objc2_app_kit::NSEventModifierFlags;
-use objc2_app_kit::NSEventType;
 use objc2_app_kit::NSPanel;
-use objc2_app_kit::NSPasteboardWriting;
 use objc2_app_kit::NSRequestUserAttentionType;
 use objc2_app_kit::NSResponder;
 use objc2_app_kit::NSTextInputClient;
@@ -104,18 +89,15 @@ use objc2_app_kit::NSWindowOcclusionState;
 use objc2_app_kit::NSWindowOrderingMode;
 use objc2_app_kit::NSWindowStyleMask;
 use objc2_app_kit::NSWindowTitleVisibility;
-use objc2_app_kit::NSWorkspace;
 use objc2_core_foundation::CFBoolean;
 use objc2_core_foundation::CFType;
 use objc2_core_graphics::CGDirectDisplayID;
 use objc2_foundation::NSCoder;
 use objc2_foundation::NSKeyedUnarchiver;
-use objc2_foundation::NSURL;
 use objc2_quartz_core::CALayerDelegate;
 use objc2_quartz_core::CAMetalDisplayLinkUpdate;
 use parking_lot::Mutex;
 use raw_window_handle as rwh;
-use smallvec::SmallVec;
 
 use crate::MacDisplay;
 use crate::NSRange;
@@ -140,7 +122,6 @@ use crate::ns::drain;
 use crate::ns::id;
 use crate::ns::nil;
 use crate::ns_string;
-use crate::pasteboard::NSFilenamesPboardType;
 use crate::renderer;
 
 /// Borrows a raw `NSWindow` pointer as its typed objc2 counterpart.
@@ -178,16 +159,6 @@ const NSPopUpWindowLevel: NSInteger = 101;
 const NSWindowAnimationBehaviorUtilityWindow: NSInteger = 4;
 #[allow(non_upper_case_globals)]
 const NSViewLayerContentsRedrawDuringViewResize: NSInteger = 2;
-// https://developer.apple.com/documentation/appkit/nsdragoperation
-type NSDragOperation = NSUInteger;
-#[allow(non_upper_case_globals)]
-const NSDragOperationNone: NSDragOperation = 0;
-#[allow(non_upper_case_globals)]
-const NSDragOperationCopy: NSDragOperation = 1;
-#[allow(non_upper_case_globals)]
-const NSDragOperationMove: NSDragOperation = 16;
-const NSDRAGGING_CONTEXT_OUTSIDE_APPLICATION: NSInteger = 0;
-const NSDRAGGING_CONTEXT_WITHIN_APPLICATION: NSInteger = 1;
 const NS_WINDOW_TABBING_MODE_DISALLOWED: NSInteger = 2;
 /// Instance variables shared by GPUI's window, panel and view classes.
 struct WindowStateIvars {
@@ -296,31 +267,6 @@ macro_rules! define_window_class {
                     close_window(self);
                 }
 
-                #[unsafe(method(draggingEntered:))]
-                fn dragging_entered_(&self, dragging_info: id) -> NSDragOperation {
-                    dragging_entered(self, dragging_info)
-                }
-
-                #[unsafe(method(draggingUpdated:))]
-                fn dragging_updated_(&self, dragging_info: id) -> NSDragOperation {
-                    dragging_updated(self, dragging_info)
-                }
-
-                #[unsafe(method(draggingExited:))]
-                fn dragging_exited_(&self, dragging_info: id) {
-                    dragging_exited(self, dragging_info);
-                }
-
-                #[unsafe(method(performDragOperation:))]
-                fn perform_drag_operation_(&self, dragging_info: id) -> bool {
-                    perform_drag_operation(self, dragging_info)
-                }
-
-                #[unsafe(method(concludeDragOperation:))]
-                fn conclude_drag_operation_(&self, dragging_info: id) {
-                    conclude_drag_operation(self, dragging_info);
-                }
-
                 #[unsafe(method(addTitlebarAccessoryViewController:))]
                 fn add_titlebar_accessory_view_controller_(&self, view_controller: id) {
                     add_titlebar_accessory_view_controller(self, view_controller);
@@ -329,26 +275,6 @@ macro_rules! define_window_class {
 
             unsafe impl NSObjectProtocol for $class {}
 
-            unsafe impl NSDraggingSource for $class {
-                #[unsafe(method(draggingSession:sourceOperationMaskForDraggingContext:))]
-                fn dragging_session_source_operation_mask_(
-                    &self,
-                    session: id,
-                    context: NSInteger,
-                ) -> NSDragOperation {
-                    dragging_session_source_operation_mask(self, session, context)
-                }
-
-                #[unsafe(method(draggingSession:endedAtPoint:operation:))]
-                fn dragging_session_ended_(
-                    &self,
-                    session: id,
-                    screen_point: NSPoint,
-                    operation: NSDragOperation,
-                ) {
-                    dragging_session_ended(self, session, screen_point, operation);
-                }
-            }
         );
     };
 }
@@ -829,7 +755,6 @@ struct MacWindowState {
     appearance_changed_callback: Option<Box<dyn FnMut()>>,
     input_handler: Option<PlatformInputHandler>,
     last_key_equivalent: Option<KeyDownEvent>,
-    last_left_mouse_down_event: Option<Retained<AnyObject>>,
     synthetic_drag_counter: usize,
     traffic_light_position: Option<Point<Pixels>>,
     traffic_light_frames: Option<TrafficLightFrames>,
@@ -838,7 +763,6 @@ struct MacWindowState {
     previous_modifiers_changed_event: Option<PlatformInput>,
     keystroke_for_do_command: Option<Keystroke>,
     do_command_handled: Option<bool>,
-    external_files_dragged: bool,
     // Whether the next left-mouse click is also the focusing click.
     first_mouse: bool,
     // When true, the whole content view is reported as app-owned titlebar content via
@@ -1205,11 +1129,6 @@ impl MacWindow {
                 ];
                 Retained::into_raw(window).cast()
             };
-            let dragged_types: id = msg_send![class!(NSArray), arrayWithObject: NSFilenamesPboardType];
-            let () = msg_send![
-                native_window,
-                registerForDraggedTypes: dragged_types
-            ];
             let () = msg_send![
                 native_window,
                 setReleasedWhenClosed: false
@@ -1253,7 +1172,6 @@ impl MacWindow {
                 appearance_changed_callback: None,
                 input_handler: None,
                 last_key_equivalent: None,
-                last_left_mouse_down_event: None,
                 synthetic_drag_counter: 0,
                 traffic_light_position: titlebar.as_ref().and_then(|titlebar| titlebar.traffic_light_position),
                 traffic_light_frames: None,
@@ -1262,7 +1180,6 @@ impl MacWindow {
                 previous_modifiers_changed_event: None,
                 keystroke_for_do_command: None,
                 do_command_handled: None,
-                external_files_dragged: false,
                 first_mouse: false,
                 app_owns_titlebar_drag,
                 fullscreen_restore_bounds: Bounds::default(),
@@ -2104,115 +2021,6 @@ impl PlatformWindow for MacWindow {
         }
     }
 
-    fn can_start_external_drag(&self) -> bool {
-        true
-    }
-
-    fn start_external_drag(&self, payload: &ExternalDragPayload) -> bool {
-        use objc2_foundation::NSArray;
-        use objc2_foundation::NSPoint;
-        use objc2_foundation::NSRect;
-        use objc2_foundation::NSSize;
-        use objc2_foundation::NSString;
-
-        let ExternalDragPayload::Files(paths) = payload;
-        if paths.entries().is_empty() {
-            log::warn!("start_external_drag declined: no paths");
-            return false;
-        }
-
-        let (native_view, native_window, last_left_mouse_down_event) = {
-            let state = self.0.lock();
-            (state.native_view.as_ptr(), state.native_window, state.last_left_mouse_down_event.clone())
-        };
-
-        let Some(last_left_mouse_down_event) = last_left_mouse_down_event else {
-            log::warn!("start_external_drag declined: no retained left mouse down event");
-            return false;
-        };
-
-        // SAFETY: This method runs on the AppKit/foreground path during drag initiation. The
-        // native view/window are retained by MacWindowState, copied out under a short lock above,
-        // and all pointers passed to Objective-C remain valid for their respective calls.
-        unsafe {
-            let event: id = Retained::as_ptr(&last_left_mouse_down_event).cast_mut().cast();
-            let dragging_items: id = msg_send![class!(NSMutableArray), array];
-            // AppKit keeps this frame's distance from the event's location as the drag image's
-            // offset from the cursor, so it has to stay anchored on `event`.
-            let location: NSPoint = msg_send![event, locationInWindow];
-            let frame = NSRect::new(NSPoint::new(location.x - 16., location.y - 16.), NSSize::new(32., 32.));
-
-            for (path, is_directory) in paths.entries() {
-                // Preserve non-UTF-8 paths
-                let Ok(path_bytes) = CString::new(path.as_os_str().as_bytes()) else {
-                    log::warn!("start_external_drag skipped path containing an interior nul byte");
-                    continue;
-                };
-
-                let path_bytes = NonNull::new_unchecked(path_bytes.as_ptr().cast_mut());
-                let url = NSURL::fileURLWithFileSystemRepresentation_isDirectory_relativeToURL(
-                    path_bytes,
-                    *is_directory,
-                    None,
-                );
-
-                let pasteboard_writer = ProtocolObject::<dyn NSPasteboardWriting>::from_ref(&*url);
-                let item = NSDraggingItem::initWithPasteboardWriter(NSDraggingItem::alloc(), pasteboard_writer);
-
-                // Resolve drag images lazily via `imageComponentsProvider` (Apple's
-                // recommendation for large item counts), and by file *type* rather than
-                // `iconForFile:`, which can synchronously hit LaunchServices, network
-                // mounts, or iCloud for every selected path and beachball drag startup.
-                // `iconForFileType:` is deprecated in favor of `iconForContentType:`,
-                // but the replacement needs a `UTType`, which we don't bind.
-                let file_type = if *is_directory {
-                    "public.folder".to_string()
-                } else {
-                    path.extension()
-                        .and_then(|extension| extension.to_str())
-                        .map(|extension| extension.to_string())
-                        .unwrap_or_else(|| "public.data".to_string())
-                };
-                let provider = RcBlock::new(move || {
-                    let component =
-                        NSDraggingImageComponent::draggingImageComponentWithKey(NSDraggingImageComponentIconKey);
-                    let workspace = NSWorkspace::sharedWorkspace();
-                    let file_type = NSString::from_str(&file_type);
-                    #[expect(deprecated, reason = "`iconForContentType:` needs a `UTType` binding")]
-                    let icon = workspace.iconForFileType(&file_type);
-                    component.setContents(Some(&icon));
-                    // Component frames are relative to the item's dragging frame.
-                    component.setFrame(NSRect::new(NSPoint::new(0., 0.), NSSize::new(32., 32.)));
-                    let components = NSArray::from_slice(&[&*component]);
-                    NonNull::new_unchecked(Retained::autorelease_return(components))
-                });
-                item.setDraggingFrame(frame);
-                item.setImageComponentsProvider(Some(&provider));
-                let _: () = msg_send![dragging_items, addObject: Retained::as_ptr(&item)];
-            }
-
-            let count: NSUInteger = msg_send![dragging_items, count];
-            if count == 0 {
-                log::warn!("start_external_drag declined: no dragging items");
-                return false;
-            }
-
-            let session: id = msg_send![
-                native_view,
-                beginDraggingSessionWithItems: dragging_items,
-                event: event,
-                source: native_window
-            ];
-
-            let started = !session.is_null();
-            if started {
-                self.0.lock().synthetic_drag_counter += 1;
-            }
-            log::debug!("start_external_drag completed: started={}, item_count={}", started, count);
-            started
-        }
-    }
-
     fn play_system_bell(&self) {
         NSBeep()
     }
@@ -2558,18 +2366,6 @@ fn handle_view_event(this: &AnyObject, native_event: id) {
     let weak_window_state = Arc::downgrade(&window_state);
     let mut lock = window_state.as_ref().lock();
     let window_height = lock.content_size().height;
-    let native_event_type: NSEventType = unsafe { msg_send![native_event, type] };
-    match native_event_type {
-        NSEventType::LeftMouseDown => {
-            // AppKit owns `native_event` for the callback; retain it so the drag session can still
-            // be started later, once the pointer leaves the window.
-            lock.last_left_mouse_down_event = unsafe { Retained::retain(native_event.cast::<AnyObject>()) };
-        }
-        NSEventType::LeftMouseUp => {
-            lock.last_left_mouse_down_event = None;
-        }
-        _ => {}
-    }
     let event = unsafe { platform_input_from_native(native_event, Some(window_height)) };
 
     if let Some(mut event) = event {
@@ -2633,20 +2429,16 @@ fn handle_view_event(this: &AnyObject, native_event: id) {
             }
             PlatformInput::MouseMove(event @ MouseMoveEvent { pressed_button: Some(_), .. }) => {
                 // Synthetic drag is used for selecting long buffer contents while buffer is being scrolled.
-                // External file drag and drop is able to emit its own synthetic mouse events which will conflict
-                // with these ones.
-                if !lock.external_files_dragged {
-                    lock.synthetic_drag_counter += 1;
-                    let executor = lock.foreground_executor.clone();
-                    executor
-                        .spawn(synthetic_drag(
-                            weak_window_state,
-                            lock.synthetic_drag_counter,
-                            event.clone(),
-                            lock.background_executor.clone(),
-                        ))
-                        .detach();
-                }
+                lock.synthetic_drag_counter += 1;
+                let executor = lock.foreground_executor.clone();
+                executor
+                    .spawn(synthetic_drag(
+                        weak_window_state,
+                        lock.synthetic_drag_counter,
+                        event.clone(),
+                        lock.background_executor.clone(),
+                    ))
+                    .detach();
             }
 
             PlatformInput::MouseUp(MouseUpEvent { .. }) => {
@@ -3231,94 +3023,6 @@ fn screen_point_to_gpui_point(this: &AnyObject, position: NSPoint) -> Point<Pixe
     point(px(window_x as f32), px(window_y as f32))
 }
 
-fn is_drag_from_this_window(this: &AnyObject, dragging_info: id) -> bool {
-    let source: id = unsafe { msg_send![dragging_info, draggingSource] };
-    std::ptr::eq(source as *const AnyObject, this as *const AnyObject)
-}
-
-fn dragging_entered(this: &AnyObject, dragging_info: id) -> NSDragOperation {
-    let is_source_window = is_drag_from_this_window(this, dragging_info);
-    let window_state = unsafe { get_window_state(this) };
-    let position = drag_event_position(&window_state, dragging_info);
-    let paths = external_paths_from_event(dragging_info);
-    if let Some(event) = paths.map(|paths| FileDropEvent::Entered { position, paths })
-        && send_file_drop_event(window_state, event)
-    {
-        if is_source_window {
-            return NSDragOperationMove;
-        }
-        return NSDragOperationCopy;
-    }
-    NSDragOperationNone
-}
-
-fn dragging_updated(this: &AnyObject, dragging_info: id) -> NSDragOperation {
-    let is_source_window = is_drag_from_this_window(this, dragging_info);
-    let window_state = unsafe { get_window_state(this) };
-    let position = drag_event_position(&window_state, dragging_info);
-    if send_file_drop_event(window_state, FileDropEvent::Pending { position }) {
-        if is_source_window { NSDragOperationMove } else { NSDragOperationCopy }
-    } else {
-        NSDragOperationNone
-    }
-}
-
-fn dragging_exited(this: &AnyObject, _: id) {
-    let window_state = unsafe { get_window_state(this) };
-    send_file_drop_event(window_state, FileDropEvent::Exited);
-}
-
-fn perform_drag_operation(this: &AnyObject, dragging_info: id) -> bool {
-    let window_state = unsafe { get_window_state(this) };
-    let position = drag_event_position(&window_state, dragging_info);
-    send_file_drop_event(window_state, FileDropEvent::Submit { position })
-}
-
-fn external_paths_from_event(dragging_info: *mut AnyObject) -> Option<ExternalPaths> {
-    let mut paths = SmallVec::new();
-    let pasteboard: id = unsafe { msg_send![dragging_info, draggingPasteboard] };
-    let filenames: id = unsafe { msg_send![pasteboard, propertyListForType: NSFilenamesPboardType] };
-    if filenames == nil {
-        return None;
-    }
-    for file in unsafe { array_iter(filenames) } {
-        let path = unsafe {
-            let f: *const c_char = msg_send![file, UTF8String];
-            CStr::from_ptr(f).to_string_lossy().into_owned()
-        };
-        paths.push(PathBuf::from(path))
-    }
-    Some(ExternalPaths(paths))
-}
-
-fn conclude_drag_operation(this: &AnyObject, _: id) {
-    let window_state = unsafe { get_window_state(this) };
-    send_file_drop_event(window_state, FileDropEvent::Exited);
-}
-
-fn dragging_session_source_operation_mask(_: &AnyObject, _: id, context: NSInteger) -> NSDragOperation {
-    let operation = match context {
-        NSDRAGGING_CONTEXT_OUTSIDE_APPLICATION => NSDragOperationCopy,
-        NSDRAGGING_CONTEXT_WITHIN_APPLICATION => NSDragOperationCopy | NSDragOperationMove,
-        _ => NSDragOperationCopy | NSDragOperationMove,
-    };
-    log::debug!("dragging_session_source_operation_mask: context={}, operation={}", context, operation);
-    operation
-}
-
-fn dragging_session_ended(this: &AnyObject, _: id, _: NSPoint, operation: NSDragOperation) {
-    log::debug!("dragging_session_ended operation={operation}");
-    // SAFETY: AppKit invokes this selector on the GPUIWindow or GPUIPanel instance,
-    // which always has its window-state ivar initialized to the owning MacWindowState.
-    let window_state = unsafe { get_window_state(this) };
-    {
-        let mut lock = window_state.lock();
-        lock.synthetic_drag_counter += 1;
-        lock.last_left_mouse_down_event = None;
-    }
-    send_file_drop_event(window_state, FileDropEvent::Ended);
-}
-
 const fn synthetic_drag_button_is_pressed(button: Option<MouseButton>, pressed: NSUInteger) -> bool {
     let bit = match button {
         Some(MouseButton::Left) => 0,
@@ -3359,35 +3063,6 @@ async fn synthetic_drag(
             window_state.lock().event_callback = Some(callback);
         }
     }
-}
-
-/// Sends the specified FileDropEvent using `PlatformInput::FileDrop` to the window
-/// state and updates the window state according to the event passed.
-fn send_file_drop_event(window_state: Arc<Mutex<MacWindowState>>, file_drop_event: FileDropEvent) -> bool {
-    let external_files_dragged = match file_drop_event {
-        FileDropEvent::Entered { .. } => Some(true),
-        FileDropEvent::Exited | FileDropEvent::Ended => Some(false),
-        _ => None,
-    };
-
-    let mut lock = window_state.lock();
-    if let Some(mut callback) = lock.event_callback.take() {
-        drop(lock);
-        callback(PlatformInput::FileDrop(file_drop_event));
-        let mut lock = window_state.lock();
-        lock.event_callback = Some(callback);
-        if let Some(external_files_dragged) = external_files_dragged {
-            lock.external_files_dragged = external_files_dragged;
-        }
-        true
-    } else {
-        false
-    }
-}
-
-fn drag_event_position(window_state: &Mutex<MacWindowState>, dragging_info: id) -> Point<Pixels> {
-    let drag_location: NSPoint = unsafe { msg_send![dragging_info, draggingLocation] };
-    convert_mouse_position(drag_location, window_state.lock().content_size().height)
 }
 
 fn with_input_handler<F, R>(window: &AnyObject, f: F) -> Option<R>

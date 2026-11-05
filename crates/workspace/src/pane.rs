@@ -13,8 +13,6 @@ use collections::BTreeSet;
 use collections::HashMap;
 use collections::HashSet;
 use collections::VecDeque;
-use futures::StreamExt;
-use futures::stream::FuturesUnordered;
 use gpui::Action;
 use gpui::AnyElement;
 use gpui::AnyView;
@@ -28,7 +26,6 @@ use gpui::DragMoveEvent;
 use gpui::Entity;
 use gpui::EntityId;
 use gpui::EventEmitter;
-use gpui::ExternalPaths;
 use gpui::FocusHandle;
 use gpui::FocusOutEvent;
 use gpui::Focusable;
@@ -82,9 +79,7 @@ use crate::CloseWindow;
 use crate::NewFile;
 use crate::Open;
 use crate::OpenInTerminal;
-use crate::OpenOptions;
 use crate::OpenTerminal;
-use crate::OpenVisible;
 use crate::SplitDirection;
 use crate::ToggleFileFinder;
 use crate::ToggleZoom;
@@ -2399,10 +2394,6 @@ impl Pane {
                 this.drag_split_direction = None;
                 this.handle_dragged_selection_drop(selection, Some(ix), window, cx)
             }))
-            .on_drop(cx.listener(move |this, paths, window, cx| {
-                this.drag_split_direction = None;
-                this.handle_external_paths_drop(paths, window, cx)
-            }))
             .start_slot::<Indicator>(indicator)
             .when(!is_permanent, |this| {
                 let end_slot = if is_pinned {
@@ -2910,10 +2901,6 @@ impl Pane {
                 this.drag_split_direction = None;
                 this.handle_project_entry_drop(&selection.active_selection.entry_id, Some(tab_count), window, cx)
             }))
-            .on_drop(cx.listener(move |this, paths, window, cx| {
-                this.drag_split_direction = None;
-                this.handle_external_paths_drop(paths, window, cx)
-            }))
             .map(|this| self.tab_bar_empty_space_behaviour(this, cx))
     }
 
@@ -3140,84 +3127,6 @@ impl Pane {
             .log_err();
     }
 
-    fn handle_external_paths_drop(&self, paths: &ExternalPaths, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(active_item) = self.active_item()
-            && active_item.handle_drop(self, paths, window, cx)
-        {
-            return;
-        }
-
-        let mut to_pane = cx.entity();
-        let mut split_direction = self.drag_split_direction;
-        let paths = paths.paths().to_vec();
-        let should_block = self
-            .workspace
-            .update(cx, |workspace, cx| {
-                if workspace.project().read(cx).is_via_remote_server() {
-                    workspace.show_error("Cannot drop local files on a remote SSH project", cx);
-                    true
-                } else {
-                    false
-                }
-            })
-            .unwrap_or(true);
-        if should_block {
-            return;
-        }
-
-        self.workspace
-            .update(cx, |workspace, cx| {
-                let fs = Arc::clone(workspace.project().read(cx).fs());
-                cx.spawn_in(window, async move |workspace, cx| {
-                    let mut is_file_checks = FuturesUnordered::new();
-                    for path in &paths {
-                        is_file_checks.push(fs.is_file(path))
-                    }
-                    let mut has_files_to_open = false;
-                    while let Some(is_file) = is_file_checks.next().await {
-                        if is_file {
-                            has_files_to_open = true;
-                            break;
-                        }
-                    }
-                    drop(is_file_checks);
-                    if !has_files_to_open {
-                        split_direction = None;
-                    }
-
-                    if let Ok((open_task, to_pane)) = workspace.update_in(cx, |workspace, window, cx| {
-                        if let Some(split_direction) = split_direction {
-                            to_pane = workspace.split_pane(to_pane, split_direction, window, cx);
-                        }
-                        (
-                            workspace.open_paths(
-                                paths,
-                                OpenOptions { visible: Some(OpenVisible::OnlyDirectories), ..Default::default() },
-                                Some(to_pane.downgrade()),
-                                window,
-                                cx,
-                            ),
-                            to_pane,
-                        )
-                    }) {
-                        let opened_items: Vec<_> = open_task.await;
-                        _ = workspace.update_in(cx, |workspace, window, cx| {
-                            for item in opened_items.into_iter().flatten() {
-                                if let Err(e) = item {
-                                    workspace.show_error(format!("Error: {e}"), cx);
-                                }
-                            }
-                            if to_pane.read(cx).items_len() == 0 {
-                                workspace.remove_pane(to_pane, None, window, cx);
-                            }
-                        });
-                    }
-                })
-                .detach();
-            })
-            .log_err();
-    }
-
     fn pinned_item_ids(&self) -> Vec<EntityId> {
         self.items
             .iter()
@@ -3374,13 +3283,9 @@ impl Render for Pane {
         }
 
         let pill_tabs = self.tab_style == TabStyle::Pill;
-        let Some(project) = self.project.upgrade() else {
+        if self.project.upgrade().is_none() {
             return div().track_focus(&self.focus_handle(cx));
-        };
-        let accepts_external_paths = {
-            let project = project.read(cx);
-            project.is_local()
-        };
+        }
 
         let has_preview = self.active_item().is_some_and(|item| crate::preview::has_preview(item.as_ref(), cx));
 
@@ -3557,9 +3462,6 @@ impl Render for Pane {
                     .overflow_hidden()
                     .on_drag_move::<DraggedTab>(cx.listener(Self::handle_drag_move))
                     .on_drag_move::<DraggedSelection>(cx.listener(Self::handle_drag_move))
-                    .when(accepts_external_paths, |div| {
-                        div.on_drag_move::<ExternalPaths>(cx.listener(Self::handle_drag_move))
-                    })
                     .map(|div| {
                         if let Some(item) = self.active_item() {
                             div.id("pane_placeholder")
@@ -3595,9 +3497,6 @@ impl Render for Pane {
                             .map(Self::drop_target_style(cx.theme().colors()))
                             .group_drag_over::<DraggedTab>("", |style| style.visible())
                             .group_drag_over::<DraggedSelection>("", |style| style.visible())
-                            .when(accepts_external_paths, |div| {
-                                div.group_drag_over::<ExternalPaths>("", |style| style.visible())
-                            })
                             .when_some(self.can_drop_predicate.clone(), |this, p| {
                                 this.can_drop(move |a, window, cx| p(a, window, cx))
                             })
@@ -3606,9 +3505,6 @@ impl Render for Pane {
                             }))
                             .on_drop(cx.listener(move |this, selection: &DraggedSelection, window, cx| {
                                 this.handle_dragged_selection_drop(selection, None, window, cx)
-                            }))
-                            .on_drop(cx.listener(move |this, paths, window, cx| {
-                                this.handle_external_paths_drop(paths, window, cx)
                             }))
                             .map(|div| {
                                 let size = DefiniteLength::Fraction(0.5);

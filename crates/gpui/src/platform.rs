@@ -53,7 +53,6 @@ use crate::Bounds;
 use crate::DEFAULT_WINDOW_SIZE;
 use crate::DevicePixels;
 use crate::DispatchEventResult;
-use crate::ExternalDragPayload;
 use crate::Font;
 use crate::FontId;
 use crate::FontMetrics;
@@ -555,12 +554,6 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
     fn restore_native_window_state(&self, _state: &[u8]) {}
 
     fn start_window_move(&self) {}
-    fn can_start_external_drag(&self) -> bool {
-        false
-    }
-    fn start_external_drag(&self, _payload: &ExternalDragPayload) -> bool {
-        false
-    }
     fn gpu_specs(&self) -> Option<GpuSpecs>;
 
     fn update_ime_position(&self, _bounds: Bounds<Pixels>);

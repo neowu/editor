@@ -22,7 +22,6 @@ use gpui::ClipboardEntry;
 use gpui::DismissEvent;
 use gpui::Entity;
 use gpui::EventEmitter;
-use gpui::ExternalPaths;
 use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::KeyContext;
@@ -1272,15 +1271,7 @@ impl Item for TerminalView {
             return false;
         };
 
-        if let Some(paths) = dropped.downcast_ref::<ExternalPaths>() {
-            let is_local = project.read(cx).is_local();
-            if is_local {
-                self.add_paths_to_terminal(paths.paths(), window, cx);
-                return true;
-            }
-
-            return false;
-        } else if let Some(tab) = dropped.downcast_ref::<DraggedTab>() {
+        if let Some(tab) = dropped.downcast_ref::<DraggedTab>() {
             let Some(self_handle) = self.self_handle.upgrade() else {
                 return false;
             };

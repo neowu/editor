@@ -13,6 +13,9 @@
   open-path prompt also lists directories first.
 - Single-child directories auto-fold. The active entry is always revealed.
   Drag and drop is always on. New, pasted, and dropped files open.
+  Drag and drop is internal only: files cannot be dragged out to Finder or
+  other apps, nor dropped in from them. Exchange files with Finder through
+  Copy / Cut / Paste (see Clipboard).
 - "Hide Gitignored" and "Hide Hidden" toggles are per-panel session state
   (both off at start), not persisted.
 
@@ -43,7 +46,7 @@
   folder and its visible descendants share one rounded box (pane card
   radius) with the faint accent fill and an accent outline, open on whichever
   side is scrolled off. A folded-path component being targeted only gets the
-  fill. The empty panel shows the same rounded box for external files.
+  fill.
 - When a drag-and-drop move or an undo/redo rename fails because the
   destination already exists, the error names both paths and says that a file
   or folder already exists there. Detection uses the error kind
