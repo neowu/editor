@@ -271,9 +271,27 @@ struct BufferGitState {
     head_text_buffer: WeakEntity<Buffer>,
     index_text_buffer: WeakEntity<Buffer>,
     index_text_buffer_language_enabled: bool,
+    /// Set once a diff against HEAD can show deleted lines; until then the
+    /// HEAD text is kept unparsed.
+    head_text_buffer_language_enabled: bool,
     head_changed: bool,
     index_changed: bool,
     language_changed: bool,
+}
+
+/// Whether a diff against the HEAD text can show deleted lines, which then need
+/// syntax highlighting. When the buffer (and index) still match HEAD there are
+/// no hunks, so parsing HEAD would only duplicate the buffer's own syntax tree.
+fn head_text_shows_deletions(
+    buffer_text: &Rope,
+    head_text: Option<&str>,
+    index_matches_head: bool,
+    has_staged_diff: bool,
+) -> bool {
+    let Some(head_text) = head_text else {
+        return false;
+    };
+    (has_staged_diff && !index_matches_head) || !buffer_text.chunks().equals_str(head_text)
 }
 
 fn pending_hunks(hunks: &[DiffHunk], version: &clock::Global, sense: PendingSense) -> Vec<PendingHunk> {
@@ -3973,6 +3991,7 @@ impl BufferGitState {
             head_text_buffer: WeakEntity::new_invalid(),
             index_text_buffer: WeakEntity::new_invalid(),
             index_text_buffer_language_enabled: Default::default(),
+            head_text_buffer_language_enabled: Default::default(),
             head_changed: Default::default(),
             index_changed: Default::default(),
             language_changed: Default::default(),
@@ -4278,6 +4297,7 @@ impl BufferGitState {
         let head_text_buffer = self.head_text_buffer.upgrade();
         let index_text_buffer = self.index_text_buffer.upgrade();
         let index_text_buffer_language_enabled = self.index_text_buffer_language_enabled;
+        let head_text_buffer_language_enabled = self.head_text_buffer_language_enabled;
         let index_changed = self.index_changed;
         let head_changed = self.head_changed;
         let language_changed = self.language_changed;
@@ -4320,7 +4340,26 @@ impl BufferGitState {
                     index_text_buffer.set_language_async(language.clone(), cx);
                 });
             }
-            if let Some(head_text_buffer) = &head_text_buffer {
+            let enable_head_text_language = if !head_text_buffer_language_enabled
+                && head_text_buffer.is_some()
+                && (staged_diff.is_some() || uncommitted_diff.is_some())
+            {
+                let buffer_text = buffer.as_rope().clone();
+                let head_text = head.clone();
+                let has_staged_diff = staged_diff.is_some();
+                cx.background_spawn(async move {
+                    head_text_shows_deletions(&buffer_text, head_text.as_deref(), index_matches_head, has_staged_diff)
+                })
+                .await
+            } else {
+                false
+            };
+            if enable_head_text_language {
+                this.update(cx, |this, _| this.head_text_buffer_language_enabled = true)?;
+            }
+            if (head_text_buffer_language_enabled || enable_head_text_language)
+                && let Some(head_text_buffer) = &head_text_buffer
+            {
                 head_text_buffer.update(cx, |head_text_buffer, cx| {
                     if let Some(language_registry) = language_registry.clone() {
                         head_text_buffer.set_language_registry(language_registry);
@@ -4388,7 +4427,7 @@ impl BufferGitState {
                 && (staged_diff.is_some() || uncommitted_diff.is_some())
             {
                 let head_base_text_exists = head.is_some();
-                let head_text_snapshot = if head_changed || language_changed {
+                let head_text_snapshot = if head_changed || language_changed || enable_head_text_language {
                     let new_head_text = head.clone().unwrap_or_default();
                     let head_text_diff = head_text_buffer
                         .update(cx, |head_text_buffer, cx| head_text_buffer.diff(new_head_text.clone(), cx))
@@ -8809,6 +8848,38 @@ fn innermost_containing<Id, P: AsRef<Path>>(path: &Path, candidates: impl Iterat
         .filter(|(_, candidate)| path.starts_with(candidate.as_ref()))
         .max_by_key(|(_, candidate)| candidate.as_ref().as_os_str().len())
         .map(|(id, _)| id)
+}
+
+#[cfg(test)]
+mod head_text_language_tests {
+    use text::Rope;
+
+    use super::head_text_shows_deletions;
+
+    #[test]
+    fn test_head_text_shows_deletions() {
+        let rope = Rope::from("fn main() {}\n");
+        assert!(!head_text_shows_deletions(&rope, Some("fn main() {}\n"), true, false));
+        assert!(!head_text_shows_deletions(&rope, Some("fn main() {}\n"), true, true));
+        assert!(head_text_shows_deletions(&rope, Some("fn other() {}\n"), true, false));
+        assert!(head_text_shows_deletions(&rope, Some("fn main() {}"), true, false));
+        // A staged change against HEAD shows deletions even when the working copy matches HEAD.
+        assert!(head_text_shows_deletions(&rope, Some("fn main() {}\n"), false, true));
+        // Without a staged diff, index-vs-HEAD differences are never shown against HEAD.
+        assert!(!head_text_shows_deletions(&rope, Some("fn main() {}\n"), false, false));
+        // A file new since HEAD has no base text to highlight.
+        assert!(!head_text_shows_deletions(&rope, None, true, false));
+    }
+
+    #[test]
+    fn test_head_text_shows_deletions_across_chunks() {
+        let text = "let x = 1;\n".repeat(1000);
+        let rope = Rope::from(text.as_str());
+        assert!(!head_text_shows_deletions(&rope, Some(&text), true, false));
+        let mut changed = text;
+        changed.replace_range(5000..5001, "y");
+        assert!(head_text_shows_deletions(&rope, Some(&changed), true, false));
+    }
 }
 
 #[cfg(test)]

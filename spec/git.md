@@ -40,6 +40,11 @@ repository's `$PATH`; if none is found, the repository is not opened.
   `git::DiffHead`/`git::ToggleDiffBase` actions and the "Diff Against Default
   Branch" editor menu toggle are removed. Branch diffs remain available
   explicitly via `git::DiffBranch` / Compare With Branch.
+- The HEAD text behind a file's diff is only syntax-parsed once that diff can
+  show deleted lines (the file, or its staged index, differs from HEAD); after
+  that it stays parsed. Every open buffer has a HEAD diff (gutter, project
+  search results), so unchanged files would otherwise hold a second syntax
+  tree each.
 - There are no `git` settings; the former defaults are hardcoded: git status
   and diffs always on; gutter hunks in tracked files, recalculated without
   debounce; unstaged hunks filled, staged hollow; stage/restore hunk buttons
