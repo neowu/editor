@@ -225,7 +225,9 @@ because it hurt readability; an opaque window is also cheaper to composite.
     side. Resizing the left dock resizes all its panels; other docks resize
     only the active panel. No max tab count.
   - Closing the active item in an empty pane closes the window. Files deleted
-    on disk keep their tab.
+    on disk keep their tab. A buffer without unsaved edits follows its file's
+    deletion and becomes empty (undo brings the text back as unsaved edits),
+    so git diffs show the file as deleted; unsaved edits are kept.
   - Focus never follows the mouse.
   - Window: native macOS fullscreen. Text uses the platform's default
     rendering mode.

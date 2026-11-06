@@ -1632,7 +1632,23 @@ impl Buffer {
             file_changed = true;
         };
 
+        let clear_contents = self.file.as_ref().is_some_and(|old_file| {
+            clears_on_file_deletion(
+                matches!(old_file.disk_state(), DiskState::Present { .. }),
+                new_file.disk_state() == DiskState::Deleted,
+                was_dirty,
+                new_file.is_local(),
+            )
+        });
         self.file = Some(new_file);
+        if clear_contents && !self.is_empty() {
+            // A clean buffer mirrors its file, so a deleted file leaves it empty,
+            // like any other external change. Undo brings the text back.
+            self.finalize_last_transaction();
+            self.edit([(0..self.len(), "")], None, cx);
+            self.finalize_last_transaction();
+            self.did_reload(self.version(), self.line_ending(), None, cx);
+        }
         if file_changed {
             self.refresh_fallback_highlighter(cx);
             self.refresh_resolved_settings(cx);
@@ -4816,6 +4832,13 @@ const fn parse_stays_deferred(parse_deferred: bool, has_autoindent_requests: boo
     parse_deferred && !has_autoindent_requests
 }
 
+/// Whether a buffer empties itself when its file changes on disk: a clean
+/// local buffer follows its file's deletion (`was_present` and now
+/// `is_deleted`). Remote replicas get the emptying from the host's edit.
+const fn clears_on_file_deletion(was_present: bool, is_deleted: bool, was_dirty: bool, is_local: bool) -> bool {
+    was_present && is_deleted && !was_dirty && is_local
+}
+
 fn indent_size_for_line(text: &text::BufferSnapshot, row: u32) -> IndentSize {
     indent_size_for_text(text.chars_at(Point::new(row, 0)))
 }
@@ -5388,6 +5411,24 @@ pub(crate) fn trailing_whitespace_ranges(rope: &Rope, row_ranges: Option<&[Range
     }
 
     ranges
+}
+
+#[cfg(test)]
+mod file_deletion_tests {
+    use super::clears_on_file_deletion;
+
+    #[test]
+    fn test_clears_on_file_deletion() {
+        assert!(clears_on_file_deletion(true, true, false, true));
+        // Unsaved edits are kept, so they can be saved to recreate the file.
+        assert!(!clears_on_file_deletion(true, true, true, true));
+        // Remote replicas receive the host's edit.
+        assert!(!clears_on_file_deletion(true, true, false, false));
+        // Only a file that was on disk can be deleted from it (not a new or
+        // already deleted one), and only a deletion clears.
+        assert!(!clears_on_file_deletion(false, true, false, true));
+        assert!(!clears_on_file_deletion(true, false, false, true));
+    }
 }
 
 #[cfg(test)]
