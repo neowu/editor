@@ -1,3 +1,4 @@
+use std::array;
 use std::collections::BTreeMap;
 use std::ops::Range;
 use std::path::Path;
@@ -38,6 +39,8 @@ use ui::ScrollAxes;
 use ui::Scrollbars;
 use ui::TintColor;
 use ui::WithScrollbar;
+use ui::font;
+use ui::font::UI_FONT_SIZE;
 use ui::prelude::*;
 
 use crate::markdown_preview_style::preview_font_size;
@@ -323,7 +326,7 @@ fn render_to_svg(source: &str, theme: &mermaid::Theme) -> anyhow::Result<String>
 /// How far the preview font is zoomed (cmd +/-) from its default size.
 /// Diagrams scale with it, so at the default size they render at 1:1.
 fn preview_zoom(cx: &App) -> f32 {
-    preview_font_size(cx) / ui::font::UI_FONT_SIZE
+    preview_font_size(cx) / UI_FONT_SIZE
 }
 
 /// The editor theme as a diagram theme.
@@ -337,7 +340,7 @@ fn mermaid_theme(cx: &App) -> mermaid::Theme {
         mermaid::Color::rgb(channel(color.r), channel(color.g), channel(color.b))
     };
     let accents = cx.theme().accents();
-    let font_family = &ui::font::buffer_font().family;
+    let font_family = &font::buffer_font().family;
     mermaid::Theme {
         background: color(background),
         foreground: color(colors.text),
@@ -347,7 +350,7 @@ fn mermaid_theme(cx: &App) -> mermaid::Theme {
         surface: color(colors.element_background),
         accent: color(colors.text_accent),
         critical: color(cx.theme().status().error),
-        series: std::array::from_fn(|index| color(accents.color_for_index(index as u32))),
+        series: array::from_fn(|index| color(accents.color_for_index(index as u32))),
         // Fall back to common monospace fonts when the configured one isn't
         // installed.
         font_family: format!(

@@ -1,5 +1,8 @@
 use std::cmp::Reverse;
 use std::collections::hash_map;
+use std::fmt::Debug;
+use std::iter;
+use std::mem;
 use std::ops::Range;
 use std::path::Path;
 use std::str::FromStr;
@@ -33,6 +36,7 @@ use language::language_settings::LanguageSettings;
 use language::lsp_to_symbol_kind;
 use language::point_from_lsp;
 use language::point_to_lsp;
+use language::proto as language_proto;
 use language::proto::deserialize_anchor;
 use language::proto::deserialize_anchor_range;
 use language::proto::deserialize_markup_kind;
@@ -57,6 +61,26 @@ use lsp::LinkedEditingRangeServerCapabilities;
 use lsp::OneOf;
 use lsp::RenameOptions;
 use lsp::ServerCapabilities;
+use lsp::request;
+use lsp::request::CodeActionRequest;
+use lsp::request::Completion;
+use lsp::request::DocumentHighlightRequest;
+use lsp::request::DocumentSymbolRequest;
+use lsp::request::GotoDeclaration;
+use lsp::request::GotoDefinition;
+use lsp::request::GotoImplementation;
+use lsp::request::GotoTypeDefinition;
+use lsp::request::HoverRequest;
+use lsp::request::PrepareRenameRequest;
+use lsp::request::References;
+use lsp::request::Rename;
+use lsp::request::Request;
+use proto::document_highlight::Kind;
+use proto::inlay_hint_label::Label;
+use proto::inlay_hint_label_part_tooltip::Content;
+use proto::inlay_hint_tooltip;
+use proto::lsp_diagnostic::Severity;
+use proto::resolve_state::LspResolveState;
 use rpc::proto::PeerId;
 use rpc::proto::{self};
 use serde_json::Value;
@@ -90,6 +114,7 @@ use crate::PrepareRenameResponse;
 use crate::ProjectTransaction;
 use crate::PulledDiagnostics;
 use crate::ResolveState;
+use crate::lsp_store;
 use crate::lsp_store::LanguageServerToQuery;
 use crate::lsp_store::LocalLspStore;
 use crate::lsp_store::LspDocumentLink;
@@ -138,9 +163,9 @@ pub(crate) fn make_lsp_text_document_position(
 
 // Futures are polled on the foreground executor, so no `Send` bound is wanted
 #[allow(async_fn_in_trait)]
-pub trait LspCommand: 'static + Sized + Send + std::fmt::Debug {
-    type Response: 'static + Default + Send + std::fmt::Debug;
-    type LspRequest: 'static + Send + lsp::request::Request;
+pub trait LspCommand: 'static + Sized + Send + Debug {
+    type Response: 'static + Default + Send + Debug;
+    type LspRequest: 'static + Send + Request;
     type ProtoRequest: 'static + Send + proto::RequestMessage;
 
     fn display_name(&self) -> &str;
@@ -169,11 +194,11 @@ pub trait LspCommand: 'static + Sized + Send + std::fmt::Debug {
         buffer: &Buffer,
         language_server: &Arc<LanguageServer>,
         cx: &App,
-    ) -> Result<<Self::LspRequest as lsp::request::Request>::Params>;
+    ) -> Result<<Self::LspRequest as Request>::Params>;
 
     async fn response_from_lsp(
         self,
-        message: <Self::LspRequest as lsp::request::Request>::Result,
+        message: <Self::LspRequest as Request>::Result,
         lsp_store: Entity<LspStore>,
         buffer: Entity<Buffer>,
         server_id: LanguageServerId,
@@ -352,7 +377,7 @@ pub struct GetDocumentDiagnostics {
 
 impl LspCommand for PrepareRename {
     type Response = PrepareRenameResponse;
-    type LspRequest = lsp::request::PrepareRenameRequest;
+    type LspRequest = PrepareRenameRequest;
     type ProtoRequest = proto::PrepareRename;
 
     fn display_name(&self) -> &str {
@@ -426,7 +451,7 @@ impl LspCommand for PrepareRename {
         proto::PrepareRename {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             version: serialize_version(&buffer.version()),
         }
     }
@@ -454,8 +479,8 @@ impl LspCommand for PrepareRename {
             PrepareRenameResponse::Success { range, language_server_id } => proto::PrepareRenameResponse {
                 can_rename: true,
                 only_unprepared_rename_supported: false,
-                start: Some(language::proto::serialize_anchor(&range.start)),
-                end: Some(language::proto::serialize_anchor(&range.end)),
+                start: Some(serialize_anchor(&range.start)),
+                end: Some(serialize_anchor(&range.end)),
                 version: serialize_version(buffer_version),
                 language_server_id: language_server_id.map(LanguageServerId::to_proto),
             },
@@ -511,7 +536,7 @@ impl LspCommand for PrepareRename {
 
 impl LspCommand for PerformRename {
     type Response = ProjectTransaction;
-    type LspRequest = lsp::request::Rename;
+    type LspRequest = Rename;
     type ProtoRequest = proto::PerformRename;
 
     fn display_name(&self) -> &str {
@@ -553,7 +578,7 @@ impl LspCommand for PerformRename {
         proto::PerformRename {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             new_name: self.new_name.clone(),
             version: serialize_version(&buffer.version()),
             language_server_id: self.language_server_id.map(LanguageServerId::to_proto),
@@ -625,7 +650,7 @@ impl LspCommand for PerformRename {
 
 impl LspCommand for GetDefinitions {
     type Response = Vec<LocationLink>;
-    type LspRequest = lsp::request::GotoDefinition;
+    type LspRequest = GotoDefinition;
     type ProtoRequest = proto::GetDefinition;
 
     fn display_name(&self) -> &str {
@@ -662,7 +687,7 @@ impl LspCommand for GetDefinitions {
         proto::GetDefinition {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             version: serialize_version(&buffer.version()),
         }
     }
@@ -706,7 +731,7 @@ impl LspCommand for GetDefinitions {
 
 impl LspCommand for GetDeclarations {
     type Response = Vec<LocationLink>;
-    type LspRequest = lsp::request::GotoDeclaration;
+    type LspRequest = GotoDeclaration;
     type ProtoRequest = proto::GetDeclaration;
 
     fn display_name(&self) -> &str {
@@ -744,7 +769,7 @@ impl LspCommand for GetDeclarations {
         proto::GetDeclaration {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             version: serialize_version(&buffer.version()),
         }
     }
@@ -788,7 +813,7 @@ impl LspCommand for GetDeclarations {
 
 impl LspCommand for GetImplementations {
     type Response = Vec<LocationLink>;
-    type LspRequest = lsp::request::GotoImplementation;
+    type LspRequest = GotoImplementation;
     type ProtoRequest = proto::GetImplementation;
 
     fn display_name(&self) -> &str {
@@ -831,7 +856,7 @@ impl LspCommand for GetImplementations {
         proto::GetImplementation {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             version: serialize_version(&buffer.version()),
         }
     }
@@ -875,7 +900,7 @@ impl LspCommand for GetImplementations {
 
 impl LspCommand for GetTypeDefinitions {
     type Response = Vec<LocationLink>;
-    type LspRequest = lsp::request::GotoTypeDefinition;
+    type LspRequest = GotoTypeDefinition;
     type ProtoRequest = proto::GetTypeDefinition;
 
     fn display_name(&self) -> &str {
@@ -918,7 +943,7 @@ impl LspCommand for GetTypeDefinitions {
         proto::GetTypeDefinition {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             version: serialize_version(&buffer.version()),
         }
     }
@@ -1179,7 +1204,7 @@ pub fn location_link_to_proto(
 
 impl LspCommand for GetReferences {
     type Response = Vec<Location>;
-    type LspRequest = lsp::request::References;
+    type LspRequest = References;
     type ProtoRequest = proto::GetReferences;
 
     fn display_name(&self) -> &str {
@@ -1245,7 +1270,7 @@ impl LspCommand for GetReferences {
         proto::GetReferences {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             version: serialize_version(&buffer.version()),
         }
     }
@@ -1312,7 +1337,7 @@ impl LspCommand for GetReferences {
 
 impl LspCommand for GetDocumentHighlights {
     type Response = Vec<DocumentHighlight>;
-    type LspRequest = lsp::request::DocumentHighlightRequest;
+    type LspRequest = DocumentHighlightRequest;
     type ProtoRequest = proto::GetDocumentHighlights;
 
     fn display_name(&self) -> &str {
@@ -1371,7 +1396,7 @@ impl LspCommand for GetDocumentHighlights {
         proto::GetDocumentHighlights {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             version: serialize_version(&buffer.version()),
         }
     }
@@ -1400,10 +1425,10 @@ impl LspCommand for GetDocumentHighlights {
                 start: Some(serialize_anchor(&highlight.range.start)),
                 end: Some(serialize_anchor(&highlight.range.end)),
                 kind: match highlight.kind {
-                    DocumentHighlightKind::TEXT => proto::document_highlight::Kind::Text.into(),
-                    DocumentHighlightKind::WRITE => proto::document_highlight::Kind::Write.into(),
-                    DocumentHighlightKind::READ => proto::document_highlight::Kind::Read.into(),
-                    _ => proto::document_highlight::Kind::Text.into(),
+                    DocumentHighlightKind::TEXT => Kind::Text.into(),
+                    DocumentHighlightKind::WRITE => Kind::Write.into(),
+                    DocumentHighlightKind::READ => Kind::Read.into(),
+                    _ => Kind::Text.into(),
                 },
             })
             .collect();
@@ -1422,10 +1447,10 @@ impl LspCommand for GetDocumentHighlights {
             let start = highlight.start.and_then(deserialize_anchor).context("missing target start")?;
             let end = highlight.end.and_then(deserialize_anchor).context("missing target end")?;
             buffer.update(&mut cx, |buffer, _| buffer.wait_for_anchors([start, end])).await?;
-            let kind = match proto::document_highlight::Kind::try_from(highlight.kind).ok() {
-                Some(proto::document_highlight::Kind::Text) => DocumentHighlightKind::TEXT,
-                Some(proto::document_highlight::Kind::Read) => DocumentHighlightKind::READ,
-                Some(proto::document_highlight::Kind::Write) => DocumentHighlightKind::WRITE,
+            let kind = match Kind::try_from(highlight.kind).ok() {
+                Some(Kind::Text) => DocumentHighlightKind::TEXT,
+                Some(Kind::Read) => DocumentHighlightKind::READ,
+                Some(Kind::Write) => DocumentHighlightKind::WRITE,
                 None => DocumentHighlightKind::TEXT,
             };
             highlights.push(DocumentHighlight { range: start..end, kind });
@@ -1440,7 +1465,7 @@ impl LspCommand for GetDocumentHighlights {
 
 impl LspCommand for GetDocumentSymbols {
     type Response = Vec<DocumentSymbol>;
-    type LspRequest = lsp::request::DocumentSymbolRequest;
+    type LspRequest = DocumentSymbolRequest;
     type ProtoRequest = proto::GetDocumentSymbols;
 
     fn display_name(&self) -> &str {
@@ -1605,7 +1630,7 @@ impl LspCommand for GetDocumentSymbols {
 
 impl LspCommand for GetHover {
     type Response = Option<Hover>;
-    type LspRequest = lsp::request::HoverRequest;
+    type LspRequest = HoverRequest;
     type ProtoRequest = proto::GetHover;
 
     fn display_name(&self) -> &str {
@@ -1685,7 +1710,7 @@ impl LspCommand for GetHover {
         proto::GetHover {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             version: serialize_version(&buffer.version),
         }
     }
@@ -1710,10 +1735,7 @@ impl LspCommand for GetHover {
     ) -> proto::GetHoverResponse {
         if let Some(response) = response {
             let (start, end) = if let Some(range) = response.range {
-                (
-                    Some(language::proto::serialize_anchor(&range.start)),
-                    Some(language::proto::serialize_anchor(&range.end)),
-                )
+                (Some(serialize_anchor(&range.start)), Some(serialize_anchor(&range.end)))
             } else {
                 (None, None)
             };
@@ -1761,8 +1783,7 @@ impl LspCommand for GetHover {
 
         let language = buffer.read_with(&cx, |buffer, _| buffer.language().cloned());
         let range = if let (Some(start), Some(end)) = (message.start, message.end) {
-            language::proto::deserialize_anchor(start)
-                .and_then(|start| language::proto::deserialize_anchor(end).map(|end| start..end))
+            deserialize_anchor(start).and_then(|start| deserialize_anchor(end).map(|end| start..end))
         } else {
             None
         };
@@ -1786,7 +1807,7 @@ impl GetCompletions {
 
 impl LspCommand for GetCompletions {
     type Response = CoreCompletionResponse;
-    type LspRequest = lsp::request::Completion;
+    type LspRequest = Completion;
     type ProtoRequest = proto::GetCompletions;
 
     fn display_name(&self) -> &str {
@@ -1820,7 +1841,7 @@ impl LspCommand for GetCompletions {
                 lsp::CompletionResponse::Array(completions) => (completions, false),
                 lsp::CompletionResponse::List(mut list) => {
                     let is_incomplete = list.is_incomplete;
-                    let items = std::mem::take(&mut list.items);
+                    let items = mem::take(&mut list.items);
                     response_list = Some(list);
                     (items, is_incomplete)
                 }
@@ -1943,7 +1964,7 @@ impl LspCommand for GetCompletions {
         proto::GetCompletions {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&anchor)),
+            position: Some(serialize_anchor(&anchor)),
             version: serialize_version(&buffer.version()),
             server_id: self.server_id.map(|id| id.to_proto()),
         }
@@ -1959,7 +1980,7 @@ impl LspCommand for GetCompletions {
         buffer.update(&mut cx, |buffer, _| buffer.wait_for_version(version)).await?;
         let position = message
             .position
-            .and_then(language::proto::deserialize_anchor)
+            .and_then(deserialize_anchor)
             .map(|p| {
                 buffer.read_with(&cx, |buffer, _| {
                     buffer.clip_point_utf16(Unclipped(p.to_point_utf16(buffer)), Bias::Left)
@@ -2052,7 +2073,7 @@ pub(crate) fn parse_completion_text_edit(
 
 impl LspCommand for GetCodeActions {
     type Response = Vec<CodeAction>;
-    type LspRequest = lsp::request::CodeActionRequest;
+    type LspRequest = CodeActionRequest;
     type ProtoRequest = proto::GetCodeActions;
 
     fn display_name(&self) -> &str {
@@ -2177,8 +2198,8 @@ impl LspCommand for GetCodeActions {
         proto::GetCodeActions {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            start: Some(language::proto::serialize_anchor(&self.range.start)),
-            end: Some(language::proto::serialize_anchor(&self.range.end)),
+            start: Some(serialize_anchor(&self.range.start)),
+            end: Some(serialize_anchor(&self.range.end)),
             version: serialize_version(&buffer.version()),
         }
     }
@@ -2189,8 +2210,8 @@ impl LspCommand for GetCodeActions {
         buffer: Entity<Buffer>,
         mut cx: AsyncApp,
     ) -> Result<Self> {
-        let start = message.start.and_then(language::proto::deserialize_anchor).context("invalid start")?;
-        let end = message.end.and_then(language::proto::deserialize_anchor).context("invalid end")?;
+        let start = message.start.and_then(deserialize_anchor).context("invalid start")?;
+        let end = message.end.and_then(deserialize_anchor).context("invalid end")?;
         buffer.update(&mut cx, |buffer, _| buffer.wait_for_version(deserialize_version(&message.version))).await?;
 
         Ok(Self { range: start..end, kinds: None })
@@ -2260,7 +2281,7 @@ impl OnTypeFormatting {
 
 impl LspCommand for OnTypeFormatting {
     type Response = Option<Transaction>;
-    type LspRequest = lsp::request::OnTypeFormatting;
+    type LspRequest = request::OnTypeFormatting;
     type ProtoRequest = proto::OnTypeFormatting;
 
     fn display_name(&self) -> &str {
@@ -2314,7 +2335,7 @@ impl LspCommand for OnTypeFormatting {
         proto::OnTypeFormatting {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             trigger: self.trigger.clone(),
             version: serialize_version(&buffer.version()),
         }
@@ -2348,7 +2369,7 @@ impl LspCommand for OnTypeFormatting {
         _: &mut App,
     ) -> proto::OnTypeFormattingResponse {
         proto::OnTypeFormattingResponse {
-            transaction: response.map(|transaction| language::proto::serialize_transaction(&transaction)),
+            transaction: response.map(|transaction| language_proto::serialize_transaction(&transaction)),
         }
     }
 
@@ -2362,7 +2383,7 @@ impl LspCommand for OnTypeFormatting {
         let Some(transaction) = message.transaction else {
             return Ok(None);
         };
-        Ok(Some(language::proto::deserialize_transaction(transaction)?))
+        Ok(Some(language_proto::deserialize_transaction(transaction)?))
     }
 
     fn buffer_id_from_proto(message: &proto::OnTypeFormatting) -> Result<BufferId> {
@@ -2537,7 +2558,7 @@ impl InlayHints {
             ResolveState::Resolved => (0, None),
             ResolveState::CanResolve(server_id, resolve_data) => (
                 1,
-                Some(proto::resolve_state::LspResolveState {
+                Some(LspResolveState {
                     server_id: server_id.0 as u64,
                     value: resolve_data.map(|json_data| {
                         serde_json::to_string(&json_data).expect("failed to serialize resolve json data")
@@ -2559,76 +2580,69 @@ impl InlayHints {
                     .collect(),
                 buffer_version: serialize_version(&text_edits.buffer_version),
             }),
-            position: Some(language::proto::serialize_anchor(&response_hint.position)),
+            position: Some(serialize_anchor(&response_hint.position)),
             padding_left: response_hint.padding_left,
             padding_right: response_hint.padding_right,
             label: Some(proto::InlayHintLabel {
                 label: Some(match response_hint.label {
-                    InlayHintLabel::String(s) => proto::inlay_hint_label::Label::Value(s),
-                    InlayHintLabel::LabelParts(label_parts) => {
-                        proto::inlay_hint_label::Label::LabelParts(proto::InlayHintLabelParts {
-                            parts: label_parts
-                                .into_iter()
-                                .map(|label_part| {
-                                    let location_url =
-                                        label_part.location.as_ref().map(|(_, location)| location.uri.to_string());
-                                    let location_range_start = label_part
+                    InlayHintLabel::String(s) => Label::Value(s),
+                    InlayHintLabel::LabelParts(label_parts) => Label::LabelParts(proto::InlayHintLabelParts {
+                        parts: label_parts
+                            .into_iter()
+                            .map(|label_part| {
+                                let location_url =
+                                    label_part.location.as_ref().map(|(_, location)| location.uri.to_string());
+                                let location_range_start = label_part
+                                    .location
+                                    .as_ref()
+                                    .map(|(_, location)| point_from_lsp(location.range.start).0)
+                                    .map(|point| proto::PointUtf16 { row: point.row, column: point.column });
+                                let location_range_end = label_part
+                                    .location
+                                    .as_ref()
+                                    .map(|(_, location)| point_from_lsp(location.range.end).0)
+                                    .map(|point| proto::PointUtf16 { row: point.row, column: point.column });
+                                proto::InlayHintLabelPart {
+                                    value: label_part.value,
+                                    tooltip: label_part.tooltip.map(|tooltip| {
+                                        let proto_tooltip = match tooltip {
+                                            InlayHintLabelPartTooltip::String(s) => Content::Value(s),
+                                            InlayHintLabelPartTooltip::MarkupContent(markup_content) => {
+                                                Content::MarkupContent(proto::MarkupContent {
+                                                    is_markdown: markup_content.kind == HoverBlockKind::Markdown,
+                                                    value: markup_content.value,
+                                                })
+                                            }
+                                        };
+                                        proto::InlayHintLabelPartTooltip { content: Some(proto_tooltip) }
+                                    }),
+                                    location_url,
+                                    location_range_start,
+                                    location_range_end,
+                                    language_server_id: label_part
                                         .location
                                         .as_ref()
-                                        .map(|(_, location)| point_from_lsp(location.range.start).0)
-                                        .map(|point| proto::PointUtf16 { row: point.row, column: point.column });
-                                    let location_range_end = label_part
-                                        .location
-                                        .as_ref()
-                                        .map(|(_, location)| point_from_lsp(location.range.end).0)
-                                        .map(|point| proto::PointUtf16 { row: point.row, column: point.column });
-                                    proto::InlayHintLabelPart {
-                                        value: label_part.value,
-                                        tooltip: label_part.tooltip.map(|tooltip| {
-                                            let proto_tooltip = match tooltip {
-                                                InlayHintLabelPartTooltip::String(s) => {
-                                                    proto::inlay_hint_label_part_tooltip::Content::Value(s)
-                                                }
-                                                InlayHintLabelPartTooltip::MarkupContent(markup_content) => {
-                                                    proto::inlay_hint_label_part_tooltip::Content::MarkupContent(
-                                                        proto::MarkupContent {
-                                                            is_markdown: markup_content.kind
-                                                                == HoverBlockKind::Markdown,
-                                                            value: markup_content.value,
-                                                        },
-                                                    )
-                                                }
-                                            };
-                                            proto::InlayHintLabelPartTooltip { content: Some(proto_tooltip) }
-                                        }),
-                                        location_url,
-                                        location_range_start,
-                                        location_range_end,
-                                        language_server_id: label_part
-                                            .location
-                                            .as_ref()
-                                            .map(|(server_id, _)| server_id.0 as u64),
-                                        command: label_part.command.map(|(server_id, command)| {
-                                            LspStore::serialize_code_action(&CodeAction {
-                                                server_id,
-                                                range: position..position,
-                                                lsp_action: LspAction::Command(command),
-                                                resolved: true,
-                                            })
-                                        }),
-                                    }
-                                })
-                                .collect(),
-                        })
-                    }
+                                        .map(|(server_id, _)| server_id.0 as u64),
+                                    command: label_part.command.map(|(server_id, command)| {
+                                        LspStore::serialize_code_action(&CodeAction {
+                                            server_id,
+                                            range: position..position,
+                                            lsp_action: LspAction::Command(command),
+                                            resolved: true,
+                                        })
+                                    }),
+                                }
+                            })
+                            .collect(),
+                    }),
                 }),
             }),
             kind: response_hint.kind.map(|kind| kind.name().to_string()),
             tooltip: response_hint.tooltip.map(|response_tooltip| {
                 let proto_tooltip = match response_tooltip {
-                    InlayHintTooltip::String(s) => proto::inlay_hint_tooltip::Content::Value(s),
+                    InlayHintTooltip::String(s) => inlay_hint_tooltip::Content::Value(s),
                     InlayHintTooltip::MarkupContent(markup_content) => {
-                        proto::inlay_hint_tooltip::Content::MarkupContent(proto::MarkupContent {
+                        inlay_hint_tooltip::Content::MarkupContent(proto::MarkupContent {
                             is_markdown: markup_content.kind == HoverBlockKind::Markdown,
                             value: markup_content.value,
                         })
@@ -2694,22 +2708,17 @@ impl InlayHints {
             .transpose()?;
         Ok(InlayHint {
             text_edits,
-            position: message_hint
-                .position
-                .and_then(language::proto::deserialize_anchor)
-                .context("invalid position")?,
+            position: message_hint.position.and_then(deserialize_anchor).context("invalid position")?,
             label: match message_hint.label.and_then(|label| label.label).context("missing label")? {
-                proto::inlay_hint_label::Label::Value(s) => InlayHintLabel::String(s),
-                proto::inlay_hint_label::Label::LabelParts(parts) => {
+                Label::Value(s) => InlayHintLabel::String(s),
+                Label::LabelParts(parts) => {
                     let mut label_parts = Vec::new();
                     for part in parts.parts {
                         label_parts.push(InlayHintLabelPart {
                             value: part.value,
                             tooltip: part.tooltip.map(|tooltip| match tooltip.content {
-                                Some(proto::inlay_hint_label_part_tooltip::Content::Value(s)) => {
-                                    InlayHintLabelPartTooltip::String(s)
-                                }
-                                Some(proto::inlay_hint_label_part_tooltip::Content::MarkupContent(markup_content)) => {
+                                Some(Content::Value(s)) => InlayHintLabelPartTooltip::String(s),
+                                Some(Content::MarkupContent(markup_content)) => {
                                     InlayHintLabelPartTooltip::MarkupContent(MarkupContent {
                                         kind: if markup_content.is_markdown {
                                             HoverBlockKind::Markdown
@@ -2768,8 +2777,8 @@ impl InlayHints {
             kind: message_hint.kind.as_deref().and_then(InlayHintKind::from_name),
             tooltip: message_hint.tooltip.and_then(|tooltip| {
                 Some(match tooltip.content? {
-                    proto::inlay_hint_tooltip::Content::Value(s) => InlayHintTooltip::String(s),
-                    proto::inlay_hint_tooltip::Content::MarkupContent(markup_content) => {
+                    inlay_hint_tooltip::Content::Value(s) => InlayHintTooltip::String(s),
+                    inlay_hint_tooltip::Content::MarkupContent(markup_content) => {
                         InlayHintTooltip::MarkupContent(MarkupContent {
                             kind: if markup_content.is_markdown {
                                 HoverBlockKind::Markdown
@@ -2974,8 +2983,8 @@ impl LspCommand for InlayHints {
         proto::InlayHints {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            start: Some(language::proto::serialize_anchor(&self.range.start)),
-            end: Some(language::proto::serialize_anchor(&self.range.end)),
+            start: Some(serialize_anchor(&self.range.start)),
+            end: Some(serialize_anchor(&self.range.end)),
             version: serialize_version(&buffer.version()),
         }
     }
@@ -2986,8 +2995,8 @@ impl LspCommand for InlayHints {
         buffer: Entity<Buffer>,
         mut cx: AsyncApp,
     ) -> Result<Self> {
-        let start = message.start.and_then(language::proto::deserialize_anchor).context("invalid start")?;
-        let end = message.end.and_then(language::proto::deserialize_anchor).context("invalid end")?;
+        let start = message.start.and_then(deserialize_anchor).context("invalid start")?;
+        let end = message.end.and_then(deserialize_anchor).context("invalid end")?;
         buffer.update(&mut cx, |buffer, _| buffer.wait_for_version(deserialize_version(&message.version))).await?;
 
         Ok(Self { range: start..end })
@@ -3382,7 +3391,7 @@ impl LinkedEditingRange {
 
 impl LspCommand for LinkedEditingRange {
     type Response = Vec<Range<Anchor>>;
-    type LspRequest = lsp::request::LinkedEditingRange;
+    type LspRequest = request::LinkedEditingRange;
     type ProtoRequest = proto::LinkedEditingRange;
 
     fn display_name(&self) -> &str {
@@ -3583,11 +3592,11 @@ impl GetDocumentDiagnostics {
 
         Ok(lsp::Diagnostic {
             range: language::range_to_lsp(range)?,
-            severity: match proto::lsp_diagnostic::Severity::try_from(diagnostic.severity).ok().unwrap() {
-                proto::lsp_diagnostic::Severity::Error => Some(lsp::DiagnosticSeverity::ERROR),
-                proto::lsp_diagnostic::Severity::Warning => Some(lsp::DiagnosticSeverity::WARNING),
-                proto::lsp_diagnostic::Severity::Information => Some(lsp::DiagnosticSeverity::INFORMATION),
-                proto::lsp_diagnostic::Severity::Hint => Some(lsp::DiagnosticSeverity::HINT),
+            severity: match Severity::try_from(diagnostic.severity).ok().unwrap() {
+                Severity::Error => Some(lsp::DiagnosticSeverity::ERROR),
+                Severity::Warning => Some(lsp::DiagnosticSeverity::WARNING),
+                Severity::Information => Some(lsp::DiagnosticSeverity::INFORMATION),
+                Severity::Hint => Some(lsp::DiagnosticSeverity::HINT),
                 _ => None,
             },
             code,
@@ -3648,11 +3657,11 @@ impl GetDocumentDiagnostics {
             start: Some(proto::PointUtf16 { row: range.start.0.row, column: range.start.0.column }),
             end: Some(proto::PointUtf16 { row: range.end.0.row, column: range.end.0.column }),
             severity: match diagnostic.severity {
-                Some(lsp::DiagnosticSeverity::ERROR) => proto::lsp_diagnostic::Severity::Error,
-                Some(lsp::DiagnosticSeverity::WARNING) => proto::lsp_diagnostic::Severity::Warning,
-                Some(lsp::DiagnosticSeverity::INFORMATION) => proto::lsp_diagnostic::Severity::Information,
-                Some(lsp::DiagnosticSeverity::HINT) => proto::lsp_diagnostic::Severity::Hint,
-                _ => proto::lsp_diagnostic::Severity::None,
+                Some(lsp::DiagnosticSeverity::ERROR) => Severity::Error,
+                Some(lsp::DiagnosticSeverity::WARNING) => Severity::Warning,
+                Some(lsp::DiagnosticSeverity::INFORMATION) => Severity::Information,
+                Some(lsp::DiagnosticSeverity::HINT) => Severity::Hint,
+                _ => Severity::None,
             } as i32,
             code: diagnostic.code.as_ref().map(|code| match code {
                 lsp::NumberOrString::Number(code) => code.to_string(),
@@ -3770,7 +3779,7 @@ fn process_unchanged_workspace_diagnostics_report(
 
 impl LspCommand for GetDocumentDiagnostics {
     type Response = Vec<LspPullDiagnostics>;
-    type LspRequest = lsp::request::DocumentDiagnosticRequest;
+    type LspRequest = request::DocumentDiagnosticRequest;
     type ProtoRequest = proto::GetDocumentDiagnostics;
 
     fn display_name(&self) -> &str {
@@ -3948,7 +3957,7 @@ impl LspCommand for GetDocumentDiagnostics {
 
 impl LspCommand for GetDocumentColor {
     type Response = Vec<DocumentColor>;
-    type LspRequest = lsp::request::DocumentColor;
+    type LspRequest = request::DocumentColor;
     type ProtoRequest = proto::GetDocumentColor;
 
     fn display_name(&self) -> &str {
@@ -4061,7 +4070,7 @@ impl LspCommand for GetDocumentColor {
 
 impl LspCommand for GetFoldingRanges {
     type Response = Vec<LspFoldingRange>;
-    type LspRequest = lsp::request::FoldingRangeRequest;
+    type LspRequest = request::FoldingRangeRequest;
     type ProtoRequest = proto::GetFoldingRanges;
 
     fn display_name(&self) -> &str {
@@ -4113,7 +4122,7 @@ impl LspCommand for GetFoldingRanges {
                 let collapsed_text = folding_range
                     .collapsed_text
                     .filter(|t| !t.is_empty())
-                    .map(|t| SharedString::from(crate::lsp_store::collapse_newlines(&t, " ")));
+                    .map(|t| SharedString::from(lsp_store::collapse_newlines(&t, " ")));
                 LspFoldingRange { range: start..end, collapsed_text }
             })
             .collect())
@@ -4158,7 +4167,7 @@ impl LspCommand for GetFoldingRanges {
         message
             .ranges
             .into_iter()
-            .zip(message.collapsed_texts.into_iter().map(Some).chain(std::iter::repeat(None)))
+            .zip(message.collapsed_texts.into_iter().map(Some).chain(iter::repeat(None)))
             .map(|(range, collapsed_text)| {
                 Ok(LspFoldingRange {
                     range: deserialize_anchor_range(range)?,
@@ -4175,7 +4184,7 @@ impl LspCommand for GetFoldingRanges {
 
 impl LspCommand for GetDocumentLinks {
     type Response = Vec<LspDocumentLink>;
-    type LspRequest = lsp::request::DocumentLinkRequest;
+    type LspRequest = request::DocumentLinkRequest;
     type ProtoRequest = proto::GetDocumentLinks;
 
     fn display_name(&self) -> &str {

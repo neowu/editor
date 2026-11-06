@@ -1138,7 +1138,6 @@ fn draw(db: &SeqDb, config: &Value, options: &Options, tight: bool) -> Rendered 
                 if right_angles {
                     push_num(&mut path, out);
                     path.push('V');
-                    push_num(&mut path, bottom);
                 } else {
                     push_num(&mut path, out - 6.0);
                     path.push_str("A6,6 0 0 1 ");
@@ -1150,8 +1149,8 @@ fn draw(db: &SeqDb, config: &Value, options: &Options, tight: bool) -> Rendered 
                     path.push_str("A6,6 0 0 1 ");
                     push_num(&mut path, out - 6.0);
                     path.push(',');
-                    push_num(&mut path, bottom);
                 }
+                push_num(&mut path, bottom);
                 path.push('H');
                 push_num(&mut path, to);
                 bounds.extend(a.x, out + 8.0 + label.width);

@@ -1,6 +1,8 @@
 use std::path::Path;
 
 use collections::HashMap;
+use ed_actions::workspace::CopyPath;
+use ed_actions::workspace::CopyRelativePath;
 use file_icons::FileIcons;
 use git::status::FileStatus;
 use gpui::Action;
@@ -38,6 +40,7 @@ use ui::ContextMenu;
 use ui::DiffStat;
 use ui::Indicator;
 use ui::Tooltip;
+use ui::font;
 use ui::prelude::*;
 use ui::right_click_menu;
 use ui::text_for_keystroke;
@@ -377,7 +380,7 @@ pub(crate) fn render_buffer_header(
                                 .child(
                                     ButtonLike::new("filename-button")
                                         .child({
-                                            let path = std::path::Path::new(filename.as_str());
+                                            let path = Path::new(filename.as_str());
                                             let icon = FileIcons::get_icon(path, cx).unwrap_or_default();
                                             Icon::from_path(icon).color(Color::Muted)
                                         })
@@ -422,7 +425,7 @@ pub(crate) fn render_buffer_header(
                             h_flex()
                                 .gap_2()
                                 .when_some(diff_stat, |this, (added, removed)| {
-                                    let ui_font_size = ui::font::ui_font_size(cx);
+                                    let ui_font_size = font::ui_font_size(cx);
                                     this.child(WithRemSize::new(ui_font_size).child(DiffStat::new(
                                         ("buffer-header-diff-stat", buffer_id.to_proto()),
                                         added as usize,
@@ -513,7 +516,7 @@ pub(crate) fn render_buffer_header(
                         .when_some(abs_path, |menu, abs_path| {
                             menu.entry(
                                 "Copy Path",
-                                Some(Box::new(ed_actions::workspace::CopyPath)),
+                                Some(Box::new(CopyPath)),
                                 window.handler_for(&editor, move |_, _, cx| {
                                     cx.write_to_clipboard(ClipboardItem::new_string(
                                         abs_path.to_string_lossy().into_owned(),
@@ -524,7 +527,7 @@ pub(crate) fn render_buffer_header(
                         .when_some(relative_path, |menu, relative_path| {
                             menu.entry(
                                 "Copy Relative Path",
-                                Some(Box::new(ed_actions::workspace::CopyRelativePath)),
+                                Some(Box::new(CopyRelativePath)),
                                 window.handler_for(&editor, move |_, _, cx| {
                                     cx.write_to_clipboard(ClipboardItem::new_string(
                                         relative_path.display().to_string(),

@@ -1,4 +1,8 @@
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::rc::Rc;
+use std::result;
 
 use smallvec::SmallVec;
 
@@ -49,14 +53,14 @@ impl KeyBinding {
         use_key_equivalents: bool,
         action_input: Option<SharedString>,
         keyboard_mapper: &dyn PlatformKeyboardMapper,
-    ) -> std::result::Result<Self, InvalidKeystrokeError> {
+    ) -> result::Result<Self, InvalidKeystrokeError> {
         let keystrokes: SmallVec<[KeybindingKeystroke; 2]> = keystrokes
             .split_whitespace()
             .map(|source| {
                 let keystroke = Keystroke::parse(source)?;
                 Ok(KeybindingKeystroke::new_with_mapper(keystroke, use_key_equivalents, keyboard_mapper))
             })
-            .collect::<std::result::Result<_, _>>()?;
+            .collect::<result::Result<_, _>>()?;
 
         Ok(Self { keystrokes, action, context_predicate, meta: None, action_input })
     }
@@ -113,8 +117,8 @@ impl KeyBinding {
     }
 }
 
-impl std::fmt::Debug for KeyBinding {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for KeyBinding {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("KeyBinding")
             .field("keystrokes", &self.keystrokes)
             .field("context_predicate", &self.context_predicate)

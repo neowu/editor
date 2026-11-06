@@ -159,13 +159,12 @@ fn draw(model: &RadarModel, config: &Value, options: &Options, width: f64, heigh
         if circle {
             grid.push_str("<circle r=\"");
             push_num(&mut grid, r);
-            grid.push_str("\"/>");
         } else {
             let points: Vec<Point> = unit.iter().map(|u| Point { x: u.x * r, y: u.y * r }).collect();
             grid.push_str("<polygon points=\"");
             grid.push_str(&polygon(&points));
-            grid.push_str("\"/>");
         }
+        grid.push_str("\"/>");
         i += 1.0;
     }
 

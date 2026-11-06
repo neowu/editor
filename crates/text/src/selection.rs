@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
+use std::mem;
 use std::ops::Range;
+use std::ops::Sub;
 
 use crate::Anchor;
 use crate::BufferSnapshot;
@@ -114,7 +116,7 @@ impl<T: Copy + Ord> Selection<T> {
         if self.reversed {
             self.reversed = false;
         } else {
-            std::mem::swap(&mut self.start, &mut self.end);
+            mem::swap(&mut self.start, &mut self.end);
         }
     }
 }
@@ -125,8 +127,8 @@ impl<T: Copy> Selection<T> {
     }
 }
 
-impl<T: std::ops::Sub + Copy> Selection<T> {
-    pub fn len(&self) -> <T as std::ops::Sub>::Output {
+impl<T: Sub + Copy> Selection<T> {
+    pub fn len(&self) -> <T as Sub>::Output {
         self.end - self.start
     }
 }

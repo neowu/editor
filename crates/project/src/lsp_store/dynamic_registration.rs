@@ -18,6 +18,7 @@ use lsp::LanguageServer;
 use lsp::LanguageServerId;
 use lsp::OneOf;
 use lsp::TextDocumentSyncSaveOptions;
+use serde::de::DeserializeOwned;
 
 use crate::lsp_store::LanguageServerState;
 use crate::lsp_store::LspStore;
@@ -1073,7 +1074,7 @@ fn parse_text_document_registration(
 
 // Registration with registerOptions as null, should fallback to true.
 // https://github.com/microsoft/vscode-languageserver-node/blob/d90a87f9557a0df9142cfb33e251cfa6fe27d970/client/src/common/client.ts#L2133
-fn parse_register_capabilities<T: serde::de::DeserializeOwned>(
+fn parse_register_capabilities<T: DeserializeOwned>(
     register_options: Option<serde_json::Value>,
 ) -> Result<OneOf<bool, T>> {
     Ok(match register_options {

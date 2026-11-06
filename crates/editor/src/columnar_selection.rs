@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::str;
 
 use language::Bias;
 use language::LanguageAwareStyling;
@@ -399,7 +400,7 @@ impl<'a> RowChunks<'a> {
             let (text, is_tab) =
                 self.remaining.find(|(text, _)| !text.is_empty()).expect("row chunks must cover the row");
             let text = if is_tab {
-                std::str::from_utf8(&TAB_CHARACTERS[..text.len()]).expect("tab controls are UTF-8")
+                str::from_utf8(&TAB_CHARACTERS[..text.len()]).expect("tab controls are UTF-8")
             } else {
                 text
             };
@@ -447,8 +448,7 @@ impl<'a> RowChunks<'a> {
                 let previous_length = previous.encode_utf8(&mut bridge).len();
                 let following_length = following.encode_utf8(&mut bridge[previous_length..]).len();
                 (
-                    std::str::from_utf8(&bridge[..previous_length + following_length])
-                        .expect("encoded scalars are UTF-8"),
+                    str::from_utf8(&bridge[..previous_length + following_length]).expect("encoded scalars are UTF-8"),
                     offset - previous_length,
                 )
             } else {

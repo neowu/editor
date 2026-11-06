@@ -6,6 +6,9 @@
 //! - Exposes [`LanguageConfig`] that describes how constructs (like brackets or line comments) should be handled by the editor for a source file of a particular language.
 //!
 //! Notably we do *not* assign a single language to a single file; in real world a single file can consist of multiple programming languages - HTML is a good example of that - and `language` crate tends to reflect that status quo in its API.
+use std::fmt;
+use std::fmt::Formatter;
+use std::hash::Hasher;
 mod available_languages;
 mod buffer;
 mod diagnostic;
@@ -337,7 +340,7 @@ pub struct CachedLspAdapter {
 }
 
 impl Debug for CachedLspAdapter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("CachedLspAdapter")
             .field("name", &self.name)
             .field("disk_based_diagnostic_sources", &self.disk_based_diagnostic_sources)
@@ -949,7 +952,7 @@ impl LanguageScope {
     /// Returns a list of bracket pairs for a given language with an additional
     /// piece of information about whether the particular bracket pair is currently active for a given language.
     pub fn brackets(&self) -> impl Iterator<Item = (&BracketPair, bool)> {
-        let mut disabled_ids = self.config_override().map_or(&[] as _, |o| o.disabled_bracket_ixs.as_slice());
+        let mut disabled_ids = self.config_override().map_or(&[] as &[u16], |o| o.disabled_bracket_ixs.as_slice());
         self.language.config.brackets.pairs.iter().enumerate().map(move |(ix, bracket)| {
             let mut is_enabled = true;
             if let Some(next_disabled_ix) = disabled_ids.first()
@@ -982,7 +985,7 @@ impl LanguageScope {
 }
 
 impl Hash for Language {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.id.hash(state)
     }
 }
@@ -996,7 +999,7 @@ impl PartialEq for Language {
 impl Eq for Language {}
 
 impl Debug for Language {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Language").field("name", &self.config.name).finish()
     }
 }

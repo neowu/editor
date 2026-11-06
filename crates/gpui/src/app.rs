@@ -1,20 +1,28 @@
 use std::any::TypeId;
 use std::any::type_name;
+use std::borrow;
 use std::cell::BorrowMutError;
 use std::cell::Cell;
 use std::cell::Ref;
 use std::cell::RefCell;
 use std::cell::RefMut;
 use std::ffi::OsString;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::marker::PhantomData;
 use std::mem;
+use std::ops;
 use std::ops::Deref;
 use std::ops::DerefMut;
+use std::panic::Location;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::rc::Weak;
+use std::result;
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
 use anyhow::Context as _;
@@ -34,6 +42,7 @@ pub use entity_map::*;
 use futures::Future;
 use futures::FutureExt;
 use futures::channel::oneshot;
+use futures::future;
 use futures::future::LocalBoxFuture;
 use gpui_util::ResultExt;
 use gpui_util::debug_panic;
@@ -134,7 +143,7 @@ impl AppCell {
     #[track_caller]
     pub fn borrow(&self) -> AppRef<'_> {
         if option_env!("TRACK_THREAD_BORROWS").is_some() {
-            let thread_id = std::thread::current().id();
+            let thread_id = thread::current().id();
             eprintln!("borrowed {thread_id:?}");
         }
         AppRef(self.app.borrow())
@@ -144,7 +153,7 @@ impl AppCell {
     #[track_caller]
     pub fn borrow_mut(&self) -> AppRefMut<'_> {
         if option_env!("TRACK_THREAD_BORROWS").is_some() {
-            let thread_id = std::thread::current().id();
+            let thread_id = thread::current().id();
             eprintln!("borrowed {thread_id:?}");
         }
         AppRefMut(self.app.borrow_mut())
@@ -154,7 +163,7 @@ impl AppCell {
     #[track_caller]
     pub fn try_borrow_mut(&self) -> Result<AppRefMut<'_>, BorrowMutError> {
         if option_env!("TRACK_THREAD_BORROWS").is_some() {
-            let thread_id = std::thread::current().id();
+            let thread_id = thread::current().id();
             eprintln!("borrowed {thread_id:?}");
         }
         Ok(AppRefMut(self.app.try_borrow_mut()?))
@@ -168,7 +177,7 @@ pub struct AppRef<'a>(Ref<'a, App>);
 impl Drop for AppRef<'_> {
     fn drop(&mut self) {
         if option_env!("TRACK_THREAD_BORROWS").is_some() {
-            let thread_id = std::thread::current().id();
+            let thread_id = thread::current().id();
             eprintln!("dropped borrow from {thread_id:?}");
         }
     }
@@ -181,7 +190,7 @@ pub struct AppRefMut<'a>(RefMut<'a, App>);
 impl Drop for AppRefMut<'_> {
     fn drop(&mut self) {
         if option_env!("TRACK_THREAD_BORROWS").is_some() {
-            let thread_id = std::thread::current().id();
+            let thread_id = thread::current().id();
             eprintln!("dropped {thread_id:?}");
         }
     }
@@ -388,8 +397,7 @@ fn display_events(
 type Listener = Box<dyn FnMut(&dyn Any, &mut App) -> bool + 'static>;
 type MissingGlyphCallback = Box<dyn FnMut(&[MissingGlyph], &mut App) + 'static>;
 pub(crate) type KeystrokeObserver = Box<dyn FnMut(&KeystrokeEvent, &mut Window, &mut App) -> bool + 'static>;
-type QuitHandler =
-    (Box<dyn FnOnce(&mut App) -> LocalBoxFuture<'static, ()> + 'static>, &'static std::panic::Location<'static>);
+type QuitHandler = (Box<dyn FnOnce(&mut App) -> LocalBoxFuture<'static, ()> + 'static>, &'static Location<'static>);
 type WindowClosedHandler = Box<dyn FnMut(&mut App, WindowId)>;
 type ReleaseListener = Box<dyn FnOnce(&mut dyn Any, &mut App) + 'static>;
 type NewEntityListener = Box<dyn FnMut(AnyEntity, &mut Option<&mut Window>, &mut App) + 'static>;
@@ -755,7 +763,7 @@ impl App {
         self.flush_effects();
         self.quitting = true;
 
-        let futures = futures::future::join_all(futures);
+        let futures = future::join_all(futures);
 
         if self.foreground_executor.block_with_timeout(SHUTDOWN_TIMEOUT, futures).is_err() {
             let stuck = pending
@@ -905,7 +913,7 @@ impl App {
         invalidator: WindowInvalidator,
         entities: &FxHashSet<EntityId>,
     ) {
-        let mut tracked_entities = std::mem::take(self.tracked_entities.entry(window_handle.id).or_default());
+        let mut tracked_entities = mem::take(self.tracked_entities.entry(window_handle.id).or_default());
         for entity in &tracked_entities {
             self.window_invalidators_by_entity.entry(*entity).and_modify(|windows| {
                 windows.remove(&window_handle.id);
@@ -1318,7 +1326,7 @@ impl App {
     /// Restarts the application.
     pub fn restart(&mut self) {
         self.restart_observers.clone().retain(|observer| observer(self));
-        self.platform.restart(std::mem::take(&mut self.restart_arguments))
+        self.platform.restart(mem::take(&mut self.restart_arguments))
     }
 
     /// Configures when the application should automatically quit.
@@ -1890,7 +1898,7 @@ impl App {
         &self,
         name: &str,
         data: Option<serde_json::Value>,
-    ) -> std::result::Result<Box<dyn Action>, ActionBuildError> {
+    ) -> result::Result<Box<dyn Action>, ActionBuildError> {
         self.actions.build_action(name, data)
     }
 
@@ -2405,8 +2413,8 @@ pub(crate) enum Effect {
     EntityCreated { entity: AnyEntity, tid: TypeId, window: Option<WindowId> },
 }
 
-impl std::fmt::Debug for Effect {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for Effect {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Effect::Notify { emitter } => write!(f, "Notify({})", emitter),
             Effect::Emit { emitter, .. } => write!(f, "Emit({:?})", emitter),
@@ -2524,19 +2532,19 @@ impl<'a, T: 'static> GpuiBorrow<'a, T> {
     }
 }
 
-impl<T: 'static> std::borrow::Borrow<T> for GpuiBorrow<'_, T> {
+impl<T: 'static> borrow::Borrow<T> for GpuiBorrow<'_, T> {
     fn borrow(&self) -> &T {
         self.inner.as_ref().unwrap().borrow()
     }
 }
 
-impl<T: 'static> std::borrow::BorrowMut<T> for GpuiBorrow<'_, T> {
+impl<T: 'static> borrow::BorrowMut<T> for GpuiBorrow<'_, T> {
     fn borrow_mut(&mut self) -> &mut T {
         self.inner.as_mut().unwrap().borrow_mut()
     }
 }
 
-impl<T: 'static> std::ops::Deref for GpuiBorrow<'_, T> {
+impl<T: 'static> ops::Deref for GpuiBorrow<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -2544,7 +2552,7 @@ impl<T: 'static> std::ops::Deref for GpuiBorrow<'_, T> {
     }
 }
 
-impl<T: 'static> std::ops::DerefMut for GpuiBorrow<'_, T> {
+impl<T: 'static> ops::DerefMut for GpuiBorrow<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.inner.as_mut().unwrap()
     }

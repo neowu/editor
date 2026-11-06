@@ -1,8 +1,11 @@
 //! Paths to locations used by ed.
 
+use std::env;
+use std::fs;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+use ignore::gitignore;
 use util::paths::SanitizedPath;
 pub use util::paths::home_dir;
 
@@ -26,7 +29,7 @@ static CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
 /// Resolves an XDG base directory for [`APP_NAME`] on every platform, including
 /// macOS: the absolute value of `env_var` if set, else `~/<fallback>`.
 fn xdg_dir(env_var: &str, fallback: &str) -> PathBuf {
-    std::env::var_os(env_var)
+    env::var_os(env_var)
         .map(PathBuf::from)
         .filter(|path| path.is_absolute())
         .unwrap_or_else(|| home_dir().join(fallback))
@@ -59,7 +62,7 @@ pub fn set_custom_data_dir(dir: &str) -> &'static PathBuf {
     }
     CUSTOM_DATA_DIR.get_or_init(|| {
         let path = PathBuf::from(dir);
-        std::fs::create_dir_all(&path).expect("failed to create custom data directory");
+        fs::create_dir_all(&path).expect("failed to create custom data directory");
         let canonicalized =
             path.canonicalize().expect("failed to canonicalize custom data directory's path to an absolute path");
         // On Windows, `canonicalize` produces extended-length paths prefixed
@@ -129,5 +132,5 @@ pub fn old_log_file() -> &'static PathBuf {
 
 pub fn global_gitignore_path() -> Option<PathBuf> {
     static GLOBAL_GITIGNORE_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
-    GLOBAL_GITIGNORE_PATH.get_or_init(::ignore::gitignore::gitconfig_excludes_path).clone()
+    GLOBAL_GITIGNORE_PATH.get_or_init(gitignore::gitconfig_excludes_path).clone()
 }

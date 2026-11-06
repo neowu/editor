@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -744,8 +747,8 @@ pub enum SplitDirection {
     Right,
 }
 
-impl std::fmt::Display for SplitDirection {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for SplitDirection {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             SplitDirection::Up => write!(f, "up"),
             SplitDirection::Down => write!(f, "down"),
@@ -827,6 +830,7 @@ mod element {
     use gpui::size;
     use parking_lot::Mutex;
     use smallvec::SmallVec;
+    use ui::prelude;
     use ui::prelude::*;
     use util::ResultExt;
 
@@ -1118,7 +1122,7 @@ mod element {
         fn paint(
             &mut self,
             _id: Option<&GlobalElementId>,
-            bounds: gpui::Bounds<ui::prelude::Pixels>,
+            bounds: gpui::Bounds<prelude::Pixels>,
             _: &mut Self::RequestLayoutState,
             layout: &mut Self::PrepaintState,
             window: &mut Window,

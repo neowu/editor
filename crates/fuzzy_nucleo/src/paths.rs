@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{self};
@@ -104,9 +105,7 @@ pub(crate) fn distance_between_paths(path: &RelPath, relative_to: &RelPath) -> u
 
 #[inline]
 fn get_filename_match_bonus(candidate_buf: &str, pattern: &Pattern, matcher: &mut nucleo::Matcher) -> f64 {
-    let Some(filename) =
-        std::path::Path::new(candidate_buf).file_name().and_then(|f| f.to_str()).filter(|f| !f.is_empty())
-    else {
+    let Some(filename) = Path::new(candidate_buf).file_name().and_then(|f| f.to_str()).filter(|f| !f.is_empty()) else {
         return 0.0;
     };
     let mut buf = Vec::new();

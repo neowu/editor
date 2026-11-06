@@ -1,3 +1,4 @@
+use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -5,6 +6,7 @@ use anyhow::Result;
 use anyhow::bail;
 use futures_lite::StreamExt;
 use smol::fs;
+use smol::fs::unix::PermissionsExt;
 
 use crate::ResultExt;
 
@@ -92,6 +94,6 @@ pub async fn move_folder_files_to_folder<P: AsRef<Path>>(source_path: P, target_
 
 /// Set the permissions for the given path so that the file becomes executable.
 /// This is a noop for non-unix platforms.
-pub async fn make_file_executable(path: &Path) -> std::io::Result<()> {
-    fs::set_permissions(path, <fs::Permissions as fs::unix::PermissionsExt>::from_mode(0o755)).await
+pub async fn make_file_executable(path: &Path) -> io::Result<()> {
+    fs::set_permissions(path, <fs::Permissions as PermissionsExt>::from_mode(0o755)).await
 }

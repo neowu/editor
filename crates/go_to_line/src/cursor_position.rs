@@ -6,6 +6,7 @@ use editor::Editor;
 use editor::EditorEvent;
 use editor::MBTextSummary;
 use editor::MultiBufferSnapshot;
+use editor::actions::ToggleGoToLine;
 use gpui::Entity;
 use gpui::FocusHandle;
 use gpui::Focusable;
@@ -189,10 +190,8 @@ impl Render for CursorPosition {
                         }
                     }))
                     .tooltip(move |_window, cx| match context.as_ref() {
-                        Some(context) => {
-                            Tooltip::for_action_in("Go to Line/Column", &editor::actions::ToggleGoToLine, context, cx)
-                        }
-                        None => Tooltip::for_action("Go to Line/Column", &editor::actions::ToggleGoToLine, cx),
+                        Some(context) => Tooltip::for_action_in("Go to Line/Column", &ToggleGoToLine, context, cx),
+                        None => Tooltip::for_action("Go to Line/Column", &ToggleGoToLine, cx),
                     }),
             )
         })

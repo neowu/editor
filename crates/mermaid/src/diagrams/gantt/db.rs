@@ -20,6 +20,7 @@ use super::js_date::Date;
 use super::js_date::{self};
 use super::types::GanttTask;
 use super::types::Raw;
+use crate::error;
 use crate::error::Code;
 use crate::error::Error;
 use crate::text::label::trim;
@@ -305,7 +306,7 @@ impl GanttDb {
         } else {
             self.task_count += 1;
             task.id = String::from("task");
-            crate::error::push_u32(&mut task.id, self.task_count);
+            error::push_u32(&mut task.id, self.task_count);
         }
         if data.len() > 1 {
             task.raw.start = data.get(data.len() - 2).map(|start| (*start).to_owned());

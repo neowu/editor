@@ -315,18 +315,20 @@ impl UTType {
     }
 
     pub const fn inner_mut(&self) -> *mut AnyObject {
-        self.0 as *mut _
+        self.0
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+
     use super::*;
 
     #[test]
     fn writes_file_urls_readable_as_external_paths() {
         let pasteboard = unsafe { Pasteboard::new(msg_send![class!(NSPasteboard), pasteboardWithUniqueName]) };
-        let dir = std::env::temp_dir().canonicalize().unwrap();
+        let dir = env::temp_dir().canonicalize().unwrap();
         let paths: SmallVec<[PathBuf; 2]> = smallvec::smallvec![dir.join("a.txt"), dir.join("b.txt")];
         let text = "a\nb".to_string();
         pasteboard.write(ClipboardItem {

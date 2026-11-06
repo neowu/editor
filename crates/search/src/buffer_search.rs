@@ -1,3 +1,7 @@
+use editor::actions::Cancel;
+use editor::actions::SelectAll;
+use project::search_history::QueryInsertionBehavior;
+use workspace::searchable;
 mod registrar;
 
 use std::any::TypeId;
@@ -151,15 +155,8 @@ impl Render for BufferSearchBar {
 
         let narrow_mode = self.scroll_handle.bounds().size.width / window.rem_size() < 340. / BASE_REM_SIZE_IN_PX;
 
-        let workspace::searchable::SearchOptions {
-            case,
-            word,
-            regex,
-            replacement,
-            selection,
-            select_all,
-            find_in_results,
-        } = self.supported_options(cx);
+        let searchable::SearchOptions { case, word, regex, replacement, selection, select_all, find_in_results } =
+            self.supported_options(cx);
 
         self.query_editor.update(cx, |query_editor, cx| {
             if query_editor.placeholder_text(cx).is_none() {
@@ -587,7 +584,7 @@ impl BufferSearchBar {
                 this.select_all_matches(action, window, cx);
             }
         }));
-        registrar.register_handler(ForDeployed(|this, _: &editor::actions::Cancel, window, cx| {
+        registrar.register_handler(ForDeployed(|this, _: &Cancel, window, cx| {
             this.dismiss(&Dismiss, window, cx);
         }));
         registrar.register_handler(ForDeployed(|this, _: &Dismiss, window, cx| {
@@ -654,7 +651,7 @@ impl BufferSearchBar {
             dismissed: true,
             search_history: SearchHistory::new(
                 Some(MAX_BUFFER_SEARCH_HISTORY_SIZE),
-                project::search_history::QueryInsertionBehavior::ReplacePreviousIfContains,
+                QueryInsertionBehavior::ReplacePreviousIfContains,
             ),
             search_history_cursor: SearchHistoryCursor::default(),
             active_search: None,
@@ -780,7 +777,7 @@ impl BufferSearchBar {
         if self.has_diff_style_controls() { ToolbarItemLocation::PrimaryLeft } else { ToolbarItemLocation::Secondary }
     }
 
-    fn supported_options(&self, cx: &Context<Self>) -> workspace::searchable::SearchOptions {
+    fn supported_options(&self, cx: &Context<Self>) -> searchable::SearchOptions {
         self.active_searchable_item.as_ref().map(|item| item.supported_options(cx)).unwrap_or_default()
     }
 
@@ -883,7 +880,7 @@ impl BufferSearchBar {
 
     pub fn select_query(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.query_editor.update(cx, |query_editor, cx| {
-            query_editor.select_all(&editor::actions::SelectAll, window, cx);
+            query_editor.select_all(&SelectAll, window, cx);
         });
     }
 

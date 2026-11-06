@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -16,6 +17,8 @@ use project::Fs;
 use project::lsp_store::language_server_settings;
 use serde_json::Value;
 use serde_json::json;
+
+use crate::npx;
 
 /// The TypeScript 7 native language server (`tsc --lsp --stdio`), for TypeScript,
 /// TSX and JavaScript. Older TypeScript versions are not supported.
@@ -54,7 +57,7 @@ impl TsgoLspAdapter {
 
 struct InstalledTypeScript {
     version: String,
-    bin: std::path::PathBuf,
+    bin: PathBuf,
 }
 
 fn major_version(version: &str) -> Option<u64> {
@@ -88,7 +91,7 @@ impl LspAdapter for TsgoLspAdapter {
             });
         }
 
-        crate::npx::npx_binary(delegate, &[Self::NPX_PACKAGE], "tsc", Self::ARGUMENTS).await.with_context(|| {
+        npx::npx_binary(delegate, &[Self::NPX_PACKAGE], "tsc", Self::ARGUMENTS).await.with_context(|| {
             format!(
                 "language server {} is not installed: `node_modules/.bin/tsc` was not \
                     found in the project, and `npx` was not found on your PATH",

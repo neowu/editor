@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::str;
 
 use anyhow::Context as _;
 use language_core::LanguageConfig;
@@ -83,7 +84,7 @@ pub fn load_queries(name: &str) -> LanguageQueries {
         let file_name = path.strip_prefix(name)?.strip_prefix('/')?;
         let query_file = file_name.parse::<QueryFile>().ok()?;
         let contents = match GrammarDir::get(path.as_ref())?.data {
-            Cow::Borrowed(bytes) => Cow::Borrowed(std::str::from_utf8(bytes).ok()?),
+            Cow::Borrowed(bytes) => Cow::Borrowed(str::from_utf8(bytes).ok()?),
             Cow::Owned(bytes) => Cow::Owned(String::from_utf8(bytes).ok()?),
         };
         Some(QueryFileContents::new(query_file, contents))

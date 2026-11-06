@@ -1,3 +1,7 @@
+use std::any::TypeId;
+
+use ui::font;
+
 use super::*;
 
 impl GutterDimensions {
@@ -682,7 +686,7 @@ impl Editor {
 
     pub(super) fn refresh_single_line_folds(&mut self, window: &Window, cx: &mut Context<Editor>) {
         struct NewlineFold;
-        let type_id = std::any::TypeId::of::<NewlineFold>();
+        let type_id = TypeId::of::<NewlineFold>();
         if !self.mode.is_single_line() {
             return;
         }
@@ -728,7 +732,7 @@ impl Editor {
                         .bg(cx.theme().status().hint_background)
                         .border_b_1()
                         .size_full()
-                        .font(ui::font::buffer_font().clone())
+                        .font(font::buffer_font().clone())
                         .border_color(cx.theme().status().hint)
                         .child("\\n")
                         .into_any()
@@ -782,6 +786,8 @@ fn all_buffers_folded(mut buffer_ids: impl Iterator<Item = BufferId>, folded: &H
 
 #[cfg(test)]
 mod tests {
+    use std::iter;
+
     use super::*;
 
     #[test]
@@ -791,6 +797,6 @@ mod tests {
         assert!(!all_buffers_folded(ids.into_iter(), &folded(&[])));
         assert!(!all_buffers_folded(ids.into_iter(), &folded(&ids[..1])));
         assert!(all_buffers_folded(ids.into_iter(), &folded(&ids)));
-        assert!(!all_buffers_folded(std::iter::empty(), &folded(&[])));
+        assert!(!all_buffers_folded(iter::empty(), &folded(&[])));
     }
 }

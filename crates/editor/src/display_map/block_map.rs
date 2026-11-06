@@ -2,13 +2,17 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::cmp::{self};
+use std::fmt;
 use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::iter;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ops::Not;
 use std::ops::Range;
 use std::ops::RangeBounds;
 use std::ops::RangeInclusive;
+use std::str;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::SeqCst;
@@ -317,7 +321,7 @@ pub struct BlockProperties<P> {
 }
 
 impl<P: Debug> Debug for BlockProperties<P> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("BlockProperties")
             .field("placement", &self.placement)
             .field("height", &self.height)
@@ -381,8 +385,8 @@ impl From<BlockId> for ElementId {
     }
 }
 
-impl std::fmt::Display for BlockId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for BlockId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Custom(id) => write!(f, "Block({id:?})"),
             Self::ExcerptBoundary(id) => write!(f, "ExcerptBoundary({id:?})"),
@@ -512,7 +516,7 @@ impl Block {
 }
 
 impl Debug for Block {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Custom(block) => f.debug_struct("Custom").field("block", block).finish(),
             Self::FoldedBuffer { first_excerpt, height } => {
@@ -1112,7 +1116,7 @@ impl BlockMap {
     {
         let mut boundaries = buffer.excerpt_boundaries_in_range(range).peekable();
 
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             loop {
                 let excerpt_boundary = boundaries.next()?;
                 let wrap_row = wrap_row_for(Point::new(excerpt_boundary.row.0, 0), Bias::Left);
@@ -1525,7 +1529,7 @@ impl Deref for BlockPoint {
     }
 }
 
-impl std::ops::DerefMut for BlockPoint {
+impl DerefMut for BlockPoint {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
@@ -2020,7 +2024,7 @@ impl BlockSnapshot {
             cursor.next();
         }
 
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             while let Some(transform) = cursor.item() {
                 let start_row = *cursor.start();
                 if start_row > rows.end
@@ -2028,11 +2032,9 @@ impl BlockSnapshot {
                 {
                     break;
                 }
+                cursor.next();
                 if let Some(block) = &transform.block {
-                    cursor.next();
                     return Some((start_row, block));
-                } else {
-                    cursor.next();
                 }
             }
             None
@@ -2335,7 +2337,7 @@ impl<'a> Iterator for BlockChunks<'a> {
             self.line_count_overflow.0 -= lines;
             self.output_row += RowDelta(lines);
             return Some(Chunk {
-                text: unsafe { std::str::from_utf8_unchecked(&NEWLINES[..lines as usize]) },
+                text: unsafe { str::from_utf8_unchecked(&NEWLINES[..lines as usize]) },
                 chars: 1u128.unbounded_shl(lines).wrapping_sub(1),
                 ..Default::default()
             });
@@ -2358,7 +2360,7 @@ impl<'a> Iterator for BlockChunks<'a> {
             self.output_row += lines;
 
             return Some(Chunk {
-                text: unsafe { std::str::from_utf8_unchecked(&NEWLINES[..lines.0 as usize]) },
+                text: unsafe { str::from_utf8_unchecked(&NEWLINES[..lines.0 as usize]) },
                 chars: 1u128.unbounded_shl(lines.0).wrapping_sub(1),
                 ..Default::default()
             });
@@ -2398,7 +2400,7 @@ impl<'a> Iterator for BlockChunks<'a> {
             // need to have the same number of chars in the input as output.
             let chars_count = prefix.chars().count();
             let bullet_len = chars_count;
-            prefix = unsafe { std::str::from_utf8_unchecked(&BULLETS[..bullet_len]) };
+            prefix = unsafe { str::from_utf8_unchecked(&BULLETS[..bullet_len]) };
             chars = 1u128.unbounded_shl(bullet_len as u32).wrapping_sub(1);
             tabs = 0;
             newlines = 0;
@@ -2545,7 +2547,7 @@ impl CustomBlock {
 }
 
 impl Debug for CustomBlock {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Block")
             .field("id", &self.id)
             .field("placement", &self.placement)

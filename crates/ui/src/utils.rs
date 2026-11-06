@@ -3,6 +3,8 @@
 use gpui::App;
 use theme::ActiveTheme;
 
+use crate::font;
+
 mod apca_contrast;
 mod color_contrast;
 mod constants;
@@ -30,13 +32,13 @@ pub fn is_light(cx: &mut App) -> bool {
 }
 
 pub fn buffer_text_style(cx: &App) -> gpui::TextStyle {
-    let buffer_font = crate::font::buffer_font();
+    let buffer_font = font::buffer_font();
     gpui::TextStyle {
         color: cx.theme().colors().text,
         font_family: buffer_font.family.clone(),
         font_features: buffer_font.features.clone(),
         font_fallbacks: buffer_font.fallbacks.clone(),
-        font_size: gpui::AbsoluteLength::from(crate::font::buffer_font_size(cx)),
+        font_size: gpui::AbsoluteLength::from(font::buffer_font_size(cx)),
         font_weight: buffer_font.weight,
         line_height: gpui::relative(1.),
         ..gpui::TextStyle::default()
@@ -44,7 +46,7 @@ pub fn buffer_text_style(cx: &App) -> gpui::TextStyle {
 }
 
 pub fn ui_text_style(cx: &App) -> gpui::TextStyle {
-    let ui_font = crate::font::ui_font();
+    let ui_font = font::ui_font();
     gpui::TextStyle {
         color: cx.theme().colors().text,
         font_family: ui_font.family.clone(),

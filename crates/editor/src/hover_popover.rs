@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::cmp::Ordering;
+use std::mem;
 use std::ops::Range;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -54,6 +56,7 @@ use ui::CopyButton;
 use ui::ScrollAxes;
 use ui::Scrollbars;
 use ui::WithScrollbar;
+use ui::font;
 use ui::prelude::*;
 use ui::theme_is_transparent;
 use url::Url;
@@ -76,6 +79,7 @@ use crate::display_map::ToDisplayPoint;
 use crate::display_map::is_invisible;
 use crate::hover_links::InlayHighlight;
 use crate::hover_links::RangeInEditor;
+use crate::movement;
 use crate::movement::TextLayoutDetails;
 use crate::scroll::ScrollAmount;
 
@@ -470,7 +474,7 @@ fn show_hover(
                 info_popovers.push(InfoPopover {
                     symbol_range: RangeInEditor::Text(range),
                     fallback_state,
-                    code_lenses: std::mem::take(&mut code_lenses),
+                    code_lenses: mem::take(&mut code_lenses),
                     parsed_content,
                     scroll_handle,
                     keyboard_grace: Rc::new(RefCell::new(ignore_timeout)),
@@ -820,13 +824,13 @@ fn unclosed_code_fence(markdown: &str) -> Option<String> {
 }
 
 pub fn hover_markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
-    let ui_font_family = ui::font::ui_font().family.clone();
-    let ui_font_features = ui::font::ui_font().features.clone();
-    let ui_font_fallbacks = ui::font::ui_font().fallbacks.clone();
-    let buffer_font_family = ui::font::buffer_font().family.clone();
-    let buffer_font_features = ui::font::buffer_font().features.clone();
-    let buffer_font_fallbacks = ui::font::buffer_font().fallbacks.clone();
-    let buffer_font_weight = ui::font::buffer_font().weight;
+    let ui_font_family = font::ui_font().family.clone();
+    let ui_font_features = font::ui_font().features.clone();
+    let ui_font_fallbacks = font::ui_font().fallbacks.clone();
+    let buffer_font_family = font::buffer_font().family.clone();
+    let buffer_font_features = font::buffer_font().features.clone();
+    let buffer_font_fallbacks = font::buffer_font().fallbacks.clone();
+    let buffer_font_weight = font::buffer_font().weight;
 
     let mut base_text_style = window.text_style();
     base_text_style.refine(&TextStyleRefinement {
@@ -872,12 +876,12 @@ pub fn hover_markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
 }
 
 pub fn diagnostics_markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
-    let ui_font_family = ui::font::ui_font().family.clone();
-    let ui_font_fallbacks = ui::font::ui_font().fallbacks.clone();
-    let ui_font_features = ui::font::ui_font().features.clone();
-    let buffer_font_family = ui::font::buffer_font().family.clone();
-    let buffer_font_features = ui::font::buffer_font().features.clone();
-    let buffer_font_fallbacks = ui::font::buffer_font().fallbacks.clone();
+    let ui_font_family = font::ui_font().family.clone();
+    let ui_font_fallbacks = font::ui_font().fallbacks.clone();
+    let ui_font_features = font::ui_font().features.clone();
+    let buffer_font_family = font::buffer_font().family.clone();
+    let buffer_font_features = font::buffer_font().features.clone();
+    let buffer_font_fallbacks = font::buffer_font().fallbacks.clone();
 
     let mut base_text_style = window.text_style();
     base_text_style.refine(&TextStyleRefinement {
@@ -1023,7 +1027,7 @@ impl HoverState {
         let distance = popover_bounds
             .iter()
             .map(|bounds| self.distance_from_point_to_bounds(mouse_position, *bounds))
-            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .min_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal))
             .unwrap_or(px(f32::MAX));
 
         if let Some(closest_distance) = self.closest_mouse_distance
@@ -1077,7 +1081,7 @@ impl HoverState {
         let mut point = anchor.to_display_point(&snapshot.display_snapshot);
         // Clamp the point within the visible rows in case the popup source spans multiple lines
         if visible_rows.end <= point.row() {
-            point = crate::movement::up_by_rows(
+            point = movement::up_by_rows(
                 &snapshot.display_snapshot,
                 point,
                 1 + (point.row() - visible_rows.end).0,
@@ -1087,7 +1091,7 @@ impl HoverState {
             )
             .0;
         } else if point.row() < visible_rows.start {
-            point = crate::movement::down_by_rows(
+            point = movement::down_by_rows(
                 &snapshot.display_snapshot,
                 point,
                 (visible_rows.start - point.row()).0,

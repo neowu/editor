@@ -1,3 +1,9 @@
+use diagnostics::items::DiagnosticIndicator;
+use ed_actions::project_panel::ToggleFocus;
+use go_to_line::cursor_position::CursorPosition;
+use search::search_status_button::SearchButton;
+use ui::font;
+use ui::utils::TRAFFIC_LIGHT_POSITION;
 mod app_menus;
 pub(crate) mod control_server;
 
@@ -142,10 +148,7 @@ pub fn build_window_options(display_uuid: Option<Uuid>, cx: &mut App) -> WindowO
         titlebar: Some(TitlebarOptions {
             title: None,
             appears_transparent: true,
-            traffic_light_position: Some(point(
-                px(ui::utils::TRAFFIC_LIGHT_POSITION.0),
-                px(ui::utils::TRAFFIC_LIGHT_POSITION.1),
-            )),
+            traffic_light_position: Some(point(px(TRAFFIC_LIGHT_POSITION.0), px(TRAFFIC_LIGHT_POSITION.1))),
         }),
         window_bounds: Some(workspace::new_window_bounds(display.as_ref().map(|display| display.id()), cx)),
         focus: false,
@@ -223,8 +226,8 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
             log::info!("Using GPU: {:?}", specs);
         }
 
-        let search_button = cx.new(|_| search::search_status_button::SearchButton::new());
-        let diagnostic_summary = cx.new(|cx| diagnostics::items::DiagnosticIndicator::new(workspace, cx));
+        let search_button = cx.new(|_| SearchButton::new());
+        let diagnostic_summary = cx.new(|cx| DiagnosticIndicator::new(workspace, cx));
         let activity_indicator = activity_indicator::ActivityIndicator::new(workspace, window, cx);
         let active_buffer_encoding = cx.new(|_| encoding_selector::ActiveBufferEncoding::new(workspace));
         let active_buffer_language = cx.new(|_| language_selector::ActiveBufferLanguage::new(workspace));
@@ -238,7 +241,7 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
             }
         });
 
-        let cursor_position = cx.new(|_| go_to_line::cursor_position::CursorPosition::new(workspace));
+        let cursor_position = cx.new(|_| CursorPosition::new(workspace));
         workspace.status_bar().update(cx, |status_bar, cx| {
             status_bar.add_left_item(search_button, window, cx);
             status_bar.add_left_item(lsp_button, window, cx);
@@ -380,32 +383,29 @@ fn register_actions(app_state: Arc<AppState>, workspace: &mut Workspace, _: &mut
             .detach()
         })
         .register_action(|_, _: &ed_actions::IncreaseUiFontSize, _window, cx| {
-            ui::font::adjust_ui_font_size(cx, |size| size + px(1.0));
+            font::adjust_ui_font_size(cx, |size| size + px(1.0));
         })
         .register_action(|_, _: &ed_actions::DecreaseUiFontSize, _window, cx| {
-            ui::font::adjust_ui_font_size(cx, |size| size - px(1.0));
+            font::adjust_ui_font_size(cx, |size| size - px(1.0));
         })
         .register_action(|_, _: &ed_actions::ResetUiFontSize, _window, cx| {
-            ui::font::reset_ui_font_size(cx);
+            font::reset_ui_font_size(cx);
         })
         .register_action(|_, _: &ed_actions::IncreaseBufferFontSize, _window, cx| {
-            ui::font::adjust_buffer_font_size(cx, |size| size + px(1.0));
+            font::adjust_buffer_font_size(cx, |size| size + px(1.0));
         })
         .register_action(|_, _: &ed_actions::DecreaseBufferFontSize, _window, cx| {
-            ui::font::adjust_buffer_font_size(cx, |size| size - px(1.0));
+            font::adjust_buffer_font_size(cx, |size| size - px(1.0));
         })
         .register_action(|_, _: &ed_actions::ResetBufferFontSize, _window, cx| {
-            ui::font::reset_buffer_font_size(cx);
+            font::reset_buffer_font_size(cx);
         })
         .register_action(|_, _: &ed_actions::ResetAllZoom, _window, cx| {
-            ui::font::reset_ui_font_size(cx);
-            ui::font::reset_buffer_font_size(cx);
+            font::reset_ui_font_size(cx);
+            font::reset_buffer_font_size(cx);
         })
         .register_action(
-            |workspace: &mut Workspace,
-             _: &ed_actions::project_panel::ToggleFocus,
-             window: &mut Window,
-             cx: &mut Context<Workspace>| {
+            |workspace: &mut Workspace, _: &ToggleFocus, window: &mut Window, cx: &mut Context<Workspace>| {
                 workspace.toggle_panel_focus::<ProjectPanel>(window, cx);
             },
         )

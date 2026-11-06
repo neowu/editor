@@ -2,7 +2,9 @@ use std::borrow::Cow;
 use std::char;
 use std::convert::TryFrom;
 use std::ffi::c_void;
+use std::ptr;
 use std::ptr::NonNull;
+use std::slice;
 use std::sync::OnceLock;
 
 use anyhow::anyhow;
@@ -310,7 +312,7 @@ impl AppleTextSystemState {
             let font_id = FontId(self.fonts.len());
             self.font_ids_by_postscript_name.insert(postscript_name.clone(), font_id);
             self.postscript_names_by_font_id.insert(font_id, postscript_name);
-            let graphics_font = unsafe { requested_font.graphics_font(std::ptr::null_mut()) };
+            let graphics_font = unsafe { requested_font.graphics_font(ptr::null_mut()) };
             self.fonts.push(SyncFont(font::from_core_graphics_font(&graphics_font)));
             font_id
         }
@@ -408,7 +410,7 @@ impl AppleTextSystemState {
             unsafe {
                 let font = self.fonts[params.font_id.0].copy_with_attributes(
                     f32::from(params.font_size) as CGFloat,
-                    std::ptr::null(),
+                    ptr::null(),
                     None,
                 );
                 font.draw_glyphs(NonNull::from(&mut glyph), NonNull::from(&mut position), 1, &cx);
@@ -464,7 +466,7 @@ impl AppleTextSystemState {
 
                 let font_size = if break_ligature { px(f32::from(font_size).next_up()) } else { font_size };
                 unsafe {
-                    let font = font.copy_with_attributes(f32::from(font_size).into(), std::ptr::null(), None);
+                    let font = font.copy_with_attributes(f32::from(font_size).into(), ptr::null(), None);
                     CFMutableAttributedString::set_attribute(
                         Some(&string),
                         cf_range,
@@ -522,8 +524,7 @@ impl AppleTextSystemState {
                 });
             }
         }
-        let width =
-            unsafe { line.typographic_bounds(std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()) };
+        let width = unsafe { line.typographic_bounds(ptr::null_mut(), ptr::null_mut(), ptr::null_mut()) };
         LineLayout {
             runs,
             font_size,
@@ -576,7 +577,7 @@ unsafe fn run_values<T: Copy + Default>(
     let values = unsafe { ptr(run) };
     if !values.is_null() {
         // SAFETY: A non-null buffer holds all `count` values and lives as long as the run.
-        return Cow::Borrowed(unsafe { std::slice::from_raw_parts(values, count) });
+        return Cow::Borrowed(unsafe { slice::from_raw_parts(values, count) });
     }
     let mut values = vec![T::default(); count];
     if let Some(buffer) = NonNull::new(values.as_mut_ptr()) {

@@ -1,6 +1,7 @@
 //! Serves `edctl` requests (see the `control` crate) when automation is enabled.
 
 use std::cell::Cell;
+use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 use std::time::Duration;
@@ -49,6 +50,7 @@ use workspace::Pane;
 use workspace::Workspace;
 use workspace::WorkspaceMode;
 use workspace::dock::DockPosition;
+use workspace::item::ItemHandle;
 
 const SETTLE_TIMEOUT: Duration = Duration::from_secs(1);
 const SETTLE_TICK: Duration = Duration::from_millis(16);
@@ -73,7 +75,7 @@ pub fn init(cx: &mut App) {
     cx.enable_ui_snapshots();
 
     cx.on_app_quit(move |_| {
-        std::fs::remove_file(&socket_path).ok();
+        fs::remove_file(&socket_path).ok();
         async {}
     })
     .detach();
@@ -98,9 +100,9 @@ pub fn init(cx: &mut App) {
 
 fn bind(socket_path: &Path) -> Result<UnixListener> {
     if let Some(parent) = socket_path.parent() {
-        std::fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent)?;
     }
-    std::fs::remove_file(socket_path).ok();
+    fs::remove_file(socket_path).ok();
     Ok(UnixListener::bind(socket_path)?)
 }
 
@@ -428,9 +430,8 @@ fn state(window: &Window, cx: &mut App) -> control::State {
     let focused_pane = workspace.read(cx).focused_pane(window, cx);
     let workspace = workspace.read(cx);
     let project = workspace.project().read(cx);
-    let item_path = |item: &dyn workspace::item::ItemHandle| {
-        item.project_path(cx).and_then(|project_path| project.absolute_path(&project_path, cx))
-    };
+    let item_path =
+        |item: &dyn ItemHandle| item.project_path(cx).and_then(|project_path| project.absolute_path(&project_path, cx));
 
     let pane_state = |pane_entity: &Entity<Pane>, active_pane: &Entity<Pane>| {
         let pane = pane_entity.read(cx);

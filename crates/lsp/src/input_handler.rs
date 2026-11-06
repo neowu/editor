@@ -90,7 +90,7 @@ impl LspStdoutHandler {
 
             read_headers(&mut stdout, &mut buffer).await?;
 
-            let headers = std::str::from_utf8(&buffer)?;
+            let headers = str::from_utf8(&buffer)?;
 
             let message_len = headers
                 .split('\n')
@@ -124,7 +124,7 @@ impl LspStdoutHandler {
                     }
                 }
             } else {
-                warn!("failed to deserialize LSP message:\n{}", std::str::from_utf8(&buffer)?);
+                warn!("failed to deserialize LSP message:\n{}", str::from_utf8(&buffer)?);
             }
         }
     }

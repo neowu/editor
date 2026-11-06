@@ -22,6 +22,7 @@ use editor::scroll::Autoscroll;
 use editor::scroll::ScrollAnchor;
 use editor::scroll::ScrollOffset;
 use futures::StreamExt as _;
+use futures::stream;
 use futures_lite::future::yield_now;
 use git::Oid;
 use git::repository::CommitDetails;
@@ -61,6 +62,7 @@ use language::Point;
 use language::ReplicaId;
 use language::Rope;
 use language::TextBuffer;
+use language::proto;
 use multi_buffer::PathKey;
 use project::Project;
 use project::ProjectPath;
@@ -96,6 +98,8 @@ use workspace::searchable::SearchableItemHandle;
 
 use crate::commit_details_panel::CommitDetailsEvent;
 use crate::commit_details_panel::CommitDetailsPanel;
+use crate::commit_tooltip;
+use crate::git_graph::OpenAtCommit;
 use crate::git_panel::GitPanel;
 use crate::revision_semantics::RevisionSemanticsProvider;
 
@@ -248,7 +252,7 @@ struct CommitDiffAddon {
 }
 
 impl Addon for CommitDiffAddon {
-    fn to_any(&self) -> &dyn std::any::Any {
+    fn to_any(&self) -> &dyn Any {
         self
     }
 
@@ -551,7 +555,7 @@ impl CommitView {
                 initial_file.as_ref().map(InitialFile::path),
             );
             let file_cx = cx.clone();
-            let mut loaded_files = futures::stream::iter(order)
+            let mut loaded_files = stream::iter(order)
                 .map(|ix| {
                     load_commit_file(
                         &commit_diff.files[ix],
@@ -690,7 +694,7 @@ impl CommitView {
                                     "Run `git fetch --unshallow` to download the full history, then show this commit's changes.",
                                 ))
                                 .on_click(move |_, window, cx| {
-                                    let fetch = crate::commit_tooltip::fetch_unshallow(
+                                    let fetch = commit_tooltip::fetch_unshallow(
                                         repository.clone(),
                                         workspace.clone(),
                                         window,
@@ -1095,7 +1099,7 @@ impl language::File for GitBlob {
         self.worktree_id
     }
 
-    fn to_proto(&self, _cx: &App) -> language::proto::File {
+    fn to_proto(&self, _cx: &App) -> proto::File {
         unimplemented!()
     }
 
@@ -1388,10 +1392,7 @@ impl Render for CommitViewToolbar {
                         .tooltip(Tooltip::text("Show in Git History"))
                         .on_click(move |_, window, cx| {
                             window.dispatch_action(
-                                Box::new(crate::git_graph::OpenAtCommit {
-                                    sha: sha_for_graph.clone(),
-                                    repo_id: Some(repo_id_for_graph),
-                                }),
+                                Box::new(OpenAtCommit { sha: sha_for_graph.clone(), repo_id: Some(repo_id_for_graph) }),
                                 cx,
                             );
                         }),

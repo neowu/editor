@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
+use std::fmt;
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::ops::Range;
 
 use sum_tree::Bias;
@@ -38,7 +40,7 @@ pub struct Anchor {
 }
 
 impl Debug for Anchor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if self.is_min() {
             return write!(f, "Anchor::min({:?})", self.buffer_id);
         }
@@ -80,15 +82,15 @@ impl Anchor {
         }
     }
 
-    pub const fn min_min_range_for_buffer(buffer_id: BufferId) -> std::ops::Range<Self> {
+    pub const fn min_min_range_for_buffer(buffer_id: BufferId) -> Range<Self> {
         let min = Self::min_for_buffer(buffer_id);
         min..min
     }
-    pub const fn max_max_range_for_buffer(buffer_id: BufferId) -> std::ops::Range<Self> {
+    pub const fn max_max_range_for_buffer(buffer_id: BufferId) -> Range<Self> {
         let max = Self::max_for_buffer(buffer_id);
         max..max
     }
-    pub const fn min_max_range_for_buffer(buffer_id: BufferId) -> std::ops::Range<Self> {
+    pub const fn min_max_range_for_buffer(buffer_id: BufferId) -> Range<Self> {
         Self::min_for_buffer(buffer_id)..Self::max_for_buffer(buffer_id)
     }
 

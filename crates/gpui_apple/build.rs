@@ -6,6 +6,9 @@ fn main() {
 
 mod apple_build {
     use std::env;
+    use std::fs;
+    #[cfg(feature = "runtime_shaders")]
+    use std::io;
     use std::path::Path;
     use std::path::PathBuf;
 
@@ -91,19 +94,19 @@ mod apple_build {
     /// build-script runtime against this crate's manifest dir, so no checkout
     /// path is baked into a compiled artifact (which corgi rejects).
     fn find_gpui_crate_dir() -> PathBuf {
-        PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("../gpui")
+        PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../gpui")
     }
 
     /// To enable runtime compilation, we need to "stitch" the shaders file with the generated header
     /// so that it is self-contained.
     #[cfg(feature = "runtime_shaders")]
     fn emit_stitched_shaders(header_path: &Path) {
-        fn stitch_header(header: &Path, shader_path: &Path) -> std::io::Result<PathBuf> {
-            let header_contents = std::fs::read_to_string(header)?;
-            let shader_contents = std::fs::read_to_string(shader_path)?;
+        fn stitch_header(header: &Path, shader_path: &Path) -> io::Result<PathBuf> {
+            let header_contents = fs::read_to_string(header)?;
+            let shader_contents = fs::read_to_string(shader_path)?;
             let stitched_contents = format!("{header_contents}\n{shader_contents}");
             let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("stitched_shaders.metal");
-            std::fs::write(&out_path, stitched_contents)?;
+            fs::write(&out_path, stitched_contents)?;
             Ok(out_path)
         }
         let shader_source_path = "./src/shaders.metal";
@@ -144,7 +147,7 @@ mod apple_build {
         // location is the build's canonical output directory, never the
         // checkout (corgi rejects artifacts that embed the build path).
         let staged_shader_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("shaders.metal");
-        std::fs::copy(shader_path, &staged_shader_path).unwrap();
+        fs::copy(shader_path, &staged_shader_path).unwrap();
 
         let output = Command::new("xcrun")
             .args(["-sdk", sdk, "metal", "-gline-tables-only", minimum_version_argument, "-MO", "-c"])
@@ -176,6 +179,6 @@ mod apple_build {
         // its debug info; the metallib built from it does not. Nothing reads
         // the .air after this point, so drop it rather than leave a
         // checkout-path-bearing file in OUT_DIR.
-        std::fs::remove_file(&air_output_path).unwrap();
+        fs::remove_file(&air_output_path).unwrap();
     }
 }

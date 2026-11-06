@@ -2,6 +2,7 @@
 //! highlights, diagnostics) drawn on it. It doubles as the editor's vertical
 //! scroll widget, since there's no vertical scrollbar.
 
+use std::cmp::Reverse;
 use std::sync::Arc;
 
 use buffer_diff::DiffHunkStatusKind;
@@ -321,7 +322,7 @@ impl EditorElement {
                                 .buffer_snapshot()
                                 .diagnostics_in_range::<Point>(Point::zero()..max_point)
                                 // We want to sort by severity, in order to paint the most severe diagnostics last.
-                                .sorted_by_key(|diagnostic| std::cmp::Reverse(diagnostic.diagnostic.severity));
+                                .sorted_by_key(|diagnostic| Reverse(diagnostic.diagnostic.severity));
 
                             let marker_row_ranges = diagnostics.into_iter().map(|diagnostic| {
                                 let start_display = diagnostic.range.start.to_display_point(&snapshot.display_snapshot);

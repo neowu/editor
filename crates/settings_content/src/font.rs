@@ -1,4 +1,6 @@
+use std::fmt as std_fmt;
 use std::fmt::Display;
+use std::fmt::Formatter;
 use std::sync::Arc;
 
 use collections::IndexMap;
@@ -93,7 +95,7 @@ impl<'de> Deserialize<'de> for FontFeaturesContent {
 pub struct FontSize(#[serde(serialize_with = "serialize_f32_with_two_decimal_places")] pub f32);
 
 impl Display for FontSize {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std_fmt::Result {
         write!(f, "{:.2}", self.0)
     }
 }
@@ -132,7 +134,7 @@ impl From<FontFamilyName> for String {
 pub struct FontWeightContent(pub f32);
 
 impl Display for FontWeightContent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std_fmt::Result {
         write!(f, "{}", self.0)
     }
 }

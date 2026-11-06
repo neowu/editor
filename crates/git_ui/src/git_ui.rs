@@ -1,6 +1,12 @@
+use std::time::Duration;
+
 use anyhow::anyhow;
+use ed_actions::git::Worktree;
 use editor::Editor;
 use editor::actions::DiffClipboardWithSelectionData;
+use git_ui_core::worktree_picker;
+use git_ui_core::worktree_picker::WorktreePicker;
+use git_ui_core::worktree_service;
 use workspace::Toast;
 use workspace::notifications::NotificationId;
 
@@ -124,24 +130,18 @@ pub fn init(cx: &mut App) {
         git_picker::register(workspace);
 
         workspace.register_action(|workspace, action: &ed_actions::CreateWorktree, window, cx| {
-            git_ui_core::worktree_service::handle_create_worktree(workspace, action, window, None, cx);
+            worktree_service::handle_create_worktree(workspace, action, window, None, cx);
         });
         workspace.register_action(|workspace, action: &ed_actions::SwitchWorktree, window, cx| {
-            git_ui_core::worktree_service::handle_switch_worktree(workspace, action, window, None, cx);
+            worktree_service::handle_switch_worktree(workspace, action, window, None, cx);
         });
 
-        workspace.register_action(|workspace, _: &ed_actions::git::Worktree, window, cx| {
+        workspace.register_action(|workspace, _: &Worktree, window, cx| {
             let focused_dock = workspace.focused_dock_position(window, cx);
             let project = workspace.project().clone();
             let workspace_handle = workspace.weak_handle();
             workspace.toggle_modal(window, cx, |window, cx| {
-                git_ui_core::worktree_picker::WorktreePicker::new_modal(
-                    project,
-                    workspace_handle,
-                    focused_dock,
-                    window,
-                    cx,
-                )
+                WorktreePicker::new_modal(project, workspace_handle, focused_dock, window, cx)
             });
         });
 
@@ -155,7 +155,7 @@ pub fn init(cx: &mut App) {
                 let workspace_handle = workspace.weak_handle();
                 cx.spawn_in(window, async move |_, cx| {
                     if let Some(connection_options) = connection_options {
-                        git_ui_core::worktree_picker::open_remote_worktree(
+                        worktree_picker::open_remote_worktree(
                             connection_options,
                             vec![path],
                             app_state,
@@ -672,7 +672,7 @@ impl RefPickerModal {
 
         let repo = self.repo.clone();
         self.lookup_task = Some(cx.spawn_in(window, async move |this, cx| {
-            cx.background_executor().timer(std::time::Duration::from_millis(300)).await;
+            cx.background_executor().timer(Duration::from_millis(300)).await;
 
             let show_result = repo.update(cx, |repo, _| repo.show(git_ref.clone())).await.ok();
 

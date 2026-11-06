@@ -1,16 +1,21 @@
+use core::panic;
+use std::cmp::Ordering;
 use std::env;
 use std::ffi::OsStr;
 use std::fmt;
+use std::hash::BuildHasher;
+use std::hash::Hasher;
 use std::ops::AddAssign;
 use std::panic::Location;
 use std::pin::Pin;
+use std::process::Command;
 use std::sync::OnceLock;
 use std::task::Context;
 use std::task::Poll;
 use std::time::Instant;
 
-pub fn new_std_command(program: impl AsRef<OsStr>) -> std::process::Command {
-    std::process::Command::new(program)
+pub fn new_std_command(program: impl AsRef<OsStr>) -> Command {
+    Command::new(program)
 }
 
 #[inline]
@@ -64,7 +69,7 @@ pub trait ResultExt<E> {
 
 impl<T, E> ResultExt<E> for Result<T, E>
 where
-    E: std::fmt::Display,
+    E: fmt::Display,
 {
     type Ok = T;
 
@@ -91,7 +96,7 @@ where
 }
 
 #[inline(never)]
-fn log_error_with_caller(caller: core::panic::Location<'_>, arguments: fmt::Arguments<'_>, level: log::Level) {
+fn log_error_with_caller(caller: panic::Location<'_>, arguments: fmt::Arguments<'_>, level: log::Level) {
     let file = caller.file();
 
     // In this codebase all crates reside in a `crates` directory,
@@ -123,8 +128,8 @@ fn log_error_with_caller(caller: core::panic::Location<'_>, arguments: fmt::Argu
 // backtrace instead of the single-line chained message produced by its `Display`/`{:#}` forms.
 struct DebugAsDisplay<'a, E>(&'a E);
 
-impl<E: std::fmt::Debug> std::fmt::Display for DebugAsDisplay<'_, E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<E: fmt::Debug> fmt::Display for DebugAsDisplay<'_, E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self.0)
     }
 }
@@ -134,7 +139,7 @@ pub trait TryFutureExt {
     where
         Self: Sized;
 
-    fn log_tracked_err(self, location: core::panic::Location<'static>) -> LogErrorFuture<Self>
+    fn log_tracked_err(self, location: panic::Location<'static>) -> LogErrorFuture<Self>
     where
         Self: Sized;
 
@@ -146,10 +151,7 @@ pub trait TryFutureExt {
 /// `{:?}`-formatting companion to [`TryFutureExt`]; emits a backtrace for `anyhow::Error`. Prefer
 /// [`TryFutureExt`] unless a backtrace is genuinely wanted.
 pub trait TryFutureExtBacktrace {
-    fn log_tracked_err_with_backtrace(
-        self,
-        location: core::panic::Location<'static>,
-    ) -> LogErrorWithBacktraceFuture<Self>
+    fn log_tracked_err_with_backtrace(self, location: panic::Location<'static>) -> LogErrorWithBacktraceFuture<Self>
     where
         Self: Sized;
 }
@@ -157,7 +159,7 @@ pub trait TryFutureExtBacktrace {
 impl<F, T, E> TryFutureExt for F
 where
     F: Future<Output = Result<T, E>>,
-    E: std::fmt::Display,
+    E: fmt::Display,
 {
     #[track_caller]
     fn log_err(self) -> LogErrorFuture<Self>
@@ -168,7 +170,7 @@ where
         LogErrorFuture(self, log::Level::Error, *location)
     }
 
-    fn log_tracked_err(self, location: core::panic::Location<'static>) -> LogErrorFuture<Self>
+    fn log_tracked_err(self, location: panic::Location<'static>) -> LogErrorFuture<Self>
     where
         Self: Sized,
     {
@@ -188,12 +190,9 @@ where
 impl<F, T, E> TryFutureExtBacktrace for F
 where
     F: Future<Output = Result<T, E>>,
-    E: std::fmt::Debug,
+    E: fmt::Debug,
 {
-    fn log_tracked_err_with_backtrace(
-        self,
-        location: core::panic::Location<'static>,
-    ) -> LogErrorWithBacktraceFuture<Self>
+    fn log_tracked_err_with_backtrace(self, location: panic::Location<'static>) -> LogErrorWithBacktraceFuture<Self>
     where
         Self: Sized,
     {
@@ -202,12 +201,12 @@ where
 }
 
 #[must_use]
-pub struct LogErrorFuture<F>(F, log::Level, core::panic::Location<'static>);
+pub struct LogErrorFuture<F>(F, log::Level, panic::Location<'static>);
 
 impl<F, T, E> Future for LogErrorFuture<F>
 where
     F: Future<Output = Result<T, E>>,
-    E: std::fmt::Display,
+    E: fmt::Display,
 {
     type Output = Option<T>;
 
@@ -229,12 +228,12 @@ where
 }
 
 #[must_use]
-pub struct LogErrorWithBacktraceFuture<F>(F, log::Level, core::panic::Location<'static>);
+pub struct LogErrorWithBacktraceFuture<F>(F, log::Level, panic::Location<'static>);
 
 impl<F, T, E> Future for LogErrorWithBacktraceFuture<F>
 where
     F: Future<Output = Result<T, E>>,
-    E: std::fmt::Debug,
+    E: fmt::Debug,
 {
     type Output = Option<T>;
 
@@ -281,7 +280,7 @@ pub const fn defer<F: FnOnce()>(f: F) -> Deferred<F> {
 #[derive(Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TypeIdHashBuilder;
 
-impl std::hash::BuildHasher for TypeIdHashBuilder {
+impl BuildHasher for TypeIdHashBuilder {
     type Hasher = TypeIdHasher;
 
     fn build_hasher(&self) -> Self::Hasher {
@@ -294,7 +293,7 @@ pub struct TypeIdHasher {
     value: u64,
 }
 
-impl std::hash::Hasher for TypeIdHasher {
+impl Hasher for TypeIdHasher {
     #[inline]
     fn write(&mut self, bytes: &[u8]) {
         // TypeId should only hash its first 8 bytes
@@ -316,7 +315,7 @@ impl std::hash::Hasher for TypeIdHasher {
 
 pub fn truncate_to_bottom_n_sorted_by<T, F>(items: &mut Vec<T>, limit: usize, compare: &F)
 where
-    F: Fn(&T, &T) -> std::cmp::Ordering,
+    F: Fn(&T, &T) -> Ordering,
 {
     if limit == 0 {
         items.clear();

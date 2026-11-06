@@ -1,21 +1,30 @@
+use core::panic::Location;
+use std::any;
 use std::any::Any;
 use std::any::TypeId;
 use std::borrow::Cow;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::cmp;
+use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
+use std::fmt::Formatter;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::mem;
+use std::ops;
 use std::ops::Range;
+use std::path;
+use std::ptr;
 use std::rc::Rc;
+use std::result;
 use std::sync::Arc;
 use std::sync::Weak;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::SeqCst;
+use std::thread;
 use std::thread::AccessError;
 use std::time::Duration;
 
@@ -445,10 +454,7 @@ impl ElementArenaScope {
     /// of the wrong arena would unbalance two arenas' scope depths, allowing
     /// one of them to clear while a draw still references its memory.
     pub(crate) fn exit(mut self, arena: &RefCell<Arena>) -> ArenaClearNeeded {
-        assert!(
-            std::ptr::eq(self.entered, arena),
-            "ElementArenaScope::exit called with a different arena than was entered"
-        );
+        assert!(ptr::eq(self.entered, arena), "ElementArenaScope::exit called with a different arena than was entered");
         self.exited = true;
         // Teardown (restoring the thread-local and ending the arena's
         // clear-deferral scope) runs in `Drop`, which fires both here — `self`
@@ -473,7 +479,7 @@ impl Drop for ElementArenaScope {
         // arena (owned by the `App` being drawn) outlives this guard on both the
         // normal and unwinding paths, since the guard is a local of the draw.
         unsafe { &*self.entered }.borrow_mut().end_scope();
-        if !self.exited && !std::thread::panicking() {
+        if !self.exited && !thread::panicking() {
             debug_assert!(false, "ElementArenaScope dropped without calling exit()");
             log::error!(
                 "ElementArenaScope dropped without calling exit(); \
@@ -508,7 +514,7 @@ impl ArenaClearNeeded {
     /// reference.
     pub fn clear(self, cx: &mut App) {
         assert!(
-            std::ptr::eq(self.arena, &raw const *cx.element_arena),
+            ptr::eq(self.arena, &raw const *cx.element_arena),
             "ArenaClearNeeded::clear called with a different App than the draw ran against"
         );
         RefCell::borrow_mut(&cx.element_arena).clear();
@@ -562,8 +568,8 @@ pub struct FocusHandle {
     pub tab_stop: bool,
 }
 
-impl std::fmt::Debug for FocusHandle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for FocusHandle {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!("FocusHandle({:?})", self.id))
     }
 }
@@ -988,7 +994,7 @@ impl ElementIdStack {
     }
 }
 
-impl std::ops::Deref for ElementIdStack {
+impl ops::Deref for ElementIdStack {
     type Target = [ElementId];
 
     fn deref(&self) -> &Self::Target {
@@ -1359,7 +1365,7 @@ impl PendingInputTimeout {
     }
 
     fn pause(&mut self, pause: PendingInputTimeoutPause, now: Instant) -> bool {
-        match std::mem::replace(&mut self.state, PendingInputTimeoutState::Paused { pause }) {
+        match mem::replace(&mut self.state, PendingInputTimeoutState::Paused { pause }) {
             PendingInputTimeoutState::Running { started_at, task } => {
                 self.remaining = self.remaining.saturating_sub(now - started_at);
                 drop(task);
@@ -1380,7 +1386,7 @@ impl PendingInputTimeout {
     }
 
     fn resume(&mut self, owner_id: EntityId, started_at: Instant, task: Task<()>) -> bool {
-        match std::mem::replace(&mut self.state, PendingInputTimeoutState::Running { started_at, task }) {
+        match mem::replace(&mut self.state, PendingInputTimeoutState::Running { started_at, task }) {
             PendingInputTimeoutState::Paused { pause } if pause.owner_id == owner_id => true,
             previous_state => {
                 self.state = previous_state;
@@ -2440,7 +2446,7 @@ impl Window {
 
     /// Set the path of the file this window represents.
     /// On macOS, this sets the window's accessibility document property (AXDocument).
-    pub fn set_document_path(&self, path: Option<&std::path::Path>) {
+    pub fn set_document_path(&self, path: Option<&path::Path>) {
         self.platform_window.set_document_path(path);
     }
 
@@ -3440,28 +3446,24 @@ impl Window {
                 type_name,
             } = any;
             // Using the extra inner option to avoid needing to reallocate a new box.
-            let mut state_box =
-                inner
-                    .downcast::<Option<S>>()
-                    .map_err(|_| {
-                        #[cfg(debug_assertions)]
-                        {
-                            anyhow::anyhow!(
-                                "invalid element state type for id, requested {:?}, actual: {:?}",
-                                std::any::type_name::<S>(),
-                                type_name
-                            )
-                        }
+            let mut state_box = inner
+                .downcast::<Option<S>>()
+                .map_err(|_| {
+                    #[cfg(debug_assertions)]
+                    {
+                        anyhow::anyhow!(
+                            "invalid element state type for id, requested {:?}, actual: {:?}",
+                            any::type_name::<S>(),
+                            type_name
+                        )
+                    }
 
-                        #[cfg(not(debug_assertions))]
-                        {
-                            anyhow::anyhow!(
-                                "invalid element state type for id, requested {:?}",
-                                std::any::type_name::<S>(),
-                            )
-                        }
-                    })
-                    .unwrap();
+                    #[cfg(not(debug_assertions))]
+                    {
+                        anyhow::anyhow!("invalid element state type for id, requested {:?}", any::type_name::<S>(),)
+                    }
+                })
+                .unwrap();
 
             let state =
                 state_box.take().expect("reentrant call to with_element_state for the same state type and element id");
@@ -3483,7 +3485,7 @@ impl Window {
                 ElementStateBox {
                     inner: Box::new(Some(state)),
                     #[cfg(debug_assertions)]
-                    type_name: std::any::type_name::<S>(),
+                    type_name: any::type_name::<S>(),
                 },
             );
             result
@@ -5471,7 +5473,7 @@ pub struct WindowHandle<V> {
 }
 
 impl<V> Debug for WindowHandle<V> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("WindowHandle").field("any_handle", &self.any_handle.id.as_u64()).finish()
     }
 }
@@ -5484,7 +5486,7 @@ impl<V: 'static + Render> WindowHandle<V> {
             any_handle: AnyWindowHandle {
                 id,
                 state_type: TypeId::of::<V>(),
-                root_entity_type_name: std::any::type_name::<V>(),
+                root_entity_type_name: any::type_name::<V>(),
             },
             state_type: PhantomData,
         }
@@ -5638,7 +5640,7 @@ impl HasWindowHandle for Window {
 }
 
 impl HasDisplayHandle for Window {
-    fn display_handle(&self) -> std::result::Result<raw_window_handle::DisplayHandle<'_>, HandleError> {
+    fn display_handle(&self) -> result::Result<raw_window_handle::DisplayHandle<'_>, HandleError> {
         self.platform_window.display_handle()
     }
 }
@@ -5662,9 +5664,9 @@ pub enum ElementId {
     /// A combination of a name and an integer.
     NamedInteger(SharedString, u64),
     /// A path.
-    Path(Arc<std::path::Path>),
+    Path(Arc<path::Path>),
     /// A code location.
-    CodeLocation(core::panic::Location<'static>),
+    CodeLocation(Location<'static>),
     /// A labeled child of an element.
     NamedChild(Arc<ElementId>, SharedString),
     /// A byte array ID (used for text-anchors)
@@ -5679,7 +5681,7 @@ impl ElementId {
 }
 
 impl Display for ElementId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             ElementId::View(entity_id) => write!(f, "view-{}", entity_id)?,
             ElementId::Integer(ix) => write!(f, "{}", ix)?,
@@ -5741,8 +5743,8 @@ impl From<Arc<str>> for ElementId {
     }
 }
 
-impl From<Arc<std::path::Path>> for ElementId {
-    fn from(path: Arc<std::path::Path>) -> Self {
+impl From<Arc<path::Path>> for ElementId {
+    fn from(path: Arc<path::Path>) -> Self {
         ElementId::Path(path)
     }
 }
@@ -5801,8 +5803,8 @@ impl<T: Into<SharedString>> From<(ElementId, T)> for ElementId {
     }
 }
 
-impl From<&'static core::panic::Location<'static>> for ElementId {
-    fn from(location: &'static core::panic::Location<'static>) -> Self {
+impl From<&'static Location<'static>> for ElementId {
+    fn from(location: &'static Location<'static>) -> Self {
         ElementId::CodeLocation(*location)
     }
 }

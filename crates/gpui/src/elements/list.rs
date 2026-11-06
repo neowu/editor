@@ -8,6 +8,10 @@
 //! If all of your elements are the same height, see [`crate::UniformList`] for a simpler API
 
 use std::cell::RefCell;
+use std::cmp::Ordering;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::ops::Range;
 use std::rc::Rc;
 
@@ -77,8 +81,8 @@ impl List {
 #[derive(Clone)]
 pub struct ListState(Rc<RefCell<StateInner>>);
 
-impl std::fmt::Debug for ListState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for ListState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("ListState")
     }
 }
@@ -1279,8 +1283,8 @@ impl StateInner {
     }
 }
 
-impl std::fmt::Debug for ListItem {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for ListItem {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Unmeasured { .. } => write!(f, "Unrendered"),
             Self::Measured { size, .. } => f.debug_struct("Rendered").field("size", size).finish(),
@@ -1516,13 +1520,13 @@ impl<'a> sum_tree::Dimension<'a, ListItemSummary> for Height {
 }
 
 impl sum_tree::SeekTarget<'_, ListItemSummary, ListItemSummary> for Count {
-    fn cmp(&self, other: &ListItemSummary, _: ()) -> std::cmp::Ordering {
+    fn cmp(&self, other: &ListItemSummary, _: ()) -> Ordering {
         self.0.partial_cmp(&other.count).unwrap()
     }
 }
 
 impl sum_tree::SeekTarget<'_, ListItemSummary, ListItemSummary> for Height {
-    fn cmp(&self, other: &ListItemSummary, _: ()) -> std::cmp::Ordering {
+    fn cmp(&self, other: &ListItemSummary, _: ()) -> Ordering {
         self.0.partial_cmp(&other.height).unwrap()
     }
 }

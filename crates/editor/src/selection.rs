@@ -1,3 +1,5 @@
+use std::slice;
+
 use super::*;
 use crate::columnar_selection::ColumnarSelectionRows;
 
@@ -1882,7 +1884,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Editor>,
     ) {
-        self.unfold_ranges(std::slice::from_ref(&range), false, auto_scroll.is_some(), cx);
+        self.unfold_ranges(slice::from_ref(&range), false, auto_scroll.is_some(), cx);
         let effects = if let Some(scroll) = auto_scroll {
             SelectionEffects::scroll(scroll)
         } else {

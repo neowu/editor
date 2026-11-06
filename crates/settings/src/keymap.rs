@@ -9,6 +9,8 @@ use gpui::KeyBindingMetaIndex;
 use gpui::NoAction;
 use serde_json::Value;
 
+use crate::built_in_keymap;
+
 /// A binding constructed in Rust. Contexts and keyboard-position mapping retain
 /// GPUI's normal semantics; later bindings take precedence at the same depth.
 #[derive(Clone, Debug)]
@@ -52,7 +54,7 @@ impl KeyBindingSpec {
 /// Build the application keymap using the current keyboard layout.
 pub fn built_in_key_bindings(cx: &App) -> Vec<KeyBinding> {
     let mut contexts = HashMap::<&'static str, Rc<KeyBindingContextPredicate>>::default();
-    crate::built_in_keymap::keymap()
+    built_in_keymap::keymap()
         .into_iter()
         .map(|binding| {
             let action = match binding.action {

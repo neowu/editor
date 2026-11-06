@@ -9,6 +9,7 @@ use std::borrow::Cow;
 use crate::svg::builder::esc;
 use crate::text::label::trim;
 use crate::util::chars::is_space;
+use crate::util::float;
 use crate::yaml::push_number;
 
 /// The root's stroke width and text color: shapes and edges inherit the stroke width, and an
@@ -351,7 +352,7 @@ fn parse_float(text: &str) -> Option<f64> {
     if digits == 0 {
         return None;
     }
-    text.get(..end).and_then(crate::util::float::parse)
+    text.get(..end).and_then(float::parse)
 }
 
 /// JavaScript's `Number(text)`, for the forms a font weight can take.
@@ -384,7 +385,7 @@ fn js_number(text: &str) -> f64 {
     if !text.bytes().all(|c| c.is_ascii_digit() || matches!(c, b'.' | b'e' | b'E' | b'+' | b'-')) {
         return f64::NAN;
     }
-    crate::util::float::parse(text).unwrap_or(f64::NAN)
+    float::parse(text).unwrap_or(f64::NAN)
 }
 
 /// Lowercases as JavaScript's `toLowerCase` does, for property names.

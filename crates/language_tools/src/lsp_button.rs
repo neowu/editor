@@ -1,6 +1,9 @@
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -29,6 +32,8 @@ use project::LspStoreEvent;
 use project::Worktree;
 use project::lsp_store::log_store::GlobalLogStore;
 use project::project_settings::ProjectSettings;
+use proto::status_update::Status;
+use proto::update_language_server::Variant;
 use rpc::proto;
 use settings::Settings as _;
 use settings::SettingsStore;
@@ -76,8 +81,8 @@ struct LanguageServerState {
     process_memory_cache: Rc<RefCell<ProcessMemoryCache>>,
 }
 
-impl std::fmt::Debug for LanguageServerState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for LanguageServerState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("LanguageServerState")
             .field("items", &self.items)
             .field("workspace", &self.workspace)
@@ -156,8 +161,8 @@ struct ActiveEditor {
     editor_buffers: HashSet<BufferId>,
 }
 
-impl std::fmt::Debug for ActiveEditor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for ActiveEditor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("ActiveEditor")
             .field("editor", &self.editor)
             .field("editor_buffers", &self.editor_buffers)
@@ -773,9 +778,9 @@ impl LspButton {
             LspStoreEvent::LanguageServerUpdate {
                 language_server_id,
                 name,
-                message: proto::update_language_server::Variant::StatusUpdate(status_update),
+                message: Variant::StatusUpdate(status_update),
             } => match &status_update.status {
-                Some(proto::status_update::Status::Binary(binary_status)) => {
+                Some(Status::Binary(binary_status)) => {
                     let Some(name) = name.as_ref() else {
                         return;
                     };
@@ -802,7 +807,7 @@ impl LspButton {
                         updated = true;
                     };
                 }
-                Some(proto::status_update::Status::Health(health_status)) => {
+                Some(Status::Health(health_status)) => {
                     if let Ok(health) = proto::ServerHealth::try_from(*health_status) {
                         let health = match health {
                             proto::ServerHealth::Ok => ServerHealth::Ok,
@@ -825,7 +830,7 @@ impl LspButton {
             LspStoreEvent::LanguageServerUpdate {
                 language_server_id,
                 name,
-                message: proto::update_language_server::Variant::RegisteredForBuffer(update),
+                message: Variant::RegisteredForBuffer(update),
                 ..
             } => {
                 self.server_state.update(cx, |state, cx| {

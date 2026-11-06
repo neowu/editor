@@ -208,6 +208,85 @@ mod tests {
     }
 
     #[test]
+    fn packet_closes_single_bit_and_range_labels() {
+        let out = svg("packet-beta\n0: \"Flag\"\n1-7: \"Payload\"");
+        assert!(out.contains(">0</text>"), "{out}");
+        assert!(out.contains(">1</text>"), "{out}");
+        assert!(out.contains(">7</text>"), "{out}");
+        assert_eq!(out.matches("<text ").count(), out.matches("</text>").count());
+    }
+
+    #[test]
+    fn radar_closes_circular_and_polygonal_grid_shapes() {
+        for graticule in ["circle", "polygon"] {
+            let out = svg(&format!(
+                "radar-beta\naxis a[\"A\"], b[\"B\"], c[\"C\"]\ncurve x[\"X\"]{{1, 2, 3}}\ngraticule {graticule}\nmax 5"
+            ));
+            let shape = if graticule == "circle" { "<circle r=\"" } else { "<polygon points=\"" };
+            let shapes: Vec<&str> = out.split(shape).skip(1).collect();
+            assert!(!shapes.is_empty(), "{out}");
+            for shape in shapes {
+                assert!(shape.split('>').next().unwrap().ends_with('/'), "{out}");
+            }
+        }
+    }
+
+    #[test]
+    fn git_closes_rotated_and_horizontal_commit_labels() {
+        for rotate in [false, true] {
+            let out = svg(&format!(
+                "---\nconfig:\n  gitGraph:\n    rotateCommitLabel: {rotate}\n---\ngitGraph\ncommit id: \"first\"\ncommit id: \"second\""
+            ));
+            assert!(out.contains("ondine-commit-label"), "{out}");
+            assert!(out.contains("first"), "{out}");
+            assert!(out.contains("second"), "{out}");
+            assert_eq!(out.matches("<g ").count(), out.matches("</g>").count(), "{out}");
+        }
+    }
+
+    #[test]
+    fn sequence_self_messages_keep_their_return_leg() {
+        for right_angles in [false, true] {
+            let out = svg(&format!(
+                "---\nconfig:\n  sequence:\n    rightAngles: {right_angles}\n---\nsequenceDiagram\nA->>A: Self\nA->>B: Next"
+            ));
+            assert!(out.contains("Self"), "{out}");
+            assert!(out.contains("Next"), "{out}");
+            let own_path = out
+                .split("d=\"")
+                .skip(1)
+                .map(|path| path.split('"').next().unwrap())
+                .find(|path| path.starts_with('M') && path.matches('H').count() >= 2 && path.contains('V'));
+            assert!(own_path.is_some(), "{out}");
+        }
+    }
+
+    #[test]
+    fn event_modeling_routes_edges_in_wide_and_narrow_layouts() {
+        let source = "eventmodeling\ntimeframe 01 ui Cart\ntimeframe 02 command AddItem [[Add]]\ntimeframe 03 event ItemAdded [[Added]]";
+        let theme = Theme::default();
+        for max_width in [None, Some(180.0)] {
+            let out = render(source, &Options { max_width, ..Options::default() }, &theme).unwrap().svg;
+            assert!(out.contains("ondine-edge"), "{out}");
+            assert!(out.contains("AddItem"), "{out}");
+            assert!(out.contains("ItemAdded"), "{out}");
+            assert!(!out.contains("NaN"), "{out}");
+        }
+    }
+
+    #[test]
+    fn xy_line_reenters_the_plot_after_out_of_range_values() {
+        let out = svg("xychart-beta\nx-axis [a, b, c, d, e]\ny-axis 0 --> 10\nline [5, 20, 5, -10, 5]");
+        let line = out
+            .split("d=\"")
+            .skip(1)
+            .map(|path| path.split('"').next().unwrap())
+            .find(|path| path.matches('M').count() >= 3 && path.matches('L').count() >= 4);
+        assert!(line.is_some(), "{out}");
+        assert!(!out.contains("NaN"), "{out}");
+    }
+
+    #[test]
     fn decodes_entities_in_labels() {
         let out = svg("flowchart LR\n  A[\"GET /plans/&lcub;id&rcub;\"] --> B[\"items#lsqb;0#rsqb; #verbar; none\"]");
         assert!(out.contains("GET /plans/{id}"), "{out}");

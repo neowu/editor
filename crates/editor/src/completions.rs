@@ -1,4 +1,9 @@
+use std::iter::Iterator;
+use std::mem;
+use std::sync::atomic::AtomicBool;
+
 use super::*;
+use crate::hover_popover;
 
 impl Editor {
     pub fn text_layout_details(&self, window: &mut Window, cx: &mut App) -> TextLayoutDetails {
@@ -628,7 +633,7 @@ impl Editor {
                     {
                         *editor.context_menu.borrow_mut() = Some(CodeContextMenu::Completions(menu));
 
-                        crate::hover_popover::hide_hover(editor, cx);
+                        hover_popover::hide_hover(editor, cx);
 
                         cx.notify();
                         return;
@@ -1047,7 +1052,7 @@ fn snippet_completions(
                         buffer_window.chars().any(|c| c.is_uppercase()),
                         true,
                         MAX_RESULTS - matches.len(), // always prioritize longer snippets
-                        &std::sync::atomic::AtomicBool::default(),
+                        &AtomicBool::default(),
                         executor.clone(),
                     )
                     .await
@@ -1212,7 +1217,7 @@ impl CompletionProvider for Entity<Project> {
     }
 }
 
-pub(crate) fn split_words(text: &str) -> impl std::iter::Iterator<Item = &str> + '_ {
+pub(crate) fn split_words(text: &str) -> impl Iterator<Item = &str> + '_ {
     let mut prev_index = 0;
     let mut prev_codepoint: Option<char> = None;
     text.char_indices().chain([(text.len(), '\0')]).filter_map(move |(index, codepoint)| {
@@ -1239,11 +1244,11 @@ pub(crate) fn split_words(text: &str) -> impl std::iter::Iterator<Item = &str> +
 pub(crate) fn snippet_candidate_suffixes<'a>(
     text: &'a str,
     is_word_char: &'a dyn Fn(char) -> bool,
-) -> impl std::iter::Iterator<Item = &'a str> + 'a {
+) -> impl Iterator<Item = &'a str> + 'a {
     let mut prev_index = text.len();
     let mut prev_codepoint = None;
     text.char_indices().rev().chain([(0, '\0')]).filter_map(move |(index, codepoint)| {
-        let prev_index = std::mem::replace(&mut prev_index, index);
+        let prev_index = mem::replace(&mut prev_index, index);
         let prev_codepoint = prev_codepoint.replace(codepoint)?;
         if is_word_char(prev_codepoint) && is_word_char(codepoint) {
             None

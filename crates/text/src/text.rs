@@ -1,3 +1,7 @@
+use std::fmt;
+use std::fmt::Formatter;
+use std::hash::Hash;
+use std::iter;
 mod anchor;
 pub mod locator;
 pub mod operation_queue;
@@ -77,7 +81,7 @@ pub struct Buffer {
 pub struct BufferId(NonZeroU64);
 
 impl Display for BufferId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -1953,7 +1957,7 @@ impl BufferSnapshot {
         let mut chunks = self.as_rope().chunks_in_range(start..end);
         let mut row = row_range.start;
         let mut done = false;
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             if done {
                 None
             } else {
@@ -1991,7 +1995,7 @@ impl BufferSnapshot {
 
         let mut row = end_point.row;
         let mut done = false;
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             if done {
                 None
             } else {

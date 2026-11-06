@@ -1,4 +1,7 @@
 use super::*;
+use crate::actions::CodeActionSource;
+use crate::actions::ToggleCodeActions;
+use crate::hover_popover;
 
 impl Editor {
     /// Toggles an action selection menu for the latest selection.
@@ -8,15 +11,11 @@ impl Editor {
         let quick_launch = action.quick_launch;
         let mut context_menu = self.context_menu.borrow_mut();
         if let Some(CodeContextMenu::CodeActions(code_actions)) = context_menu.as_ref() {
-            if code_actions.deployed_from == action.deployed_from {
-                // Toggle if we're selecting the same one
-                *context_menu = None;
-                cx.notify();
+            let toggle_off = code_actions.deployed_from == action.deployed_from;
+            *context_menu = None;
+            cx.notify();
+            if toggle_off {
                 return;
-            } else {
-                // Otherwise, clear it and start a new one
-                *context_menu = None;
-                cx.notify();
             }
         }
         drop(context_menu);
@@ -103,7 +102,7 @@ impl Editor {
                     && resolved_tasks.as_ref().is_some_and(|tasks| tasks.templates.len() == 1)
                     && code_actions.as_ref().is_none_or(|actions| actions.is_empty());
 
-                crate::hover_popover::hide_hover(editor, cx);
+                hover_popover::hide_hover(editor, cx);
                 let actions = CodeActionContents::new(resolved_tasks, code_actions);
 
                 // Don't show the menu if there are no actions available
@@ -263,8 +262,8 @@ impl Editor {
             .on_click(cx.listener(move |editor, _: &ClickEvent, window, cx| {
                 window.focus(&editor.focus_handle(cx), cx);
                 editor.toggle_code_actions(
-                    &crate::actions::ToggleCodeActions {
-                        deployed_from: Some(crate::actions::CodeActionSource::Indicator(display_row)),
+                    &ToggleCodeActions {
+                        deployed_from: Some(CodeActionSource::Indicator(display_row)),
                         quick_launch: false,
                     },
                     window,

@@ -5,6 +5,7 @@
 //! `BTreeMap` index for lookups, so iteration order never depends on hashing.
 
 use std::collections::BTreeMap;
+use std::mem;
 
 use super::graph::StateGraph;
 use super::graph::build_state_graph;
@@ -136,7 +137,7 @@ impl StateDb {
 
         self.state_docs.clear();
 
-        let doc = std::mem::take(&mut self.root_doc);
+        let doc = mem::take(&mut self.root_doc);
         for (at, item) in doc.iter().enumerate() {
             match item {
                 Stmt::State(state) => {
@@ -183,7 +184,7 @@ impl StateDb {
         // Pele also regroups the root document, but into a copy it then drops. Dividers only lex
         // inside a body, so the root document never has one.
         let mut stack =
-            vec![Frame { at: 0, doc: std::mem::take(&mut self.root_doc), parent_id: String::from("root"), slot: None }];
+            vec![Frame { at: 0, doc: mem::take(&mut self.root_doc), parent_id: String::from("root"), slot: None }];
         while let Some(top) = stack.last_mut() {
             let at = top.at;
             if at >= top.doc.len() {
@@ -209,7 +210,7 @@ impl StateDb {
                 }
                 Some(Stmt::State(state)) => {
                     name(state, &parent_id, true);
-                    state.doc.take().map(|mut doc| (state.id.clone(), std::mem::take(&mut doc.0)))
+                    state.doc.take().map(|mut doc| (state.id.clone(), mem::take(&mut doc.0)))
                 }
                 _ => None,
             };
@@ -228,7 +229,7 @@ impl StateDb {
         for item in doc {
             match item {
                 Stmt::State(mut state) if state.r#type == Some("divider") && state.doc.is_none() => {
-                    state.doc = Some(Doc(std::mem::take(&mut current)));
+                    state.doc = Some(Doc(mem::take(&mut current)));
                     regions.push(Stmt::State(state));
                 }
                 item => current.push(item),

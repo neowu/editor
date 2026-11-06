@@ -1,3 +1,6 @@
+use std::hash::DefaultHasher;
+
+use base64::prelude::BASE64_STANDARD;
 mod builder;
 mod element;
 mod html;
@@ -648,9 +651,7 @@ impl Markdown {
                         continue;
                     };
                     let is_base64 = encoding == "base64";
-                    if is_base64
-                        && let Some(bytes) = base64::prelude::BASE64_STANDARD.decode(data).log_with_level(Level::Debug)
-                    {
+                    if is_base64 && let Some(bytes) = BASE64_STANDARD.decode(data).log_with_level(Level::Debug) {
                         let image = Arc::new(Image::from_bytes(format, bytes));
                         images_by_source_offset.insert(range.start, image);
                     }
@@ -842,7 +843,7 @@ fn render_blocks(source: &str, events: &[(Range<usize>, MarkdownEvent)]) -> Vec<
             let source_start = block_events.iter().map(|(range, _)| range.start).min();
             let source_end = block_events.iter().map(|(range, _)| range.end).max();
             let source_range = source_start.unwrap_or(0)..source_end.unwrap_or(0);
-            let mut hasher = std::hash::DefaultHasher::new();
+            let mut hasher = DefaultHasher::new();
             source[source_range.clone()].hash(&mut hasher);
             after_footnote_definition.hash(&mut hasher);
             let block =

@@ -1,3 +1,4 @@
+use std::ops::Range;
 use std::path::Path;
 use std::time::Duration;
 use std::time::Instant;
@@ -278,10 +279,10 @@ pub fn from_buffer_with_delimiter(buffer_snapshot: &BufferSnapshot, delimiter: c
 fn parse_delimited_text_with_positions(
     text: &str,
     delimiter: char,
-) -> (Vec<Vec<(SharedString, std::ops::Range<usize>)>>, Vec<LineNumber>) {
+) -> (Vec<Vec<(SharedString, Range<usize>)>>, Vec<LineNumber>) {
     let mut rows = Vec::new();
     let mut line_numbers = Vec::new();
-    let mut current_row: Vec<(SharedString, std::ops::Range<usize>)> = Vec::new();
+    let mut current_row: Vec<(SharedString, Range<usize>)> = Vec::new();
     let mut current_field = String::new();
     let mut field_start_offset = 0;
     let mut current_offset = 0;
@@ -421,7 +422,7 @@ fn parse_delimited_text_with_positions(
 fn create_table_row(
     buffer_snapshot: &BufferSnapshot,
     max_number_of_cols: usize,
-    row: Vec<(SharedString, std::ops::Range<usize>)>,
+    row: Vec<(SharedString, Range<usize>)>,
 ) -> TableRow<TableCell> {
     let mut raw_row = row
         .into_iter()

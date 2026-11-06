@@ -1,3 +1,5 @@
+use proto::status_update::Status;
+use proto::update_language_server::Variant;
 gpui::actions!(activity_indicator, [DismissMessage]);
 use std::cmp::Reverse;
 use std::collections::HashSet;
@@ -138,12 +140,12 @@ impl ActivityIndicator {
 
             cx.subscribe(&project.read(cx).lsp_store(), |activity_indicator, _, event, cx| {
                 if let LspStoreEvent::LanguageServerUpdate { name, message, .. } = event {
-                    if let proto::update_language_server::Variant::StatusUpdate(status_update) = message {
+                    if let Variant::StatusUpdate(status_update) = message {
                         let Some(name) = name.clone() else {
                             return;
                         };
                         let status = match &status_update.status {
-                            Some(proto::status_update::Status::Binary(binary_status)) => {
+                            Some(Status::Binary(binary_status)) => {
                                 if let Ok(binary_status) = proto::ServerBinaryStatus::try_from(*binary_status) {
                                     let binary_status = match binary_status {
                                         proto::ServerBinaryStatus::None => BinaryStatus::None,
@@ -162,7 +164,7 @@ impl ActivityIndicator {
                                     return;
                                 }
                             }
-                            Some(proto::status_update::Status::Health(health_status)) => {
+                            Some(Status::Health(health_status)) => {
                                 if let Ok(health) = proto::ServerHealth::try_from(*health_status) {
                                     let health = match health {
                                         proto::ServerHealth::Ok => ServerHealth::Ok,
@@ -194,7 +196,7 @@ impl ActivityIndicator {
             .detach();
 
             cx.subscribe(&project.read(cx).git_store().clone(), |_, _, event: &GitStoreEvent, cx| {
-                if let project::git_store::GitStoreEvent::JobsUpdated = event {
+                if let GitStoreEvent::JobsUpdated = event {
                     cx.notify()
                 }
             })

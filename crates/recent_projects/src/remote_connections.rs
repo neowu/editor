@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,12 +21,14 @@ pub use remote_connection::RemoteConnectionPrompt;
 pub use remote_connection::SshConnectionHeader;
 pub use remote_connection::connect;
 pub use settings::SshConnection;
+use util::command;
 use util::paths::PathWithPosition;
 use workspace::AppState;
 use workspace::OpenOptions;
 use workspace::SerializedWorkspaceLocation;
 use workspace::Workspace;
 use workspace::find_existing_workspace;
+use workspace::item::ItemHandle;
 
 #[derive(Clone, PartialEq)]
 pub enum Connection {
@@ -253,7 +256,7 @@ pub async fn open_remote_project(
 
 pub fn navigate_to_positions(
     window: &WindowHandle<Workspace>,
-    items: impl IntoIterator<Item = Option<Box<dyn workspace::item::ItemHandle>>>,
+    items: impl IntoIterator<Item = Option<Box<dyn ItemHandle>>>,
     positions: &[PathWithPosition],
     cx: &mut AsyncApp,
 ) {
@@ -306,14 +309,14 @@ async fn path_exists(connection: &Arc<dyn RemoteConnection>, path: &Path) -> boo
     let Ok(command) = connection.build_command(
         Some("test".to_string()),
         &["-e".to_owned(), path.to_string_lossy().to_string()],
-        &std::collections::HashMap::<_, _, _>::default(),
+        &HashMap::<_, _, _>::default(),
         None,
         None,
         Interactive::No,
     ) else {
         return false;
     };
-    let Ok(mut child) = util::command::new_command(command.program).args(command.args).envs(command.env).spawn() else {
+    let Ok(mut child) = command::new_command(command.program).args(command.args).envs(command.env).spawn() else {
         return false;
     };
     child.status().await.is_ok_and(|status| status.success())

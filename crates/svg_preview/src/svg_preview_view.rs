@@ -28,6 +28,7 @@ use ui::prelude::*;
 use workspace::Pane;
 use workspace::Workspace;
 use workspace::item::Item;
+use workspace::item::ItemEvent;
 use workspace::notifications::NotifyResultExt;
 
 use crate::OpenFollowingPreview;
@@ -331,5 +332,5 @@ impl Item for SvgPreviewView {
             .unwrap_or_else(|| "SVG Preview".into())
     }
 
-    fn to_item_events(_event: &Self::Event, _f: &mut dyn FnMut(workspace::item::ItemEvent)) {}
+    fn to_item_events(_event: &Self::Event, _f: &mut dyn FnMut(ItemEvent)) {}
 }

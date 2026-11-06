@@ -8,6 +8,7 @@ use std::collections::BTreeSet;
 use super::db::FlowDb;
 use super::types::FlowNode;
 use super::types::LabelType;
+use crate::error;
 use crate::yaml::Value;
 
 /// A node or group to draw. Mirrors Pele's `GraphNode`; fields only variants read are omitted.
@@ -289,7 +290,7 @@ pub(crate) fn build(model: &FlowDb, default_curve: Option<&str>) -> FlowGraph {
                 id.push('_');
                 id.push_str(end);
                 id.push('_');
-                crate::error::push_u32(&mut id, u32::try_from(index).unwrap_or(u32::MAX));
+                error::push_u32(&mut id, u32::try_from(index).unwrap_or(u32::MAX));
                 id
             }
         };

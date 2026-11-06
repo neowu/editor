@@ -6,6 +6,8 @@
 use std::cell::RefCell;
 use std::ops::Range;
 use std::rc::Rc;
+use std::result;
+use std::sync::Arc;
 
 use anyhow::Result;
 use collections::HashMap;
@@ -316,7 +318,7 @@ impl SemanticsProvider for RevisionSemanticsProvider {
         &self,
         buffer: Entity<Buffer>,
         cx: &mut App,
-    ) -> Option<Shared<Task<std::result::Result<BufferSemanticTokens, std::sync::Arc<anyhow::Error>>>>> {
+    ) -> Option<Shared<Task<result::Result<BufferSemanticTokens, Arc<anyhow::Error>>>>> {
         self.project.semantic_tokens(buffer, cx)
     }
 

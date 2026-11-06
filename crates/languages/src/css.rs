@@ -12,6 +12,8 @@ use project::lsp_store::language_server_settings;
 use serde_json::json;
 use util::merge_json_value_into;
 
+use crate::npx;
+
 pub struct CssLspAdapter;
 
 #[async_trait(?Send)]
@@ -25,13 +27,8 @@ impl LspAdapter for CssLspAdapter {
         delegate: &Arc<dyn LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
-        crate::npx::node_server_binary(
-            delegate,
-            &["vscode-langservers-extracted"],
-            "vscode-css-language-server",
-            &["--stdio"],
-        )
-        .await
+        npx::node_server_binary(delegate, &["vscode-langservers-extracted"], "vscode-css-language-server", &["--stdio"])
+            .await
     }
 
     async fn initialization_options(

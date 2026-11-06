@@ -1009,13 +1009,15 @@ impl Request for TypeHierarchySubtypes {
 
 #[cfg(test)]
 mod test {
+    use serde::de::DeserializeOwned;
+
     use super::*;
 
     fn fake_call<R>()
     where
         R: Request,
         R::Params: serde::Serialize,
-        R::Result: serde::de::DeserializeOwned,
+        R::Result: DeserializeOwned,
     {
     }
 

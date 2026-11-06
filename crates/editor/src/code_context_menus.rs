@@ -315,7 +315,7 @@ impl LabelMatchState {
             .enumerate()
             .map(|(id, completion)| StringMatchCandidate::new(id, completion.label.filter_text()))
             .collect();
-        let matches = std::iter::repeat_n(None, completions.len()).collect();
+        let matches = iter::repeat_n(None, completions.len()).collect();
         Self { candidates, label_matches: Rc::new(RefCell::new(matches)) }
     }
 }
@@ -1156,7 +1156,7 @@ impl CompletionsMenu {
                 .collect_vec();
 
             let mut filter_match_results = vec![];
-            let mut label_match_results = std::iter::repeat_n(None, label_match_candidates.len()).collect::<Box<[_]>>();
+            let mut label_match_results = iter::repeat_n(None, label_match_candidates.len()).collect::<Box<[_]>>();
             for (query, match_candidates) in queries_and_candidates {
                 let smart_case = query.chars().any(|character| character.is_uppercase());
                 let filter_matches = fuzzy::match_strings(

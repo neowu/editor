@@ -329,7 +329,7 @@ impl DiffBufferList {
 
     fn load_buffer(
         diff_base: DiffBase,
-        branch_diff: Option<git::status::TreeDiffStatus>,
+        branch_diff: Option<TreeDiffStatus>,
         project_path: crate::ProjectPath,
         repo: Entity<Repository>,
         git_store: Entity<GitStore>,
@@ -366,9 +366,8 @@ impl DiffBufferList {
                 DiffBase::Merge { .. } => {
                     let diff = if let Some(entry) = branch_diff {
                         let oid = match entry {
-                            git::status::TreeDiffStatus::Added => None,
-                            git::status::TreeDiffStatus::Modified { old, .. }
-                            | git::status::TreeDiffStatus::Deleted { old } => Some(old),
+                            TreeDiffStatus::Added => None,
+                            TreeDiffStatus::Modified { old, .. } | TreeDiffStatus::Deleted { old } => Some(old),
                         };
                         git_store
                             .update(cx, |git_store, cx| git_store.open_diff_since(oid, buffer.clone(), repo, cx))
@@ -427,16 +426,16 @@ const fn status_overrides_tree(status: FileStatus, committed_status: Option<&Tre
     status.is_conflicted() || status.is_untracked() && !matches!(committed_status, Some(TreeDiffStatus::Deleted { .. }))
 }
 
-const fn diff_status_to_file_status(branch_diff: &git::status::TreeDiffStatus) -> FileStatus {
+const fn diff_status_to_file_status(branch_diff: &TreeDiffStatus) -> FileStatus {
     match branch_diff {
-        git::status::TreeDiffStatus::Added => {
+        TreeDiffStatus::Added => {
             FileStatus::Tracked(TrackedStatus { index_status: StatusCode::Added, worktree_status: StatusCode::Added })
         }
-        git::status::TreeDiffStatus::Modified { .. } => FileStatus::Tracked(TrackedStatus {
+        TreeDiffStatus::Modified { .. } => FileStatus::Tracked(TrackedStatus {
             index_status: StatusCode::Modified,
             worktree_status: StatusCode::Modified,
         }),
-        git::status::TreeDiffStatus::Deleted { .. } => FileStatus::Tracked(TrackedStatus {
+        TreeDiffStatus::Deleted { .. } => FileStatus::Tracked(TrackedStatus {
             index_status: StatusCode::Deleted,
             worktree_status: StatusCode::Deleted,
         }),

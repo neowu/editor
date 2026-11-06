@@ -3,6 +3,7 @@ use std::ffi::c_void;
 use std::mem;
 use std::mem::MaybeUninit;
 use std::ops::Range;
+use std::process;
 use std::ptr::NonNull;
 use std::ptr::{self};
 use std::slice;
@@ -250,7 +251,7 @@ impl MetalRenderer {
     fn system_default_device() -> Retained<Device> {
         MTLCreateSystemDefaultDevice().unwrap_or_else(|| {
             log::error!("unable to access a compatible graphics device");
-            std::process::exit(1);
+            process::exit(1);
         })
     }
 
@@ -491,7 +492,7 @@ impl MetalRenderer {
             let msaa_descriptor = texture_descriptor;
             msaa_descriptor.setTextureType(MTLTextureType::Type2DMultisample);
             msaa_descriptor.setStorageMode(storage_mode);
-            unsafe { msaa_descriptor.setSampleCount(self.path_sample_count as _) };
+            unsafe { msaa_descriptor.setSampleCount(self.path_sample_count as usize) };
             self.path_intermediate_msaa_texture = self.device.newTextureWithDescriptor(&msaa_descriptor);
         } else {
             self.path_intermediate_msaa_texture = None;
@@ -1174,7 +1175,7 @@ fn build_path_rasterization_pipeline_state(
 ) -> Retained<RenderPipelineState> {
     let descriptor = new_pipeline_descriptor(library, label, vertex_fn_name, fragment_fn_name);
     if path_sample_count > 1 {
-        descriptor.setRasterSampleCount(path_sample_count as _);
+        descriptor.setRasterSampleCount(path_sample_count as usize);
         descriptor.setAlphaToCoverageEnabled(false);
     }
     set_premultiplied_blending(&descriptor, pixel_format);

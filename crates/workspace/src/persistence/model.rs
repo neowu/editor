@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use anyhow::Result;
+use futures::future;
 use gpui::AsyncWindowContext;
 use gpui::Axis;
 use gpui::Entity;
@@ -262,7 +263,7 @@ impl SerializedPane {
         }
 
         let mut items = Vec::new();
-        for item_handle in futures::future::join_all(item_tasks).await {
+        for item_handle in future::join_all(item_tasks).await {
             let item_handle = item_handle.log_err();
             items.push(item_handle.clone());
 

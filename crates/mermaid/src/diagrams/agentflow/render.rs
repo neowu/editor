@@ -22,6 +22,7 @@ use crate::layout::compound::compound_layout;
 use crate::layout::compound::direction;
 use crate::layout::compound::shift_layout;
 use crate::layout::layered::LayeredOptions;
+use crate::svg::builder;
 use crate::svg::builder::esc;
 use crate::svg::builder::esc_text;
 use crate::svg::builder::label_svg;
@@ -50,6 +51,7 @@ use crate::text::label::Label;
 use crate::text::label::layout_label;
 use crate::text::measure::BOLD;
 use crate::text::measure::ITALIC;
+use crate::util::chars;
 use crate::yaml::Value;
 
 /// The number of series colors, which is the palette Mermaid's slot rules are applied to.
@@ -147,7 +149,7 @@ fn strip_default(classes: &str) -> &str {
         return classes;
     };
     match rest.chars().next() {
-        Some(c) if crate::util::chars::is_space(u32::from(c)) => &rest[c.len_utf8()..],
+        Some(c) if chars::is_space(u32::from(c)) => &rest[c.len_utf8()..],
         _ => rest,
     }
 }
@@ -171,7 +173,7 @@ fn strip_edge_classes(classes: &str) -> String {
 )]
 fn draw(db: &AgentflowDb, graph: &AgentGraph, config: &Value, options: &Options, turned: bool) -> Rendered {
     let size = options.font_size;
-    let edge_size = crate::svg::builder::js_round(size * 0.875);
+    let edge_size = builder::js_round(size * 0.875);
     let wrap_width = number_option(config, "wrappingWidth", 120.0);
     let min_width = number_option(config, "minNodeWidth", 120.0);
     let pad = options.padding;

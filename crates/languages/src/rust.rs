@@ -1,9 +1,13 @@
 use std::borrow::Cow;
 use std::cmp::Reverse;
+use std::fmt;
 use std::fmt::Display;
+use std::fmt::Formatter;
+use std::io::ErrorKind;
 use std::ops::Range;
 use std::path::Path;
 use std::path::PathBuf;
+use std::str;
 use std::sync::Arc;
 use std::sync::LazyLock;
 
@@ -41,7 +45,7 @@ use crate::language_settings::LanguageSettings;
 
 pub(crate) fn semantic_token_rules() -> SemanticTokenRules {
     let content = grammars::get_file("rust/semantic_token_rules.json").expect("missing rust/semantic_token_rules.json");
-    let json = std::str::from_utf8(&content.data).expect("invalid utf-8 in semantic_token_rules");
+    let json = str::from_utf8(&content.data).expect("invalid utf-8 in semantic_token_rules");
     serde_json::from_str::<SemanticTokenRules>(json).expect("failed to parse rust semantic_token_rules.json")
 }
 
@@ -761,7 +765,7 @@ enum TargetKind {
 }
 
 impl Display for TargetKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             TargetKind::Bin => write!(f, "bin"),
             TargetKind::Example => write!(f, "example"),
@@ -797,7 +801,7 @@ async fn target_info_from_abs_path(
         return Ok(None);
     }
 
-    let mut command = util::command::new_command("cargo");
+    let mut command = new_command("cargo");
     if let Some(envs) = project_env {
         command.envs(envs);
     }
@@ -824,7 +828,7 @@ async fn has_cargo_manifest(directory: &Path) -> Result<bool> {
     for ancestor in resolved_directory.ancestors() {
         match fs::metadata(ancestor.join("Cargo.toml")).await {
             Ok(_) => return Ok(true),
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
         }
     }
@@ -880,7 +884,7 @@ async fn human_readable_package_name(
     package_directory: &Path,
     project_env: Option<&HashMap<String, String>>,
 ) -> Option<String> {
-    let mut command = util::command::new_command("cargo");
+    let mut command = new_command("cargo");
     if let Some(envs) = project_env {
         command.envs(envs);
     }

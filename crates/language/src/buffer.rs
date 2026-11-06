@@ -1,3 +1,9 @@
+use std::fmt::Display;
+
+use rpc::proto as rpc_proto;
+use rpc::proto as rpc_proto_;
+
+use crate::fallback_highlight;
 mod bracket_ranges;
 pub mod row_chunk;
 
@@ -428,7 +434,7 @@ pub trait File: Send + Sync + Any {
     fn worktree_id(&self, cx: &App) -> WorktreeId;
 
     /// Converts this file into a protobuf message.
-    fn to_proto(&self, cx: &App) -> rpc::proto::File;
+    fn to_proto(&self, cx: &App) -> rpc_proto::File;
 
     fn can_open(&self) -> bool {
         !self.is_local()
@@ -743,7 +749,7 @@ impl HighlightedTextBuilder {
 
     /// Append a displayable value to the text, highlighting its range with
     /// `style`.
-    pub fn push_styled(&mut self, value: impl std::fmt::Display, style: HighlightStyle) {
+    pub fn push_styled(&mut self, value: impl Display, style: HighlightStyle) {
         let start = self.text.len();
         let _ = write!(&mut self.text, "{value}");
         let end = self.text.len();
@@ -753,7 +759,7 @@ impl HighlightedTextBuilder {
     }
 
     /// Append a displayable value to the text without any highlighting.
-    pub fn push_plain(&mut self, value: impl std::fmt::Display) {
+    pub fn push_plain(&mut self, value: impl Display) {
         let _ = write!(&mut self.text, "{value}");
     }
 
@@ -1016,7 +1022,7 @@ impl Buffer {
         let buffer = TextBuffer::new(replica_id, buffer_id, message.base_text);
         let mut this = Self::build(buffer, file, capability, cx);
         this.text.set_line_ending(proto::deserialize_line_ending(
-            rpc::proto::LineEnding::try_from(message.line_ending).ok().context("missing line_ending")?,
+            rpc_proto_::LineEnding::try_from(message.line_ending).ok().context("missing line_ending")?,
         ));
         this.saved_version = proto::deserialize_version(&message.saved_version);
         this.saved_mtime = message.saved_mtime.map(|time| time.into());
@@ -1412,7 +1418,7 @@ impl Buffer {
         self.non_text_state_update_count += 1;
         self.syntax_map.lock().clear(&self.text);
         Self::invalidate_tree_sitter_data(&mut self.tree_sitter_data, self.text.snapshot());
-        let old_language = std::mem::replace(&mut self.language, language);
+        let old_language = mem::replace(&mut self.language, language);
         self.refresh_fallback_highlighter(cx);
         self.refresh_resolved_settings(cx);
         self.was_changed();
@@ -1512,7 +1518,7 @@ impl Buffer {
         force_encoding: Option<&'static Encoding>,
         cx: &Context<Self>,
     ) -> oneshot::Receiver<Option<Transaction>> {
-        let (tx, rx) = futures::channel::oneshot::channel();
+        let (tx, rx) = oneshot::channel();
         let prev_version = self.text.version();
 
         self.reload_task = Some(cx.spawn(async move |this, cx| {
@@ -2091,8 +2097,7 @@ impl Buffer {
                     let point = Point::new(row, 0);
                     Some((
                         point..point,
-                        std::iter::repeat_n(new_size.char(), (new_size.len - current_size.len) as usize)
-                            .collect::<String>(),
+                        iter::repeat_n(new_size.char(), (new_size.len - current_size.len) as usize).collect::<String>(),
                     ))
                 }
 
@@ -2105,7 +2110,7 @@ impl Buffer {
         } else {
             Some((
                 Point::new(row, 0)..Point::new(row, current_size.len),
-                std::iter::repeat_n(new_size.char(), new_size.len as usize).collect::<String>(),
+                iter::repeat_n(new_size.char(), new_size.len as usize).collect::<String>(),
             ))
         }
     }
@@ -3673,7 +3678,7 @@ impl BufferSnapshot {
             }
         }
         for (language_name, content_range) in self.syntax.pending_injections(range.clone(), self) {
-            let injection_runs = crate::fallback_highlight::highlight_injection(
+            let injection_runs = fallback_highlight::highlight_injection(
                 &language_name,
                 &self.text,
                 content_range.clone(),
@@ -4142,7 +4147,7 @@ impl BufferSnapshot {
             self.syntax.matches(range.clone(), &self.text, |grammar| grammar.outline_config.as_ref().map(|c| &c.query));
         let configs = matches.grammars().iter().map(|g| g.outline_config.as_ref().unwrap()).collect::<Vec<_>>();
 
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             while let Some(mat) = matches.peek() {
                 let config = &configs[mat.grammar_index];
                 let containing_item_node = (|| {
@@ -4624,7 +4629,7 @@ impl BufferSnapshot {
             })
             .collect();
 
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             let (next_ix, _) =
                 iterators.iter_mut().enumerate().filter_map(|(ix, (_, iter))| Some((ix, iter.peek()?))).min_by(
                     |(_, a), (_, b)| {
@@ -4891,7 +4896,7 @@ impl<'a> BufferChunks<'a> {
 
     /// Seeks to the given byte offset in the buffer.
     pub fn seek(&mut self, range: Range<usize>) {
-        let old_range = std::mem::replace(&mut self.range, range.clone());
+        let old_range = mem::replace(&mut self.range, range.clone());
         self.chunks.set_range(self.range.clone());
         if let Some(cached) = self.cached_highlights.as_mut() {
             if old_range.start <= self.range.start && old_range.end >= self.range.end {
@@ -5071,7 +5076,7 @@ impl<'a> Iterator for BufferChunks<'a> {
             }
         }
 
-        let mut diagnostic_endpoints = std::mem::take(&mut self.diagnostic_endpoints);
+        let mut diagnostic_endpoints = mem::take(&mut self.diagnostic_endpoints);
         if let Some(diagnostic_endpoints) = diagnostic_endpoints.as_mut() {
             while let Some(endpoint) = diagnostic_endpoints.peek().copied() {
                 if endpoint.offset <= self.range.start {
@@ -5163,7 +5168,7 @@ impl IndentSize {
 
     /// An iterator over the characters represented by this [`IndentSize`].
     pub fn chars(&self) -> impl Iterator<Item = char> {
-        std::iter::repeat_n(self.char(), self.len as usize)
+        iter::repeat_n(self.char(), self.len as usize)
     }
 
     /// The character representation of this [`IndentSize`].
@@ -5223,7 +5228,7 @@ impl IndentSize {
 pub(crate) fn contiguous_ranges(values: impl Iterator<Item = u32>, max_len: usize) -> impl Iterator<Item = Range<u32>> {
     let mut values = values;
     let mut current_range: Option<Range<u32>> = None;
-    std::iter::from_fn(move || {
+    iter::from_fn(move || {
         loop {
             if let Some(value) = values.next() {
                 if let Some(range) = &mut current_range

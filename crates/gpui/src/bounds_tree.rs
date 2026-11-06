@@ -264,7 +264,6 @@ where
 
                     node.bounds = node.bounds.union(&bounds);
                     node.max_order = cmp::max(node.max_order, order);
-                    break;
                 } else {
                     // Node is full, create new internal with [best_leaf, new_leaf]
                     let sibling_bounds = self.nodes[best_child_idx].bounds.clone();
@@ -301,8 +300,8 @@ where
                             children.indices.swap(best_child_pos, children_len - 1);
                         }
                     }
-                    break;
                 }
+                break;
             } else {
                 // Best child is internal, continue descent
                 current_idx = best_child_idx;
@@ -343,5 +342,39 @@ where
 {
     fn default() -> Self {
         BoundsTree { nodes: Vec::new(), root: None, max_leaf: None, insert_path: Vec::new(), search_stack: Vec::new() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::point;
+    use crate::size;
+
+    #[test]
+    fn insert_leaf_preserves_ordering_when_full_nodes_split() {
+        let mut tree = BoundsTree::<f32>::default();
+        let mut inserted = Vec::<(Bounds<f32>, u32)>::new();
+        for i in 0..96 {
+            let bounds = Bounds::new(point((i % 16) as f32 * 3.0, (i % 7) as f32 * 2.0), size(5.0, 5.0));
+            let expected = inserted
+                .iter()
+                .filter(|(previous, _)| previous.intersects(&bounds))
+                .map(|(_, order)| *order)
+                .max()
+                .unwrap_or(0)
+                + 1;
+            assert_eq!(tree.insert(bounds), expected, "insertion {i}");
+            inserted.push((bounds, expected));
+        }
+        for (bounds, _) in &inserted {
+            let expected = inserted
+                .iter()
+                .filter(|(previous, _)| previous.intersects(bounds))
+                .map(|(_, order)| *order)
+                .max()
+                .unwrap();
+            assert_eq!(tree.find_max_ordering(bounds), expected);
+        }
     }
 }

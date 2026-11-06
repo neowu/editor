@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use collections::HashMap;
 use settings_content::AllLanguageSettingsContent;
 use settings_content::AlternateScroll;
@@ -168,7 +170,7 @@ fn project_settings() -> ProjectSettingsContent {
 fn language_settings() -> AllLanguageSettingsContent {
     AllLanguageSettingsContent {
         defaults: LanguageSettingsContent {
-            tab_size: Some(std::num::NonZeroU32::new(4).unwrap()),
+            tab_size: Some(NonZeroU32::new(4).unwrap()),
             hard_tabs: Some(false),
             soft_wrap: Some(SoftWrap::None),
             soft_wrap_indent: Some(SoftWrapIndent::Same),

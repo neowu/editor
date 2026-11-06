@@ -1,3 +1,18 @@
+use std::backtrace::Backtrace;
+use std::borrow::Cow;
+use std::env;
+use std::fs as std_fs;
+use std::io;
+use std::io::ErrorKind;
+use std::iter;
+use std::panic;
+use std::process;
+use std::process::Command;
+use std::thread;
+use std::time::Duration;
+
+use futures::future;
+use util::command::Stdio;
 mod headless_platform;
 mod headless_project;
 
@@ -97,14 +112,13 @@ pub fn run(command: Commands) -> anyhow::Result<()> {
 }
 
 fn execute_command() -> Result<()> {
-    let mut stdin = File::from(std::io::stdin().as_fd().try_clone_to_owned()?);
+    let mut stdin = File::from(io::stdin().as_fd().try_clone_to_owned()?);
     let descriptor = RemoteCommand::read(&mut stdin)?;
     drop(stdin);
 
     let working_dir = descriptor.working_dir.as_deref().map(|working_dir| shellexpand::tilde(working_dir).into_owned());
     if let Some(working_dir) = &working_dir {
-        std::env::set_current_dir(working_dir)
-            .with_context(|| format!("Failed to change directory to {working_dir}"))?;
+        env::set_current_dir(working_dir).with_context(|| format!("Failed to change directory to {working_dir}"))?;
     }
     let error = exec_with_script_fallback(&descriptor, working_dir.as_deref(), |mut command| command.exec());
     Err(error).with_context(|| format!("Failed to execute {}", descriptor.program))
@@ -113,18 +127,18 @@ fn execute_command() -> Result<()> {
 fn exec_with_script_fallback(
     descriptor: &RemoteCommand,
     working_dir: Option<&str>,
-    mut exec: impl FnMut(std::process::Command) -> std::io::Error,
-) -> std::io::Error {
+    mut exec: impl FnMut(Command) -> io::Error,
+) -> io::Error {
     let error = exec(exec_command(descriptor, working_dir, &descriptor.program, &descriptor.args));
     if error.raw_os_error() != Some(libc::ENOEXEC) {
         return error;
     }
-    let path = descriptor.env.get("PATH").map(OsString::from).or_else(|| std::env::var_os("PATH"));
+    let path = descriptor.env.get("PATH").map(OsString::from).or_else(|| env::var_os("PATH"));
     for candidate in script_candidates(&descriptor.program, path.as_deref()) {
         let candidate_error = exec(exec_command(descriptor, working_dir, &candidate, &descriptor.args));
         match candidate_error.raw_os_error() {
             Some(libc::ENOEXEC) => {
-                let args = std::iter::once(candidate.into_os_string())
+                let args = iter::once(candidate.into_os_string())
                     .chain(descriptor.args.iter().map(OsString::from))
                     .collect::<Vec<_>>();
                 return exec(exec_command(descriptor, working_dir, "/bin/sh", &args));
@@ -157,8 +171,8 @@ fn exec_command(
     working_dir: Option<&str>,
     program: impl AsRef<OsStr>,
     args: impl IntoIterator<Item = impl AsRef<OsStr>>,
-) -> std::process::Command {
-    let mut command = std::process::Command::new(program);
+) -> Command {
+    let mut command = Command::new(program);
     command.args(args);
     if let Some(working_dir) = working_dir {
         command.env("PWD", working_dir);
@@ -193,7 +207,7 @@ impl log::Log for JsonLogger {
             return;
         }
         let mut log_record = LogRecord::new(record);
-        log_record.message = std::borrow::Cow::Owned(format!("({}) {}", self.prefix, log_record.message));
+        log_record.message = Cow::Owned(format!("({}) {}", self.prefix, log_record.message));
         if let Ok(mut line) = serde_json::to_vec(&log_record) {
             line.push(b'\n');
             (self.sink)(line);
@@ -207,7 +221,7 @@ fn init_logging_proxy() {
     JsonLogger {
         prefix: "remote proxy",
         sink: Box::new(|line| {
-            std::io::stderr().write_all(&line).ok();
+            io::stderr().write_all(&line).ok();
         }),
     }
     .init();
@@ -219,16 +233,16 @@ fn init_logging_proxy() {
 fn init_logging_server(panic_file_path: PathBuf) -> Receiver<Vec<u8>> {
     let (tx, rx) = async_channel::unbounded();
 
-    let old_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        let backtrace = std::backtrace::Backtrace::force_capture();
+    let old_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |info| {
+        let backtrace = Backtrace::force_capture();
         let message = info.payload_as_str().unwrap_or("Box<Any>").to_owned();
         let location = info.location().map_or_else(|| "<unknown>".to_owned(), |location| location.to_string());
-        let current_thread = std::thread::current();
+        let current_thread = thread::current();
         let thread_name = current_thread.name().unwrap_or("<unnamed>");
 
         let msg = format!("thread '{thread_name}' panicked at {location}:\n{message}\n{backtrace}");
-        std::fs::write(&panic_file_path, &msg).ok();
+        std_fs::write(&panic_file_path, &msg).ok();
         log::error!("{msg}");
         old_hook(info);
     }));
@@ -261,7 +275,7 @@ impl ServerListeners {
 
 fn start_server(listeners: ServerListeners, log_rx: Receiver<Vec<u8>>, cx: &App) -> AnyProtoClient {
     // This is the server idle timeout. If no connection comes in this timeout, the server will shut down.
-    const IDLE_TIMEOUT: std::time::Duration = std::time::Duration::from_mins(10);
+    const IDLE_TIMEOUT: Duration = Duration::from_mins(10);
 
     let (incoming_tx, incoming_rx) = mpsc::unbounded::<Envelope>();
     let (outgoing_tx, mut outgoing_rx) = mpsc::unbounded::<Envelope>();
@@ -278,8 +292,7 @@ fn start_server(listeners: ServerListeners, log_rx: Receiver<Vec<u8>>, cx: &App)
 
     cx.spawn(async move |cx| {
         loop {
-            let streams =
-                futures::future::join3(listeners.stdin.accept(), listeners.stdout.accept(), listeners.stderr.accept());
+            let streams = future::join3(listeners.stdin.accept(), listeners.stdout.accept(), listeners.stderr.accept());
 
             log::info!("accepting new connections");
             let result = select! {
@@ -388,7 +401,7 @@ fn start_server(listeners: ServerListeners, log_rx: Receiver<Vec<u8>>, cx: &App)
 
 fn init_paths() -> anyhow::Result<()> {
     for path in &[paths::config_dir(), paths::logs_dir(), paths::temp_dir()] {
-        std::fs::create_dir_all(path).with_context(|| format!("creating directory {path:?}"))?;
+        std_fs::create_dir_all(path).with_context(|| format!("creating directory {path:?}"))?;
     }
     Ok(())
 }
@@ -403,7 +416,7 @@ pub fn execute_run(
     init_paths()?;
 
     let app = Application::with_platform(Rc::new(HeadlessPlatform::new()));
-    let pid = std::process::id();
+    let pid = process::id();
     let log_rx = init_logging_server(panic_file.clone());
     log::info!(
         "starting up with PID {}:\npid_file: {:?}, panic_file: {:?}, stdin_socket: {:?}, stdout_socket: {:?}, stderr_socket: {:?}",
@@ -420,7 +433,7 @@ pub fn execute_run(
     let listeners = ServerListeners::new(stdin_socket, stdout_socket, stderr_socket)?;
 
     rayon::ThreadPoolBuilder::new()
-        .num_threads(std::thread::available_parallelism().map_or(1, |n| n.get().div_ceil(2)))
+        .num_threads(thread::available_parallelism().map_or(1, |n| n.get().div_ceil(2)))
         .stack_size(10 * 1024 * 1024)
         .thread_name(|ix| format!("RayonWorker{}", ix))
         .build_global()
@@ -452,9 +465,9 @@ pub fn execute_run(
         mem::forget(project);
     };
     // We do not reuse any of the state after unwinding, so we don't run risk of observing broken invariants.
-    let app = std::panic::AssertUnwindSafe(app);
-    let run = std::panic::AssertUnwindSafe(run);
-    let res = std::panic::catch_unwind(move || { app }.0.run({ run }.0));
+    let app = panic::AssertUnwindSafe(app);
+    let run = panic::AssertUnwindSafe(run);
+    let res = panic::catch_unwind(move || { app }.0.run({ run }.0));
     if res.is_err() {
         log::error!("app panicked. quitting.");
         Err(anyhow::anyhow!("panicked"))
@@ -469,13 +482,13 @@ pub enum ServerPathError {
     #[error("Failed to create server_dir `{path}`")]
     CreateServerDir {
         #[source]
-        source: std::io::Error,
+        source: io::Error,
         path: PathBuf,
     },
     #[error("Failed to create logs_dir `{path}`")]
     CreateLogsDir {
         #[source]
-        source: std::io::Error,
+        source: io::Error,
         path: PathBuf,
     },
 }
@@ -492,10 +505,10 @@ struct ServerPaths {
 impl ServerPaths {
     fn new(identifier: &str) -> Result<Self, ServerPathError> {
         let server_dir = paths::remote_server_state_dir().join(identifier);
-        std::fs::create_dir_all(&server_dir)
+        std_fs::create_dir_all(&server_dir)
             .map_err(|source| ServerPathError::CreateServerDir { source, path: server_dir.clone() })?;
         let log_dir = logs_dir();
-        std::fs::create_dir_all(log_dir)
+        std_fs::create_dir_all(log_dir)
             .map_err(|source| ServerPathError::CreateLogsDir { source, path: log_dir.clone() })?;
 
         let pid_file = server_dir.join("server.pid");
@@ -551,7 +564,7 @@ pub(crate) fn execute_proxy(identifier: String, is_reconnecting: bool) -> Result
 
     let server_paths = ServerPaths::new(&identifier)?;
 
-    log::info!("starting proxy process. PID: {}", std::process::id());
+    log::info!("starting proxy process. PID: {}", process::id());
     let server_pid = {
         let server_pid = check_pid_file(&server_paths.pid_file)
             .map_err(|source| ExecuteProxyError::CheckPidFile { source, path: server_paths.pid_file.clone() })?;
@@ -572,11 +585,11 @@ pub(crate) fn execute_proxy(identifier: String, is_reconnecting: bool) -> Result
                 kill_running_server(pid, &server_paths)?;
             }
             gpui::block_on(spawn_server(&server_paths)).map_err(ExecuteProxyError::SpawnServer)?;
-            std::fs::read_to_string(&server_paths.pid_file)
+            std_fs::read_to_string(&server_paths.pid_file)
                 .and_then(|contents| {
                     contents
                         .parse::<u32>()
-                        .map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "Invalid PID file contents"))
+                        .map_err(|_| io::Error::new(ErrorKind::InvalidData, "Invalid PID file contents"))
                 })
                 .map_err(SpawnServerError::ProcessStatus)
                 .map_err(ExecuteProxyError::SpawnServer)?
@@ -584,7 +597,7 @@ pub(crate) fn execute_proxy(identifier: String, is_reconnecting: bool) -> Result
     };
 
     let stdin_task = smol::spawn(async move {
-        let stdin = smol::Unblock::new(std::io::stdin());
+        let stdin = smol::Unblock::new(io::stdin());
         let stream = UnixStream::connect(&server_paths.stdin_socket)
             .await
             .with_context(|| format!("Failed to connect to stdin socket {}", server_paths.stdin_socket.display()))?;
@@ -592,7 +605,7 @@ pub(crate) fn execute_proxy(identifier: String, is_reconnecting: bool) -> Result
     });
 
     let stdout_task: smol::Task<Result<()>> = smol::spawn(async move {
-        let stdout = smol::Unblock::new(std::io::stdout());
+        let stdout = smol::Unblock::new(io::stdout());
         let stream = UnixStream::connect(&server_paths.stdout_socket)
             .await
             .with_context(|| format!("Failed to connect to stdout socket {}", server_paths.stdout_socket.display()))?;
@@ -600,7 +613,7 @@ pub(crate) fn execute_proxy(identifier: String, is_reconnecting: bool) -> Result
     });
 
     let stderr_task: smol::Task<Result<()>> = smol::spawn(async move {
-        let mut stderr = smol::Unblock::new(std::io::stderr());
+        let mut stderr = smol::Unblock::new(io::stderr());
         let mut stream = UnixStream::connect(&server_paths.stderr_socket)
             .await
             .with_context(|| format!("Failed to connect to stderr socket {}", server_paths.stderr_socket.display()))?;
@@ -652,7 +665,7 @@ fn kill_running_server(pid: u32, paths: &ServerPaths) -> Result<(), ExecuteProxy
 
     for file in [&paths.pid_file, &paths.stdin_socket, &paths.stdout_socket, &paths.stderr_socket] {
         log::debug!("cleaning up file {:?} before starting new server", file);
-        std::fs::remove_file(file).ok();
+        std_fs::remove_file(file).ok();
     }
 
     Ok(())
@@ -661,19 +674,19 @@ fn kill_running_server(pid: u32, paths: &ServerPaths) -> Result<(), ExecuteProxy
 #[derive(Debug, Error)]
 pub enum SpawnServerError {
     #[error("failed to remove stdin socket")]
-    RemoveStdinSocket(#[source] std::io::Error),
+    RemoveStdinSocket(#[source] io::Error),
 
     #[error("failed to remove stdout socket")]
-    RemoveStdoutSocket(#[source] std::io::Error),
+    RemoveStdoutSocket(#[source] io::Error),
 
     #[error("failed to remove stderr socket")]
-    RemoveStderrSocket(#[source] std::io::Error),
+    RemoveStderrSocket(#[source] io::Error),
 
     #[error("failed to get current_exe")]
-    CurrentExe(#[source] std::io::Error),
+    CurrentExe(#[source] io::Error),
 
     #[error("failed to launch server process")]
-    ProcessStatus(#[source] std::io::Error),
+    ProcessStatus(#[source] io::Error),
 
     #[error("failed to wait for server to be ready to accept connections")]
     Timeout,
@@ -682,28 +695,28 @@ pub enum SpawnServerError {
 async fn spawn_server(paths: &ServerPaths) -> Result<(), SpawnServerError> {
     log::info!("spawning server process",);
     if paths.stdin_socket.exists() {
-        std::fs::remove_file(&paths.stdin_socket).map_err(SpawnServerError::RemoveStdinSocket)?;
+        std_fs::remove_file(&paths.stdin_socket).map_err(SpawnServerError::RemoveStdinSocket)?;
     }
     if paths.stdout_socket.exists() {
-        std::fs::remove_file(&paths.stdout_socket).map_err(SpawnServerError::RemoveStdoutSocket)?;
+        std_fs::remove_file(&paths.stdout_socket).map_err(SpawnServerError::RemoveStdoutSocket)?;
     }
     if paths.stderr_socket.exists() {
-        std::fs::remove_file(&paths.stderr_socket).map_err(SpawnServerError::RemoveStderrSocket)?;
+        std_fs::remove_file(&paths.stderr_socket).map_err(SpawnServerError::RemoveStderrSocket)?;
     }
 
-    let binary_name = std::env::current_exe().map_err(SpawnServerError::CurrentExe)?;
+    let binary_name = env::current_exe().map_err(SpawnServerError::CurrentExe)?;
 
     {
         spawn_server_normal(&binary_name, paths)?;
     }
 
-    let mut total_time_waited = std::time::Duration::from_secs(0);
-    let wait_duration = std::time::Duration::from_millis(20);
+    let mut total_time_waited = Duration::from_secs(0);
+    let wait_duration = Duration::from_millis(20);
     while !paths.stdout_socket.exists() || !paths.stdin_socket.exists() || !paths.stderr_socket.exists() {
         log::debug!("waiting for server to be ready to accept connections...");
-        std::thread::sleep(wait_duration);
+        thread::sleep(wait_duration);
         total_time_waited += wait_duration;
-        if total_time_waited > std::time::Duration::from_secs(10) {
+        if total_time_waited > Duration::from_secs(10) {
             return Err(SpawnServerError::Timeout);
         }
     }
@@ -716,9 +729,9 @@ async fn spawn_server(paths: &ServerPaths) -> Result<(), SpawnServerError> {
 fn spawn_server_normal(binary_name: &Path, paths: &ServerPaths) -> Result<(), SpawnServerError> {
     let mut server_process = new_command(binary_name);
     server_process
-        .stdin(util::command::Stdio::null())
-        .stdout(util::command::Stdio::null())
-        .stderr(util::command::Stdio::null())
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .arg("run")
         .arg("--panic-file")
         .arg(&paths.panic_file)
@@ -740,15 +753,15 @@ fn spawn_server_normal(binary_name: &Path, paths: &ServerPaths) -> Result<(), Sp
 #[error("Failed to remove PID file for missing process (pid `{pid}`")]
 pub struct CheckPidError {
     #[source]
-    source: std::io::Error,
+    source: io::Error,
     pid: u32,
 }
-async fn check_server_running(pid: u32) -> std::io::Result<bool> {
+async fn check_server_running(pid: u32) -> io::Result<bool> {
     new_command("kill").arg("-0").arg(pid.to_string()).output().await.map(|output| output.status.success())
 }
 
 fn check_pid_file(path: &Path) -> Result<Option<u32>, CheckPidError> {
-    let Some(pid) = std::fs::read_to_string(path).ok().and_then(|contents| contents.parse::<u32>().ok()) else {
+    let Some(pid) = std_fs::read_to_string(path).ok().and_then(|contents| contents.parse::<u32>().ok()) else {
         return Ok(None);
     };
 
@@ -763,17 +776,17 @@ fn check_pid_file(path: &Path) -> Result<Option<u32>, CheckPidError> {
         Ok(Some(pid))
     } else {
         log::debug!("Found PID file, but process with that PID does not exist. Removing PID file.");
-        std::fs::remove_file(path).map_err(|source| CheckPidError { source, pid })?;
+        std_fs::remove_file(path).map_err(|source| CheckPidError { source, pid })?;
         Ok(None)
     }
 }
 
 fn write_pid_file(path: &Path, pid: u32) -> Result<()> {
     if path.exists() {
-        std::fs::remove_file(path)?;
+        std_fs::remove_file(path)?;
     }
     log::debug!("writing PID {} to file {:?}", pid, path);
-    std::fs::write(path, pid.to_string()).context("Failed to write PID file")
+    std_fs::write(path, pid.to_string()).context("Failed to write PID file")
 }
 
 async fn handle_io<R, W>(mut reader: R, mut writer: W, socket_name: &str) -> Result<()>

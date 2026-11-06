@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::mem;
 use std::sync::Arc;
 
 use refineable::Refineable;
@@ -182,7 +183,7 @@ impl Element for ImageCacheElement {
 /// images from windows before discarding the entry.
 pub struct ImageCacheItem(CachedLoad<Result<Arc<RenderImage>, ImageCacheError>>);
 
-impl std::fmt::Debug for ImageCacheItem {
+impl fmt::Debug for ImageCacheItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ImageCacheItem").field("result", &self.get()).finish()
     }
@@ -247,7 +248,7 @@ impl RetainAllImageCache {
     pub fn new(cx: &mut App) -> Entity<Self> {
         let e = cx.new(|_cx| RetainAllImageCache(HashMap::new()));
         cx.observe_release(&e, |image_cache, cx| {
-            for (_, item) in std::mem::take(&mut image_cache.0) {
+            for (_, item) in mem::take(&mut image_cache.0) {
                 if let Some(Ok(image)) = item.get() {
                     cx.drop_image(image, None);
                 }
@@ -273,7 +274,7 @@ impl RetainAllImageCache {
 
     /// Clear the image cache.
     pub fn clear(&mut self, window: &mut Window, cx: &mut App) {
-        for (_, item) in std::mem::take(&mut self.0) {
+        for (_, item) in mem::take(&mut self.0) {
             if let Some(Ok(image)) = item.get() {
                 cx.drop_image(image, Some(window));
             }

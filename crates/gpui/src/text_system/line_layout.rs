@@ -3,6 +3,7 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::hash::Hash;
 use std::hash::Hasher;
+use std::mem;
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
@@ -502,7 +503,7 @@ impl LineLayoutCache {
     pub fn finish_frame(&self) {
         let _font_generation = self.clear_if_font_generation_changed();
         let LineLayoutCacheState { previous_frame, current_frame } = &mut *self.state.borrow_mut();
-        std::mem::swap(previous_frame, current_frame);
+        mem::swap(previous_frame, current_frame);
         current_frame.lines.clear();
         current_frame.wrapped_lines.clear();
         current_frame.used_lines.clear();

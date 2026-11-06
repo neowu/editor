@@ -4,6 +4,9 @@
 //! the start of the top-left tab bar. Above a sidebar narrower than the header,
 //! the header overhangs it and the top-left tab bar starts after the header.
 
+use ed_actions::mode::Editor;
+use ed_actions::mode::GitHistory;
+use ed_actions::mode::Terminal;
 use gpui::AnyElement;
 use gpui::App;
 use gpui::Context;
@@ -242,17 +245,12 @@ fn switchable_modes(has_repository: bool, has_terminal_mode: bool) -> Vec<Worksp
 fn render_mode_switch(shown_mode: WorkspaceMode, modes: &[WorkspaceMode], cx: &App) -> impl IntoElement {
     let segment = |mode: WorkspaceMode| {
         let (id, icon, label, action): (&'static str, IconName, &'static str, Box<dyn gpui::Action>) = match mode {
-            WorkspaceMode::Editor => {
-                ("workspace-mode-editor", IconName::Code, "Editor", Box::new(ed_actions::mode::Editor))
+            WorkspaceMode::Editor => ("workspace-mode-editor", IconName::Code, "Editor", Box::new(Editor)),
+            WorkspaceMode::GitHistory => {
+                ("workspace-mode-git-history", IconName::GitGraph, "Git History", Box::new(GitHistory))
             }
-            WorkspaceMode::GitHistory => (
-                "workspace-mode-git-history",
-                IconName::GitGraph,
-                "Git History",
-                Box::new(ed_actions::mode::GitHistory),
-            ),
             WorkspaceMode::Terminal => {
-                ("workspace-mode-terminal", IconName::TerminalAlt, "Terminal", Box::new(ed_actions::mode::Terminal))
+                ("workspace-mode-terminal", IconName::TerminalAlt, "Terminal", Box::new(Terminal))
             }
         };
         let shown = mode == shown_mode;

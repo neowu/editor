@@ -66,6 +66,10 @@
 //! [`Edit<S>`]: text::Edit
 //! [`Chunk`]: language::Chunk
 
+use std::fmt;
+use std::fmt::Formatter;
+
+use crate::split;
 #[macro_use]
 mod dimensions;
 
@@ -325,9 +329,9 @@ impl Companion {
         bounds: Range<MultiBufferPoint>,
     ) -> Vec<CompanionExcerptPatch> {
         if self.is_rhs(display_map_id) {
-            crate::split::patches_for_rhs_range(companion_snapshot, our_snapshot, bounds)
+            split::patches_for_rhs_range(companion_snapshot, our_snapshot, bounds)
         } else {
-            crate::split::patches_for_lhs_range(companion_snapshot, our_snapshot, bounds)
+            split::patches_for_lhs_range(companion_snapshot, our_snapshot, bounds)
         }
     }
 
@@ -339,9 +343,9 @@ impl Companion {
         point: MultiBufferPoint,
     ) -> Range<MultiBufferPoint> {
         let patches = if self.is_rhs(display_map_id) {
-            crate::split::patches_for_lhs_range(our_snapshot, companion_snapshot, point..point)
+            split::patches_for_lhs_range(our_snapshot, companion_snapshot, point..point)
         } else {
-            crate::split::patches_for_rhs_range(our_snapshot, companion_snapshot, point..point)
+            split::patches_for_rhs_range(our_snapshot, companion_snapshot, point..point)
         };
 
         let Some(excerpt) = patches.into_iter().next() else {
@@ -364,9 +368,9 @@ impl Companion {
         point: MultiBufferPoint,
     ) -> Range<MultiBufferPoint> {
         let patches = if self.is_rhs(display_map_id) {
-            crate::split::patches_for_rhs_range(companion_snapshot, our_snapshot, point..point)
+            split::patches_for_rhs_range(companion_snapshot, our_snapshot, point..point)
         } else {
-            crate::split::patches_for_lhs_range(companion_snapshot, our_snapshot, point..point)
+            split::patches_for_lhs_range(companion_snapshot, our_snapshot, point..point)
         };
 
         let Some(excerpt) = patches.into_iter().next() else {
@@ -2119,7 +2123,7 @@ const fn diagnostic_style(severity: lsp::DiagnosticSeverity, colors: &StatusColo
     }
 }
 
-impl std::ops::Deref for DisplaySnapshot {
+impl ops::Deref for DisplaySnapshot {
     type Target = BlockSnapshot;
 
     fn deref(&self) -> &Self::Target {
@@ -2132,7 +2136,7 @@ impl std::ops::Deref for DisplaySnapshot {
 pub struct DisplayPoint(BlockPoint);
 
 impl Debug for DisplayPoint {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!("DisplayPoint({}, {})", self.row().0, self.column()))
     }
 }

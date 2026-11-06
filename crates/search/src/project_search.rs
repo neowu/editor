@@ -5,12 +5,15 @@ use std::mem;
 use std::ops::Not;
 use std::ops::Range;
 use std::pin::pin;
+use std::slice;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
+use std::vec::IntoIter;
 
 use collections::HashMap;
+use ed_actions::search::NewSearchInDirectory;
 use editor::Anchor;
 use editor::EXCERPT_CONTEXT_LINES;
 use editor::Editor;
@@ -70,6 +73,7 @@ use project::search::SearchInputKind;
 use project::search::SearchQuery;
 use project::search::SearchResult;
 use project::search_history::SearchHistoryCursor;
+use smol::future;
 use text::OffsetRangeExt;
 use ui::CommonAnimationExt;
 use ui::IconButtonShape;
@@ -263,7 +267,7 @@ pub fn init(cx: &mut App) {
             ProjectSearchView::new_search(workspace, action, window, cx);
             cx.notify();
         });
-        workspace.register_action(move |workspace, action: &ed_actions::search::NewSearchInDirectory, window, cx| {
+        workspace.register_action(move |workspace, action: &NewSearchInDirectory, window, cx| {
             ProjectSearchView::new_search_with_filter(workspace, action.directory.clone(), window, cx);
             cx.notify();
         });
@@ -641,16 +645,16 @@ async fn consume_search_stream(
                 let mut buffers_with_ranges = Vec::with_capacity(results.len());
                 for result in results {
                     match result {
-                        project::search::SearchResult::Buffer { buffer, ranges } => {
+                        SearchResult::Buffer { buffer, ranges } => {
                             buffers_with_ranges.push((buffer, ranges));
                         }
-                        project::search::SearchResult::LimitReached => {
+                        SearchResult::LimitReached => {
                             limit_reached = true;
                         }
-                        project::search::SearchResult::WaitingForScan => {
+                        SearchResult::WaitingForScan => {
                             search_activity = Some(SearchActivity::WaitingForScan);
                         }
-                        project::search::SearchResult::Searching => {
+                        SearchResult::Searching => {
                             search_activity = Some(SearchActivity::Searching);
                         }
                     }
@@ -696,7 +700,7 @@ async fn consume_search_stream(
             while let Some((buffer, new_ranges)) = new_ranges.next().await {
                 // `new_ranges.next().await` likely never gets hit while still pending so `async_task`
                 // will not reschedule, starving other front end tasks, insert a yield point for that here
-                smol::future::yield_now().await;
+                future::yield_now().await;
                 project_search
                     .update(cx, |project_search, cx| {
                         let workspace = project_search.workspace.upgrade();
@@ -753,7 +757,7 @@ async fn consume_search_stream(
 }
 
 struct ReusedResults {
-    previous_groups: Peekable<std::vec::IntoIter<(PathKey, Range<usize>)>>,
+    previous_groups: Peekable<IntoIter<(PathKey, Range<usize>)>>,
     previous_ranges: Vec<Range<Anchor>>,
     suffix_start: usize,
     confirmed_ranges: Vec<Range<Anchor>>,
@@ -919,7 +923,7 @@ async fn apply_reused_chunk(
             })
             .ok()?;
         chunk_changed |= batch_changed;
-        smol::future::yield_now().await;
+        future::yield_now().await;
     }
     project_search
         .update(cx, |project_search, cx| {
@@ -1944,7 +1948,7 @@ impl ProjectSearchView {
             self.results_editor.update(cx, |editor, cx| {
                 let range_to_select = editor.range_for_match(&range_to_select);
                 let autoscroll = Autoscroll::fit();
-                editor.unfold_ranges(std::slice::from_ref(&range_to_select), false, true, cx);
+                editor.unfold_ranges(slice::from_ref(&range_to_select), false, true, cx);
                 editor.change_selections(SelectionEffects::scroll(autoscroll), window, cx, |s| {
                     s.select_ranges([range_to_select])
                 });

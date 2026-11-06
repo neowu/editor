@@ -1,3 +1,6 @@
+use std::result;
+
+use serde::de;
 pub mod blame;
 pub mod commit;
 mod remote;
@@ -257,7 +260,7 @@ impl Oid {
 impl TryFrom<&str> for Oid {
     type Error = anyhow::Error;
 
-    fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: &str) -> result::Result<Self, Self::Error> {
         Oid::from_str(value)
     }
 }
@@ -265,7 +268,7 @@ impl TryFrom<&str> for Oid {
 impl FromStr for Oid {
     type Err = anyhow::Error;
 
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> result::Result<Self, Self::Err> {
         let format = match s.len() {
             1..=SHA1_HEX_LENGTH => OidFormat::Sha1,
             SHA256_HEX_LENGTH => OidFormat::Sha256,
@@ -313,7 +316,7 @@ impl fmt::Display for Oid {
 }
 
 impl Serialize for Oid {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -322,12 +325,12 @@ impl Serialize for Oid {
 }
 
 impl<'de> Deserialize<'de> for Oid {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        s.parse::<Oid>().map_err(serde::de::Error::custom)
+        s.parse::<Oid>().map_err(de::Error::custom)
     }
 }
 

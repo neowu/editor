@@ -9,6 +9,7 @@ use gpui::Task;
 use language::LanguageRegistry;
 use language::language_settings::AllLanguageSettings;
 use project::LspStore;
+use project::lsp_store::json_language_server_ext;
 use settings::Settings as _;
 
 const SCHEMA_URI_PREFIX: &str = "ed://schemas/";
@@ -19,7 +20,7 @@ const PACKAGE_JSON_SCHEMA: &str = include_str!("schemas/package.json");
 const JSONC_SCHEMA: &str = r#"{"allowTrailingCommas":true}"#;
 
 pub fn init(cx: &mut App) {
-    project::lsp_store::json_language_server_ext::register_schema_handler(handle_schema_request, cx);
+    json_language_server_ext::register_schema_handler(handle_schema_request, cx);
 }
 
 pub fn handle_schema_request(_lsp_store: Entity<LspStore>, uri: String, _cx: &mut AsyncApp) -> Task<Result<String>> {

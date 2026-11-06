@@ -1,4 +1,8 @@
+use std::cmp;
 use std::fmt::Debug;
+use std::hash::Hash;
+use std::hash::Hasher;
+use std::mem;
 use std::ops::Range;
 
 use collections::FxHashMap;
@@ -8,9 +12,14 @@ use taffy::TraversePartialTree as _;
 use taffy::geometry::Point as TaffyPoint;
 use taffy::geometry::Rect as TaffyRect;
 use taffy::geometry::Size as TaffySize;
+use taffy::prelude;
+use taffy::prelude::LengthPercentageAuto;
 use taffy::prelude::max_content;
 use taffy::prelude::min_content;
+use taffy::style;
 use taffy::style::AvailableSpace as TaffyAvailableSpace;
+use taffy::style::Dimension;
+use taffy::style::LengthPercentage;
 use taffy::tree::NodeId;
 
 use crate::AbsoluteLength;
@@ -116,10 +125,10 @@ impl TaffyLayoutEngine {
         }
         let mut style = style.clone();
         if stretch_width {
-            style.size.width = taffy::style::Dimension::length(round_to_device_pixel(size.width.0, scale_factor));
+            style.size.width = Dimension::length(round_to_device_pixel(size.width.0, scale_factor));
         }
         if stretch_height {
-            style.size.height = taffy::style::Dimension::length(round_to_device_pixel(size.height.0, scale_factor));
+            style.size.height = Dimension::length(round_to_device_pixel(size.height.0, scale_factor));
         }
         self.taffy.set_style(id.0, style).expect(EXPECT_MESSAGE);
     }
@@ -148,7 +157,7 @@ impl TaffyLayoutEngine {
         let mut max_child_depth = 0;
 
         for child in self.taffy.children(parent.0)? {
-            max_child_depth = std::cmp::max(max_child_depth, self.max_depth(0, LayoutId(child))?);
+            max_child_depth = cmp::max(max_child_depth, self.max_depth(0, LayoutId(child))?);
         }
 
         Ok(depth + 1 + max_child_depth)
@@ -211,7 +220,7 @@ impl TaffyLayoutEngine {
                 available_space.into(),
                 |known_dimensions, available_space, _id, node_context, _style| {
                     let Some(node_context) = node_context else {
-                        return taffy::geometry::Size::default();
+                        return TaffySize::default();
                     };
 
                     let known_dimensions = Size {
@@ -354,12 +363,12 @@ pub struct LayoutId(NodeId);
 impl LayoutId {
     fn to_taffy_slice(node_ids: &[Self]) -> &[taffy::NodeId] {
         // SAFETY: LayoutId is repr(transparent) to taffy::tree::NodeId.
-        unsafe { std::mem::transmute::<&[LayoutId], &[taffy::NodeId]>(node_ids) }
+        unsafe { mem::transmute::<&[LayoutId], &[taffy::NodeId]>(node_ids) }
     }
 }
 
-impl std::hash::Hash for LayoutId {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for LayoutId {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         u64::from(self.0).hash(state);
     }
 }
@@ -384,9 +393,9 @@ fn border_widths_to_taffy(
     widths: &Edges<AbsoluteLength>,
     rem_size: Pixels,
     scale_factor: f32,
-) -> TaffyRect<taffy::style::LengthPercentage> {
+) -> TaffyRect<LengthPercentage> {
     let snap = |w: &AbsoluteLength| {
-        taffy::style::LengthPercentage::length(round_stroke_to_device_pixel(w.to_pixels(rem_size).0, scale_factor))
+        LengthPercentage::length(round_stroke_to_device_pixel(w.to_pixels(rem_size).0, scale_factor))
     };
     TaffyRect {
         top: snap(&widths.top),
@@ -400,8 +409,8 @@ trait ToTaffy<Output> {
     fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> Output;
 }
 
-impl ToTaffy<taffy::style::Style> for Style {
-    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> taffy::style::Style {
+impl ToTaffy<style::Style> for Style {
+    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> style::Style {
         use taffy::style_helpers::fr;
         use taffy::style_helpers::length;
         use taffy::style_helpers::minmax;
@@ -411,7 +420,7 @@ impl ToTaffy<taffy::style::Style> for Style {
             taffy::Line { start: placement.start.into(), end: placement.end.into() }
         }
 
-        fn to_grid_repeat<T: taffy::style::CheapCloneStr>(
+        fn to_grid_repeat<T: style::CheapCloneStr>(
             unit: &Option<GridTemplate>,
         ) -> Vec<taffy::GridTemplateComponent<T>> {
             unit.map(|template| {
@@ -433,7 +442,7 @@ impl ToTaffy<taffy::style::Style> for Style {
             .unwrap_or_default()
         }
 
-        taffy::style::Style {
+        style::Style {
             display: self.display.into(),
             overflow: self.overflow.into(),
             scrollbar_width: self.scrollbar_width.to_taffy(rem_size, scale_factor),
@@ -471,66 +480,66 @@ impl ToTaffy<f32> for AbsoluteLength {
     }
 }
 
-impl ToTaffy<taffy::style::LengthPercentageAuto> for Length {
-    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> taffy::prelude::LengthPercentageAuto {
+impl ToTaffy<style::LengthPercentageAuto> for Length {
+    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> LengthPercentageAuto {
         match self {
             Length::Definite(length) => length.to_taffy(rem_size, scale_factor),
-            Length::Auto => taffy::prelude::LengthPercentageAuto::auto(),
+            Length::Auto => LengthPercentageAuto::auto(),
         }
     }
 }
 
-impl ToTaffy<taffy::style::Dimension> for Length {
-    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> taffy::prelude::Dimension {
+impl ToTaffy<Dimension> for Length {
+    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> prelude::Dimension {
         match self {
             Length::Definite(length) => length.to_taffy(rem_size, scale_factor),
-            Length::Auto => taffy::prelude::Dimension::auto(),
+            Length::Auto => prelude::Dimension::auto(),
         }
     }
 }
 
-impl ToTaffy<taffy::style::LengthPercentage> for DefiniteLength {
-    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> taffy::style::LengthPercentage {
+impl ToTaffy<LengthPercentage> for DefiniteLength {
+    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> LengthPercentage {
         match self {
             DefiniteLength::Absolute(length) => length.to_taffy(rem_size, scale_factor),
-            DefiniteLength::Fraction(fraction) => taffy::style::LengthPercentage::percent(*fraction),
+            DefiniteLength::Fraction(fraction) => LengthPercentage::percent(*fraction),
         }
     }
 }
 
-impl ToTaffy<taffy::style::LengthPercentageAuto> for DefiniteLength {
-    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> taffy::style::LengthPercentageAuto {
+impl ToTaffy<style::LengthPercentageAuto> for DefiniteLength {
+    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> style::LengthPercentageAuto {
         match self {
             DefiniteLength::Absolute(length) => length.to_taffy(rem_size, scale_factor),
-            DefiniteLength::Fraction(fraction) => taffy::style::LengthPercentageAuto::percent(*fraction),
+            DefiniteLength::Fraction(fraction) => style::LengthPercentageAuto::percent(*fraction),
         }
     }
 }
 
-impl ToTaffy<taffy::style::Dimension> for DefiniteLength {
-    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> taffy::style::Dimension {
+impl ToTaffy<Dimension> for DefiniteLength {
+    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> Dimension {
         match self {
             DefiniteLength::Absolute(length) => length.to_taffy(rem_size, scale_factor),
-            DefiniteLength::Fraction(fraction) => taffy::style::Dimension::percent(*fraction),
+            DefiniteLength::Fraction(fraction) => Dimension::percent(*fraction),
         }
     }
 }
 
-impl ToTaffy<taffy::style::LengthPercentage> for AbsoluteLength {
-    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> taffy::style::LengthPercentage {
-        taffy::style::LengthPercentage::length(self.to_taffy(rem_size, scale_factor))
+impl ToTaffy<LengthPercentage> for AbsoluteLength {
+    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> LengthPercentage {
+        LengthPercentage::length(self.to_taffy(rem_size, scale_factor))
     }
 }
 
-impl ToTaffy<taffy::style::LengthPercentageAuto> for AbsoluteLength {
-    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> taffy::style::LengthPercentageAuto {
-        taffy::style::LengthPercentageAuto::length(self.to_taffy(rem_size, scale_factor))
+impl ToTaffy<style::LengthPercentageAuto> for AbsoluteLength {
+    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> style::LengthPercentageAuto {
+        style::LengthPercentageAuto::length(self.to_taffy(rem_size, scale_factor))
     }
 }
 
-impl ToTaffy<taffy::style::Dimension> for AbsoluteLength {
-    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> taffy::style::Dimension {
-        taffy::style::Dimension::length(self.to_taffy(rem_size, scale_factor))
+impl ToTaffy<Dimension> for AbsoluteLength {
+    fn to_taffy(&self, rem_size: Pixels, scale_factor: f32) -> Dimension {
+        Dimension::length(self.to_taffy(rem_size, scale_factor))
     }
 }
 

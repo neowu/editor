@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::any::TypeId;
 use std::ops::Range;
+use std::slice;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -107,7 +108,7 @@ impl DiffHunkRenderer for UnstagedDiffHunkRenderer {
                             editor.update(cx, |editor, cx| {
                                 let snapshot = editor.buffer().read(cx).snapshot(cx);
                                 let hunks: Vec<_> =
-                                    editor.diff_hunks_in_ranges(std::slice::from_ref(&hunk_range), &snapshot).collect();
+                                    editor.diff_hunks_in_ranges(slice::from_ref(&hunk_range), &snapshot).collect();
                                 if !hunks.is_empty() {
                                     editor.apply_restore(hunks, window, cx);
                                 }

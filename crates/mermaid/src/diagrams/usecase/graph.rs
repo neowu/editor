@@ -3,6 +3,8 @@
 //! Port of Pele's `src/diagrams/usecase/graph.ts`, which ports `getData` from Mermaid's use case
 //! DB.
 
+use std::iter;
+
 use super::json::JsonDoc;
 use super::json::JsonValue;
 use super::types::ActorType;
@@ -11,6 +13,7 @@ use super::types::RelationshipType;
 use super::types::Shape;
 use super::types::UsecaseModel;
 use super::types::arrow;
+use crate::diagrams::usecase::lexer;
 use crate::text::label::trim;
 use crate::yaml::push_number;
 
@@ -153,7 +156,7 @@ pub(crate) fn flatten_json_rows(json: &JsonDoc) -> Vec<JsonRow> {
                     for (i, &item) in items.iter().enumerate() {
                         let mut child = path.clone();
                         child.push('[');
-                        crate::diagrams::usecase::lexer::push_usize(&mut child, i);
+                        lexer::push_usize(&mut child, i);
                         child.push(']');
                         children.push((item, child));
                     }
@@ -221,7 +224,7 @@ pub(crate) fn build_usecase_graph(model: &UsecaseModel) -> UsecaseGraph<'_> {
     // A later class wins a property but keeps the place the property first took.
     let compiled = |class_names: &[String]| -> Vec<String> {
         let mut out: Vec<(&str, &str)> = Vec::new();
-        for name in std::iter::once("default").chain(class_names.iter().map(String::as_str)) {
+        for name in iter::once("default").chain(class_names.iter().map(String::as_str)) {
             let Some(definition) = model.class_defs.iter().find(|own| own.id == name) else {
                 continue;
             };
@@ -403,7 +406,7 @@ pub(crate) fn build_usecase_graph(model: &UsecaseModel) -> UsecaseGraph<'_> {
                 ["default", "relationship", &kind]
                     .into_iter()
                     .chain(relationship.classes.iter().map(String::as_str))
-                    .chain(std::iter::once(animation.as_str())),
+                    .chain(iter::once(animation.as_str())),
             ),
             css_compiled_styles: compiled(&relationship.classes),
             dotted: semantic,

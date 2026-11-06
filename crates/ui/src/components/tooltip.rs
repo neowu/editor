@@ -14,6 +14,7 @@ use crate::KeyBinding;
 use crate::Label;
 use crate::LabelSize;
 use crate::StyledExt;
+use crate::font;
 use crate::h_flex;
 use crate::prelude::*;
 use crate::v_flex;
@@ -192,7 +193,7 @@ where
     C: AppContext + Borrow<App>,
 {
     let app = (*cx).borrow();
-    let ui_font = crate::font::ui_font().clone();
+    let ui_font = font::ui_font().clone();
 
     // padding to avoid tooltip appearing right below the mouse cursor
     div().pl_2().pt_2p5().child(

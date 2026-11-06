@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use editor::Editor;
 use editor::MultiBufferOffset;
+use editor::actions::GoToDiagnostic;
 use gpui::Context;
 use gpui::Entity;
 use gpui::EventEmitter;
@@ -81,9 +82,7 @@ impl Render for DiagnosticIndicator {
                     .label_size(LabelSize::Small)
                     .truncate(true)
                     .tab_index(0isize)
-                    .tooltip(move |_window, cx| {
-                        Tooltip::for_action(tooltip, &editor::actions::GoToDiagnostic::default(), cx)
-                    })
+                    .tooltip(move |_window, cx| Tooltip::for_action(tooltip, &GoToDiagnostic::default(), cx))
                     .on_click(cx.listener(|this, _, window, cx| this.go_to_next_diagnostic(window, cx))),
             )
         } else {

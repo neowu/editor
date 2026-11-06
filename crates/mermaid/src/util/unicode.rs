@@ -1,5 +1,6 @@
 //! Unicode letters outside ASCII, as Mermaid's lexers match them with `\p{L}` on UTF-16 units.
 
+use core::cmp::Ordering;
 /// Inclusive ranges of letters in the Basic Multilingual Plane, decoded from Pele's
 /// `src/util/unicode.ts` table.
 const LETTERS: [(u16, u16); 368] = [
@@ -382,11 +383,11 @@ pub(crate) fn is_unicode_letter(code: u32) -> bool {
     LETTERS
         .binary_search_by(|&(start, end)| {
             if code < u32::from(start) {
-                core::cmp::Ordering::Greater
+                Ordering::Greater
             } else if code > u32::from(end) {
-                core::cmp::Ordering::Less
+                Ordering::Less
             } else {
-                core::cmp::Ordering::Equal
+                Ordering::Equal
             }
         })
         .is_ok()

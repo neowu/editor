@@ -941,6 +941,7 @@ fn parse_dimension(value: &str) -> Option<DefiniteLength> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser;
 
     #[test]
     fn lexes_tags_text_and_comments() {
@@ -978,7 +979,7 @@ mod tests {
     }
 
     fn events(markdown: &str) -> Vec<String> {
-        let parsed = crate::parser::parse_markdown_with_options(
+        let parsed = parser::parse_markdown_with_options(
             markdown,
             crate::MarkdownOptions { parse_html: true, ..Default::default() },
         );
@@ -1132,7 +1133,7 @@ mod tests {
     #[test]
     fn converts_html_documents() {
         let html = "<!doctype html>\n<html>\n  <head><title>T</title><style>p {}</style></head>\n  <body>\n    <h1>Title</h1>\n\n        <p>Indented, not code</p>\n  </body>\n</html>\n";
-        let parsed = crate::parser::parse_markdown_with_options(
+        let parsed = parser::parse_markdown_with_options(
             html,
             crate::MarkdownOptions { html_document: true, ..Default::default() },
         );

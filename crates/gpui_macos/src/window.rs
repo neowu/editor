@@ -1,10 +1,13 @@
+use core::char;
 use std::cell::Cell;
 use std::ffi::c_void;
 use std::mem;
 use std::ops::Range;
+use std::path::Path;
 use std::ptr::NonNull;
 use std::ptr::{self};
 use std::rc::Rc;
+use std::slice;
 use std::sync::Arc;
 use std::sync::Weak;
 use std::sync::atomic::AtomicBool;
@@ -105,6 +108,7 @@ use crate::NSStringExt;
 use crate::TISCopyCurrentKeyboardInputSource;
 use crate::TISGetInputSourceProperty;
 use crate::display_link::MetalFrames;
+use crate::events::ESCAPE_KEY;
 use crate::events::platform_input_from_native;
 use crate::kTISPropertyInputSourceIsASCIICapable;
 use crate::kTISPropertyInputSourceType;
@@ -123,6 +127,7 @@ use crate::ns::id;
 use crate::ns::nil;
 use crate::ns_string;
 use crate::renderer;
+use crate::window_appearance;
 
 /// Borrows a raw `NSWindow` pointer as its typed objc2 counterpart.
 unsafe fn ns_window<'a>(window: id) -> &'a Objc2NSWindow {
@@ -1154,8 +1159,8 @@ impl MacWindow {
                 metal_frames: metal_frames.clone(),
                 renderer: renderer::new_renderer(
                     renderer_context,
-                    native_window as *mut _,
-                    native_view as *mut _,
+                    native_window.cast::<c_void>(),
+                    native_view.cast::<c_void>(),
                     bounds.size.map(|pixels| pixels.as_f32()),
                     false,
                 ),
@@ -1438,7 +1443,7 @@ impl PlatformWindow for MacWindow {
                 None
             } else {
                 let length: NSUInteger = msg_send![data, length];
-                Some(std::slice::from_raw_parts(bytes.cast::<u8>(), length).to_vec())
+                Some(slice::from_raw_parts(bytes.cast::<u8>(), length).to_vec())
             };
 
             let _: () = msg_send![delegate, release];
@@ -1496,7 +1501,7 @@ impl PlatformWindow for MacWindow {
     fn appearance(&self) -> WindowAppearance {
         unsafe {
             let appearance: id = msg_send![self.0.lock().native_window, effectiveAppearance];
-            crate::window_appearance::window_appearance_from_native(appearance)
+            window_appearance::window_appearance_from_native(appearance)
         }
     }
 
@@ -1596,7 +1601,7 @@ impl PlatformWindow for MacWindow {
             button.setTag(ix.cast_signed());
 
             if answer.is_cancel() {
-                if let Some(key) = core::char::from_u32(crate::events::ESCAPE_KEY as u32) {
+                if let Some(key) = char::from_u32(ESCAPE_KEY as u32) {
                     let key = NSString::from_str(&key.to_string());
                     button.setKeyEquivalent(&key);
                 }
@@ -1765,7 +1770,7 @@ impl PlatformWindow for MacWindow {
         self.0.lock().move_traffic_light();
     }
 
-    fn set_document_path(&self, path: Option<&std::path::Path>) {
+    fn set_document_path(&self, path: Option<&Path>) {
         unsafe {
             let window = self.0.lock().native_window;
             let filename = path.map_or(ns_string(""), |p| ns_string(&p.to_string_lossy()));
@@ -3132,7 +3137,7 @@ unsafe impl objc2::RefEncode for CGColor {
 
 unsafe fn remove_layer_background(layer: id) {
     unsafe {
-        let _: () = msg_send![layer, setBackgroundColor: std::ptr::null::<CGColor>()];
+        let _: () = msg_send![layer, setBackgroundColor: ptr::null::<CGColor>()];
 
         let class_name: id = msg_send![layer, className];
         if class_name.to_str() == "CAChameleonLayer" {

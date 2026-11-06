@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -323,7 +324,7 @@ fn existing_blame_editor(
             return None;
         }
         let file = buffer.read(cx).file()?;
-        let blob = (file.as_ref() as &dyn std::any::Any).downcast_ref::<GitBlob>()?;
+        let blob = (file.as_ref() as &dyn Any).downcast_ref::<GitBlob>()?;
         (blob.path == *path).then_some(editor)
     })
 }

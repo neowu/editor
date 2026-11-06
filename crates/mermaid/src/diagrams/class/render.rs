@@ -1,5 +1,6 @@
 //! Lays out and draws a class diagram. Port of Pele's `src/diagrams/class/render.ts`.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use super::db::ClassDb;
@@ -572,7 +573,7 @@ fn draw(db: &ClassDb, config: &Value, options: &Options, turned: bool, tight: bo
             let mut border = None;
             let mut k = first;
             while let (Some(&x), Some(&y), Some(&v)) = (route.get(k), route.get(k + 1), route.get(k + across)) {
-                if (v - level).abs().partial_cmp(&0.5) != Some(std::cmp::Ordering::Less) {
+                if (v - level).abs().partial_cmp(&0.5) != Some(Ordering::Less) {
                     break;
                 }
                 if on_border(&cnodes, item, x, y) {

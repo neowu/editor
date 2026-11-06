@@ -23,16 +23,14 @@ use crate::abs_path::AbsPathBuf;
 ///
 /// Relative paths are also guaranteed to be valid unicode.
 #[repr(transparent)]
-#[derive(PartialEq, Eq, Hash)]
-#[derive(serde::Serialize)]
+#[derive(PartialEq, Eq, Hash, serde::Serialize)]
 pub struct RelPath(str);
 
 /// An owned representation of a file system path that is guaranteed to be
 /// relative and normalized.
 ///
 /// This type is to [`RelPath`] as [`std::path::PathBuf`] is to [`std::path::Path`]
-#[derive(PartialEq, Eq, Clone, Hash)]
-#[derive(serde::Serialize)]
+#[derive(PartialEq, Eq, Clone, Hash, serde::Serialize)]
 pub struct RelPathBuf(String);
 
 impl RelPath {

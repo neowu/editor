@@ -1,3 +1,7 @@
+use std::path::PathBuf;
+
+use workspace::item::ItemBufferKind;
+use workspace::item::ItemEvent;
 mod image_info;
 
 use std::path::Path;
@@ -494,11 +498,11 @@ impl EventEmitter<ImageViewEvent> for ImageView {}
 impl Item for ImageView {
     type Event = ImageViewEvent;
 
-    fn to_item_events(event: &Self::Event, f: &mut dyn FnMut(workspace::item::ItemEvent)) {
+    fn to_item_events(event: &Self::Event, f: &mut dyn FnMut(ItemEvent)) {
         match event {
             ImageViewEvent::TitleChanged => {
-                f(workspace::item::ItemEvent::UpdateTab);
-                f(workspace::item::ItemEvent::UpdateActivePath);
+                f(ItemEvent::UpdateTab);
+                f(ItemEvent::UpdateActivePath);
             }
         }
     }
@@ -572,8 +576,8 @@ impl Item for ImageView {
     fn has_deleted_file(&self, cx: &App) -> bool {
         self.image_item.read(cx).file.disk_state().is_deleted()
     }
-    fn buffer_kind(&self, _: &App) -> workspace::item::ItemBufferKind {
-        workspace::item::ItemBufferKind::Singleton
+    fn buffer_kind(&self, _: &App) -> ItemBufferKind {
+        ItemBufferKind::Singleton
     }
 }
 
@@ -934,5 +938,5 @@ pub fn init(cx: &mut App) {
 /// What `.ed/workspace.json` keeps for an image tab.
 #[derive(serde::Serialize, serde::Deserialize)]
 struct SerializedImageView {
-    abs_path: std::path::PathBuf,
+    abs_path: PathBuf,
 }

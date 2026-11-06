@@ -1,4 +1,6 @@
+use std::collections::hash_map::Iter;
 use std::num::NonZeroU32;
+use std::slice;
 use std::sync::Arc;
 
 use collections::HashMap;
@@ -611,7 +613,7 @@ impl Default for FormatterList {
 impl AsRef<[Formatter]> for FormatterList {
     fn as_ref(&self) -> &[Formatter] {
         match &self {
-            Self::Single(single) => std::slice::from_ref(single),
+            Self::Single(single) => slice::from_ref(single),
             Self::Vec(v) => v,
         }
     }
@@ -748,7 +750,7 @@ pub struct FileTypeMap(pub HashMap<Arc<str>, Vec<String>>);
 
 impl<'a> IntoIterator for &'a FileTypeMap {
     type Item = (&'a Arc<str>, &'a Vec<String>);
-    type IntoIter = std::collections::hash_map::Iter<'a, Arc<str>, Vec<String>>;
+    type IntoIter = Iter<'a, Arc<str>, Vec<String>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()

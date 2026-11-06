@@ -4,6 +4,7 @@
 use crate::error::push_u32;
 use crate::util::chars::is_line_end;
 use crate::util::chars::is_space;
+use crate::util::float;
 
 /// A parsed YAML value, shaped like the JavaScript value Pele's reader returns.
 #[derive(Clone, Debug, PartialEq)]
@@ -320,7 +321,7 @@ fn reads_back(digits: &[u8], n: i32, value: f64) -> bool {
         text.push('-');
     }
     push_u32(&mut text, exponent.unsigned_abs());
-    crate::util::float::parse(&text).is_some_and(|parsed| parsed.to_bits() == value.to_bits())
+    float::parse(&text).is_some_and(|parsed| parsed.to_bits() == value.to_bits())
 }
 
 /// A failure while reading.
@@ -494,7 +495,7 @@ fn scalar(raw: &str) -> Value {
     }
 
     if is_int(s) || is_float(s) {
-        return Value::Number(crate::util::float::parse(s).unwrap_or(f64::NAN));
+        return Value::Number(float::parse(s).unwrap_or(f64::NAN));
     }
 
     let negative = s.starts_with('-');

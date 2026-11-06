@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -44,11 +45,11 @@ struct BufferConflicts {
 }
 
 impl editor::Addon for ConflictAddon {
-    fn to_any(&self) -> &dyn std::any::Any {
+    fn to_any(&self) -> &dyn Any {
         self
     }
 
-    fn to_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
+    fn to_any_mut(&mut self) -> Option<&mut dyn Any> {
         Some(self)
     }
 }

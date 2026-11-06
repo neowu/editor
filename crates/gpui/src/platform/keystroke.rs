@@ -1,6 +1,15 @@
 use std::error::Error;
+use std::fmt;
 use std::fmt::Display;
+use std::fmt::Formatter;
 use std::fmt::Write;
+use std::ops::BitAnd;
+use std::ops::BitAndAssign;
+use std::ops::BitOr;
+use std::ops::BitOrAssign;
+use std::ops::BitXor;
+use std::ops::BitXorAssign;
+use std::result;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -50,7 +59,7 @@ pub struct InvalidKeystrokeError {
 impl Error for InvalidKeystrokeError {}
 
 impl Display for InvalidKeystrokeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "Invalid keystroke \"{}\". {}", self.keystroke, KEYSTROKE_PARSE_EXPECTED_MESSAGE)
     }
 }
@@ -87,7 +96,7 @@ impl Keystroke {
     /// key_char syntax is only used for generating test events,
     /// secondary means "cmd" on macOS and "ctrl" on other platforms
     /// when matching a key with an key_char set will be matched without it.
-    pub fn parse(source: &str) -> std::result::Result<Self, InvalidKeystrokeError> {
+    pub fn parse(source: &str) -> result::Result<Self, InvalidKeystrokeError> {
         let mut modifiers = Modifiers::none();
         let mut key = None;
         let mut key_char = None;
@@ -341,15 +350,15 @@ fn is_printable_key(key: &str) -> bool {
     )
 }
 
-impl std::fmt::Display for Keystroke {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for Keystroke {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         display_modifiers(&self.modifiers, f)?;
         display_key(&self.key, f)
     }
 }
 
-impl std::fmt::Display for KeybindingKeystroke {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for KeybindingKeystroke {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         display_modifiers(self.modifiers(), f)?;
         display_key(self.key(), f)
     }
@@ -478,7 +487,7 @@ impl Modifiers {
     }
 }
 
-impl std::ops::BitOr for Modifiers {
+impl BitOr for Modifiers {
     type Output = Self;
 
     fn bitor(mut self, other: Self) -> Self::Output {
@@ -487,7 +496,7 @@ impl std::ops::BitOr for Modifiers {
     }
 }
 
-impl std::ops::BitOrAssign for Modifiers {
+impl BitOrAssign for Modifiers {
     fn bitor_assign(&mut self, other: Self) {
         self.control |= other.control;
         self.alt |= other.alt;
@@ -497,7 +506,7 @@ impl std::ops::BitOrAssign for Modifiers {
     }
 }
 
-impl std::ops::BitXor for Modifiers {
+impl BitXor for Modifiers {
     type Output = Self;
     fn bitxor(mut self, rhs: Self) -> Self::Output {
         self ^= rhs;
@@ -505,7 +514,7 @@ impl std::ops::BitXor for Modifiers {
     }
 }
 
-impl std::ops::BitXorAssign for Modifiers {
+impl BitXorAssign for Modifiers {
     fn bitxor_assign(&mut self, other: Self) {
         self.control ^= other.control;
         self.alt ^= other.alt;
@@ -515,7 +524,7 @@ impl std::ops::BitXorAssign for Modifiers {
     }
 }
 
-impl std::ops::BitAnd for Modifiers {
+impl BitAnd for Modifiers {
     type Output = Self;
     fn bitand(mut self, rhs: Self) -> Self::Output {
         self &= rhs;
@@ -523,7 +532,7 @@ impl std::ops::BitAnd for Modifiers {
     }
 }
 
-impl std::ops::BitAndAssign for Modifiers {
+impl BitAndAssign for Modifiers {
     fn bitand_assign(&mut self, other: Self) {
         self.control &= other.control;
         self.alt &= other.alt;
@@ -559,7 +568,7 @@ impl<T: AsKeystroke + ?Sized> AsKeystroke for &T {
     }
 }
 
-fn display_modifiers(modifiers: &Modifiers, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+fn display_modifiers(modifiers: &Modifiers, f: &mut Formatter<'_>) -> fmt::Result {
     if modifiers.control {
         #[cfg(target_os = "macos")]
         f.write_char('^')?;
@@ -591,7 +600,7 @@ fn display_modifiers(modifiers: &Modifiers, f: &mut std::fmt::Formatter<'_>) -> 
     Ok(())
 }
 
-fn display_key(key: &str, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+fn display_key(key: &str, f: &mut Formatter<'_>) -> fmt::Result {
     let key = match key {
         #[cfg(target_os = "macos")]
         "backspace" => '⌫',

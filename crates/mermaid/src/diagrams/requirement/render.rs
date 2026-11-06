@@ -1,6 +1,8 @@
 //! Draws a requirement diagram: boxes with a stereotype, a name, and field rows, joined by
 //! relationship edges. Port of Pele's `src/diagrams/requirement/render.ts`.
 
+use std::cmp::Ordering;
+
 use super::db::RequirementDb;
 use super::graph::GraphEdge;
 use super::graph::build_requirement_graph;
@@ -15,6 +17,7 @@ use crate::layout::compound::cnode;
 use crate::layout::compound::compound_layout;
 use crate::layout::compound::direction;
 use crate::layout::layered::LayeredOptions;
+use crate::svg::builder;
 use crate::svg::builder::esc;
 use crate::svg::builder::esc_text;
 use crate::svg::builder::label_svg;
@@ -239,7 +242,7 @@ fn spread_ends(cnodes: &[CNode], cedges: &mut [CEdge], views: &[NodeView]) {
         };
         let span = (if vertical { view.h } else { view.w }) - 2.0 * END_MARGIN;
         let step = (span / (list.len() - 1) as f64).clamp(0.0, END_STEP);
-        list.sort_by(|a, b| (a.toward - b.toward).partial_cmp(&0.0).unwrap_or(std::cmp::Ordering::Equal));
+        list.sort_by(|a, b| (a.toward - b.toward).partial_cmp(&0.0).unwrap_or(Ordering::Equal));
         let count = list.len();
         let Some(c) = cnodes.get(node) else {
             continue;
@@ -294,7 +297,7 @@ fn stereotype(text: &str) -> String {
 fn draw(model: &RequirementDb, options: &Options, turned: bool) -> Rendered {
     let graph = build_requirement_graph(model);
     let size = options.font_size;
-    let small = crate::svg::builder::js_round(size * 0.875);
+    let small = builder::js_round(size * 0.875);
     let pad = options.padding;
 
     let mut index: Vec<(&str, usize)> = Vec::new();

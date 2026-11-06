@@ -1,6 +1,8 @@
 //! Labels that keep every character, labels broken between characters, and labels written from
 //! their start. Port of Pele's `src/diagrams/common/literal-label.ts`.
 
+use std::mem;
+
 use crate::svg::builder::esc;
 use crate::svg::builder::js_round;
 use crate::svg::builder::label_svg;
@@ -113,7 +115,7 @@ pub(crate) fn break_label(label: &Label, room: f64) -> Label {
         for span in spans {
             if span.icon.is_some() {
                 if !current.is_empty() && width + span.width > room {
-                    lines.push(std::mem::take(&mut current));
+                    lines.push(mem::take(&mut current));
                     widths.push(width);
                     width = 0.0;
                 }
@@ -137,7 +139,7 @@ pub(crate) fn break_label(label: &Label, room: f64) -> Label {
                     _ => measure::width(ch, label.size, span.style),
                 };
                 if !current.is_empty() && width + added > room {
-                    lines.push(std::mem::take(&mut current));
+                    lines.push(mem::take(&mut current));
                     widths.push(width);
                     width = 0.0;
                     joined = false;

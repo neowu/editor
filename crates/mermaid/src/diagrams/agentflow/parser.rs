@@ -3,6 +3,7 @@
 //! `src/diagrams/agentflow/parser.ts`.
 
 use std::borrow::Cow;
+use std::mem;
 
 use super::db::AgentflowDb;
 use super::db::js_trim;
@@ -871,7 +872,7 @@ impl Parser<'_, '_> {
                     self.i += 1;
                     frame
                 };
-                frame.list = std::mem::take(&mut list);
+                frame.list = mem::take(&mut list);
                 open.push(frame);
                 collect = true;
             } else if let Some(item) = self.statement()?

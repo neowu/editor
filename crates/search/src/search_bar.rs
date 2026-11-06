@@ -16,6 +16,7 @@ use gpui::Window;
 use ui::IconButton;
 use ui::IconButtonShape;
 use ui::Tooltip;
+use ui::font;
 use ui::prelude::*;
 
 pub(super) enum HistoryNavigationDirection {
@@ -110,11 +111,11 @@ pub(crate) fn render_text_input(editor: &Entity<Editor>, color_override: Option<
 
     let text_style = TextStyle {
         color,
-        font_family: ui::font::buffer_font().family.clone(),
-        font_features: ui::font::buffer_font().features.clone(),
-        font_fallbacks: ui::font::buffer_font().fallbacks.clone(),
+        font_family: font::buffer_font().family.clone(),
+        font_features: font::buffer_font().features.clone(),
+        font_fallbacks: font::buffer_font().fallbacks.clone(),
         font_size: rems(0.875).into(),
-        font_weight: ui::font::buffer_font().weight,
+        font_weight: font::buffer_font().weight,
         line_height: relative(1.3),
         ..TextStyle::default()
     };

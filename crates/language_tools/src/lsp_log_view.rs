@@ -1,5 +1,6 @@
 use std::any::TypeId;
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use collections::HashMap;
@@ -59,9 +60,11 @@ use workspace::ToolbarItemLocation;
 use workspace::ToolbarItemView;
 use workspace::Workspace;
 use workspace::item::Item;
+use workspace::item::ItemEvent;
 use workspace::item::ItemHandle;
 use workspace::searchable::Direction;
 use workspace::searchable::SearchEvent;
+use workspace::searchable::SearchOptions;
 use workspace::searchable::SearchToken;
 use workspace::searchable::SearchableItem;
 use workspace::searchable::SearchableItemHandle;
@@ -669,7 +672,7 @@ impl Focusable for LspLogView {
 impl Item for LspLogView {
     type Event = EditorEvent;
 
-    fn to_item_events(event: &Self::Event, f: &mut dyn FnMut(workspace::item::ItemEvent)) {
+    fn to_item_events(event: &Self::Event, f: &mut dyn FnMut(ItemEvent)) {
         Editor::to_item_events(event, f)
     }
 
@@ -769,7 +772,7 @@ impl SearchableItem for LspLogView {
 
     fn find_matches(
         &mut self,
-        query: Arc<project::search::SearchQuery>,
+        query: Arc<SearchQuery>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> gpui::Task<Vec<Self::Match>> {
@@ -786,8 +789,8 @@ impl SearchableItem for LspLogView {
     ) {
         // Since LSP Log is read-only, it doesn't make sense to support replace operation.
     }
-    fn supported_options(&self) -> workspace::searchable::SearchOptions {
-        workspace::searchable::SearchOptions {
+    fn supported_options(&self) -> SearchOptions {
+        SearchOptions {
             case: true,
             word: true,
             regex: true,
@@ -1202,7 +1205,7 @@ impl ServerInfo {
                 language_name: None,
                 server_version: server.version(),
                 server_readable_version: server.readable_version(),
-                pending_work: std::collections::BTreeMap::default(),
+                pending_work: BTreeMap::default(),
                 has_pending_diagnostic_updates: false,
                 progress_tokens: HashSet::default(),
                 worktree: None,

@@ -26,6 +26,7 @@ use text::BufferSnapshot as TextBufferSnapshot;
 use text::Point;
 use text::ToPoint as _;
 use theme::SyntaxTheme;
+use two_face::syntax;
 
 use crate::Language;
 use crate::build_highlight_map;
@@ -41,7 +42,7 @@ const CHECKPOINT_INTERVAL: u32 = 16;
 /// from their start for every chunk that is highlighted.
 const MAX_INJECTION_LEN: usize = 64 * 1024;
 
-static SYNTAX_SET: LazyLock<SyntaxSet> = LazyLock::new(two_face::syntax::extra_newlines);
+static SYNTAX_SET: LazyLock<SyntaxSet> = LazyLock::new(syntax::extra_newlines);
 
 /// Locally patched copies of bundled syntaxes, looked up before
 /// [`SYNTAX_SET`]. They live in a separate set because rebuilding the bundled
@@ -515,6 +516,8 @@ pub(crate) fn highlight_injection(
 
 #[cfg(test)]
 mod tests {
+    use std::time::Instant;
+
     use gpui::HighlightStyle;
     use text::Buffer as TextBuffer;
     use text::BufferId;
@@ -686,14 +689,14 @@ mod tests {
         let source = "static int add(int a, int b) {\n    /* sum */ return a + b; // ok\n}\n";
         let buffer = TextBuffer::new(ReplicaId::LOCAL, BufferId::new(1).unwrap(), source.repeat(10_000));
         let snapshot = buffer.snapshot();
-        let start = std::time::Instant::now();
+        let start = Instant::now();
         LazyLock::force(&SYNTAX_SET);
         eprintln!("load syntaxes: {:?}", start.elapsed());
-        let start = std::time::Instant::now();
+        let start = Instant::now();
         LazyLock::force(&PATCHED_SYNTAX_SET);
         eprintln!("load patched syntaxes: {:?}", start.elapsed());
         let highlighter = FallbackHighlighter::for_buffer(None, Some("main.c"), snapshot).unwrap();
-        let start = std::time::Instant::now();
+        let start = Instant::now();
         highlighter.highlight_runs(snapshot, 0..snapshot.len());
         eprintln!("highlight {} lines: {:?}", snapshot.max_point().row, start.elapsed());
     }

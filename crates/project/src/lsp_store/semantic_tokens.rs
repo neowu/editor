@@ -1,4 +1,7 @@
+use std::mem;
 use std::ops::Range;
+use std::result;
+use std::slice::Iter;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -95,7 +98,7 @@ impl LspStore {
         let empty_current_servers_are_authoritative = self.as_local().is_some();
         let latest_lsp_data = self.latest_lsp_data(&buffer, cx);
         let semantic_tokens_data = latest_lsp_data.semantic_tokens.get_or_insert_default();
-        let pending_refreshes = std::mem::take(&mut semantic_tokens_data.pending_refreshes);
+        let pending_refreshes = mem::take(&mut semantic_tokens_data.pending_refreshes);
         let current_servers_are_authoritative = !current_servers.is_empty() || empty_current_servers_are_authoritative;
         let server_set_shrank = current_servers_are_authoritative
             && (semantic_tokens_data.raw_tokens.servers.keys().any(|server_id| !current_servers.contains(server_id))
@@ -497,7 +500,7 @@ const fn semantic_tokens_provider_legend(
     }
 }
 
-pub type SemanticTokensTask = Shared<Task<std::result::Result<BufferSemanticTokens, Arc<anyhow::Error>>>>;
+pub type SemanticTokensTask = Shared<Task<result::Result<BufferSemanticTokens, Arc<anyhow::Error>>>>;
 
 #[derive(Debug, Default, Clone)]
 pub struct BufferSemanticTokens {
@@ -708,7 +711,7 @@ pub struct ServerSemanticTokens {
 
 pub struct SemanticTokensIter<'a> {
     prev: Option<(u32, u32)>,
-    data: std::slice::Iter<'a, [u32; 5]>,
+    data: Iter<'a, [u32; 5]>,
 }
 
 // A single item from `data`.

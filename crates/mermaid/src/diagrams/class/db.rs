@@ -14,6 +14,7 @@ use super::types::LOLLIPOP;
 use super::types::NamespaceNode;
 use super::types::RelationEnd;
 use super::types::StyleClass;
+use crate::error;
 use crate::text::entities;
 use crate::text::label::trim;
 use crate::text::label::trim_start;
@@ -214,7 +215,7 @@ impl ClassDb {
     /// Adds the interface a lone lollipop end stands for and returns its id.
     fn add_interface(&mut self, label: &str, class_id: &str) -> String {
         let mut id = String::from("interface");
-        crate::error::push_u32(&mut id, u32::try_from(self.interfaces.len()).unwrap_or(u32::MAX));
+        error::push_u32(&mut id, u32::try_from(self.interfaces.len()).unwrap_or(u32::MAX));
         self.interfaces.push(ClassInterface { class_id: class_id.to_owned(), id: id.clone(), label: label.to_owned() });
         id
     }
@@ -259,7 +260,7 @@ impl ClassDb {
     pub(crate) fn add_note(&mut self, text: &str, class_name: Option<&str>) -> String {
         let index = self.notes.len();
         let mut id = String::from("note");
-        crate::error::push_u32(&mut id, u32::try_from(index).unwrap_or(u32::MAX));
+        error::push_u32(&mut id, u32::try_from(index).unwrap_or(u32::MAX));
         self.notes.insert(
             id.clone(),
             ClassNote {

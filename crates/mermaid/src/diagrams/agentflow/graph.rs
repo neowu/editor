@@ -13,6 +13,7 @@ use super::shapes::normalise_node_shapes;
 use super::shapes::resolve_shape_alias;
 use super::types::LabelType;
 use super::types::Metadata;
+use crate::error;
 use crate::yaml::Value;
 use crate::yaml::{self};
 
@@ -337,7 +338,7 @@ pub(crate) fn build_agent_graph(db: &mut AgentflowDb, palette_length: u32, defau
             id.push('_');
             id.push_str(end);
             id.push('_');
-            crate::error::push_u32(&mut id, u32::try_from(index).unwrap_or(u32::MAX));
+            error::push_u32(&mut id, u32::try_from(index).unwrap_or(u32::MAX));
             id
         } else {
             raw.id.clone()

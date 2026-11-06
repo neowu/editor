@@ -1,5 +1,9 @@
 use std::any::TypeId;
+use std::fmt::Debug;
+use std::fmt::Display;
 use std::ops::Deref;
+use std::ops::DerefMut;
+use std::result;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -33,6 +37,7 @@ use project::project_settings::ProjectSettings;
 use settings::Settings;
 use ui::CopyButton;
 use ui::Tooltip;
+use ui::font;
 use ui::prelude::*;
 use util::ResultExt;
 
@@ -54,7 +59,7 @@ impl Deref for Notifications {
     }
 }
 
-impl std::ops::DerefMut for Notifications {
+impl DerefMut for Notifications {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.notifications
     }
@@ -381,10 +386,10 @@ impl EventEmitter<DismissEvent> for LanguageServerPrompt {}
 impl EventEmitter<SuppressEvent> for LanguageServerPrompt {}
 
 pub fn markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
-    let ui_font_family = ui::font::ui_font().family.clone();
-    let ui_font_fallbacks = ui::font::ui_font().fallbacks.clone();
-    let buffer_font_family = ui::font::buffer_font().family.clone();
-    let buffer_font_fallbacks = ui::font::buffer_font().fallbacks.clone();
+    let ui_font_family = font::ui_font().family.clone();
+    let ui_font_fallbacks = font::ui_font().fallbacks.clone();
+    let buffer_font_family = font::buffer_font().family.clone();
+    let buffer_font_fallbacks = font::buffer_font().fallbacks.clone();
 
     let mut base_text_style = window.text_style();
     base_text_style.refine(&TextStyleRefinement {
@@ -1064,9 +1069,9 @@ pub trait NotifyResultExt {
     fn notify_workspace_async_err(self, workspace: WeakEntity<Workspace>, cx: &mut AsyncApp) -> Option<Self::Ok>;
 }
 
-impl<T, E> NotifyResultExt for std::result::Result<T, E>
+impl<T, E> NotifyResultExt for result::Result<T, E>
 where
-    E: std::fmt::Debug + std::fmt::Display,
+    E: Debug + Display,
 {
     type Ok = T;
 
@@ -1087,9 +1092,9 @@ pub trait NotifyTaskExt {
     fn detach_and_notify_err(self, workspace: WeakEntity<Workspace>, window: &mut Window, cx: &mut App);
 }
 
-impl<R, E> NotifyTaskExt for Task<std::result::Result<R, E>>
+impl<R, E> NotifyTaskExt for Task<result::Result<R, E>>
 where
-    E: std::fmt::Debug + std::fmt::Display + Sized + 'static,
+    E: Debug + Display + Sized + 'static,
     R: 'static,
 {
     fn detach_and_notify_err(self, workspace: WeakEntity<Workspace>, window: &mut Window, cx: &mut App) {

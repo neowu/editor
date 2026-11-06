@@ -1,3 +1,4 @@
+use std::ptr::NonNull;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -112,7 +113,7 @@ impl PlatformDisplay for MacDisplay {
     }
 
     fn uuid(&self) -> Result<Uuid> {
-        let cfuuid = std::ptr::NonNull::new(unsafe { CGDisplayCreateUUIDFromDisplayID(self.0) })
+        let cfuuid = NonNull::new(unsafe { CGDisplayCreateUUIDFromDisplayID(self.0) })
             .ok_or_else(|| anyhow::anyhow!("AppKit returned a null from CGDisplayCreateUUIDFromDisplayID"))?;
         // SAFETY: the function follows the Create rule, so we own this reference.
         let cfuuid = unsafe { CFRetained::from_raw(cfuuid) };

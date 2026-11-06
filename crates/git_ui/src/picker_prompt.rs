@@ -1,5 +1,6 @@
 use core::cmp;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use futures::channel::oneshot;
 use fuzzy::StringMatch;
@@ -169,7 +170,7 @@ impl PickerDelegate for PickerPromptDelegate {
                     true,
                     true,
                     10000,
-                    &std::sync::atomic::AtomicBool::default(),
+                    &AtomicBool::default(),
                     cx.background_executor().clone(),
                 )
                 .await

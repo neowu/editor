@@ -1,3 +1,5 @@
+use std::ptr::NonNull;
+
 use block2::RcBlock;
 use futures::StreamExt;
 use futures::channel::mpsc;
@@ -39,7 +41,7 @@ impl ThermalObserver {
         mut callback: Box<dyn FnMut()>,
     ) -> Self {
         let (sender, mut receiver) = mpsc::unbounded();
-        let block = RcBlock::new(move |_: std::ptr::NonNull<NSNotification>| {
+        let block = RcBlock::new(move |_: NonNull<NSNotification>| {
             // NotificationCenter can call synchronously or off-thread. Never enter
             // application code here: GPUI may already be borrowed on the main thread.
             if sender.unbounded_send(()).is_err() {

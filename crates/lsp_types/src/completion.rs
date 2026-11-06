@@ -1,7 +1,13 @@
+use std::fmt;
 use std::fmt::Debug;
 
 use serde::Deserialize;
 use serde::Serialize;
+use serde::de;
+use serde::de::MapAccess;
+use serde::de::Visitor;
+use serde::de::value::MapAccessDeserializer;
+use serde::de::value::SeqAccessDeserializer;
 use serde_json::Value;
 
 use crate::Command;
@@ -280,16 +286,16 @@ impl<'de> Deserialize<'de> for CompletionTextEdit {
 
         struct CompletionTextEditVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for CompletionTextEditVisitor {
+        impl<'de> Visitor<'de> for CompletionTextEditVisitor {
             type Value = CompletionTextEdit;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> fmt::Result {
                 formatter.write_str("struct CompletionTextEdit")
             }
 
             fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
             where
-                V: serde::de::MapAccess<'de>,
+                V: MapAccess<'de>,
             {
                 let mut new_text = None;
                 let mut insert = None;
@@ -314,13 +320,13 @@ impl<'de> Deserialize<'de> for CompletionTextEdit {
                 }
                 if let Some(range) = range {
                     Ok(CompletionTextEdit::Edit(TextEdit {
-                        new_text: new_text.ok_or_else(|| serde::de::Error::missing_field("newText"))?,
+                        new_text: new_text.ok_or_else(|| de::Error::missing_field("newText"))?,
                         range,
                     }))
                 } else if let (Some(new_text), Some(insert), Some(replace)) = (new_text, insert, replace) {
                     Ok(CompletionTextEdit::InsertAndReplace(InsertReplaceEdit { new_text, insert, replace }))
                 } else {
-                    Err(serde::de::Error::custom("missing required fields"))
+                    Err(de::Error::custom("missing required fields"))
                 }
             }
         }
@@ -428,27 +434,26 @@ impl<'de> Deserialize<'de> for CompletionResponse {
     {
         struct CompletionResponseVisitor;
 
-        impl<'de> serde::de::Visitor<'de> for CompletionResponseVisitor {
+        impl<'de> Visitor<'de> for CompletionResponseVisitor {
             type Value = CompletionResponse;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> fmt::Result {
                 formatter.write_str("an array or a struct for CompletionResponse")
             }
 
             fn visit_seq<A>(self, seq: A) -> Result<Self::Value, A::Error>
             where
-                A: serde::de::SeqAccess<'de>,
+                A: de::SeqAccess<'de>,
             {
-                let items: Vec<CompletionItem> =
-                    Deserialize::deserialize(serde::de::value::SeqAccessDeserializer::new(seq))?;
+                let items: Vec<CompletionItem> = Deserialize::deserialize(SeqAccessDeserializer::new(seq))?;
                 Ok(CompletionResponse::Array(items))
             }
 
             fn visit_map<A>(self, map: A) -> Result<Self::Value, A::Error>
             where
-                A: serde::de::MapAccess<'de>,
+                A: MapAccess<'de>,
             {
-                let list: CompletionList = Deserialize::deserialize(serde::de::value::MapAccessDeserializer::new(map))?;
+                let list: CompletionList = Deserialize::deserialize(MapAccessDeserializer::new(map))?;
                 Ok(CompletionResponse::List(list))
             }
         }

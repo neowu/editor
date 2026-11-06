@@ -1,13 +1,17 @@
 //! Builds a git graph's commits and branches from its syntax tree, as Mermaid's git graph
 //! database does. Port of Pele's `src/diagrams/git/db.ts`.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::ptr;
 
 use super::parser::CommitTypeName;
 use super::parser::GitGraphAst;
 use super::parser::StatementAst;
+use crate::error;
 use crate::error::Code;
 use crate::error::Error;
+use crate::text::label;
 use crate::util::chars::is_space;
 use crate::yaml::Value;
 
@@ -149,7 +153,7 @@ impl Builder {
         let mut salt = self.seq.wrapping_add(1);
         loop {
             let mut id = String::new();
-            crate::error::push_u32(&mut id, self.seq);
+            error::push_u32(&mut id, self.seq);
             id.push('-');
             let mut hex = String::new();
             push_hex8(&mut hex, salt.wrapping_mul(0x9e37_79b1));
@@ -258,7 +262,7 @@ impl Builder {
             ])));
         };
         // `currentCommit === otherCommit` compares the objects the map holds.
-        if std::ptr::eq(current_commit, other_commit) {
+        if ptr::eq(current_commit, other_commit) {
             return Err(fail(String::from("Incorrect usage of \"merge\". Both branches have same head")));
         }
         if !custom_id.is_empty() && self.has(custom_id) {
@@ -432,16 +436,13 @@ pub(crate) fn build_git(ast: GitGraphAst, config: &Value, title: Option<&str>) -
     let mut orders = b.orders;
     orders.sort_by(|a, b| {
         let key = |order: f64| if order.is_nan() { 0.0 } else { order };
-        key(a.1).partial_cmp(&key(b.1)).unwrap_or(std::cmp::Ordering::Equal)
+        key(a.1).partial_cmp(&key(b.1)).unwrap_or(Ordering::Equal)
     });
     let lanes = orders.into_iter().map(|(name, _)| name).collect();
 
     Ok(GitModel {
         acc_descr: ast.acc_descr.filter(|text| !text.is_empty()).map(|text| squeeze_line_starts(&text)),
-        acc_title: ast
-            .acc_title
-            .filter(|text| !text.is_empty())
-            .map(|text| crate::text::label::trim_start(&text).to_owned()),
+        acc_title: ast.acc_title.filter(|text| !text.is_empty()).map(|text| label::trim_start(&text).to_owned()),
         branches: b.branches,
         commits: b.commits,
         current_branch: b.current,

@@ -1,23 +1,27 @@
 use std::ffi::OsStr;
+use std::io;
 use std::path::Path;
+use std::process::ExitStatus;
+use std::process::Output;
 
 pub use gpui_util::new_std_command;
+use smol::process;
 
 pub fn new_command(program: impl AsRef<OsStr>) -> Command {
     Command::new(program)
 }
 
-pub type Child = smol::process::Child;
+pub type Child = process::Child;
 
 pub use std::process::Stdio;
 
 #[derive(Debug)]
-pub struct Command(smol::process::Command);
+pub struct Command(process::Command);
 
 impl Command {
     #[inline]
     pub fn new(program: impl AsRef<OsStr>) -> Self {
-        Self(smol::process::Command::new(program))
+        Self(process::Command::new(program))
     }
 
     pub fn arg(&mut self, arg: impl AsRef<OsStr>) -> &mut Self {
@@ -88,15 +92,15 @@ impl Command {
         self
     }
 
-    pub fn spawn(&mut self) -> std::io::Result<Child> {
+    pub fn spawn(&mut self) -> io::Result<Child> {
         self.0.spawn()
     }
 
-    pub async fn output(&mut self) -> std::io::Result<std::process::Output> {
+    pub async fn output(&mut self) -> io::Result<Output> {
         self.0.output().await
     }
 
-    pub async fn status(&mut self) -> std::io::Result<std::process::ExitStatus> {
+    pub async fn status(&mut self) -> io::Result<ExitStatus> {
         self.0.status().await
     }
 

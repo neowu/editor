@@ -1,4 +1,5 @@
 use std::cmp;
+use std::iter;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::sync::Arc;
@@ -729,7 +730,7 @@ pub(crate) fn set_terminal_tab_bar_buttons(pane: &mut Pane, with_splits: bool, c
         let right_children = h_flex()
             .gap(DynamicSpacing::Base04.rems())
             .child(
-                workspace::pane::top_row_icon_button("plus", IconName::Plus)
+                pane::top_row_icon_button("plus", IconName::Plus)
                     .on_click(|_, window, cx| {
                         window.dispatch_action(workspace::NewTerminal::default().boxed_clone(), cx);
                     })
@@ -737,21 +738,21 @@ pub(crate) fn set_terminal_tab_bar_buttons(pane: &mut Pane, with_splits: bool, c
             )
             .when(with_splits, |this| {
                 this.child(
-                    workspace::pane::top_row_icon_button("split-right", IconName::SplitRight)
+                    pane::top_row_icon_button("split-right", IconName::SplitRight)
                         .on_click(cx.listener(|pane, _, window, cx| {
                             pane.split(SplitDirection::Right, SplitMode::ClonePane, window, cx);
                         }))
                         .tooltip(Tooltip::for_action_title("Split Right", &workspace::SplitRight::default())),
                 )
                 .child(
-                    workspace::pane::top_row_icon_button("split-down", IconName::SplitDown)
+                    pane::top_row_icon_button("split-down", IconName::SplitDown)
                         .on_click(cx.listener(|pane, _, window, cx| {
                             pane.split(SplitDirection::Down, SplitMode::ClonePane, window, cx);
                         }))
                         .tooltip(Tooltip::for_action_title("Split Down", &workspace::SplitDown::default())),
                 )
             })
-            .children(workspace::pane::render_tab_bar_pane_buttons(pane, cx))
+            .children(pane::render_tab_bar_pane_buttons(pane, cx))
             .into_any_element()
             .into();
         (None, right_children)
@@ -1025,7 +1026,7 @@ impl Render for TerminalPanel {
                     },
                 ))
             })
-            .unwrap_or_else(|| div())
+            .unwrap_or_else(div)
     }
 }
 
@@ -1155,7 +1156,7 @@ fn shell_toggle_target(visible: bool, active_pane: usize, panes: &[PaneShells]) 
     {
         return if visible { ShellToggleTarget::Close } else { ShellToggleTarget::Show { pane: active_pane, item } };
     }
-    std::iter::once(active_pane)
+    iter::once(active_pane)
         .chain((0..panes.len()).filter(|pane| *pane != active_pane))
         .find_map(|pane| {
             let item = panes.get(pane)?.shells.iter().position(|shell| *shell)?;

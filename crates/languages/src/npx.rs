@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::sync::Arc;
 
 use language::LspAdapterDelegate;
@@ -39,7 +40,7 @@ pub(crate) async fn npx_binary(
     })
 }
 
-fn npx_arguments(packages: &[&str], bin: &str, arguments: &[&str]) -> Vec<std::ffi::OsString> {
+fn npx_arguments(packages: &[&str], bin: &str, arguments: &[&str]) -> Vec<OsString> {
     let mut args = vec!["--yes".into()];
     for package in packages {
         args.push("--package".into());

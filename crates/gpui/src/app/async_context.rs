@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::rc::Rc;
 use std::rc::Weak;
 
 use anyhow::Context as _;
@@ -49,7 +50,7 @@ pub struct AsyncApp {
 }
 
 impl AsyncApp {
-    fn app(&self) -> std::rc::Rc<AppCell> {
+    fn app(&self) -> Rc<AppCell> {
         self.app.upgrade().expect("app was released before async operation completed")
     }
 }

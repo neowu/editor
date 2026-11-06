@@ -1,6 +1,8 @@
 use std::borrow::Borrow;
 use std::borrow::Cow;
+use std::env;
 use std::fmt;
+use std::fs;
 use std::io;
 use std::ops::Deref;
 use std::path::Path;
@@ -140,7 +142,7 @@ impl AbsPathBuf {
     }
 
     pub fn home_dir() -> anyhow::Result<Self> {
-        let home = std::env::home_dir().context("no home dir available")?;
+        let home = env::home_dir().context("no home dir available")?;
         Self::new(home)
     }
 
@@ -154,7 +156,7 @@ impl AbsPathBuf {
     /// where it enters the system whenever it may have been spelled by a user
     /// or an external tool.
     pub fn canonicalize(path: impl AsRef<Path>) -> io::Result<Self> {
-        let canonical = std::fs::canonicalize(path.as_ref())?;
+        let canonical = fs::canonicalize(path.as_ref())?;
         Self::new(canonical).map_err(io::Error::other)
     }
 

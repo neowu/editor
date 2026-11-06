@@ -3,14 +3,19 @@ use std::cmp::Ordering;
 use std::cmp::Reverse;
 use std::cmp::{self};
 use std::collections::BinaryHeap;
+use std::error;
 use std::fmt;
 use std::iter;
+use std::mem;
 use std::ops::ControlFlow;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
+use std::thread::Builder;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -71,16 +76,16 @@ pub struct SyntaxSnapshot {
 // To avoid blocking the main thread, we offload the drop operation to a background thread.
 impl Drop for SyntaxSnapshot {
     fn drop(&mut self) {
-        static DROP_TX: LazyLock<std::sync::mpsc::Sender<SumTree<SyntaxLayerEntry>>> = LazyLock::new(|| {
-            let (tx, rx) = std::sync::mpsc::channel();
-            std::thread::Builder::new()
+        static DROP_TX: LazyLock<Sender<SumTree<SyntaxLayerEntry>>> = LazyLock::new(|| {
+            let (tx, rx) = mpsc::channel();
+            Builder::new()
                 .name("SyntaxSnapshot::drop".into())
                 .spawn(move || while rx.recv().is_ok() {})
                 .expect("failed to spawn drop thread");
             tx
         });
         // This does allocate a new Arc, but it's cheap and avoids blocking the main thread without needing to use an `Option` or `MaybeUninit`.
-        let _ = DROP_TX.send(std::mem::replace(
+        let _ = DROP_TX.send(mem::replace(
             &mut self.layers,
             SumTree::from_summary(SyntaxLayerSummary {
                 min_depth: Default::default(),
@@ -1162,7 +1167,7 @@ impl<'a> SyntaxMapCaptures<'a> {
 
             // TODO - add a Tree-sitter API to remove the need for this.
             let cursor = unsafe {
-                std::mem::transmute::<&mut tree_sitter::QueryCursor, &'static mut QueryCursor>(&mut *query_cursor)
+                mem::transmute::<&mut tree_sitter::QueryCursor, &'static mut QueryCursor>(&mut *query_cursor)
             };
 
             cursor.set_byte_range(range.clone());
@@ -1281,7 +1286,7 @@ impl<'a> SyntaxMapMatches<'a> {
 
             // TODO - add a Tree-sitter API to remove the need for this.
             let cursor = unsafe {
-                std::mem::transmute::<&mut tree_sitter::QueryCursor, &'static mut QueryCursor>(&mut *query_cursor)
+                mem::transmute::<&mut tree_sitter::QueryCursor, &'static mut QueryCursor>(&mut *query_cursor)
             };
             cursor.set_max_start_depth(options.max_start_depth);
 
@@ -1410,11 +1415,10 @@ impl SyntaxMapMatchesLayer<'_> {
                 self.next_captures.extend_from_slice(mat.captures());
                 self.next_pattern_index = mat.pattern_index;
                 self.has_next = true;
-                return;
             } else {
                 self.has_next = false;
-                return;
             }
+            return;
         }
     }
 
@@ -1499,10 +1503,10 @@ fn join_ranges(a: impl Iterator<Item = Range<usize>>, b: impl Iterator<Item = Ra
 #[derive(Copy, Clone, Debug)]
 pub struct ParseTimeout;
 
-impl std::error::Error for ParseTimeout {}
+impl error::Error for ParseTimeout {}
 
-impl std::fmt::Display for ParseTimeout {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for ParseTimeout {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "parse timeout")
     }
 }
@@ -1901,7 +1905,7 @@ impl<'a> SyntaxLayer<'a> {
     }
 }
 
-impl std::ops::Deref for SyntaxMap {
+impl Deref for SyntaxMap {
     type Target = SyntaxSnapshot;
 
     fn deref(&self) -> &Self::Target {
@@ -2074,8 +2078,8 @@ impl sum_tree::Item for SyntaxLayerEntry {
     }
 }
 
-impl std::fmt::Debug for SyntaxLayerEntry {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for SyntaxLayerEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SyntaxLayer")
             .field("depth", &self.depth)
             .field("range", &self.range)

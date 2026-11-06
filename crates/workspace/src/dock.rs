@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -683,14 +684,14 @@ impl Dock {
         {
             if let Some(active_panel_index) = self.active_panel_index.as_mut() {
                 match panel_ix.cmp(active_panel_index) {
-                    std::cmp::Ordering::Less => {
+                    Ordering::Less => {
                         *active_panel_index -= 1;
                     }
-                    std::cmp::Ordering::Equal => {
+                    Ordering::Equal => {
                         self.active_panel_index = None;
                         self.set_open(false, window, cx);
                     }
-                    std::cmp::Ordering::Greater => {}
+                    Ordering::Greater => {}
                 }
             }
 

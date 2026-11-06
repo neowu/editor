@@ -1,6 +1,11 @@
 use std::any::Any;
 use std::any::TypeId;
+use std::error;
+use std::fmt;
+use std::fmt::Debug;
 use std::fmt::Display;
+use std::fmt::Formatter;
+use std::result;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -142,8 +147,8 @@ pub trait Action: Any + Send {
     }
 }
 
-impl std::fmt::Debug for dyn Action {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for dyn Action {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("dyn Action").field("name", &self.name()).finish()
     }
 }
@@ -174,8 +179,8 @@ pub enum ActionBuildError {
     },
 }
 
-impl std::error::Error for ActionBuildError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl error::Error for ActionBuildError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             ActionBuildError::NotFound { .. } => None,
             ActionBuildError::BuildError { error, .. } => error.source(),
@@ -184,7 +189,7 @@ impl std::error::Error for ActionBuildError {
 }
 
 impl Display for ActionBuildError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             ActionBuildError::NotFound { name } => {
                 write!(f, "Didn't find an action named \"{name}\"")
@@ -276,7 +281,7 @@ impl ActionRegistry {
         &self,
         name: &str,
         params: Option<serde_json::Value>,
-    ) -> std::result::Result<Box<dyn Action>, ActionBuildError> {
+    ) -> result::Result<Box<dyn Action>, ActionBuildError> {
         let build_action =
             self.by_name.get(name).ok_or_else(|| ActionBuildError::NotFound { name: name.into() })?.build;
         (build_action)(params.unwrap_or_else(|| json!({})))

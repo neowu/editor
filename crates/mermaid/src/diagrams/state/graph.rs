@@ -2,6 +2,7 @@
 //! Port of Pele's `src/diagrams/state/graph.ts`.
 
 use std::collections::BTreeMap;
+use std::mem;
 
 use super::db::StateDb;
 use super::types::Description;
@@ -10,6 +11,7 @@ use super::types::Stmt;
 use crate::error::Code;
 use crate::error::Error;
 use crate::error::push_u32;
+use crate::text::label;
 
 /// Pele's `StateNode`.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -235,7 +237,7 @@ impl Builder<'_> {
                 }
                 Description::One(text) if !text.is_empty() => {
                     draft.shape = Some("rectWithTitle");
-                    let mut texts = if text == id { Vec::new() } else { vec![std::mem::take(text)] };
+                    let mut texts = if text == id { Vec::new() } else { vec![mem::take(text)] };
                     texts.extend(description.texts().iter().cloned());
                     draft.description = Description::Many(texts);
                 }
@@ -264,11 +266,8 @@ impl Builder<'_> {
             } else {
                 let slot = self.next_slot;
                 self.next_slot += 1;
-                draft.color_index = if crate::text::label::trim(&class_str()).is_empty() && styles.is_empty() {
-                    Some(slot)
-                } else {
-                    None
-                };
+                draft.color_index =
+                    if label::trim(&class_str()).is_empty() && styles.is_empty() { Some(slot) } else { None };
             }
             self.slots.insert(id.to_owned(), draft.color_index);
             draft.css_classes.push_str(" statediagram-cluster ");

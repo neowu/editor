@@ -4,9 +4,11 @@
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::mem;
 
 use super::types::Block;
 use super::types::BlockClassDef;
+use crate::error;
 use crate::error::Code;
 use crate::error::Error;
 use crate::text::label::trim;
@@ -162,7 +164,7 @@ impl BlockDb {
     pub(crate) fn generate_id(&mut self) -> String {
         self.ids += 1;
         let mut id = String::from("id-");
-        crate::error::push_u32(&mut id, self.ids);
+        error::push_u32(&mut id, self.ids);
         id
     }
 
@@ -232,7 +234,7 @@ impl BlockDb {
         let mut stack = vec![Frame { at: 0, children: Vec::new(), list: statements, parent: ROOT }];
         while let Some(f) = stack.last_mut() {
             let Some(&b) = f.list.get(f.at) else {
-                let children = std::mem::take(&mut f.children);
+                let children = mem::take(&mut f.children);
                 let parent = f.parent;
                 if let Some(block) = self.arena.get_mut(parent) {
                     block.children = Some(children);
@@ -275,7 +277,7 @@ impl BlockDb {
                     let count = self.edge_count.get(&id).copied().unwrap_or(0) + 1;
                     self.edge_count.insert(id.clone(), count);
                     let mut counted = String::new();
-                    crate::error::push_u32(&mut counted, count);
+                    error::push_u32(&mut counted, count);
                     counted.push('-');
                     counted.push_str(&id);
                     if let Some(edge) = self.arena.get_mut(b) {
@@ -339,7 +341,7 @@ impl BlockDb {
                     let mut copy = self.arena.get(b).cloned().unwrap_or_default();
                     let mut copy_id = id.clone();
                     copy_id.push('-');
-                    crate::error::push_u32(&mut copy_id, j);
+                    error::push_u32(&mut copy_id, j);
                     copy.id = Some(copy_id.clone());
                     copy.children = Some(Vec::new());
                     let index = self.add(copy);

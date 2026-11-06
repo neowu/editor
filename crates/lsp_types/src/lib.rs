@@ -1,5 +1,8 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fmt;
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::str::FromStr;
 
 use serde::Deserialize;
@@ -40,7 +43,7 @@ const fn fmt_pascal_case_const(name: &str) -> (PascalCaseBuf, usize) {
     (buf, buf_i)
 }
 
-fn fmt_pascal_case(f: &mut std::fmt::Formatter<'_>, name: &str) -> std::fmt::Result {
+fn fmt_pascal_case(f: &mut Formatter<'_>, name: &str) -> fmt::Result {
     for word in name.split('_') {
         let mut chars = word.chars();
         let first = chars.next().unwrap();
@@ -188,8 +191,8 @@ pub enum NumberOrString {
     String(String),
 }
 
-impl std::fmt::Display for NumberOrString {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for NumberOrString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             NumberOrString::Number(n) => write!(f, "{}", n),
             NumberOrString::String(s) => write!(f, "{}", s),
@@ -303,7 +306,7 @@ pub struct LocationLink {
 ///
 /// @since 3.17.0
 #[derive(Debug, Eq, PartialEq, Hash, PartialOrd, Clone, Deserialize, Serialize)]
-pub struct PositionEncodingKind(std::borrow::Cow<'static, str>);
+pub struct PositionEncodingKind(Cow<'static, str>);
 
 impl PositionEncodingKind {
     /// Character offsets count UTF-8 code units.
@@ -323,7 +326,7 @@ impl PositionEncodingKind {
     pub const UTF32: PositionEncodingKind = PositionEncodingKind::new("utf-32");
 
     pub const fn new(tag: &'static str) -> Self {
-        PositionEncodingKind(std::borrow::Cow::Borrowed(tag))
+        PositionEncodingKind(Cow::Borrowed(tag))
     }
 
     pub fn as_str(&self) -> &str {
@@ -396,8 +399,8 @@ impl From<MarkupContent> for DiagnosticMessage {
     }
 }
 
-impl std::fmt::Display for DiagnosticMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for DiagnosticMessage {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
 }
@@ -460,7 +463,7 @@ where
     let opt = Option::<String>::deserialize(deserializer)?;
     match opt {
         Some(s) if s.is_empty() || s == "null" => Ok(None),
-        Some(s) => Uri::from_str(&s).map(Some).map_err(serde::de::Error::custom),
+        Some(s) => Uri::from_str(&s).map(Some).map_err(Error_::custom),
         None => Ok(None),
     }
 }
@@ -912,6 +915,8 @@ mod url_map {
     use std::fmt;
     use std::marker::PhantomData;
 
+    use serde::de as serde_de;
+
     use super::HashMap;
     use super::Uri;
     use super::de;
@@ -971,7 +976,7 @@ mod url_map {
             #[inline]
             fn visit_unit<E>(self) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: serde_de::Error,
             {
                 Ok(None)
             }
@@ -979,7 +984,7 @@ mod url_map {
             #[inline]
             fn visit_none<E>(self) -> Result<Self::Value, E>
             where
-                E: serde::de::Error,
+                E: serde_de::Error,
             {
                 Ok(None)
             }
@@ -1529,10 +1534,10 @@ impl<T> TagSupport<T> {
         S: serde::Deserializer<'de>,
         T: serde::Deserialize<'de>,
     {
-        Ok(match Option::<Value>::deserialize(serializer).map_err(serde::de::Error::custom)? {
+        Ok(match Option::<Value>::deserialize(serializer).map_err(Error_::custom)? {
             Some(Value::Bool(false)) => None,
             Some(Value::Bool(true)) => Some(TagSupport { value_set: vec![] }),
-            Some(other) => Some(TagSupport::<T>::deserialize(other).map_err(serde::de::Error::custom)?),
+            Some(other) => Some(TagSupport::<T>::deserialize(other).map_err(Error_::custom)?),
             None => None,
         })
     }
@@ -2794,6 +2799,8 @@ impl SymbolTag {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Debug;
+
     use serde::Deserialize;
     use serde::Serialize;
 
@@ -2801,7 +2808,7 @@ mod tests {
 
     pub(crate) fn test_serialization<SER>(ms: &SER, expected: &str)
     where
-        SER: Serialize + for<'de> Deserialize<'de> + PartialEq + std::fmt::Debug,
+        SER: Serialize + for<'de> Deserialize<'de> + PartialEq + Debug,
     {
         let json_str = serde_json::to_string(ms).unwrap();
         assert_eq!(&json_str, expected);
@@ -2811,7 +2818,7 @@ mod tests {
 
     pub(crate) fn test_deserialization<T>(json: &str, expected: &T)
     where
-        T: for<'de> Deserialize<'de> + PartialEq + std::fmt::Debug,
+        T: for<'de> Deserialize<'de> + PartialEq + Debug,
     {
         let value = serde_json::from_str::<T>(json).unwrap();
         assert_eq!(&value, expected);
@@ -2904,10 +2911,8 @@ mod tests {
 
     #[test]
     fn initialize_params_sends_root_uri_without_root_path() {
-        let params = InitializeParams {
-            root_uri: Some(Uri::from_str("file:///project").unwrap()),
-            ..Default::default()
-        };
+        let params =
+            InitializeParams { root_uri: Some(Uri::from_str("file:///project").unwrap()), ..Default::default() };
         let json = serde_json::to_value(&params).unwrap();
         assert_eq!(json["rootUri"], "file:///project");
         assert!(json.get("rootPath").is_none());
@@ -2958,8 +2963,6 @@ mod tests {
         assert_eq!(item.scope_uri, None);
 
         // Malformed URI still produces an error
-        assert!(
-            serde_json::from_str::<ConfigurationItem>(r#"{"scopeUri": "not a valid uri", "section": "yaml"}"#).is_err()
-        );
+        serde_json::from_str::<ConfigurationItem>(r#"{"scopeUri": "not a valid uri", "section": "yaml"}"#).unwrap_err();
     }
 }

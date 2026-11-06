@@ -12,6 +12,7 @@ use ui::prelude::*;
 use crate::ItemHandle;
 use crate::Pane;
 use crate::Workspace;
+use crate::pane;
 
 actions!(
     preview,
@@ -75,7 +76,7 @@ pub(crate) fn render_tab_bar_preview_button(pane: &Pane, cx: &App) -> Option<Any
     let (_, label) = find_provider(item.as_ref(), cx)?;
     let workspace = pane.workspace.clone();
     Some(
-        crate::pane::top_row_icon_button("toggle-preview", IconName::Eye)
+        pane::top_row_icon_button("toggle-preview", IconName::Eye)
             .tooltip(move |_window, cx| {
                 Tooltip::with_meta(
                     label,

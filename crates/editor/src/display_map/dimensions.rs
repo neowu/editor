@@ -1,3 +1,7 @@
+use std::ops::Add;
+use std::ops::AddAssign;
+use std::ops::Sub;
+use std::ops::SubAssign;
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
 pub struct RowDelta(pub u32);
 
@@ -7,7 +11,7 @@ impl RowDelta {
     }
 }
 
-impl ::std::ops::Add for RowDelta {
+impl Add for RowDelta {
     type Output = RowDelta;
 
     fn add(self, rhs: RowDelta) -> Self::Output {
@@ -15,7 +19,7 @@ impl ::std::ops::Add for RowDelta {
     }
 }
 
-impl ::std::ops::Sub for RowDelta {
+impl Sub for RowDelta {
     type Output = RowDelta;
 
     fn sub(self, rhs: RowDelta) -> Self::Output {
@@ -23,13 +27,13 @@ impl ::std::ops::Sub for RowDelta {
     }
 }
 
-impl ::std::ops::AddAssign for RowDelta {
+impl AddAssign for RowDelta {
     fn add_assign(&mut self, rhs: RowDelta) {
         self.0 += rhs.0;
     }
 }
 
-impl ::std::ops::SubAssign for RowDelta {
+impl SubAssign for RowDelta {
     fn sub_assign(&mut self, rhs: RowDelta) {
         self.0 -= rhs.0;
     }

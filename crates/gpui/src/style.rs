@@ -8,6 +8,7 @@ use collections::HashSet;
 use refineable::Refineable;
 use serde::Deserialize;
 use serde::Serialize;
+use taffy::style;
 
 use crate::AbsoluteLength;
 use crate::App;
@@ -1131,7 +1132,7 @@ pub enum Position {
     Absolute,
 }
 
-impl From<AlignItems> for taffy::style::AlignItems {
+impl From<AlignItems> for style::AlignItems {
     fn from(value: AlignItems) -> Self {
         match value {
             AlignItems::Start => Self::START,
@@ -1145,7 +1146,7 @@ impl From<AlignItems> for taffy::style::AlignItems {
     }
 }
 
-impl From<AlignContent> for taffy::style::AlignContent {
+impl From<AlignContent> for style::AlignContent {
     fn from(value: AlignContent) -> Self {
         match value {
             AlignContent::Start => Self::START,
@@ -1161,7 +1162,7 @@ impl From<AlignContent> for taffy::style::AlignContent {
     }
 }
 
-impl From<Display> for taffy::style::Display {
+impl From<Display> for style::Display {
     fn from(value: Display) -> Self {
         match value {
             Display::Block => Self::Block,
@@ -1172,7 +1173,7 @@ impl From<Display> for taffy::style::Display {
     }
 }
 
-impl From<FlexWrap> for taffy::style::FlexWrap {
+impl From<FlexWrap> for style::FlexWrap {
     fn from(value: FlexWrap) -> Self {
         match value {
             FlexWrap::NoWrap => Self::NoWrap,
@@ -1182,7 +1183,7 @@ impl From<FlexWrap> for taffy::style::FlexWrap {
     }
 }
 
-impl From<FlexDirection> for taffy::style::FlexDirection {
+impl From<FlexDirection> for style::FlexDirection {
     fn from(value: FlexDirection) -> Self {
         match value {
             FlexDirection::Row => Self::Row,
@@ -1193,7 +1194,7 @@ impl From<FlexDirection> for taffy::style::FlexDirection {
     }
 }
 
-impl From<Overflow> for taffy::style::Overflow {
+impl From<Overflow> for style::Overflow {
     fn from(value: Overflow) -> Self {
         match value {
             Overflow::Visible => Self::Visible,
@@ -1204,7 +1205,7 @@ impl From<Overflow> for taffy::style::Overflow {
     }
 }
 
-impl From<Position> for taffy::style::Position {
+impl From<Position> for style::Position {
     fn from(value: Position) -> Self {
         match value {
             Position::Relative => Self::Relative,

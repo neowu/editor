@@ -15,6 +15,7 @@ use super::parser::LabelAst;
 use super::parser::WardleyAst;
 use crate::error::Code;
 use crate::error::Error;
+use crate::text::label;
 use crate::text::label::trim;
 use crate::util::chars::is_space;
 use crate::yaml::push_number;
@@ -287,10 +288,7 @@ pub(crate) fn build_wardley(ast: WardleyAst, title: Option<&str>) -> Result<Ward
     populate(&ast, &mut db)?;
     Ok(WardleyModel {
         acc_descr: ast.acc_descr.filter(|text| !text.is_empty()).map(|text| collapse_indents(&text)),
-        acc_title: ast
-            .acc_title
-            .filter(|text| !text.is_empty())
-            .map(|text| crate::text::label::trim_start(&text).to_owned()),
+        acc_title: ast.acc_title.filter(|text| !text.is_empty()).map(|text| label::trim_start(&text).to_owned()),
         build: db.build(),
         title: ast.title.filter(|text| !text.is_empty()).or_else(|| title.map(str::to_owned)),
     })

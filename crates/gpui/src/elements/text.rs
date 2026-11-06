@@ -844,8 +844,8 @@ impl Element for InteractiveText {
 
                 let text_layout = text_layout.clone();
                 let mouse_down = interactive_state.mouse_down_index.clone();
+                let hitbox = hitbox.clone();
                 if let Some(mouse_down_index) = mouse_down.get() {
-                    let hitbox = hitbox.clone();
                     let clickable_ranges = mem::take(&mut self.clickable_ranges);
                     window.on_mouse_event(move |event: &MouseUpEvent, phase, window: &mut Window, cx| {
                         if phase == DispatchPhase::Bubble && hitbox.is_hovered(window) {
@@ -863,7 +863,6 @@ impl Element for InteractiveText {
                         }
                     });
                 } else {
-                    let hitbox = hitbox.clone();
                     window.on_mouse_event(move |event: &MouseDownEvent, phase, window, _| {
                         if phase == DispatchPhase::Bubble
                             && hitbox.is_hovered(window)

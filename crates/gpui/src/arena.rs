@@ -160,7 +160,7 @@ impl Arena {
         }
 
         unsafe fn drop<T>(ptr: *mut u8) {
-            unsafe { std::ptr::drop_in_place(ptr.cast::<T>()) };
+            unsafe { ptr::drop_in_place(ptr.cast::<T>()) };
         }
 
         let layout = alloc::Layout::new::<T>();

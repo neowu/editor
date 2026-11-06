@@ -181,7 +181,7 @@ impl ToastLayer {
     pub fn start_dismiss_timer(&mut self, duration: Duration, cx: &mut Context<Self>) {
         self.clear_dismiss_timer(cx);
 
-        let instant_started = std::time::Instant::now();
+        let instant_started = Instant::now();
         let task = cx.spawn(async move |this, cx| {
             cx.background_executor().timer(duration).await;
 

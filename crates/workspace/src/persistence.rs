@@ -1,3 +1,9 @@
+use std::fs as std_fs;
+use std::time::Duration;
+
+use futures::future;
+use futures::lock;
+use project::git_store;
 pub mod model;
 
 use std::path::Path;
@@ -201,7 +207,7 @@ pub struct ProjectsStore {
     state: Arc<Mutex<ProjectsFile>>,
     /// Projects marked open at launch, before restored windows update the flags.
     last_session: Vec<ProjectLocation>,
-    write_lock: Arc<futures::lock::Mutex<()>>,
+    write_lock: Arc<lock::Mutex<()>>,
 }
 
 struct GlobalProjectsStore(Arc<ProjectsStore>);
@@ -210,7 +216,7 @@ impl Global for GlobalProjectsStore {}
 
 impl ProjectsStore {
     fn load(fs: Arc<dyn Fs>, path: PathBuf) -> ProjectsStore {
-        let file = std::fs::read_to_string(&path).map(|text| ProjectsFile::parse(&text)).unwrap_or_default();
+        let file = std_fs::read_to_string(&path).map(|text| ProjectsFile::parse(&text)).unwrap_or_default();
         ProjectsStore {
             fs,
             path,
@@ -293,7 +299,7 @@ fn track_session(cx: &App) {
                     ProjectsStore::global(cx).set_open(&open, cx).detach();
                 }
             });
-            cx.background_executor().timer(std::time::Duration::from_millis(500)).await;
+            cx.background_executor().timer(Duration::from_millis(500)).await;
         }
     })
     .detach();
@@ -505,10 +511,8 @@ fn location_identity(location: &SerializedWorkspaceLocation) -> Option<RemoteCon
 
 async fn resolve_local_workspace_identity(fs: &dyn Fs, paths: &PathList) -> Option<PathList> {
     let raw_paths = paths.paths();
-    let resolved_paths = futures::future::join_all(
-        raw_paths.iter().map(|path| project::git_store::resolve_git_worktree_to_main_repo(fs, path)),
-    )
-    .await;
+    let resolved_paths =
+        future::join_all(raw_paths.iter().map(|path| git_store::resolve_git_worktree_to_main_repo(fs, path))).await;
 
     if resolved_paths.iter().all(|resolved| resolved.is_none()) {
         return None;
@@ -541,6 +545,7 @@ mod tests {
 
     use time::OffsetDateTime;
     use util::path_list::PathList;
+    use util::rel_path::RelPath;
 
     use super::ProjectLocation;
     use super::ProjectsFile;
@@ -678,8 +683,8 @@ mod tests {
 
     #[test]
     fn test_is_in_workspace_state_dir() {
-        fn rel(path: &str) -> &util::rel_path::RelPath {
-            util::rel_path::RelPath::from_unix_str(path).unwrap()
+        fn rel(path: &str) -> &RelPath {
+            RelPath::from_unix_str(path).unwrap()
         }
         assert!(is_in_workspace_state_dir(rel(".ed")));
         assert!(is_in_workspace_state_dir(rel(".ed/workspace.json")));

@@ -7,6 +7,7 @@ use gpui::Global;
 use gpui::Task;
 use gpui::WeakEntity;
 use lsp::LanguageServer;
+use lsp::request::Request;
 
 use crate::LspStore;
 
@@ -17,7 +18,7 @@ use crate::LspStore;
 /// In our case, we provide the bundled schemas under the `ed://schemas/{name}` scheme and respond with their content on demand.
 struct SchemaContentRequest {}
 
-impl lsp::request::Request for SchemaContentRequest {
+impl Request for SchemaContentRequest {
     type Params = Vec<String>;
 
     type Result = String;

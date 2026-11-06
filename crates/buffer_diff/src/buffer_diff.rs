@@ -1,4 +1,7 @@
 use std::cmp::Ordering;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::iter;
 use std::ops::Range;
 use std::ops::RangeInclusive;
@@ -94,8 +97,8 @@ pub struct BufferDiffSnapshot {
     secondary_diff: Option<Arc<BufferDiffSnapshot>>,
 }
 
-impl std::fmt::Debug for BufferDiffSnapshot {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for BufferDiffSnapshot {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("BufferDiffSnapshot")
             .field("hunks", &self.hunks)
             .field("remote_id", &self.base_text.remote_id())
@@ -550,7 +553,7 @@ impl BufferDiffSnapshot {
         }
         let range_end = original_snapshot.anchor_before(range_end);
 
-        let hunk_iter = std::iter::from_fn(move || {
+        let hunk_iter = iter::from_fn(move || {
             if let Some(edit) = prefix_edit.take() {
                 return Some(edit);
             }
@@ -1280,8 +1283,8 @@ fn compare_hunks(
     DiffChanged { changed_range, base_text_changed_range, extended_range, base_text_changed: false }
 }
 
-impl std::fmt::Debug for BufferDiff {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for BufferDiff {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("BufferChangeSet").field("buffer_id", &self.buffer_id).finish()
     }
 }

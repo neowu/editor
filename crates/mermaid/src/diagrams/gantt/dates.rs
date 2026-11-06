@@ -7,6 +7,7 @@
 use super::js_date::DAY;
 use super::js_date::Date;
 use super::js_date::{self};
+use crate::svg::builder;
 use crate::util::chars::is_digit;
 use crate::util::chars::is_space;
 use crate::yaml::push_number;
@@ -165,7 +166,7 @@ fn js_round(value: f64) -> f64 {
     if value.is_nan() {
         return value;
     }
-    crate::svg::builder::js_round(value)
+    builder::js_round(value)
 }
 
 /// The Thursday of the ISO week of `date`.

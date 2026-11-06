@@ -1,3 +1,22 @@
+use std::any;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::marker;
+use std::result;
+use std::slice::Iter;
+use std::sync::LazyLock;
+
+use base64::engine::general_purpose::STANDARD;
+use ed_actions::workspace::CopyPath;
+use ed_actions::workspace::CopyRelativePath;
+use project::search::SearchQuery;
+use theme::built_in;
+use ui::font;
+use util::paths::PathMatcher;
+
+use crate::actions::AlignSelections;
+use crate::mouse_context_menu::MenuPosition;
 pub mod actions;
 pub mod blink_manager;
 mod bracket_colorization;
@@ -847,16 +866,15 @@ pub struct EditorStyle {
 
 impl Default for EditorStyle {
     fn default() -> Self {
-        static NONE_SYNTAX: std::sync::LazyLock<Arc<SyntaxTheme>> =
-            std::sync::LazyLock::new(|| Arc::new(SyntaxTheme::default()));
+        static NONE_SYNTAX: LazyLock<Arc<SyntaxTheme>> = LazyLock::new(|| Arc::new(SyntaxTheme::default()));
         Self {
             background: Hsla::default(),
             border: Hsla::default(),
-            local_player: theme::built_in::player_color(),
+            local_player: built_in::player_color(),
             text: TextStyle::default(),
             scrollbar_width: Pixels::default(),
             syntax: NONE_SYNTAX.clone(),
-            status: theme::built_in::status_colors(),
+            status: built_in::status_colors(),
             inlay_hints_style: HighlightStyle::default(),
             unnecessary_code_fade: Default::default(),
             show_underlines: true,
@@ -1003,9 +1021,9 @@ pub trait Addon: 'static {
         true
     }
 
-    fn to_any(&self) -> &dyn std::any::Any;
+    fn to_any(&self) -> &dyn Any;
 
-    fn to_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
+    fn to_any_mut(&mut self) -> Option<&mut dyn Any> {
         None
     }
 }
@@ -1623,12 +1641,9 @@ struct SelectNextState {
     done: bool,
 }
 
-impl std::fmt::Debug for SelectNextState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct(std::any::type_name::<Self>())
-            .field("wordwise", &self.wordwise)
-            .field("done", &self.done)
-            .finish()
+impl Debug for SelectNextState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.debug_struct(any::type_name::<Self>()).field("wordwise", &self.wordwise).field("done", &self.done).finish()
     }
 }
 
@@ -2066,8 +2081,12 @@ impl Editor {
             soft_wrap_mode_override,
             diagnostics_max_severity,
             hard_wrap: None,
-            completion_provider: project.clone().map(|project| Rc::new(project) as _),
-            semantics_provider: project.as_ref().map(|project| Rc::new(project.downgrade()) as _),
+            completion_provider: project
+                .clone()
+                .map(|project| Rc::new(project) as Rc<dyn completions::CompletionProvider>),
+            semantics_provider: project
+                .as_ref()
+                .map(|project| Rc::new(project.downgrade()) as Rc<dyn SemanticsProvider>),
 
             project,
             blink_manager: blink_manager.clone(),
@@ -2308,13 +2327,8 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.mouse_context_menu = Some(MouseContextMenu::new(
-            self,
-            crate::mouse_context_menu::MenuPosition::PinnedToScreen(position),
-            context_menu,
-            window,
-            cx,
-        ));
+        self.mouse_context_menu =
+            Some(MouseContextMenu::new(self, MenuPosition::PinnedToScreen(position), context_menu, window, cx));
     }
 
     pub fn key_context(&self, window: &mut Window, cx: &mut App) -> KeyContext {
@@ -2546,7 +2560,7 @@ impl Editor {
     /// otherwise just logs the error.
     pub fn detach_and_notify_err<R, E>(&self, task: Task<Result<R, E>>, window: &mut Window, cx: &mut App)
     where
-        E: std::fmt::Debug + std::fmt::Display + 'static,
+        E: Debug + fmt::Display + 'static,
         R: 'static,
     {
         if let Some(workspace) = self.workspace() {
@@ -2765,7 +2779,7 @@ impl Editor {
         head
     }
 
-    pub fn range_for_match<T: std::marker::Copy>(&self, range: &Range<T>) -> Range<T> {
+    pub fn range_for_match<T: marker::Copy>(&self, range: &Range<T>) -> Range<T> {
         if self.collapse_matches {
             return range.start..range.start;
         }
@@ -3208,13 +3222,13 @@ impl Editor {
                     .into_iter()
                     .filter(|(_, excerpt_visible_range, _)| !excerpt_visible_range.is_empty());
                 let mut match_ranges = Vec::new();
-                let Ok(regex) = project::search::SearchQuery::text(
+                let Ok(regex) = SearchQuery::text(
                     query_text,
                     false,
                     false,
                     false,
-                    util::paths::PathMatcher::default(),
-                    util::paths::PathMatcher::default(),
+                    PathMatcher::default(),
+                    PathMatcher::default(),
                     false,
                     None,
                 ) else {
@@ -4607,12 +4621,7 @@ impl Editor {
             MouseContextMenu::pinned_to_editor(self, source, clicked_point, context_menu, window, cx);
     }
 
-    pub fn align_selections(
-        &mut self,
-        _: &crate::actions::AlignSelections,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    pub fn align_selections(&mut self, _: &AlignSelections, window: &mut Window, cx: &mut Context<Self>) {
         if self.read_only(cx) {
             return;
         }
@@ -4837,8 +4846,7 @@ impl Editor {
                     .collect();
 
                 let num_rows = all_rows.len();
-                let row_to_index: std::collections::HashMap<u32, usize> =
-                    all_rows.iter().enumerate().map(|(i, &row)| (row, i)).collect();
+                let row_to_index: HashMap<u32, usize> = all_rows.iter().enumerate().map(|(i, &row)| (row, i)).collect();
 
                 let mut old_line_end = 0;
                 let mut new_line_end = 0;
@@ -5211,12 +5219,12 @@ impl Editor {
 
     pub fn convert_to_base64(&mut self, _: &ConvertToBase64, window: &mut Window, cx: &mut Context<Self>) {
         use base64::Engine as _;
-        self.manipulate_text(window, cx, |text| base64::engine::general_purpose::STANDARD.encode(text))
+        self.manipulate_text(window, cx, |text| STANDARD.encode(text))
     }
 
     pub fn convert_from_base64(&mut self, _: &ConvertFromBase64, window: &mut Window, cx: &mut Context<Self>) {
         use base64::Engine as _;
-        self.manipulate_text(window, cx, |text| match base64::engine::general_purpose::STANDARD.decode(text) {
+        self.manipulate_text(window, cx, |text| match STANDARD.decode(text) {
             Ok(bytes) => String::from_utf8(bytes).unwrap_or_else(|_| text.to_string()),
             Err(_) => text.to_string(),
         })
@@ -6458,7 +6466,7 @@ impl Editor {
         }
     }
 
-    fn copy_path(&mut self, _: &ed_actions::workspace::CopyPath, _window: &mut Window, cx: &mut Context<Self>) {
+    fn copy_path(&mut self, _: &CopyPath, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(path) = self.target_file_abs_path(cx)
             && let Some(path) = path.to_str()
         {
@@ -6468,12 +6476,7 @@ impl Editor {
         }
     }
 
-    fn copy_relative_path(
-        &mut self,
-        _: &ed_actions::workspace::CopyRelativePath,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn copy_relative_path(&mut self, _: &CopyRelativePath, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(path) = self.active_buffer(cx).and_then(|buffer| Some(buffer.read(cx).file()?.path().clone())) {
             cx.write_to_clipboard(ClipboardItem::new_string(path.display().to_string()));
         } else {
@@ -7742,16 +7745,16 @@ impl Editor {
         if self.mode.is_minimap() {
             return;
         }
-        self.addons.insert(std::any::TypeId::of::<T>(), Box::new(instance));
+        self.addons.insert(TypeId::of::<T>(), Box::new(instance));
     }
 
     pub fn addon<T: Addon>(&self) -> Option<&T> {
-        let type_id = std::any::TypeId::of::<T>();
+        let type_id = TypeId::of::<T>();
         self.addons.get(&type_id).and_then(|item| item.to_any().downcast_ref::<T>())
     }
 
     pub fn addon_mut<T: Addon>(&mut self) -> Option<&mut T> {
-        let type_id = std::any::TypeId::of::<T>();
+        let type_id = TypeId::of::<T>();
         self.addons.get_mut(&type_id).and_then(|item| item.to_any_mut()?.downcast_mut::<T>())
     }
 
@@ -7905,21 +7908,21 @@ impl Editor {
         let mut text_style = match self.mode {
             EditorMode::SingleLine | EditorMode::AutoHeight { .. } => TextStyle {
                 color: cx.theme().colors().editor_foreground,
-                font_family: ui::font::ui_font().family.clone(),
-                font_features: ui::font::ui_font().features.clone(),
-                font_fallbacks: ui::font::ui_font().fallbacks.clone(),
+                font_family: font::ui_font().family.clone(),
+                font_features: font::ui_font().features.clone(),
+                font_fallbacks: font::ui_font().fallbacks.clone(),
                 font_size: rems(0.875).into(),
-                font_weight: ui::font::ui_font().weight,
+                font_weight: font::ui_font().weight,
                 line_height: relative(BUFFER_LINE_HEIGHT),
                 ..Default::default()
             },
             EditorMode::Full { .. } | EditorMode::Minimap { .. } => TextStyle {
                 color: cx.theme().colors().editor_foreground,
-                font_family: ui::font::buffer_font().family.clone(),
-                font_features: ui::font::buffer_font().features.clone(),
-                font_fallbacks: ui::font::buffer_font().fallbacks.clone(),
-                font_size: ui::font::buffer_font_size(cx).into(),
-                font_weight: ui::font::buffer_font().weight,
+                font_family: font::buffer_font().family.clone(),
+                font_features: font::buffer_font().features.clone(),
+                font_fallbacks: font::buffer_font().fallbacks.clone(),
+                font_size: font::buffer_font_size(cx).into(),
+                font_weight: font::buffer_font().weight,
                 line_height: relative(BUFFER_LINE_HEIGHT),
                 ..Default::default()
             },
@@ -8129,7 +8132,7 @@ pub trait SemanticsProvider {
         &self,
         buffer: Entity<Buffer>,
         cx: &mut App,
-    ) -> Option<Shared<Task<std::result::Result<BufferSemanticTokens, Arc<anyhow::Error>>>>>;
+    ) -> Option<Shared<Task<result::Result<BufferSemanticTokens, Arc<anyhow::Error>>>>>;
 
     fn supports_inlay_hints(&self, buffer: &Entity<Buffer>, cx: &mut App) -> bool;
 
@@ -8280,7 +8283,7 @@ impl SemanticsProvider for WeakEntity<Project> {
         &self,
         buffer: Entity<Buffer>,
         cx: &mut App,
-    ) -> Option<Shared<Task<std::result::Result<BufferSemanticTokens, Arc<anyhow::Error>>>>> {
+    ) -> Option<Shared<Task<result::Result<BufferSemanticTokens, Arc<anyhow::Error>>>>> {
         self.update(cx, |this, cx| this.lsp_store().update(cx, |lsp_store, cx| lsp_store.semantic_tokens(buffer, cx)))
             .ok()
     }
@@ -8342,7 +8345,7 @@ fn consume_contiguous_rows(
     contiguous_row_selections: &mut Vec<Selection<Point>>,
     selection: &Selection<Point>,
     display_map: &DisplaySnapshot,
-    selections: &mut Peekable<std::slice::Iter<Selection<Point>>>,
+    selections: &mut Peekable<Iter<Selection<Point>>>,
 ) -> (MultiBufferRow, MultiBufferRow) {
     contiguous_row_selections.push(*selection);
     let start_row = starting_row(selection, display_map);
@@ -8778,10 +8781,10 @@ impl ui_input::ErasedEditor for ErasedEditorImpl {
         let theme_color = cx.theme().colors();
 
         let text_style = TextStyle {
-            font_family: ui::font::ui_font().family.clone(),
-            font_features: ui::font::ui_font().features.clone(),
+            font_family: font::ui_font().family.clone(),
+            font_features: font::ui_font().features.clone(),
             font_size: rems(0.875).into(),
-            font_weight: ui::font::ui_font().weight,
+            font_weight: font::ui_font().weight,
             font_style: FontStyle::Normal,
             line_height: relative(1.2),
             color: theme_color.text,
@@ -8952,7 +8955,7 @@ pub trait RowExt {
 
 impl RowExt for DisplayRow {
     fn as_f64(&self) -> f64 {
-        self.0 as _
+        self.0 as f64
     }
 
     fn next_row(&self) -> Self {
@@ -8970,7 +8973,7 @@ impl RowExt for DisplayRow {
 
 impl RowExt for MultiBufferRow {
     fn as_f64(&self) -> f64 {
-        self.0 as _
+        self.0 as f64
     }
 
     fn next_row(&self) -> Self {
@@ -9044,6 +9047,8 @@ struct LineManipulationResult {
 
 #[cfg(test)]
 mod tests {
+    use std::any::Any;
+
     use gpui::Modifiers;
 
     use super::Addon;
@@ -9056,7 +9061,7 @@ mod tests {
     struct DefaultAddon;
 
     impl Addon for DefaultAddon {
-        fn to_any(&self) -> &dyn std::any::Any {
+        fn to_any(&self) -> &dyn Any {
             self
         }
     }

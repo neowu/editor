@@ -1,5 +1,7 @@
 //! The XY chart database. Port of Pele's `src/diagrams/xychart/db.ts`.
 
+use std::mem;
+
 use crate::text::label::trim;
 use crate::text::label::trim_start;
 use crate::util::chars::is_space;
@@ -140,14 +142,14 @@ impl XyChartDb {
 
     /// Makes the x axis a numeric range.
     pub(crate) fn set_x_axis_range_data(&mut self, min: f64, max: f64) {
-        let title = std::mem::take(self.x_axis.title_mut());
+        let title = mem::take(self.x_axis.title_mut());
         self.x_axis = XAxis::Linear(LinearAxis { max, min, title });
         self.has_set_x_axis = true;
     }
 
     /// Makes the x axis categories.
     pub(crate) fn set_x_axis_band(&mut self, categories: &[String]) {
-        let title = std::mem::take(self.x_axis.title_mut());
+        let title = mem::take(self.x_axis.title_mut());
         self.x_axis = XAxis::Band { categories: categories.iter().map(|c| trim(c).to_owned()).collect(), title };
         self.has_set_x_axis = true;
     }

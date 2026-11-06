@@ -211,16 +211,14 @@ fn draw(model: &PacketModel, config: &Value, options: &Options, down: bool) -> R
                 continue;
             }
             let (leading, trailing) = if descending { (block.end, block.start) } else { (block.start, block.end) };
+            bits.push_str("<text x=\"");
             if count == 1.0 {
-                bits.push_str("<text x=\"");
                 push_num(&mut bits, x + w / 2.0);
                 bits.push_str("\" y=\"");
                 push_num(&mut bits, y - 4.0);
                 bits.push_str("\" text-anchor=\"middle\">");
                 push_number(&mut bits, leading);
-                bits.push_str("</text>");
             } else {
-                bits.push_str("<text x=\"");
                 push_num(&mut bits, x);
                 bits.push_str("\" y=\"");
                 push_num(&mut bits, y - 4.0);
@@ -232,8 +230,8 @@ fn draw(model: &PacketModel, config: &Value, options: &Options, down: bool) -> R
                 push_num(&mut bits, y - 4.0);
                 bits.push_str("\" text-anchor=\"end\">");
                 push_number(&mut bits, trailing);
-                bits.push_str("</text>");
             }
+            bits.push_str("</text>");
         }
     }
 

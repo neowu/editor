@@ -66,6 +66,7 @@ use workspace::ItemNavHistory;
 use workspace::Workspace;
 use workspace::item::Item;
 use workspace::item::ItemEvent;
+use workspace::item::SaveOptions;
 use workspace::item::TabContentParams;
 
 use crate::DIAGNOSTICS_UPDATE_DEBOUNCE;
@@ -547,7 +548,7 @@ impl Item for BufferDiagnosticsEditor {
 
     fn act_as_type<'a>(
         &'a self,
-        type_id: std::any::TypeId,
+        type_id: TypeId,
         self_handle: &'a Entity<Self>,
         _: &'a App,
     ) -> Option<gpui::AnyEntity> {
@@ -625,7 +626,7 @@ impl Item for BufferDiagnosticsEditor {
 
     fn save(
         &mut self,
-        options: workspace::item::SaveOptions,
+        options: SaveOptions,
         project: Entity<Project>,
         window: &mut Window,
         cx: &mut Context<Self>,

@@ -52,6 +52,7 @@
 use std::any::Any;
 use std::any::TypeId;
 use std::cell::RefCell;
+use std::iter;
 use std::mem;
 use std::ops::Range;
 use std::rc::Rc;
@@ -542,10 +543,8 @@ impl DispatchTree {
     pub fn view_path_reversed(&self, view_id: EntityId) -> impl Iterator<Item = EntityId> {
         let current_node_id = self.view_node_ids.get(&view_id).copied();
 
-        std::iter::successors(current_node_id.map(|node_id| self.node(node_id)), |node_id| {
-            Some(self.node(node_id.parent?))
-        })
-        .filter_map(|node| node.view_id)
+        iter::successors(current_node_id.map(|node_id| self.node(node_id)), |node_id| Some(self.node(node_id.parent?)))
+            .filter_map(|node| node.view_id)
     }
 
     pub fn node(&self, node_id: DispatchNodeId) -> &DispatchNode {

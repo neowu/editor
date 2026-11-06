@@ -1,6 +1,8 @@
 //! Node shapes: their sizes around a label, their outlines, and where edges meet them. Port of
 //! Pele's `src/svg/shapes.ts`. Unknown shape names draw and size as `rect`.
 
+use std::f64::consts::FRAC_1_SQRT_2;
+
 use crate::layout::compound::CNode;
 use crate::svg::builder::num;
 use crate::svg::theme::ROUNDED;
@@ -601,7 +603,7 @@ pub(crate) fn draw_shape(shape: &str, w: f64, h: f64, a: &str, line: &str) -> St
         }
         "cross-circ" => {
             let r = w / 2.0;
-            let k = r * std::f64::consts::FRAC_1_SQRT_2;
+            let k = r * FRAC_1_SQRT_2;
             [
                 &circle(r, a),
                 "<path d=\"M",

@@ -4,6 +4,8 @@
 //! Pele keeps a statement that links blocks as a list, and flattens lists when it places them.
 //! Lists here are flattened as they are built, which keeps the same order.
 
+use std::mem;
+
 use super::db::BlockDb;
 use super::db::edge_str_to_edge_data;
 use super::db::edge_str_to_edge_start_data;
@@ -232,7 +234,7 @@ pub(crate) fn parse_block(src: &str, db: &mut BlockDb) -> Result<(), Error> {
             }
             T::Key => {
                 p.i += 1;
-                open.push(Frame { header: None, list: std::mem::take(&mut list) });
+                open.push(Frame { header: None, list: mem::take(&mut list) });
             }
             T::IdBlock => {
                 p.i += 1;
@@ -240,7 +242,7 @@ pub(crate) fn parse_block(src: &str, db: &mut BlockDb) -> Result<(), Error> {
                     return Err(p.fail("'NODE_ID'"));
                 }
                 let header = p.node_statement()?;
-                open.push(Frame { header: Some(header), list: std::mem::take(&mut list) });
+                open.push(Frame { header: Some(header), list: mem::take(&mut list) });
             }
             T::EndKeyword => {
                 let Some(frame) = open.pop().filter(|_| !list.is_empty()) else {
@@ -248,7 +250,7 @@ pub(crate) fn parse_block(src: &str, db: &mut BlockDb) -> Result<(), Error> {
                 };
                 p.i += 1;
                 let id = p.db.generate_id();
-                let children = std::mem::replace(&mut list, frame.list);
+                let children = mem::replace(&mut list, frame.list);
                 let composite = match frame.header {
                     None => p.db.add(Block {
                         children: Some(children),

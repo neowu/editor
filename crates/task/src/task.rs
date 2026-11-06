@@ -1,5 +1,10 @@
 //! Baseline interface of Tasks in ed: all tasks in ed are intended to use those for implementing their own logic.
 
+use std::fmt;
+use std::fmt::Display;
+
+use proto::shell::ShellType;
+use proto::shell::WithArguments;
 mod task_template;
 
 use std::borrow::Cow;
@@ -177,8 +182,8 @@ impl FromStr for VariableName {
 pub const ED_VARIABLE_NAME_PREFIX: &str = "ED_";
 const ED_CUSTOM_VARIABLE_NAME_PREFIX: &str = "CUSTOM_";
 
-impl std::fmt::Display for VariableName {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for VariableName {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> fmt::Result {
         match self {
             Self::File => write!(f, "{ED_VARIABLE_NAME_PREFIX}FILE"),
             Self::Filename => write!(f, "{ED_VARIABLE_NAME_PREFIX}FILENAME"),
@@ -269,9 +274,9 @@ pub struct RunnableTag(pub SharedString);
 pub fn shell_from_proto(proto: proto::Shell) -> anyhow::Result<Shell> {
     let shell_type = proto.shell_type.context("invalid shell type")?;
     let shell = match shell_type {
-        proto::shell::ShellType::System(_) => Shell::System,
-        proto::shell::ShellType::Program(program) => Shell::Program(program),
-        proto::shell::ShellType::WithArguments(program) => {
+        ShellType::System(_) => Shell::System,
+        ShellType::Program(program) => Shell::Program(program),
+        ShellType::WithArguments(program) => {
             Shell::WithArguments { program: program.program, args: program.args, title_override: None }
         }
     };
@@ -280,10 +285,10 @@ pub fn shell_from_proto(proto: proto::Shell) -> anyhow::Result<Shell> {
 
 pub fn shell_to_proto(shell: Shell) -> proto::Shell {
     let shell_type = match shell {
-        Shell::System => proto::shell::ShellType::System(proto::System {}),
-        Shell::Program(program) => proto::shell::ShellType::Program(program),
+        Shell::System => ShellType::System(proto::System {}),
+        Shell::Program(program) => ShellType::Program(program),
         Shell::WithArguments { program, args, title_override: _ } => {
-            proto::shell::ShellType::WithArguments(proto::shell::WithArguments { program, args })
+            ShellType::WithArguments(WithArguments { program, args })
         }
     };
     proto::Shell { shell_type: Some(shell_type) }

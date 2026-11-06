@@ -1,5 +1,9 @@
-use std::cmp::{self};
+use std::cmp;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use ed_actions::command_palette::Toggle;
@@ -248,7 +252,7 @@ impl PickerDelegate for CommandPaletteDelegate {
                     fuzzy_nucleo::Case::Smart,
                     fuzzy_nucleo::LengthPenalty::On,
                     10000,
-                    &std::sync::atomic::AtomicBool::default(),
+                    &AtomicBool::default(),
                     executor,
                 )
                 .await;
@@ -422,8 +426,8 @@ pub fn humanize_action_name(name: &str) -> String {
     result
 }
 
-impl std::fmt::Debug for Command {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for Command {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Command").field("name", &self.name).finish_non_exhaustive()
     }
 }

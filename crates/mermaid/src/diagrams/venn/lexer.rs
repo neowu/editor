@@ -6,6 +6,7 @@
 //! non-ASCII character is decoded whole wherever `\s` looks at it, so token boundaries match.
 
 use super::db::VennDb;
+use crate::text::label;
 use crate::util::chars::is_digit;
 use crate::util::chars::is_hex;
 use crate::util::chars::is_space;
@@ -294,7 +295,7 @@ impl<'a> VennLexer<'a> {
                     return T::Error;
                 }
                 self.at = end + 1;
-                self.text = crate::text::label::trim(self.slice(i + 1, end));
+                self.text = label::trim(self.slice(i + 1, end));
                 return T::BracketLabel;
             }
             if is_digit(c) || c == 46 || c == 43 || c == 45 {

@@ -16,6 +16,7 @@ use crate::error::Error;
 use crate::error::locate;
 use crate::text::label::trim;
 use crate::text::label::trim_start;
+use crate::util::chars;
 
 /// The statement tokens the grammar expects, as its errors list them.
 const STATEMENT: &str = "'NL', 'ID', 'HIDE_EMPTY', 'scale', 'COMPOSIT_STATE', 'STATE_DESCR', \
@@ -386,7 +387,7 @@ fn acc_description(text: &str) -> String {
     while let Some(c) = chars.next() {
         out.push(c);
         if c == '\n' {
-            while chars.peek().is_some_and(|&c| crate::util::chars::is_space(u32::from(c))) {
+            while chars.peek().is_some_and(|&c| chars::is_space(u32::from(c))) {
                 chars.next();
             }
         }

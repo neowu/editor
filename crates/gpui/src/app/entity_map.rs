@@ -1,3 +1,4 @@
+use core::ops;
 use std::any::Any;
 use std::any::TypeId;
 use std::any::type_name;
@@ -266,7 +267,7 @@ pub(crate) struct Lease<T> {
     entity_type: PhantomData<T>,
 }
 
-impl<T: 'static> core::ops::Deref for Lease<T> {
+impl<T: 'static> ops::Deref for Lease<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -274,7 +275,7 @@ impl<T: 'static> core::ops::Deref for Lease<T> {
     }
 }
 
-impl<T: 'static> core::ops::DerefMut for Lease<T> {
+impl<T: 'static> ops::DerefMut for Lease<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.entity.as_mut().unwrap().downcast_mut().unwrap()
     }
@@ -401,7 +402,7 @@ impl PartialOrd for AnyEntity {
     }
 }
 
-impl std::fmt::Debug for AnyEntity {
+impl fmt::Debug for AnyEntity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AnyEntity").field("entity_id", &self.entity_id.as_u64()).finish()
     }
@@ -498,7 +499,7 @@ impl<T> Clone for Entity<T> {
     }
 }
 
-impl<T> std::fmt::Debug for Entity<T> {
+impl<T> fmt::Debug for Entity<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Entity")
             .field("entity_id", &self.any_entity.entity_id)
@@ -532,14 +533,14 @@ impl<T> PartialEq<WeakEntity<T>> for Entity<T> {
 
 impl<T: 'static> Ord for Entity<T> {
     #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.entity_id().cmp(&other.entity_id())
     }
 }
 
 impl<T: 'static> PartialOrd for Entity<T> {
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
@@ -613,7 +614,7 @@ impl AnyWeakEntity {
     }
 }
 
-impl std::fmt::Debug for AnyWeakEntity {
+impl fmt::Debug for AnyWeakEntity {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct(type_name::<Self>())
             .field("entity_id", &self.entity_id)
@@ -668,7 +669,7 @@ pub struct WeakEntity<T> {
     entity_type: PhantomData<fn(T) -> T>,
 }
 
-impl<T> std::fmt::Debug for WeakEntity<T> {
+impl<T> fmt::Debug for WeakEntity<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct(type_name::<Self>())
             .field("entity_id", &self.any_entity.entity_id)

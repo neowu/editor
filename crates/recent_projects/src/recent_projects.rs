@@ -1,3 +1,8 @@
+use std::collections::HashMap;
+use std::iter;
+
+use ed_actions::git_graph::Open;
+use util::disambiguate;
 pub mod disconnected_overlay;
 mod remote_connections;
 mod remote_servers;
@@ -134,10 +139,9 @@ fn get_open_folders(workspace: &Workspace, cx: &App) -> Vec<OpenFolderEntry> {
     let mut all_paths: Vec<PathBuf> = visible_worktrees.iter().map(|wt| wt.read(cx).abs_path().to_path_buf()).collect();
     all_paths.sort_unstable();
     all_paths.dedup();
-    let path_details = util::disambiguate::compute_disambiguation_details(&all_paths, |path, detail| {
-        project::path_suffix(path, detail)
-    });
-    let path_detail_map: std::collections::HashMap<PathBuf, usize> = all_paths.into_iter().zip(path_details).collect();
+    let path_details =
+        disambiguate::compute_disambiguation_details(&all_paths, |path, detail| project::path_suffix(path, detail));
+    let path_detail_map: HashMap<PathBuf, usize> = all_paths.into_iter().zip(path_details).collect();
 
     let mut folders: Vec<(OpenFolderEntry, Vec<OpenFolderEntry>)> = visible_worktrees
         .into_iter()
@@ -185,7 +189,7 @@ fn get_open_folders(workspace: &Workspace, cx: &App) -> Vec<OpenFolderEntry> {
 
     folders.sort_by_key(|(folder, _)| folder.name.to_lowercase());
     let entries: Vec<OpenFolderEntry> =
-        folders.into_iter().flat_map(|(folder, nested)| std::iter::once(folder).chain(nested)).collect();
+        folders.into_iter().flat_map(|(folder, nested)| iter::once(folder).chain(nested)).collect();
     if entries.len() <= 1 { Vec::new() } else { entries }
 }
 
@@ -626,7 +630,7 @@ impl PickerDelegate for RecentProjectsDelegate {
                         // In Git History, picking a folder (even the current
                         // one) brings its repository graph to the front.
                         if workspace.mode() == WorkspaceMode::GitHistory {
-                            window.dispatch_action(Box::new(ed_actions::git_graph::Open), cx);
+                            window.dispatch_action(Box::new(Open), cx);
                         }
                     });
                 }

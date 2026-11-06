@@ -595,7 +595,6 @@ fn draw(model: &GitModel, config: &Value, options: &Options, direction: &'static
                 body.push_str(")\">");
                 back(&mut body, ax - w / 2.0, ay);
                 body.push_str(&label_svg(label, ax - w / 2.0, ay, "", None));
-                body.push_str("</g>");
             } else {
                 let cx = if vertical { x - DOT - 6.0 - w / 2.0 } else { x };
                 let cy = if vertical { y } else { y + DOT + 6.0 + h / 2.0 };
@@ -603,8 +602,8 @@ fn draw(model: &GitModel, config: &Value, options: &Options, direction: &'static
                 body.push_str("<g class=\"ondine-commit-label\">");
                 back(&mut body, cx, cy);
                 body.push_str(&label_svg(label, cx, cy, "", None));
-                body.push_str("</g>");
             }
+            body.push_str("</g>");
         }
 
         // Beside the lane the tags form a row; above it they stack, the first one furthest out.

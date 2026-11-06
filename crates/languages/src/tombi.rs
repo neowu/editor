@@ -11,6 +11,8 @@ use lsp::Uri;
 use project::lsp_store::language_server_settings;
 use serde_json::Value;
 
+use crate::npx;
+
 pub struct TombiLspAdapter;
 
 impl TombiLspAdapter {
@@ -28,7 +30,7 @@ impl LspAdapter for TombiLspAdapter {
         delegate: &Arc<dyn LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
-        crate::npx::node_server_binary(delegate, &[Self::PACKAGE_NAME], Self::PACKAGE_NAME, &["lsp"]).await
+        npx::node_server_binary(delegate, &[Self::PACKAGE_NAME], Self::PACKAGE_NAME, &["lsp"]).await
     }
 
     async fn workspace_configuration(

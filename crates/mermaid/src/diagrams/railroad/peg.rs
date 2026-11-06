@@ -1,6 +1,8 @@
 //! `railroad-peg-beta`: parsing expression grammars. Port of Pele's
 //! `src/diagrams/railroad/peg.ts`.
 
+use std::mem;
+
 use super::common::ACC_DESCR;
 use super::common::ACC_TITLE;
 use super::common::AstNode;
@@ -148,7 +150,7 @@ fn definition(r: &mut Reader<'_>, ast: &mut Vec<AstNode<Peg>>) -> Result<usize, 
                 let group = add(ast, Peg::Group);
                 attach(ast, group, element);
                 let next = frame(ast, Some(group), element, operator);
-                stack.push(std::mem::replace(&mut top, next));
+                stack.push(mem::replace(&mut top, next));
                 continue;
             }
             _ => {

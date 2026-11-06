@@ -1,3 +1,5 @@
+use std::ptr;
+
 use gpui::FontFallbacks;
 use gpui::FontFeatures;
 use objc2_core_foundation::CFArray;
@@ -42,7 +44,7 @@ pub fn apply_features_and_fallbacks(
     let attributes: CFRetained<CFDictionary<CFString, CFType>> = CFDictionary::from_slices(&keys, &values);
     unsafe {
         let descriptor = CTFontDescriptor::with_attributes(attributes.as_opaque());
-        *font = font.copy_with_attributes(0.0, std::ptr::null(), Some(&descriptor));
+        *font = font.copy_with_attributes(0.0, ptr::null(), Some(&descriptor));
     }
     Ok(())
 }

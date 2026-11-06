@@ -2,6 +2,9 @@
 //! All but the last chunk are of a constant, given size.
 
 use std::collections::BTreeSet;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::ops::Range;
 
 use collections::HashMap;
@@ -34,8 +37,8 @@ pub struct RowChunks {
     computed_chunks: Mutex<HashMap<RowChunkId, RowChunk>>,
 }
 
-impl std::fmt::Debug for RowChunks {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for RowChunks {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("RowChunks")
             .field("len", &self.len())
             .field("max_rows_per_chunk", &self.max_rows_per_chunk)

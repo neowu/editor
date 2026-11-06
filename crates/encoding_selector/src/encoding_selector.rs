@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicBool;
 mod active_buffer_encoding;
 use std::sync::Arc;
 
@@ -243,16 +244,7 @@ impl PickerDelegate for EncodingSelectorDelegate {
                     })
                     .collect()
             } else {
-                match_strings(
-                    &candidates,
-                    &query,
-                    false,
-                    true,
-                    100,
-                    &std::sync::atomic::AtomicBool::default(),
-                    background,
-                )
-                .await
+                match_strings(&candidates, &query, false, true, 100, &AtomicBool::default(), background).await
             };
 
             this.update(cx, |this, cx| {

@@ -1,4 +1,5 @@
 use std::collections::hash_map;
+use std::mem;
 use std::ops::ControlFlow;
 use std::ops::Range;
 use std::time::Duration;
@@ -1180,7 +1181,7 @@ impl Editor {
             )
             .collect();
 
-        let invalidate_hints_for_buffers = std::mem::take(&mut inlay_hints.invalidate_hints_for_buffers);
+        let invalidate_hints_for_buffers = mem::take(&mut inlay_hints.invalidate_hints_for_buffers);
         if !invalidate_hints_for_buffers.is_empty() {
             hints_to_remove.extend(
                 Self::visible_inlay_hints(self.display_map.read(cx))

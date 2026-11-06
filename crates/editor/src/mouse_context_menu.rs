@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::ops::Range;
 
 use gpui::Context;
@@ -9,7 +12,9 @@ use gpui::Point;
 use gpui::Subscription;
 use gpui::Window;
 use gpui::prelude::FluentBuilder;
+use ui::utils;
 use workspace::OpenInTerminal;
+use workspace::preview::OpenPreview;
 
 use crate::Copy;
 use crate::CopyAndTrim;
@@ -51,8 +56,8 @@ pub struct MouseContextMenu {
     _cursor_move_subscription: Subscription,
 }
 
-impl std::fmt::Debug for MouseContextMenu {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for MouseContextMenu {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("MouseContextMenu")
             .field("position", &self.position)
             .field("context_menu", &self.context_menu)
@@ -201,7 +206,7 @@ pub fn deploy_context_menu(
         let format_selections = window.is_action_available(&FormatSelections, cx);
         let can_edit = !editor.read_only(cx);
 
-        let can_preview = window.is_action_available(&workspace::preview::OpenPreview, cx);
+        let can_preview = window.is_action_available(&OpenPreview, cx);
 
         ui::ContextMenu::build(window, cx, |menu, _window, _cx| {
             let builder = menu
@@ -230,10 +235,10 @@ pub fn deploy_context_menu(
                 .separator()
                 .action_disabled_when(
                     !has_reveal_target,
-                    ui::utils::reveal_in_file_manager_label(false),
+                    utils::reveal_in_file_manager_label(false),
                     Box::new(RevealInFileManager),
                 )
-                .when(can_preview, |builder| builder.action("Open Preview", Box::new(workspace::preview::OpenPreview)))
+                .when(can_preview, |builder| builder.action("Open Preview", Box::new(OpenPreview)))
                 .action_disabled_when(!has_reveal_target, "Open in Terminal", Box::new(OpenInTerminal))
                 .action_disabled_when(!has_git_repo, "View File History", Box::new(git::FileHistory));
             match focus {

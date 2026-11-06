@@ -1,5 +1,6 @@
 use std::ops::Range;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use collections::HashMap;
 use editor::Editor;
@@ -44,6 +45,7 @@ use ui::Divider;
 use ui::FluentBuilder;
 use ui::ListItem;
 use ui::ListItemSpacing;
+use ui::font;
 use ui::prelude::*;
 use util::ResultExt as _;
 use workspace::ModalView;
@@ -512,7 +514,7 @@ fn build_location_matches(locations: &[Location], cx: &App) -> Vec<LocationMatch
 impl PickerDelegate for LspLocationsDelegate {
     type ListItem = AnyElement;
 
-    fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> std::sync::Arc<str> {
+    fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> Arc<str> {
         self.kind.placeholder().into()
     }
 
@@ -549,7 +551,7 @@ impl PickerDelegate for LspLocationsDelegate {
                     false,
                     true,
                     candidates.len(),
-                    &std::sync::atomic::AtomicBool::default(),
+                    &AtomicBool::default(),
                     cx.background_executor().clone(),
                 )
                 .await;
@@ -652,11 +654,11 @@ impl PickerDelegate for LspLocationsDelegate {
 fn render_matched_line(location_match: &LocationMatch, cx: &App) -> StyledText {
     let text_style = TextStyle {
         color: cx.theme().colors().text,
-        font_family: ui::font::buffer_font().family.clone(),
-        font_features: ui::font::buffer_font().features.clone(),
-        font_fallbacks: ui::font::buffer_font().fallbacks.clone(),
-        font_size: ui::font::buffer_font_size(cx).into(),
-        font_weight: ui::font::buffer_font().weight,
+        font_family: font::buffer_font().family.clone(),
+        font_features: font::buffer_font().features.clone(),
+        font_fallbacks: font::buffer_font().fallbacks.clone(),
+        font_size: font::buffer_font_size(cx).into(),
+        font_weight: font::buffer_font().weight,
         line_height: relative(1.),
         ..Default::default()
     };

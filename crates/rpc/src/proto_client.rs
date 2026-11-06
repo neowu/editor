@@ -1,5 +1,9 @@
 use std::any::Any;
 use std::any::TypeId;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::mem;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::AtomicU64;
@@ -56,8 +60,8 @@ struct State {
     request_ids: RequestIds,
 }
 
-impl std::fmt::Debug for State {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for State {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("State")
             .field("next_lsp_request_id", &self.next_lsp_request_id)
             .field("request_ids", &self.request_ids)
@@ -168,8 +172,8 @@ pub enum EntityMessageSubscriber {
     Pending(Vec<Box<dyn AnyTypedEnvelope>>),
 }
 
-impl std::fmt::Debug for EntityMessageSubscriber {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for EntityMessageSubscriber {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             EntityMessageSubscriber::Entity { handle } => {
                 f.debug_struct("EntityMessageSubscriber::Entity").field("handle", handle).finish()
@@ -321,7 +325,7 @@ impl AnyProtoClient {
         let request_id = LspRequestId(envelope.payload.lsp_request_id);
         let mut response_senders = self.0.request_ids.lock();
         if let Some(tx) = response_senders.remove(&request_id) {
-            let responses = std::mem::take(&mut envelope.payload.responses);
+            let responses = mem::take(&mut envelope.payload.responses);
             tx.send(Ok(Some(proto::TypedEnvelope {
                 sender_id: envelope.sender_id,
                 original_sender_id: envelope.original_sender_id,

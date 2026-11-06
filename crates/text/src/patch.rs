@@ -1,8 +1,11 @@
 use std::cmp;
+use std::iter::Cloned;
 use std::mem;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Sub;
+use std::slice::Iter;
+use std::vec::IntoIter;
 
 use crate::Edit;
 
@@ -249,7 +252,7 @@ impl<T> Patch<T> {
 
 impl<T: Clone> IntoIterator for Patch<T> {
     type Item = Edit<T>;
-    type IntoIter = std::vec::IntoIter<Edit<T>>;
+    type IntoIter = IntoIter<Edit<T>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -258,7 +261,7 @@ impl<T: Clone> IntoIterator for Patch<T> {
 
 impl<'a, T: Clone> IntoIterator for &'a Patch<T> {
     type Item = Edit<T>;
-    type IntoIter = std::iter::Cloned<std::slice::Iter<'a, Edit<T>>>;
+    type IntoIter = Cloned<Iter<'a, Edit<T>>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter().cloned()
@@ -267,7 +270,7 @@ impl<'a, T: Clone> IntoIterator for &'a Patch<T> {
 
 impl<'a, T: Clone> IntoIterator for &'a mut Patch<T> {
     type Item = Edit<T>;
-    type IntoIter = std::iter::Cloned<std::slice::Iter<'a, Edit<T>>>;
+    type IntoIter = Cloned<Iter<'a, Edit<T>>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter().cloned()

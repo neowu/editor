@@ -1,17 +1,21 @@
 //! Freedesktop.org Trash specification 1.0:
 //! <https://specifications.freedesktop.org/trash-spec/trashspec-1.0.html>
 
+use std::cmp::Reverse;
+use std::env;
 use std::ffi::OsString;
 use std::fs;
 use std::fs::OpenOptions;
 use std::io::ErrorKind;
 use std::io::Write as _;
+use std::mem;
 use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::ffi::OsStringExt as _;
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
+use std::ptr;
 
 use log::debug;
 use log::warn;
@@ -145,8 +149,8 @@ fn deletion_date() -> String {
     // SAFETY: `time` accepts a null pointer, and `localtime_r` only writes to
     // the `tm` it is given.
     let tm = unsafe {
-        let now = libc::time(std::ptr::null_mut());
-        let mut tm = std::mem::zeroed::<libc::tm>();
+        let now = libc::time(ptr::null_mut());
+        let mut tm = mem::zeroed::<libc::tm>();
         libc::localtime_r(&raw const now, &raw mut tm);
         tm
     };
@@ -182,10 +186,10 @@ fn encode_uri_path(path: &Path) -> String {
 
 /// `$XDG_DATA_HOME/Trash`, or `~/.local/share/Trash`.
 fn home_trash() -> Result<PathBuf, Error> {
-    if let Some(data_home) = std::env::var_os("XDG_DATA_HOME").filter(|value| !value.is_empty()) {
+    if let Some(data_home) = env::var_os("XDG_DATA_HOME").filter(|value| !value.is_empty()) {
         return Ok(PathBuf::from(data_home).join("Trash"));
     }
-    if let Some(home) = std::env::var_os("HOME").filter(|value| !value.is_empty()) {
+    if let Some(home) = env::var_os("HOME").filter(|value| !value.is_empty()) {
         return Ok(PathBuf::from(home).join(".local/share/Trash"));
     }
     Err(Error::Unknown { description: "neither XDG_DATA_HOME nor HOME is set".into() })
@@ -226,7 +230,7 @@ fn sorted_mount_points() -> Result<Vec<PathBuf>, Error> {
     if mount_points.is_empty() {
         return Err(Error::Unknown { description: "no mount points found".into() });
     }
-    mount_points.sort_unstable_by_key(|mount_point| std::cmp::Reverse(mount_point.as_os_str().len()));
+    mount_points.sort_unstable_by_key(|mount_point| Reverse(mount_point.as_os_str().len()));
     Ok(mount_points)
 }
 
@@ -262,6 +266,7 @@ fn parse_mount_points(mounts: &[u8]) -> Vec<PathBuf> {
 mod tests {
     use std::ffi::OsString;
     use std::os::unix::ffi::OsStringExt as _;
+    use std::os::unix::fs as std_os_unix_fs;
     use std::path::Path;
     use std::path::PathBuf;
 
@@ -302,7 +307,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let canonical_dir = dir.path().canonicalize().unwrap();
         let link = dir.path().join("link");
-        std::os::unix::fs::symlink(&canonical_dir, &link).unwrap();
+        std_os_unix_fs::symlink(&canonical_dir, &link).unwrap();
         assert_eq!(canonicalize_path_or_parents(&link.join("a/b")).unwrap(), canonical_dir.join("a/b"));
     }
 }

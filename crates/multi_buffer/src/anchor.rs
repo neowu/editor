@@ -1,4 +1,7 @@
 use std::cmp::Ordering;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Range;
@@ -51,8 +54,8 @@ pub(crate) enum AnchorSeekTarget<'a> {
     Empty,
 }
 
-impl std::fmt::Debug for AnchorSeekTarget<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for AnchorSeekTarget<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::Excerpt { path_key, path_key_index: _, anchor, snapshot: _ } => {
                 f.debug_struct("Excerpt").field("path_key", path_key).field("anchor", anchor).finish()
@@ -65,8 +68,8 @@ impl std::fmt::Debug for AnchorSeekTarget<'_> {
     }
 }
 
-impl std::fmt::Debug for Anchor {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for Anchor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Anchor::Min => write!(f, "Anchor::Min"),
             Anchor::Max => write!(f, "Anchor::Max"),

@@ -1,5 +1,8 @@
 //! Font queries on `CTFont`, in font units, plus CSS-style face matching.
 
+use std::cmp::Ordering;
+use std::ops::Deref;
+use std::ptr;
 use std::ptr::NonNull;
 
 use anyhow::anyhow;
@@ -40,7 +43,7 @@ pub struct SyncFont(pub CFRetained<CTFont>);
 unsafe impl Send for SyncFont {}
 unsafe impl Sync for SyncFont {}
 
-impl std::ops::Deref for SyncFont {
+impl Deref for SyncFont {
     type Target = CTFont;
 
     fn deref(&self) -> &CTFont {
@@ -76,9 +79,7 @@ pub fn family_fonts(family_name: &str) -> Result<Vec<CFRetained<CTFont>>> {
         .map(|descriptors| {
             descriptors
                 .iter()
-                .map(|descriptor| unsafe {
-                    CTFont::with_font_descriptor(&descriptor, LOAD_POINT_SIZE, std::ptr::null())
-                })
+                .map(|descriptor| unsafe { CTFont::with_font_descriptor(&descriptor, LOAD_POINT_SIZE, ptr::null()) })
                 .collect()
         })
         .unwrap_or_default();
@@ -92,7 +93,7 @@ pub fn matching_descriptors(collection: &CTFontCollection) -> Option<CFRetained<
 }
 
 pub fn from_core_graphics_font(font: &CGFont) -> CFRetained<CTFont> {
-    unsafe { CTFont::with_graphics_font(font, LOAD_POINT_SIZE, std::ptr::null(), None) }
+    unsafe { CTFont::with_graphics_font(font, LOAD_POINT_SIZE, ptr::null(), None) }
 }
 
 fn units_per_point(font: &CTFont) -> f64 {
@@ -113,7 +114,7 @@ fn bounds_from_rect([min_x, min_y, max_x, max_y]: [f32; 4]) -> Bounds<f32> {
 fn glyph_rect_in_units(font: &CTFont, glyph_id: u32) -> [f32; 4] {
     let mut glyph = glyph_id as CGGlyph;
     let rect = unsafe {
-        font.bounding_rects_for_glyphs(CTFontOrientation::Default, NonNull::from(&mut glyph), std::ptr::null_mut(), 1)
+        font.bounding_rects_for_glyphs(CTFontOrientation::Default, NonNull::from(&mut glyph), ptr::null_mut(), 1)
     };
     rect_in_units(rect, units_per_point(font) as f32)
 }
@@ -212,11 +213,10 @@ fn piecewise_linear_lookup(index: f32, mapping: &[f32]) -> f32 {
 }
 
 fn piecewise_linear_find_index(value: f32, mapping: &[f32]) -> f32 {
-    let upper_index =
-        match mapping.binary_search_by(|probe| probe.partial_cmp(&value).unwrap_or(std::cmp::Ordering::Less)) {
-            Ok(index) => return index as f32,
-            Err(upper_index) => upper_index,
-        };
+    let upper_index = match mapping.binary_search_by(|probe| probe.partial_cmp(&value).unwrap_or(Ordering::Less)) {
+        Ok(index) => return index as f32,
+        Err(upper_index) => upper_index,
+    };
     if upper_index == 0 || upper_index >= mapping.len() {
         return upper_index as f32;
     }

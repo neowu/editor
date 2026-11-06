@@ -1,6 +1,8 @@
 //! The packet model: fields split into rows of bits. Port of Pele's
 //! `src/diagrams/packet/model.ts`.
 
+use std::mem;
+
 use super::parser::PacketAst;
 use crate::error::Code;
 use crate::error::Error;
@@ -128,13 +130,13 @@ pub(crate) fn build_packet(ast: PacketAst, config: &Value, title: Option<&str>) 
             if end <= row_end {
                 word.push(PacketBlock { bits, end, label: block.label.clone(), start });
                 if end == row_end {
-                    rows.push(std::mem::take(&mut word));
+                    rows.push(mem::take(&mut word));
                     row += 1.0;
                 }
                 break;
             }
             word.push(PacketBlock { bits: row_end - start, end: row_end, label: block.label.clone(), start });
-            rows.push(std::mem::take(&mut word));
+            rows.push(mem::take(&mut word));
             row += 1.0;
             start = row_end + 1.0;
             bits = end - start;

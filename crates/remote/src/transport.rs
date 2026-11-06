@@ -1,4 +1,6 @@
+use std::io;
 use std::io::Write;
+use std::os::unix::process::ExitStatusExt;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -165,7 +167,7 @@ fn handle_rpc_messages_over_child_process_stdio(
                 if let Ok(record) = serde_json::from_slice::<LogRecord>(content) {
                     record.log(log::logger())
                 } else {
-                    std::io::stderr().write_fmt(format_args!("(remote) {}\n", String::from_utf8_lossy(content))).ok();
+                    io::stderr().write_fmt(format_args!("(remote) {}\n", String::from_utf8_lossy(content))).ok();
                 }
             }
             stderr_buffer.drain(0..start_ix);
@@ -188,9 +190,7 @@ fn handle_rpc_messages_over_child_process_stdio(
             }
         };
         let exit_status = remote_proxy_process.status().await?;
-        let status = exit_status
-            .code()
-            .unwrap_or_else(|| std::os::unix::process::ExitStatusExt::signal(&exit_status).unwrap_or(1));
+        let status = exit_status.code().unwrap_or_else(|| ExitStatusExt::signal(&exit_status).unwrap_or(1));
         match result {
             Ok(_) => Ok(status),
             Err(error) => Err(error),

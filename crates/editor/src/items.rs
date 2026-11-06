@@ -1,8 +1,9 @@
 use std::any::Any;
 use std::any::TypeId;
 use std::borrow::Cow;
+use std::cmp;
 use std::cmp::Ordering;
-use std::cmp::{self};
+use std::iter;
 use std::num::NonZeroU32;
 use std::ops::Range;
 use std::path::Path;
@@ -79,6 +80,7 @@ use workspace::item::ProjectItemKind;
 use workspace::item::SaveOptions;
 use workspace::item::SerializableItem;
 use workspace::item::TabContentParams;
+use workspace::path_link::OpenTarget;
 use workspace::searchable::Direction;
 use workspace::searchable::FilteredSearchRange;
 use workspace::searchable::SearchEvent;
@@ -995,7 +997,7 @@ impl SearchableItem for Editor {
 
     fn find_matches(
         &mut self,
-        query: Arc<project::search::SearchQuery>,
+        query: Arc<SearchQuery>,
         _: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<Vec<Range<Anchor>>> {
@@ -1038,20 +1040,15 @@ impl SearchableItem for Editor {
                                         .await
                                         .into_iter()
                                         .filter_map(|match_range| {
+                                            let start =
+                                                search_buffer.anchor_after(search_range.start + match_range.start);
+                                            let end = search_buffer.anchor_before(search_range.start + match_range.end);
                                             if let Some(deleted_hunk_anchor) = deleted_hunk_anchor {
-                                                let start =
-                                                    search_buffer.anchor_after(search_range.start + match_range.start);
-                                                let end =
-                                                    search_buffer.anchor_before(search_range.start + match_range.end);
                                                 Some(
                                                     deleted_hunk_anchor.with_diff_base_anchor(start)
                                                         ..deleted_hunk_anchor.with_diff_base_anchor(end),
                                                 )
                                             } else {
-                                                let start =
-                                                    search_buffer.anchor_after(search_range.start + match_range.start);
-                                                let end =
-                                                    search_buffer.anchor_before(search_range.start + match_range.end);
                                                 buffer.anchor_range_in_buffer(start..end)
                                             }
                                         })
@@ -1143,7 +1140,7 @@ pub fn active_match_index(
 /// to the one-based row/column if present. Returns whether the target was opened.
 pub async fn open_resolved_target(
     workspace: &WeakEntity<Workspace>,
-    open_target: &workspace::path_link::OpenTarget,
+    open_target: &OpenTarget,
     cx: &mut AsyncWindowContext,
 ) -> Result<bool> {
     let path_to_open = open_target.path();
@@ -1302,7 +1299,7 @@ fn chunk_search_range(
 ) -> Box<dyn Iterator<Item = Range<usize>> + 'static> {
     let range = initial_range.to_offset(&buffer);
     if range.is_empty() {
-        return Box::new(std::iter::empty());
+        return Box::new(iter::empty());
     }
 
     let summary: TextSummary = buffer.text_summary_for_range(initial_range);
@@ -1313,14 +1310,14 @@ fn chunk_search_range(
     };
 
     let Some(num_chunks) = num_chunks else {
-        return Box::new(std::iter::empty());
+        return Box::new(iter::empty());
     };
 
     let mut chunk_start = range.start;
     let rope = buffer.as_rope().clone();
     let range_end = range.end;
     let average_chunk_length = summary.len.div_ceil(num_chunks.get() as usize);
-    Box::new(std::iter::from_fn(move || {
+    Box::new(iter::from_fn(move || {
         if chunk_start >= range_end {
             return None;
         }

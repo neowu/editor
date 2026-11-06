@@ -14,6 +14,8 @@ use serde_json::Value;
 use settings::Settings;
 use util::merge_json_value_into;
 
+use crate::npx;
+
 pub struct YamlLspAdapter;
 
 impl YamlLspAdapter {
@@ -32,7 +34,7 @@ impl LspAdapter for YamlLspAdapter {
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         let bin = Self::SERVER_NAME;
-        crate::npx::node_server_binary(delegate, &[bin.as_ref()], bin.as_ref(), &["--stdio"]).await
+        npx::node_server_binary(delegate, &[bin.as_ref()], bin.as_ref(), &["--stdio"]).await
     }
 
     async fn workspace_configuration(

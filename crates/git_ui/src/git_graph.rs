@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::mem;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -9,11 +10,15 @@ use collections::HashMap;
 use collections::IndexSet;
 use ed_actions::buffer_search;
 pub use ed_actions::git_graph::Open;
+use ed_actions::mode::GitHistory;
 use ed_actions::search::SelectNextMatch;
 use ed_actions::search::SelectPreviousMatch;
 use ed_actions::search::ToggleCaseSensitive;
 use editor::Editor;
+use editor::actions::Cancel;
+use editor::actions::SelectAll;
 use git::Oid;
+use git::repository::Branch;
 use git::repository::InitialGraphCommitData;
 use git::repository::LogOrder;
 use git::repository::LogSource;
@@ -78,6 +83,7 @@ use smallvec::smallvec;
 use theme::AccentColors;
 use time::OffsetDateTime;
 use time::UtcOffset;
+use time::format_description;
 use time::format_description::BorrowedFormatItem;
 use ui::Chip;
 use ui::ColumnWidthConfig;
@@ -124,6 +130,7 @@ use crate::commit_details_panel::CommitDetailsPanel;
 use crate::commit_details_panel::render_ref_chip;
 use crate::commit_view::CommitView;
 use crate::commit_view::open_file_in_project;
+use crate::git_panel::GitPanel;
 
 const COMMIT_CIRCLE_RADIUS: Pixels = px(4.5);
 const COMMIT_CIRCLE_STROKE_WIDTH: Pixels = px(1.5);
@@ -232,7 +239,7 @@ enum QueryState {
 impl QueryState {
     fn next_state(&mut self) {
         if let Self::Confirmed((query, _)) = self {
-            *self = Self::Pending(std::mem::take(query))
+            *self = Self::Pending(mem::take(query))
         };
     }
 }
@@ -331,7 +338,7 @@ pub struct OpenAtCommit {
 fn timestamp_format() -> &'static [BorrowedFormatItem<'static>] {
     static FORMAT: OnceLock<Vec<BorrowedFormatItem<'static>>> = OnceLock::new();
     FORMAT.get_or_init(|| {
-        time::format_description::parse("[day] [month repr:short] [year] [hour]:[minute]").unwrap_or_default()
+        format_description::parse("[day] [month repr:short] [year] [hour]:[minute]").unwrap_or_default()
     })
 }
 
@@ -375,7 +382,7 @@ impl LaneState {
         parent_column: usize,
         parent_color: BranchColor,
     ) -> Option<CommitLine> {
-        let state = std::mem::replace(self, LaneState::Empty);
+        let state = mem::replace(self, LaneState::Empty);
 
         match state {
             LaneState::Active {
@@ -743,7 +750,7 @@ pub fn init(cx: &mut App) {
             .detach();
         }
 
-        workspace.register_action(|workspace, _: &ed_actions::mode::GitHistory, window, cx| {
+        workspace.register_action(|workspace, _: &GitHistory, window, cx| {
             show_active_repository_history(workspace, window, cx);
         });
         workspace.register_action_renderer(|div, workspace, window, cx| {
@@ -832,7 +839,7 @@ pub fn resolve_file_history_target_from_project_path(
 }
 
 fn resolve_file_history_target(workspace: &Workspace, window: &Window, cx: &App) -> Option<(RepositoryId, LogSource)> {
-    if let Some(panel) = workspace.panel::<crate::git_panel::GitPanel>(cx)
+    if let Some(panel) = workspace.panel::<GitPanel>(cx)
         && panel.read(cx).focus_handle(cx).contains_focused(window, cx)
         && let Some((repository, repo_path)) = panel.read(cx).selected_file_history_target()
     {
@@ -956,10 +963,7 @@ fn graph_data_source(log_source: &LogSource, branch_filter: Option<&SharedString
 
 /// The branch filter left after the branch list changed: dropped when its
 /// branch no longer exists.
-fn kept_branch_filter(
-    branch_filter: Option<SharedString>,
-    branches: &[git::repository::Branch],
-) -> Option<SharedString> {
+fn kept_branch_filter(branch_filter: Option<SharedString>, branches: &[Branch]) -> Option<SharedString> {
     branch_filter.filter(|ref_name| branches.iter().any(|branch| branch.ref_name == *ref_name))
 }
 
@@ -1921,7 +1925,7 @@ impl GitGraph {
     }
 
     fn show_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let was_shown = std::mem::replace(&mut self.search_state.shown, true);
+        let was_shown = mem::replace(&mut self.search_state.shown, true);
         self.search_state.editor.update(cx, |editor, cx| editor.focus_handle(cx).focus(window, cx));
         self.activate_search_editor_if_focused(window, cx);
         if !was_shown {
@@ -1950,7 +1954,7 @@ impl GitGraph {
     fn activate_search_editor_if_focused(&self, window: &mut Window, cx: &mut Context<Self>) {
         self.search_state.editor.update(cx, |editor, cx| {
             if editor.is_focused(window) {
-                editor.select_all(&editor::actions::SelectAll, window, cx);
+                editor.select_all(&SelectAll, window, cx);
                 editor.show_cursor(cx);
             }
         });
@@ -2360,7 +2364,7 @@ impl GitGraph {
                     .rounded_md()
                     .bg(color.toolbar_background)
                     .on_action(cx.listener(Self::confirm_search))
-                    .on_action(cx.listener(|this, _: &editor::actions::Cancel, window, cx| {
+                    .on_action(cx.listener(|this, _: &Cancel, window, cx| {
                         this.hide_search(window, cx);
                     }))
                     .child(self.search_state.editor.clone())
@@ -2537,14 +2541,11 @@ impl GitGraph {
                         let branch_filter = branch_filter.clone();
                         move |window, cx| {
                             let graph = graph.clone();
-                            let on_select =
-                                Arc::new(move |branch: git::repository::Branch, _: &mut Window, cx: &mut App| {
-                                    graph
-                                        .update(cx, |graph, cx| {
-                                            graph.set_branch_filter(Some(branch.ref_name.clone()), cx)
-                                        })
-                                        .ok();
-                                });
+                            let on_select = Arc::new(move |branch: Branch, _: &mut Window, cx: &mut App| {
+                                graph
+                                    .update(cx, |graph, cx| graph.set_branch_filter(Some(branch.ref_name.clone()), cx))
+                                    .ok();
+                            });
                             Some(branch_picker::select_popover(
                                 workspace.clone(),
                                 repository.clone(),
@@ -3133,7 +3134,7 @@ impl Render for GitGraph {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // This happens when we changed branches, we should refresh our search as well
         if let QueryState::Pending(query) = &mut self.search_state.state {
-            let query = std::mem::take(query);
+            let query = mem::take(query);
             self.search_state.state = QueryState::Empty;
             self.search(query, cx);
         }
@@ -3567,6 +3568,8 @@ fn newest_commit_to_select(selected: Option<usize>, has_pending: bool, commit_co
 
 #[cfg(test)]
 mod tests {
+    use git::repository::Branch;
+
     use super::*;
 
     #[test]
@@ -3596,7 +3599,7 @@ mod tests {
 
     #[test]
     fn test_kept_branch_filter() {
-        let branch = |ref_name: &str| git::repository::Branch {
+        let branch = |ref_name: &str| Branch {
             is_head: false,
             ref_name: ref_name.to_string().into(),
             upstream: None,

@@ -1,3 +1,5 @@
+use std::iter;
+
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::format_ident;
@@ -9,6 +11,7 @@ use syn::parse::Parse;
 use syn::parse::ParseStream;
 use syn::parse::Result;
 use syn::parse_macro_input;
+use syn::token::Brace;
 
 #[derive(Debug)]
 struct StyleableMacroInput {
@@ -17,7 +20,7 @@ struct StyleableMacroInput {
 
 impl Parse for StyleableMacroInput {
     fn parse(input: ParseStream) -> Result<Self> {
-        if !input.peek(syn::token::Brace) {
+        if !input.peek(Brace) {
             return Ok(Self { method_visibility: Visibility::Inherited });
         }
 
@@ -663,7 +666,7 @@ fn generate_custom_value_setter(
                 style.#field_tokens = Some(length.clone().into());
             }
         })
-        .chain(std::iter::once(quote! {
+        .chain(iter::once(quote! {
             style.#last = Some(length.into());
         }))
         .collect::<Vec<_>>();

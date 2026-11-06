@@ -1,7 +1,9 @@
 use std::any::Any;
 use std::any::TypeId;
 use std::any::type_name;
+use std::fmt;
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::str;
 
 use anyhow::Result;
@@ -16,6 +18,7 @@ use gpui::SharedString;
 use gpui::UpdateGlobal;
 
 use crate::SemanticTokenRules;
+use crate::built_in_semantic_token_rules;
 use crate::settings_content::LanguageDefaultsContent;
 use crate::settings_content::SettingsContent;
 
@@ -114,7 +117,7 @@ pub trait AnySettingValue: 'static + Send + Sync {
 impl SettingsStore {
     pub fn new(cx: &mut App, settings: SettingsContent) -> Self {
         if !cx.has_global::<DefaultSemanticTokenRules>() {
-            cx.set_global(DefaultSemanticTokenRules(crate::built_in_semantic_token_rules::rules()));
+            cx.set_global(DefaultSemanticTokenRules(built_in_semantic_token_rules::rules()));
         }
         let merged_settings = settings.clone();
         let mut this = Self {
@@ -253,7 +256,7 @@ impl SettingsStore {
 }
 
 impl Debug for SettingsStore {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("SettingsStore").field("settings", &self.settings).finish_non_exhaustive()
     }
 }

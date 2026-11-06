@@ -1,4 +1,6 @@
+use std::any::Any;
 use std::collections::BTreeMap;
+use std::ops::Range;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -262,7 +264,7 @@ impl DiffMultibuffer {
         &self.editor
     }
 
-    pub(crate) fn selected_ranges(&self, cx: &App) -> (bool, Vec<std::ops::Range<multi_buffer::Anchor>>) {
+    pub(crate) fn selected_ranges(&self, cx: &App) -> (bool, Vec<Range<multi_buffer::Anchor>>) {
         let editor = self.editor.read(cx).rhs_editor().read(cx);
         let snapshot = self.multibuffer.read(cx).snapshot(cx);
         let mut selection = true;
@@ -289,7 +291,7 @@ impl DiffMultibuffer {
     /// (a zero-width range that resolves to the single hunk under it) when
     /// there is no selection. Unlike [`Self::selected_ranges`], this never
     /// widens to the whole excerpt, so actions affect one hunk at a time.
-    fn hunk_action_ranges(&self, cx: &App) -> Vec<std::ops::Range<multi_buffer::Anchor>> {
+    fn hunk_action_ranges(&self, cx: &App) -> Vec<Range<multi_buffer::Anchor>> {
         self.editor.read(cx).rhs_editor().read(cx).selections.disjoint_anchor_ranges().collect()
     }
 
@@ -657,12 +659,7 @@ impl DiffMultibuffer {
         });
     }
 
-    pub(crate) fn navigate(
-        &self,
-        data: Arc<dyn std::any::Any + Send>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> bool {
+    pub(crate) fn navigate(&self, data: Arc<dyn Any + Send>, window: &mut Window, cx: &mut Context<Self>) -> bool {
         self.editor.update(cx, |editor, cx| {
             editor.rhs_editor().update(cx, |primary_editor, cx| primary_editor.navigate(data, window, cx))
         })

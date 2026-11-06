@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -46,6 +49,7 @@ use crate::ManifestName;
 use crate::PLAIN_TEXT;
 use crate::available_languages::AvailableLanguage;
 use crate::available_languages::AvailableLanguages;
+use crate::fallback_highlight;
 use crate::language_settings::all_language_settings;
 use crate::task_context::ContextProvider;
 
@@ -73,8 +77,8 @@ struct LanguageRegistryState {
 #[derive(Debug)]
 pub struct LanguageNotFound;
 
-impl std::fmt::Display for LanguageNotFound {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for LanguageNotFound {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "language not found")
     }
 }
@@ -228,7 +232,7 @@ impl LanguageRegistry {
         for language in &state.languages {
             language.set_theme(theme.syntax());
         }
-        crate::fallback_highlight::set_theme(theme.syntax());
+        fallback_highlight::set_theme(theme.syntax());
     }
 
     pub fn language_for_name(self: &Arc<Self>, name: &str) -> impl Future<Output = Result<Arc<Language>>> + use<> {

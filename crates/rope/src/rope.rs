@@ -1297,9 +1297,7 @@ impl ops::AddAssign<Self> for TextSummary {
     }
 }
 
-pub trait TextDimension:
-    'static + Clone + Copy + Default + for<'a> Dimension<'a, ChunkSummary> + std::fmt::Debug
-{
+pub trait TextDimension: 'static + Clone + Copy + Default + for<'a> Dimension<'a, ChunkSummary> + fmt::Debug {
     fn from_text_summary(summary: &TextSummary) -> Self;
     fn from_chunk(chunk: ChunkSlice) -> Self;
     fn add_assign(&mut self, other: &Self);
@@ -1510,7 +1508,7 @@ where
     }
 }
 
-impl<D> std::ops::AddAssign<DimensionPair<Point, D>> for Point {
+impl<D> AddAssign<DimensionPair<Point, D>> for Point {
     fn add_assign(&mut self, rhs: DimensionPair<Point, D>) {
         *self += rhs.key;
     }

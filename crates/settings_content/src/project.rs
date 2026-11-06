@@ -1,3 +1,4 @@
+use std::collections::hash_map::IntoIter;
 use std::sync::Arc;
 
 use collections::BTreeMap;
@@ -13,7 +14,7 @@ pub struct LspSettingsMap(pub HashMap<Arc<str>, LspSettings>);
 
 impl IntoIterator for LspSettingsMap {
     type Item = (Arc<str>, LspSettings);
-    type IntoIter = std::collections::hash_map::IntoIter<Arc<str>, LspSettings>;
+    type IntoIter = IntoIter<Arc<str>, LspSettings>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()

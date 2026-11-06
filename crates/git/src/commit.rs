@@ -1,3 +1,4 @@
+use std::iter;
 use std::str::FromStr;
 
 use anyhow::Context as _;
@@ -117,7 +118,7 @@ pub(crate) struct CommitDiffEntry<'a> {
 /// Parses the output of `git diff --raw --no-abbrev -z`.
 pub(crate) fn parse_git_diff_raw(content: &str) -> impl Iterator<Item = Result<CommitDiffEntry<'_>>> {
     let mut parts = content.split('\0');
-    std::iter::from_fn(move || {
+    iter::from_fn(move || {
         let metadata = parts.next()?;
         if metadata.is_empty() {
             return None;

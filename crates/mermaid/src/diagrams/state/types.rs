@@ -1,6 +1,8 @@
 //! The statements of a state diagram document and the model built from them. Port of Pele's
 //! `src/diagrams/state/types.ts`.
 
+use std::mem;
+use std::slice;
 /// A state's description: one text, or a title followed by more lines.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Description {
@@ -23,7 +25,7 @@ impl Description {
     pub(crate) fn texts(&self) -> &[String] {
         match self {
             Self::Many(texts) => texts,
-            Self::One(text) => std::slice::from_ref(text),
+            Self::One(text) => slice::from_ref(text),
         }
     }
 }
@@ -35,13 +37,13 @@ pub(crate) struct Doc(pub(crate) Vec<Stmt>);
 
 impl Drop for Doc {
     fn drop(&mut self) {
-        let mut pending = vec![std::mem::take(&mut self.0)];
+        let mut pending = vec![mem::take(&mut self.0)];
         while let Some(mut items) = pending.pop() {
             for item in &mut items {
                 if let Stmt::State(state) = item
                     && let Some(mut inner) = state.doc.take()
                 {
-                    pending.push(std::mem::take(&mut inner.0));
+                    pending.push(mem::take(&mut inner.0));
                 }
             }
         }

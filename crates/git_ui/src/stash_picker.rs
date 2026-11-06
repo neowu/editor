@@ -1,5 +1,8 @@
+use core::cmp;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
+use ed_actions::git::ViewStash;
 use fuzzy::StringMatchCandidate;
 use git::stash::StashEntry;
 use gpui::Action;
@@ -57,12 +60,7 @@ actions!(
     ]
 );
 
-pub fn open(
-    workspace: &mut Workspace,
-    _: &ed_actions::git::ViewStash,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) {
+pub fn open(workspace: &mut Workspace, _: &ViewStash, window: &mut Window, cx: &mut Context<Workspace>) {
     let repository = workspace.project().read(cx).active_repository(cx);
     let weak_workspace = workspace.weak_handle();
     workspace.toggle_modal(window, cx, |window, cx| StashList::new(repository, weak_workspace, rems(34.), window, cx))
@@ -394,7 +392,7 @@ impl PickerDelegate for StashListDelegate {
                     false,
                     true,
                     10000,
-                    &std::sync::atomic::AtomicBool::default(),
+                    &AtomicBool::default(),
                     cx.background_executor().clone(),
                 )
                 .await
@@ -421,7 +419,7 @@ impl PickerDelegate for StashListDelegate {
                     if delegate.matches.is_empty() {
                         delegate.selected_index = 0;
                     } else {
-                        delegate.selected_index = core::cmp::min(delegate.selected_index, delegate.matches.len() - 1);
+                        delegate.selected_index = cmp::min(delegate.selected_index, delegate.matches.len() - 1);
                     }
                     delegate.last_query = query;
                 })

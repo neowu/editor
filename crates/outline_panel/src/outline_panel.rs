@@ -1,5 +1,7 @@
 use std::cmp;
 use std::hash::Hash;
+use std::hash::Hasher;
+use std::mem;
 use std::ops::Range;
 use std::path::Path;
 use std::path::PathBuf;
@@ -14,6 +16,8 @@ use collections::BTreeSet;
 use collections::HashMap;
 use collections::HashSet;
 use collections::IndexMap;
+use ed_actions::workspace::CopyPath;
+use ed_actions::workspace::CopyRelativePath;
 use editor::AnchorRangeExt;
 use editor::Bias;
 use editor::DisplayPoint;
@@ -115,6 +119,7 @@ use ui::Tab;
 use ui::Tooltip;
 use ui::WithScrollbar;
 use ui::prelude::*;
+use ui::utils;
 use ui::utils::ui_text_style;
 use util::RangeExt;
 use util::debug_panic;
@@ -361,7 +366,7 @@ enum SelectedEntry {
 
 impl SelectedEntry {
     fn invalidate(&mut self) {
-        match std::mem::replace(self, SelectedEntry::None) {
+        match mem::replace(self, SelectedEntry::None) {
             Self::Valid(entry, _) => *self = Self::Invalidated(Some(entry)),
             Self::None => *self = Self::Invalidated(None),
             other => *self = other,
@@ -442,7 +447,7 @@ impl IndexedOutline<'_> {
 impl BufferOutlines {
     fn invalidate_outlines(&mut self) {
         if let OutlineState::Outlines(valid_outlines) = &mut self.outlines {
-            self.outlines = OutlineState::Invalidated(std::mem::take(valid_outlines));
+            self.outlines = OutlineState::Invalidated(mem::take(valid_outlines));
         }
     }
 
@@ -848,7 +853,7 @@ impl PartialEq for FsEntryFile {
 }
 
 impl Hash for FsEntryFile {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.buffer_id.hash(state);
     }
 }
@@ -869,7 +874,7 @@ impl PartialEq for FsEntryDirectory {
 }
 
 impl Hash for FsEntryDirectory {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         (self.worktree_id, self.first_buffer_id, &self.entry.path).hash(state);
     }
 }
@@ -887,7 +892,7 @@ impl PartialEq for FsEntryExternalFile {
 }
 
 impl Hash for FsEntryExternalFile {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.buffer_id.hash(state);
     }
 }
@@ -1451,13 +1456,13 @@ impl OutlinePanel {
 
         let context_menu = ContextMenu::build(window, cx, |menu, _, _| {
             menu.context(self.focus_handle.clone())
-                .action(ui::utils::reveal_in_file_manager_label(false), Box::new(RevealInFileManager))
+                .action(utils::reveal_in_file_manager_label(false), Box::new(RevealInFileManager))
                 .action("Open in Terminal", Box::new(OpenInTerminal))
                 .when(is_unfoldable, |menu| menu.action("Unfold Directory", Box::new(UnfoldDirectory)))
                 .when(is_foldable, |menu| menu.action("Fold Directory", Box::new(FoldDirectory)))
                 .separator()
-                .action("Copy Path", Box::new(ed_actions::workspace::CopyPath))
-                .action("Copy Relative Path", Box::new(ed_actions::workspace::CopyRelativePath))
+                .action("Copy Path", Box::new(CopyPath))
+                .action("Copy Relative Path", Box::new(CopyRelativePath))
         });
         window.focus(&context_menu.focus_handle(cx), cx);
         let subscription = cx.subscribe(&context_menu, |outline_panel, _, _: &DismissEvent, cx| {
@@ -1827,7 +1832,7 @@ impl OutlinePanel {
         })
     }
 
-    fn copy_path(&mut self, _: &ed_actions::workspace::CopyPath, _: &mut Window, cx: &mut Context<Self>) {
+    fn copy_path(&mut self, _: &CopyPath, _: &mut Window, cx: &mut Context<Self>) {
         if let Some(clipboard_text) =
             self.selected_entry().and_then(|entry| self.abs_path(entry, cx)).map(|p| p.to_string_lossy().into_owned())
         {
@@ -1835,12 +1840,7 @@ impl OutlinePanel {
         }
     }
 
-    fn copy_relative_path(
-        &mut self,
-        _: &ed_actions::workspace::CopyRelativePath,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn copy_relative_path(&mut self, _: &CopyRelativePath, _: &mut Window, cx: &mut Context<Self>) {
         if let Some(clipboard_text) = self
             .selected_entry()
             .and_then(|entry| match entry {

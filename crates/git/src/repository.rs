@@ -1,8 +1,15 @@
 use std::borrow::Cow;
 use std::cmp::Ordering;
+use std::collections::BTreeSet;
 use std::collections::HashSet;
+use std::env;
 use std::ffi::OsStr;
 use std::ffi::OsString;
+use std::fmt;
+use std::fmt::Formatter;
+use std::fs;
+use std::io::ErrorKind;
+use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::ExitStatus;
@@ -33,6 +40,7 @@ use parking_lot::Mutex;
 use rope::Rope;
 use serde::Deserialize;
 use smallvec::SmallVec;
+use smol::io::AsyncBufRead;
 use smol::io::AsyncBufReadExt;
 use smol::io::AsyncReadExt;
 use smol::io::BufReader;
@@ -40,21 +48,26 @@ use sum_tree::MapSeekTarget;
 use text::LineEnding;
 use thiserror::Error;
 use util::ResultExt;
+use util::command::Command;
 use util::command::Stdio;
 use util::command::new_command;
 use util::paths;
 use util::rel_path::RelPath;
+use util::shell::ShellKind;
 
 use crate::Oid;
 use crate::RunHook;
 use crate::SHA256_HEX_LENGTH;
 use crate::SHORT_SHA_LENGTH;
+use crate::blame::Blame;
 use crate::commit::CommitDiffObject;
 use crate::commit::CommitDiffObjectKind;
 use crate::commit::parse_git_diff_raw;
 use crate::stash::GitStash;
+use crate::status;
 use crate::status::DiffTreeType;
 use crate::status::FileStatus;
+use crate::status::GitDiffStat;
 use crate::status::GitStatus;
 use crate::status::StatusCode;
 use crate::status::TrackedStatus;
@@ -91,7 +104,7 @@ pub fn original_repo_path_from_common_dir(common_dir: &Path) -> Option<PathBuf> 
 fn linked_worktree_git_dir(worktree_path: &Path) -> Result<PathBuf> {
     let dot_git_path = worktree_path.join(".git");
     let git_file =
-        std::fs::read_to_string(&dot_git_path).with_context(|| format!("failed to read {}", dot_git_path.display()))?;
+        fs::read_to_string(&dot_git_path).with_context(|| format!("failed to read {}", dot_git_path.display()))?;
     let git_dir = git_file.strip_prefix("gitdir:").context("worktree .git file missing gitdir pointer")?.trim();
     Ok(worktree_path.join(git_dir))
 }
@@ -519,7 +532,7 @@ struct LoadedCommitObject {
     is_binary: bool,
 }
 
-async fn read_commit_blob<R: smol::io::AsyncBufRead + Unpin>(
+async fn read_commit_blob<R: AsyncBufRead + Unpin>(
     stdout: &mut R,
     info_line: &mut String,
     newline: &mut [u8; 1],
@@ -540,7 +553,7 @@ async fn read_commit_blob<R: smol::io::AsyncBufRead + Unpin>(
     Ok(LoadedCommitObject { content: bytes, is_binary })
 }
 
-async fn load_commit_object<R: smol::io::AsyncBufRead + Unpin>(
+async fn load_commit_object<R: AsyncBufRead + Unpin>(
     object: Option<CommitDiffObject<'_>>,
     stdout: &mut R,
     info_line: &mut String,
@@ -559,7 +572,7 @@ async fn load_commit_object<R: smol::io::AsyncBufRead + Unpin>(
 async fn read_shallow_file(shallow_file_path: &Path) -> Result<Option<String>> {
     match smol::fs::read_to_string(shallow_file_path).await {
         Ok(contents) => Ok(Some(contents)),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error).context("reading shallow file"),
     }
 }
@@ -624,8 +637,8 @@ impl FetchOptions {
     }
 }
 
-impl std::fmt::Display for FetchOptions {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for FetchOptions {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             FetchOptions::All => write!(f, "--all"),
             FetchOptions::Unshallow => write!(f, "--unshallow"),
@@ -823,14 +836,9 @@ pub trait GitRepository: Send + Sync {
         ignore_shallow_boundary: bool,
         cx: AsyncApp,
     ) -> BoxFuture<'_, Result<CommitDiff>>;
-    fn blame(
-        &self,
-        path: RepoPath,
-        content: Rope,
-        line_ending: LineEnding,
-    ) -> BoxFuture<'_, Result<crate::blame::Blame>>;
+    fn blame(&self, path: RepoPath, content: Rope, line_ending: LineEnding) -> BoxFuture<'_, Result<Blame>>;
 
-    fn blame_at_revision(&self, path: RepoPath, revision: Oid) -> BoxFuture<'_, Result<crate::blame::Blame>>;
+    fn blame_at_revision(&self, path: RepoPath, revision: Oid) -> BoxFuture<'_, Result<Blame>>;
 
     /// Returns the absolute path to the repository. For worktrees, this will be the path to the
     /// worktree's gitdir within the main repository (typically `.git/worktrees/<name>`).
@@ -924,11 +932,7 @@ pub trait GitRepository: Send + Sync {
     /// Run git diff
     fn diff(&self, diff: DiffType) -> BoxFuture<'_, Result<String>>;
 
-    fn diff_stat(
-        &self,
-        diff: DiffStatType,
-        path_prefixes: &[RepoPath],
-    ) -> BoxFuture<'static, Result<crate::status::GitDiffStat>>;
+    fn diff_stat(&self, diff: DiffStatType, path_prefixes: &[RepoPath]) -> BoxFuture<'static, Result<GitDiffStat>>;
 
     fn load_commit_template(&self) -> BoxFuture<'_, Result<Option<GitCommitTemplate>>>;
 
@@ -985,8 +989,8 @@ pub enum PushOptions {
     Force,
 }
 
-impl std::fmt::Debug for dyn GitRepository {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for dyn GitRepository {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("dyn GitRepository<...>").finish()
     }
 }
@@ -1034,7 +1038,7 @@ impl RealGitRepository {
             if has_working_directory { Some(normalize_git_metadata_path(dotgit_parent.to_path_buf())?) } else { None };
 
         let git_dir = if dotgit_path.is_file() {
-            let content = std::fs::read_to_string(dotgit_path).context("reading .git worktree file")?;
+            let content = fs::read_to_string(dotgit_path).context("reading .git worktree file")?;
             let path_str =
                 content.strip_prefix("gitdir: ").context("expected .git file to start with 'gitdir: '")?.trim();
             let resolved = PathBuf::from(path_str);
@@ -1047,7 +1051,7 @@ impl RealGitRepository {
         let common_dir = {
             let commondir_file = git_dir.join("commondir");
             if commondir_file.is_file() {
-                let content = std::fs::read_to_string(&commondir_file).context("reading commondir file")?;
+                let content = fs::read_to_string(&commondir_file).context("reading commondir file")?;
                 let path_str = content.trim();
                 let resolved = PathBuf::from(path_str);
                 let resolved = if resolved.is_absolute() { resolved } else { git_dir.join(resolved) };
@@ -1359,7 +1363,7 @@ impl GitRepository for RealGitRepository {
                     path
                 };
 
-                let template = match std::fs::read_to_string(&path) {
+                let template = match fs::read_to_string(&path) {
                     Ok(s) if !s.trim().is_empty() => Some(s),
                     Err(err) => {
                         log::warn!("failed to read commit template {}: {}", path.display(), err);
@@ -1560,7 +1564,7 @@ impl GitRepository for RealGitRepository {
 
     fn merge_message(&self) -> BoxFuture<'_, Option<String>> {
         let path = self.path().join("MERGE_MSG");
-        self.executor.spawn(async move { std::fs::read_to_string(&path).ok() }).boxed()
+        self.executor.spawn(async move { fs::read_to_string(&path).ok() }).boxed()
     }
 
     fn status(&self, path_prefixes: &[RepoPath]) -> Task<Result<GitStatus>> {
@@ -1846,8 +1850,8 @@ impl GitRepository for RealGitRepository {
     fn worktree_created_at(&self, worktree_path: PathBuf) -> BoxFuture<'_, Result<Option<SystemTime>>> {
         self.executor
             .spawn(async move {
-                match std::fs::metadata(&worktree_path) {
-                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                match fs::metadata(&worktree_path) {
+                    Err(error) if error.kind() == ErrorKind::NotFound => {
                         return Ok(None);
                     }
                     Err(error) => {
@@ -1857,7 +1861,7 @@ impl GitRepository for RealGitRepository {
                 }
                 let git_dir = linked_worktree_git_dir(&worktree_path)?;
                 let metadata =
-                    std::fs::metadata(&git_dir).with_context(|| format!("failed to stat {}", git_dir.display()))?;
+                    fs::metadata(&git_dir).with_context(|| format!("failed to stat {}", git_dir.display()))?;
                 let created_at = metadata
                     .created()
                     .with_context(|| format!("creation time unavailable for {}", git_dir.display()))?;
@@ -1893,7 +1897,7 @@ impl GitRepository for RealGitRepository {
 
         self.executor
             .spawn(async move {
-                std::fs::create_dir_all(path.parent().unwrap_or(&path))?;
+                fs::create_dir_all(path.parent().unwrap_or(&path))?;
                 let output = git.build_command(&args).output().await?;
                 if output.status.success() {
                     Ok(())
@@ -2038,29 +2042,24 @@ impl GitRepository for RealGitRepository {
             .boxed()
     }
 
-    fn blame(
-        &self,
-        path: RepoPath,
-        content: Rope,
-        line_ending: LineEnding,
-    ) -> BoxFuture<'_, Result<crate::blame::Blame>> {
+    fn blame(&self, path: RepoPath, content: Rope, line_ending: LineEnding) -> BoxFuture<'_, Result<Blame>> {
         let git = self.git_binary_in_worktree();
 
         self.executor
             .spawn(async move {
                 let git = git?;
-                crate::blame::Blame::for_path(&git, &path, &content, line_ending).await
+                Blame::for_path(&git, &path, &content, line_ending).await
             })
             .boxed()
     }
 
-    fn blame_at_revision(&self, path: RepoPath, revision: Oid) -> BoxFuture<'_, Result<crate::blame::Blame>> {
+    fn blame_at_revision(&self, path: RepoPath, revision: Oid) -> BoxFuture<'_, Result<Blame>> {
         let git = self.git_binary_in_worktree();
 
         self.executor
             .spawn(async move {
                 let git = git?;
-                crate::blame::Blame::for_path_at_revision(&git, &path, revision).await
+                Blame::for_path_at_revision(&git, &path, revision).await
             })
             .boxed()
     }
@@ -2088,11 +2087,7 @@ impl GitRepository for RealGitRepository {
             .boxed()
     }
 
-    fn diff_stat(
-        &self,
-        diff: DiffStatType,
-        path_prefixes: &[RepoPath],
-    ) -> BoxFuture<'static, Result<crate::status::GitDiffStat>> {
+    fn diff_stat(&self, diff: DiffStatType, path_prefixes: &[RepoPath]) -> BoxFuture<'static, Result<GitDiffStat>> {
         let path_prefixes = path_prefixes.to_vec();
         let git_binary = self.git_binary_in_worktree();
 
@@ -2110,7 +2105,7 @@ impl GitRepository for RealGitRepository {
                     args.extend(path_prefixes.iter().map(|p| p.as_std_path().to_string_lossy().into_owned()));
                 }
                 let output = git_binary.run(&args).await?;
-                Ok(crate::status::parse_numstat(&output))
+                Ok(status::parse_numstat(&output))
             })
             .boxed()
     }
@@ -2854,10 +2849,7 @@ async fn run_commit_data_reader(git: GitBinary, request_rx: async_channel::Recei
     Ok(())
 }
 
-async fn read_single_commit_response<R: smol::io::AsyncBufRead + Unpin>(
-    stdout: &mut R,
-    sha: &Oid,
-) -> Result<CommitData> {
+async fn read_single_commit_response<R: AsyncBufRead + Unpin>(stdout: &mut R, sha: &Oid) -> Result<CommitData> {
     let mut header_bytes = Vec::new();
     stdout.read_until(b'\n', &mut header_bytes).await?;
     let header_line = String::from_utf8_lossy(&header_bytes);
@@ -2909,7 +2901,7 @@ fn parse_file_history_changed_files_output(
                 }
                 RepoPath::new(path).ok()
             })
-            .collect::<std::collections::BTreeSet<_>>();
+            .collect::<BTreeSet<_>>();
 
         if changed_files.is_empty() {
             continue;
@@ -3014,7 +3006,7 @@ impl GitBinary {
     }
 
     #[allow(clippy::disallowed_methods)]
-    pub(crate) fn build_command<S>(&self, args: &[S]) -> util::command::Command
+    pub(crate) fn build_command<S>(&self, args: &[S]) -> Command
     where
         S: AsRef<OsStr>,
     {
@@ -3046,7 +3038,7 @@ struct GitBinaryCommandError {
 async fn run_git_command(
     git: GitBinary,
     env: Arc<HashMap<String, String>>,
-    mut command: util::command::Command,
+    mut command: Command,
 ) -> Result<RemoteCommandOutput> {
     let git = git.envs((*env).clone());
     // GPG can launch pinentry independently of Git, including while rebasing.
@@ -3055,7 +3047,7 @@ async fn run_git_command(
     let config_count = env
         .get("GIT_CONFIG_COUNT")
         .cloned()
-        .or_else(|| std::env::var("GIT_CONFIG_COUNT").ok())
+        .or_else(|| env::var("GIT_CONFIG_COUNT").ok())
         .unwrap_or_else(|| "0".to_string())
         .parse::<usize>()
         .context("Invalid GIT_CONFIG_COUNT")?;
@@ -3069,7 +3061,7 @@ async fn run_git_command(
             }
             Err(_) => default_program.to_string(),
         };
-        let program = util::shell::ShellKind::Posix.try_quote(&program).context("Failed to quote signing program")?;
+        let program = ShellKind::Posix.try_quote(&program).context("Failed to quote signing program")?;
         let wrapper = signing_dir.path().join(default_program);
         smol::fs::write(&wrapper, format!("#!/bin/sh\nexec {program} --batch --pinentry-mode error \"$@\"\n")).await?;
         util::fs::make_file_executable(&wrapper).await?;
@@ -3096,8 +3088,8 @@ async fn run_git_command(
 #[derive(Clone, Ord, Hash, PartialOrd, Eq, PartialEq)]
 pub struct RepoPath(Arc<RelPath>);
 
-impl std::fmt::Debug for RepoPath {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for RepoPath {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
@@ -3133,7 +3125,7 @@ impl AsRef<Arc<RelPath>> for RepoPath {
     }
 }
 
-impl std::ops::Deref for RepoPath {
+impl Deref for RepoPath {
     type Target = RelPath;
 
     fn deref(&self) -> &Self::Target {

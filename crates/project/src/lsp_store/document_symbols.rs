@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -37,7 +38,7 @@ use crate::lsp_store::next_lsp_fetch_id;
 use crate::lsp_store::upstream_lsp_query_server_filter;
 use crate::project_settings::ProjectSettings;
 
-pub(super) type DocumentSymbolsTask = Shared<Task<std::result::Result<Vec<OutlineItem<Anchor>>, Arc<anyhow::Error>>>>;
+pub(super) type DocumentSymbolsTask = Shared<Task<result::Result<Vec<OutlineItem<Anchor>>, Arc<anyhow::Error>>>>;
 
 #[derive(Debug, Default)]
 pub(super) struct DocumentSymbolsData {

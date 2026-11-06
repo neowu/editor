@@ -278,14 +278,22 @@ vte = { version = "0.15.0", features = ["ansi"] }
 which = "8"
 
 [workspace.lints.clippy]
+absolute_paths = "warn"
+alloc_instead_of_core = "warn"
+as_pointer_underscore = "warn"
+as_ptr_cast_mut = "warn"
+as_underscore = "warn"
+assertions_on_result_states = "warn"
+assigning_clones = "warn"
+borrow_as_ptr = "warn"
+branches_sharing_code = "warn"
+
 # nursery
 missing_const_for_fn = "warn"
 needless_pass_by_ref_mut = "warn"
 redundant_clone = "warn"
 
 # pedantic
-assigning_clones = "warn"
-borrow_as_ptr = "warn"
 cast_possible_wrap = "warn"
 cast_ptr_alignment = "warn"
 checked_conversions = "warn"

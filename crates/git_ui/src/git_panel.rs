@@ -1,5 +1,10 @@
+use std::any::Any;
 use std::cell::Cell;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::future::Future;
+use std::mem;
 use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
@@ -13,6 +18,9 @@ use collections::HashSet;
 use ed_actions::DecreaseBufferFontSize;
 use ed_actions::IncreaseBufferFontSize;
 use ed_actions::ResetBufferFontSize;
+use ed_actions::editor::MoveDown;
+use ed_actions::editor::MoveUp;
+use ed_actions::git::ViewStash;
 use ed_actions::git_panel::ToggleFocus;
 use ed_actions::workspace::CopyPath;
 use ed_actions::workspace::CopyRelativePath;
@@ -24,8 +32,13 @@ use editor::MultiBuffer;
 use editor::MultiBufferOffset;
 use editor::RewrapOptions;
 use editor::SizingBehavior;
+use editor::actions::Copy;
+use editor::actions::Cut;
+use editor::actions::Paste;
+use editor::actions::SelectAll;
 use file_icons::FileIcons;
 use futures::channel::oneshot::Canceled;
+use futures::future;
 use git::Amend;
 use git::Commit;
 use git::DeleteUntrackedFiles;
@@ -131,9 +144,11 @@ use ui::SplitButton;
 use ui::Tab;
 use ui::Tooltip;
 use ui::WithScrollbar;
+use ui::font;
 use ui::prelude::*;
 use util::ResultExt;
 use util::markdown::MarkdownInlineCode;
+use util::paths;
 use workspace::CARD_RADIUS;
 use workspace::Item;
 use workspace::ModalView;
@@ -145,8 +160,11 @@ use workspace::dock::SIDEBAR_MIN_WIDTH;
 use workspace::notifications::DetachAndPromptErr;
 use workspace::notifications::NotifyTaskExt;
 
+use crate::clone;
+use crate::commit_tooltip;
 use crate::commit_tooltip::CommitTooltip;
 use crate::commit_view::CommitView;
+use crate::git_graph;
 use crate::git_panel_view_options::GitPanelGroupBy;
 use crate::git_panel_view_options::GitPanelSortBy;
 use crate::git_panel_view_options::GitPanelViewOptions;
@@ -352,7 +370,7 @@ fn git_panel_context_menu(
                 context_menu.action_disabled_when(!has_staged_changes, "Stash Staged", StashStaged.boxed_clone())
             })
             .action_disabled_when(!has_stash_items, "Stash Pop", StashPop.boxed_clone())
-            .action("View Stash", ed_actions::git::ViewStash.boxed_clone())
+            .action("View Stash", ViewStash.boxed_clone())
             .when(include_copy_paths, |context_menu| {
                 context_menu
                     .separator()
@@ -996,8 +1014,8 @@ impl TruncatedPatch {
     }
 }
 
-impl std::fmt::Display for TruncatedPatch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for TruncatedPatch {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(&self.header)?;
         for hunk in self.hunks.iter().take(self.hunks_to_keep) {
             f.write_str(hunk)?;
@@ -1111,9 +1129,9 @@ pub(crate) fn commit_message_editor(
 
         Some(ContextMenu::build(window, cx, |menu, _, _| {
             menu.context(focus_handle)
-                .action_disabled_when(!has_selection, "Cut", Box::new(editor::actions::Cut))
-                .action_disabled_when(!has_selection, "Copy", Box::new(editor::actions::Copy))
-                .action("Paste", Box::new(editor::actions::Paste))
+                .action_disabled_when(!has_selection, "Cut", Box::new(Cut))
+                .action_disabled_when(!has_selection, "Copy", Box::new(Copy))
+                .action("Paste", Box::new(Paste))
         }))
     });
     commit_editor
@@ -2136,7 +2154,7 @@ impl GitPanel {
             .update(cx, |workspace, cx| {
                 for entry in entries {
                     if !entry.status.is_created() {
-                        crate::git_graph::open_or_reuse_graph(
+                        git_graph::open_or_reuse_graph(
                             workspace,
                             repository_id,
                             git_store.clone(),
@@ -2402,7 +2420,7 @@ impl GitPanel {
                 })
             })?;
 
-            let buffers = futures::future::join_all(tasks).await;
+            let buffers = future::join_all(tasks).await;
 
             this.update_in(cx, |this, window, cx| {
                 let task = active_repository.update(cx, |repo, cx| {
@@ -2423,7 +2441,7 @@ impl GitPanel {
                     .collect()
             })?;
 
-            futures::future::join_all(tasks).await;
+            future::join_all(tasks).await;
 
             Ok(())
         });
@@ -2534,7 +2552,7 @@ impl GitPanel {
                 to_delete.into_iter().filter(|entry| !entry.status.staging().is_fully_unstaged()).collect();
             this.update(cx, |this, cx| this.change_file_stage(false, to_unstage, cx))?;
 
-            let results = futures::future::join_all(tasks).await;
+            let results = future::join_all(tasks).await;
             let errors: Vec<anyhow::Error> = results.into_iter().filter_map(|r| r.err()).collect();
             let failed_count = errors.len();
             if let Some(first_error) = errors.into_iter().next() {
@@ -2991,11 +3009,10 @@ impl GitPanel {
                     return self.commit(commit_editor_focus_handle, window, cx);
                 }
             }
-            false
         } else {
             cx.propagate();
-            false
         }
+        false
     }
     pub fn head_commit(&self, cx: &App) -> Option<CommitDetails> {
         self.active_repository.as_ref().and_then(|repo| repo.read(cx).head_commit.as_ref()).cloned()
@@ -3038,7 +3055,7 @@ impl GitPanel {
         });
         let editor = cx.new(|cx| Editor::for_buffer(buffer, None, window, cx));
         let wrapped_message = editor.update(cx, |editor, cx| {
-            editor.select_all(&editor::actions::SelectAll, window, cx);
+            editor.select_all(&SelectAll, window, cx);
             editor.rewrap(
                 RewrapOptions {
                     override_language_settings: false,
@@ -3417,7 +3434,7 @@ impl GitPanel {
     pub(crate) fn git_clone(&self, repo: String, window: &mut Window, cx: &mut Context<Self>) {
         let workspace = self.workspace.clone();
 
-        crate::clone::clone_and_open(
+        clone::clone_and_open(
             repo.into(),
             workspace,
             window,
@@ -3455,7 +3472,7 @@ impl GitPanel {
                 .iter()
                 .map(|worktree| worktree.read(cx).abs_path())
                 .map(|worktree_abs_path| {
-                    if let Ok(path) = worktree_abs_path.strip_prefix(util::paths::home_dir()) {
+                    if let Ok(path) = worktree_abs_path.strip_prefix(paths::home_dir()) {
                         Path::new("~").join(path).to_string_lossy().to_string().into()
                     } else {
                         worktree_abs_path.to_string_lossy().into_owned().into()
@@ -3774,7 +3791,7 @@ impl GitPanel {
     }
 
     fn adjust_font_size(delta: Pixels, cx: &mut Context<Self>) {
-        let size = ui::font::clamp_font_size(git_commit_font_size(cx) + delta);
+        let size = font::clamp_font_size(git_commit_font_size(cx) + delta);
         cx.set_global(GitCommitFontSize(size));
         cx.refresh_windows();
     }
@@ -4087,15 +4104,15 @@ impl GitPanel {
 
         let section_entries = if group_by_staging_state {
             vec![
-                (Section::Conflict, std::mem::take(&mut conflict_entries)),
-                (Section::Staged, std::mem::take(&mut staged_entries)),
-                (Section::Unstaged, std::mem::take(&mut unstaged_entries)),
+                (Section::Conflict, mem::take(&mut conflict_entries)),
+                (Section::Staged, mem::take(&mut staged_entries)),
+                (Section::Unstaged, mem::take(&mut unstaged_entries)),
             ]
         } else {
             vec![
-                (Section::Conflict, std::mem::take(&mut conflict_entries)),
-                (Section::Tracked, std::mem::take(&mut changed_entries)),
-                (Section::New, std::mem::take(&mut new_entries)),
+                (Section::Conflict, mem::take(&mut conflict_entries)),
+                (Section::Tracked, mem::take(&mut changed_entries)),
+                (Section::New, mem::take(&mut new_entries)),
             ]
         };
 
@@ -4114,7 +4131,7 @@ impl GitPanel {
 
                 // This is just to get around the borrow checker
                 // because push_entry mutably borrows self
-                let mut tree_state = std::mem::take(tree_state);
+                let mut tree_state = mem::take(tree_state);
 
                 for (section, entries) in section_entries {
                     if entries.is_empty() && !show_when_empty(section) {
@@ -4818,10 +4835,10 @@ impl GitPanel {
                                         .h_full()
                                         .flex_grow_1()
                                         .cursor_text()
-                                        .on_action(|&ed_actions::editor::MoveUp, _, cx| {
+                                        .on_action(|&MoveUp, _, cx| {
                                             cx.stop_propagation();
                                         })
-                                        .on_action(|&ed_actions::editor::MoveDown, _, cx| {
+                                        .on_action(|&MoveDown, _, cx| {
                                             cx.stop_propagation();
                                         })
                                         .child(EditorElement::new(&self.commit_editor, panel_editor_style)),
@@ -6030,7 +6047,7 @@ impl GitPanel {
             self.set_bulk_staging_anchor(entry.repo_path.clone(), cx);
         }
         if index < anchor_index {
-            std::mem::swap(&mut index, &mut anchor_index);
+            mem::swap(&mut index, &mut anchor_index);
         }
         let Some(repo) = self.active_repository.clone() else {
             return;
@@ -6187,7 +6204,7 @@ pub(crate) struct GitPanelAddon {
 }
 
 impl editor::Addon for GitPanelAddon {
-    fn to_any(&self) -> &dyn std::any::Any {
+    fn to_any(&self) -> &dyn Any {
         self
     }
 
@@ -6261,11 +6278,11 @@ pub(crate) fn git_commit_editor_style(font_size: gpui::Pixels, cx: &App) -> Edit
         local_player: cx.theme().player(),
         text: TextStyle {
             color: cx.theme().colors().text,
-            font_family: ui::font::buffer_font().family.clone(),
-            font_fallbacks: ui::font::buffer_font().fallbacks.clone(),
-            font_features: ui::font::buffer_font().features.clone(),
+            font_family: font::buffer_font().family.clone(),
+            font_fallbacks: font::buffer_font().fallbacks.clone(),
+            font_features: font::buffer_font().features.clone(),
             font_size: AbsoluteLength::from(font_size),
-            font_weight: ui::font::buffer_font().weight,
+            font_weight: font::buffer_font().weight,
             line_height: (font_size * BUFFER_LINE_HEIGHT).into(),
             ..Default::default()
         },
@@ -6293,7 +6310,7 @@ impl GitPanelMessageTooltip {
                 });
                 let details = details.await?;
 
-                let commit_details = crate::commit_tooltip::CommitDetails {
+                let commit_details = commit_tooltip::CommitDetails {
                     sha: details.sha.clone(),
                     author_name: details.author_name.clone(),
                     author_email: details.author_email.clone(),

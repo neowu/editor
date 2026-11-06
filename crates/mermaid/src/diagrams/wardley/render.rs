@@ -1,8 +1,11 @@
 //! Draws a Wardley map: the evolution axis with its stages, components, links, pipelines, trends,
 //! annotations, notes, and forces. Port of Pele's `src/diagrams/wardley/render.ts`.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::f64::consts::PI;
+use std::f64::consts::SQRT_2;
 
 use super::builder::Flow;
 use super::builder::WardleyNode;
@@ -184,7 +187,7 @@ fn reach(node: &WardleyNode, anchor_label: Option<&Label>, small: f64, ux: f64, 
         return 1.0 / (ux / (width / 2.0 + 5.0)).hypot(uy / (small * 0.8));
     }
     if node.is_pipeline_parent {
-        return SQUARE / std::f64::consts::SQRT_2;
+        return SQUARE / SQRT_2;
     }
     if node.source_strategy.as_deref().is_some_and(|s| !s.is_empty()) { 2.0 * R } else { R }
 }
@@ -310,7 +313,7 @@ fn draw(model: &WardleyModel, config: &Value, options: &Options, plot_w: f64, na
         members.insert(&pipeline.node_id, pipeline.component_ids.iter().map(String::as_str).collect());
         let mut parts: Vec<(f64, f64)> =
             pipeline.component_ids.iter().filter_map(|id| positions.get(*ids.get(id.as_str())?).copied()).collect();
-        parts.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        parts.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
         let (Some(&(left, y)), Some(&(right, _))) = (parts.first(), parts.last()) else {
             continue;
         };
@@ -538,8 +541,8 @@ fn draw(model: &WardleyModel, config: &Value, options: &Options, plot_w: f64, na
             shape.push_str("\"/>");
         }
         if strategy == Some("market") {
-            let bx = tri * (std::f64::consts::PI / 6.0).cos();
-            let by = y + tri * (std::f64::consts::PI / 6.0).sin();
+            let bx = tri * (PI / 6.0).cos();
+            let by = y + tri * (PI / 6.0).sin();
             shape.push_str("<path d=\"M");
             push_num(&mut shape, x);
             shape.push(',');
@@ -684,7 +687,7 @@ fn draw(model: &WardleyModel, config: &Value, options: &Options, plot_w: f64, na
             Some((annotation.number, text))
         })
         .collect();
-    listed.sort_by(|a, b| (a.0 - b.0).partial_cmp(&0.0).unwrap_or(std::cmp::Ordering::Equal));
+    listed.sort_by(|a, b| (a.0 - b.0).partial_cmp(&0.0).unwrap_or(Ordering::Equal));
     if !listed.is_empty() {
         let list_wrap = if tight { 80.0_f64.max(plot_w - 20.0) } else { 320.0 };
         let lines: Vec<Label> = listed

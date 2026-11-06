@@ -1,3 +1,6 @@
+use std::ops::Add;
+use std::ops::AddAssign;
+use std::ops::Sub;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -271,7 +274,7 @@ impl TrackedSummary {
     pub const DELETED: Self = Self { added: 0, modified: 0, deleted: 1 };
 }
 
-impl std::ops::AddAssign for TrackedSummary {
+impl AddAssign for TrackedSummary {
     fn add_assign(&mut self, rhs: Self) {
         self.added += rhs.added;
         self.modified += rhs.modified;
@@ -279,7 +282,7 @@ impl std::ops::AddAssign for TrackedSummary {
     }
 }
 
-impl std::ops::Add for TrackedSummary {
+impl Add for TrackedSummary {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -291,7 +294,7 @@ impl std::ops::Add for TrackedSummary {
     }
 }
 
-impl std::ops::Sub for TrackedSummary {
+impl Sub for TrackedSummary {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -342,7 +345,7 @@ impl sum_tree::ContextLessSummary for GitSummary {
     }
 }
 
-impl std::ops::Add<Self> for GitSummary {
+impl Add<Self> for GitSummary {
     type Output = Self;
 
     fn add(mut self, rhs: Self) -> Self {
@@ -351,7 +354,7 @@ impl std::ops::Add<Self> for GitSummary {
     }
 }
 
-impl std::ops::AddAssign for GitSummary {
+impl AddAssign for GitSummary {
     fn add_assign(&mut self, rhs: Self) {
         self.index += rhs.index;
         self.worktree += rhs.worktree;
@@ -361,7 +364,7 @@ impl std::ops::AddAssign for GitSummary {
     }
 }
 
-impl std::ops::Sub for GitSummary {
+impl Sub for GitSummary {
     type Output = GitSummary;
 
     fn sub(self, rhs: Self) -> Self::Output {

@@ -1,6 +1,8 @@
 //! Draws a kanban board: columns of cards, folded into rows when the host is narrow. Port of
 //! Pele's `src/diagrams/kanban/render.ts`.
 
+use std::mem;
+
 use super::db::KanbanDb;
 use super::db::KanbanNode;
 use crate::Options;
@@ -78,7 +80,7 @@ fn fit_label(raw: Option<&str>, markdown: bool, size: f64, max: f64, base: u8) -
     let mut line: Vec<Span> = Vec::new();
     let mut width = 0.0;
     let mut commit = |line: &mut Vec<Span>, width: &mut f64| {
-        lines.push(std::mem::take(line));
+        lines.push(mem::take(line));
         widths.push(*width);
         widest = widest.max(*width);
         *width = 0.0;
@@ -109,7 +111,7 @@ fn fit_label(raw: Option<&str>, markdown: bool, size: f64, max: f64, base: u8) -
                         line.push(Span {
                             icon: None,
                             style: span.style,
-                            text: std::mem::take(&mut text),
+                            text: mem::take(&mut text),
                             width: width - from,
                         });
                     }

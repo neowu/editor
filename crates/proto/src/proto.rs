@@ -17,6 +17,7 @@ pub use prost::Message;
 pub use typed_envelope::*;
 
 mod generated {
+    #![allow(clippy::absolute_paths, reason = "prost qualifies generated types to avoid name collisions")]
     #![allow(clippy::missing_const_for_fn)]
     include!(concat!(env!("OUT_DIR"), "/ed.messages.rs"));
 }
@@ -711,7 +712,7 @@ pub fn split_repository_update(mut update: UpdateRepository) -> impl Iterator<It
     let mut removed_statuses_iter = mem::take(&mut update.removed_statuses).into_iter().fuse();
     let branch_list = mem::take(&mut update.branch_list);
     let branch_list_error = update.branch_list_error.take();
-    std::iter::from_fn({
+    iter::from_fn({
         let update = update.clone();
         move || {
             let updated_statuses =

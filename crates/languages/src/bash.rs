@@ -16,6 +16,8 @@ use task::TaskTemplate;
 use task::TaskTemplates;
 use task::VariableName;
 
+use crate::npx;
+
 pub(super) fn bash_task_context() -> ContextProviderWithTasks {
     ContextProviderWithTasks::new(TaskTemplates(vec![
         TaskTemplate {
@@ -49,7 +51,7 @@ impl LspAdapter for BashLspAdapter {
         delegate: &Arc<dyn LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
-        crate::npx::node_server_binary(delegate, &[Self::PACKAGE_NAME], Self::PACKAGE_NAME, &["start"]).await
+        npx::node_server_binary(delegate, &[Self::PACKAGE_NAME], Self::PACKAGE_NAME, &["start"]).await
     }
 
     async fn workspace_configuration(

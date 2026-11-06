@@ -1,3 +1,4 @@
+use std::env::consts::OS;
 use std::fmt;
 
 use anyhow::Context as _;
@@ -34,7 +35,7 @@ impl KeyContext {
     pub fn new_with_defaults() -> Self {
         let mut context = Self::default();
 
-        context.set("os", std::env::consts::OS);
+        context.set("os", OS);
         context
     }
 

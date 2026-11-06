@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Debug;
 use std::sync::Arc;
 
 /// The OpenType features that can be configured for a given font.
@@ -24,8 +26,8 @@ impl FontFeatures {
     }
 }
 
-impl std::fmt::Debug for FontFeatures {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for FontFeatures {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut debug = f.debug_struct("FontFeatures");
         for (tag, value) in self.tag_value_list() {
             debug.field(tag, value);

@@ -1,6 +1,8 @@
 //! Lays out and draws a flowchart, or a variant of one such as a swimlane diagram. Port of Pele's
 //! `src/diagrams/flowchart/render.ts`.
 
+use std::collections::BTreeMap;
+
 use super::db::FlowDb;
 use super::graph::FlowGraph;
 use super::graph::GraphEdge;
@@ -22,6 +24,7 @@ use crate::layout::compound::compound_layout;
 use crate::layout::compound::direction;
 use crate::layout::compound::shift_layout;
 use crate::layout::layered::LayeredOptions;
+use crate::svg::builder;
 use crate::svg::builder::esc;
 use crate::svg::builder::esc_text;
 use crate::svg::builder::label_svg;
@@ -53,6 +56,7 @@ use crate::text::label::Label;
 use crate::text::label::layout_label;
 use crate::text::measure::BOLD;
 use crate::text::measure::ITALIC;
+use crate::util::chars;
 use crate::util::url::{self};
 use crate::yaml::Value;
 
@@ -144,13 +148,13 @@ fn draw(
         (variant.prepare)(&mut graph);
     }
     let size = options.font_size;
-    let edge_size = crate::svg::builder::js_round(size * 0.875);
+    let edge_size = builder::js_round(size * 0.875);
     let squeezed = variant.is_some() && tight;
     let wrap_width = number_option(flow, "wrappingWidth", 200.0).min(if squeezed { 100.0 } else { f64::INFINITY });
     let group_title_width = if squeezed { 80.0_f64.max(title_room(options) / 2.0) } else { 4000.0 };
     let pad = options.padding;
 
-    let mut index: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    let mut index: BTreeMap<&str, usize> = BTreeMap::new();
     for (i, node) in graph.nodes.iter().enumerate() {
         index.insert(&node.id, i);
     }
@@ -581,7 +585,7 @@ fn strip_default(classes: &str) -> &str {
         return classes;
     };
     match rest.chars().next() {
-        Some(c) if crate::util::chars::is_space(u32::from(c)) => &rest[c.len_utf8()..],
+        Some(c) if chars::is_space(u32::from(c)) => &rest[c.len_utf8()..],
         _ => rest,
     }
 }

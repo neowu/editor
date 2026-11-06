@@ -15,8 +15,10 @@ use language::proto::serialize_anchor;
 use lsp::AdapterServerCapabilities;
 use lsp::LanguageServer;
 use lsp::LanguageServerId;
+use lsp::notification::Notification;
+use lsp::request::Request;
+use rpc::proto;
 use rpc::proto::PeerId;
-use rpc::proto::{self};
 use serde::Deserialize;
 use serde::Serialize;
 use task::ShellKind;
@@ -41,7 +43,7 @@ use crate::make_text_document_identifier;
 
 pub enum LspExtExpandMacro {}
 
-impl lsp::request::Request for LspExtExpandMacro {
+impl Request for LspExtExpandMacro {
     type Params = ExpandMacroParams;
     type Result = Option<ExpandedMacro>;
     const METHOD: &'static str = "rust-analyzer/expandMacro";
@@ -113,7 +115,7 @@ impl LspCommand for ExpandMacro {
         proto::LspExtExpandMacro {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             server_id: self.server_id.to_proto(),
         }
     }
@@ -158,7 +160,7 @@ impl LspCommand for ExpandMacro {
 
 pub enum LspOpenDocs {}
 
-impl lsp::request::Request for LspOpenDocs {
+impl Request for LspOpenDocs {
     type Params = OpenDocsParams;
     type Result = Option<DocsUrls>;
     const METHOD: &'static str = "experimental/externalDocs";
@@ -227,7 +229,7 @@ impl LspCommand for OpenDocs {
         proto::LspExtOpenDocs {
             project_id,
             buffer_id: buffer.remote_id().into(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             server_id: self.server_id.to_proto(),
         }
     }
@@ -278,7 +280,7 @@ pub struct GoToParentModule {
 
 pub struct LspGoToParentModule {}
 
-impl lsp::request::Request for LspGoToParentModule {
+impl Request for LspGoToParentModule {
     type Params = lsp::TextDocumentPositionParams;
     type Result = Option<Vec<lsp::LocationLink>>;
     const METHOD: &'static str = "experimental/parentModule";
@@ -326,7 +328,7 @@ impl LspCommand for GoToParentModule {
         proto::LspExtGoToParentModule {
             project_id,
             buffer_id: buffer.remote_id().to_proto(),
-            position: Some(language::proto::serialize_anchor(&buffer.anchor_before(self.position))),
+            position: Some(serialize_anchor(&buffer.anchor_before(self.position))),
             server_id: self.server_id.to_proto(),
         }
     }
@@ -407,7 +409,7 @@ impl LspCommand for GoToParentModule {
 // RunnableKind to determine which variant to deserialize.
 pub enum Runnables {}
 
-impl lsp::request::Request for Runnables {
+impl Request for Runnables {
     type Params = RunnablesParams;
     type Result = Vec<Runnable>;
     const METHOD: &'static str = "experimental/runnables";
@@ -646,12 +648,12 @@ pub struct LspExtRunFlycheck {}
 #[derive(Debug)]
 pub struct LspExtClearFlycheck {}
 
-impl lsp::notification::Notification for LspExtCancelFlycheck {
+impl Notification for LspExtCancelFlycheck {
     type Params = ();
     const METHOD: &'static str = "rust-analyzer/cancelFlycheck";
 }
 
-impl lsp::notification::Notification for LspExtRunFlycheck {
+impl Notification for LspExtRunFlycheck {
     type Params = RunFlycheckParams;
     const METHOD: &'static str = "rust-analyzer/runFlycheck";
 }
@@ -662,7 +664,7 @@ pub struct RunFlycheckParams {
     pub text_document: Option<lsp::TextDocumentIdentifier>,
 }
 
-impl lsp::notification::Notification for LspExtClearFlycheck {
+impl Notification for LspExtClearFlycheck {
     type Params = ();
     const METHOD: &'static str = "rust-analyzer/clearFlycheck";
 }

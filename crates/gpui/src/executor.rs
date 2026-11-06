@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+use std::fmt::Display;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::mem;
@@ -54,7 +56,7 @@ pub trait TaskExt<T, E> {
 impl<T, E> TaskExt<T, E> for Task<Result<T, E>>
 where
     T: 'static,
-    E: 'static + std::fmt::Display + std::fmt::Debug,
+    E: 'static + Display + Debug,
 {
     #[track_caller]
     fn detach_and_log_err(self, cx: &App) {

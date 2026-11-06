@@ -38,6 +38,7 @@ use crate::svg::shapes::draw_shape;
 use crate::svg::theme::RADIUS;
 use crate::svg::theme::ResolvedStyle;
 use crate::svg::theme::resolve_style;
+use crate::text::label::Label;
 use crate::text::label::layout_label;
 use crate::text::measure::BOLD;
 use crate::text::measure::ITALIC;
@@ -376,7 +377,7 @@ fn draw(db: &C4Db, options: &Options, tight: bool, gap: f64) -> Result<(Rendered
             );
             let x = own.x + group.head_x;
             let mut y = own.y + HEAD_TOP;
-            let empty = crate::text::label::Label::default();
+            let empty = Label::default();
             let heading = |k: usize| group.labels.get(k).unwrap_or(&empty);
             let mut text = left_label_svg(
                 heading(0),

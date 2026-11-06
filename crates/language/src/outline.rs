@@ -1,5 +1,6 @@
 use std::ops::Range;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use fuzzy_nucleo::Case;
 use fuzzy_nucleo::LengthPenalty;
@@ -181,7 +182,7 @@ impl<T> Outline<T> {
             Case::Smart,
             LengthPenalty::On,
             100,
-            &std::sync::atomic::AtomicBool::default(),
+            &AtomicBool::default(),
             executor,
         )
         .await;

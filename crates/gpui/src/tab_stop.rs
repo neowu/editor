@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt::Debug;
 
 use ::sum_tree::SumTree;
@@ -51,13 +52,13 @@ struct TabStopNode {
 }
 
 impl Ord for TabStopNode {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.path.cmp(&other.path).then(self.node_insertion_index.cmp(&other.node_insertion_index))
     }
 }
 
 impl PartialOrd for TabStopNode {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
@@ -194,6 +195,8 @@ impl TabStopMap {
 }
 
 mod sum_tree_impl {
+    use std::cmp::Ordering;
+
     use sum_tree::SeekTarget;
 
     use crate::tab_stop::TabStopNode;
@@ -274,7 +277,7 @@ mod sum_tree_impl {
             &self,
             cursor_location: &TabStopNode,
             _: <TabStopOrderNodeSummary as sum_tree::Summary>::Context<'_>,
-        ) -> std::cmp::Ordering {
+        ) -> Ordering {
             Iterator::cmp(self.path.0.iter(), cursor_location.path.0.iter())
                 .then(<usize as Ord>::cmp(&self.node_insertion_index, &cursor_location.node_insertion_index))
         }

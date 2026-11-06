@@ -44,6 +44,7 @@ pub use open_path_prompt::OpenPathDelegate;
 use open_path_prompt::OpenPathPrompt;
 use picker::Picker;
 use picker::PickerDelegate;
+use picker::parts;
 use project::PathMatchCandidateSet;
 use project::Project;
 use project::ProjectPath;
@@ -57,6 +58,7 @@ use ui::ListItemSpacing;
 use ui::Tooltip;
 use ui::prelude::*;
 use util::ResultExt;
+use util::paths;
 use util::paths::PathWithPosition;
 use util::post_inc;
 use util::rel_path::RelPath;
@@ -1098,7 +1100,7 @@ impl FileFinderDelegate {
         };
 
         if file_name_positions.is_empty() {
-            let user_home_path = util::paths::home_dir().to_string_lossy();
+            let user_home_path = paths::home_dir().to_string_lossy();
             if !user_home_path.is_empty() && full_path.starts_with(&*user_home_path) {
                 full_path.replace_range(0..user_home_path.len(), "~");
                 full_path_positions.retain_mut(|pos| {
@@ -1399,7 +1401,7 @@ impl PickerDelegate for FileFinderDelegate {
             h_flex()
                 .gap_1()
                 .child(filter_button)
-                .children(picker::parts::project_scan_indicator(self.latest_search_query.is_some(), &self.project, cx))
+                .children(parts::project_scan_indicator(self.latest_search_query.is_some(), &self.project, cx))
                 .into_any_element(),
         )
     }
@@ -1571,7 +1573,7 @@ impl PickerDelegate for FileFinderDelegate {
     }
 
     fn confirm_multi(&mut self, secondary: bool, window: &mut Window, cx: &mut Context<Picker<FileFinderDelegate>>) {
-        let selected = std::mem::take(&mut self.selected_matches);
+        let selected = mem::take(&mut self.selected_matches);
         let count = selected.len();
         for (i, selected_match) in selected.into_iter().enumerate() {
             let is_last = i + 1 == count;

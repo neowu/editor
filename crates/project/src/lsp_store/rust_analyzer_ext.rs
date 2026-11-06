@@ -11,6 +11,9 @@ use language::ServerHealth;
 use lsp::LanguageServer;
 use lsp::LanguageServerId;
 use lsp::LanguageServerName;
+use lsp::notification::Notification;
+use proto::status_update::Status;
+use proto::update_language_server::Variant;
 use rpc::proto;
 
 use crate::LspStore;
@@ -35,7 +38,7 @@ struct ServerStatusParams {
     pub message: Option<String>,
 }
 
-impl lsp::notification::Notification for ServerStatus {
+impl Notification for ServerStatus {
     type Params = ServerStatusParams;
     const METHOD: &'static str = "experimental/serverStatus";
 }
@@ -77,9 +80,9 @@ pub fn register_notifications(lsp_store: WeakEntity<LspStore>, language_server: 
                         cx.emit(LspStoreEvent::LanguageServerUpdate {
                             language_server_id: server_id,
                             name: Some(name.clone()),
-                            message: proto::update_language_server::Variant::StatusUpdate(proto::StatusUpdate {
+                            message: Variant::StatusUpdate(proto::StatusUpdate {
                                 message,
-                                status: Some(proto::status_update::Status::Health(status as i32)),
+                                status: Some(Status::Health(status as i32)),
                             }),
                         });
                     })

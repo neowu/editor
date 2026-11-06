@@ -37,6 +37,7 @@ use ui::v_flex;
 use workspace::Item;
 use workspace::SplitDirection;
 use workspace::Workspace;
+use workspace::item::ItemEvent;
 
 pub fn init(cx: &App) {
     cx.observe_new(|workspace: &mut Workspace, _, _| {
@@ -139,7 +140,7 @@ impl KeyContextView {
 impl Item for KeyContextView {
     type Event = ();
 
-    fn to_item_events(_: &Self::Event, _: &mut dyn FnMut(workspace::item::ItemEvent)) {}
+    fn to_item_events(_: &Self::Event, _: &mut dyn FnMut(ItemEvent)) {}
 
     fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
         "Keyboard Context".into()

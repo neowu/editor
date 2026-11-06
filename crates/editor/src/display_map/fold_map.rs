@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use std::cmp::{self};
 use std::fmt;
 use std::iter;
+use std::mem;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Deref;
@@ -41,6 +42,7 @@ use sum_tree::SumTree;
 use sum_tree::Summary;
 use sum_tree::TreeMap;
 use ui::IntoElement as _;
+use ui::font;
 use util::post_inc;
 
 use super::Highlights;
@@ -91,7 +93,7 @@ impl FoldPlaceholder {
         use theme::ActiveTheme as _;
         gpui::div()
             .id(fold_id)
-            .font(ui::font::buffer_font().clone())
+            .font(font::buffer_font().clone())
             .text_color(cx.theme().colors().text_placeholder)
             .bg(cx.theme().colors().ghost_element_background)
             .hover(|style| style.bg(cx.theme().colors().ghost_element_hover))
@@ -974,7 +976,7 @@ fn consolidate_inlay_edits(mut edits: Vec<InlayEdit>) -> Vec<InlayEdit> {
                     prev_edit.new.end = prev_edit.new.end.max(edit.new.end);
                     Some(None) // Skip this edit, it's merged
                 } else {
-                    let prev = std::mem::replace(*prev_edit, edit);
+                    let prev = mem::replace(*prev_edit, edit);
                     Some(Some(prev)) // Yield the previous edit
                 }
             })
@@ -1004,7 +1006,7 @@ fn consolidate_fold_edits(mut edits: Vec<FoldEdit>) -> Vec<FoldEdit> {
                     prev_edit.new.end = prev_edit.new.end.max(edit.new.end);
                     Some(None) // Skip this edit, it's merged
                 } else {
-                    let prev = std::mem::replace(*prev_edit, edit);
+                    let prev = mem::replace(*prev_edit, edit);
                     Some(Some(prev)) // Yield the previous edit
                 }
             })

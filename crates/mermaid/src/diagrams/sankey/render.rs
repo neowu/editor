@@ -9,6 +9,7 @@ use super::layout::LayoutOptions;
 use super::layout::layout_sankey;
 use crate::Options;
 use crate::diagrams::Rendered;
+use crate::diagrams::common::fit_width as crate_diagrams_common_fit_width;
 use crate::diagrams::common::fit_width::fit_width;
 use crate::diagrams::common::fit_width::title_room;
 use crate::error::Error;
@@ -105,7 +106,7 @@ pub(crate) fn render(model: &SankeyDb, config: &Value, options: &Options) -> Res
 /// A drawing or the error that stopped it, as [`fit_width`] takes it.
 struct Drawn(Result<Rendered, Error>);
 
-impl crate::diagrams::common::fit_width::Drawn for Drawn {
+impl crate_diagrams_common_fit_width::Drawn for Drawn {
     fn width(&self) -> f64 {
         self.0.as_ref().map_or(0.0, |rendered| rendered.width)
     }

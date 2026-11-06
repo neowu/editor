@@ -1,4 +1,7 @@
 use std::collections::VecDeque;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::sync::Arc;
 use std::sync::Weak;
 use std::time::Duration;
@@ -25,6 +28,7 @@ use lsp::LanguageServerSelector;
 use lsp::MessageType;
 use lsp::RequestId;
 use lsp::TraceValue;
+use proto::toggle_lsp_logs::LogType;
 use rpc::proto;
 use serde::Deserialize;
 use settings::WorktreeId;
@@ -68,7 +72,7 @@ struct ProjectState {
 }
 
 pub trait Message: AsRef<str> {
-    type Level: Copy + std::fmt::Debug;
+    type Level: Copy + Debug;
     fn should_include(&self, _: Self::Level) -> bool {
         true
     }
@@ -187,8 +191,8 @@ impl LanguageServerState {
     }
 }
 
-impl std::fmt::Debug for LanguageServerState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for LanguageServerState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("LanguageServerState")
             .field("generation", &self.generation)
             .field("name", &self.name)
@@ -211,8 +215,8 @@ pub enum LanguageServerKind {
     LocalSsh { lsp_store: WeakEntity<LspStore> },
 }
 
-impl std::fmt::Debug for LanguageServerKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for LanguageServerKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             LanguageServerKind::Local { .. } => write!(f, "LanguageServerKind::Local"),
             LanguageServerKind::Remote { .. } => write!(f, "LanguageServerKind::Remote"),
@@ -377,11 +381,11 @@ impl LogKind {
         }
     }
 
-    const fn to_proto(self) -> Option<proto::toggle_lsp_logs::LogType> {
+    const fn to_proto(self) -> Option<LogType> {
         match self {
-            Self::Rpc => Some(proto::toggle_lsp_logs::LogType::Rpc),
-            Self::Trace => Some(proto::toggle_lsp_logs::LogType::Trace),
-            Self::Logs => Some(proto::toggle_lsp_logs::LogType::Log),
+            Self::Rpc => Some(LogType::Rpc),
+            Self::Trace => Some(LogType::Trace),
+            Self::Logs => Some(LogType::Log),
             Self::ServerInfo => None,
         }
     }

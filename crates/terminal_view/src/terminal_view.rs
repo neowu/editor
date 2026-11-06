@@ -1,3 +1,4 @@
+use workspace::item::ItemBufferKind;
 pub mod terminal_element;
 mod terminal_mode;
 pub mod terminal_panel;
@@ -1378,8 +1379,8 @@ impl Item for TerminalView {
         if terminal.task().is_none() { vec![("Rename".into(), Box::new(RenameTerminal))] } else { Vec::new() }
     }
 
-    fn buffer_kind(&self, _: &App) -> workspace::item::ItemBufferKind {
-        workspace::item::ItemBufferKind::Singleton
+    fn buffer_kind(&self, _: &App) -> ItemBufferKind {
+        ItemBufferKind::Singleton
     }
 
     fn can_split(&self) -> bool {

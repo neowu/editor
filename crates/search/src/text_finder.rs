@@ -1,3 +1,4 @@
+use std::mem;
 use std::ops::Range;
 use std::sync::atomic::Ordering;
 
@@ -18,12 +19,19 @@ use gpui::actions;
 use language::Buffer;
 use picker::Picker;
 use project::ProjectPath;
+use project::search::SearchResult;
 use settings::SeedQuerySetting;
 use text::Anchor;
 use ui::Window;
 use workspace::ItemHandle;
 use workspace::ModalView;
 use workspace::Workspace;
+use workspace::pane::SplitDown;
+use workspace::pane::SplitLeft;
+use workspace::pane::SplitRight;
+use workspace::pane::SplitUp;
+
+use crate::project_search;
 
 mod delegate;
 mod render;
@@ -98,7 +106,7 @@ impl TextFinder {
 
         cx.spawn_in(window, async move |this, cx| {
             let search_stream = connected_task.unwrap_or(gpui::Task::ready(None)).await;
-            let matches = picker.update(cx, |picker, _| std::mem::take(&mut picker.delegate.matches));
+            let matches = picker.update(cx, |picker, _| mem::take(&mut picker.delegate.matches));
 
             project_search_view
                 .update_in(cx, |view, window, cx| {
@@ -134,19 +142,19 @@ impl TextFinder {
         .detach();
     }
 
-    fn split_left(&mut self, _: &workspace::pane::SplitLeft, window: &mut Window, cx: &mut Context<Self>) {
+    fn split_left(&mut self, _: &SplitLeft, window: &mut Window, cx: &mut Context<Self>) {
         self.open_in_split(workspace::SplitDirection::Left, window, cx);
     }
 
-    fn split_right(&mut self, _: &workspace::pane::SplitRight, window: &mut Window, cx: &mut Context<Self>) {
+    fn split_right(&mut self, _: &SplitRight, window: &mut Window, cx: &mut Context<Self>) {
         self.open_in_split(workspace::SplitDirection::Right, window, cx);
     }
 
-    fn split_up(&mut self, _: &workspace::pane::SplitUp, window: &mut Window, cx: &mut Context<Self>) {
+    fn split_up(&mut self, _: &SplitUp, window: &mut Window, cx: &mut Context<Self>) {
         self.open_in_split(workspace::SplitDirection::Up, window, cx);
     }
 
-    fn split_down(&mut self, _: &workspace::pane::SplitDown, window: &mut Window, cx: &mut Context<Self>) {
+    fn split_down(&mut self, _: &SplitDown, window: &mut Window, cx: &mut Context<Self>) {
         self.open_in_split(workspace::SplitDirection::Down, window, cx);
     }
 
@@ -178,10 +186,7 @@ impl TextFinder {
         WeakEntity::clone(&self.picker.read(cx).delegate.project_search_view.read(cx).workspace)
     }
 
-    fn take_search_task(
-        &self,
-        cx: &mut App,
-    ) -> Option<Task<Option<project::SearchResults<project::search::SearchResult>>>> {
+    fn take_search_task(&self, cx: &mut App) -> Option<Task<Option<project::SearchResults<SearchResult>>>> {
         self.picker.read(cx).delegate.text_finder_turning_into_project_search.store(true, Ordering::Relaxed);
         self.picker.update(cx, |p, _| p.delegate.in_progress_search.take_connected())
     }
@@ -231,7 +236,7 @@ impl TextFinder {
             }
         }
 
-        if let Some(query) = crate::project_search::buffer_search_query(workspace, item, cx) {
+        if let Some(query) = project_search::buffer_search_query(workspace, item, cx) {
             return Some(QuerySeed::Query(query));
         }
 

@@ -1,6 +1,9 @@
 use std::borrow::Cow;
 use std::fmt::Write;
+use std::iter;
 use std::path::PathBuf;
+use std::result;
+use std::str;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -39,7 +42,7 @@ use util::rel_path::RelPath;
 pub(crate) fn semantic_token_rules() -> SemanticTokenRules {
     let content =
         grammars::get_file("python/semantic_token_rules.json").expect("missing python/semantic_token_rules.json");
-    let json = std::str::from_utf8(&content.data).expect("invalid utf-8 in semantic_token_rules");
+    let json = str::from_utf8(&content.data).expect("invalid utf-8 in semantic_token_rules");
     serde_json::from_str::<SemanticTokenRules>(json).expect("failed to parse python semantic_token_rules.json")
 }
 
@@ -73,7 +76,7 @@ async fn python_tool_binary(
     Some(LanguageServerBinary {
         path: uvx,
         env: Some(env),
-        arguments: std::iter::once(tool).chain(arguments.iter().copied()).map(Into::into).collect(),
+        arguments: iter::once(tool).chain(arguments.iter().copied()).map(Into::into).collect(),
     })
 }
 
@@ -114,7 +117,7 @@ enum TestRunner {
 impl FromStr for TestRunner {
     type Err = ();
 
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+    fn from_str(s: &str) -> result::Result<Self, Self::Err> {
         match s {
             "unittest" => Ok(Self::Unittest),
             "pytest" => Ok(Self::Pytest),

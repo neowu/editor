@@ -4,6 +4,7 @@
 //! (https://github.com/blopker/codebook): identifiers are split into their
 //! camelCase / snake_case parts and each part is checked on its own.
 
+use std::iter;
 use std::ops::Range;
 use std::sync::LazyLock;
 
@@ -159,7 +160,7 @@ pub fn suggestions(word: &str) -> Vec<String> {
 /// between letters.
 fn tokens(text: &str) -> impl Iterator<Item = Range<usize>> + '_ {
     let mut chars = text.char_indices().peekable();
-    std::iter::from_fn(move || {
+    iter::from_fn(move || {
         let (start, _) = chars.find(|(_, c)| c.is_alphanumeric() || *c == '_')?;
         let mut end = text.len();
         let mut prev_is_letter = text[start..].starts_with(char::is_alphabetic);

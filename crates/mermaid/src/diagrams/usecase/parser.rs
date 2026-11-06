@@ -5,6 +5,8 @@
 //! makes the same decisions from the same lookahead, so it accepts the same text and names the
 //! same token in its errors.
 
+use std::mem;
+
 use super::db::DraftBoundary;
 use super::db::DraftClassDef;
 use super::db::DraftClasses;
@@ -1004,7 +1006,7 @@ pub(crate) fn parse_usecase(source: &str, title: Option<&str>) -> Result<Usecase
         return Err(parser.fail(&detail));
     }
     // The whole text has to be well formed before the JSON in it is looked at, as in Mermaid.
-    for (json, literal) in std::mem::take(&mut parser.pending_json) {
+    for (json, literal) in mem::take(&mut parser.pending_json) {
         let origin = line_column(source, parser.start(literal));
         let value = parse_ordered_json(parser.image(literal), origin)?;
         if let Some(draft) = parser.drafts.jsons.get_mut(json) {

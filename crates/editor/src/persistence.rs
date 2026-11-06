@@ -12,6 +12,8 @@ pub(crate) struct SerializedEditor {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::SerializedEditor;
 
     #[test]
@@ -33,12 +35,12 @@ mod tests {
             "selections": [[1, 2]],
         });
         let editor = serde_json::from_value::<SerializedEditor>(json).unwrap();
-        assert_eq!(editor.abs_path, std::path::PathBuf::from("/p/a.rs"));
+        assert_eq!(editor.abs_path, PathBuf::from("/p/a.rs"));
     }
 
     #[test]
     fn test_serialized_editor_rejects_legacy_untitled_buffer() {
         let json = serde_json::json!({ "contents": "unsaved" });
-        assert!(serde_json::from_value::<SerializedEditor>(json).is_err());
+        serde_json::from_value::<SerializedEditor>(json).unwrap_err();
     }
 }

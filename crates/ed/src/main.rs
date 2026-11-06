@@ -1,3 +1,11 @@
+use std::backtrace::Backtrace;
+use std::ffi::OsString;
+use std::panic;
+use std::thread;
+
+use ed::control_server;
+use search::buffer_search;
+use util::shell_env;
 mod ed;
 mod logger;
 
@@ -132,13 +140,13 @@ fn main() {
 
     // `ed --printenv` Outputs environment variables as JSON to stdout
     if args.printenv {
-        util::shell_env::print_env();
+        shell_env::print_env();
         return;
     }
 
     let restart_arguments = if let Some(directory) = args.user_data_dir.as_deref() {
         let directory = paths::set_custom_data_dir(directory);
-        vec![std::ffi::OsString::from("--user-data-dir"), directory.as_os_str().to_owned()]
+        vec![OsString::from("--user-data-dir"), directory.as_os_str().to_owned()]
     } else {
         Vec::new()
     };
@@ -165,7 +173,7 @@ fn main() {
     util::increase_open_file_limit().log_err();
 
     rayon::ThreadPoolBuilder::new()
-        .num_threads(std::thread::available_parallelism().map_or(1, |n| n.get().div_ceil(2)))
+        .num_threads(thread::available_parallelism().map_or(1, |n| n.get().div_ceil(2)))
         .stack_size(10 * 1024 * 1024)
         .thread_name(|ix| format!("RayonWorker{}", ix))
         .build_global()
@@ -267,7 +275,7 @@ fn main() {
                     toolbar.add_item(search_bar, window, cx);
                 });
             },
-            wrap_div_with_search_actions: search::buffer_search::register_pane_search_actions,
+            wrap_div_with_search_actions: buffer_search::register_pane_search_actions,
         });
         terminal_view::init(cx);
         encoding_selector::init(cx);
@@ -297,7 +305,7 @@ fn main() {
         watch_languages(app_state.fs.clone(), app_state.languages.clone(), cx);
 
         initialize_workspace(app_state.clone(), cx);
-        ed::control_server::init(cx);
+        control_server::init(cx);
 
         cx.activate(true);
 
@@ -517,17 +525,17 @@ async fn restorable_workspaces(cx: &AsyncApp, app_state: &Arc<AppState>) -> Opti
 /// Logs panics with a backtrace, then exits so a panic on any thread takes the
 /// whole process down (and the macOS crash dialog never shows).
 fn install_panic_hook() {
-    let old_hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        let backtrace = std::backtrace::Backtrace::force_capture();
+    let old_hook = panic::take_hook();
+    panic::set_hook(Box::new(move |info| {
+        let backtrace = Backtrace::force_capture();
         let message = info.payload_as_str().unwrap_or("Box<Any>");
         let location = info.location().map_or_else(|| "<unknown>".to_owned(), |location| location.to_string());
-        let thread = std::thread::current();
+        let thread = thread::current();
         let thread_name = thread.name().unwrap_or("<unnamed>");
         log::error!("thread '{thread_name}' panicked at {location}:\n{message}\n{backtrace}");
         logger::flush();
         old_hook(info);
-        std::process::exit(1);
+        process::exit(1);
     }));
 }
 

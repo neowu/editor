@@ -30,6 +30,7 @@ use util::rel_path::RelPath;
 use super::ManifestTree;
 use crate::LanguageServerId;
 use crate::ProjectPath;
+use crate::lsp_store;
 use crate::project_settings::LspSettings;
 
 #[derive(Clone, Debug, Default)]
@@ -215,7 +216,7 @@ impl LanguageServerTree {
             .into_iter()
             .map(|adapter| {
                 let adapter_settings =
-                    crate::lsp_store::language_server_settings(&adapter.name, cx).cloned().unwrap_or_default();
+                    lsp_store::language_server_settings(&adapter.name, cx).cloned().unwrap_or_default();
                 (adapter.name(), (adapter_settings, adapter))
             })
             .collect()

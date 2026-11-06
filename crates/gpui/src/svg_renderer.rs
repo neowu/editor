@@ -4,7 +4,14 @@ use std::sync::LazyLock;
 
 use image::Frame;
 use resvg::tiny_skia::Pixmap;
+use resvg::tiny_skia::Transform;
 use smallvec::SmallVec;
+use usvg::fontdb::Database;
+use usvg::fontdb::Family;
+use usvg::fontdb::ID;
+use usvg::fontdb::Stretch;
+use usvg::fontdb::Style;
+use usvg::fontdb::Weight;
 
 use crate::AssetSource;
 use crate::DevicePixels;
@@ -28,25 +35,20 @@ fn is_emoji_presentation(c: char) -> bool {
     EMOJI_PRESENTATION_REGEX.is_match(c.encode_utf8(&mut buf))
 }
 
-fn font_has_char(db: &usvg::fontdb::Database, id: usvg::fontdb::ID, ch: char) -> bool {
+fn font_has_char(db: &Database, id: ID, ch: char) -> bool {
     db.with_face_data(id, |font_data, face_index| {
         ttf_parser::Face::parse(font_data, face_index).ok().and_then(|face| face.glyph_index(ch)).is_some()
     })
     .unwrap_or(false)
 }
 
-fn select_emoji_font(
-    ch: char,
-    fonts: &[usvg::fontdb::ID],
-    db: &usvg::fontdb::Database,
-    families: &[&str],
-) -> Option<usvg::fontdb::ID> {
+fn select_emoji_font(ch: char, fonts: &[ID], db: &Database, families: &[&str]) -> Option<ID> {
     for family_name in families {
         let query = usvg::fontdb::Query {
-            families: &[usvg::fontdb::Family::Name(family_name)],
-            weight: usvg::fontdb::Weight(400),
-            stretch: usvg::fontdb::Stretch::Normal,
-            style: usvg::fontdb::Style::Normal,
+            families: &[Family::Name(family_name)],
+            weight: Weight(400),
+            stretch: Stretch::Normal,
+            style: Style::Normal,
         };
 
         let Some(id) = db.query(&query) else {
@@ -108,15 +110,15 @@ impl From<f32> for SvgSize {
 impl SvgRenderer {
     /// Creates a new SVG renderer with the provided asset source.
     pub fn new(asset_source: Arc<dyn AssetSource>) -> Self {
-        static SYSTEM_FONT_DB: LazyLock<Arc<usvg::fontdb::Database>> = LazyLock::new(|| {
-            let mut db = usvg::fontdb::Database::new();
+        static SYSTEM_FONT_DB: LazyLock<Arc<Database>> = LazyLock::new(|| {
+            let mut db = Database::new();
             db.load_system_fonts();
             Arc::new(db)
         });
 
         let default_font_resolver = usvg::FontResolver::default_font_selector();
         let font_resolver = Box::new({
-            move |font: &usvg::Font, db: &mut Arc<usvg::fontdb::Database>| {
+            move |font: &usvg::Font, db: &mut Arc<Database>| {
                 if db.is_empty() {
                     *db = SYSTEM_FONT_DB.clone();
                 }
@@ -125,22 +127,20 @@ impl SvgRenderer {
                 }
                 // fontdb doesn't recognize CSS system font keywords like "system-ui"
                 // or "ui-sans-serif", so fall back to sans-serif before any face.
-                let sans_query =
-                    usvg::fontdb::Query { families: &[usvg::fontdb::Family::SansSerif], ..Default::default() };
+                let sans_query = usvg::fontdb::Query { families: &[Family::SansSerif], ..Default::default() };
                 db.query(&sans_query).or_else(|| db.faces().next().map(|f| f.id))
             }
         });
         let default_fallback_selection = usvg::FontResolver::default_fallback_selector();
-        let fallback_selection =
-            Box::new(move |ch: char, fonts: &[usvg::fontdb::ID], db: &mut Arc<usvg::fontdb::Database>| {
-                if is_emoji_presentation(ch)
-                    && let Some(id) = select_emoji_font(ch, fonts, db.as_ref(), EMOJI_FONT_FAMILIES)
-                {
-                    return Some(id);
-                }
+        let fallback_selection = Box::new(move |ch: char, fonts: &[ID], db: &mut Arc<Database>| {
+            if is_emoji_presentation(ch)
+                && let Some(id) = select_emoji_font(ch, fonts, db.as_ref(), EMOJI_FONT_FAMILIES)
+            {
+                return Some(id);
+            }
 
-                default_fallback_selection(ch, fonts, db)
-            });
+            default_fallback_selection(ch, fonts, db)
+        });
         let options = usvg::Options {
             font_resolver: usvg::FontResolver { select_font: font_resolver, select_fallback: fallback_selection },
             ..Default::default()
@@ -239,9 +239,9 @@ fn rasterize_tree(tree: &usvg::Tree, size: SvgSize) -> Result<Pixmap, usvg::Erro
     height *= scale;
 
     // Render the SVG to a pixmap with the specified width and height.
-    let mut pixmap = resvg::tiny_skia::Pixmap::new(width as u32, height as u32).ok_or(usvg::Error::InvalidSize)?;
+    let mut pixmap = Pixmap::new(width as u32, height as u32).ok_or(usvg::Error::InvalidSize)?;
 
-    let transform = resvg::tiny_skia::Transform::from_scale(width / svg_size.width(), height / svg_size.height());
+    let transform = Transform::from_scale(width / svg_size.width(), height / svg_size.height());
 
     resvg::render(tree, transform, &mut pixmap.as_mut());
 

@@ -1,9 +1,14 @@
+use std::env;
+use std::io;
+use std::os::fd::RawFd;
 use std::path::Path;
+use std::process;
 
 use anyhow::Context as _;
 use anyhow::Result;
 use collections::HashMap;
 use serde::Deserialize;
+use smol::process::Command;
 
 use crate::shell::ShellKind;
 
@@ -19,10 +24,10 @@ fn parse_env_map_from_noisy_output(output: &str) -> Result<collections::HashMap<
 }
 
 pub fn print_env() {
-    let env_vars: HashMap<String, String> = std::env::vars().collect();
+    let env_vars: HashMap<String, String> = env::vars().collect();
     let json = serde_json::to_string_pretty(&env_vars).unwrap_or_else(|err| {
         eprintln!("Error serializing environment variables: {}", err);
-        std::process::exit(1);
+        process::exit(1);
     });
     println!("{}", json);
 }
@@ -43,7 +48,7 @@ pub async fn capture(
 /// produced valid output on its separate fd.
 fn parse_env_output(
     env_output: &str,
-    status: &std::process::ExitStatus,
+    status: &process::ExitStatus,
     successful_capture_warning: impl FnOnce() -> String,
     failed_capture_error: impl FnOnce() -> String,
 ) -> Result<collections::HashMap<String, String>> {
@@ -83,7 +88,7 @@ async fn capture_unix(
     // In some shells, file descriptors greater than 2 cannot be used in interactive mode,
     // so file descriptor 0 (stdin) is used instead. This impacts zsh, old bash; perhaps others.
     // See: https://github.com/zed-industries/zed/pull/32136#issuecomment-2999645482
-    const FD_STDIN: std::os::fd::RawFd = 0;
+    const FD_STDIN: RawFd = 0;
 
     if shell_kind == ShellKind::Fish {
         // in fish, asdf, direnv attach to the `fish_prompt` event
@@ -128,14 +133,11 @@ async fn capture_unix(
     )
 }
 
-async fn spawn_and_read_fd(
-    command: std::process::Command,
-    child_fd: std::os::fd::RawFd,
-) -> anyhow::Result<(Vec<u8>, std::process::Output)> {
+async fn spawn_and_read_fd(command: process::Command, child_fd: RawFd) -> anyhow::Result<(Vec<u8>, process::Output)> {
     use std::io::Read;
     use std::process::Stdio;
 
-    let (mut reader, writer) = std::io::pipe()?;
+    let (mut reader, writer) = io::pipe()?;
 
     // The env is written to stdin or stdout, so the pipe can be wired up via std's stdio.
     let (stdin, stdout) = match child_fd {
@@ -146,7 +148,7 @@ async fn spawn_and_read_fd(
 
     // The `Command` (and its copy of the writer) drops at the end of this statement, so
     // `read_to_end` sees EOF once the child exits.
-    let process = smol::process::Command::from(command).stdin(stdin).stdout(stdout).stderr(Stdio::piped()).spawn()?;
+    let process = Command::from(command).stdin(stdin).stdout(stdout).stderr(Stdio::piped()).spawn()?;
 
     let mut buffer = Vec::new();
     reader.read_to_end(&mut buffer)?;

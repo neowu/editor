@@ -1,7 +1,12 @@
+use std::ops::Deref;
+use std::ops::DerefMut;
+use std::process::Command;
+use std::process::Output;
 use std::process::Stdio;
 
 use anyhow::Context as _;
 use anyhow::Result;
+use smol::process;
 
 /// A wrapper around `smol::process::Child` that attempts to clean up subprocess
 /// trees: on Unix by using process groups, and on Windows by using job objects.
@@ -11,27 +16,27 @@ use anyhow::Result;
 /// fails, the direct child remains usable but descendants are not tracked.
 /// A descendant spawned before job assignment can also escape the job.
 pub struct Child {
-    process: smol::process::Child,
+    process: process::Child,
 }
 
-impl std::ops::Deref for Child {
-    type Target = smol::process::Child;
+impl Deref for Child {
+    type Target = process::Child;
 
     fn deref(&self) -> &Self::Target {
         &self.process
     }
 }
 
-impl std::ops::DerefMut for Child {
+impl DerefMut for Child {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.process
     }
 }
 
 impl Child {
-    pub fn spawn(mut command: std::process::Command, stdin: Stdio, stdout: Stdio, stderr: Stdio) -> Result<Self> {
+    pub fn spawn(mut command: Command, stdin: Stdio, stdout: Stdio, stderr: Stdio) -> Result<Self> {
         crate::set_pre_exec_to_start_new_session(&mut command);
-        let mut command = smol::process::Command::from(command);
+        let mut command = process::Command::from(command);
         let process = command
             .stdin(stdin)
             .stdout(stdout)
@@ -43,7 +48,7 @@ impl Child {
 
     /// Consumes the child, draining its stdout/stderr and waiting for it to
     /// exit, then returns the collected output.
-    pub async fn output(self) -> Result<std::process::Output> {
+    pub async fn output(self) -> Result<Output> {
         // NOTE: Keep `self` alive across this await, do not destructure it to
         // pull `process` out first. On Windows that drops the job object early,
         // which triggers `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` and kills the

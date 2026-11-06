@@ -1,6 +1,8 @@
 //! Picks the notation from the keyword and loads the parsed rules into the model. Port of Pele's
 //! `src/diagrams/railroad/db.ts`.
 
+use std::mem;
+
 use super::abnf::abnf_rules;
 use super::abnf::parse_abnf;
 use super::common::Grammar;
@@ -77,7 +79,7 @@ fn grammar(
         }
         Notation::Railroad => {
             let mut grammar = parse_ir(source, nodes)?;
-            let rules = std::mem::take(&mut grammar.rules);
+            let rules = mem::take(&mut grammar.rules);
             (strip(grammar), rules)
         }
     };

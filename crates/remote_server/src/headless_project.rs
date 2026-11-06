@@ -45,6 +45,13 @@ use project::search::SearchQuery;
 use project::task_store::TaskStore;
 use project::worktree_store::WorktreeIdCounter;
 use project::worktree_store::WorktreeStore;
+use proto::find_search_candidates_chunk;
+use proto::language_server_prompt_request::Critical;
+use proto::language_server_prompt_request::Info;
+use proto::language_server_prompt_request::Level;
+use proto::language_server_prompt_request::Warning;
+use proto::toggle_lsp_logs::LogType;
+use proto::update_language_server::Variant;
 use rpc::AnyProtoClient;
 use rpc::TypedEnvelope;
 use rpc::proto::REMOTE_SERVER_PEER_ID;
@@ -53,6 +60,7 @@ use rpc::proto::{self};
 use settings::Settings as _;
 use terminal::terminal_settings::TerminalSettings;
 use util::ResultExt;
+use util::paths;
 use util::rel_path::RelPath;
 use worktree::Worktree;
 
@@ -288,14 +296,11 @@ impl HeadlessProject {
                         project_id: REMOTE_SERVER_PROJECT_ID,
                         server_name: None,
                         language_server_id: id.to_proto(),
-                        variant: Some(proto::update_language_server::Variant::Removed(proto::ServerRemoved {})),
+                        variant: Some(Variant::Removed(proto::ServerRemoved {})),
                     })
                     .log_err();
             }
-            LspStoreEvent::LanguageServerUpdate {
-                message: proto::update_language_server::Variant::MetadataUpdated(_),
-                ..
-            } => {}
+            LspStoreEvent::LanguageServerUpdate { message: Variant::MetadataUpdated(_), .. } => {}
             LspStoreEvent::LanguageServerUpdate { language_server_id, name, message } => {
                 self.session
                     .send(proto::UpdateLanguageServer {
@@ -372,7 +377,7 @@ impl HeadlessProject {
             Err(e) => {
                 let mut parent = path.parent().ok_or(e).with_context(|| format!("{path:?} does not exist"))?;
                 if parent == Path::new("") {
-                    parent = util::paths::home_dir();
+                    parent = paths::home_dir();
                 }
                 let parent = fs.canonicalize(parent).await.map_err(|_| {
                     anyhow!(proto::ErrorCode::PathDoesNotExist.with_tag("path", path.to_string_lossy().as_ref()))
@@ -627,14 +632,12 @@ impl HeadlessProject {
                 .try_global::<GlobalLogStore>()
                 .map(|global_log_store| global_log_store.0.clone())
                 .context("lsp logs store is missing")?;
-            let toggled_log_kind = match proto::toggle_lsp_logs::LogType::try_from(envelope.payload.log_type)
-                .ok()
-                .context("invalid log type")?
-            {
-                proto::toggle_lsp_logs::LogType::Log => LogKind::Logs,
-                proto::toggle_lsp_logs::LogType::Trace => LogKind::Trace,
-                proto::toggle_lsp_logs::LogType::Rpc => LogKind::Rpc,
-            };
+            let toggled_log_kind =
+                match LogType::try_from(envelope.payload.log_type).ok().context("invalid log type")? {
+                    LogType::Log => LogKind::Logs,
+                    LogType::Trace => LogKind::Trace,
+                    LogType::Rpc => LogKind::Rpc,
+                };
             let server_key = LanguageServerLogKey::new(LanguageServerKind::LocalSsh { lsp_store }, server_id);
             log_store.update(cx, |log_store, cx| {
                 log_store.set_downstream_log_stream(
@@ -671,7 +674,7 @@ impl HeadlessProject {
                     this.fs.clone(),
                     this.buffer_store.clone(),
                     this.worktree_store.clone(),
-                    message.limit as _,
+                    message.limit as usize,
                     cx,
                 )
                 .into_handle(query, cx)
@@ -692,9 +695,7 @@ impl HeadlessProject {
                     handle,
                     peer_id: Some(peer_id),
                     project_id,
-                    variant: Some(proto::find_search_candidates_chunk::Variant::Done(
-                        proto::FindSearchCandidatesDone {},
-                    )),
+                    variant: Some(find_search_candidates_chunk::Variant::Done(proto::FindSearchCandidatesDone {})),
                 })
                 .await?;
             anyhow::Ok(())
@@ -716,9 +717,9 @@ impl HeadlessProject {
                 handle: batch.handle,
                 peer_id: Some(batch.peer_id),
                 project_id: batch.project_id,
-                variant: Some(proto::find_search_candidates_chunk::Variant::Matches(
-                    proto::FindSearchCandidatesMatches { buffer_ids },
-                )),
+                variant: Some(find_search_candidates_chunk::Variant::Matches(proto::FindSearchCandidatesMatches {
+                    buffer_ids,
+                })),
             })
             .await?;
         Ok(())
@@ -836,18 +837,10 @@ impl HeadlessProject {
     }
 }
 
-const fn prompt_to_proto(
-    prompt: &project::LanguageServerPromptRequest,
-) -> proto::language_server_prompt_request::Level {
+const fn prompt_to_proto(prompt: &project::LanguageServerPromptRequest) -> Level {
     match prompt.level {
-        PromptLevel::Info => {
-            proto::language_server_prompt_request::Level::Info(proto::language_server_prompt_request::Info {})
-        }
-        PromptLevel::Warning => {
-            proto::language_server_prompt_request::Level::Warning(proto::language_server_prompt_request::Warning {})
-        }
-        PromptLevel::Critical => {
-            proto::language_server_prompt_request::Level::Critical(proto::language_server_prompt_request::Critical {})
-        }
+        PromptLevel::Info => Level::Info(Info {}),
+        PromptLevel::Warning => Level::Warning(Warning {}),
+        PromptLevel::Critical => Level::Critical(Critical {}),
     }
 }

@@ -1,3 +1,9 @@
+use std::collections::HashMap;
+use std::iter;
+use std::marker::Copy;
+
+use workspace::searchable::Direction;
+
 use super::*;
 
 impl Editor {
@@ -467,7 +473,7 @@ impl Editor {
         self.change_selections(SelectionEffects::scroll(Autoscroll::top_relative(5.0)), window, cx, |s| {
             s.move_with(&mut |map, selection| {
                 selection.collapse_to(
-                    movement::comment_paragraph(map, selection.head(), workspace::searchable::Direction::Next),
+                    movement::comment_paragraph(map, selection.head(), Direction::Next),
                     SelectionGoal::None,
                 )
             });
@@ -489,7 +495,7 @@ impl Editor {
         self.change_selections(SelectionEffects::scroll(Autoscroll::top_relative(5.0)), window, cx, |s| {
             s.move_with(&mut |map, selection| {
                 selection.collapse_to(
-                    movement::comment_paragraph(map, selection.head(), workspace::searchable::Direction::Prev),
+                    movement::comment_paragraph(map, selection.head(), Direction::Prev),
                     SelectionGoal::None,
                 )
             });
@@ -534,7 +540,7 @@ impl Editor {
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_with(&mut |map, selection| {
                 selection.collapse_to(
-                    movement::start_of_excerpt(map, selection.head(), workspace::searchable::Direction::Prev),
+                    movement::start_of_excerpt(map, selection.head(), Direction::Prev),
                     SelectionGoal::None,
                 )
             });
@@ -555,7 +561,7 @@ impl Editor {
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_with(&mut |map, selection| {
                 selection.collapse_to(
-                    movement::start_of_excerpt(map, selection.head(), workspace::searchable::Direction::Next),
+                    movement::start_of_excerpt(map, selection.head(), Direction::Next),
                     SelectionGoal::None,
                 )
             });
@@ -569,10 +575,8 @@ impl Editor {
         }
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_with(&mut |map, selection| {
-                selection.collapse_to(
-                    movement::end_of_excerpt(map, selection.head(), workspace::searchable::Direction::Next),
-                    SelectionGoal::None,
-                )
+                selection
+                    .collapse_to(movement::end_of_excerpt(map, selection.head(), Direction::Next), SelectionGoal::None)
             });
         })
     }
@@ -589,10 +593,8 @@ impl Editor {
         }
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_with(&mut |map, selection| {
-                selection.collapse_to(
-                    movement::end_of_excerpt(map, selection.head(), workspace::searchable::Direction::Prev),
-                    SelectionGoal::None,
-                )
+                selection
+                    .collapse_to(movement::end_of_excerpt(map, selection.head(), Direction::Prev), SelectionGoal::None)
             });
         })
     }
@@ -609,7 +611,7 @@ impl Editor {
         }
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, _| {
-                (movement::start_of_excerpt(map, head, workspace::searchable::Direction::Prev), SelectionGoal::None)
+                (movement::start_of_excerpt(map, head, Direction::Prev), SelectionGoal::None)
             });
         })
     }
@@ -626,7 +628,7 @@ impl Editor {
         }
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, _| {
-                (movement::start_of_excerpt(map, head, workspace::searchable::Direction::Next), SelectionGoal::None)
+                (movement::start_of_excerpt(map, head, Direction::Next), SelectionGoal::None)
             });
         })
     }
@@ -638,7 +640,7 @@ impl Editor {
         }
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, _| {
-                (movement::end_of_excerpt(map, head, workspace::searchable::Direction::Next), SelectionGoal::None)
+                (movement::end_of_excerpt(map, head, Direction::Next), SelectionGoal::None)
             });
         })
     }
@@ -655,7 +657,7 @@ impl Editor {
         }
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.move_heads_with(&mut |map, head, _| {
-                (movement::end_of_excerpt(map, head, workspace::searchable::Direction::Prev), SelectionGoal::None)
+                (movement::end_of_excerpt(map, head, Direction::Prev), SelectionGoal::None)
             });
         })
     }
@@ -1680,7 +1682,7 @@ impl Editor {
     /// Opens a multibuffer with the given project locations in it.
     pub(super) fn open_locations_in_multibuffer(
         workspace: &mut Workspace,
-        locations: std::collections::HashMap<Entity<Buffer>, Vec<Range<Point>>>,
+        locations: HashMap<Entity<Buffer>, Vec<Range<Point>>>,
         title: String,
         split: bool,
         multibuffer_selection_mode: MultibufferSelectionMode,
@@ -1751,7 +1753,7 @@ impl Editor {
                 if let Some(first_range) = ranges.first() {
                     editor.change_selections(SelectionEffects::no_scroll().unfold(), window, cx, |selections| {
                         selections.clear_disjoint();
-                        selections.select_anchor_ranges(std::iter::once(first_range.clone()));
+                        selections.select_anchor_ranges(iter::once(first_range.clone()));
                     });
                 }
                 editor.highlight_background(
@@ -1824,7 +1826,7 @@ impl Editor {
     /// The buffer position that definitions and references are asked for at
     /// `position`, or `None` on a deleted diff line: its text isn't in the
     /// buffer, whose position there belongs to the line after the hunk.
-    pub(crate) fn semantics_position<T: ToOffset + std::marker::Copy>(
+    pub(crate) fn semantics_position<T: ToOffset + Copy>(
         &self,
         position: T,
         cx: &App,

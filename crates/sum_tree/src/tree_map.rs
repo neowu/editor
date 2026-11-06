@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
+use std::fmt;
 use std::fmt::Debug;
+use std::fmt::Formatter;
 
 use crate::Bias;
 use crate::ContextLessSummary;
@@ -196,7 +198,7 @@ where
     K: Clone + Debug + Ord,
     V: Clone + Debug,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.iter()).finish()
     }
 }

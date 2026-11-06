@@ -1,3 +1,4 @@
+use std::fmt::Display;
 mod action_sequence;
 mod built_in;
 mod built_in_keymap;
@@ -73,7 +74,7 @@ impl WorktreeId {
 
 impl fmt::Display for WorktreeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        std::fmt::Display::fmt(&self.0, f)
+        Display::fmt(&self.0, f)
     }
 }
 

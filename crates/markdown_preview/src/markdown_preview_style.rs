@@ -22,6 +22,8 @@ use theme::SyntaxTheme;
 use theme::ThemeColors;
 use theme::built_in::BUFFER_LINE_HEIGHT;
 use ui::Rems;
+use ui::font;
+use ui::font::UI_FONT_SIZE;
 use ui::prelude::*;
 
 /// In-memory zoom of the preview font size, independent of UI and buffer zoom.
@@ -31,11 +33,11 @@ impl Global for MarkdownPreviewFontSize {}
 
 /// The preview font size: the default UI font size, unless zoomed.
 pub(crate) fn preview_font_size(cx: &App) -> Pixels {
-    cx.try_global::<MarkdownPreviewFontSize>().map_or(ui::font::UI_FONT_SIZE, |size| size.0)
+    cx.try_global::<MarkdownPreviewFontSize>().map_or(UI_FONT_SIZE, |size| size.0)
 }
 
 pub(crate) fn adjust_preview_font_size(cx: &mut App, f: impl FnOnce(Pixels) -> Pixels) {
-    let size = ui::font::clamp_font_size(f(preview_font_size(cx)));
+    let size = font::clamp_font_size(f(preview_font_size(cx)));
     cx.set_global(MarkdownPreviewFontSize(size));
     cx.refresh_windows();
 }
@@ -55,16 +57,16 @@ pub(crate) fn preview_markdown_style(
     window: &Window,
     cx: &App,
 ) -> MarkdownStyle {
-    let buffer_font_weight = ui::font::buffer_font().weight;
+    let buffer_font_weight = font::buffer_font().weight;
     let buffer_font_size = preview_font_size(cx);
-    let code_font_family = ui::font::buffer_font().family.clone();
+    let code_font_family = font::buffer_font().family.clone();
 
     let body_font_size = rems(1.0);
     let mut base_text_style = window.text_style();
     base_text_style.refine(&TextStyleRefinement {
-        font_family: Some(ui::font::ui_font().family.clone()),
-        font_fallbacks: ui::font::ui_font().fallbacks.clone(),
-        font_features: Some(ui::font::ui_font().features.clone()),
+        font_family: Some(font::ui_font().family.clone()),
+        font_fallbacks: font::ui_font().fallbacks.clone(),
+        font_features: Some(font::ui_font().features.clone()),
         font_size: Some(body_font_size.into()),
         line_height: Some(relative(1.5)),
         color: Some(colors.text),
@@ -98,8 +100,8 @@ pub(crate) fn preview_markdown_style(
         background: Some(colors.editor_background.into()),
         text: TextStyleRefinement {
             font_family: Some(code_font_family.clone()),
-            font_fallbacks: ui::font::buffer_font().fallbacks.clone(),
-            font_features: Some(ui::font::buffer_font().features.clone()),
+            font_fallbacks: font::buffer_font().fallbacks.clone(),
+            font_features: Some(font::buffer_font().features.clone()),
             font_size: Some(buffer_font_size.into()),
             font_weight: Some(buffer_font_weight),
             line_height: Some(relative(BUFFER_LINE_HEIGHT)),
@@ -148,8 +150,8 @@ pub(crate) fn preview_markdown_style(
         code_block,
         inline_code: TextStyleRefinement {
             font_family: Some(code_font_family),
-            font_fallbacks: ui::font::buffer_font().fallbacks.clone(),
-            font_features: Some(ui::font::buffer_font().features.clone()),
+            font_fallbacks: font::buffer_font().fallbacks.clone(),
+            font_features: Some(font::buffer_font().features.clone()),
             font_size: Some(rems(0.875).into()),
             font_weight: Some(buffer_font_weight),
             color: Some(colors.text),

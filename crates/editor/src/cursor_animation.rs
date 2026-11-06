@@ -5,6 +5,9 @@
 // Licensed under the MIT License:
 // https://github.com/LengineerC/vscode-neovide-cursor/blob/main/LICENSE
 
+use std::array;
+use std::ops::Add;
+use std::ops::Sub;
 use std::time::Duration;
 use std::time::Instant;
 
@@ -108,7 +111,7 @@ impl AnimationPoint {
     }
 }
 
-impl std::ops::Add for AnimationPoint {
+impl Add for AnimationPoint {
     type Output = Self;
 
     fn add(self, other: Self) -> Self {
@@ -116,7 +119,7 @@ impl std::ops::Add for AnimationPoint {
     }
 }
 
-impl std::ops::Sub for AnimationPoint {
+impl Sub for AnimationPoint {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
@@ -503,7 +506,7 @@ impl CursorAnimationState {
 
     fn retarget(&mut self, geometry: CursorGeometry) {
         let mut aligned_corners: [(usize, f32); 4] =
-            std::array::from_fn(|index| (index, self.corners[index].direction_alignment(geometry)));
+            array::from_fn(|index| (index, self.corners[index].direction_alignment(geometry)));
         aligned_corners.sort_by(|left, right| left.1.total_cmp(&right.1));
         let mut ranks = [0; 4];
         for (rank, (index, _)) in aligned_corners.into_iter().enumerate() {

@@ -1,6 +1,11 @@
+use std::cmp::Ordering;
+use std::fmt;
 use std::fmt::Display;
+use std::fmt::Formatter;
 use std::hash::Hash;
+use std::hash::Hasher;
 use std::ops::Deref;
+use std::path::Path;
 use std::str::FromStr;
 
 use serde::Deserialize;
@@ -45,13 +50,13 @@ impl<'de> Deserialize<'de> for Uri {
 }
 
 impl Ord for Uri {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.as_str().cmp(other.as_str())
     }
 }
 
 impl PartialOrd for Uri {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
@@ -79,7 +84,7 @@ impl Uri {
     /// assert_eq!(uri.scheme(), "file");
     /// ```
     #[allow(clippy::result_unit_err, reason = "mirrors `url::Url::from_file_path`")]
-    pub fn from_file_path<P: AsRef<std::path::Path>>(path: P) -> Result<Self, ()> {
+    pub fn from_file_path<P: AsRef<Path>>(path: P) -> Result<Self, ()> {
         url::Url::from_file_path(path).map(Self)
     }
 }
@@ -101,13 +106,13 @@ impl PartialEq for Uri {
 impl Eq for Uri {}
 
 impl Hash for Uri {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.as_str().hash(state)
     }
 }
 
 impl Display for Uri {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         // Display the original URL without bracket encoding
         self.0.fmt(f)
     }

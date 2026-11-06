@@ -3,10 +3,13 @@
     reason = "Cargo also passes the server library's dependencies to this binary entry point"
 )]
 
+use std::io;
 use std::io::Write as _;
+use std::process;
 
 use clap::Parser;
 use remote_server::Commands;
+use util::shell_env;
 
 #[derive(Parser)]
 #[command(disable_version_flag = true)]
@@ -22,7 +25,7 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     if cli.printenv {
-        util::shell_env::print_env();
+        shell_env::print_env();
         return Ok(());
     }
 
@@ -33,16 +36,16 @@ fn main() -> anyhow::Result<()> {
         if let Err(e) = &res
             && let Some(e) = e.downcast_ref::<ExecuteProxyError>()
         {
-            std::io::stderr().write_fmt(format_args!("{e:#}\n")).ok();
+            io::stderr().write_fmt(format_args!("{e:#}\n")).ok();
             // It is important for us to report the proxy spawn exit code here
             // instead of the generic 1 that result returns
             // The client reads the exit code to determine if the server process has died when trying to reconnect
             // signaling that it needs to try spawning a new server
-            std::process::exit(e.to_exit_code());
+            process::exit(e.to_exit_code());
         }
         res
     } else {
-        std::io::stderr().write_all(b"usage: remote <run|proxy|version|exec>\n").ok();
-        std::process::exit(1);
+        io::stderr().write_all(b"usage: remote <run|proxy|version|exec>\n").ok();
+        process::exit(1);
     }
 }

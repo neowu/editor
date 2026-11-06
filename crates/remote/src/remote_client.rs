@@ -18,11 +18,12 @@ use collections::HashMap;
 use futures::Future;
 use futures::FutureExt as _;
 use futures::StreamExt as _;
+use futures::channel::mpsc;
 use futures::channel::mpsc::Sender;
 use futures::channel::mpsc::UnboundedReceiver;
 use futures::channel::mpsc::UnboundedSender;
-use futures::channel::mpsc::{self};
 use futures::channel::oneshot;
+use futures::future as futures_future;
 use futures::future::BoxFuture;
 use futures::future::Shared;
 use futures::future::WeakShared;
@@ -43,6 +44,7 @@ use gpui::Task;
 use gpui::TaskExt;
 use gpui::WeakEntity;
 use parking_lot::Mutex;
+use proto::envelope::Payload;
 use rpc::AnyProtoClient;
 use rpc::ErrorExt;
 use rpc::ProtoClient;
@@ -54,6 +56,7 @@ use rpc::proto::PeerId;
 use rpc::proto::RequestMessage;
 use rpc::proto::build_typed_envelope;
 use rpc::proto::{self};
+use smol::future;
 use util::ResultExt;
 use util::paths::RemotePathBuf;
 
@@ -86,8 +89,8 @@ impl RemoteOs {
     }
 }
 
-impl std::fmt::Display for RemoteOs {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for RemoteOs {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
 }
@@ -107,8 +110,8 @@ impl RemoteArch {
     }
 }
 
-impl std::fmt::Display for RemoteArch {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for RemoteArch {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
 }
@@ -322,8 +325,8 @@ impl ConnectionIdentifier {
 // Must be less than about 100 characters
 //   https://unix.stackexchange.com/questions/367008/why-is-socket-path-length-limited-to-a-hundred-chars
 // So our strings should be at most 20 characters or so.
-impl std::fmt::Display for ConnectionIdentifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for ConnectionIdentifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Setup(setup_id) => write!(f, "setup-{setup_id}"),
             Self::Workspace(workspace_id) => write!(f, "workspace-{workspace_id}"),
@@ -1215,9 +1218,7 @@ impl ChannelClient {
             let Some(this) = this.upgrade() else {
                 return anyhow::Ok(());
             };
-            if incoming.responding_to == Some(handshake_id)
-                && matches!(incoming.payload, Some(proto::envelope::Payload::Ack(_)))
-            {
+            if incoming.responding_to == Some(handshake_id) && matches!(incoming.payload, Some(Payload::Ack(_))) {
                 // Handshake replies do not acknowledge buffered messages that still need replay.
                 continue;
             }
@@ -1234,7 +1235,7 @@ impl ChannelClient {
                 buffer.pop_front();
             }
         }
-        if let Some(proto::envelope::Payload::FlushBufferedMessages(_)) = &incoming.payload {
+        if let Some(Payload::FlushBufferedMessages(_)) = &incoming.payload {
             log::debug!("{}:remote message received. name:FlushBufferedMessages", this.name);
             {
                 let buffer = this.buffer.lock();
@@ -1248,7 +1249,7 @@ impl ChannelClient {
             return;
         }
 
-        if let Some(proto::envelope::Payload::RemoteStarted(_)) = &incoming.payload {
+        if let Some(Payload::RemoteStarted(_)) = &incoming.payload {
             this.remote_started.set(());
             let mut envelope = proto::Ack {}.into_envelope(0, Some(incoming.id), None);
             envelope.id = this.next_message_id.fetch_add(1, SeqCst);
@@ -1273,10 +1274,8 @@ impl ChannelClient {
                 sender.send((incoming, tx)).ok();
                 rx.await.ok();
             } else {
-                let terminal_stream_response = matches!(
-                    &incoming.payload,
-                    Some(proto::envelope::Payload::Error(_)) | Some(proto::envelope::Payload::EndStream(_))
-                );
+                let terminal_stream_response =
+                    matches!(&incoming.payload, Some(Payload::Error(_)) | Some(Payload::EndStream(_)));
                 let sender = if terminal_stream_response {
                     this.stream_response_channels.lock().remove(&request_id)
                 } else {
@@ -1357,8 +1356,7 @@ impl ChannelClient {
                     let Some(this) = this.upgrade() else {
                         return anyhow::Ok(());
                     };
-                    if incoming.responding_to == Some(handshake_id)
-                        && matches!(incoming.payload, Some(proto::envelope::Payload::Ack(_)))
+                    if incoming.responding_to == Some(handshake_id) && matches!(incoming.payload, Some(Payload::Ack(_)))
                     {
                         connection_ready_tx.send(()).ok();
                         break;
@@ -1408,7 +1406,7 @@ impl ChannelClient {
     }
 
     async fn ping(&self, timeout: Duration) -> Result<()> {
-        smol::future::or(
+        future::or(
             async {
                 self.request(proto::Ping {}).await?;
                 Ok(())
@@ -1446,7 +1444,7 @@ impl ChannelClient {
             }
 
             let response = rx.await.context("connection lost")?.0;
-            if let Some(proto::envelope::Payload::Error(error)) = &response.payload {
+            if let Some(Payload::Error(error)) = &response.payload {
                 return Err(RpcError::from_proto(error, type_name));
             }
             Ok(response)
@@ -1482,11 +1480,11 @@ impl ChannelClient {
                 .filter_map(move |(response, _barrier)| {
                     // Keep the cleanup guard alive until the returned stream is dropped.
                     let _keep_cleanup_guard_alive = &cleanup_stream_response_channel;
-                    futures::future::ready(match response {
+                    futures_future::ready(match response {
                         Ok(response) => {
-                            if let Some(proto::envelope::Payload::Error(error)) = &response.payload {
+                            if let Some(Payload::Error(error)) = &response.payload {
                                 Some(Err(RpcError::from_proto(error, type_name)))
-                            } else if let Some(proto::envelope::Payload::EndStream(_)) = &response.payload {
+                            } else if let Some(Payload::EndStream(_)) = &response.payload {
                                 None
                             } else {
                                 Some(Ok(response))

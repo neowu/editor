@@ -1,5 +1,6 @@
 use std::cmp::Reverse;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use editor::Bias;
 use editor::Editor;
@@ -28,6 +29,7 @@ use project::Project;
 use project::Symbol;
 use project::lsp_store::SymbolLocation;
 use theme::ActiveTheme;
+use ui::font;
 use util::ResultExt;
 use workspace::Workspace;
 use workspace::ui::LabelLike;
@@ -84,7 +86,7 @@ impl ProjectSymbolsDelegate {
             false,
             true,
             MAX_MATCHES,
-            &std::sync::atomic::AtomicBool::default(),
+            &AtomicBool::default(),
             cx.background_executor().clone(),
         ));
         let mut external_matches = cx.foreground_executor().block_on(fuzzy::match_strings(
@@ -93,7 +95,7 @@ impl ProjectSymbolsDelegate {
             false,
             true,
             MAX_MATCHES - visible_matches.len().min(MAX_MATCHES),
-            &std::sync::atomic::AtomicBool::default(),
+            &AtomicBool::default(),
             cx.background_executor().clone(),
         ));
         let sort_key_for_match = |mat: &StringMatch| {
@@ -258,11 +260,11 @@ impl PickerDelegate for ProjectSymbolsDelegate {
 
         let text_style = TextStyle {
             color: cx.theme().colors().text,
-            font_family: ui::font::buffer_font().family.clone(),
-            font_features: ui::font::buffer_font().features.clone(),
-            font_fallbacks: ui::font::buffer_font().fallbacks.clone(),
-            font_size: ui::font::buffer_font_size(cx).into(),
-            font_weight: ui::font::buffer_font().weight,
+            font_family: font::buffer_font().family.clone(),
+            font_features: font::buffer_font().features.clone(),
+            font_fallbacks: font::buffer_font().fallbacks.clone(),
+            font_size: font::buffer_font_size(cx).into(),
+            font_weight: font::buffer_font().weight,
             line_height: relative(1.),
             ..Default::default()
         };

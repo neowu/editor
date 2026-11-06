@@ -3,6 +3,7 @@
 
 use super::db::AgentflowDb;
 use super::graph::GraphNode;
+use crate::diagrams::flowchart::shapes;
 
 /// Author-facing names for the shapes that carry meaning in an agentflow.
 const SHAPE_ALIASES: [(&str, &str); 7] = [
@@ -74,7 +75,7 @@ pub(crate) fn resolve_shape_alias(shape: &str) -> &str {
 /// Whether `name` is a shape. Mermaid looks a shape name up with `in` on a plain object, so
 /// `constructor` passes there too.
 pub(crate) fn is_valid_shape(name: &str) -> bool {
-    crate::diagrams::flowchart::shapes::is_valid_shape(name) || name == "constructor"
+    shapes::is_valid_shape(name) || name == "constructor"
 }
 
 /// Reduces every node's shape to one agentflow draws, reporting the removed and unsupported ones.

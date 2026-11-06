@@ -1,6 +1,13 @@
+use std::env;
 use std::fmt::Write as _;
+use std::fs;
+use std::io::ErrorKind;
+use std::os::unix::net::UnixStream;
+use std::path;
 use std::path::PathBuf;
+use std::process;
 use std::process::Stdio;
+use std::thread;
 use std::time::Duration;
 use std::time::Instant;
 use std::time::SystemTime;
@@ -23,6 +30,7 @@ use control::State;
 use control::Text;
 use control::Tree;
 use control::WindowInfo;
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 /// Drive a running `ed` for automated GUI testing.
@@ -210,7 +218,7 @@ fn parse_point(value: &str) -> Result<(f32, f32), String> {
 fn main() {
     if let Err(error) = run(Cli::parse()) {
         eprintln!("error: {error:#}");
-        std::process::exit(1);
+        process::exit(1);
     }
 }
 
@@ -284,7 +292,7 @@ fn run(cli: Cli) -> Result<()> {
             client.request::<Value>(Command::Scroll { x, y, dx, dy })?;
         }
         CliCommand::Screenshot { path } => {
-            let path = std::path::absolute(&path)?;
+            let path = path::absolute(&path)?;
             client.request::<Value>(Command::Screenshot { path: path.clone() })?;
             println!("{}", path.display());
         }
@@ -306,7 +314,7 @@ struct Client {
 }
 
 impl Client {
-    fn request<T: serde::de::DeserializeOwned>(&self, command: Command) -> Result<T> {
+    fn request<T: DeserializeOwned>(&self, command: Command) -> Result<T> {
         let value = control::send(&self.socket, &Request { window: self.window, command })?;
         Ok(serde_json::from_value(value)?)
     }
@@ -351,7 +359,7 @@ impl Client {
                 describe_target(target),
                 if gone { " to disappear" } else { "" }
             );
-            std::thread::sleep(Duration::from_millis(100));
+            thread::sleep(Duration::from_millis(100));
         }
     }
 
@@ -383,7 +391,7 @@ impl Client {
                 }
                 anyhow::bail!(message)
             }
-            std::thread::sleep(Duration::from_millis(200));
+            thread::sleep(Duration::from_millis(200));
         }
     }
 }
@@ -464,15 +472,15 @@ fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 }
 
 fn resolve_socket(socket: Option<PathBuf>) -> Result<PathBuf> {
-    if let Some(socket) = socket.or_else(|| std::env::var_os(control::SOCKET_ENV).map(PathBuf::from)) {
+    if let Some(socket) = socket.or_else(|| env::var_os(control::SOCKET_ENV).map(PathBuf::from)) {
         return Ok(socket);
     }
     let mut live = Vec::new();
     for socket in control::discover_sockets() {
-        match std::os::unix::net::UnixStream::connect(&socket) {
+        match UnixStream::connect(&socket) {
             Ok(_) => live.push(socket),
-            Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused => {
-                std::fs::remove_file(&socket).ok();
+            Err(error) if error.kind() == ErrorKind::ConnectionRefused => {
+                fs::remove_file(&socket).ok();
             }
             Err(_) => {}
         }
@@ -497,18 +505,18 @@ fn launch(
 ) -> Result<()> {
     let app = match app {
         Some(app) => app,
-        None => std::env::current_exe()?.with_file_name("ed"),
+        None => env::current_exe()?.with_file_name("ed"),
     };
     let user_data_dir = if fresh {
         let nanos = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_nanos();
-        let dir = std::env::temp_dir().join(format!("ed-control-data-{nanos}"));
-        std::fs::create_dir_all(&dir)?;
+        let dir = env::temp_dir().join(format!("ed-control-data-{nanos}"));
+        fs::create_dir_all(&dir)?;
         Some(dir)
     } else {
         user_data_dir
     };
 
-    let mut command = std::process::Command::new(&app);
+    let mut command = process::Command::new(&app);
     if let Some(dir) = &user_data_dir {
         command.arg("--user-data-dir").arg(dir);
     }
@@ -534,7 +542,7 @@ fn launch(
             break;
         }
         anyhow::ensure!(Instant::now() < deadline, "timed out waiting for {} to open a window", app.display());
-        std::thread::sleep(Duration::from_millis(100));
+        thread::sleep(Duration::from_millis(100));
     }
 
     println!("pid {}", child.id());

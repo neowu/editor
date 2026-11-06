@@ -1,3 +1,7 @@
+use std::env;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::fmt::Write as _;
 use std::net::IpAddr;
 use std::path::Path;
@@ -23,6 +27,8 @@ use gpui::AsyncApp;
 use gpui::Task;
 use rpc::proto::Envelope;
 pub use settings_content::SshPortForwardOption;
+use util::command;
+use util::command::Command;
 use util::command::Stdio;
 use util::paths::RemotePathBuf;
 use util::rel_path::RelPath;
@@ -74,8 +80,8 @@ impl SshConnectionHost {
     }
 }
 
-impl std::fmt::Display for SshConnectionHost {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for SshConnectionHost {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Self::IpAddr(ip) => ip.fmt(f),
             Self::Hostname(hostname) => f.write_str(hostname),
@@ -331,7 +337,7 @@ impl RemoteConnection for SshRemoteConnection {
         };
 
         let mut proxy_args = vec![];
-        if let Ok(value) = std::env::var("RUST_BACKTRACE") {
+        if let Ok(value) = env::var("RUST_BACKTRACE") {
             proxy_args.push(format!("RUST_BACKTRACE={value}"));
         }
         proxy_args.push(remote_binary_path.display().to_string());
@@ -425,16 +431,11 @@ impl SshRemoteConnection {
         Ok(path.into())
     }
 
-    fn build_scp_command(
-        &self,
-        src_path: &Path,
-        dest_path_str: &str,
-        additional_args: Option<&[&str]>,
-    ) -> util::command::Command {
+    fn build_scp_command(&self, src_path: &Path, dest_path_str: &str, additional_args: Option<&[&str]>) -> Command {
         /// These arguments exist for `ssh` but don't exist / don't have the same semantic for `scp`.
         const SSH_DENY_ARGS_FOR_SCP: &[&str] = &["-X", "-Y"];
 
-        let mut command = util::command::new_command("scp");
+        let mut command = command::new_command("scp");
         self.socket.ssh_options(&mut command, false, Some(SSH_DENY_ARGS_FOR_SCP)).args(
             self.socket
                 .connection_options
@@ -455,11 +456,11 @@ impl SshRemoteConnection {
         command
     }
 
-    fn build_sftp_command(&self) -> util::command::Command {
+    fn build_sftp_command(&self) -> Command {
         // these arguments exist for "ssh" but don't exist / don't have the same semantic for "sftp"
         const SSH_DENY_ARGS_FOR_SFTP: &[&str] = &["-X", "-Y"];
 
-        let mut command = util::command::new_command("sftp");
+        let mut command = command::new_command("sftp");
         self.socket.ssh_options(&mut command, false, Some(SSH_DENY_ARGS_FOR_SFTP)).args(
             self.socket
                 .connection_options
@@ -495,8 +496,8 @@ impl SshSocket {
         program: &str,
         args: &[impl AsRef<str>],
         allow_pseudo_tty: bool,
-    ) -> util::command::Command {
-        let mut command = util::command::new_command("ssh");
+    ) -> Command {
+        let mut command = command::new_command("ssh");
         let mut to_run = shell_kind.try_quote(program).expect("shell quoting").into_owned();
         for arg in args {
             // We're trying to work with: sh, bash, zsh, fish, tcsh, ...?
@@ -535,10 +536,10 @@ impl SshSocket {
 
     fn ssh_options<'a>(
         &self,
-        command: &'a mut util::command::Command,
+        command: &'a mut Command,
         include_port_forwards: bool,
         deny_args: Option<&[&str]>,
-    ) -> &'a mut util::command::Command {
+    ) -> &'a mut Command {
         let mut args = if include_port_forwards {
             self.connection_options.additional_args()
         } else {

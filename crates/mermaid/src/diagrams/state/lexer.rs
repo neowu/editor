@@ -308,13 +308,12 @@ impl<'a> Lexer<'a> {
                     return false;
                 }
                 self.emit(T::Id, s, at);
-                true
             }
             _ => {
                 self.emit(T::Id, s, e);
-                true
             }
         }
+        true
     }
 
     fn finish(&mut self, kind: T) {
@@ -920,5 +919,25 @@ impl<'a> Lexer<'a> {
         self.emit_text(T::NoteText, text, p, e + 8);
         self.pop();
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn emit_id_keeps_ids_and_discards_inline_comments() {
+        for suffix in ["", "%% comment", " %% comment"] {
+            let source = format!("stateDiagram-v2\nAlpha{suffix}\nBeta");
+            let result = tokenize(&source);
+            assert_eq!(result.error, None);
+            let ids: Vec<&str> =
+                result.tokens.iter().filter(|token| token.kind == T::Id).map(|token| token.text).collect();
+            assert_eq!(ids, ["Alpha", "Beta"]);
+        }
+        let result = tokenize("stateDiagram-v2\n%% comment only\nBeta");
+        let ids: Vec<&str> = result.tokens.iter().filter(|token| token.kind == T::Id).map(|token| token.text).collect();
+        assert_eq!(ids, ["Beta"]);
     }
 }

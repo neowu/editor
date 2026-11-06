@@ -1,3 +1,18 @@
+use std::fmt::Debug;
+use std::fs;
+use std::fs::File;
+use std::path;
+use std::result;
+use std::sync::Weak;
+use std::thread::Builder;
+
+use futures::channel::mpsc;
+use futures::channel::mpsc::UnboundedReceiver;
+use futures::channel::mpsc::UnboundedSender;
+use futures::channel::oneshot;
+use smol::fs::OpenOptions;
+use smol::fs::unix;
+use smol::io::BufWriter;
 pub mod fs_watcher;
 mod git_clone_progress;
 
@@ -150,7 +165,7 @@ pub trait Fs: Send + Sync {
 
     /// Restores the item identified by `trash_id`, moving it from the system's
     /// trash back to its original path.
-    async fn restore(&self, trash_id: TrashId) -> std::result::Result<PathBuf, TrashRestoreError>;
+    async fn restore(&self, trash_id: TrashId) -> result::Result<PathBuf, TrashRestoreError>;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -259,8 +274,8 @@ pub enum JobEvent {
     Completed { id: JobId },
 }
 
-pub type JobEventSender = futures::channel::mpsc::UnboundedSender<JobEvent>;
-pub type JobEventReceiver = futures::channel::mpsc::UnboundedReceiver<JobEvent>;
+pub type JobEventSender = UnboundedSender<JobEvent>;
+pub type JobEventReceiver = UnboundedReceiver<JobEvent>;
 
 struct JobTracker {
     id: JobId,
@@ -331,7 +346,7 @@ impl TrashId {
 }
 
 pub struct RealFs {
-    this: std::sync::Weak<Self>,
+    this: Weak<Self>,
     executor: BackgroundExecutor,
     native_watcher: Arc<fs_watcher::OsWatcher>,
     next_job_id: Arc<AtomicUsize>,
@@ -340,16 +355,16 @@ pub struct RealFs {
     is_case_sensitive: AtomicU8,
 }
 
-pub trait FileHandle: Send + Sync + std::fmt::Debug {
+pub trait FileHandle: Send + Sync + Debug {
     fn current_path(&self, fs: &Arc<dyn Fs>) -> Result<PathBuf>;
 }
 
-impl FileHandle for std::fs::File {
+impl FileHandle for File {
     #[cfg(target_os = "linux")]
     fn current_path(&self, _: &Arc<dyn Fs>) -> Result<PathBuf> {
         let fd = self.as_fd();
         let fd_path = format!("/proc/self/fd/{}", fd.as_raw_fd());
-        let new_path = std::fs::read_link(fd_path)?;
+        let new_path = fs::read_link(fd_path)?;
         if new_path.file_name().is_some_and(|f| f.to_string_lossy().ends_with(" (deleted)")) {
             anyhow::bail!("file was deleted")
         };
@@ -388,7 +403,7 @@ impl RealFs {
             next_job_id: Arc::new(AtomicUsize::new(0)),
             job_event_subscribers: Arc::new(Mutex::new(Vec::new())),
             trash: Arc::new(Mutex::new(SlotMap::with_key())),
-            is_case_sensitive: std::sync::atomic::AtomicU8::default(),
+            is_case_sensitive: AtomicU8::default(),
         })
     }
 }
@@ -469,13 +484,13 @@ impl Fs for RealFs {
     }
 
     async fn create_symlink(&self, path: &Path, target: PathBuf) -> Result<()> {
-        smol::fs::unix::symlink(target, path).await?;
+        unix::symlink(target, path).await?;
 
         Ok(())
     }
 
     async fn create_file(&self, path: &Path, options: CreateOptions) -> Result<()> {
-        let mut open_options = smol::fs::OpenOptions::new();
+        let mut open_options = OpenOptions::new();
         open_options.write(true).create(true);
         if options.overwrite {
             open_options.truncate(true);
@@ -585,7 +600,7 @@ impl Fs for RealFs {
         // We deliberately use `std::path::absolute` instead of `canonicalize`
         // to avoid resolving symlinks. Otherwise trashing a symlink would trash
         // its target and leave the link behind.
-        let path = std::path::absolute(path).context("Could not make the path absolute")?;
+        let path = path::absolute(path).context("Could not make the path absolute")?;
 
         let item = smol::unblock(move || trash::delete_with_info(path)).await.context("Could not trash file or dir")?;
 
@@ -593,11 +608,11 @@ impl Fs for RealFs {
     }
 
     async fn open_sync(&self, path: &Path) -> Result<Box<dyn ReadSeek + Send + Sync>> {
-        Ok(Box::new(std::fs::File::open(path)?))
+        Ok(Box::new(File::open(path)?))
     }
 
     async fn open_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>> {
-        let mut options = std::fs::OpenOptions::new();
+        let mut options = fs::OpenOptions::new();
         options.read(true);
 
         Ok(Arc::new(options.open(path)?))
@@ -607,14 +622,14 @@ impl Fs for RealFs {
         let path = path.to_path_buf();
         self.executor
             .spawn(async move {
-                std::fs::read_to_string(&path).with_context(|| format!("Failed to read file {}", path.display()))
+                fs::read_to_string(&path).with_context(|| format!("Failed to read file {}", path.display()))
             })
             .await
     }
 
     async fn load_bytes(&self, path: &Path) -> Result<Vec<u8>> {
         let path = path.to_path_buf();
-        let bytes = self.executor.spawn(async move { std::fs::read(path) }).await?;
+        let bytes = self.executor.spawn(async move { fs::read(path) }).await?;
         Ok(bytes)
     }
 
@@ -640,7 +655,7 @@ impl Fs for RealFs {
         }
         let file =
             smol::fs::File::create(path).await.with_context(|| format!("Failed to create file at {:?}", path))?;
-        let mut writer = smol::io::BufWriter::with_capacity(buffer_size, file);
+        let mut writer = BufWriter::with_capacity(buffer_size, file);
         for chunk in text::chunks_with_line_ending(text, line_ending) {
             writer.write_all(chunk.as_bytes()).await?;
         }
@@ -656,7 +671,7 @@ impl Fs for RealFs {
         let contents = content.to_owned();
         self.executor
             .spawn(async move {
-                std::fs::write(path, contents)?;
+                fs::write(path, contents)?;
                 Ok(())
             })
             .await
@@ -666,7 +681,7 @@ impl Fs for RealFs {
         let path = path.to_owned();
         self.executor
             .spawn(async move {
-                let result = std::fs::canonicalize(&path);
+                let result = fs::canonicalize(&path);
 
                 result.with_context(|| format!("canonicalizing {path:?}"))
             })
@@ -675,17 +690,17 @@ impl Fs for RealFs {
 
     async fn is_file(&self, path: &Path) -> bool {
         let path = path.to_owned();
-        self.executor.spawn(async move { std::fs::metadata(path).is_ok_and(|metadata| metadata.is_file()) }).await
+        self.executor.spawn(async move { fs::metadata(path).is_ok_and(|metadata| metadata.is_file()) }).await
     }
 
     async fn is_dir(&self, path: &Path) -> bool {
         let path = path.to_owned();
-        self.executor.spawn(async move { std::fs::metadata(path).is_ok_and(|metadata| metadata.is_dir()) }).await
+        self.executor.spawn(async move { fs::metadata(path).is_ok_and(|metadata| metadata.is_dir()) }).await
     }
 
     async fn metadata(&self, path: &Path) -> Result<Option<Metadata>> {
         let path_buf = path.to_owned();
-        let symlink_metadata = match self.executor.spawn(async move { std::fs::symlink_metadata(&path_buf) }).await {
+        let symlink_metadata = match self.executor.spawn(async move { fs::symlink_metadata(&path_buf) }).await {
             Ok(metadata) => metadata,
             Err(err) => {
                 return match err.kind() {
@@ -699,7 +714,7 @@ impl Fs for RealFs {
         let metadata = if is_symlink {
             let path_buf = path.to_path_buf();
             // Read target metadata, if the target exists
-            match self.executor.spawn(async move { std::fs::metadata(path_buf) }).await {
+            match self.executor.spawn(async move { fs::metadata(path_buf) }).await {
                 Ok(target_metadata) => target_metadata,
                 Err(err) => {
                     if err.kind() != io::ErrorKind::NotFound {
@@ -736,7 +751,7 @@ impl Fs for RealFs {
 
     async fn read_link(&self, path: &Path) -> Result<PathBuf> {
         let path = path.to_owned();
-        let path = self.executor.spawn(async move { std::fs::read_link(&path) }).await?;
+        let path = self.executor.spawn(async move { fs::read_link(&path) }).await?;
         Ok(path)
     }
 
@@ -751,7 +766,7 @@ impl Fs for RealFs {
     }
 
     fn path_exists(&self, path: &Path) -> bool {
-        std::fs::symlink_metadata(path).is_ok()
+        fs::symlink_metadata(path).is_ok()
     }
 
     fn is_path_case_sensitive(&self, path: &Path) -> bool {
@@ -856,7 +871,7 @@ impl Fs for RealFs {
     }
 
     fn subscribe_to_jobs(&self) -> JobEventReceiver {
-        let (sender, receiver) = futures::channel::mpsc::unbounded();
+        let (sender, receiver) = mpsc::unbounded();
         self.job_event_subscribers.lock().push(sender);
         receiver
     }
@@ -916,12 +931,12 @@ impl Fs for RealFs {
         self.trash.lock().get(trash_id).map(trash::TrashItem::original_path)
     }
 
-    async fn restore(&self, trash_id: TrashId) -> std::result::Result<PathBuf, TrashRestoreError> {
+    async fn restore(&self, trash_id: TrashId) -> result::Result<PathBuf, TrashRestoreError> {
         let item = self.trash.lock().get(trash_id).cloned().ok_or(TrashRestoreError::AlreadyRestored)?;
         let restored_item_path = item.original_path();
 
-        let (tx, rx) = futures::channel::oneshot::channel();
-        std::thread::Builder::new()
+        let (tx, rx) = oneshot::channel();
+        Builder::new()
             .name("restore trashed item".to_string())
             .spawn(move || {
                 let res = trash::restore(item);

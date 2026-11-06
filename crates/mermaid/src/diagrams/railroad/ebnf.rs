@@ -1,6 +1,8 @@
 //! `railroad-ebnf-beta`: EBNF in the W3C and ISO 14977 styles. Port of Pele's
 //! `src/diagrams/railroad/ebnf.ts`.
 
+use std::mem;
+
 use super::common::ACC_DESCR;
 use super::common::ACC_TITLE;
 use super::common::AstNode;
@@ -233,7 +235,7 @@ fn definition(r: &mut Reader<'_>, ast: &mut Vec<AstNode<Ebnf>>) -> Result<usize,
                 );
                 attach(ast, bracket, element);
                 let next = frame(ast, Some(bracket), element, Some(kind + 1), except);
-                stack.push(std::mem::replace(&mut top, next));
+                stack.push(mem::replace(&mut top, next));
                 except = false;
                 continue;
             }

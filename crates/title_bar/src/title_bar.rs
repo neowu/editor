@@ -1,3 +1,7 @@
+use std::ffi::OsStr;
+
+use ed_actions::git::SelectRepo;
+use project::git_store::Repository;
 mod application_menu;
 mod worktree_branch;
 
@@ -66,7 +70,7 @@ pub fn init(cx: &mut App) {
             toggle_project_menu(title_bar.clone(), window, cx);
         });
         let title_bar = item.downgrade();
-        workspace.register_action(move |_, _: &ed_actions::git::SelectRepo, window, cx| {
+        workspace.register_action(move |_, _: &SelectRepo, window, cx| {
             toggle_project_menu(title_bar.clone(), window, cx);
         });
         workspace.set_titlebar_item(item.into(), window, cx);
@@ -114,7 +118,7 @@ impl Render for TitleBar {
 /// contains the folder or is nested in it.
 struct ActiveRepository {
     project_name: Option<SharedString>,
-    repository: Option<Entity<project::git_store::Repository>>,
+    repository: Option<Entity<Repository>>,
     linked_worktree_name: Option<SharedString>,
 }
 
@@ -151,11 +155,8 @@ impl ActiveRepository {
                 })
                 .or_else(|| repo.is_linked_worktree().then_some(active.project_name.clone()).flatten());
 
-        let display_name = if identity.extension() == Some(std::ffi::OsStr::new("git")) {
-            identity.file_stem()
-        } else {
-            identity.file_name()
-        };
+        let display_name =
+            if identity.extension() == Some(OsStr::new("git")) { identity.file_stem() } else { identity.file_name() };
 
         if let Some(repo_name) = display_name.and_then(|n| n.to_str()) {
             let name = if visible_worktrees_in_repository(project, repo, cx) == 1
@@ -182,11 +183,7 @@ fn nested_repository_label(folder_name: &str, worktree_path: &Path, repo_path: &
     Some(format!("{folder_name}/{}", relative.display()))
 }
 
-fn visible_worktrees_in_repository(
-    project: &Entity<Project>,
-    repository: &project::git_store::Repository,
-    cx: &App,
-) -> usize {
+fn visible_worktrees_in_repository(project: &Entity<Project>, repository: &Repository, cx: &App) -> usize {
     let repo_path = &repository.work_directory_abs_path;
     project
         .read(cx)

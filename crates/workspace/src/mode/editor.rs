@@ -9,6 +9,7 @@ use gpui::Stateful;
 use gpui::canvas;
 use ui::Window;
 use ui::prelude::*;
+use ui::utils;
 
 use crate::CARD_GAP;
 use crate::DraggedDock;
@@ -141,7 +142,7 @@ impl Workspace {
             // so a panel's header row lines up with the tabs.
             .when(position == DockPosition::Right && dock.read(cx).visible_panel().is_some(), |this| {
                 this.flex_col()
-                    .child(ui::utils::window_drag_area(div().id("right-dock-top-gap")).flex_none().w_full().h(CARD_GAP))
+                    .child(utils::window_drag_area(div().id("right-dock-top-gap")).flex_none().w_full().h(CARD_GAP))
             })
             .child(div().flex().flex_1().min_h_0().size_full().child(dock.clone()));
 

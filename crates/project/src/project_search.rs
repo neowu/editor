@@ -1,14 +1,18 @@
 use std::cell::LazyCell;
 use std::collections::BTreeSet;
+use std::io;
 use std::io::Cursor;
 use std::io::ErrorKind;
 use std::io::Read;
+use std::mem;
 use std::ops::Range;
 use std::path::Path;
 use std::path::PathBuf;
 use std::pin::pin;
+use std::str;
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::Instant;
 
 use anyhow::Context;
 use async_channel::Receiver;
@@ -27,6 +31,7 @@ use fs::ReadSeek;
 use futures::FutureExt as _;
 use futures::StreamExt;
 use futures::channel::oneshot;
+use futures::future;
 use futures::select_biased;
 use futures::stream::FuturesOrdered;
 use gpui::App;
@@ -231,7 +236,7 @@ impl Search {
                         let (input_paths_tx, input_paths_rx) = unbounded();
                         let tasks = vec![
                             cx.spawn(Self::provide_search_paths(
-                                std::mem::take(worktrees),
+                                mem::take(worktrees),
                                 query.clone(),
                                 input_paths_tx,
                                 sorted_search_results_tx,
@@ -276,7 +281,7 @@ impl Search {
                         let request = client.request(proto::FindSearchCandidates {
                             project_id: remote_id,
                             query: Some(query.to_proto()),
-                            limit: self.limit as _,
+                            limit: self.limit as u64,
                             handle,
                         });
 
@@ -315,8 +320,7 @@ impl Search {
                                         }
                                         anyhow::Ok(())
                                     });
-                                    let (left, right) =
-                                        futures::future::join(wait_for_remote_buffers, forward_buffers).await;
+                                    let (left, right) = future::join(wait_for_remote_buffers, forward_buffers).await;
                                     left?;
                                     right?;
 
@@ -387,7 +391,7 @@ impl Search {
                     None
                 };
 
-                futures::future::join_all(
+                future::join_all(
                     [worker_pool.boxed_local()]
                         .into_iter()
                         .chain(buffer_snapshots)
@@ -445,7 +449,7 @@ impl Search {
                             Some(barrier)
                         });
                         if let Some(barriers) = barrier {
-                            futures::future::join_all(barriers).await;
+                            future::join_all(barriers).await;
                         }
                         snapshot = worktree.read_with(cx, |this, _| this.snapshot());
                     }
@@ -768,7 +772,7 @@ impl RequestHandler<'_> {
                     Ok(line_hint) => line_hint,
                     Err(error)
                         if error
-                            .downcast_ref::<std::io::Error>()
+                            .downcast_ref::<io::Error>()
                             .is_some_and(|error| error.kind() == ErrorKind::InvalidData) =>
                     {
                         self.detect_in_decoded_file(&mut *file, encoding).await?
@@ -852,7 +856,7 @@ impl RequestHandler<'_> {
 }
 
 const fn is_utf8_prefix(bytes: &[u8]) -> bool {
-    match std::str::from_utf8(bytes) {
+    match str::from_utf8(bytes) {
         Ok(_) => true,
         Err(error) => error.error_len().is_none(),
     }
@@ -1014,7 +1018,7 @@ impl<T: 'static + Send> AdaptiveBatcher<T> {
             let mut items_produced_so_far = 0_u64;
 
             let mut _schedule_flush_after_delay: Option<Task<()>> = None;
-            let _time_elapsed_since_start_of_search = std::time::Instant::now();
+            let _time_elapsed_since_start_of_search = Instant::now();
             let mut flush = pin!(flush_batch_rx);
             let mut terminating = false;
             loop {
@@ -1041,7 +1045,7 @@ impl<T: 'static + Send> AdaptiveBatcher<T> {
                             Err(_) => {
                                 // Items channel closed - send any remaining batch before exiting
                                 if !current_batch.is_empty() {
-                                    _ = batch_tx.send(std::mem::take(&mut current_batch)).await;
+                                    _ = batch_tx.send(mem::take(&mut current_batch)).await;
                                 }
                                 break;
                             }
@@ -1049,7 +1053,7 @@ impl<T: 'static + Send> AdaptiveBatcher<T> {
                     }
                     should_break_afterwards = flush.next() => {
                         if !current_batch.is_empty() {
-                            _ = batch_tx.send(std::mem::take(&mut current_batch)).await;
+                            _ = batch_tx.send(mem::take(&mut current_batch)).await;
                             _schedule_flush_after_delay = None;
                         }
                         if should_break_afterwards.unwrap_or_default() {
@@ -1066,7 +1070,7 @@ impl<T: 'static + Send> AdaptiveBatcher<T> {
                         current_batch.push(new_item);
                     }
                     if !current_batch.is_empty() {
-                        _ = batch_tx.send(std::mem::take(&mut current_batch)).await;
+                        _ = batch_tx.send(mem::take(&mut current_batch)).await;
                     }
                     break;
                 }

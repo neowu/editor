@@ -27,6 +27,7 @@ use ui::Chip;
 use ui::CopyButton;
 use ui::Divider;
 use ui::Tooltip;
+use ui::font;
 use ui::prelude::*;
 use ui::tooltip_container;
 use workspace::Workspace;
@@ -174,7 +175,7 @@ impl Render for CommitTooltip {
 
         let tag_names = self.commit.tag_names.clone();
 
-        let ui_font_size = ui::font::ui_font_size(cx);
+        let ui_font_size = font::ui_font_size(cx);
         let message_max_height = window.line_height() * 12 + (ui_font_size / 0.4);
         let repo = self.repository.clone();
         let workspace = self.workspace.clone();

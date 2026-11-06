@@ -32,11 +32,13 @@ use language::LineEnding;
 use language::Operation;
 use language::language_settings::AllLanguageSettings;
 use language::language_settings::LineEndingSetting;
+use language::proto as language_proto;
 use language::proto::deserialize_line_ending;
 use language::proto::deserialize_version;
 use language::proto::serialize_line_ending;
 use language::proto::serialize_version;
 use language::proto::split_operations;
+use proto::create_buffer_for_peer::Variant;
 use rpc::AnyProtoClient;
 use rpc::ErrorCode;
 use rpc::ErrorExt as _;
@@ -184,7 +186,7 @@ impl RemoteBufferStore {
         cx: &mut Context<BufferStore>,
     ) -> Result<Option<Entity<Buffer>>> {
         match envelope.payload.variant.context("missing variant")? {
-            proto::create_buffer_for_peer::Variant::State(mut state) => {
+            Variant::State(mut state) => {
                 let buffer_id = BufferId::new(state.id)?;
 
                 let mut capability = capability;
@@ -224,7 +226,7 @@ impl RemoteBufferStore {
                     }
                 }
             }
-            proto::create_buffer_for_peer::Variant::Chunk(chunk) => {
+            Variant::Chunk(chunk) => {
                 let buffer_id = BufferId::new(chunk.buffer_id)?;
                 let buffer =
                     self.loading_remote_buffers_by_id.get(&buffer_id).cloned().with_context(|| {
@@ -235,7 +237,7 @@ impl RemoteBufferStore {
                     let operations = chunk
                         .operations
                         .into_iter()
-                        .map(language::proto::deserialize_operation)
+                        .map(language_proto::deserialize_operation)
                         .collect::<Result<Vec<_>>>()?;
                     buffer.update(cx, |buffer, cx| buffer.apply_ops(operations, cx));
                     anyhow::Ok(())
@@ -274,7 +276,7 @@ impl RemoteBufferStore {
             for (buffer_id, transaction) in message.buffer_ids.into_iter().zip(message.transactions) {
                 let buffer_id = BufferId::new(buffer_id)?;
                 let buffer = this.update(cx, |this, cx| this.wait_for_remote_buffer(buffer_id, cx))?.await?;
-                let transaction = language::proto::deserialize_transaction(transaction)?;
+                let transaction = language_proto::deserialize_transaction(transaction)?;
                 project_transaction.0.insert(buffer, transaction);
             }
 
@@ -1075,11 +1077,8 @@ impl BufferStore {
     ) -> Result<proto::Ack> {
         let payload = envelope.payload;
         let buffer_id = BufferId::new(payload.buffer_id)?;
-        let ops = payload
-            .operations
-            .into_iter()
-            .map(language::proto::deserialize_operation)
-            .collect::<Result<Vec<_>, _>>()?;
+        let ops =
+            payload.operations.into_iter().map(language_proto::deserialize_operation).collect::<Result<Vec<_>, _>>()?;
         this.update(&mut cx, |this, cx| {
             match this.opened_buffers.entry(buffer_id) {
                 hash_map::Entry::Occupied(mut e) => match e.get_mut() {
@@ -1369,11 +1368,8 @@ impl BufferStore {
             let operations = operations.await;
             let state = buffer.update(cx, |buffer, cx| buffer.to_proto(cx));
 
-            let initial_state = proto::CreateBufferForPeer {
-                project_id,
-                peer_id: Some(peer_id),
-                variant: Some(proto::create_buffer_for_peer::Variant::State(state)),
-            };
+            let initial_state =
+                proto::CreateBufferForPeer { project_id, peer_id: Some(peer_id), variant: Some(Variant::State(state)) };
 
             if client.send(initial_state).log_err().is_some() {
                 let client = client.clone();
@@ -1384,7 +1380,7 @@ impl BufferStore {
                         client.send(proto::CreateBufferForPeer {
                             project_id,
                             peer_id: Some(peer_id),
-                            variant: Some(proto::create_buffer_for_peer::Variant::Chunk(proto::BufferChunk {
+                            variant: Some(Variant::Chunk(proto::BufferChunk {
                                 buffer_id: buffer_id.into(),
                                 operations: chunk,
                                 is_last,
@@ -1484,7 +1480,7 @@ impl BufferStore {
         for (buffer, transaction) in project_transaction.0 {
             self.create_buffer_for_peer(&buffer, peer_id, cx).detach_and_log_err(cx);
             serialized_transaction.buffer_ids.push(buffer.read(cx).remote_id().into());
-            serialized_transaction.transactions.push(language::proto::serialize_transaction(&transaction));
+            serialized_transaction.transactions.push(language_proto::serialize_transaction(&transaction));
         }
         serialized_transaction
     }

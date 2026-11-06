@@ -8,6 +8,7 @@ use std::io;
 use std::io::Write;
 use std::path::Path;
 use std::sync::Mutex;
+use std::sync::MutexGuard;
 use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -133,7 +134,7 @@ impl log::Log for Logger {
     }
 }
 
-fn lock_file() -> std::sync::MutexGuard<'static, Option<LogFile>> {
+fn lock_file() -> MutexGuard<'static, Option<LogFile>> {
     FILE.lock().unwrap_or_else(|err| {
         FILE.clear_poison();
         err.into_inner()

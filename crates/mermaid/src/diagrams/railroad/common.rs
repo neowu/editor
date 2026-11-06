@@ -4,6 +4,7 @@
 //! model. Port of Pele's `src/diagrams/railroad/common.ts`.
 
 use super::types::RailroadNode;
+use crate::diagrams::common::tokens::EOF;
 use crate::diagrams::common::tokens::Memo;
 use crate::diagrams::common::tokens::Pattern;
 use crate::diagrams::common::tokens::Reader;
@@ -247,7 +248,7 @@ pub(crate) fn parse_grammar<'a, R>(
             break;
         }
     }
-    while r.kind() != crate::diagrams::common::tokens::EOF {
+    while r.kind() != EOF {
         ast.rules.push(rule(&mut r)?);
     }
     Ok(ast)

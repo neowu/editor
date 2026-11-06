@@ -1,4 +1,7 @@
 use std::collections::hash_map;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::ops::Range;
 use std::slice;
 use std::sync::Arc;
@@ -19,6 +22,7 @@ use language::proto::serialize_version;
 use language::row_chunk::RowChunk;
 use language::row_chunk::RowChunks;
 use lsp::LanguageServerId;
+use lsp::request::InlayHintResolveRequest;
 use rpc::TypedEnvelope;
 use rpc::proto;
 use settings::Settings as _;
@@ -106,8 +110,8 @@ struct HintForId {
     position: usize,
 }
 
-impl std::fmt::Debug for BufferInlayHints {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for BufferInlayHints {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("BufferInlayHints")
             .field("buffer_chunks", &self.chunks)
             .field("hints_by_chunks", &self.hints_by_chunks)
@@ -319,7 +323,7 @@ impl LspStore {
             let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
             let origin_position = hint.position;
             cx.background_spawn(async move {
-                let resolve_task = lang_server.request::<lsp::request::InlayHintResolveRequest>(
+                let resolve_task = lang_server.request::<InlayHintResolveRequest>(
                     InlayHints::project_to_lsp_hint(hint, &buffer_snapshot)?,
                     request_timeout,
                 );

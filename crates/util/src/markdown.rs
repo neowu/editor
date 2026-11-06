@@ -1,3 +1,4 @@
+use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
@@ -69,7 +70,7 @@ pub fn source_position_from_fragment(fragment: &str) -> Option<(u32, u32)> {
 pub struct MarkdownString(pub String);
 
 impl Display for MarkdownString {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -110,7 +111,7 @@ pub struct MarkdownCodeBlock<'a> {
 }
 
 impl Display for MarkdownEscaped<'_> {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let mut start_of_unescaped = None;
         for (ix, c) in self.0.char_indices() {
             match c {
@@ -170,7 +171,7 @@ impl Display for MarkdownEscaped<'_> {
 }
 
 impl Display for MarkdownInlineCode<'_> {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         // Apache License 2.0, same as this crate.
         //
         // Copied from `pulldown-cmark-to-cmark-20.0.0` with modifications:
@@ -213,7 +214,7 @@ impl Display for MarkdownInlineCode<'_> {
 }
 
 impl Display for MarkdownCodeBlock<'_> {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         let tag = self.tag;
         let text = self.text;
         let backticks = "`".repeat(3.max(count_max_consecutive_chars(text, '`') + 1));

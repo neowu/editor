@@ -22,12 +22,14 @@
 //!                             |                  V
 //!                             . --------  Project search tab
 //! ```
+use std::mem;
 use std::ops::ControlFlow;
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
+use std::time::Instant;
 
 use collections::HashMap;
 use collections::HashSet;
@@ -37,6 +39,7 @@ use editor::MultiBufferSnapshot;
 use editor::PathKey;
 use file_icons::FileIcons;
 use futures::StreamExt;
+use futures::channel::oneshot;
 use gpui::AnyElement;
 use gpui::App;
 use gpui::AppContext;
@@ -57,6 +60,7 @@ use language::Buffer;
 use language::LanguageAwareStyling;
 use picker::Picker;
 use picker::PickerDelegate;
+use picker::parts;
 use project::Project;
 use project::ProjectPath;
 use project::Search;
@@ -72,6 +76,7 @@ use ui::ListItem;
 use ui::ListItemSpacing;
 use ui::Toggleable;
 use ui::Tooltip;
+use ui::font;
 use ui::prelude::*;
 use ui::text_for_keystroke;
 use util::ResultExt;
@@ -104,8 +109,8 @@ pub struct Delegate {
     pub(crate) selected_index: usize,
     pub(crate) cancel_flag: Arc<AtomicBool>,
     pub(crate) text_finder_turning_into_project_search: Arc<AtomicBool>,
-    pub(crate) last_selection_change_time: Option<std::time::Instant>,
-    pub(crate) last_click: Option<(usize, std::time::Instant)>,
+    pub(crate) last_selection_change_time: Option<Instant>,
+    pub(crate) last_click: Option<(usize, Instant)>,
     pub(crate) search_options: SearchOptions,
     /// Kept around for switching to project search
     pub(crate) active_query: Option<SearchQuery>,
@@ -250,7 +255,7 @@ impl InProgressSearch {
     fn take_disconnected(&mut self) -> Option<SearchResults<SearchResult>> {
         if matches!(self, InProgressSearch::Disconnected(_)) {
             let mut placeholder = InProgressSearch::None;
-            std::mem::swap(self, &mut placeholder);
+            mem::swap(self, &mut placeholder);
             match placeholder {
                 InProgressSearch::Disconnected(results_stream) => Some(results_stream),
                 _ => unreachable!("guarded with matches! above"),
@@ -264,7 +269,7 @@ impl InProgressSearch {
     /// can be awaited to recover the underlying result stream.
     pub(crate) fn take_connected(&mut self) -> Option<Task<Option<SearchResults<SearchResult>>>> {
         if matches!(self, InProgressSearch::Connected(_)) {
-            match std::mem::replace(self, InProgressSearch::None) {
+            match mem::replace(self, InProgressSearch::None) {
                 InProgressSearch::Connected(task) => Some(task),
                 _ => unreachable!("guarded with matches! above"),
             }
@@ -508,7 +513,7 @@ impl Delegate {
             let Some(workspace) = self.project_search_view.read(cx).workspace.upgrade() else {
                 return;
             };
-            let selected = std::mem::take(&mut self.selected_matches);
+            let selected = mem::take(&mut self.selected_matches);
             let new_pane = workspace.update(cx, |workspace, cx| {
                 workspace.split_pane(workspace.active_pane().clone(), direction, window, cx)
             });
@@ -693,7 +698,7 @@ impl PickerDelegate for Delegate {
                 .gap_px()
                 .children(filter_buttons)
                 .child(Divider::vertical().ml_px().mr_0p5())
-                .children(picker::parts::project_scan_indicator(self.active_query.is_some(), self.project(cx), cx))
+                .children(parts::project_scan_indicator(self.active_query.is_some(), self.project(cx), cx))
                 .into_any_element(),
         )
     }
@@ -720,11 +725,11 @@ impl PickerDelegate for Delegate {
 
     fn set_selected_index(&mut self, ix: usize, _window: &mut Window, _cx: &mut Context<Picker<Self>>) {
         self.selected_index = ix;
-        self.last_selection_change_time = Some(std::time::Instant::now());
+        self.last_selection_change_time = Some(Instant::now());
     }
 
     fn update_matches(&mut self, query: String, window: &mut Window, cx: &mut Context<Picker<Self>>) -> Task<()> {
-        self.cancel_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.cancel_flag.store(true, Ordering::SeqCst);
         self.cancel_flag = Arc::new(AtomicBool::new(false));
 
         let cancel_flag = Arc::clone(&self.cancel_flag);
@@ -734,7 +739,7 @@ impl PickerDelegate for Delegate {
         // finder was opened from an existing project search, the query editor is
         // empty but we have already plundered that search's matches. Preserve
         // them on that first call, otherwise the modal would show up empty.
-        let imported_from_project_search = std::mem::take(&mut self.imported_from_project_search);
+        let imported_from_project_search = mem::take(&mut self.imported_from_project_search);
 
         let Some(search_query) = self.build_search_query(&query, cx) else {
             if query.is_empty() && imported_from_project_search {
@@ -760,11 +765,11 @@ impl PickerDelegate for Delegate {
             ps.entity.update(cx, |pr, cx| pr.project.update(cx, |p, cx| p.search(search_query, cx)))
         });
 
-        let (signal_done, match_updating_done) = futures::channel::oneshot::channel();
+        let (signal_done, match_updating_done) = oneshot::channel();
         self.in_progress_search = InProgressSearch::Connected(cx.spawn_in(window, async move |picker, cx| {
             cx.background_executor().timer(SEARCH_DEBOUNCE).await;
 
-            if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+            if cancel_flag.load(Ordering::SeqCst) {
                 return None;
             }
 
@@ -797,7 +802,7 @@ impl PickerDelegate for Delegate {
     fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
         // Clicks (set_selected_index called immediately before confirm) require double-click.
         // Enter key proceeds immediately.
-        let now = std::time::Instant::now();
+        let now = Instant::now();
         let is_click =
             self.last_selection_change_time.map(|t| now.duration_since(t) < CLICK_THRESHOLD).unwrap_or(false);
 
@@ -856,7 +861,7 @@ impl PickerDelegate for Delegate {
     }
 
     fn confirm_multi(&mut self, _secondary: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
-        let selected = std::mem::take(&mut self.selected_matches);
+        let selected = mem::take(&mut self.selected_matches);
         if selected.is_empty() {
             return;
         }
@@ -1032,7 +1037,7 @@ async fn stream_results_to_picker(
 
     let mut clear_existing = matches!(imported_matches, ImportedMatches::No);
     while let Some(results) = results_stream.next().await {
-        if cancel_flag.load(std::sync::atomic::Ordering::SeqCst) {
+        if cancel_flag.load(Ordering::SeqCst) {
             break;
         }
 
@@ -1095,7 +1100,7 @@ async fn stream_results_to_picker(
             return Some(search_results);
         }
 
-        smol::future::yield_now().await;
+        yield_now().await;
     }
     None
 }
@@ -1116,11 +1121,11 @@ fn matched_line_window(snapshot: &language::BufferSnapshot, match_range: &Range<
 fn render_matched_line(search_match: &SearchMatch, cx: &App) -> StyledText {
     let text_style = TextStyle {
         color: cx.theme().colors().text,
-        font_family: ui::font::buffer_font().family.clone(),
-        font_features: ui::font::buffer_font().features.clone(),
-        font_fallbacks: ui::font::buffer_font().fallbacks.clone(),
-        font_size: ui::font::buffer_font_size(cx).into(),
-        font_weight: ui::font::buffer_font().weight,
+        font_family: font::buffer_font().family.clone(),
+        font_features: font::buffer_font().features.clone(),
+        font_fallbacks: font::buffer_font().fallbacks.clone(),
+        font_size: font::buffer_font_size(cx).into(),
+        font_weight: font::buffer_font().weight,
         line_height: relative(1.),
         ..Default::default()
     };

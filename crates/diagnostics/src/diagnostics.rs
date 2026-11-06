@@ -1,3 +1,6 @@
+use futures_lite::future;
+
+use crate::diagnostic_renderer::DiagnosticRenderer;
 pub mod items;
 
 mod buffer_diagnostics;
@@ -416,7 +419,7 @@ impl ProjectDiagnosticsEditor {
                 }
                 let languages = this.read_with(cx, |t, cx| t.project.read(cx).languages().clone()).ok();
                 let more = cx.update(|_, cx| {
-                    crate::diagnostic_renderer::DiagnosticRenderer::diagnostic_blocks_for_group(
+                    DiagnosticRenderer::diagnostic_blocks_for_group(
                         group,
                         buffer_snapshot.remote_id(),
                         Some(diagnostics_toolbar_editor.clone()),
@@ -850,7 +853,7 @@ async fn heuristic_syntactic_expand(
             return None;
         };
         node = parent;
-        futures_lite::future::yield_now().await;
+        future::yield_now().await;
     }
 }
 

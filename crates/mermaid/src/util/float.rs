@@ -4,6 +4,7 @@
 //! This one takes Clinger's exact fast path when it applies and otherwise divides big integers,
 //! which is slower but only runs for long or extreme numbers.
 
+use std::iter;
 /// Significant digits kept. The nearest double is decided within 767 digits, and any nonzero
 /// digit after the kept ones rounds as a sticky bit.
 const MAX_DIGITS: usize = 800;
@@ -222,7 +223,7 @@ fn shl(number: &mut Vec<u32>, count: i64) {
         }
     }
     if !number.is_empty() {
-        number.splice(0..0, std::iter::repeat_n(0, limbs));
+        number.splice(0..0, iter::repeat_n(0, limbs));
     }
 }
 

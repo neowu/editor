@@ -1,3 +1,4 @@
+use std::any::TypeId;
 use std::cell::RefCell;
 
 use gpui::Empty;
@@ -1628,7 +1629,7 @@ impl Element for MarkdownElement {
         // Painting a child leaves its dispatch node active, so the actions go on
         // this element's node before the blocks paint.
         let markdown = self.renderer.markdown.clone();
-        window.on_action(std::any::TypeId::of::<crate::Copy>(), {
+        window.on_action(TypeId::of::<crate::Copy>(), {
             let entity = markdown.clone();
             let text = self.list_state.is_none().then(|| layout.text.clone());
             move |_, phase, window, cx| {
@@ -1638,7 +1639,7 @@ impl Element for MarkdownElement {
                 }
             }
         });
-        window.on_action(std::any::TypeId::of::<crate::CopyAsMarkdown>(), {
+        window.on_action(TypeId::of::<crate::CopyAsMarkdown>(), {
             let entity = markdown.clone();
             move |_, phase, window, cx| {
                 if phase == DispatchPhase::Bubble {

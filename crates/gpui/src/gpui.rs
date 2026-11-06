@@ -1,5 +1,6 @@
 #![allow(clippy::type_complexity)] // Not useful, GPUI makes heavy use of callbacks
 
+use std::borrow;
 #[cfg(not(any(target_os = "macos", target_os = "linux")))]
 compile_error!("Supported targets are macOS and the headless Linux remote server.");
 
@@ -246,7 +247,7 @@ pub trait BorrowAppContext {
 
 impl<C> BorrowAppContext for C
 where
-    C: std::borrow::BorrowMut<App>,
+    C: borrow::BorrowMut<App>,
 {
     fn set_global<G: Global>(&mut self, global: G) {
         self.borrow_mut().set_global(global)

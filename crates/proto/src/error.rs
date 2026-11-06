@@ -1,3 +1,9 @@
+use std::error;
+use std::fmt;
+use std::fmt::Display;
+use std::io;
+use std::io::ErrorKind;
+
 /// Some helpers for structured error handling.
 ///
 /// The helpers defined here allow you to pass type-safe error codes from
@@ -122,10 +128,9 @@ impl ErrorExt for anyhow::Error {
 /// Remote peers only see the proto code, so typed local failures that callers explain (e.g. "already exists") keep
 /// their kind across the wire. Message text is never inspected.
 fn code_for_untyped_error(error: &anyhow::Error) -> ErrorCode {
-    let io_error_kind =
-        error.chain().find_map(|cause| cause.downcast_ref::<std::io::Error>()).map(std::io::Error::kind);
+    let io_error_kind = error.chain().find_map(|cause| cause.downcast_ref::<io::Error>()).map(io::Error::kind);
     match io_error_kind {
-        Some(std::io::ErrorKind::AlreadyExists) => ErrorCode::AlreadyExists,
+        Some(ErrorKind::AlreadyExists) => ErrorCode::AlreadyExists,
         _ => ErrorCode::Internal,
     }
 }
@@ -213,14 +218,14 @@ impl ErrorExt for RpcError {
     }
 }
 
-impl std::error::Error for RpcError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl error::Error for RpcError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         None
     }
 }
 
-impl std::fmt::Display for RpcError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl Display for RpcError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> fmt::Result {
         if let Some(request) = &self.request {
             write!(f, "RPC request {} failed: {}", request, self.msg)?
         } else {

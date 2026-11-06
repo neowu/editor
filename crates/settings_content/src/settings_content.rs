@@ -1,3 +1,5 @@
+use std::fmt;
+use std::fmt::Display;
 mod editor;
 mod font;
 mod language;
@@ -37,8 +39,8 @@ pub use workspace::*;
 #[serde(transparent)]
 pub struct PixelSetting(#[serde(serialize_with = "crate::serialize_f32_with_two_decimal_places")] pub f32);
 
-impl std::fmt::Display for PixelSetting {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for PixelSetting {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let rounded = (self.0 * 100.0).round() / 100.0;
         write!(f, "{rounded}")
     }

@@ -9,6 +9,7 @@ use editor::display_map::BlockContext;
 use editor::display_map::BlockPlacement;
 use editor::display_map::BlockProperties;
 use editor::display_map::BlockStyle;
+use editor::hover_popover;
 use editor::hover_popover::diagnostics_markdown_style;
 use gpui::AppContext;
 use gpui::Entity;
@@ -24,6 +25,7 @@ use markdown::MarkdownElement;
 use text::Point;
 use theme::built_in::BUFFER_LINE_HEIGHT;
 use ui::CopyButton;
+use ui::font;
 use ui::prelude::*;
 
 /// A diagnostics view whose current diagnostics a block can look up when
@@ -196,7 +198,7 @@ impl DiagnosticBlock {
             DiagnosticSeverity::HINT => (status_colors.hint_background, status_colors.hint),
             _ => (status_colors.ignored_background, status_colors.ignored),
         };
-        let editor_line_height = (BUFFER_LINE_HEIGHT * ui::font::buffer_font_size(cx)).round();
+        let editor_line_height = (BUFFER_LINE_HEIGHT * font::buffer_font_size(cx)).round();
         let line_height = editor_line_height;
         let diagnostics_editor = self.diagnostics_editor.clone();
 
@@ -246,7 +248,7 @@ impl DiagnosticBlock {
     ) {
         let Some(diagnostic_link) = link.strip_prefix("file://#diagnostic-") else {
             let workspace = editor.workspace();
-            editor::hover_popover::open_markdown_url(workspace, link, window, cx);
+            hover_popover::open_markdown_url(workspace, link, window, cx);
             return;
         };
         let Some((buffer_id, group_id, ix)) = (|| {

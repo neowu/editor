@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::cmp;
 use std::fmt;
+use std::iter;
 use std::mem;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -13,6 +14,10 @@ use collections::BTreeSet;
 use collections::HashMap;
 use collections::HashSet;
 use collections::VecDeque;
+use ed_actions::command_palette::Toggle;
+use ed_actions::editor::RevealInFileManager;
+use ed_actions::workspace::CopyPath;
+use ed_actions::workspace::CopyRelativePath;
 use gpui::Action;
 use gpui::AnyElement;
 use gpui::AnyView;
@@ -68,10 +73,13 @@ use ui::TabBar;
 use ui::TabPosition;
 use ui::TabStyle;
 use ui::Tooltip;
+use ui::font;
 use ui::prelude::*;
 use ui::right_click_menu;
+use ui::utils;
 use util::ResultExt;
 use util::debug_panic;
+use util::disambiguate;
 use util::markdown::MarkdownInlineCode;
 use util::truncate_and_remove_front;
 
@@ -98,6 +106,7 @@ use crate::item::TabTooltipContent;
 use crate::item::WeakItemHandle;
 use crate::move_item;
 use crate::notifications::NotifyResultExt;
+use crate::preview;
 use crate::toolbar::Toolbar;
 
 /// A selected entry in e.g. project panel.
@@ -119,7 +128,7 @@ impl DraggedSelection {
         if self.marked_selections.contains(&self.active_selection) {
             Box::new(self.marked_selections.iter())
         } else {
-            Box::new(std::iter::once(&self.active_selection))
+            Box::new(iter::once(&self.active_selection))
         }
     }
 }
@@ -761,7 +770,7 @@ impl Pane {
             .flex()
             .flex_none()
             .w_full()
-            .child(ui::utils::window_drag_area(div().id("tab-bar-header-room")).flex_none().w(self.tab_bar_header_room))
+            .child(utils::window_drag_area(div().id("tab-bar-header-room")).flex_none().w(self.tab_bar_header_room))
             .child(div().flex_1().min_w_0().child(tab_bar))
             .into_any_element()
     }
@@ -2104,7 +2113,7 @@ impl Pane {
         window.defer(cx, move |window, cx| {
             workspace
                 .update(cx, |workspace, cx| {
-                    crate::preview::open_preview(workspace, item.as_ref(), pane, to_the_side, window, cx);
+                    preview::open_preview(workspace, item.as_ref(), pane, to_the_side, window, cx);
                 })
                 .ok();
         });
@@ -2492,7 +2501,7 @@ impl Pane {
             let pane = pane.clone();
             let menu_context = menu_context.clone();
             let extra_actions = item_handle.tab_extra_context_menu_actions(window, cx);
-            let has_preview = crate::preview::has_preview(item_handle.as_ref(), cx);
+            let has_preview = preview::has_preview(item_handle.as_ref(), cx);
             let item_handle = item_handle.boxed_clone();
             ContextMenu::build(window, cx, move |mut menu, window, cx| {
                 let close_active_item_action = CloseActiveItem { save_intent: None, close_pinned: true };
@@ -2656,7 +2665,7 @@ impl Pane {
                             .when_some(entry_abs_path, |menu, abs_path| {
                                 menu.entry(
                                     "Copy Path",
-                                    Some(Box::new(ed_actions::workspace::CopyPath)),
+                                    Some(Box::new(CopyPath)),
                                     window.handler_for(&pane, move |_, _, cx| {
                                         cx.write_to_clipboard(ClipboardItem::new_string(
                                             abs_path.to_string_lossy().into_owned(),
@@ -2667,7 +2676,7 @@ impl Pane {
                             .when_some(relative_path, |menu, relative_path| {
                                 menu.entry(
                                     "Copy Relative Path",
-                                    Some(Box::new(ed_actions::workspace::CopyRelativePath)),
+                                    Some(Box::new(CopyRelativePath)),
                                     window.handler_for(&pane, move |_, _, cx| {
                                         cx.write_to_clipboard(ClipboardItem::new_string(
                                             relative_path.display().to_string(),
@@ -2678,8 +2687,8 @@ impl Pane {
                             .when(is_local, |menu| {
                                 menu.when_some(reveal_path, |menu, reveal_path| {
                                     menu.separator().entry(
-                                        ui::utils::reveal_in_file_manager_label(is_remote),
-                                        Some(Box::new(ed_actions::editor::RevealInFileManager)),
+                                        utils::reveal_in_file_manager_label(is_remote),
+                                        Some(Box::new(RevealInFileManager)),
                                         window.handler_for(&pane, move |pane, _, cx| {
                                             if let Some(project) = pane.project.upgrade() {
                                                 project.update(cx, |project, cx| {
@@ -2734,7 +2743,7 @@ impl Pane {
                     let item_handle = item_handle.boxed_clone();
                     menu = menu.entry(
                         "Open Preview",
-                        Some(Box::new(crate::preview::OpenPreview)),
+                        Some(Box::new(preview::OpenPreview)),
                         window.handler_for(&pane, move |pane, window, cx| {
                             pane.open_preview(item_handle.boxed_clone(), false, window, cx);
                         }),
@@ -2910,7 +2919,7 @@ impl Pane {
     /// like a titlebar; elsewhere a double click runs the pane's double-click action.
     fn tab_bar_empty_space_behaviour(&self, element: Stateful<Div>, cx: &Context<Pane>) -> Stateful<Div> {
         if self.tab_bar_is_titlebar {
-            return ui::utils::window_drag_area(element);
+            return utils::window_drag_area(element);
         }
         element.on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
             if event.click_count() == 2 {
@@ -3201,7 +3210,7 @@ pub fn top_row_icon_button(id: impl Into<ElementId>, icon: IconName) -> IconButt
 /// behave the same everywhere. Zoom stays rightmost, so a hidden preview button
 /// doesn't move it. There are no split buttons: panes split by dragging a tab to an edge.
 pub fn render_tab_bar_pane_buttons(pane: &Pane, cx: &mut Context<Pane>) -> Vec<AnyElement> {
-    let mut buttons: Vec<AnyElement> = crate::preview::render_tab_bar_preview_button(pane, cx).into_iter().collect();
+    let mut buttons: Vec<AnyElement> = preview::render_tab_bar_preview_button(pane, cx).into_iter().collect();
     buttons.push(render_tab_bar_zoom_button(pane, cx));
     buttons
 }
@@ -3232,12 +3241,7 @@ pub enum EmptyPaneHints {
 /// The "new" entry leads because a double click on a titlebar tab bar can't
 /// create one.
 fn empty_pane_hints(hints: EmptyPaneHints) -> Vec<(&'static str, &'static str, IconName, Box<dyn Action>)> {
-    let command_palette = (
-        "empty-pane-command-palette",
-        "Command Palette",
-        IconName::Command,
-        ed_actions::command_palette::Toggle.boxed_clone(),
-    );
+    let command_palette = ("empty-pane-command-palette", "Command Palette", IconName::Command, Toggle.boxed_clone());
     match hints {
         EmptyPaneHints::Files => vec![
             ("empty-pane-new-file", "New File", IconName::Plus, NewFile.boxed_clone()),
@@ -3317,7 +3321,7 @@ impl Render for Pane {
             return div().track_focus(&self.focus_handle(cx));
         }
 
-        let has_preview = self.active_item().is_some_and(|item| crate::preview::has_preview(item.as_ref(), cx));
+        let has_preview = self.active_item().is_some_and(|item| preview::has_preview(item.as_ref(), cx));
 
         v_flex()
             .key_context(key_context)
@@ -3326,18 +3330,16 @@ impl Render for Pane {
             .flex_none()
             .overflow_hidden()
             .when(has_preview, |this| {
-                this.on_action(cx.listener(|pane, _: &crate::preview::OpenPreview, window, cx| {
+                this.on_action(cx.listener(|pane, _: &preview::OpenPreview, window, cx| {
                     if let Some(item) = pane.active_item() {
                         pane.open_preview(item, false, window, cx);
                     }
                 }))
-                .on_action(cx.listener(
-                    |pane, _: &crate::preview::OpenPreviewToTheSide, window, cx| {
-                        if let Some(item) = pane.active_item() {
-                            pane.open_preview(item, true, window, cx);
-                        }
-                    },
-                ))
+                .on_action(cx.listener(|pane, _: &preview::OpenPreviewToTheSide, window, cx| {
+                    if let Some(item) = pane.active_item() {
+                        pane.open_preview(item, true, window, cx);
+                    }
+                }))
             })
             .on_action(cx.listener(|pane, split: &SplitLeft, window, cx| {
                 pane.split(SplitDirection::Left, split.mode, window, cx)
@@ -3459,9 +3461,7 @@ impl Render for Pane {
             }))
             // A top-row tab bar keeps the card gap from the window edge; the gap moves the window.
             .when(!pill_tabs && self.tab_bar_is_titlebar, |pane| {
-                pane.child(
-                    ui::utils::window_drag_area(div().id("tab-bar-top-gap")).flex_none().w_full().h(crate::CARD_GAP),
-                )
+                pane.child(utils::window_drag_area(div().id("tab-bar-top-gap")).flex_none().w_full().h(crate::CARD_GAP))
             })
             .when(!pill_tabs, |pane| {
                 if self.active_item().is_some() {
@@ -3894,7 +3894,7 @@ fn dirty_message_for(buffer_path: Option<ProjectPath>) -> String {
 }
 
 pub fn tab_details(items: &[Box<dyn ItemHandle>], _window: &Window, cx: &App) -> Vec<usize> {
-    util::disambiguate::compute_disambiguation_details(items, |item, detail| item.tab_content_text(detail, cx))
+    disambiguate::compute_disambiguation_details(items, |item, detail| item.tab_content_text(detail, cx))
 }
 
 pub fn render_item_indicator(item: Box<dyn ItemHandle>, cx: &App) -> Option<Indicator> {
@@ -3909,7 +3909,7 @@ pub fn render_item_indicator(item: Box<dyn ItemHandle>, cx: &App) -> Option<Indi
 
 impl Render for DraggedTab {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let ui_font = ui::font::ui_font().clone();
+        let ui_font = font::ui_font().clone();
         let label = self.item.tab_content(
             TabContentParams {
                 detail: Some(self.detail),
@@ -3943,6 +3943,7 @@ fn tab_strip_height(tab_bar_displayed: bool, is_titlebar: bool, tab_bar_height: 
 
 #[cfg(test)]
 mod tests {
+    use std::f32::consts::SQRT_2;
     use std::sync::Arc;
     use std::sync::atomic::AtomicUsize;
 
@@ -3951,6 +3952,7 @@ mod tests {
     use gpui::Styled;
     use gpui::WeakEntity;
     use gpui::px;
+    use theme::built_in;
 
     use super::EmptyPaneHints;
     use super::NavHistory;
@@ -3974,12 +3976,12 @@ mod tests {
         // content's square corner, which is (CARD_RADIUS - CARD_INSET) * sqrt 2
         // from the shared curve centre.
         let inner = f32::from(crate::CARD_RADIUS - crate::CARD_INSET);
-        assert!(inner * std::f32::consts::SQRT_2 <= f32::from(crate::CARD_RADIUS));
+        assert!(inner * SQRT_2 <= f32::from(crate::CARD_RADIUS));
     }
 
     #[test]
     fn test_card_corner_mask_style() {
-        let colors = theme::built_in::theme_colors();
+        let colors = built_in::theme_colors();
         let style = Pane::card_corner_mask_style(&colors)(StyleRefinement::default());
 
         assert_eq!(style.border_color, Some(colors.editor_background));
@@ -4041,7 +4043,7 @@ mod tests {
 
     #[test]
     fn test_drop_target_style() {
-        let colors = theme::built_in::theme_colors();
+        let colors = built_in::theme_colors();
         let style = Pane::drop_target_style(&colors)(StyleRefinement::default().rounded(px(8.)));
 
         assert_eq!(style.border_color, Some(colors.drop_target_border()));

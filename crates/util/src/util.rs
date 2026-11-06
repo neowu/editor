@@ -1,3 +1,16 @@
+use std::env;
+use std::ffi::CStr;
+use std::io;
+use std::iter;
+use std::mem::MaybeUninit;
+use std::path::Path;
+use std::ptr;
+use std::sync::OnceLock;
+
+#[cfg(debug_assertions)]
+use rust_embed::utils;
+#[cfg(debug_assertions)]
+use rust_embed::utils::PathMatcher;
 pub mod command;
 
 pub mod fs;
@@ -179,7 +192,7 @@ where
 /// `ED_ALLOW_ROOT` environment variable.
 pub fn prevent_root_execution() {
     let is_root = unsafe { libc::geteuid() } == 0;
-    let allow_root = std::env::var("ED_ALLOW_ROOT").is_ok_and(|val| val == "true");
+    let allow_root = env::var("ED_ALLOW_ROOT").is_ok_and(|val| val == "true");
 
     if is_root && !allow_root {
         eprintln!(
@@ -197,19 +210,19 @@ Error: Running ed as root or via sudo is unsupported.
 ///
 /// Call during startup, before spawning children that will inherit the limit.
 pub fn increase_open_file_limit() -> Result<()> {
-    fn get() -> std::io::Result<libc::rlimit> {
+    fn get() -> io::Result<libc::rlimit> {
         let mut limit = libc::rlimit { rlim_cur: 0, rlim_max: 0 };
         match unsafe { libc::getrlimit(libc::RLIMIT_NOFILE, &raw mut limit) } {
             0 => Ok(limit),
-            _ => Err(std::io::Error::last_os_error()),
+            _ => Err(io::Error::last_os_error()),
         }
     }
 
-    fn set(soft: libc::rlim_t, hard: libc::rlim_t) -> std::io::Result<()> {
+    fn set(soft: libc::rlim_t, hard: libc::rlim_t) -> io::Result<()> {
         let limit = libc::rlimit { rlim_cur: soft, rlim_max: hard };
         match unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &raw const limit) } {
             0 => Ok(()),
-            _ => Err(std::io::Error::last_os_error()),
+            _ => Err(io::Error::last_os_error()),
         }
     }
 
@@ -243,8 +256,8 @@ fn load_shell_from_passwd() -> Result<()> {
     };
     let mut buffer = Vec::with_capacity(buflen);
 
-    let mut pwd: std::mem::MaybeUninit<libc::passwd> = std::mem::MaybeUninit::uninit();
-    let mut result: *mut libc::passwd = std::ptr::null_mut();
+    let mut pwd: MaybeUninit<libc::passwd> = MaybeUninit::uninit();
+    let mut result: *mut libc::passwd = ptr::null_mut();
 
     let uid = unsafe { libc::getuid() };
     let status = unsafe {
@@ -263,13 +276,13 @@ fn load_shell_from_passwd() -> Result<()> {
         uid,
     );
 
-    let shell = unsafe { std::ffi::CStr::from_ptr(entry.pw_shell).to_str().unwrap() };
-    let should_set_shell = std::env::var("SHELL")
-        .map_or(true, |shell_env| shell_env != shell && !std::path::Path::new(&shell_env).exists());
+    let shell = unsafe { CStr::from_ptr(entry.pw_shell).to_str().unwrap() };
+    let should_set_shell =
+        env::var("SHELL").map_or(true, |shell_env| shell_env != shell && !Path::new(&shell_env).exists());
 
     if should_set_shell {
         log::info!("updating SHELL environment variable to value from passwd entry: {:?}", shell,);
-        unsafe { std::env::set_var("SHELL", shell) };
+        unsafe { env::set_var("SHELL", shell) };
     }
 
     Ok(())
@@ -279,7 +292,7 @@ fn load_shell_from_passwd() -> Result<()> {
 pub fn get_shell_safe_ed_path(shell_kind: shell::ShellKind) -> anyhow::Result<String> {
     use anyhow::Context as _;
     use paths::PathExt;
-    let mut ed_path = std::env::current_exe().context("Failed to determine current ed executable path.")?;
+    let mut ed_path = env::current_exe().context("Failed to determine current ed executable path.")?;
     if cfg!(target_os = "linux")
         && !ed_path.is_file()
         && let Some(truncated) =
@@ -313,13 +326,13 @@ pub async fn load_login_shell_environment() -> Result<()> {
         if name == "SHLVL" {
             continue;
         }
-        unsafe { std::env::set_var(&name, &value) };
+        unsafe { env::set_var(&name, &value) };
     }
 
     log::info!(
         "set environment variables from shell:{}, path:{}",
-        std::env::var("SHELL").unwrap_or_default(),
-        std::env::var("PATH").unwrap_or_default(),
+        env::var("SHELL").unwrap_or_default(),
+        env::var("PATH").unwrap_or_default(),
     );
 
     Ok(())
@@ -450,7 +463,7 @@ pub fn wrapped_usize_outward_from(
     let mut after_offset = 1;
     let mut before_offset = 1;
 
-    std::iter::from_fn(move || {
+    iter::from_fn(move || {
         count += 1;
         if count > wrap_length {
             None
@@ -498,12 +511,12 @@ pub fn asset_str<A: rust_embed::RustEmbed>(path: &str) -> Cow<'static, str> {
 /// symlink onto another volume, so canonicalizing the executable alone can walk
 /// off the checkout and miss `.git`; the launch path and the test runner's cwd
 /// (a crate dir under the checkout) stay inside it.
-pub fn dev_repo_root() -> Option<&'static std::path::Path> {
+pub fn dev_repo_root() -> Option<&'static Path> {
     use std::path::PathBuf;
-    static ROOT: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    static ROOT: OnceLock<Option<PathBuf>> = OnceLock::new();
     ROOT.get_or_init(|| {
-        let exe = std::env::current_exe().ok();
-        let candidates = [exe.clone(), exe.and_then(|exe| exe.canonicalize().ok()), std::env::current_dir().ok()];
+        let exe = env::current_exe().ok();
+        let candidates = [exe.clone(), exe.and_then(|exe| exe.canonicalize().ok()), env::current_dir().ok()];
         candidates
             .into_iter()
             .flatten()
@@ -535,16 +548,16 @@ pub fn __fs_embed_iter(
     root_relative: &str,
     includes: &[&str],
     excludes: &[&str],
-) -> impl Iterator<Item = std::borrow::Cow<'static, str>> + 'static {
+) -> impl Iterator<Item = Cow<'static, str>> + 'static {
     let files: Vec<String> = match dev_repo_root() {
         Some(root) => {
-            let matcher = rust_embed::utils::PathMatcher::new(includes, excludes);
+            let matcher = PathMatcher::new(includes, excludes);
             let root = root.join(root_relative).to_string_lossy().into_owned();
-            rust_embed::utils::get_files(root, matcher).map(|entry| entry.rel_path).collect()
+            utils::get_files(root, matcher).map(|entry| entry.rel_path).collect()
         }
         None => Vec::new(),
     };
-    files.into_iter().map(std::borrow::Cow::Owned)
+    files.into_iter().map(Cow::Owned)
 }
 
 /// Backs the dev arm of [`fs_embed!`]'s `get`: reads a single file from the
@@ -558,13 +571,13 @@ pub fn __fs_embed_get(
     includes: &[&str],
     excludes: &[&str],
 ) -> Option<rust_embed::EmbeddedFile> {
-    let matcher = rust_embed::utils::PathMatcher::new(includes, excludes);
+    let matcher = PathMatcher::new(includes, excludes);
     if !matcher.is_path_included(file_path) {
         return None;
     }
     let root =
         dev_repo_root().expect("dev asset loading requires running from within the checkout").join(root_relative);
-    rust_embed::utils::read_file_from_fs(&root.join(file_path)).ok()
+    utils::read_file_from_fs(&root.join(file_path)).ok()
 }
 
 /// A `rust_embed` asset source that embeds files in release builds. Dev builds

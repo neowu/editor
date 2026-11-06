@@ -1,3 +1,5 @@
+use std::array;
+
 use crate::remote_connections::Connection;
 use crate::remote_connections::RemoteConnectionModal;
 use crate::remote_connections::RemoteConnectionPrompt;
@@ -893,7 +895,7 @@ impl RemoteServerProjects {
             RemoteConnectionOptions::Ssh(connection) => ViewServerOptionsState::Ssh {
                 connection,
                 server,
-                entries: std::array::from_fn(|_| NavigableEntry::focusable(cx)),
+                entries: array::from_fn(|_| NavigableEntry::focusable(cx)),
             },
         });
         self.focus_handle(cx).focus(window, cx);

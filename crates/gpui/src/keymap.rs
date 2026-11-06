@@ -98,7 +98,7 @@ impl Keymap {
     ) -> impl 'a + DoubleEndedIterator<Item = &'a KeyBinding> {
         let action_id = action.type_id();
         let binding_indices =
-            self.binding_indices_by_action_id.get(&action_id).map_or(&[] as _, SmallVec::as_slice).iter();
+            self.binding_indices_by_action_id.get(&action_id).map_or(&[] as &[usize], SmallVec::as_slice).iter();
 
         binding_indices.filter_map(|ix| {
             let binding = &self.bindings[*ix];

@@ -1,4 +1,5 @@
 use std::ops::Range;
+use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -319,7 +320,7 @@ pub(crate) fn refresh_enabled_in_any_buffer(
 
 pub(crate) type InitialBufferVersionsMap = HashMap<language::BufferId, clock::Global>;
 
-pub(crate) fn construct_initial_buffer_versions_map<D: ToOffset + Copy, _S: Into<std::sync::Arc<str>>>(
+pub(crate) fn construct_initial_buffer_versions_map<D: ToOffset + Copy, _S: Into<Arc<str>>>(
     editor: &Editor,
     edits: &[(Range<D>, _S)],
     cx: &Context<Editor>,

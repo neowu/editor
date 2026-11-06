@@ -841,9 +841,9 @@ pub(crate) fn compound_layout(
         }
     }
     for level in &mut levels {
-        level.items.sort_by(|&a, &b| {
-            nodes[a].seq.partial_cmp(&nodes[b].seq).unwrap_or(std::cmp::Ordering::Equal).then(a.cmp(&b))
-        });
+        level
+            .items
+            .sort_by(|&a, &b| nodes[a].seq.partial_cmp(&nodes[b].seq).unwrap_or(Ordering::Equal).then(a.cmp(&b)));
     }
 
     // Every group border an edge crosses costs a port. Past the budget, an edge is drawn

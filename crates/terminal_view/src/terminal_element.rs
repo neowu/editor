@@ -1,6 +1,8 @@
 use std::fmt::Debug;
 use std::mem;
+use std::ops;
 use std::rc::Rc;
+use std::slice;
 use std::time::Instant;
 
 use editor::CursorLayout;
@@ -72,6 +74,7 @@ use theme::ActiveTheme;
 use theme::Theme;
 use ui::ParentElement;
 use ui::Tooltip;
+use ui::font;
 use ui::utils::ensure_minimum_contrast;
 use util::ResultExt;
 use workspace::Workspace;
@@ -192,7 +195,7 @@ impl BatchedTextRun {
             .shape_line(
                 self.text.clone().into(),
                 self.font_size.to_pixels(window.rem_size()),
-                std::slice::from_ref(&self.style),
+                slice::from_ref(&self.style),
                 Some(dimensions.cell_width),
             )
             .paint(pos, dimensions.line_height, gpui::TextAlign::Left, None, window, cx)
@@ -975,7 +978,7 @@ impl TerminalElement {
     }
 
     fn rem_size(&self, cx: &App) -> Option<Pixels> {
-        let buffer_font_size = ui::font::buffer_font_size(cx);
+        let buffer_font_size = font::buffer_font_size(cx);
         let rem_size_scale = {
             // Our default UI font size is 14px on a 16px base scale.
             // This means the default UI font size is 0.875rems.
@@ -1029,7 +1032,7 @@ impl Element for TerminalElement {
         self.interactivity.prepaint(global_id, bounds, bounds.size, window, cx, |_, _, hitbox, window, cx| {
             let hitbox = hitbox.unwrap();
 
-            let buffer_font_size = ui::font::buffer_font_size(cx);
+            let buffer_font_size = font::buffer_font_size(cx);
 
             let terminal_settings = TerminalSettings::get_global(cx);
             let minimum_contrast = terminal_settings.minimum_contrast;
@@ -1037,10 +1040,10 @@ impl Element for TerminalElement {
             let font_family = terminal_settings
                 .font_family
                 .as_ref()
-                .map_or_else(|| ui::font::buffer_font().family.clone(), |font_family| font_family.0.clone().into());
+                .map_or_else(|| font::buffer_font().family.clone(), |font_family| font_family.0.clone().into());
 
             let font_fallbacks =
-                terminal_settings.font_fallbacks.as_ref().or(ui::font::buffer_font().fallbacks.as_ref()).cloned();
+                terminal_settings.font_fallbacks.as_ref().or(font::buffer_font().fallbacks.as_ref()).cloned();
 
             let font_features =
                 terminal_settings.font_features.as_ref().unwrap_or(&FontFeatures::disable_ligatures()).clone();
@@ -1050,7 +1053,7 @@ impl Element for TerminalElement {
             let line_height = terminal_settings.line_height.value();
 
             let font_size =
-                terminal_settings.font_size.map_or(buffer_font_size, |size| ui::font::adjusted_font_size(size, cx));
+                terminal_settings.font_size.map_or(buffer_font_size, |size| font::adjusted_font_size(size, cx));
 
             let theme = cx.theme().clone();
 
@@ -1522,14 +1525,14 @@ impl InputHandler for TerminalInputHandler {
         Some(UTF16Selection { range: 0..0, reversed: false })
     }
 
-    fn marked_text_range(&mut self, _window: &mut Window, cx: &mut App) -> Option<std::ops::Range<usize>> {
+    fn marked_text_range(&mut self, _window: &mut Window, cx: &mut App) -> Option<ops::Range<usize>> {
         self.terminal_view.read(cx).marked_text_range()
     }
 
     fn text_for_range(
         &mut self,
-        _: std::ops::Range<usize>,
-        _: &mut Option<std::ops::Range<usize>>,
+        _: ops::Range<usize>,
+        _: &mut Option<ops::Range<usize>>,
         _: &mut Window,
         _: &mut App,
     ) -> Option<String> {
@@ -1538,7 +1541,7 @@ impl InputHandler for TerminalInputHandler {
 
     fn replace_text_in_range(
         &mut self,
-        _replacement_range: Option<std::ops::Range<usize>>,
+        _replacement_range: Option<ops::Range<usize>>,
         text: &str,
         window: &mut Window,
         cx: &mut App,
@@ -1558,9 +1561,9 @@ impl InputHandler for TerminalInputHandler {
 
     fn replace_and_mark_text_in_range(
         &mut self,
-        _range_utf16: Option<std::ops::Range<usize>>,
+        _range_utf16: Option<ops::Range<usize>>,
         new_text: &str,
-        _new_marked_range: Option<std::ops::Range<usize>>,
+        _new_marked_range: Option<ops::Range<usize>>,
         _window: &mut Window,
         cx: &mut App,
     ) {
@@ -1577,7 +1580,7 @@ impl InputHandler for TerminalInputHandler {
 
     fn bounds_for_range(
         &mut self,
-        range_utf16: std::ops::Range<usize>,
+        range_utf16: ops::Range<usize>,
         _window: &mut Window,
         cx: &mut App,
     ) -> Option<Bounds<Pixels>> {

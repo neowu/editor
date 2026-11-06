@@ -7,8 +7,10 @@ use std::collections::BTreeSet;
 use super::parser::ArchitectureAst;
 use super::parser::Direction;
 use super::parser::Side;
+use crate::error;
 use crate::error::Code;
 use crate::error::Error;
+use crate::text::label;
 use crate::util::chars::is_space;
 
 /// What a node is.
@@ -259,7 +261,7 @@ impl ArchitectureDb {
     pub(crate) fn add_layout_hint(&mut self, hint: ArchLayoutHint) -> Result<(), Error> {
         if hint.members.len() < 2 {
             let mut message = String::from("An align directive requires at least two members; got ");
-            crate::error::push_u32(&mut message, u32::try_from(hint.members.len()).unwrap_or(u32::MAX));
+            error::push_u32(&mut message, u32::try_from(hint.members.len()).unwrap_or(u32::MAX));
             return Err(fail(&[&message]));
         }
         let mut seen = BTreeSet::new();
@@ -308,7 +310,7 @@ pub(crate) fn populate(ast: ArchitectureAst, db: &mut ArchitectureDb) -> Result<
         db.acc_descr = Some(squeeze_indents(&descr));
     }
     if let Some(title) = ast.acc_title.filter(|title| !title.is_empty()) {
-        db.acc_title = Some(crate::text::label::trim_start(&title).to_owned());
+        db.acc_title = Some(label::trim_start(&title).to_owned());
     }
     if let Some(title) = ast.title.filter(|title| !title.is_empty()) {
         db.title = Some(title);

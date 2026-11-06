@@ -1,6 +1,10 @@
 use std::borrow::Borrow;
 use std::borrow::Cow;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::iter;
+use std::ops::Deref;
 use std::sync::Arc;
 
 use serde::Deserialize;
@@ -13,7 +17,7 @@ use smol_str::SmolStr;
 #[derive(Eq, PartialEq, PartialOrd, Ord, Hash, Clone)]
 pub struct SharedString(SmolStr);
 
-impl std::ops::Deref for SharedString {
+impl Deref for SharedString {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
@@ -56,14 +60,14 @@ impl Borrow<str> for SharedString {
     }
 }
 
-impl std::fmt::Debug for SharedString {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for SharedString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl std::fmt::Display for SharedString {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for SharedString {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.as_str())
     }
 }

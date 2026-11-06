@@ -197,7 +197,12 @@ pub struct Img {
 
 /// Create a new image element.
 pub fn img(source: impl Into<ImageSource>) -> Img {
-    Img { interactivity: Interactivity::default(), source: source.into(), style: ImageStyle::default(), image_cache: None }
+    Img {
+        interactivity: Interactivity::default(),
+        source: source.into(),
+        style: ImageStyle::default(),
+        image_cache: None,
+    }
 }
 
 impl Img {
@@ -569,7 +574,7 @@ pub enum ImageCacheError {
     Other(#[from] Arc<anyhow::Error>),
     /// An error that occurred while reading the image from disk.
     #[error("IO error: {0}")]
-    Io(Arc<std::io::Error>),
+    Io(Arc<io::Error>),
     /// An error that occurred while processing an asset.
     #[error("asset error: {0}")]
     Asset(SharedString),

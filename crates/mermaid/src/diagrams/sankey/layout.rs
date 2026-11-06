@@ -2,6 +2,7 @@
 //! passes that let bands cross less. Port of Pele's `src/diagrams/sankey/layout.ts`.
 
 use std::cmp::Ordering;
+use std::mem;
 
 use super::db::SankeyDb;
 use crate::error::Code;
@@ -428,7 +429,7 @@ impl Settle<'_> {
 
     /// Bands leave a node in the order of where they go, so they do not cross at it.
     fn stack_out(&mut self, i: usize) {
-        let mut list = std::mem::take(self.outgoing.get_mut(i).unwrap_or(&mut Vec::new()));
+        let mut list = mem::take(self.outgoing.get_mut(i).unwrap_or(&mut Vec::new()));
         let nodes = &self.nodes;
         let links = self.links;
         let target = |k: usize| links.get(k).map_or(0, |link| link.target);
@@ -448,7 +449,7 @@ impl Settle<'_> {
 
     /// Bands enter a node in the order of where they come from.
     fn stack_in(&mut self, i: usize) {
-        let mut list = std::mem::take(self.incoming.get_mut(i).unwrap_or(&mut Vec::new()));
+        let mut list = mem::take(self.incoming.get_mut(i).unwrap_or(&mut Vec::new()));
         let nodes = &self.nodes;
         let links = self.links;
         let source = |k: usize| links.get(k).map_or(0, |link| link.source);

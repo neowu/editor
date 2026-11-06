@@ -1,6 +1,8 @@
 //! `railroad-abnf-beta`: ABNF as in RFC 5234, with each rule closed by a semicolon. Port of
 //! Pele's `src/diagrams/railroad/abnf.ts`.
 
+use std::mem;
+
 use super::common::ACC_DESCR;
 use super::common::ACC_TITLE;
 use super::common::AstNode;
@@ -212,7 +214,7 @@ fn alternation(r: &mut Reader<'_>, ast: &mut Vec<AstNode<Abnf>>) -> Result<usize
                 let bracket = add(ast, if kind == t::GROUP { Abnf::Group } else { Abnf::OptionalGroup });
                 attach(ast, bracket, element);
                 let next = frame(ast, Some(bracket), element, Some(kind + 1), repeat);
-                stack.push(std::mem::replace(&mut top, next));
+                stack.push(mem::replace(&mut top, next));
                 continue;
             }
             _ => return Err(r.fail("a string, a number, a name, or an opening bracket")),

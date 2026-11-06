@@ -1,5 +1,6 @@
 //! Decodes Mermaid's entity placeholders and HTML entities, as Pele's `decodeEntities` does.
 
+use std::borrow::Cow;
 /// Named entities Pele recognizes, sorted by name for binary search.
 const NAMED: [(&str, u32); 191] = [
     ("AMP", 38),
@@ -202,13 +203,13 @@ const CLOSE: &str = "\u{b6}\u{df}";
 
 /// Turns Mermaid's `#35;` and `#quot;` codes, as hidden by preprocessing, and HTML entities into
 /// characters. Unknown or invalid references stay as written.
-pub(crate) fn decode(text: &str) -> std::borrow::Cow<'_, str> {
-    let placeholders = if text.contains(CLOSE) { restore_placeholders(text) } else { std::borrow::Cow::Borrowed(text) };
+pub(crate) fn decode(text: &str) -> Cow<'_, str> {
+    let placeholders = if text.contains(CLOSE) { restore_placeholders(text) } else { Cow::Borrowed(text) };
 
     if !placeholders.contains('&') {
         return placeholders;
     }
-    std::borrow::Cow::Owned(decode_html(&placeholders))
+    Cow::Owned(decode_html(&placeholders))
 }
 
 fn lookup(name: &str) -> Option<char> {
@@ -228,7 +229,7 @@ fn code_point(value: u64) -> Option<char> {
 
 /// Turns Mermaid's placeholders back into entities, as Mermaid does, so that each code is decoded
 /// once: `#amp;lt;` shows `&lt;`, not `<`.
-fn restore_placeholders(text: &str) -> std::borrow::Cow<'_, str> {
+fn restore_placeholders(text: &str) -> Cow<'_, str> {
     let mut out = String::new();
     let mut last = 0;
     let mut from = text.find(OPEN);
@@ -256,10 +257,10 @@ fn restore_placeholders(text: &str) -> std::borrow::Cow<'_, str> {
     }
 
     if last == 0 {
-        return std::borrow::Cow::Borrowed(text);
+        return Cow::Borrowed(text);
     }
     out.push_str(&text[last..]);
-    std::borrow::Cow::Owned(out)
+    Cow::Owned(out)
 }
 
 // Matches `&(?:#(\d+)|#[xX]([0-9a-fA-F]+)|(\w+));`, replacing references that resolve.

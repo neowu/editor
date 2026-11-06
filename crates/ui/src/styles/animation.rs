@@ -20,7 +20,7 @@ impl AnimationDuration {
     }
 }
 
-impl From<AnimationDuration> for std::time::Duration {
+impl From<AnimationDuration> for Duration {
     fn from(val: AnimationDuration) -> Self {
         val.duration()
     }

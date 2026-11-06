@@ -1,6 +1,8 @@
+use std::collections::hash_map::DefaultHasher;
 use std::fs;
 use std::hash::Hash;
 use std::hash::Hasher;
+use std::io;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -69,7 +71,7 @@ impl Svg {
     /// The SVG will be rendered directly from the provided bytes.
     pub fn data(mut self, data: &[u8]) -> Self {
         // Generate a unique deterministic path based on the data hash for caching
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        let mut hasher = DefaultHasher::new();
         data.hash(&mut hasher);
         let hash = hasher.finish();
         let path = SharedString::from(format!("__binary_svg__{}", hash));
@@ -235,7 +237,7 @@ enum SvgAsset {}
 
 impl Asset for SvgAsset {
     type Source = SharedString;
-    type Output = Result<Arc<[u8]>, Arc<std::io::Error>>;
+    type Output = Result<Arc<[u8]>, Arc<io::Error>>;
 
     #[allow(clippy::manual_async_fn, reason = "an `async fn` would capture `cx` and not be `'static`")]
     fn load(source: Self::Source, _cx: &mut App) -> impl Future<Output = Self::Output> + Send + 'static {

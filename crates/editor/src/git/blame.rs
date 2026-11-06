@@ -4,6 +4,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 use anyhow::Result;
 use collections::HashMap;
+use futures::future;
 use git::Oid;
 use git::blame::Blame;
 use git::blame::BlameEntry;
@@ -537,7 +538,7 @@ impl GitBlame {
                 let (results, errors) = cx
                     .background_spawn({
                         async move {
-                            let blame = futures::future::join_all(blame).await;
+                            let blame = future::join_all(blame).await;
                             let mut res = vec![];
                             let mut errors = vec![];
                             for (id, snapshot, buffer_edits, blame) in blame {

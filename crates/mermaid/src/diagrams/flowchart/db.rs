@@ -20,6 +20,7 @@ use crate::error::Code;
 use crate::error::Error;
 use crate::error::push_u32;
 use crate::util::chars::is_space;
+use crate::util::float;
 use crate::util::url;
 use crate::yaml::Value;
 use crate::yaml::{self};
@@ -813,5 +814,5 @@ fn string_to_number(text: &str) -> f64 {
     if i != b.len() {
         return f64::NAN;
     }
-    crate::util::float::parse(text).unwrap_or(f64::NAN)
+    float::parse(text).unwrap_or(f64::NAN)
 }

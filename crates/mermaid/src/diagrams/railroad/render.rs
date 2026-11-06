@@ -1,6 +1,8 @@
 //! Draws a railroad diagram: each rule's name above a track through its definition. Port of
 //! Pele's `src/diagrams/railroad/render.ts`.
 
+use std::mem;
+
 use super::common::fold;
 use super::types::RailroadModel;
 use super::types::RailroadNode;
@@ -379,7 +381,7 @@ fn sequence(boxes: &mut Boxes, kids: Vec<usize>, room: f64, m: &Metrics) -> usiz
     for &kid in &kids {
         let kid_width = get(boxes, kid).width;
         if !current.is_empty() && current_width + m.gap + kid_width > limit {
-            let full = row(boxes, std::mem::take(&mut current), current_width);
+            let full = row(boxes, mem::take(&mut current), current_width);
             rows.push(add(boxes, full));
             current_width = 0.0;
         }

@@ -64,6 +64,7 @@ use workspace::ToolbarItemLocation;
 use workspace::ToolbarItemView;
 use workspace::Workspace;
 use workspace::item::Item;
+use workspace::item::ItemEvent;
 use workspace::item::ItemHandle;
 
 actions!(
@@ -480,7 +481,7 @@ impl Focusable for SyntaxTreeView {
 impl Item for SyntaxTreeView {
     type Event = ();
 
-    fn to_item_events(_: &Self::Event, _: &mut dyn FnMut(workspace::item::ItemEvent)) {}
+    fn to_item_events(_: &Self::Event, _: &mut dyn FnMut(ItemEvent)) {}
 
     fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
         "Syntax Tree".into()

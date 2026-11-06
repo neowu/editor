@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use collections::HashSet;
 use ed_actions::CreateWorktree;
@@ -39,6 +40,7 @@ use picker::PickerEditorPosition;
 use project::Project;
 use project::git_store::RepositoryEvent;
 use project::repo_identity_path;
+use remote::remote_client::ConnectionIdentifier;
 use ui::Button;
 use ui::CommonAnimationExt as _;
 use ui::Divider;
@@ -58,6 +60,7 @@ use workspace::dock::DockPosition;
 use workspace::notifications::DetachAndPromptErr;
 
 use crate::notifications::show_error_toast;
+use crate::worktree_service;
 use crate::worktree_service::RemoteBranchName;
 use crate::worktree_service::WorktreeCreateTarget;
 use crate::worktree_service::worktree_create_targets;
@@ -676,16 +679,7 @@ impl PickerDelegate for WorktreePickerDelegate {
         let executor = cx.background_executor().clone();
 
         let task = cx.background_executor().spawn(async move {
-            fuzzy::match_strings(
-                &candidates,
-                &query,
-                true,
-                true,
-                10000,
-                &std::sync::atomic::AtomicBool::default(),
-                executor,
-            )
-            .await
+            fuzzy::match_strings(&candidates, &query, true, true, 10000, &AtomicBool::default(), executor).await
         });
 
         let repo_worktrees_clone = repo_worktrees;
@@ -744,7 +738,7 @@ impl PickerDelegate for WorktreePickerDelegate {
                 }
                 if let Some(workspace) = self.workspace.upgrade() {
                     workspace.update(cx, |workspace, cx| {
-                        crate::worktree_service::handle_create_worktree(
+                        worktree_service::handle_create_worktree(
                             workspace,
                             &CreateWorktree {
                                 worktree_name: None,
@@ -763,7 +757,7 @@ impl PickerDelegate for WorktreePickerDelegate {
                 }
                 if let Some(workspace) = self.workspace.upgrade() {
                     workspace.update(cx, |workspace, cx| {
-                        crate::worktree_service::handle_create_worktree(
+                        worktree_service::handle_create_worktree(
                             workspace,
                             &CreateWorktree {
                                 worktree_name: None,
@@ -791,7 +785,7 @@ impl PickerDelegate for WorktreePickerDelegate {
                         window.dispatch_action(Box::new(OpenWorktreeInNewWindow { path: worktree.path.clone() }), cx);
                     } else if let Some(workspace) = self.workspace.upgrade() {
                         workspace.update(cx, |workspace, cx| {
-                            crate::worktree_service::handle_switch_worktree(
+                            worktree_service::handle_switch_worktree(
                                 workspace,
                                 &SwitchWorktree {
                                     path: worktree.path.clone(),
@@ -815,7 +809,7 @@ impl PickerDelegate for WorktreePickerDelegate {
                 };
                 if let Some(workspace) = self.workspace.upgrade() {
                     workspace.update(cx, |workspace, cx| {
-                        crate::worktree_service::handle_create_worktree(
+                        worktree_service::handle_create_worktree(
                             workspace,
                             &CreateWorktree { worktree_name: Some(name.clone()), branch_target },
                             window,
@@ -1210,14 +1204,8 @@ pub async fn open_remote_worktree(
             .prompt
             .clone();
 
-        remote_connection::connect(
-            remote::remote_client::ConnectionIdentifier::setup(),
-            connection_options.clone(),
-            prompt,
-            window,
-            cx,
-        )
-        .prompt_err("Failed to connect", window, cx, |_| None)
+        remote_connection::connect(ConnectionIdentifier::setup(), connection_options.clone(), prompt, window, cx)
+            .prompt_err("Failed to connect", window, cx, |_| None)
     })?;
 
     let session = connect_task.await;

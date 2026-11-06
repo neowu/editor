@@ -1,7 +1,10 @@
 use std::any::Any;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::sync::Arc;
 
 use any_vec::AnyVec;
+use any_vec::element::ElementRef;
 use gpui::AnyView;
 use gpui::AnyWeakEntity;
 use gpui::App;
@@ -255,7 +258,7 @@ pub trait SearchableItemHandle: ItemHandle {
     fn select_matches(&self, matches: &AnyVec<dyn Send>, token: SearchToken, window: &mut Window, cx: &mut App);
     fn replace(
         &self,
-        _: any_vec::element::ElementRef<'_, dyn Send>,
+        _: ElementRef<'_, dyn Send>,
         _: &SearchQuery,
         token: SearchToken,
         _window: &mut Window,
@@ -263,7 +266,7 @@ pub trait SearchableItemHandle: ItemHandle {
     );
     fn replace_all(
         &self,
-        matches: &mut dyn Iterator<Item = any_vec::element::ElementRef<'_, dyn Send>>,
+        matches: &mut dyn Iterator<Item = ElementRef<'_, dyn Send>>,
         query: &SearchQuery,
         token: SearchToken,
         window: &mut Window,
@@ -431,7 +434,7 @@ impl<T: SearchableItem> SearchableItemHandle for Entity<T> {
 
     fn replace(
         &self,
-        mat: any_vec::element::ElementRef<'_, dyn Send>,
+        mat: ElementRef<'_, dyn Send>,
         query: &SearchQuery,
         token: SearchToken,
         window: &mut Window,
@@ -443,7 +446,7 @@ impl<T: SearchableItem> SearchableItemHandle for Entity<T> {
 
     fn replace_all(
         &self,
-        matches: &mut dyn Iterator<Item = any_vec::element::ElementRef<'_, dyn Send>>,
+        matches: &mut dyn Iterator<Item = ElementRef<'_, dyn Send>>,
         query: &SearchQuery,
         token: SearchToken,
         window: &mut Window,
@@ -515,8 +518,8 @@ impl PartialEq for Box<dyn WeakSearchableItemHandle> {
 
 impl Eq for Box<dyn WeakSearchableItemHandle> {}
 
-impl std::hash::Hash for Box<dyn WeakSearchableItemHandle> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for Box<dyn WeakSearchableItemHandle> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.id().hash(state)
     }
 }

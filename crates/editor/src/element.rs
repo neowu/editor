@@ -1,3 +1,8 @@
+use std::any::Any;
+use std::ptr;
+
+use crate::actions::ExpandExcerpts;
+use crate::rust_analyzer_ext;
 mod header;
 mod minimap;
 mod mouse;
@@ -439,7 +444,7 @@ impl EditorElement {
             }
         });
 
-        crate::rust_analyzer_ext::apply_related_actions(editor, window, cx);
+        rust_analyzer_ext::apply_related_actions(editor, window, cx);
 
         register_action(editor, window, Editor::open_context_menu);
         register_action(editor, window, Editor::move_left);
@@ -1490,7 +1495,7 @@ impl EditorElement {
             diagnostics.sort_by_key(|diagnostic| {
                 (
                     diagnostic.severity,
-                    std::cmp::Reverse(diagnostic.is_primary),
+                    cmp::Reverse(diagnostic.is_primary),
                     diagnostic.start.row,
                     diagnostic.start.column,
                 )
@@ -1947,7 +1952,7 @@ impl EditorElement {
                             editor.expand_excerpt(start_anchor, direction, window, cx);
                         });
                     })
-                    .tooltip(Tooltip::for_action_title("Expand Excerpt", &crate::actions::ExpandExcerpts::default()))
+                    .tooltip(Tooltip::for_action_title("Expand Excerpt", &ExpandExcerpts::default()))
                     .into_any_element();
 
                 let position = point(
@@ -4111,7 +4116,7 @@ impl EditorElement {
         point: Point,
         diagnostic: &'a Diagnostic,
     ) {
-        if point >= range.start && point <= range.end && seen.insert((point, std::ptr::from_ref(diagnostic))) {
+        if point >= range.start && point <= range.end && seen.insert((point, ptr::from_ref(diagnostic))) {
             point_diagnostics.push((point, diagnostic));
         }
     }
@@ -4895,7 +4900,7 @@ impl LineWithInvisibles {
                             width: mem::take(&mut width),
                             len: mem::take(&mut len),
                             fragments: mem::take(&mut fragments),
-                            invisibles: std::mem::take(&mut invisibles),
+                            invisibles: mem::take(&mut invisibles),
                             diagnostic_underline_severity_ranges: mem::take(&mut diagnostic_underline_severity_ranges),
                             point_diagnostics: Vec::new(),
                             font_size,
@@ -7568,7 +7573,7 @@ fn register_action_erased(
     editor: &Entity<Editor>,
     window: &mut Window,
     action_type: TypeId,
-    listener: Box<dyn Fn(&mut Editor, &dyn std::any::Any, &mut Window, &mut Context<Editor>)>,
+    listener: Box<dyn Fn(&mut Editor, &dyn Any, &mut Window, &mut Context<Editor>)>,
 ) {
     let editor = editor.clone();
     window.on_action(action_type, move |action, phase, window, cx| {

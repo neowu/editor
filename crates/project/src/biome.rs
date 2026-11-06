@@ -62,12 +62,17 @@ pub(crate) fn stdin_file_path(abs_path: Option<&Path>, language: Option<&Languag
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+    use std::fs;
+    use std::fs::Permissions;
+    use std::process;
+
     use super::*;
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("biome-{name}-{}", std::process::id()));
-        std::fs::remove_dir_all(&dir).ok();
-        std::fs::create_dir_all(&dir).unwrap();
+        let dir = env::temp_dir().join(format!("biome-{name}-{}", process::id()));
+        fs::remove_dir_all(&dir).ok();
+        fs::create_dir_all(&dir).unwrap();
         dir
     }
 
@@ -75,10 +80,10 @@ mod tests {
     fn prefers_nearest_node_modules_bin() {
         let root = temp_dir("local");
         let bin = root.join("node_modules/.bin");
-        std::fs::create_dir_all(&bin).unwrap();
-        std::fs::write(bin.join("biome"), "").unwrap();
+        fs::create_dir_all(&bin).unwrap();
+        fs::write(bin.join("biome"), "").unwrap();
         let nested = root.join("packages/app/src");
-        std::fs::create_dir_all(&nested).unwrap();
+        fs::create_dir_all(&nested).unwrap();
 
         let command = resolve_command(Some(&nested), Some(""));
         assert_eq!(command.program, bin.join("biome"));
@@ -89,7 +94,7 @@ mod tests {
     fn falls_back_to_path_then_npx() {
         let root = temp_dir("fallback");
         let path_dir = root.join("path_bin");
-        std::fs::create_dir_all(&path_dir).unwrap();
+        fs::create_dir_all(&path_dir).unwrap();
         let path_env = path_dir.to_string_lossy().to_string();
 
         let command = resolve_command(Some(&root), Some(&path_env));
@@ -97,11 +102,11 @@ mod tests {
         assert_eq!(command.args, vec![OsString::from("--yes"), NPX_PACKAGE.into()]);
 
         let biome = path_dir.join("biome");
-        std::fs::write(&biome, "").unwrap();
+        fs::write(&biome, "").unwrap();
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&biome, std::fs::Permissions::from_mode(0o755)).unwrap();
+            fs::set_permissions(&biome, Permissions::from_mode(0o755)).unwrap();
         }
         let command = resolve_command(Some(&root), Some(&path_env));
         assert_eq!(command.program, biome);

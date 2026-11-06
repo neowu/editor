@@ -2,6 +2,10 @@
 //! and system boundaries, joined by relationship edges. Port of Pele's
 //! `src/diagrams/usecase/render.ts`.
 
+use std::borrow::Cow;
+use std::cmp::Ordering;
+use std::collections::BTreeMap;
+
 use super::graph::GraphEdge;
 use super::graph::GraphNode;
 use super::graph::NodeShape;
@@ -251,7 +255,7 @@ fn attach_ends(cedges: &mut [CEdge], cnodes: &[CNode], views: &[View]) {
         };
         let count = ends.len() as f64;
         let step = if ends.len() > 1 { PORT_GAP.min(side_length(view, side) / (count - 1.0)) } else { 0.0 };
-        ends.sort_by(|a, b| (a.toward - b.toward).partial_cmp(&0.0).unwrap_or(std::cmp::Ordering::Equal));
+        ends.sort_by(|a, b| (a.toward - b.toward).partial_cmp(&0.0).unwrap_or(Ordering::Equal));
         for (i, end) in ends.iter().enumerate() {
             let (x, y) = anchor(view, c, side, (i as f64 - (count - 1.0) / 2.0) * step);
             if let Some(route) = cedges.get_mut(end.edge).map(|edge| &mut edge.route) {
@@ -488,7 +492,7 @@ fn draw(model: &UsecaseModel, config: &Value, options: &Options, turned: bool) -
     let sideways = matches!(root_dir, Dir::Lr | Dir::Rl);
 
     // Ids by node, the last node of an id winning, as a `Map` set in order keeps it.
-    let mut index: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    let mut index: BTreeMap<&str, usize> = BTreeMap::new();
     for (i, node) in graph.nodes.iter().enumerate() {
         index.insert(node.id, i);
     }
@@ -923,7 +927,7 @@ fn draw(model: &UsecaseModel, config: &Value, options: &Options, turned: bool) -
             .as_ref()
             .and_then(|style| style.stroke.as_deref())
             .filter(|stroke| !stroke.is_empty())
-            .map_or(std::borrow::Cow::Borrowed("var(--_l)"), esc);
+            .map_or(Cow::Borrowed("var(--_l)"), esc);
         // Mermaid animates these dashes. A still picture keeps the dashes.
         let dashes = if edge.internal {
             "2 3"
@@ -1011,7 +1015,7 @@ fn title_x(c: &CNode, width: f64, crossings: &Crossings) -> f64 {
     let left = c.x - c.w / 2.0 + 6.0;
     let right = c.x + c.w / 2.0 - 6.0;
     let mut cuts: Vec<f64> = xs.iter().copied().filter(|&x| x > left && x < right).collect();
-    cuts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    cuts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Equal));
     cuts.push(right);
     let need = width / 2.0 + 6.0;
     let mut best = c.x;

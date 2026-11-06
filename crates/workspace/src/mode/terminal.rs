@@ -3,6 +3,8 @@
 //! [`TerminalModeDelegate`]; the workspace owns the panes, as it does Git
 //! History's, so the window header, zoom and focus work the same in every mode.
 
+use std::any::Any;
+use std::mem;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -87,7 +89,7 @@ fn terminal_mode_delegate(cx: &App) -> Option<Rc<dyn TerminalModeDelegate>> {
 }
 
 /// Whether a dragged tab holds a terminal, which editor panes refuse.
-pub(crate) fn is_dragged_terminal(dragged: &dyn std::any::Any, cx: &App) -> bool {
+pub(crate) fn is_dragged_terminal(dragged: &dyn Any, cx: &App) -> bool {
     let Some(tab) = dragged.downcast_ref::<crate::DraggedTab>() else {
         return false;
     };
@@ -199,7 +201,7 @@ impl Workspace {
         }
         let entering = self.mode != WorkspaceMode::Terminal;
         self.set_mode(WorkspaceMode::Terminal, window, cx);
-        let (pending, saved_layout) = match std::mem::replace(&mut self.terminal_layout, TerminalLayout::Started) {
+        let (pending, saved_layout) = match mem::replace(&mut self.terminal_layout, TerminalLayout::Started) {
             TerminalLayout::Pending(saved_layout) => (true, saved_layout),
             TerminalLayout::Started => (false, None),
         };

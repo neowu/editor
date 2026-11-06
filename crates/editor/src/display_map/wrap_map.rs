@@ -2,6 +2,7 @@ use std::cmp;
 use std::collections::VecDeque;
 use std::mem;
 use std::num::NonZeroU32;
+use std::ops::Deref;
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -75,7 +76,7 @@ pub struct WrapSnapshot {
     interpolated: bool,
 }
 
-impl std::ops::Deref for WrapSnapshot {
+impl Deref for WrapSnapshot {
     type Target = TabSnapshot;
 
     fn deref(&self) -> &Self::Target {
@@ -1236,7 +1237,7 @@ impl<'a> sum_tree::Dimension<'a, TransformSummary> for TabPoint {
 }
 
 impl sum_tree::SeekTarget<'_, TransformSummary, TransformSummary> for TabPoint {
-    fn cmp(&self, cursor_location: &TransformSummary, _: ()) -> std::cmp::Ordering {
+    fn cmp(&self, cursor_location: &TransformSummary, _: ()) -> cmp::Ordering {
         Ord::cmp(&self.0, &cursor_location.input.lines)
     }
 }
@@ -1265,7 +1266,7 @@ fn consolidate_wrap_edits(edits: Vec<WrapEdit>) -> Vec<WrapEdit> {
                     prev_edit.new.end = edit.new.end;
                     Some(None) // Skip this edit, it's merged
                 } else {
-                    let prev = std::mem::replace(*prev_edit, edit);
+                    let prev = mem::replace(*prev_edit, edit);
                     Some(Some(prev)) // Yield the previous edit
                 }
             })

@@ -1,3 +1,14 @@
+use std::error;
+use std::fmt::Display;
+use std::mem;
+use std::process;
+use std::task::Context;
+
+use futures_lite::future as futures_lite_future;
+use lsp_types::error_codes::CONTENT_MODIFIED;
+use lsp_types::error_codes::REQUEST_FAILED;
+use lsp_types::error_codes::SERVER_CANCELLED;
+use util::command;
 mod input_handler;
 
 use std::any::TypeId;
@@ -178,9 +189,9 @@ impl LanguageServerId {
 #[serde(transparent)]
 pub struct LanguageServerName(pub SharedString);
 
-impl std::fmt::Display for LanguageServerName {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.0, f)
+impl fmt::Display for LanguageServerName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.0, f)
     }
 }
 
@@ -342,9 +353,9 @@ impl From<i64> for ResponseErrorCode {
         match code {
             -32700 => Self::ParseError,
             -32601 => Self::MethodNotFound,
-            lsp_types::error_codes::REQUEST_FAILED => Self::RequestFailed,
-            lsp_types::error_codes::SERVER_CANCELLED => Self::ServerCancelled,
-            lsp_types::error_codes::CONTENT_MODIFIED => Self::ContentModified,
+            REQUEST_FAILED => Self::RequestFailed,
+            SERVER_CANCELLED => Self::ServerCancelled,
+            CONTENT_MODIFIED => Self::ContentModified,
             code => Self::Other(code),
         }
     }
@@ -355,9 +366,9 @@ impl From<ResponseErrorCode> for i64 {
         match code {
             ResponseErrorCode::ParseError => -32700,
             ResponseErrorCode::MethodNotFound => -32601,
-            ResponseErrorCode::RequestFailed => lsp_types::error_codes::REQUEST_FAILED,
-            ResponseErrorCode::ServerCancelled => lsp_types::error_codes::SERVER_CANCELLED,
-            ResponseErrorCode::ContentModified => lsp_types::error_codes::CONTENT_MODIFIED,
+            ResponseErrorCode::RequestFailed => REQUEST_FAILED,
+            ResponseErrorCode::ServerCancelled => SERVER_CANCELLED,
+            ResponseErrorCode::ContentModified => CONTENT_MODIFIED,
             ResponseErrorCode::Other(code) => code,
         }
     }
@@ -398,13 +409,13 @@ impl ResponseError {
     }
 }
 
-impl std::fmt::Display for ResponseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ResponseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.message)
     }
 }
 
-impl std::error::Error for ResponseError {}
+impl error::Error for ResponseError {}
 
 pub trait LspRequestFuture<O>: Future<Output = ConnectionResult<O>> {
     fn id(&self) -> i32;
@@ -424,7 +435,7 @@ impl<F> LspRequest<F> {
 impl<F: Future> Future for LspRequest<F> {
     type Output = F::Output;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // SAFETY: This is standard pin projection, we're pinned so our fields must be pinned.
         let inner = unsafe { Pin::new_unchecked(&mut self.get_unchecked_mut().request) };
         inner.poll(cx)
@@ -522,7 +533,7 @@ impl LanguageServer {
             working_dir,
             binary.arguments
         );
-        let mut command = util::command::new_command(&binary.path);
+        let mut command = command::new_command(&binary.path);
         command
             .current_dir(working_dir)
             .args(&binary.arguments)
@@ -681,7 +692,7 @@ impl LanguageServer {
             capabilities: RwLock::default(),
             configuration,
             code_action_kinds,
-            next_id: std::sync::atomic::AtomicI32::default(),
+            next_id: AtomicI32::default(),
             outbound_tx,
             executor: cx.background_executor().clone(),
             io_tasks: Mutex::new(Some((input_task, output_task))),
@@ -752,7 +763,7 @@ impl LanguageServer {
             }
 
             // Don't starve the main thread when receiving lots of notifications at once.
-            futures_lite::future::yield_now().await;
+            futures_lite_future::yield_now().await;
         }
         input_handler.loop_handle.await
     }
@@ -788,7 +799,7 @@ impl LanguageServer {
             }
 
             // Don't starve the main thread when receiving lots of messages at once.
-            futures_lite::future::yield_now().await;
+            futures_lite_future::yield_now().await;
         }
     }
 
@@ -835,7 +846,7 @@ impl LanguageServer {
         );
 
         InitializeParams {
-            process_id: Some(std::process::id()),
+            process_id: Some(process::id()),
             root_uri: Some(self.root_uri.clone()),
             initialization_options: None,
             capabilities: ClientCapabilities {
@@ -1601,7 +1612,7 @@ impl LanguageServer {
         };
         let mut workspace_folders = workspace_folders.lock();
 
-        let old_workspace_folders = std::mem::take(&mut *workspace_folders);
+        let old_workspace_folders = mem::take(&mut *workspace_folders);
         let added: Vec<_> = folders.difference(&old_workspace_folders).cloned().map(workspace_folder_for_uri).collect();
 
         let removed: Vec<_> =

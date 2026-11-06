@@ -1,3 +1,11 @@
+use std::hash::Hash;
+use std::hash::Hasher;
+
+use rand::distr::uniform;
+use rand::distr::uniform::SampleBorrow;
+use rand::distr::uniform::SampleUniform;
+use rand::distr::uniform::UniformSampler;
+use rand::distr::uniform::UniformUsize;
 mod anchor;
 mod path_key;
 mod transaction;
@@ -214,7 +222,7 @@ impl ops::Add<usize> for MultiBufferRow {
     }
 }
 
-pub trait MultiBufferDimension: 'static + Copy + Default + std::fmt::Debug {
+pub trait MultiBufferDimension: 'static + Copy + Default + fmt::Debug {
     type TextDimension: TextDimension;
     fn from_summary(summary: &MBTextSummary) -> Self;
 
@@ -264,38 +272,38 @@ impl fmt::Display for MultiBufferOffset {
     }
 }
 
-impl rand::distr::uniform::SampleUniform for MultiBufferOffset {
+impl SampleUniform for MultiBufferOffset {
     type Sampler = MultiBufferOffsetUniformSampler;
 }
 
 pub struct MultiBufferOffsetUniformSampler {
-    sampler: rand::distr::uniform::UniformUsize,
+    sampler: UniformUsize,
 }
 
-impl rand::distr::uniform::UniformSampler for MultiBufferOffsetUniformSampler {
+impl UniformSampler for MultiBufferOffsetUniformSampler {
     type X = MultiBufferOffset;
 
-    fn new<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, rand::distr::uniform::Error>
+    fn new<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, uniform::Error>
     where
-        B1: rand::distr::uniform::SampleBorrow<Self::X> + Sized,
-        B2: rand::distr::uniform::SampleBorrow<Self::X> + Sized,
+        B1: SampleBorrow<Self::X> + Sized,
+        B2: SampleBorrow<Self::X> + Sized,
     {
         let low = *low_b.borrow();
         let high = *high_b.borrow();
-        let sampler = rand::distr::uniform::UniformUsize::new(low.0, high.0);
+        let sampler = UniformUsize::new(low.0, high.0);
         sampler.map(|sampler| MultiBufferOffsetUniformSampler { sampler })
     }
 
     #[inline] // if the range is constant, this helps LLVM to do the
     // calculations at compile-time.
-    fn new_inclusive<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, rand::distr::uniform::Error>
+    fn new_inclusive<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, uniform::Error>
     where
-        B1: rand::distr::uniform::SampleBorrow<Self::X> + Sized,
-        B2: rand::distr::uniform::SampleBorrow<Self::X> + Sized,
+        B1: SampleBorrow<Self::X> + Sized,
+        B2: SampleBorrow<Self::X> + Sized,
     {
         let low = *low_b.borrow();
         let high = *high_b.borrow();
-        let sampler = rand::distr::uniform::UniformUsize::new_inclusive(low.0, high.0);
+        let sampler = UniformUsize::new_inclusive(low.0, high.0);
         sampler.map(|sampler| MultiBufferOffsetUniformSampler { sampler })
     }
 
@@ -564,7 +572,7 @@ struct DiffStateSnapshot {
     main_buffer: Option<language::BufferSnapshot>,
 }
 
-impl std::ops::Deref for DiffStateSnapshot {
+impl ops::Deref for DiffStateSnapshot {
     type Target = BufferDiffSnapshot;
 
     fn deref(&self) -> &Self::Target {
@@ -585,7 +593,7 @@ impl sum_tree::ContextLessSummary for DiffStateSummary {
     }
 
     fn add_summary(&mut self, other: &Self) {
-        self.max_buffer_id = std::cmp::max(self.max_buffer_id, other.max_buffer_id);
+        self.max_buffer_id = cmp::max(self.max_buffer_id, other.max_buffer_id);
         self.added_rows += other.added_rows;
         self.removed_rows += other.removed_rows;
     }
@@ -614,7 +622,7 @@ impl Dimension<'_, DiffStateSummary> for Option<BufferId> {
     }
 
     fn add_summary(&mut self, summary: &DiffStateSummary, _cx: ()) {
-        *self = std::cmp::max(*self, summary.max_buffer_id);
+        *self = cmp::max(*self, summary.max_buffer_id);
     }
 }
 
@@ -760,8 +768,8 @@ impl PartialEq for DiffTransformHunkInfo {
     }
 }
 
-impl std::hash::Hash for DiffTransformHunkInfo {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for DiffTransformHunkInfo {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.buffer_id.hash(state);
         self.hunk_start_anchor.hash(state);
     }
@@ -811,8 +819,8 @@ impl ExcerptBoundaryInfo {
     }
 }
 
-impl std::fmt::Debug for ExcerptBoundaryInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for ExcerptBoundaryInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct(type_name::<Self>()).field("buffer_id", &self.buffer_id()).field("range", &self.range).finish()
     }
 }
@@ -1754,7 +1762,7 @@ impl MultiBuffer {
 
     pub fn clear(&mut self, cx: &mut Context<Self>) {
         self.sync_mut(cx);
-        let removed_buffer_ids = std::mem::take(&mut self.buffers).into_keys().collect();
+        let removed_buffer_ids = mem::take(&mut self.buffers).into_keys().collect();
         self.diffs.clear();
         let MultiBufferSnapshot {
             excerpts,
@@ -2162,7 +2170,7 @@ impl MultiBuffer {
 
         let old_len = self.snapshot.borrow().len();
 
-        let ranges = std::iter::once((Point::zero()..Point::MAX, None));
+        let ranges = iter::once((Point::zero()..Point::MAX, None));
         let _ = self.expand_or_collapse_diff_hunks_inner(ranges, true, cx);
 
         let new_len = self.snapshot.borrow().len();
@@ -3030,7 +3038,7 @@ impl MultiBufferSnapshot {
         let range = range.start.to_offset(self)..range.end.to_offset(self);
         let mut cursor = self.cursor::<MultiBufferOffset, BufferOffset>();
         cursor.seek(&range.start);
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             let region = cursor.region()?;
             if region.range.start > range.end || region.range.start == range.end && region.range.start > range.start {
                 return None;
@@ -3176,7 +3184,7 @@ impl MultiBufferSnapshot {
         let mut cursor = self.cursor::<MultiBufferOffset, BufferOffset>();
         cursor.seek(&start);
 
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             let Some(region) = cursor
                 .region()
                 .filter(|region| region.range.start < end || (region.range.start == end && start == end))
@@ -3931,7 +3939,7 @@ impl MultiBufferSnapshot {
         let diff_transform_end = cursor.end().0;
         let diff_start = range.start;
         let start_overshoot = diff_start - diff_transform_start;
-        let end_overshoot = std::cmp::min(range.end, diff_transform_end) - diff_transform_start;
+        let end_overshoot = cmp::min(range.end, diff_transform_end) - diff_transform_start;
 
         let mut result = match first_transform {
             DiffTransform::BufferContent { .. } => {
@@ -4335,7 +4343,7 @@ impl MultiBufferSnapshot {
                 let excerpt_buffer_start = excerpt.range.context.start.summary::<MBD::TextDimension>(buffer_snapshot);
                 let excerpt_buffer_end = excerpt.range.context.end.summary::<MBD::TextDimension>(buffer_snapshot);
                 for (buffer_summary, excerpt_anchor) in buffer_snapshot
-                    .summaries_for_anchors_with_payload::<MBD::TextDimension, _, _>(std::iter::from_fn(|| {
+                    .summaries_for_anchors_with_payload::<MBD::TextDimension, _, _>(iter::from_fn(|| {
                         let excerpt_anchor = anchors.peek()?.excerpt_anchor()?;
                         if !excerpt.contains(&excerpt_anchor, self) {
                             return None;
@@ -5790,7 +5798,7 @@ impl MultiBufferSnapshot {
                 let start = Anchor::in_buffer(path_key_index, range.start).to_offset(self);
                 let mut cursor = self.cursor::<MultiBufferOffset, BufferOffset>();
                 cursor.seek(&start);
-                std::iter::from_fn(move || {
+                iter::from_fn(move || {
                     while let Some(region) = cursor.region()
                         && !region.is_main_buffer
                     {

@@ -667,7 +667,6 @@ pub(crate) fn render(model: &XyChartDb, config: &Value, options: &Options) -> Re
                 if visible {
                     point(&mut d, 'M', c, v);
                 }
-                pen = visible;
             } else {
                 let dv = v - pv;
                 let mut t0 = 0.0;
@@ -690,8 +689,8 @@ pub(crate) fn render(model: &XyChartDb, config: &Value, options: &Options) -> Re
                     }
                     point(&mut d, 'L', c1, v1);
                 }
-                pen = visible;
             }
+            pen = visible;
             pc = c;
             pv = v;
             if !visible {

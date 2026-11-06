@@ -1,14 +1,19 @@
 use std::cmp::Ordering;
 use std::error::Error;
 use std::ffi::OsStr;
+use std::fmt;
+use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::iter::Peekable;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 use std::path::StripPrefixError;
+use std::ptr;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::sync::OnceLock;
 
 use globset::Glob;
 use globset::GlobBuilder;
@@ -21,9 +26,11 @@ use regex::Regex;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::shell::ShellKind;
+
 /// Returns the path to the user's home directory.
 pub fn home_dir() -> &'static PathBuf {
-    static HOME_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    static HOME_DIR: OnceLock<PathBuf> = OnceLock::new();
     HOME_DIR.get_or_init(|| dirs::home_dir().expect("failed to determine home directory"))
 }
 
@@ -55,7 +62,7 @@ pub trait PathExt {
     fn multiple_extensions(&self) -> Option<String>;
 
     /// Try to make a shell-safe representation of the path.
-    fn try_shell_safe(&self, shell_kind: crate::shell::ShellKind) -> anyhow::Result<String>;
+    fn try_shell_safe(&self, shell_kind: ShellKind) -> anyhow::Result<String>;
 }
 
 impl<T: AsRef<Path>> PathExt for T {
@@ -102,7 +109,7 @@ impl<T: AsRef<Path>> PathExt for T {
         Some(parts.into_iter().join("."))
     }
 
-    fn try_shell_safe(&self, shell_kind: crate::shell::ShellKind) -> anyhow::Result<String> {
+    fn try_shell_safe(&self, shell_kind: ShellKind) -> anyhow::Result<String> {
         use anyhow::Context;
         let path_str = self.as_ref().to_str().with_context(|| "Path contains invalid UTF-8")?;
         shell_kind.try_quote(path_str).as_deref().map(ToOwned::to_owned).context("Failed to quote path")
@@ -178,11 +185,11 @@ impl SanitizedPath {
         &self.0
     }
 
-    pub fn file_name(&self) -> Option<&std::ffi::OsStr> {
+    pub fn file_name(&self) -> Option<&OsStr> {
         self.0.file_name()
     }
 
-    pub fn extension(&self) -> Option<&std::ffi::OsStr> {
+    pub fn extension(&self) -> Option<&OsStr> {
         self.0.extension()
     }
 
@@ -207,14 +214,14 @@ impl SanitizedPath {
     }
 }
 
-impl std::fmt::Debug for SanitizedPath {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(&self.0, formatter)
+impl Debug for SanitizedPath {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        Debug::fmt(&self.0, formatter)
     }
 }
 
 impl Display for SanitizedPath {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.display())
     }
 }
@@ -255,7 +262,7 @@ impl RemotePathBuf {
 }
 
 impl Display for RemotePathBuf {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.string)
     }
 }
@@ -266,8 +273,8 @@ pub struct NormalizeError;
 
 impl Error for NormalizeError {}
 
-impl std::fmt::Display for NormalizeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for NormalizeError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str("parent reference `..` points outside of base directory")
     }
 }
@@ -567,8 +574,8 @@ pub struct PathMatcher {
     glob: GlobSet,
 }
 
-impl std::fmt::Debug for PathMatcher {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Debug for PathMatcher {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("PathMatcher").field("sources", &self.sources).finish()
     }
 }
@@ -706,7 +713,7 @@ impl Default for PathMatcher {
 ///
 /// The function advances both iterators past their respective numeric sequences,
 /// regardless of the comparison result.
-fn compare_numeric_segments<I>(a_iter: &mut std::iter::Peekable<I>, b_iter: &mut std::iter::Peekable<I>) -> Ordering
+fn compare_numeric_segments<I>(a_iter: &mut Peekable<I>, b_iter: &mut Peekable<I>) -> Ordering
 where
     I: Iterator<Item = char>,
 {
@@ -913,8 +920,7 @@ pub fn compare_rel_paths_by(
     mode: SortMode,
     order: SortOrder,
 ) -> Ordering {
-    let needs_final_tiebreak =
-        mode != SortMode::DirectoriesFirst && !(std::ptr::eq(path_a, path_b) || path_a == path_b);
+    let needs_final_tiebreak = mode != SortMode::DirectoriesFirst && !(ptr::eq(path_a, path_b) || path_a == path_b);
 
     let mut components_a = path_a.components();
     let mut components_b = path_b.components();

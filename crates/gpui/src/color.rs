@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::{self};
@@ -316,13 +317,13 @@ impl PartialEq for Hsla {
 }
 
 impl PartialOrd for Hsla {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Hsla {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.h
             .total_cmp(&other.h)
             .then(self.s.total_cmp(&other.s))
@@ -342,7 +343,7 @@ impl Hash for Hsla {
 }
 
 impl Display for Hsla {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "hsla({:.2}, {:.2}%, {:.2}%, {:.2})", self.h * 360., self.s * 100., self.l * 100., self.a)
     }
 }
@@ -633,7 +634,7 @@ pub struct Background {
     pad: u32,
 }
 
-impl std::fmt::Debug for Background {
+impl fmt::Debug for Background {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.tag {
             BackgroundTag::Solid => write!(f, "Solid({:?})", self.solid),

@@ -7,6 +7,7 @@
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
+use std::mem;
 
 use crate::layout::compound::CEdge;
 use crate::layout::compound::CNode;
@@ -226,7 +227,7 @@ pub(crate) fn lane_layout(
             break;
         }
         plain = next;
-        margins = std::mem::take(&mut placed.margins);
+        margins = mem::take(&mut placed.margins);
         placed = place(&ctx, nodes, edges, &plain, &margins);
         round += 1;
     }

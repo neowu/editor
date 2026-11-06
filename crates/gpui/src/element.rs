@@ -35,7 +35,11 @@ use std::any::Any;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::{self};
+use std::hash::Hash;
+use std::hash::Hasher;
+use std::iter;
 use std::mem;
+use std::ops::Deref;
 use std::panic;
 use std::sync::Arc;
 
@@ -167,7 +171,7 @@ pub trait ParentElement {
     where
         Self: Sized,
     {
-        self.extend(std::iter::once(child.into_any_element()));
+        self.extend(iter::once(child.into_any_element()));
         self
     }
 
@@ -227,7 +231,7 @@ impl Default for GlobalElementId {
     }
 }
 
-impl std::ops::Deref for GlobalElementId {
+impl Deref for GlobalElementId {
     type Target = [ElementId];
 
     fn deref(&self) -> &Self::Target {
@@ -243,8 +247,8 @@ impl PartialEq for GlobalElementId {
 
 impl Eq for GlobalElementId {}
 
-impl std::hash::Hash for GlobalElementId {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for GlobalElementId {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_u64(self.hash);
     }
 }

@@ -2,6 +2,7 @@
 //! `src/diagrams/block/arrows.ts`.
 
 use crate::svg::builder::push_num;
+use crate::text::label;
 
 /// Points right.
 pub(crate) const RIGHT: u32 = 1;
@@ -34,7 +35,7 @@ pub(crate) struct ArrowSize {
 pub(crate) fn arrow_mask(directions: Option<&[String]>) -> u32 {
     let mut mask = 0;
     for direction in directions.unwrap_or(&[]) {
-        mask |= match crate::text::label::trim(direction) {
+        mask |= match label::trim(direction) {
             "right" => RIGHT,
             "left" => LEFT,
             "up" => UP,

@@ -1,10 +1,14 @@
 //! Sanitizes URLs as Mermaid does, and keeps images to relative, `http`, and `https` addresses.
 //! Port of Pele's `src/util/url.ts`.
 
+use std::str as std_str;
+
+use crate::error;
 use crate::text::entities;
 use crate::util::chars::is_line_end;
 use crate::util::chars::is_space;
 use crate::util::chars::is_word;
+use crate::util::float;
 
 const BLANK: &str = "about:blank";
 
@@ -75,7 +79,7 @@ fn decode_uri(units: &[u16]) -> Option<Vec<u16>> {
             *slot = next;
             k += 3;
         }
-        let text = std::str::from_utf8(octets.get(..n)?).ok()?;
+        let text = std_str::from_utf8(octets.get(..n)?).ok()?;
         out.extend(text.encode_utf16());
     }
     Some(out)
@@ -146,7 +150,7 @@ fn word_number(word: &str) -> f64 {
         .strip_prefix(['e', 'E'])
         .is_some_and(|digits| !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()));
     if mantissa > 0 && (rest.is_empty() || exponent) {
-        return crate::util::float::parse(word).unwrap_or(f64::NAN);
+        return float::parse(word).unwrap_or(f64::NAN);
     }
     f64::NAN
 }
@@ -391,7 +395,7 @@ fn parse_http(input: &str) -> Option<String> {
     out.push_str(&host);
     if let Some(port) = port {
         out.push(':');
-        crate::error::push_u32(&mut out, port);
+        error::push_u32(&mut out, port);
     }
 
     let (before, fragment) = match tail.split_once('#') {
@@ -740,7 +744,7 @@ fn ipv4(domain: &str) -> Option<String> {
         if shift != 24 {
             out.push('.');
         }
-        crate::error::push_u32(&mut out, u32::try_from((address >> shift) & 255).ok()?);
+        error::push_u32(&mut out, u32::try_from((address >> shift) & 255).ok()?);
     }
     Some(out)
 }

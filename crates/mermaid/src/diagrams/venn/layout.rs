@@ -4,11 +4,13 @@
 //! Output depends on the last bit of these computations, so `hypot` is V8's, and the
 //! trigonometric functions are the fdlibm ones that both V8 and Rust's WebAssembly math use.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::f64::consts::FRAC_PI_2;
 use std::f64::consts::PI;
 use std::f64::consts::TAU;
+use std::ptr;
 
 use super::db::utf16_cmp;
 use super::types::VennSubset;
@@ -532,8 +534,7 @@ pub(crate) fn region_path(circles: &[Circle]) -> String {
             }
         }
         for c in circles {
-            if !std::ptr::eq(c, smallest) && hypot(c.x - smallest.x, c.y - smallest.y) + smallest.r > c.r * (1.0 + 1e-9)
-            {
+            if !ptr::eq(c, smallest) && hypot(c.x - smallest.x, c.y - smallest.y) + smallest.r > c.r * (1.0 + 1e-9) {
                 return String::new();
             }
         }
@@ -548,7 +549,7 @@ pub(crate) fn region_path(circles: &[Circle]) -> String {
     }
     corners.sort_by(|p, q| {
         let diff = (p.y - cy).atan2(p.x - cx) - (q.y - cy).atan2(q.x - cx);
-        diff.partial_cmp(&0.0).unwrap_or(std::cmp::Ordering::Equal)
+        diff.partial_cmp(&0.0).unwrap_or(Ordering::Equal)
     });
     let mut d = String::new();
     for (i, from) in corners.iter().enumerate() {

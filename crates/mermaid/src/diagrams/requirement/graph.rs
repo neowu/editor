@@ -5,6 +5,7 @@ use super::db::CONTAINS;
 use super::db::RequirementDb;
 use super::types::Requirement;
 use super::types::RequirementElement;
+use crate::error;
 
 /// A node: a requirement or an element.
 pub(crate) struct GraphNode<'a> {
@@ -77,7 +78,7 @@ pub(crate) fn build_requirement_graph(model: &RequirementDb) -> RequirementGraph
             id.push('-');
             id.push_str(&relation.dst);
             id.push('-');
-            crate::error::push_u32(&mut id, u32::try_from(index).unwrap_or(u32::MAX));
+            error::push_u32(&mut id, u32::try_from(index).unwrap_or(u32::MAX));
             GraphEdge {
                 contains: relation.r#type == CONTAINS,
                 end: has(&relation.dst).then_some(relation.dst.as_str()),

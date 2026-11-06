@@ -1,4 +1,8 @@
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::future::Future;
+use std::io::Cursor;
 use std::num::NonZeroU64;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -57,8 +61,8 @@ impl ImageId {
     }
 }
 
-impl std::fmt::Display for ImageId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ImageId {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
 }
@@ -191,7 +195,7 @@ impl ImageItem {
             }
         };
 
-        let mut image_reader = ImageReader::new(std::io::Cursor::new(image_bytes));
+        let mut image_reader = ImageReader::new(Cursor::new(image_bytes));
         image_reader.set_format(image_format);
         let image = image_reader.decode()?;
 
@@ -255,7 +259,7 @@ impl ImageItem {
 
     fn reload(&mut self, cx: &Context<Self>) -> Option<oneshot::Receiver<()>> {
         let local_file = self.file.as_local()?;
-        let (tx, rx) = futures::channel::oneshot::channel();
+        let (tx, rx) = oneshot::channel();
 
         let content = local_file.load_bytes(cx);
         self.reload_task = Some(cx.spawn(async move |this, cx| {
@@ -679,7 +683,7 @@ impl ImageStoreImpl for Entity<RemoteImageStore> {
 
         cx.spawn(async move |_image_store, cx| {
             let response = client
-                .request(rpc::proto::OpenImageByPath { project_id, worktree_id, path: path.as_unix_str().to_owned() })
+                .request(proto::OpenImageByPath { project_id, worktree_id, path: path.as_unix_str().to_owned() })
                 .await?;
 
             let image_id = ImageId::from(NonZeroU64::new(response.image_id).context("invalid image_id in response")?);
@@ -878,13 +882,13 @@ mod tests {
         assert_eq!(metadata.format, ImageFormat::Svg);
         assert_eq!(metadata.file_size, SVG.len() as u64);
         assert!(metadata.colors.is_none());
-        assert!(ImageItem::compute_metadata_from_bytes(b"not an image").is_err());
+        ImageItem::compute_metadata_from_bytes(b"not an image").unwrap_err();
     }
 
     #[test]
     fn create_gpui_image_accepts_svg_and_rejects_unknown_content() {
         let image = create_gpui_image(SVG.to_vec()).unwrap();
         assert_eq!(image.format, gpui::ImageFormat::Svg);
-        assert!(create_gpui_image(b"not an image".to_vec()).is_err());
+        create_gpui_image(b"not an image".to_vec()).unwrap_err();
     }
 }

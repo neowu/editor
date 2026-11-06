@@ -3,12 +3,15 @@
 //! The app listens on a Unix socket when started with [`ENABLE_ENV`] or
 //! [`SOCKET_ENV`]. Each request and response is one line of JSON.
 
+use std::env;
+use std::fs;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::Write;
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -30,15 +33,15 @@ pub fn socket_path_for_pid(pid: u32) -> PathBuf {
 
 /// The socket the app should listen on, if automation is enabled for this process.
 pub fn socket_path_from_env() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os(SOCKET_ENV) {
+    if let Some(path) = env::var_os(SOCKET_ENV) {
         return Some(PathBuf::from(path));
     }
-    std::env::var_os(ENABLE_ENV).map(|_| socket_path_for_pid(std::process::id()))
+    env::var_os(ENABLE_ENV).map(|_| socket_path_for_pid(process::id()))
 }
 
 /// Sockets of apps started with [`ENABLE_ENV`], including stale ones.
 pub fn discover_sockets() -> Vec<PathBuf> {
-    let Ok(entries) = std::fs::read_dir(socket_dir()) else {
+    let Ok(entries) = fs::read_dir(socket_dir()) else {
         return Vec::new();
     };
     let mut sockets: Vec<PathBuf> = entries
@@ -56,7 +59,7 @@ pub fn discover_sockets() -> Vec<PathBuf> {
 
 fn socket_dir() -> PathBuf {
     // `$TMPDIR` is per user on macOS and short enough for the socket path limit.
-    std::env::temp_dir()
+    env::temp_dir()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

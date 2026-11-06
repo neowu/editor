@@ -1,3 +1,20 @@
+use std::collections as std_collections;
+use std::env;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::hash::Hash;
+use std::hash::Hasher;
+use std::mem;
+use std::path::Component;
+use std::sync::Weak;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
+
+use language::proto as language_proto;
+use lsp::request::Request;
+use proto::language_server_prompt_request::Level;
+use proto::update_language_server::Variant;
 mod biome;
 pub mod buffer_store;
 pub mod color_extractor;
@@ -240,7 +257,7 @@ struct RemotelyCreatedModels {
 }
 
 struct RemotelyCreatedModelGuard {
-    remote_models: std::sync::Weak<Mutex<RemotelyCreatedModels>>,
+    remote_models: Weak<Mutex<RemotelyCreatedModels>>,
 }
 
 impl Drop for RemotelyCreatedModelGuard {
@@ -591,8 +608,8 @@ impl CompletionSource {
     }
 }
 
-impl std::fmt::Debug for Completion {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for Completion {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Completion")
             .field("replace_range", &self.replace_range)
             .field("new_text", &self.new_text)
@@ -829,8 +846,8 @@ pub struct DocumentColor {
 
 impl Eq for DocumentColor {}
 
-impl std::hash::Hash for DocumentColor {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for DocumentColor {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.lsp_range.hash(state);
         self.color.red.to_bits().hash(state);
         self.color.green.to_bits().hash(state);
@@ -848,8 +865,8 @@ pub struct ColorPresentation {
     pub additional_text_edits: Vec<lsp::TextEdit>,
 }
 
-impl std::hash::Hash for ColorPresentation {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for ColorPresentation {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.label.hash(state);
         if let Some(ref edit) = self.text_edit {
             edit.range.hash(state);
@@ -869,8 +886,8 @@ pub enum DirectoryLister {
     Local(Entity<Project>, Arc<dyn Fs>),
 }
 
-impl std::fmt::Debug for DirectoryLister {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for DirectoryLister {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             DirectoryLister::Project(project) => {
                 write!(f, "DirectoryLister::Project({project:?})")
@@ -904,7 +921,7 @@ impl DirectoryLister {
             .visible_worktrees(cx)
             .next()
             .map(|worktree| worktree.read(cx).abs_path().to_string_lossy().into_owned())
-            .or_else(|| std::env::home_dir().map(|dir| dir.to_string_lossy().into_owned()))
+            .or_else(|| env::home_dir().map(|dir| dir.to_string_lossy().into_owned()))
             .map(|mut s| {
                 s.push('/');
                 s
@@ -1708,8 +1725,8 @@ impl Project {
         let downloading_files = self.downloading_files.clone();
         let path_str = path.as_unix_str().to_owned();
 
-        static NEXT_FILE_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-        let file_id = NEXT_FILE_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        static NEXT_FILE_ID: AtomicU64 = AtomicU64::new(1);
+        let file_id = NEXT_FILE_ID.fetch_add(1, Ordering::SeqCst);
 
         // Register BEFORE sending request to avoid race condition
         let key = (worktree_id, path_str.clone());
@@ -1989,7 +2006,7 @@ impl Project {
                 cx.emit(Event::DiskBasedDiagnosticsFinished { language_server_id: *language_server_id });
             }
             LspStoreEvent::LanguageServerUpdate { language_server_id, name, message } => match message {
-                proto::update_language_server::Variant::MetadataUpdated(update) => {
+                Variant::MetadataUpdated(update) => {
                     self.lsp_store.update(cx, |lsp_store, _| {
                         if let Some(capabilities) = update.capabilities.as_ref() {
                             lsp_store.insert_synced_server_capabilities(*language_server_id, capabilities);
@@ -2019,7 +2036,7 @@ impl Project {
                         }
                     });
                 }
-                proto::update_language_server::Variant::RegisteredForBuffer(update) => {
+                Variant::RegisteredForBuffer(update) => {
                     if let Ok(buffer_id) = BufferId::new(update.buffer_id) {
                         cx.emit(Event::LanguageServerBufferRegistered {
                             buffer_id,
@@ -2130,7 +2147,7 @@ impl Project {
                 self.reload_buffers([buffer.clone()].into_iter().collect(), true, cx).detach_and_log_err(cx);
             }
             BufferEvent::Operation { operation, is_local: true } => {
-                let operation = language::proto::serialize_operation(operation);
+                let operation = language_proto::serialize_operation(operation);
 
                 if let Some(remote) = &self.remote_client {
                     remote
@@ -2559,8 +2576,8 @@ impl Project {
         cx: &mut Context<Self>,
     ) -> Task<Result<R::Response>>
     where
-        <R::LspRequest as lsp::request::Request>::Result: Send,
-        <R::LspRequest as lsp::request::Request>::Params: Send,
+        <R::LspRequest as Request>::Result: Send,
+        <R::LspRequest as Request>::Params: Send,
     {
         let guard = self.retain_remotely_created_models(cx);
         let task = self.lsp_store.update(cx, |lsp_store, cx| lsp_store.request_lsp(buffer_handle, server, request, cx));
@@ -2950,7 +2967,7 @@ impl Project {
             .payload
             .actions
             .into_iter()
-            .map(|action| MessageActionItem { title: action, properties: std::collections::HashMap::default() })
+            .map(|action| MessageActionItem { title: action, properties: std_collections::HashMap::default() })
             .collect();
         this.update(&mut cx, |_, cx| {
             cx.emit(Event::LanguageServerPrompt(LanguageServerPromptRequest::new(
@@ -3212,7 +3229,7 @@ impl Project {
 
                             if file_entry.chunks.len() as u64 >= file_entry.total_size && file_entry.total_size > 0 {
                                 let destination = file_entry.destination_path.clone();
-                                let content = std::mem::take(&mut file_entry.chunks);
+                                let content = mem::take(&mut file_entry.chunks);
                                 found_key = Some(key.clone());
                                 write_data = Some((destination, content));
                             }
@@ -3398,7 +3415,7 @@ pub fn path_suffix(path: &Path, detail: usize) -> String {
         .components()
         .rev()
         .filter_map(|component| match component {
-            std::path::Component::Normal(s) => Some(s.to_string_lossy()),
+            Component::Normal(s) => Some(s.to_string_lossy()),
             _ => None,
         })
         .take(detail + 1)
@@ -3697,11 +3714,11 @@ impl Completion {
     }
 }
 
-const fn proto_to_prompt(level: proto::language_server_prompt_request::Level) -> gpui::PromptLevel {
+const fn proto_to_prompt(level: Level) -> gpui::PromptLevel {
     match level {
-        proto::language_server_prompt_request::Level::Info(_) => gpui::PromptLevel::Info,
-        proto::language_server_prompt_request::Level::Warning(_) => gpui::PromptLevel::Warning,
-        proto::language_server_prompt_request::Level::Critical(_) => gpui::PromptLevel::Critical,
+        Level::Info(_) => gpui::PromptLevel::Info,
+        Level::Warning(_) => gpui::PromptLevel::Warning,
+        Level::Critical(_) => gpui::PromptLevel::Critical,
     }
 }
 

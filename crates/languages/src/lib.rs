@@ -6,6 +6,7 @@ use gpui::SharedString;
 use gpui::UpdateGlobal;
 pub use language::*;
 use project::Fs;
+use project::library::LibraryProviders;
 use python::PyprojectTomlManifestProvider;
 use rust::CargoLibraryProvider;
 use rust::CargoManifestProvider;
@@ -176,7 +177,7 @@ pub fn init(languages: Arc<LanguageRegistry>, fs: Arc<dyn Fs>, cx: &mut App) {
     for provider in manifest_providers {
         project::ManifestProvidersStore::global(cx).register(provider);
     }
-    project::library::LibraryProviders::register(Arc::new(CargoLibraryProvider), cx);
+    LibraryProviders::register(Arc::new(CargoLibraryProvider), cx);
 }
 
 #[derive(Default)]

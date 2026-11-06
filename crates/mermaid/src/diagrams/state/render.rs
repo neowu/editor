@@ -1,5 +1,6 @@
 //! Lays out and draws a state diagram. Port of Pele's `src/diagrams/state/render.ts`.
 
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use super::db::StateDb;
@@ -273,7 +274,7 @@ pub(crate) fn render(db: &StateDb, config: &Value, options: &Options) -> Rendere
 
 /// Pele's comparison of the order states take in their flow: initial states first, then the
 /// order transitions introduce them, then declaration order.
-fn by_flow(views: &[View<'_>], appear: &[f64], a: usize, b: usize) -> std::cmp::Ordering {
+fn by_flow(views: &[View<'_>], appear: &[f64], a: usize, b: usize) -> Ordering {
     let initial = |i: usize| u8::from(views.get(i).is_none_or(|v| v.kind != K::Start));
     let (ia, ib) = (initial(a), initial(b));
     if ia != ib {
@@ -281,10 +282,10 @@ fn by_flow(views: &[View<'_>], appear: &[f64], a: usize, b: usize) -> std::cmp::
     }
     let (pa, pb) = (appear.get(a).copied().unwrap_or(f64::INFINITY), appear.get(b).copied().unwrap_or(f64::INFINITY));
     if pa < pb {
-        return std::cmp::Ordering::Less;
+        return Ordering::Less;
     }
     if pa > pb {
-        return std::cmp::Ordering::Greater;
+        return Ordering::Greater;
     }
     a.cmp(&b)
 }
@@ -1112,15 +1113,14 @@ impl Frame<'_> {
                 if d == 0.0 || d.is_nan() {
                     a.cmp(&b)
                 } else if d < 0.0 {
-                    std::cmp::Ordering::Less
+                    Ordering::Less
                 } else {
-                    std::cmp::Ordering::Greater
+                    Ordering::Greater
                 }
             });
             let pairs = || sorted.iter().zip(sorted.iter().skip(1));
             // Pele asks whether any region reaches past the next, so `NaN` counts as apart.
-            let apart =
-                pairs().all(|(&a, &b)| hi(a, x).partial_cmp(&(lo(b, x) + 0.5)) != Some(std::cmp::Ordering::Greater));
+            let apart = pairs().all(|(&a, &b)| hi(a, x).partial_cmp(&(lo(b, x) + 0.5)) != Some(Ordering::Greater));
             if !apart {
                 continue;
             }

@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use gpui::Anchor;
 use gpui::AnyView;
 use gpui::Entity;
@@ -195,7 +197,7 @@ impl RenderOnce for DropdownMenu {
         let mut popover = PopoverMenu::new((self.id.clone(), "popover"))
             .full_width(self.full_width)
             .with_handle(handle)
-            .on_open(std::rc::Rc::new(move |window, cx| {
+            .on_open(Rc::new(move |window, cx| {
                 menu_for_open.update(cx, |menu, cx| {
                     menu.select_toggled_or_first(window, cx);
                 });

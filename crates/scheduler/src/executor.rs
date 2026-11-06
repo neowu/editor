@@ -1,6 +1,10 @@
 use std::any::Any;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::future::Future;
 use std::marker::PhantomData;
+use std::mem;
 use std::mem::ManuallyDrop;
 use std::panic::Location;
 use std::pin::Pin;
@@ -360,7 +364,7 @@ pub(crate) struct RendezvousReceiver<T> {
 impl<T> RendezvousReceiver<T> {
     fn poll_take(&self, cx: &mut Context) -> Poll<Task<T>> {
         let mut state = self.shared.lock();
-        match std::mem::replace(&mut *state, RendezvousState::Taken) {
+        match mem::replace(&mut *state, RendezvousState::Taken) {
             RendezvousState::Delivered(task) => Poll::Ready(task),
             RendezvousState::Pending(_) => {
                 *state = RendezvousState::Pending(Some(cx.waker().clone()));
@@ -381,7 +385,7 @@ impl<T> RendezvousReceiver<T> {
 
     fn detach(self) {
         let mut state = self.shared.lock();
-        match std::mem::replace(&mut *state, RendezvousState::Detached) {
+        match mem::replace(&mut *state, RendezvousState::Detached) {
             RendezvousState::Delivered(task) => {
                 *state = RendezvousState::Taken;
                 drop(state);
@@ -402,7 +406,7 @@ impl<T> Drop for RendezvousReceiver<T> {
         match &*state {
             RendezvousState::Pending(_) => *state = RendezvousState::Cancelled,
             RendezvousState::Delivered(_) => {
-                let delivered = std::mem::replace(&mut *state, RendezvousState::Cancelled);
+                let delivered = mem::replace(&mut *state, RendezvousState::Cancelled);
                 drop(state);
                 drop(delivered);
             }
@@ -423,7 +427,7 @@ impl<T> RendezvousSender<T> {
     /// disposition if it was dropped or detached before delivery.
     pub(crate) fn deliver(self, task: Task<T>) {
         let mut state = self.shared.lock();
-        match std::mem::replace(&mut *state, RendezvousState::Delivered(task)) {
+        match mem::replace(&mut *state, RendezvousState::Delivered(task)) {
             RendezvousState::Pending(waker) => {
                 drop(state);
                 if let Some(waker) = waker {
@@ -431,12 +435,12 @@ impl<T> RendezvousSender<T> {
                 }
             }
             RendezvousState::Cancelled => {
-                let delivered = std::mem::replace(&mut *state, RendezvousState::Cancelled);
+                let delivered = mem::replace(&mut *state, RendezvousState::Cancelled);
                 drop(state);
                 drop(delivered);
             }
             RendezvousState::Detached => {
-                let RendezvousState::Delivered(task) = std::mem::replace(&mut *state, RendezvousState::Detached) else {
+                let RendezvousState::Delivered(task) = mem::replace(&mut *state, RendezvousState::Detached) else {
                     unreachable!("the delivered task was just stored");
                 };
                 drop(state);
@@ -515,8 +519,8 @@ impl Task<Box<dyn Any + Send + Sync>> {
     }
 }
 
-impl<T> std::fmt::Debug for Task<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<T> Debug for Task<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self.0 {
             TaskState::Ready(_) => f.debug_tuple("Task::Ready").finish(),
             TaskState::Spawned(task) => f.debug_tuple("Task::Spawned").field(task).finish(),
@@ -591,8 +595,8 @@ impl<T: 'static> Future for FallibleTask<T> {
     }
 }
 
-impl<T> std::fmt::Debug for FallibleTask<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<T> Debug for FallibleTask<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match &self.0 {
             FallibleTaskState::Ready(_) => f.debug_tuple("FallibleTask::Ready").finish(),
             FallibleTaskState::Spawned(task) => f.debug_tuple("FallibleTask::Spawned").field(task).finish(),

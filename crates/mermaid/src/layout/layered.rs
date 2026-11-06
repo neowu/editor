@@ -23,6 +23,7 @@
 
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
+use std::mem;
 
 /// What a layout node stands for.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -1729,9 +1730,9 @@ fn snap(g: &Graph, xs: &mut [f64], empty: Option<&[bool]>, opt: &LayeredOptions)
             return;
         }
         if members[keep].len() < members[drop].len() {
-            std::mem::swap(&mut keep, &mut drop);
+            mem::swap(&mut keep, &mut drop);
         }
-        let moving = std::mem::take(&mut members[drop]);
+        let moving = mem::take(&mut members[drop]);
         for &v in &moving {
             block[v] = keep;
         }
@@ -3083,19 +3084,19 @@ fn position(g: &mut Graph, opt: &LayeredOptions) -> Vec<f64> {
             let mut c = results[2][i];
             let mut d = results[3][i];
             if a > b {
-                std::mem::swap(&mut a, &mut b);
+                mem::swap(&mut a, &mut b);
             }
             if c > d {
-                std::mem::swap(&mut c, &mut d);
+                mem::swap(&mut c, &mut d);
             }
             if a > c {
-                std::mem::swap(&mut a, &mut c);
+                mem::swap(&mut a, &mut c);
             }
             if b > d {
-                std::mem::swap(&mut b, &mut d);
+                mem::swap(&mut b, &mut d);
             }
             if b > c {
-                std::mem::swap(&mut b, &mut c);
+                mem::swap(&mut b, &mut c);
             }
             f64::midpoint(b, c)
         })

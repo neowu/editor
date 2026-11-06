@@ -1,3 +1,6 @@
+use std::error;
+use std::process::Command;
+use std::vec::Drain;
 mod app_menu;
 mod keyboard;
 mod keystroke;
@@ -207,7 +210,7 @@ impl GraphicalEnvironment {
     }
 
     /// Does nothing on this platform.
-    pub const fn apply_to(&self, _command: &mut std::process::Command) {}
+    pub const fn apply_to(&self, _command: &mut Command) {}
 }
 
 /// A display mode for [`App::request_windowing`] to switch to.
@@ -539,7 +542,7 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
         String::new()
     }
     fn set_edited(&mut self, _edited: bool) {}
-    fn set_document_path(&self, _path: Option<&std::path::Path>) {}
+    fn set_document_path(&self, _path: Option<&Path>) {}
     fn toggle_simple_fullscreen(&self) {}
     fn is_simple_fullscreen(&self) -> bool {
         false
@@ -958,7 +961,7 @@ impl<T> ops::Index<usize> for AtlasTextureList<T> {
 
 impl<T> AtlasTextureList<T> {
     #[allow(unused)]
-    pub fn drain(&mut self) -> std::vec::Drain<'_, Option<T>> {
+    pub fn drain(&mut self) -> Drain<'_, Option<T>> {
         self.free_list.clear();
         self.textures.drain(..)
     }
@@ -1760,8 +1763,8 @@ pub enum ClipboardReadError {
     UnsupportedContent,
 }
 
-impl std::fmt::Display for ClipboardReadError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for ClipboardReadError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Unavailable => formatter.write_str("the clipboard is unavailable"),
             Self::Denied(message) => {
@@ -1772,7 +1775,7 @@ impl std::fmt::Display for ClipboardReadError {
     }
 }
 
-impl std::error::Error for ClipboardReadError {}
+impl error::Error for ClipboardReadError {}
 
 /// Either a ClipboardString or a ClipboardImage
 #[derive(Clone, Debug, Eq, PartialEq)]

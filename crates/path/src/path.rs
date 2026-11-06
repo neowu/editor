@@ -144,9 +144,9 @@ mod tests {
     fn test_join_path() {
         assert_eq!(join_path("/a/b", "../c").unwrap(), PathBuf::from("/a/c"));
         assert_eq!(join_path("a", "./b/").unwrap(), PathBuf::from("a/b"));
-        assert!(join_path("a", "/b").is_err());
+        join_path("a", "/b").unwrap_err();
         assert_eq!(join_path_preserving_components("/a/b", "../c").unwrap(), PathBuf::from("/a/b/../c"));
-        assert!(join_path_preserving_components("a", "/b").is_err());
+        join_path_preserving_components("a", "/b").unwrap_err();
     }
 
     #[test]

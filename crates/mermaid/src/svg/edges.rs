@@ -359,16 +359,14 @@ pub(crate) fn route_path(
         if stepped {
             d.push('Q');
             push_point(&mut d, x, y);
-            d.push(' ');
-            push_point(&mut d, at_x, at_y);
         } else {
             d.push('C');
             push_point(&mut d, x - ux * before * (1.0 - HANDLE), y - uy * before * (1.0 - HANDLE));
             d.push(' ');
             push_point(&mut d, x + vx * after * (1.0 - HANDLE), y + vy * after * (1.0 - HANDLE));
-            d.push(' ');
-            push_point(&mut d, at_x, at_y);
         }
+        d.push(' ');
+        push_point(&mut d, at_x, at_y);
     }
     EdgePath { d, edx, edy, ex, ey, sdx: -sdx, sdy: -sdy, sx, sy }
 }
@@ -520,5 +518,19 @@ pub(crate) fn loop_path(
         sdy: if sideways { -1.0 } else { 0.0 },
         sx: if sideways { c.x - spread } else { c.x + w / 2.0 },
         sy: if sideways { c.y + h / 2.0 } else { c.y - spread },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn route_path_finishes_smooth_and_stepped_corners_at_the_destination() {
+        let route = [0.0, 0.0, 1.0, 40.0, 0.0, 1.0, 40.0, 40.0, 0.0];
+        let smooth = route_path(&route, None, 0.0, 0.0, None, None);
+        assert_eq!(smooth.d, "M0,0C24.8,0 40,15.2 40,40");
+        let stepped = route_path(&route, Some("step"), 0.0, 0.0, None, None);
+        assert_eq!(stepped.d, "M0,0L28,0Q40,0 40,12L40,40");
     }
 }

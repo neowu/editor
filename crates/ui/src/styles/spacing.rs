@@ -4,6 +4,8 @@ use gpui::Rems;
 use gpui::px;
 use gpui::rems;
 
+use crate::font;
+
 const BASE_REM_SIZE_IN_PX: f32 = 16.0;
 
 /// UI spacing scale. The number following "Base" is the pixel size at the
@@ -54,7 +56,7 @@ impl DynamicSpacing {
 
     /// Returns the spacing value in pixels, scaled by the UI font size.
     pub fn px(self, cx: &App) -> Pixels {
-        let ui_font_size: f32 = crate::font::ui_font_size(cx).into();
+        let ui_font_size: f32 = font::ui_font_size(cx).into();
         px(ui_font_size * self.base_px() / BASE_REM_SIZE_IN_PX)
     }
 }

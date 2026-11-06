@@ -1,3 +1,4 @@
+use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -15,6 +16,7 @@ use gpui::Entity;
 use gpui::Task;
 use language::Buffer;
 use lsp::LanguageServerId;
+use lsp::request::CodeLensResolve;
 use rpc::TypedEnvelope;
 use rpc::proto;
 use settings::Settings as _;
@@ -49,7 +51,7 @@ pub struct CodeLensActionId(u64);
 
 pub type CodeLensActions = HashMap<CodeLensActionId, CodeAction>;
 
-pub(super) type CodeLensTask = Shared<Task<std::result::Result<Option<CodeLensActions>, Arc<anyhow::Error>>>>;
+pub(super) type CodeLensTask = Shared<Task<result::Result<Option<CodeLensActions>, Arc<anyhow::Error>>>>;
 
 pub type CodeLensResolveTask = Shared<Task<Option<(CodeLensActionId, CodeAction)>>>;
 
@@ -394,8 +396,7 @@ impl LspStore {
         let task = cx
             .spawn({
                 async move |lsp_store, cx| {
-                    let response =
-                        server.request::<lsp::request::CodeLensResolve>(lens, request_timeout).await.into_response();
+                    let response = server.request::<CodeLensResolve>(lens, request_timeout).await.into_response();
                     lsp_store
                         .update(cx, |lsp_store, _| {
                             let code_lens =

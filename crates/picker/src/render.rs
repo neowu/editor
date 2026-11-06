@@ -26,6 +26,7 @@ use ui::Tooltip;
 use ui::Window;
 use ui::WithScrollbar;
 use ui::div;
+use ui::font;
 use ui::h_flex;
 use ui::prelude::*;
 use ui::rems_from_px;
@@ -87,7 +88,7 @@ impl<D: PickerDelegate> Picker<D> {
     }
 
     pub(crate) fn render_results(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let ui_font_size = ui::font::ui_font_size(cx);
+        let ui_font_size = font::ui_font_size(cx);
         let window_size = window.viewport_size();
         let rem_size = window.rem_size();
         let is_wide_window = window_size.width / rem_size > rems_from_px(800_f32).0;

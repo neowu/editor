@@ -11,6 +11,7 @@ use gpui::rems;
 use theme::ActiveTheme;
 
 use crate::Color;
+use crate::font;
 use crate::prelude::*;
 use crate::rems_from_px;
 
@@ -18,12 +19,12 @@ use crate::rems_from_px;
 pub trait StyledTypography: Styled + Sized {
     /// Sets the font family to the buffer font.
     fn font_buffer(self) -> Self {
-        self.font_family(crate::font::buffer_font().family.clone())
+        self.font_family(font::buffer_font().family.clone())
     }
 
     /// Sets the font family to the UI font.
     fn font_ui(self) -> Self {
-        self.font_family(crate::font::ui_font().family.clone())
+        self.font_family(font::ui_font().family.clone())
     }
 
     /// Sets the text size using a [`TextSize`].
@@ -80,7 +81,7 @@ pub trait StyledTypography: Styled + Sized {
     /// This should only be used for text that is displayed in a buffer,
     /// or other places that text needs to match the buffer font size.
     fn text_buffer(self, cx: &App) -> Self {
-        self.text_size(crate::font::buffer_font_size(cx))
+        self.text_size(font::buffer_font_size(cx))
     }
 }
 
@@ -131,8 +132,8 @@ impl TextSize {
             Self::Default => rems_from_px(14_f32),
             Self::Small => rems_from_px(12_f32),
             Self::XSmall => rems_from_px(10_f32),
-            Self::Ui => rems_from_px(crate::font::ui_font_size(cx)),
-            Self::Editor => rems_from_px(crate::font::buffer_font_size(cx)),
+            Self::Ui => rems_from_px(font::ui_font_size(cx)),
+            Self::Editor => rems_from_px(font::buffer_font_size(cx)),
         }
     }
 
@@ -142,8 +143,8 @@ impl TextSize {
             Self::Default => px(14.),
             Self::Small => px(12.),
             Self::XSmall => px(10.),
-            Self::Ui => crate::font::ui_font_size(cx),
-            Self::Editor => crate::font::buffer_font_size(cx),
+            Self::Ui => font::ui_font_size(cx),
+            Self::Editor => font::buffer_font_size(cx),
         }
     }
 }
@@ -201,7 +202,7 @@ pub struct Headline {
 
 impl RenderOnce for Headline {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let ui_font = crate::font::ui_font().clone();
+        let ui_font = font::ui_font().clone();
 
         div()
             .font(ui_font)

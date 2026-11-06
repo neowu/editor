@@ -1,3 +1,5 @@
+use std::any::Any;
+use std::any::TypeId;
 use std::ops::Range;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -28,6 +30,7 @@ use multi_buffer::MultiBufferPoint;
 use multi_buffer::MultiBufferSnapshot;
 use multi_buffer::PathKey;
 use project::Project;
+use project::search::SearchQuery;
 use rope::Point;
 use settings::SeedQuerySetting;
 use text::Bias;
@@ -46,6 +49,7 @@ use workspace::item::ItemBufferKind;
 use workspace::item::ItemEvent;
 use workspace::item::SaveOptions;
 use workspace::item::TabContentParams;
+use workspace::searchable::Direction;
 use workspace::searchable::SearchEvent;
 use workspace::searchable::SearchToken;
 use workspace::searchable::SearchableItem;
@@ -1240,7 +1244,7 @@ impl Item for SplittableEditor {
         self.rhs_editor.update(cx, |editor, cx| editor.reload(project, window, cx))
     }
 
-    fn navigate(&mut self, data: Arc<dyn std::any::Any + Send>, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    fn navigate(&mut self, data: Arc<dyn Any + Send>, window: &mut Window, cx: &mut Context<Self>) -> bool {
         self.focused_editor().update(cx, |editor, cx| editor.navigate(data, window, cx))
     }
 
@@ -1272,13 +1276,13 @@ impl Item for SplittableEditor {
 
     fn act_as_type<'a>(
         &'a self,
-        type_id: std::any::TypeId,
+        type_id: TypeId,
         self_handle: &'a Entity<Self>,
         _: &'a App,
     ) -> Option<gpui::AnyEntity> {
-        if type_id == std::any::TypeId::of::<Self>() {
+        if type_id == TypeId::of::<Self>() {
             Some(self_handle.clone().into())
-        } else if type_id == std::any::TypeId::of::<Editor>() {
+        } else if type_id == TypeId::of::<Editor>() {
             Some(self.rhs_editor.clone().into())
         } else {
             None
@@ -1382,7 +1386,7 @@ impl SearchableItem for SplittableEditor {
     fn replace(
         &mut self,
         identifier: &Self::Match,
-        query: &project::search::SearchQuery,
+        query: &SearchQuery,
         token: SearchToken,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -1397,7 +1401,7 @@ impl SearchableItem for SplittableEditor {
 
     fn find_matches(
         &mut self,
-        query: Arc<project::search::SearchQuery>,
+        query: Arc<SearchQuery>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> gpui::Task<Vec<Self::Match>> {
@@ -1406,7 +1410,7 @@ impl SearchableItem for SplittableEditor {
 
     fn find_matches_with_token(
         &mut self,
-        query: Arc<project::search::SearchQuery>,
+        query: Arc<SearchQuery>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> gpui::Task<(Vec<Self::Match>, SearchToken)> {
@@ -1423,7 +1427,7 @@ impl SearchableItem for SplittableEditor {
 
     fn active_match_index(
         &mut self,
-        direction: workspace::searchable::Direction,
+        direction: Direction,
         matches: &[Self::Match],
         token: SearchToken,
         window: &mut Window,

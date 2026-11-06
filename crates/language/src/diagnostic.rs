@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::ops::Range;
 
 use gpui::SharedString;
@@ -113,8 +116,8 @@ impl AsRef<str> for DiagnosticMessage {
     }
 }
 
-impl std::fmt::Display for DiagnosticMessage {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for DiagnosticMessage {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
         formatter.write_str(self.as_str())
     }
 }

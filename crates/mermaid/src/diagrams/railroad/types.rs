@@ -1,6 +1,7 @@
 //! The railroad model: rules whose definitions are trees of terminals, names, and the ways to
 //! combine them. Port of Pele's `src/diagrams/railroad/types.ts`.
 
+use std::slice;
 /// A node of a rule's definition: Pele's `RailroadNode`. Parts are indices into
 /// [`RailroadModel::nodes`], so deep definitions need no recursion to build or drop.
 #[derive(Clone, Debug, PartialEq)]
@@ -34,7 +35,7 @@ impl RailroadNode {
     pub(crate) fn parts(&self) -> &[usize] {
         match self {
             Self::Choice(list) | Self::Sequence(list) => list,
-            Self::Optional(element) | Self::Repetition { element, .. } => std::slice::from_ref(element),
+            Self::Optional(element) | Self::Repetition { element, .. } => slice::from_ref(element),
             Self::NonTerminal(_) | Self::Special(_) | Self::Terminal(_) => &[],
         }
     }

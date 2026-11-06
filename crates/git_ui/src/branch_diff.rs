@@ -10,6 +10,7 @@ use editor::Editor;
 use editor::EditorEvent;
 use editor::HiddenDiffHunkRenderer;
 use editor::SplittableEditor;
+use git::repository::Branch;
 use git::status::FileStatus;
 use gpui::App;
 use gpui::AppContext as _;
@@ -70,7 +71,7 @@ struct BranchDiffAddon {
 }
 
 impl Addon for BranchDiffAddon {
-    fn to_any(&self) -> &dyn std::any::Any {
+    fn to_any(&self) -> &dyn Any {
         self
     }
 
@@ -145,7 +146,7 @@ impl BranchDiff {
         let on_select = Arc::new({
             let repository = repository.clone();
             let workspace = workspace_handle.clone();
-            move |branch: git::repository::Branch, window: &mut Window, cx: &mut App| {
+            move |branch: Branch, window: &mut Window, cx: &mut App| {
                 let base_ref: SharedString = branch.name().to_owned().into();
                 workspace
                     .update(cx, |workspace, cx| {
@@ -524,16 +525,15 @@ impl Render for BranchDiffToolbar {
                 PopoverMenu::new("branch-diff-base-branch-picker")
                     .menu(move |window, cx| {
                         let view_for_picker = view_for_picker.clone();
-                        let on_select =
-                            Arc::new(move |branch: git::repository::Branch, _window: &mut Window, cx: &mut App| {
-                                let base_ref: SharedString = branch.name().to_owned().into();
-                                view_for_picker
-                                    .update(cx, |branch_diff, cx| {
-                                        branch_diff.set_merge_base(base_ref, cx);
-                                        cx.notify();
-                                    })
-                                    .ok();
-                            });
+                        let on_select = Arc::new(move |branch: Branch, _window: &mut Window, cx: &mut App| {
+                            let base_ref: SharedString = branch.name().to_owned().into();
+                            view_for_picker
+                                .update(cx, |branch_diff, cx| {
+                                    branch_diff.set_merge_base(base_ref, cx);
+                                    cx.notify();
+                                })
+                                .ok();
+                        });
 
                         Some(branch_picker::select_popover(
                             workspace.clone(),

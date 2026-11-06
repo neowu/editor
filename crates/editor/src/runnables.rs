@@ -46,6 +46,7 @@ use ui::Color;
 use ui::IconButton;
 use ui::IconSize;
 use ui::Toggleable as _;
+use workspace::tasks::ScheduledTaskResult;
 
 use crate::CodeActionSource;
 use crate::Editor;
@@ -107,13 +108,13 @@ pub(crate) enum RunnableTaskStatus {
     Failed,
 }
 
-impl From<workspace::tasks::ScheduledTaskResult> for RunnableTaskStatus {
-    fn from(result: workspace::tasks::ScheduledTaskResult) -> Self {
+impl From<ScheduledTaskResult> for RunnableTaskStatus {
+    fn from(result: ScheduledTaskResult) -> Self {
         match result {
-            workspace::tasks::ScheduledTaskResult::Success => Self::Passed,
-            workspace::tasks::ScheduledTaskResult::Failure
-            | workspace::tasks::ScheduledTaskResult::SpawnFailed
-            | workspace::tasks::ScheduledTaskResult::Cancelled => Self::Failed,
+            ScheduledTaskResult::Success => Self::Passed,
+            ScheduledTaskResult::Failure | ScheduledTaskResult::SpawnFailed | ScheduledTaskResult::Cancelled => {
+                Self::Failed
+            }
         }
     }
 }
@@ -272,7 +273,7 @@ impl Editor {
             .await;
             editor
                 .update(cx, |editor, cx| {
-                    for buffer_id in std::mem::take(&mut editor.runnables.invalidate_buffer_data) {
+                    for buffer_id in mem::take(&mut editor.runnables.invalidate_buffer_data) {
                         editor.clear_runnables(Some(buffer_id));
                     }
 

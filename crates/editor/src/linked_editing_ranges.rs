@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use collections::HashMap;
+use futures::future;
 use gpui::AppContext;
 use gpui::Context;
 use gpui::Entity;
@@ -127,7 +128,7 @@ pub(super) fn refresh_linked_ranges(editor: &mut Editor, window: &Window, cx: &C
             })
             .ok()?;
 
-        let highlights = futures::future::join_all(highlights).await;
+        let highlights = future::join_all(highlights).await;
 
         editor
             .update(cx, |this, cx| {

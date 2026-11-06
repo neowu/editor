@@ -7,6 +7,7 @@ use gpui::StyledText;
 use gpui::TextAlign;
 
 use crate::LabelLike;
+use crate::font;
 use crate::prelude::*;
 use crate::utils::replace_control_characters;
 
@@ -271,7 +272,7 @@ impl RenderOnce for Label {
         if self.render_code_spans
             && let Some((stripped, code_ranges)) = parse_backtick_spans(&self.label)
         {
-            let buffer_font_family = crate::font::buffer_font().family.clone();
+            let buffer_font_family = font::buffer_font().family.clone();
             let background_color = cx.theme().colors().element_background;
 
             let highlights = code_ranges.iter().map(|range| {

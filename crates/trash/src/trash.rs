@@ -5,6 +5,8 @@
 //! returning the trashed item and restoring on macOS, and trimmed to macOS and
 //! Linux (freedesktop).
 
+use std::os::unix;
+use std::path;
 #[cfg(target_os = "linux")]
 mod freedesktop;
 #[cfg(target_os = "macos")]
@@ -75,7 +77,7 @@ type FsError = (PathBuf, io::Error);
 
 /// Makes `path` absolute and resolves symlinks in its parent only.
 fn canonicalize_parent(path: &Path) -> Result<PathBuf, Error> {
-    let path = std::path::absolute(path).map_err(|source| Error::FileSystem { path: path.to_owned(), source })?;
+    let path = path::absolute(path).map_err(|source| Error::FileSystem { path: path.to_owned(), source })?;
     let parent = path.parent().ok_or(Error::TargetedRoot)?;
     let name = path.file_name().ok_or_else(|| Error::CanonicalizePath { original: path.clone() })?;
     let parent = parent.canonicalize().map_err(|_| Error::CanonicalizePath { original: parent.to_owned() })?;
@@ -146,7 +148,7 @@ fn copy_recursive(src: &Path, dst: &Path) -> Result<(), FsError> {
     } else if file_type.is_symlink() {
         let target = fs::read_link(src).map_err(|error| (src.to_owned(), error))?;
         let _ = fs::remove_file(dst);
-        std::os::unix::fs::symlink(target, dst).map_err(|error| (dst.to_owned(), error))?;
+        unix::fs::symlink(target, dst).map_err(|error| (dst.to_owned(), error))?;
     } else {
         fs::copy(src, dst).map_err(|error| (src.to_owned(), error))?;
     }
@@ -156,6 +158,8 @@ fn copy_recursive(src: &Path, dst: &Path) -> Result<(), FsError> {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::io::ErrorKind;
+    use std::os::unix;
 
     use crate::Error;
     use crate::delete_with_info;
@@ -172,7 +176,7 @@ mod tests {
 
         let (path, error) = move_no_replace(&src, &dst).unwrap_err();
         assert_eq!(path, dst);
-        assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(error.kind(), ErrorKind::AlreadyExists);
         assert_eq!(fs::read_to_string(&dst).unwrap(), "old");
         assert_eq!(fs::read_to_string(&src).unwrap(), "new");
     }
@@ -183,7 +187,7 @@ mod tests {
         let src = dir.path().join("src");
         fs::create_dir(&src).unwrap();
         fs::write(src.join("file"), "content").unwrap();
-        std::os::unix::fs::symlink("missing", src.join("link")).unwrap();
+        unix::fs::symlink("missing", src.join("link")).unwrap();
         let dst = dir.path().join("dst");
 
         move_no_replace(&src, &dst).unwrap();
@@ -203,7 +207,7 @@ mod tests {
         fs::create_dir(&folder).unwrap();
         fs::write(folder.join("nested"), "nested").unwrap();
         let link = dir.join("trash-roundtrip-link");
-        std::os::unix::fs::symlink(&file, &link).unwrap();
+        unix::fs::symlink(&file, &link).unwrap();
 
         let file_item = delete_with_info(&file).unwrap();
         let folder_item = delete_with_info(&folder).unwrap();

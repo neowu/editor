@@ -2,6 +2,7 @@
 
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::slice;
 
 use super::db::VennDb;
 use super::db::normalize_text;
@@ -318,7 +319,7 @@ pub(crate) fn render(model: &VennDb, options: &Options) -> Rendered {
                     attrs.push_str("\" font-size=\"");
                     push_number(&mut attrs, tiny);
                     attrs.push_str("\" fill=\"var(--_m)\"");
-                    attrs.push_str(&style_of(&styles, std::slice::from_ref(id)).text);
+                    attrs.push_str(&style_of(&styles, slice::from_ref(id)).text);
                 }
             }
             content.push_str(&label_svg(&line.label, x, y + line.label.height / 2.0, &attrs, None));

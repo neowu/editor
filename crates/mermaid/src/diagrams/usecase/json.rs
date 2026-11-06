@@ -4,6 +4,8 @@
 //! Pele parses with `JSON.parse` and walks the text again for its key order. This reads the text
 //! once, as V8's JSON parser does, and reports V8's messages at V8's positions.
 
+use std::mem;
+
 use super::lexer::push_usize;
 use super::lexer::utf16;
 use crate::error::Code;
@@ -288,7 +290,7 @@ impl V8<'_> {
                     }
                     Some(Frame::Object(node, key)) => {
                         let node = *node;
-                        let key = std::mem::take(key);
+                        let key = mem::take(key);
                         if let Some(JsonValue::Object(entries)) = self.nodes.get_mut(node) {
                             // ponytail: a linear search per key, quadratic in an object's size.
                             match entries.iter_mut().find(|(own, _)| *own == key) {

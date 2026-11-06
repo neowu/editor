@@ -1,4 +1,6 @@
+use core::cmp;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use anyhow::Context as _;
 use collections::HashSet;
@@ -1176,7 +1178,7 @@ impl PickerDelegate for BranchListDelegate {
                     fuzzy_nucleo::Case::Smart,
                     fuzzy_nucleo::LengthPenalty::On,
                     10000,
-                    &std::sync::atomic::AtomicBool::default(),
+                    &AtomicBool::default(),
                     cx.background_executor().clone(),
                 )
                 .await
@@ -1198,11 +1200,10 @@ impl PickerDelegate for BranchListDelegate {
                         if !query.is_empty() {
                             picker.delegate.matches =
                                 vec![Entry::NewRemoteName { name: query.clone(), url: url.clone() }];
-                            picker.delegate.selected_index = 0;
                         } else {
                             picker.delegate.matches = Vec::new();
-                            picker.delegate.selected_index = 0;
                         }
+                        picker.delegate.selected_index = 0;
                         picker.delegate.last_query = query;
                         return;
                     }
@@ -1241,7 +1242,7 @@ impl PickerDelegate for BranchListDelegate {
                             })
                             .unwrap_or(0);
                     } else {
-                        delegate.selected_index = core::cmp::min(delegate.selected_index, delegate.matches.len() - 1);
+                        delegate.selected_index = cmp::min(delegate.selected_index, delegate.matches.len() - 1);
                     }
                     delegate.last_query = query;
                 })

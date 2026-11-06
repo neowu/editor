@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::any::TypeId;
+use std::ops::Range;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -95,7 +96,7 @@ fn register_entry(
     let snapshot = entry.new_buffer.read(cx).snapshot();
     let diff_snapshot = entry.diff.read(cx).snapshot(cx);
 
-    let ranges: Vec<std::ops::Range<language::Point>> =
+    let ranges: Vec<Range<language::Point>> =
         diff_snapshot.hunks(&snapshot).map(|hunk| hunk.buffer_range.to_point(&snapshot)).collect();
 
     let display_rel = common_root

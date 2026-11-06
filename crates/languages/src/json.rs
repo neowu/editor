@@ -28,6 +28,7 @@ use util::rel_path::RelPath;
 use util::union_json_value_into;
 
 use crate::PackageJsonData;
+use crate::npx;
 
 pub(crate) struct JsonTaskProvider;
 
@@ -129,7 +130,7 @@ impl LspAdapter for JsonLspAdapter {
         delegate: &Arc<dyn LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
-        crate::npx::node_server_binary(
+        npx::node_server_binary(
             delegate,
             &["vscode-langservers-extracted"],
             "vscode-json-language-server",

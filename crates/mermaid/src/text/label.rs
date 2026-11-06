@@ -2,6 +2,8 @@
 //! breaks, Font Awesome icons, and wrapping. Port of Pele's `src/text/label.ts`.
 
 use std::borrow::Cow;
+use std::iter;
+use std::mem;
 
 use crate::svg::builder::js_round;
 use crate::text::entities::decode;
@@ -492,7 +494,7 @@ fn commit(
             last.width = w;
         }
     }
-    out.push(std::mem::take(current));
+    out.push(mem::take(current));
     widths.push(*width);
     *width = 0.0;
 }
@@ -536,7 +538,7 @@ fn piece_body(rest: &str) -> Option<usize> {
 /// it follows.
 fn pieces(text: &str) -> impl Iterator<Item = &str> {
     let mut rest = text;
-    std::iter::from_fn(move || {
+    iter::from_fn(move || {
         if rest.is_empty() {
             return None;
         }
@@ -786,6 +788,8 @@ fn finish(lines: Vec<Vec<Span>>, widths: Vec<f64>, size: f64, line_height: f64) 
 
 #[cfg(test)]
 mod tests {
+    use std::slice;
+
     use super::*;
 
     const JA: &str = "在庫引当の結果を基幹システムへ連携し、出荷指示を倉庫管理システムに送信して完了を確認する";
@@ -869,7 +873,7 @@ mod tests {
             ["RRCConnection-", "Reconfiguration-", "Complete"]
         );
         let short = format!("Re{SHY}con{SHY}fig");
-        assert_eq!(lines(&short, 200.0), std::slice::from_ref(&short));
+        assert_eq!(lines(&short, 200.0), slice::from_ref(&short));
         assert!((measure::width(&format!("ab{SHY}c"), 16.0, 0) - measure::width("abc", 16.0, 0)).abs() < f64::EPSILON);
     }
 

@@ -1,3 +1,4 @@
+use std::sync::atomic::AtomicBool;
 mod active_buffer_language;
 
 use std::ops::Not as _;
@@ -242,16 +243,7 @@ impl PickerDelegate for LanguageSelectorDelegate {
                     })
                     .collect()
             } else {
-                match_strings(
-                    &candidates,
-                    &query,
-                    false,
-                    true,
-                    100,
-                    &std::sync::atomic::AtomicBool::default(),
-                    background,
-                )
-                .await
+                match_strings(&candidates, &query, false, true, 100, &AtomicBool::default(), background).await
             };
 
             this.update_in(cx, |this, window, cx| {

@@ -1,3 +1,11 @@
+use std::hash::DefaultHasher;
+use std::mem;
+use std::sync::atomic::Ordering;
+
+use ed_actions::mode::Editor;
+use ed_actions::mode::Terminal;
+use futures_lite::future;
+use ui::font;
 pub mod dock;
 pub mod history_manager;
 pub mod invalid_item_view;
@@ -2090,7 +2098,7 @@ impl Workspace {
     /// Focus moved into the content pane `pane`. Coming from another content
     /// pane, records where the user was there, so going back returns to it.
     fn content_pane_focused(&mut self, pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
-        let previous = std::mem::replace(&mut self.last_content_pane, pane.downgrade());
+        let previous = mem::replace(&mut self.last_content_pane, pane.downgrade());
         if previous.entity_id() != pane.entity_id()
             && let Some(item) = previous.upgrade().and_then(|previous| previous.read(cx).active_item())
         {
@@ -2207,7 +2215,7 @@ impl Workspace {
                             .visible_worktrees(cx)
                             .find_map(|worktree| Some(worktree.read(cx).as_local()?.abs_path().to_path_buf()))
                     })
-                    .or_else(std::env::home_dir)
+                    .or_else(env::home_dir)
                     .unwrap_or_else(|| PathBuf::from(""));
                 cx.prompt_for_new_path(&relative_to, suggested_name.as_deref())
             })?;
@@ -2348,7 +2356,7 @@ impl Workspace {
                                 .unwrap_or(false);
 
                             if focus_changed {
-                                futures_lite::future::yield_now().await;
+                                future::yield_now().await;
                             }
                         }
 
@@ -3015,7 +3023,7 @@ impl Workspace {
     /// Opens all docks whose positions are stored in `last_open_dock_positions`
     /// and clears the stored positions.
     fn restore_last_open_docks(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let positions_to_open = std::mem::take(&mut self.last_open_dock_positions);
+        let positions_to_open = mem::take(&mut self.last_open_dock_positions);
 
         for position in positions_to_open {
             let dock = self.dock_at_position(position);
@@ -3977,7 +3985,7 @@ impl Workspace {
     }
 
     fn flush_deferred_saves(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let deferred = std::mem::take(&mut self.deferred_save_items);
+        let deferred = mem::take(&mut self.deferred_save_items);
         for weak_item in deferred {
             let Some(item) = weak_item.upgrade() else {
                 continue;
@@ -4894,10 +4902,10 @@ impl Workspace {
                     cx.propagate();
                 }
             }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ed_actions::mode::Editor, window, cx| {
+            .on_action(cx.listener(|workspace: &mut Workspace, _: &Editor, window, cx| {
                 workspace.set_mode(WorkspaceMode::Editor, window, cx);
             }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ed_actions::mode::Terminal, window, cx| {
+            .on_action(cx.listener(|workspace: &mut Workspace, _: &Terminal, window, cx| {
                 workspace.show_terminal_mode(true, window, cx);
             }))
             .on_action(cx.listener(|workspace: &mut Workspace, _: &CloseAllDocks, window, cx| {
@@ -5548,7 +5556,7 @@ pub fn replace_window_workspace(
 }
 
 fn px_with_ui_font_fallback(val: u32, cx: &Context<Workspace>) -> Pixels {
-    if val == 0 { ui::font::ui_font_size(cx) } else { px(val as f32) }
+    if val == 0 { font::ui_font_size(cx) } else { px(val as f32) }
 }
 
 fn adjust_active_dock_size_by_px(px: Pixels, workspace: &Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
@@ -5606,11 +5614,11 @@ impl Render for DraggedDock {
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         static FIRST_PAINT: AtomicBool = AtomicBool::new(true);
-        if FIRST_PAINT.swap(false, std::sync::atomic::Ordering::Relaxed) {
+        if FIRST_PAINT.swap(false, Ordering::Relaxed) {
             log::info!("Rendered first frame");
         }
 
-        let ui_font = ui::font::setup_ui_font(window, cx);
+        let ui_font = font::setup_ui_font(window, cx);
 
         let theme = cx.theme().clone();
         let colors = theme.colors();
@@ -6107,7 +6115,7 @@ async fn open_remote_project_inner(
 /// folders so reconnecting reuses the server's state directory.
 fn remote_workspace_connection_id(paths: &[PathBuf]) -> i64 {
     use std::hash::Hasher as _;
-    let mut hasher = std::hash::DefaultHasher::new();
+    let mut hasher = DefaultHasher::new();
     paths.hash(&mut hasher);
     (hasher.finish() >> 1).cast_signed()
 }
@@ -6372,6 +6380,9 @@ fn hidden_by_zoom(zoomed: bool, zoomed_position: Option<DockPosition>, position:
 
 #[cfg(test)]
 mod tests {
+    use ed_actions::mode::Editor;
+    use ed_actions::mode::GitHistory;
+
     use super::WorkspaceMode;
 
     #[test]
@@ -6379,8 +6390,8 @@ mod tests {
         use gpui::Action;
 
         // The built-in keymap binds `cmd-1` / `cmd-2` by these names.
-        assert_eq!(ed_actions::mode::Editor::name_for_type(), "mode::Editor");
-        assert_eq!(ed_actions::mode::GitHistory::name_for_type(), "mode::GitHistory");
+        assert_eq!(Editor::name_for_type(), "mode::Editor");
+        assert_eq!(GitHistory::name_for_type(), "mode::GitHistory");
     }
 
     #[test]

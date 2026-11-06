@@ -89,12 +89,10 @@ impl TaskTemplate {
         }
         .lines()
         .fold(String::new(), |mut string, line| {
-            if string.is_empty() {
-                string.push_str(line);
-            } else {
+            if !string.is_empty() {
                 string.push_str("\\n");
-                string.push_str(line);
             }
+            string.push_str(line);
             string
         });
 
@@ -226,4 +224,22 @@ fn substitute_all_template_variables_in_map(
     }
 
     Some(new_map)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_task_preserves_multiline_labels_and_escapes_display_newlines() {
+        let template = TaskTemplate { label: "Build\n\nRun".into(), command: "echo".into(), ..TaskTemplate::default() };
+        let task = template.resolve_task("test", &TaskContext::default()).unwrap();
+        assert_eq!(task.resolved_label, "Build\n\nRun");
+        assert_eq!(task.resolved.full_label, "Build\n\nRun");
+        assert_eq!(task.resolved.label, "Build\\n\\nRun");
+
+        let template = TaskTemplate { label: "Build".into(), ..template };
+        let task = template.resolve_task("test", &TaskContext::default()).unwrap();
+        assert_eq!(task.resolved.label, "Build");
+    }
 }

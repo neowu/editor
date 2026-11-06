@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use editor::Editor;
 use editor::EditorEvent;
 use gpui::Action;
@@ -14,6 +16,7 @@ use ui::prelude::*;
 use workspace::Item;
 use workspace::Pane;
 use workspace::Workspace;
+use workspace::preview;
 
 use crate::parser::EditorState;
 pub use crate::table_view::CellSelection;
@@ -53,14 +56,14 @@ pub struct TabularDataPreviewPane {
     pub(crate) is_parsing: bool,
     pub(crate) parse_error: Option<SharedString>,
     /// Time when the last parsing operation ended, used for smart debouncing
-    pub(crate) last_parse_end_time: Option<std::time::Instant>,
+    pub(crate) last_parse_end_time: Option<Instant>,
     /// Forwards the table's notifications so observers of this pane (e.g. `cx.condition` in
     /// tests, or anything watching for the mapping/list-state to settle) see them too.
     _table_subscription: gpui::Subscription,
 }
 
 pub fn init(cx: &mut App) {
-    workspace::preview::register_preview_provider(preview_provider::PROVIDER, cx);
+    preview::register_preview_provider(preview_provider::PROVIDER, cx);
 }
 
 impl TabularDataPreviewPane {

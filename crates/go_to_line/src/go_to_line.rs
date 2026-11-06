@@ -1,3 +1,4 @@
+use editor::actions::ToggleGoToLine;
 pub mod cursor_position;
 
 use cursor_position::UserCaretPosition;
@@ -64,7 +65,7 @@ impl GoToLine {
     fn register(editor: &mut Editor, _window: Option<&mut Window>, cx: &mut Context<Editor>) {
         let handle = cx.entity().downgrade();
         editor
-            .register_action(move |_: &editor::actions::ToggleGoToLine, window, cx| {
+            .register_action(move |_: &ToggleGoToLine, window, cx| {
                 let Some(editor_handle) = handle.upgrade() else {
                     return;
                 };

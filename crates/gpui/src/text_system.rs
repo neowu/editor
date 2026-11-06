@@ -1,3 +1,8 @@
+use std::future;
+use std::iter;
+use std::mem;
+use std::result;
+use std::task::Poll;
 mod font_fallbacks;
 mod font_features;
 mod line;
@@ -185,12 +190,12 @@ impl MissingGlyphReceiver {
     /// # Errors
     ///
     /// Returns [`async_channel::RecvError`] if the reporting channel is closed.
-    pub(crate) async fn recv(&mut self) -> std::result::Result<Vec<MissingGlyph>, async_channel::RecvError> {
+    pub(crate) async fn recv(&mut self) -> result::Result<Vec<MissingGlyph>, async_channel::RecvError> {
         loop {
             let queued = self.receiver.recv().await?;
             let mut missing_glyphs = Vec::new();
-            for queued in std::iter::once(queued)
-                .chain(std::iter::from_fn(|| self.receiver.try_recv().ok()))
+            for queued in iter::once(queued)
+                .chain(iter::from_fn(|| self.receiver.try_recv().ok()))
                 .take(MAX_REPORTED_MISSING_GLYPHS)
             {
                 let generation = self.generation.load(Ordering::Acquire);
@@ -215,12 +220,12 @@ impl MissingGlyphReceiver {
             // A producer can keep refilling the queue with already-reported
             // glyphs. Bound work per poll even when every report is filtered out.
             let mut yielded = false;
-            std::future::poll_fn(|cx| {
-                if std::mem::replace(&mut yielded, true) {
-                    std::task::Poll::Ready(())
+            future::poll_fn(|cx| {
+                if mem::replace(&mut yielded, true) {
+                    Poll::Ready(())
                 } else {
                     cx.waker().wake_by_ref();
-                    std::task::Poll::Pending
+                    Poll::Pending
                 }
             })
             .await;
@@ -834,7 +839,7 @@ impl DerefMut for LineWrapperHandle {
 pub struct FontWeight(pub f32);
 
 impl Display for FontWeight {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
 }

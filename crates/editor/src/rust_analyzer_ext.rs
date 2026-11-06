@@ -1,6 +1,7 @@
 use std::fs;
 
 use anyhow::Context as _;
+use futures::future;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Context;
@@ -13,6 +14,7 @@ use language::proto::serialize_anchor;
 use multi_buffer::MultiBuffer;
 use project::ProjectItem;
 use project::lsp_command::location_link_from_proto;
+use project::lsp_store::lsp_ext_command;
 use project::lsp_store::lsp_ext_command::DocsUrls;
 use project::lsp_store::lsp_ext_command::ExpandMacro;
 use project::lsp_store::lsp_ext_command::ExpandedMacro;
@@ -94,7 +96,7 @@ pub fn go_to_parent_module(editor: &mut Editor, _: &GoToParentModule, window: &m
                 server_id: server_to_query.to_proto(),
             };
             let response = client.request(request).await.context("lsp ext go to parent module proto request")?;
-            futures::future::join_all(
+            future::join_all(
                 response.links.into_iter().map(|link| location_link_from_proto(link, lsp_store.clone(), cx)),
             )
             .await
@@ -109,7 +111,7 @@ pub fn go_to_parent_module(editor: &mut Editor, _: &GoToParentModule, window: &m
                     project.request_lsp(
                         buffer,
                         project::LanguageServerToQuery::Other(server_to_query),
-                        project::lsp_store::lsp_ext_command::GoToParentModule { position, server_id: server_to_query },
+                        lsp_ext_command::GoToParentModule { position, server_id: server_to_query },
                         cx,
                     )
                 })
@@ -247,7 +249,7 @@ pub fn open_docs(editor: &mut Editor, _: &OpenDocs, window: &mut Window, cx: &mu
                     project.request_lsp(
                         buffer,
                         project::LanguageServerToQuery::Other(server_to_query),
-                        project::lsp_store::lsp_ext_command::OpenDocs { position, server_id: server_to_query },
+                        lsp_ext_command::OpenDocs { position, server_id: server_to_query },
                         cx,
                     )
                 })

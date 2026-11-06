@@ -75,6 +75,7 @@ use workspace::SaveIntent;
 use workspace::Workspace;
 use workspace::item::Item;
 use workspace::item::ItemBufferKind;
+use workspace::item::ItemEvent;
 use workspace::item::ItemHandle;
 use workspace::item::SaveOptions;
 use workspace::item::SerializableItem;
@@ -864,7 +865,7 @@ impl MarkdownPreviewView {
 
     fn apply_checkbox_toggle_to_editor(
         editor: &Entity<Editor>,
-        source_range: std::ops::Range<usize>,
+        source_range: Range<usize>,
         new_checked: bool,
         cx: &mut App,
     ) {
@@ -1371,11 +1372,11 @@ impl Item for MarkdownPreviewView {
         Task::ready(Ok(()))
     }
 
-    fn to_item_events(event: &Self::Event, f: &mut dyn FnMut(workspace::item::ItemEvent)) {
+    fn to_item_events(event: &Self::Event, f: &mut dyn FnMut(ItemEvent)) {
         match event {
             MarkdownPreviewEvent::SourceEditorChanged | MarkdownPreviewEvent::SourceFileHandleChanged => {
-                f(workspace::item::ItemEvent::UpdateTab);
-                f(workspace::item::ItemEvent::UpdateActivePath);
+                f(ItemEvent::UpdateTab);
+                f(ItemEvent::UpdateActivePath);
             }
         }
     }

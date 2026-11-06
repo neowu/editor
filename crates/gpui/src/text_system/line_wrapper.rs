@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::iter;
+use std::mem;
 use std::sync::Arc;
 
 use collections::HashMap;
@@ -542,7 +543,7 @@ fn update_runs_after_truncation(result: &str, ellipsis: &str, runs: &mut Vec<Tex
                     truncate_at -= run.len;
                 } else {
                     run.len = truncate_at + ellipsis.len();
-                    runs.splice(..run_index, std::iter::empty());
+                    runs.splice(..run_index, iter::empty());
                     break;
                 }
             }
@@ -570,7 +571,7 @@ fn update_runs_after_middle_truncation(
     front_end_ix: usize,
     back_start_ix: usize,
 ) {
-    let original_runs = std::mem::take(runs);
+    let original_runs = mem::take(runs);
     let mut result_runs: Vec<TextRun> = Vec::with_capacity(original_runs.len());
 
     // Front segment [0, front_end_ix) + ellipsis: walk forward until the run

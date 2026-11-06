@@ -1,3 +1,9 @@
+use std::borrow::Cow;
+use std::iter;
+use std::slice;
+use std::str;
+
+use futures::future;
 mod ignore;
 mod worktree_settings;
 
@@ -1207,7 +1213,10 @@ impl LocalWorktree {
                 let (events, watcher) = if scanning_enabled {
                     fs.watch(&abs_path, FS_WATCH_LATENCY).await
                 } else {
-                    (Box::pin(stream::pending()) as _, Arc::new(NullWatcher) as _)
+                    (
+                        Box::pin(stream::pending()) as Pin<Box<dyn Stream<Item = Vec<PathEvent>> + Send>>,
+                        Arc::new(NullWatcher) as Arc<dyn Watcher>,
+                    )
                 };
                 let fs_case_sensitive = fs.is_case_sensitive().await;
 
@@ -2021,10 +2030,9 @@ impl RemoteWorktree {
     }
 
     fn delete_entry(&self, entry_id: ProjectEntryId, cx: &Context<Worktree>) -> Task<Result<()>> {
-        let response = self.client.request(proto::DeleteProjectEntry {
-            project_id: self.project_id,
-            entry_id: entry_id.to_proto(),
-        });
+        let response = self
+            .client
+            .request(proto::DeleteProjectEntry { project_id: self.project_id, entry_id: entry_id.to_proto() });
 
         cx.spawn(async move |this, cx| {
             let response = response.await?;
@@ -3151,8 +3159,8 @@ impl language::File for File {
         self.worktree.read(cx).is_visible()
     }
 
-    fn to_proto(&self, cx: &App) -> rpc::proto::File {
-        rpc::proto::File {
+    fn to_proto(&self, cx: &App) -> proto::File {
+        proto::File {
             worktree_id: self.worktree.read(cx).id().to_proto(),
             entry_id: self.entry_id.map(|id| id.to_proto()),
             path: self.path.as_ref().as_unix_str().to_owned(),
@@ -3202,7 +3210,7 @@ impl File {
         })
     }
 
-    pub fn from_proto(proto: rpc::proto::File, worktree: Entity<Worktree>, cx: &App) -> Result<Self> {
+    pub fn from_proto(proto: proto::File, worktree: Entity<Worktree>, cx: &App) -> Result<Self> {
         let worktree_id = worktree.read(cx).as_remote().context("not remote")?.id();
 
         anyhow::ensure!(worktree_id.to_proto() == proto.worktree_id, "worktree id does not match file");
@@ -3683,11 +3691,11 @@ impl BackgroundScanner {
             if is_file {
                 self.fs.watch(global_gitignore_path, FS_WATCH_LATENCY).await.0
             } else {
-                Box::pin(futures::stream::pending())
+                Box::pin(stream::pending())
             }
         } else {
             self.state.lock().await.snapshot.global_gitignore = None;
-            Box::pin(futures::stream::pending())
+            Box::pin(stream::pending())
         };
 
         let (scan_job_tx, scan_job_rx) = async_channel::unbounded();
@@ -3777,7 +3785,7 @@ impl BackgroundScanner {
 
                     log::trace!("adding path prefix {:?}", request.path);
 
-                    let did_scan = self.forcibly_load_paths(std::slice::from_ref(&request.path)).await;
+                    let did_scan = self.forcibly_load_paths(slice::from_ref(&request.path)).await;
                     if did_scan {
                         let abs_path =
                         {
@@ -3836,7 +3844,7 @@ impl BackgroundScanner {
             let root = &state.snapshot.abs_path;
             let root = self.fs.canonicalize(root.as_path()).await.unwrap_or_else(|_| root.as_path().to_path_buf());
             let git_dirs = state.snapshot.git_repositories.values().map(|repo| repo.dot_git_abs_path.to_path_buf());
-            std::iter::once(root)
+            iter::once(root)
                 .chain(git_dirs)
                 .map(|path| PathEvent { path, kind: Some(PathEventKind::Rescan) })
                 .collect::<Vec<_>>()
@@ -4205,7 +4213,7 @@ impl BackgroundScanner {
                 {
                     path
                 } else if let Some(path) = snapshot.relative_path_for_external_abs_path(abs_path.as_path()) {
-                    std::borrow::Cow::Owned(path)
+                    Cow::Owned(path)
                 } else {
                     skip_ix(&mut ranges_to_drop, ix);
                     continue;
@@ -4691,7 +4699,7 @@ impl BackgroundScanner {
         scan_queue_tx: Option<Sender<ScanJob>>,
     ) {
         // grab metadata for all requested paths
-        let metadata = futures::future::join_all(
+        let metadata = future::join_all(
             abs_paths
                 .iter()
                 .map(|abs_path| async move {
@@ -5197,7 +5205,7 @@ impl BackgroundScanner {
 
     async fn progress_timer(&self, running: bool) {
         if !running {
-            return futures::future::pending().await;
+            return future::pending().await;
         }
 
         self.executor.timer(FS_WATCH_LATENCY).await
@@ -5913,7 +5921,7 @@ async fn stream_utf8_into_rope(
         }
 
         // Decode as much of `pending` as forms complete UTF-8.
-        let valid_len = match std::str::from_utf8(&pending) {
+        let valid_len = match str::from_utf8(&pending) {
             Ok(_) => pending.len(),
             // A multi-byte character straddling the block boundary; the rest of
             // it arrives with the next block.
@@ -5925,8 +5933,7 @@ async fn stream_utf8_into_rope(
         // Hold back a trailing carriage return until we know what follows it.
         let emit_len = if !eof && valid_len > 0 && pending[valid_len - 1] == b'\r' { valid_len - 1 } else { valid_len };
 
-        let text =
-            std::str::from_utf8(&pending[..emit_len]).expect("a prefix of validated UTF-8 is itself valid UTF-8");
+        let text = str::from_utf8(&pending[..emit_len]).expect("a prefix of validated UTF-8 is itself valid UTF-8");
 
         // ISO-2022-JP and friends are valid UTF-8 but carry escape sequences, so
         // they need the full-file encoding detector rather than this fast path.

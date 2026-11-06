@@ -7,6 +7,8 @@ use std::collections::BTreeSet;
 
 use super::db::ErDb;
 use super::types::ErAttribute;
+use crate::error;
+use crate::text::label;
 
 /// A drawn node.
 #[derive(Clone, Debug)]
@@ -73,8 +75,8 @@ pub(crate) fn build(model: &ErDb) -> ErGraph<'_> {
             let Some(def) = model.classes.get(name) else {
                 continue;
             };
-            out.extend(def.styles.iter().map(|style| crate::text::label::trim(style).to_owned()));
-            out.extend(def.text_styles.iter().map(|style| crate::text::label::trim(style).to_owned()));
+            out.extend(def.styles.iter().map(|style| label::trim(style).to_owned()));
+            out.extend(def.text_styles.iter().map(|style| label::trim(style).to_owned()));
         }
         out
     };
@@ -132,7 +134,7 @@ pub(crate) fn build(model: &ErDb) -> ErGraph<'_> {
         id.push('_');
         id.push_str(&relationship.entity_b);
         id.push('_');
-        crate::error::push_u32(&mut id, u32::try_from(index).unwrap_or(u32::MAX));
+        error::push_u32(&mut id, u32::try_from(index).unwrap_or(u32::MAX));
         let a = relationship.entity_a.as_str();
         let b = relationship.entity_b.as_str();
         edges.push(ErGraphEdge {

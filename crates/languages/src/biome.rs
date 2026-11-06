@@ -15,6 +15,8 @@ use project::lsp_store::language_server_settings;
 use serde_json::Value;
 use serde_json::json;
 
+use crate::npx;
+
 /// Biome's language server (`biome lsp-proxy`): lint diagnostics and code actions
 /// (quick fixes, `source.fixAll.biome`, `source.organizeImports.biome`).
 /// Formatting stays on the Biome CLI (see `project::biome`).
@@ -59,7 +61,7 @@ impl LspAdapter for BiomeLspAdapter {
                 });
             }
         }
-        crate::npx::node_server_binary(delegate, &[Self::NPX_PACKAGE], "biome", Self::ARGUMENTS).await
+        npx::node_server_binary(delegate, &[Self::NPX_PACKAGE], "biome", Self::ARGUMENTS).await
     }
 
     async fn workspace_configuration(

@@ -1,5 +1,11 @@
+use std::fmt;
 use std::fmt::Display;
+use std::fmt::Formatter;
 
+use ed_actions::git::Branch;
+use ed_actions::git::CheckoutBranch;
+use ed_actions::git::Switch;
+use ed_actions::git::ViewStash;
 use gpui::App;
 use gpui::Context;
 use gpui::DismissEvent;
@@ -53,7 +59,7 @@ pub enum GitPickerTab {
 }
 
 impl Display for GitPickerTab {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let label = match self {
             GitPickerTab::Branches => "Branches",
             GitPickerTab::Stashes => "Stashes",
@@ -441,21 +447,11 @@ impl Render for GitPicker {
     }
 }
 
-pub fn open_branches(
-    workspace: &mut Workspace,
-    _: &ed_actions::git::Branch,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) {
+pub fn open_branches(workspace: &mut Workspace, _: &Branch, window: &mut Window, cx: &mut Context<Workspace>) {
     open_with_tab(workspace, GitPickerTab::Branches, window, cx);
 }
 
-pub fn open_stash(
-    workspace: &mut Workspace,
-    _: &ed_actions::git::ViewStash,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) {
+pub fn open_stash(workspace: &mut Workspace, _: &ViewStash, window: &mut Window, cx: &mut Context<Workspace>) {
     open_with_tab(workspace, GitPickerTab::Stashes, window, cx);
 }
 
@@ -483,16 +479,16 @@ pub fn popover(
 }
 
 pub fn register(workspace: &mut Workspace) {
-    workspace.register_action(|workspace, _: &ed_actions::git::Branch, window, cx| {
+    workspace.register_action(|workspace, _: &Branch, window, cx| {
         open_with_tab(workspace, GitPickerTab::Branches, window, cx);
     });
-    workspace.register_action(|workspace, _: &ed_actions::git::Switch, window, cx| {
+    workspace.register_action(|workspace, _: &Switch, window, cx| {
         open_with_tab(workspace, GitPickerTab::Branches, window, cx);
     });
-    workspace.register_action(|workspace, _: &ed_actions::git::CheckoutBranch, window, cx| {
+    workspace.register_action(|workspace, _: &CheckoutBranch, window, cx| {
         open_with_tab(workspace, GitPickerTab::Branches, window, cx);
     });
-    workspace.register_action(|workspace, _: &ed_actions::git::ViewStash, window, cx| {
+    workspace.register_action(|workspace, _: &ViewStash, window, cx| {
         open_with_tab(workspace, GitPickerTab::Stashes, window, cx);
     });
 }

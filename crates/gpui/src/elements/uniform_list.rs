@@ -64,7 +64,11 @@ where
         item_to_measure_index: 0,
         render_items: Box::new(render_range),
         decorations: Vec::new(),
-        interactivity: Interactivity { element_id: Some(id), base_style: Box::new(base_style), ..Interactivity::default() },
+        interactivity: Interactivity {
+            element_id: Some(id),
+            base_style: Box::new(base_style),
+            ..Interactivity::default()
+        },
         scroll_handle: None,
         sizing_behavior: ListSizingBehavior::default(),
         horizontal_sizing_behavior: ListHorizontalSizingBehavior::default(),

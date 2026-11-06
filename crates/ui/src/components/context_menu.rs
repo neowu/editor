@@ -49,6 +49,7 @@ use crate::ListItemSpacing;
 use crate::ListSeparator;
 use crate::ListSubHeader;
 use crate::Tooltip;
+use crate::font;
 use crate::prelude::*;
 use crate::utils::WithRemSize;
 
@@ -1932,8 +1933,8 @@ impl ContextMenuItem {
 
 impl Render for ContextMenu {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let ui_font_size = crate::font::ui_font_size(cx);
-        let ui_font_family = crate::font::ui_font().family.clone();
+        let ui_font_size = font::ui_font_size(cx);
+        let ui_font_family = font::ui_font().family.clone();
         // Menus can be deferred from inside elements that override the text
         // style (e.g. the editor with a custom `buffer_line_height`), so always
         // apply the default line height to render the same everywhere.

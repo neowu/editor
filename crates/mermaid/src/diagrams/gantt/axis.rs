@@ -2,6 +2,8 @@
 //! Mermaid uses: the `axisFormat` specifiers, tick intervals with d3's `every` rule, and its choice
 //! of automatic ticks. Port of Pele's `src/diagrams/gantt/axis.ts`.
 
+use std::f64::consts::SQRT_2;
+
 use super::dates::MONTHS;
 use super::dates::WEEKDAYS;
 use super::dates::index;
@@ -253,7 +255,7 @@ fn tick_step(start: f64, stop: f64, count: f64) -> f64 {
         10.0
     } else if error >= 10f64.sqrt() {
         5.0
-    } else if error >= std::f64::consts::SQRT_2 {
+    } else if error >= SQRT_2 {
         2.0
     } else {
         1.0

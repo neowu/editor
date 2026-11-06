@@ -1,7 +1,9 @@
 //! Headless event loop for the remote server on macOS and Linux. No display server or GPU is used.
 
 use std::cell::RefCell;
+use std::env;
 use std::ffi::OsString;
+use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -106,7 +108,7 @@ impl PlatformDispatcher for Dispatcher {
     fn dispatch_on_main_thread(&self, runnable: RunnableVariant, _priority: Priority) {
         if let Err(error) = self.main_sender.send(MainEvent::Run(runnable)) {
             // A local future must not be dropped on a worker during shutdown.
-            std::mem::forget(error);
+            mem::forget(error);
         }
     }
 
@@ -215,7 +217,7 @@ impl Platform for HeadlessPlatform {
         Task::ready(Ok(ActivityGuard::noop()))
     }
     fn app_path(&self) -> Result<PathBuf> {
-        Ok(std::env::current_exe()?)
+        Ok(env::current_exe()?)
     }
     fn set_cursor_style(&self, _style: CursorStyle) {}
     fn hide_cursor_until_mouse_moves(&self) {}

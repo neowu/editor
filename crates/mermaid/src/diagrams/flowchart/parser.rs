@@ -2,6 +2,7 @@
 //! same errors at the same tokens. Port of Pele's `src/diagrams/flowchart/parser.ts`.
 
 use std::borrow::Cow;
+use std::mem;
 
 use super::db::FlowDb;
 use super::db::js_trim;
@@ -747,7 +748,7 @@ impl Parser<'_, '_> {
                 self.i += 1;
             } else if t == T::Subgraph {
                 let mut frame = self.subgraph_header()?;
-                frame.list = std::mem::take(&mut list);
+                frame.list = mem::take(&mut list);
                 frame.collect = collect;
                 open.push(frame);
                 collect = true;

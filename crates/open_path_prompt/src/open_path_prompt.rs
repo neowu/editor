@@ -126,7 +126,7 @@ struct CandidateInfo {
 impl OpenPathPrompt {
     pub fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
         workspace.set_prompt_for_open_path(Box::new(|workspace, lister, window, cx| {
-            let (tx, rx) = futures::channel::oneshot::channel();
+            let (tx, rx) = oneshot::channel();
             Self::prompt_for_open_path(workspace, lister, false, None, tx, window, cx);
             rx
         }));
@@ -134,7 +134,7 @@ impl OpenPathPrompt {
 
     pub fn register_new_path(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
         workspace.set_prompt_for_new_path(Box::new(|workspace, lister, suggested_name, window, cx| {
-            let (tx, rx) = futures::channel::oneshot::channel();
+            let (tx, rx) = oneshot::channel();
             Self::prompt_for_new_path(workspace, lister, suggested_name, tx, window, cx);
             rx
         }));

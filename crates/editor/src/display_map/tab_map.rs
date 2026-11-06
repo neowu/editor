@@ -1,6 +1,9 @@
 use std::cmp;
 use std::num::NonZeroU32;
+use std::ops::AddAssign;
+use std::ops::Deref;
 use std::ops::Range;
+use std::str;
 
 use language::LanguageAwareStyling;
 use language::Point;
@@ -210,7 +213,7 @@ pub struct TabSnapshot {
     pub version: usize,
 }
 
-impl std::ops::Deref for TabSnapshot {
+impl Deref for TabSnapshot {
     type Target = FoldSnapshot;
 
     fn deref(&self) -> &Self::Target {
@@ -300,7 +303,7 @@ impl TabSnapshot {
             max_output_position: range.end.0,
             tab_size: self.tab_size,
             chunk: Chunk {
-                text: unsafe { std::str::from_utf8_unchecked(&SPACES[..to_next_stop as usize]) },
+                text: unsafe { str::from_utf8_unchecked(&SPACES[..to_next_stop as usize]) },
                 is_tab: true,
                 chars: u128::MAX.unbounded_shr(u128::BITS - to_next_stop),
                 ..Default::default()
@@ -552,7 +555,7 @@ impl<'a> From<&'a str> for TextSummary {
     }
 }
 
-impl<'a> std::ops::AddAssign<&'a Self> for TextSummary {
+impl<'a> AddAssign<&'a Self> for TextSummary {
     fn add_assign(&mut self, other: &'a Self) {
         let joined_chars = self.last_line_chars + other.first_line_chars;
         if joined_chars > self.longest_row_chars {
@@ -613,7 +616,7 @@ impl TabChunks<'_> {
         self.output_position = range.start.0;
         self.max_output_position = range.end.0;
         self.chunk = Chunk {
-            text: unsafe { std::str::from_utf8_unchecked(&SPACES[..to_next_stop as usize]) },
+            text: unsafe { str::from_utf8_unchecked(&SPACES[..to_next_stop as usize]) },
             is_tab: true,
             chars: u128::MAX.unbounded_shr(u128::BITS - to_next_stop),
             ..Default::default()
@@ -654,7 +657,7 @@ impl<'a> Iterator for TabChunks<'a> {
             self.output_position = next_output_position;
 
             return Some(Chunk {
-                text: unsafe { std::str::from_utf8_unchecked(&SPACES[..len as usize]) },
+                text: unsafe { str::from_utf8_unchecked(&SPACES[..len as usize]) },
                 is_tab: true,
                 chars: u128::MAX.unbounded_shr(u128::BITS - len),
                 tabs: 0,

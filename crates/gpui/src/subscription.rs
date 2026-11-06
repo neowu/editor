@@ -1,6 +1,8 @@
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::fmt;
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::mem;
 use std::rc::Rc;
 
@@ -252,8 +254,8 @@ impl Drop for Subscription {
     }
 }
 
-impl std::fmt::Debug for Subscription {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for Subscription {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Subscription").finish()
     }
 }

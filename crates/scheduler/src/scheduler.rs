@@ -1,3 +1,4 @@
+use std::thread::Builder;
 mod clock;
 mod executor;
 
@@ -160,7 +161,7 @@ where
 fn spawn_dedicated_os_thread(session_id: SessionId, thread_body: impl FnOnce() + Send + 'static) {
     let thread_name = format!("spawn_dedicated session {:?}", session_id);
 
-    std::thread::Builder::new().name(thread_name).spawn(thread_body).expect("failed to spawn dedicated thread");
+    Builder::new().name(thread_name).spawn(thread_body).expect("failed to spawn dedicated thread");
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]

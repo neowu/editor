@@ -131,6 +131,8 @@
 //! List of "tainted files" that the user may not operate on
 
 use std::collections::VecDeque;
+use std::io;
+use std::io::ErrorKind;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
@@ -417,8 +419,8 @@ pub(crate) fn project_path_display(project: &Project, project_path: &ProjectPath
 
 pub(crate) fn already_exists_error(err: &anyhow::Error) -> bool {
     err.chain().any(|cause| {
-        if let Some(io_err) = cause.downcast_ref::<std::io::Error>() {
-            io_err.kind() == std::io::ErrorKind::AlreadyExists
+        if let Some(io_err) = cause.downcast_ref::<io::Error>() {
+            io_err.kind() == ErrorKind::AlreadyExists
         } else if let Some(rpc_error) = cause.downcast_ref::<RpcError>() {
             rpc_error.error_code() == ErrorCode::AlreadyExists
         } else {

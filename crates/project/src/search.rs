@@ -3,6 +3,8 @@ use std::collections::BTreeSet;
 use std::io::Read;
 use std::io::{self};
 use std::ops::Range;
+use std::result;
+use std::str as std_str;
 use std::sync::Arc;
 use std::sync::LazyLock;
 
@@ -464,7 +466,7 @@ impl SearchQuery {
                         yield_now().await;
                     }
 
-                    if let std::result::Result::Ok(mat) = mat {
+                    if let result::Result::Ok(mat) = mat {
                         let should_push = if *one_match_per_line {
                             // ensure that only one match per line is returned.
                             let pos = buffer.offset_to_point(mat.start());
@@ -608,7 +610,7 @@ async fn detect_single_line(search: &AhoCorasick, reader: &mut (dyn Read + Send)
             Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
             result => result,
         };
-        if let std::result::Result::Ok(read) = read_result {
+        if let result::Result::Ok(read) = read_result {
             window.extend(&block[..read], batch_size + carry_len)?;
             if read > 0 && window.bytes.len() < batch_end {
                 yield_now().await;
@@ -674,7 +676,7 @@ impl TextSearchWindow {
                 self.bytes.len()
             }
         });
-        self.validated_len += match std::str::from_utf8(&self.bytes[self.validated_len..validation_end]) {
+        self.validated_len += match std_str::from_utf8(&self.bytes[self.validated_len..validation_end]) {
             Err(error) if error.error_len().is_some() => return Err(invalid_data()),
             Err(error) => error.valid_up_to(),
             _ => validation_end - self.validated_len,

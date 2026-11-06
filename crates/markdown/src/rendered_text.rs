@@ -1,3 +1,5 @@
+use std::cmp;
+
 use super::*;
 
 /// Wraps a rendered line so its code chips and highlights share the glyphs'
@@ -614,7 +616,7 @@ impl RenderedText {
             let mut prev_chars = text[..rendered_index_in_line].chars().rev().peekable();
             let mut next_chars = text[rendered_index_in_line..].chars().peekable();
 
-            let word_kind = std::cmp::max(
+            let word_kind = cmp::max(
                 prev_chars.peek().map(|&c| classifier.kind(c)),
                 next_chars.peek().map(|&c| classifier.kind(c)),
             );

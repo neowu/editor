@@ -2,6 +2,7 @@
 //! `src/diagrams/requirement/db.ts`.
 
 use std::collections::BTreeMap;
+use std::mem;
 
 use super::types::Relation;
 use super::types::Requirement;
@@ -143,10 +144,10 @@ impl RequirementDb {
             let requirement = Requirement {
                 name: name.to_owned(),
                 r#type: r#type.to_owned(),
-                requirement_id: std::mem::take(&mut self.new_id),
-                text: std::mem::take(&mut self.new_text),
-                risk: std::mem::take(&mut self.new_risk),
-                verify_method: std::mem::take(&mut self.new_verify_method),
+                requirement_id: mem::take(&mut self.new_id),
+                text: mem::take(&mut self.new_text),
+                risk: mem::take(&mut self.new_risk),
+                verify_method: mem::take(&mut self.new_verify_method),
                 css_styles: Vec::new(),
                 classes: vec!["default".to_owned()],
             };
@@ -183,8 +184,8 @@ impl RequirementDb {
         if !self.elements.has(name) {
             let element = RequirementElement {
                 name: name.to_owned(),
-                r#type: std::mem::take(&mut self.new_element_type),
-                doc_ref: std::mem::take(&mut self.new_doc_ref),
+                r#type: mem::take(&mut self.new_element_type),
+                doc_ref: mem::take(&mut self.new_doc_ref),
                 css_styles: Vec::new(),
                 classes: vec!["default".to_owned()],
             };

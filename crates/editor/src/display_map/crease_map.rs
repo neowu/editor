@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
+use std::fmt;
 use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -191,11 +193,11 @@ impl<T> Crease<T> {
     }
 }
 
-impl<T> std::fmt::Debug for Crease<T>
+impl<T> Debug for Crease<T>
 where
     T: Debug,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             Crease::Inline { range, metadata, .. } => f
                 .debug_struct("Crease::Inline")

@@ -1,6 +1,8 @@
 //! Mermaid's box-drawing preprocessor: turns `├──`, `└──`, `│` (and the heavy variants) into the
 //! indentation the grammar reads. Port of Pele's `src/diagrams/treeview/boxDrawing.ts`.
 
+use std::borrow::Cow;
+
 use crate::error::Code;
 use crate::error::Error;
 use crate::error::push_u32;
@@ -96,7 +98,7 @@ pub(crate) struct Preprocessed<'a> {
     /// Output line number to original line number, in output order.
     pub(crate) line_map: Vec<(u32, u32)>,
     /// The text the grammar reads.
-    pub(crate) text: std::borrow::Cow<'a, str>,
+    pub(crate) text: Cow<'a, str>,
 }
 
 impl Preprocessed<'_> {
@@ -171,7 +173,7 @@ fn fail(line: usize, message: &str) -> Error {
 /// Returns a syntax error for a branch with no name after it, or an indented line without
 /// box-drawing characters.
 pub(crate) fn preprocess_box_drawing(input: &str) -> Result<Preprocessed<'_>, Error> {
-    let unchanged = || Preprocessed { line_map: Vec::new(), text: std::borrow::Cow::Borrowed(input) };
+    let unchanged = || Preprocessed { line_map: Vec::new(), text: Cow::Borrowed(input) };
     if !input.contains(is_box) {
         return Ok(unchanged());
     }
@@ -245,5 +247,5 @@ pub(crate) fn preprocess_box_drawing(input: &str) -> Result<Preprocessed<'_>, Er
             keep(&mut out, line.to_owned(), i);
         }
     }
-    Ok(Preprocessed { line_map, text: std::borrow::Cow::Owned(out.join("\n")) })
+    Ok(Preprocessed { line_map, text: Cow::Owned(out.join("\n")) })
 }

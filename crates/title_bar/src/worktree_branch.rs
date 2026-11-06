@@ -1,3 +1,5 @@
+use ed_actions::git::Branch;
+use ed_actions::git::Worktree;
 use git::status::GitSummary;
 use git_ui_core::worktree_picker::WorktreePicker;
 use gpui::AnyElement;
@@ -100,7 +102,7 @@ impl TitleBar {
                     move |_window, cx| {
                         Tooltip::with_meta(
                             "Worktree",
-                            Some(&ed_actions::git::Worktree),
+                            Some(&Worktree),
                             format!("Currently In Use: {worktree_label}"),
                             cx,
                         )
@@ -129,7 +131,7 @@ impl TitleBar {
                     git_ui_core::build_branch_picker(workspace.downgrade(), Some(repository.clone()), window, cx)
                 })
                 .trigger_with_tooltip(trigger, move |_window, cx| {
-                    Tooltip::with_meta("Branch & Stash", Some(&ed_actions::git::Branch), tooltip_meta.clone(), cx)
+                    Tooltip::with_meta("Branch & Stash", Some(&Branch), tooltip_meta.clone(), cx)
                 })
                 .anchor(gpui::Anchor::TopLeft)
         });

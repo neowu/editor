@@ -1,3 +1,4 @@
+use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -21,6 +22,7 @@ use language::point_to_lsp;
 use language::proto::deserialize_lsp_edit;
 use language::proto::serialize_lsp_edit;
 use lsp::LanguageServerId;
+use lsp::request::ColorPresentationRequest;
 use rpc::TypedEnvelope;
 use rpc::proto;
 use settings::Settings as _;
@@ -46,7 +48,7 @@ pub struct DocumentColors {
     pub colors: HashSet<DocumentColor>,
 }
 
-pub(super) type DocumentColorTask = Shared<Task<std::result::Result<DocumentColors, Arc<anyhow::Error>>>>;
+pub(super) type DocumentColorTask = Shared<Task<result::Result<DocumentColors, Arc<anyhow::Error>>>>;
 
 #[derive(Debug, Default)]
 pub(super) struct DocumentColorData {
@@ -273,7 +275,7 @@ impl LspStore {
 
             let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
             cx.background_spawn(async move {
-                let resolve_task = lang_server.request::<lsp::request::ColorPresentationRequest>(
+                let resolve_task = lang_server.request::<ColorPresentationRequest>(
                     lsp::ColorPresentationParams {
                         text_document: make_text_document_identifier(&path)?,
                         color: color.color,

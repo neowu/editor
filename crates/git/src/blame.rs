@@ -9,6 +9,7 @@ use futures::TryFutureExt;
 use futures::try_join;
 use serde::Deserialize;
 use serde::Serialize;
+use smol::future;
 use smol::io::AsyncBufReadExt;
 use smol::io::AsyncReadExt;
 use smol::io::BufReader;
@@ -139,7 +140,7 @@ async fn run_git_blame(git: &GitBinary, path: &RepoPath, source: BlameSource<'_>
             lines_read += 1;
 
             if lines_read % BLAME_PARSE_YIELD_INTERVAL == 0 {
-                smol::future::yield_now().await;
+                future::yield_now().await;
             }
         }
 

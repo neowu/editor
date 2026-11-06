@@ -32,6 +32,7 @@ use ui::PopoverMenu;
 use ui::Tooltip;
 use ui::prelude::*;
 use ui::utils::replace_control_characters;
+use util::paths;
 
 use crate::TableView;
 use crate::renderer::table_cell::with_copy_on_right_click;
@@ -47,7 +48,7 @@ struct NaturallyOrdered<'a>(&'a str);
 
 impl Ord for NaturallyOrdered<'_> {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        util::paths::natural_sort(self.0, other.0)
+        paths::natural_sort(self.0, other.0)
     }
 }
 

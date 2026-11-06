@@ -1,3 +1,4 @@
+use std::mem;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -59,6 +60,8 @@ use ui::WithScrollbar;
 use ui::prelude::*;
 use util::ResultExt;
 
+use crate::git_graph;
+use crate::git_graph::GitGraph;
 use crate::git_graph::ToggleChangedFilesView;
 use crate::git_graph::format_timestamp;
 use crate::git_panel::INDENT_GUIDE_LEFT_OFFSET;
@@ -291,9 +294,7 @@ impl CommitDetailsPanel {
         let highlight = self.search_highlight.clone();
         message.update(cx, |message, cx| {
             let ranges = highlight
-                .map(|(query, case_sensitive)| {
-                    crate::git_graph::search_match_ranges(message.source(), &query, case_sensitive)
-                })
+                .map(|(query, case_sensitive)| git_graph::search_match_ranges(message.source(), &query, case_sensitive))
                 .unwrap_or_default();
             if ranges.is_empty() {
                 message.clear_search_highlights(cx);
@@ -363,7 +364,7 @@ impl CommitDetailsPanel {
                 )
                 .children((!self.ref_names.is_empty()).then(|| {
                     h_flex().gap_1().flex_wrap().justify_center().children(self.ref_names.iter().map(|name| {
-                        let is_head = crate::git_graph::GitGraph::is_head_ref(name, &head_branch_name);
+                        let is_head = GitGraph::is_head_ref(name, &head_branch_name);
                         let name_for_menu = name.clone();
                         let this = cx.weak_entity();
                         render_ref_chip(
@@ -481,7 +482,7 @@ impl CommitDetailsPanel {
         };
         // Keep a pending reveal until the changed files have loaded.
         if self.files.is_some()
-            && std::mem::take(&mut self.scroll_to_revealed)
+            && mem::take(&mut self.scroll_to_revealed)
             && let Some(ix) = self
                 .revealed_path
                 .as_ref()

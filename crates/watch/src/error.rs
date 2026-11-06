@@ -1,5 +1,6 @@
 //! Watch error types.
 
+use std::error;
 use std::fmt;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -11,7 +12,7 @@ impl fmt::Display for NoReceiverError {
     }
 }
 
-impl std::error::Error for NoReceiverError {}
+impl error::Error for NoReceiverError {}
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct NoSenderError;
@@ -22,4 +23,4 @@ impl fmt::Display for NoSenderError {
     }
 }
 
-impl std::error::Error for NoSenderError {}
+impl error::Error for NoSenderError {}

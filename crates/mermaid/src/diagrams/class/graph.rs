@@ -7,6 +7,7 @@ use super::db::ClassDb;
 use super::types::ClassNode;
 use super::types::LOLLIPOP;
 use super::types::RelationEnd;
+use crate::error;
 
 /// What a node is drawn as.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -154,7 +155,7 @@ pub(crate) fn build(model: &ClassDb, hierarchical: bool) -> ClassGraph<'_> {
         let target = note.class.as_deref().and_then(|class| class_at.get(class));
         if let Some(&target) = target {
             let mut id = String::from("edgeNote");
-            crate::error::push_u32(&mut id, u32::try_from(note.index).unwrap_or(u32::MAX));
+            error::push_u32(&mut id, u32::try_from(note.index).unwrap_or(u32::MAX));
             edges.push(GraphEdge {
                 arrow_type_end: RelationEnd::None,
                 arrow_type_start: RelationEnd::None,
@@ -209,7 +210,7 @@ pub(crate) fn build(model: &ClassDb, hierarchical: bool) -> ClassGraph<'_> {
         id.push('_');
         id.push_str(&relation.id2);
         id.push('_');
-        crate::error::push_u32(&mut id, u32::try_from(count + 1).unwrap_or(u32::MAX));
+        error::push_u32(&mut id, u32::try_from(count + 1).unwrap_or(u32::MAX));
         edges.push(GraphEdge {
             arrow_type_end: type2,
             arrow_type_start: type1,

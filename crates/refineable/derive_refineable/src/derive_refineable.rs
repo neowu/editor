@@ -13,6 +13,9 @@ use syn::WhereClause;
 use syn::WherePredicate;
 use syn::parse_macro_input;
 use syn::parse_quote;
+use syn::punctuated::Punctuated;
+use syn::token::Colon;
+use syn::token::Where;
 
 #[proc_macro_derive(Refineable, attributes(refineable))]
 pub fn derive_refineable(input: TokenStream) -> TokenStream {
@@ -74,9 +77,9 @@ pub fn derive_refineable(input: TokenStream) -> TokenStream {
             WherePredicate::Type(PredicateType {
                 lifetimes: None,
                 bounded_ty: ty.clone(),
-                colon_token: syn::token::Colon::default(),
+                colon_token: Colon::default(),
                 bounds: {
-                    let mut punctuated = syn::punctuated::Punctuated::new();
+                    let mut punctuated = Punctuated::new();
                     punctuated.push_value(TypeParamBound::Trait(TraitBound {
                         paren_token: None,
                         modifier: syn::TraitBoundModifier::None,
@@ -96,10 +99,7 @@ pub fn derive_refineable(input: TokenStream) -> TokenStream {
             where_clause.predicates.extend(type_param_bounds);
             where_clause.clone()
         }
-        None => WhereClause {
-            where_token: syn::token::Where::default(),
-            predicates: type_param_bounds.into_iter().collect(),
-        },
+        None => WhereClause { where_token: Where::default(), predicates: type_param_bounds.into_iter().collect() },
     };
 
     let refineable_refine_assignments: Vec<TokenStream2> = fields

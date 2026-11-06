@@ -1,9 +1,12 @@
 use std::future::Future;
+use std::io;
+use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -14,6 +17,7 @@ use collections::HashSet;
 use fs::Fs;
 use fs::copy_recursive;
 use futures::FutureExt;
+use futures::future;
 use futures::future::Shared;
 use gpui::App;
 use gpui::AppContext as _;
@@ -47,6 +51,7 @@ use worktree::Worktree;
 use worktree::WorktreeId;
 
 use crate::ProjectPath;
+use crate::git_store;
 use crate::library::library_root;
 
 /// The current paths for a project's worktrees. Each folder path has a corresponding
@@ -129,7 +134,7 @@ impl WorktreeIdCounter {
     }
 
     fn next(&self) -> u64 {
-        self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        self.0.fetch_add(1, Ordering::Relaxed)
     }
 }
 
@@ -563,8 +568,8 @@ impl WorktreeStore {
 
                         // The directory we're renaming into might not exist yet
                         if let Err(e) = do_rename(fs.as_ref(), &abs_old_path, &abs_new_path, overwrite).await {
-                            if let Some(err) = e.downcast_ref::<std::io::Error>()
-                                && err.kind() == std::io::ErrorKind::NotFound
+                            if let Some(err) = e.downcast_ref::<io::Error>()
+                                && err.kind() == ErrorKind::NotFound
                                 && let Some(parent) = abs_new_path.parent()
                             {
                                 fs.create_dir(parent)
@@ -1226,7 +1231,7 @@ impl WorktreeStore {
                     .filter_map(|worktree| worktree.read(cx).as_local().map(|worktree| worktree.rescan()))
                     .collect::<Vec<_>>();
                 cx.background_spawn(async move {
-                    futures::future::join_all(scans).await;
+                    future::join_all(scans).await;
                     Ok(())
                 })
             }
@@ -1255,8 +1260,8 @@ impl WorktreeStore {
                 let folder_path = snapshot.abs_path().to_path_buf();
                 let main_path = snapshot
                     .root_repo_common_dir()
-                    .filter(|dir| !crate::git_store::is_submodule_git_dir(dir))
-                    .map(|dir| crate::git_store::repo_identity_path(dir))
+                    .filter(|dir| !git_store::is_submodule_git_dir(dir))
+                    .map(|dir| git_store::repo_identity_path(dir))
                     .filter(|repo_path| {
                         snapshot.root_repo_is_linked_worktree()
                             || *repo_path == folder_path.as_path()

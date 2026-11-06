@@ -1,3 +1,14 @@
+use std::env;
+use std::io;
+use std::iter;
+use std::mem;
+
+use futures::channel::mpsc::UnboundedSender;
+use futures::future;
+use futures::io::AsyncRead;
+use util::command;
+use util::process::Child;
+use util::shell;
 mod mappings;
 
 mod alacritty;
@@ -318,7 +329,7 @@ impl Handler for StyledAnsiTextHandler {
     }
 
     fn put_tab(&mut self, count: u16) {
-        self.text.extend(std::iter::repeat_n('\t', count as usize));
+        self.text.extend(iter::repeat_n('\t', count as usize));
     }
 
     fn terminal_attribute(&mut self, attr: Attr) {
@@ -359,7 +370,7 @@ impl Handler for PlainAnsiTextHandler {
     }
 
     fn put_tab(&mut self, count: u16) {
-        self.text.extend(std::iter::repeat_n('\t', count as usize));
+        self.text.extend(iter::repeat_n('\t', count as usize));
     }
 }
 
@@ -812,7 +823,7 @@ pub struct TerminalError {
     pub program: Option<String>,
     pub args: Option<Vec<String>>,
     pub title_override: Option<String>,
-    pub source: std::io::Error,
+    pub source: io::Error,
 }
 
 impl TerminalError {
@@ -851,7 +862,7 @@ impl TerminalError {
 }
 
 impl Display for TerminalError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let dir_string: String = self.fmt_directory();
         let shell = self.fmt_shell();
 
@@ -1043,7 +1054,7 @@ impl TerminalBuilder {
             // (As is the case when launched from a .app on MacOS),
             // and the Project doesn't have a locale set, then
             // set a fallback for our child environment to use.
-            if std::env::var("LANG").is_err() {
+            if env::var("LANG").is_err() {
                 env.entry("LANG".to_string()).or_insert_with(|| "en_US.UTF-8".to_string());
             }
 
@@ -1094,7 +1105,7 @@ impl TerminalBuilder {
             let (terminal_type, subprocess) = if no_pty {
                 let (program, args) = match &shell_params {
                     Some(params) => (params.program.clone(), params.args.clone().unwrap_or_default()),
-                    None => (util::shell::get_system_shell(), Vec::new()),
+                    None => (shell::get_system_shell(), Vec::new()),
                 };
                 let subprocess = match spawn_task_subprocess(
                     program,
@@ -1112,7 +1123,7 @@ impl TerminalBuilder {
                             program: shell_params.as_ref().map(|params| params.program.clone()),
                             args: shell_params.as_ref().and_then(|params| params.args.clone()),
                             title_override: terminal_title_override,
-                            source: std::io::Error::other(format!("{error:#}")),
+                            source: io::Error::other(format!("{error:#}")),
                         });
                     }
                 };
@@ -1225,7 +1236,7 @@ impl TerminalBuilder {
                 'outer: loop {
                     let mut events = Vec::new();
 
-                    let mut timer = cx.background_executor().timer(std::time::Duration::from_millis(4)).fuse();
+                    let mut timer = cx.background_executor().timer(Duration::from_millis(4)).fuse();
 
                     let mut wakeup = None;
                     loop {
@@ -1294,7 +1305,7 @@ pub struct Terminal {
     term: Arc<AlacrittyTermLock>,
     term_config: AlacrittyTermConfig,
     output_processor: Option<Processor<StdSyncHandler>>,
-    output_events_tx: Option<futures::channel::mpsc::UnboundedSender<PtyEvent>>,
+    output_events_tx: Option<UnboundedSender<PtyEvent>>,
     output_generation: u64,
     events: VecDeque<InternalEvent>,
     /// This is only used for mouse mode cell change detection
@@ -2636,7 +2647,7 @@ impl Terminal {
         let TerminalType::Pty { resources, info } = &mut self.terminal_type else {
             return;
         };
-        let PtyResources::Active(pty_tx) = std::mem::replace(resources, PtyResources::Released) else {
+        let PtyResources::Active(pty_tx) = mem::replace(resources, PtyResources::Released) else {
             return;
         };
         let info = info.clone();
@@ -2769,7 +2780,7 @@ fn convert_lf_to_crlf(bytes: &[u8], previous_byte_was_cr: &mut bool) -> Vec<u8> 
 /// into the terminal emulator. Used by headless hosts (e.g. the eval CLI) where
 /// PTY allocation fails with `ENOTTY`. Dropping this kills the child.
 struct SubprocessHandle {
-    child: Arc<parking_lot::Mutex<Option<util::process::Child>>>,
+    child: Arc<parking_lot::Mutex<Option<Child>>>,
     _reader: Task<()>,
 }
 
@@ -2790,21 +2801,21 @@ fn spawn_task_subprocess(
     env: HashMap<String, String>,
     working_directory: Option<PathBuf>,
     term: Arc<AlacrittyTermLock>,
-    events_tx: futures::channel::mpsc::UnboundedSender<PtyEvent>,
+    events_tx: UnboundedSender<PtyEvent>,
     executor: &BackgroundExecutor,
 ) -> Result<SubprocessHandle> {
     use std::process::Stdio;
 
     use futures::io::AsyncReadExt as _;
 
-    let mut command = util::command::new_std_command(&program);
+    let mut command = command::new_std_command(&program);
     command.args(&args);
     command.envs(&env);
     if let Some(directory) = &working_directory {
         command.current_dir(directory);
     }
 
-    let mut child = util::process::Child::spawn(command, Stdio::null(), Stdio::piped(), Stdio::piped())?;
+    let mut child = Child::spawn(command, Stdio::null(), Stdio::piped(), Stdio::piped())?;
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     let child = Arc::new(parking_lot::Mutex::new(Some(child)));
@@ -2815,7 +2826,7 @@ fn spawn_task_subprocess(
         async move {
             // stdout and stderr are pumped concurrently, each through its own
             // parser; the shared term mutex serializes grid mutation.
-            type BoxedReader = Box<dyn futures::io::AsyncRead + Unpin + Send>;
+            type BoxedReader = Box<dyn AsyncRead + Unpin + Send>;
             let pump = |reader: Option<BoxedReader>| {
                 let term = term.clone();
                 let events_tx = events_tx.clone();
@@ -2845,7 +2856,7 @@ fn spawn_task_subprocess(
             };
             let stdout = stdout.map(|reader| Box::new(reader) as BoxedReader);
             let stderr = stderr.map(|reader| Box::new(reader) as BoxedReader);
-            futures::future::join(pump(stdout), pump(stderr)).await;
+            future::join(pump(stdout), pump(stderr)).await;
 
             // Both pipes are closed, so the child has exited or is about to.
             // Poll for its status without holding the lock across an await.

@@ -6,9 +6,11 @@
 //! [`InlaySnapshot`], which holds a sum tree of [`Transform`]s.
 
 use std::cmp;
+use std::cmp::Ordering;
 use std::iter;
 use std::ops::Add;
 use std::ops::AddAssign;
+use std::ops::Deref;
 use std::ops::Range;
 use std::ops::Sub;
 use std::ops::SubAssign;
@@ -66,7 +68,7 @@ pub struct InlaySnapshot {
     pub version: usize,
 }
 
-impl std::ops::Deref for InlaySnapshot {
+impl Deref for InlaySnapshot {
     type Target = MultiBufferSnapshot;
 
     fn deref(&self) -> &Self::Target {
@@ -588,11 +590,7 @@ impl InlayMap {
                 let new_start = InlayOffset(new_transforms.summary().output.len);
 
                 let start_ix = match self.inlays.binary_search_by(|probe| {
-                    probe
-                        .position
-                        .to_offset(&buffer_snapshot)
-                        .cmp(&buffer_edit.new.start)
-                        .then(std::cmp::Ordering::Greater)
+                    probe.position.to_offset(&buffer_snapshot).cmp(&buffer_edit.new.start).then(Ordering::Greater)
                 }) {
                     Ok(ix) | Err(ix) => ix,
                 };
@@ -674,7 +672,7 @@ impl InlayMap {
 
             let offset = inlay_to_insert.position.to_offset(&snapshot.buffer);
             match self.inlays.binary_search_by(|probe| {
-                probe.position.cmp(&inlay_to_insert.position, &snapshot.buffer).then(std::cmp::Ordering::Less)
+                probe.position.cmp(&inlay_to_insert.position, &snapshot.buffer).then(Ordering::Less)
             }) {
                 Ok(ix) | Err(ix) => {
                     self.inlays.insert(ix, inlay_to_insert);
@@ -818,7 +816,7 @@ impl InlaySnapshot {
         let mut cursor = self.transforms.cursor::<Dimensions<MultiBufferOffset, InlayOffset>>(());
         cursor.seek(&range.start, Bias::Right);
 
-        std::iter::from_fn(move || {
+        iter::from_fn(move || {
             loop {
                 match cursor.item()? {
                     Transform::Isomorphic(_) => {

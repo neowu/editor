@@ -5,9 +5,14 @@
 use core::fmt::Debug;
 use std::cmp::PartialOrd;
 use std::cmp::{self};
+use std::f32::consts::GOLDEN_RATIO;
+use std::f32::consts::PI;
 use std::fmt::Display;
 use std::fmt::{self};
 use std::hash::Hash;
+use std::hash::Hasher;
+use std::iter::Sum;
+use std::ops;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Div;
@@ -2359,7 +2364,7 @@ pub fn percentage(value: f32) -> Percentage {
 
 impl From<Percentage> for Radians {
     fn from(value: Percentage) -> Self {
-        radians(value.0 * std::f32::consts::PI * 2.0)
+        radians(value.0 * PI * 2.0)
     }
 }
 
@@ -2399,19 +2404,19 @@ impl Div for Pixels {
     }
 }
 
-impl std::ops::DivAssign for Pixels {
+impl ops::DivAssign for Pixels {
     fn div_assign(&mut self, rhs: Self) {
         *self = Self(self.0 / rhs.0);
     }
 }
 
-impl std::ops::RemAssign for Pixels {
+impl ops::RemAssign for Pixels {
     fn rem_assign(&mut self, rhs: Self) {
         self.0 %= rhs.0;
     }
 }
 
-impl std::ops::Rem for Pixels {
+impl ops::Rem for Pixels {
     type Output = Self;
 
     fn rem(self, rhs: Self) -> Self {
@@ -2469,13 +2474,13 @@ impl Debug for Pixels {
     }
 }
 
-impl std::iter::Sum for Pixels {
+impl Sum for Pixels {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::ZERO, |a, b| a + b)
     }
 }
 
-impl<'a> std::iter::Sum<&'a Pixels> for Pixels {
+impl<'a> Sum<&'a Pixels> for Pixels {
     fn sum<I: Iterator<Item = &'a Self>>(iter: I) -> Self {
         iter.fold(Self::ZERO, |a, b| a + *b)
     }
@@ -2599,8 +2604,8 @@ impl Ord for Pixels {
     }
 }
 
-impl std::hash::Hash for Pixels {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for Pixels {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.0.to_bits().hash(state);
     }
 }
@@ -2877,19 +2882,19 @@ impl Div for ScaledPixels {
     }
 }
 
-impl std::ops::DivAssign for ScaledPixels {
+impl ops::DivAssign for ScaledPixels {
     fn div_assign(&mut self, rhs: Self) {
         *self = Self(self.0 / rhs.0);
     }
 }
 
-impl std::ops::RemAssign for ScaledPixels {
+impl ops::RemAssign for ScaledPixels {
     fn rem_assign(&mut self, rhs: Self) {
         self.0 %= rhs.0;
     }
 }
 
-impl std::ops::Rem for ScaledPixels {
+impl ops::Rem for ScaledPixels {
     type Output = Self;
 
     fn rem(self, rhs: Self) -> Self {
@@ -3370,7 +3375,7 @@ pub const fn relative(fraction: f32) -> DefiniteLength {
 
 /// Returns the Golden Ratio, i.e. `~(1.0 + sqrt(5.0)) / 2.0`.
 pub const fn phi() -> DefiniteLength {
-    relative(std::f32::consts::GOLDEN_RATIO)
+    relative(GOLDEN_RATIO)
 }
 
 /// Constructs a `Rems` value representing a length in rems.

@@ -17,11 +17,12 @@ use gpui::Task;
 use gpui::WeakEntity;
 use language::Buffer;
 use remote::RemoteClient;
+use rpc::proto;
 use rpc::proto::REMOTE_SERVER_PROJECT_ID;
-use rpc::proto::{self};
 use task::Shell;
 use task::shell_to_proto;
 use util::ResultExt;
+use util::shell_env;
 use worktree::Worktree;
 
 use crate::worktree_store::WorktreeStore;
@@ -195,7 +196,7 @@ async fn load_directory_shell_environment(
     tx: mpsc::UnboundedSender<String>,
 ) -> anyhow::Result<HashMap<String, String>> {
     let (shell, args) = shell.program_and_args();
-    util::shell_env::capture(shell.clone(), args, abs_path).await.with_context(|| {
+    shell_env::capture(shell.clone(), args, abs_path).await.with_context(|| {
         tx.unbounded_send("Failed to load environment variables".into()).ok();
         format!("capturing shell environment with {shell:?}")
     })

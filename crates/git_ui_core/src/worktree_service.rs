@@ -8,6 +8,9 @@ use anyhow::anyhow;
 use collections::HashSet;
 use ed_actions::NewWorktreeBranchTarget;
 use fs::Fs;
+use futures::channel::oneshot::Receiver;
+use futures::future;
+use git::repository::CreateWorktreeTarget;
 use git::repository::FetchOptions;
 use git::repository::Remote;
 use gpui::AsyncWindowContext;
@@ -31,6 +34,7 @@ use workspace::PreviousWorkspaceState;
 use workspace::ToastView;
 use workspace::Workspace;
 use workspace::dock::DockPosition;
+use workspace::notifications::NotificationId;
 
 use crate::notifications::open_output;
 use crate::notifications::show_error_toast;
@@ -361,7 +365,7 @@ async fn fetch_remote_for_worktree_base(
             .collect::<Vec<_>>()
     })?;
 
-    for fetch in futures::future::join_all(fetches).await {
+    for fetch in future::join_all(fetches).await {
         fetch??;
     }
 
@@ -389,10 +393,7 @@ fn start_worktree_creations(
     base_ref: Option<String>,
     rng: &mut impl rand::Rng,
     cx: &mut gpui::App,
-) -> anyhow::Result<(
-    Vec<(Entity<Repository>, PathBuf, futures::channel::oneshot::Receiver<anyhow::Result<()>>)>,
-    Vec<(PathBuf, PathBuf)>,
-)> {
+) -> anyhow::Result<(Vec<(Entity<Repository>, PathBuf, Receiver<anyhow::Result<()>>)>, Vec<(PathBuf, PathBuf)>)> {
     let mut creation_infos = Vec::new();
     let mut path_remapping = Vec::new();
     let mut scheduled_paths: HashSet<PathBuf> = HashSet::default();
@@ -415,7 +416,7 @@ fn start_worktree_creations(
             let receiver = if scheduled_paths.contains(&new_path) {
                 None
             } else {
-                let target = git::repository::CreateWorktreeTarget::Detached { base_sha: base_ref.clone() };
+                let target = CreateWorktreeTarget::Detached { base_sha: base_ref.clone() };
                 Some(repo.create_worktree(target, new_path.clone()))
             };
             anyhow::Ok((work_dir, new_path, receiver))
@@ -434,7 +435,7 @@ fn start_worktree_creations(
 /// creation fails, all successfully-created worktrees are rolled back
 /// (removed) so the project isn't left in a half-migrated state.
 pub async fn await_and_rollback_on_failure(
-    creation_infos: Vec<(Entity<Repository>, PathBuf, futures::channel::oneshot::Receiver<anyhow::Result<()>>)>,
+    creation_infos: Vec<(Entity<Repository>, PathBuf, Receiver<anyhow::Result<()>>)>,
     fs: Arc<dyn Fs>,
     cx: &mut AsyncWindowContext,
 ) -> anyhow::Result<Vec<PathBuf>> {
@@ -713,7 +714,7 @@ async fn do_create_worktree(
 
     let mut existing_worktree_names = Vec::new();
     let mut existing_worktree_paths = HashSet::default();
-    for result in futures::future::join_all(worktree_receivers).await {
+    for result in future::join_all(worktree_receivers).await {
         match result {
             Ok(Ok(worktrees)) => {
                 for worktree in worktrees {
@@ -900,7 +901,7 @@ async fn open_worktree_workspace(
             let repos = workspace.project().read(cx).repositories(cx).values().cloned().collect::<Vec<_>>();
 
             let tasks = repos.into_iter().map(|repo| repo.update(cx, |repo, _| repo.barrier()));
-            futures::future::join_all(tasks)
+            future::join_all(tasks)
         })
         .await;
 
@@ -909,7 +910,7 @@ async fn open_worktree_workspace(
             new_workspace.update(cx, |workspace, cx| {
                 if has_non_git {
                     struct WorktreeCreationToast;
-                    let toast_id = workspace::notifications::NotificationId::unique::<WorktreeCreationToast>();
+                    let toast_id = NotificationId::unique::<WorktreeCreationToast>();
                     workspace.show_toast(
                         workspace::Toast::new(
                             toast_id,

@@ -1,4 +1,7 @@
 use std::mem;
+use std::ops::Add;
+use std::ops::AddAssign;
+use std::ops::Sub;
 use std::sync::Arc;
 use std::sync::Weak;
 
@@ -14,13 +17,7 @@ pub struct Subscription<T>(Arc<Mutex<Patch<T>>>);
 
 impl<T: Default, TDelta> Topic<T>
 where
-    T: 'static
-        + Copy
-        + Ord
-        + std::ops::Sub<T, Output = TDelta>
-        + std::ops::Add<TDelta, Output = T>
-        + std::ops::AddAssign<TDelta>
-        + Default,
+    T: 'static + Copy + Ord + Sub<T, Output = TDelta> + Add<TDelta, Output = T> + AddAssign<TDelta> + Default,
     TDelta: Ord + Copy,
 {
     pub fn subscribe(&mut self) -> Subscription<T> {
@@ -46,13 +43,7 @@ impl<T: Default> Subscription<T> {
 
 fn publish<T, TDelta>(subscriptions: &mut Vec<Weak<Mutex<Patch<T>>>>, edits: impl Clone + IntoIterator<Item = Edit<T>>)
 where
-    T: 'static
-        + Copy
-        + Ord
-        + std::ops::Sub<T, Output = TDelta>
-        + std::ops::Add<TDelta, Output = T>
-        + std::ops::AddAssign<TDelta>
-        + Default,
+    T: 'static + Copy + Ord + Sub<T, Output = TDelta> + Add<TDelta, Output = T> + AddAssign<TDelta> + Default,
     TDelta: Ord + Copy,
 {
     subscriptions.retain(|subscription| {

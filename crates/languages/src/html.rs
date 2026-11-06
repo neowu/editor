@@ -13,6 +13,8 @@ use lsp::Uri;
 use project::lsp_store::language_server_settings;
 use serde_json::json;
 
+use crate::npx;
+
 pub struct HtmlLspAdapter;
 
 #[async_trait(?Send)]
@@ -26,7 +28,7 @@ impl LspAdapter for HtmlLspAdapter {
         delegate: &Arc<dyn LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
-        crate::npx::node_server_binary(
+        npx::node_server_binary(
             delegate,
             &["vscode-langservers-extracted"],
             "vscode-html-language-server",

@@ -1,3 +1,6 @@
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Formatter;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -13,8 +16,8 @@ pub struct LineCol {
     pub col: Option<u32>,
 }
 
-impl std::fmt::Debug for LineCol {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for LineCol {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.col {
             Some(col) => write!(f, "L{}:{}", self.line, col),
             None => write!(f, "L{}", self.line),

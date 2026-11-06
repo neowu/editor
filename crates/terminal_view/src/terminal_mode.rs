@@ -108,13 +108,14 @@ impl TerminalModeDelegate for TerminalModeTerminals {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::path::PathBuf;
 
     use super::existing_directory;
 
     #[test]
     fn test_existing_directory() {
-        let temp_dir = std::env::temp_dir();
+        let temp_dir = env::temp_dir();
         assert_eq!(existing_directory(Some(temp_dir.clone()), true), Some(temp_dir));
         let missing = PathBuf::from("/definitely/not/a/real/dir");
         assert_eq!(existing_directory(Some(missing.clone()), true), None);

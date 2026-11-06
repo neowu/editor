@@ -1,3 +1,20 @@
+use std::iter;
+use std::mem;
+use std::result;
+
+use ed_actions::search as search_actions;
+use ed_actions::workspace::CopyPath;
+use ed_actions::workspace::CopyRelativePath;
+use editor::actions::MoveToBeginningOfLine;
+use editor::actions::MoveToEndOfLine;
+use ui::font;
+use ui::utils as ui_utils;
+use util::paths;
+use util::paths::SortMode;
+use util::paths::SortOrder;
+use workspace::notifications::NotificationId;
+
+use crate::undo as crate_undo;
 mod undo;
 mod utils;
 
@@ -1093,7 +1110,7 @@ impl ProjectPanel {
                     } else if is_library {
                         menu.when(is_local, |menu| {
                             menu.action(
-                                ui::utils::reveal_in_file_manager_label(is_remote),
+                                ui_utils::reveal_in_file_manager_label(is_remote),
                                 Box::new(RevealInFileManager),
                             )
                         })
@@ -1104,8 +1121,8 @@ impl ProjectPanel {
                         .when(is_foldable, |menu| menu.action("Fold Directory", Box::new(FoldDirectory)))
                         .separator()
                         .action("Copy", Box::new(Copy))
-                        .action("Copy Path", Box::new(ed_actions::workspace::CopyPath))
-                        .action("Copy Relative Path", Box::new(ed_actions::workspace::CopyRelativePath))
+                        .action("Copy Path", Box::new(CopyPath))
+                        .action("Copy Relative Path", Box::new(CopyRelativePath))
                         .when(is_dir && !is_root, |menu| {
                             menu.separator()
                                 .action("Expand All", Box::new(ExpandSelectedEntryAndChildren))
@@ -1118,7 +1135,7 @@ impl ProjectPanel {
                             .separator()
                             .when(is_local, |menu| {
                                 menu.action(
-                                    ui::utils::reveal_in_file_manager_label(is_remote),
+                                    ui_utils::reveal_in_file_manager_label(is_remote),
                                     Box::new(RevealInFileManager),
                                 )
                             })
@@ -1153,8 +1170,8 @@ impl ProjectPanel {
                                 menu.separator().action("Download...", Box::new(DownloadFromRemote))
                             })
                             .separator()
-                            .action("Copy Path", Box::new(ed_actions::workspace::CopyPath))
-                            .action("Copy Relative Path", Box::new(ed_actions::workspace::CopyRelativePath))
+                            .action("Copy Path", Box::new(CopyPath))
+                            .action("Copy Relative Path", Box::new(CopyRelativePath))
                             .when(has_git_repo, |menu| {
                                 menu.separator()
                                     .when(!is_dir && self.has_git_changes(entry_id), |menu| {
@@ -1714,7 +1731,7 @@ impl ProjectPanel {
         {
             self.filename_editor.update(cx, |editor, cx| {
                 editor.move_to_beginning_of_line(
-                    &editor::actions::MoveToBeginningOfLine { stop_at_soft_wraps: false, stop_at_indent: false },
+                    &MoveToBeginningOfLine { stop_at_soft_wraps: false, stop_at_indent: false },
                     window,
                     cx,
                 );
@@ -1973,7 +1990,7 @@ impl ProjectPanel {
             // Before renaming, keep track of which directories will need to be
             // created, so we can remove these when undoing.
             let created_dirs =
-                crate::undo::missing_parent_dirs(worktree.read(cx), worktree_id, new_project_path.path.as_ref());
+                crate_undo::missing_parent_dirs(worktree.read(cx), worktree_id, new_project_path.path.as_ref());
 
             edit_task = self
                 .project
@@ -1985,7 +2002,7 @@ impl ProjectPanel {
                 .into_iter()
                 .rev()
                 .map(Change::DirCreated)
-                .chain(std::iter::once(Change::Renamed((worktree_id, entry.path).into(), new_project_path)))
+                .chain(iter::once(Change::Renamed((worktree_id, entry.path).into(), new_project_path)))
                 .collect();
         };
 
@@ -2757,7 +2774,7 @@ impl ProjectPanel {
             && edit_state.processing_filename.is_none()
         {
             self.filename_editor.update(cx, |editor, cx| {
-                editor.move_to_end_of_line(&editor::actions::MoveToEndOfLine { stop_at_soft_wraps: false }, window, cx);
+                editor.move_to_end_of_line(&MoveToEndOfLine { stop_at_soft_wraps: false }, window, cx);
             });
             return;
         }
@@ -3263,7 +3280,7 @@ impl ProjectPanel {
         });
 
         let fs = self.fs.clone();
-        let notification_id = workspace::notifications::NotificationId::Named("download-progress".into());
+        let notification_id = NotificationId::Named("download-progress".into());
         cx.spawn_in(window, async move |this, cx| {
             if let Ok(Ok(Some(mut paths))) = destination_dir.await
                 && let Some(dest_dir) = paths.pop()
@@ -3338,7 +3355,7 @@ impl ProjectPanel {
         self.transfer_entries(entries, EntryTransferOperation::Copy, window, cx);
     }
 
-    fn copy_path(&mut self, _: &ed_actions::workspace::CopyPath, _: &mut Window, cx: &mut Context<Self>) {
+    fn copy_path(&mut self, _: &CopyPath, _: &mut Window, cx: &mut Context<Self>) {
         let abs_file_paths = {
             let project = self.project.read(cx);
             self.effective_entries()
@@ -3361,12 +3378,7 @@ impl ProjectPanel {
         }
     }
 
-    fn copy_relative_path(
-        &mut self,
-        _: &ed_actions::workspace::CopyRelativePath,
-        _: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn copy_relative_path(&mut self, _: &CopyRelativePath, _: &mut Window, cx: &mut Context<Self>) {
         let file_paths = {
             let project = self.project.read(cx);
             self.effective_entries()
@@ -3466,7 +3478,7 @@ impl ProjectPanel {
                     Some(parent) => Arc::from(parent),
                     None => {
                         // File at root, open search with empty filter
-                        window.dispatch_action(Box::new(ed_actions::search::NewSearchInDirectory::default()), cx);
+                        window.dispatch_action(Box::new(search_actions::NewSearchInDirectory::default()), cx);
                         return;
                     }
                 }
@@ -3477,7 +3489,7 @@ impl ProjectPanel {
                 if include_root { worktree.read(cx).root_name().join(&dir_path) } else { dir_path.to_rel_path_buf() };
 
             let directory = dir_path.display().to_string();
-            window.dispatch_action(Box::new(ed_actions::search::NewSearchInDirectory { directory }), cx);
+            window.dispatch_action(Box::new(search_actions::NewSearchInDirectory { directory }), cx);
         }
     }
 
@@ -3898,7 +3910,7 @@ impl ProjectPanel {
                                 {
                                     edit_state.depth = depth;
                                 }
-                                let mut ancestors = std::mem::take(&mut auto_folded_ancestors);
+                                let mut ancestors = mem::take(&mut auto_folded_ancestors);
                                 if ancestors.len() > 1 {
                                     ancestors.reverse();
                                     new_state
@@ -4096,7 +4108,7 @@ impl ProjectPanel {
         if !scale_factor.is_finite() || scale_factor <= 0.0 {
             return;
         }
-        let font_size = ui::font::ui_font_size(cx).as_f32();
+        let font_size = font::ui_font_size(cx).as_f32();
         let minimum_row_height = (1.5 * font_size * scale_factor).floor() / scale_factor;
         let row_count = (window.viewport_size().height.as_f32() / minimum_row_height).ceil();
         if minimum_row_height <= 0.0 || !row_count.is_finite() || row_count <= 0.0 {
@@ -4352,7 +4364,7 @@ impl ProjectPanel {
                             .log_err();
                     }
 
-                    std::result::Result::Ok::<(), anyhow::Error>(())
+                    result::Result::Ok::<(), anyhow::Error>(())
                 })
                 .detach();
                 Some(())
@@ -6477,7 +6489,7 @@ impl Render for ProjectPanel {
 
 impl Render for DraggedProjectEntryView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let ui_font = ui::font::ui_font().clone();
+        let ui_font = font::ui_font().clone();
         h_flex().font(ui_font).pl(self.click_offset.x + px(12.)).pt(self.click_offset.y + px(12.)).child(
             div().flex().gap_1().items_center().py_1().px_2().rounded_lg().bg(cx.theme().colors().background).map(
                 |this| {
@@ -6595,7 +6607,7 @@ impl ClipboardEntry {
 fn cmp_worktree_entries(a: &Entry, b: &Entry) -> cmp::Ordering {
     let a = (&*a.path, a.is_file());
     let b = (&*b.path, b.is_file());
-    util::paths::compare_rel_paths_by(a, b, util::paths::SortMode::DirectoriesFirst, util::paths::SortOrder::Default)
+    paths::compare_rel_paths_by(a, b, SortMode::DirectoriesFirst, SortOrder::Default)
 }
 
 fn sort_worktree_entries(entries: &mut [impl AsRef<Entry>]) {

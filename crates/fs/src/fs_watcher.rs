@@ -1,6 +1,9 @@
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::env;
+use std::iter;
+use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -15,7 +18,9 @@ use gpui::BackgroundExecutor;
 use gpui::Task;
 use notify::Event;
 use notify::EventKind;
+use notify::event::ModifyKind;
 use parking_lot::Mutex;
+use smol::channel::Sender;
 use util::ResultExt;
 use util::paths::SanitizedPath;
 
@@ -77,7 +82,7 @@ pub(crate) async fn watch(
                     if !latency.is_zero() {
                         executor.timer(latency).await;
                     }
-                    let paths = std::mem::take(&mut *pending_paths.lock());
+                    let paths = mem::take(&mut *pending_paths.lock());
                     log::debug!("pending path events: {:?}", paths);
                     (!paths.is_empty()).then_some(paths)
                 }
@@ -94,7 +99,7 @@ pub struct FsWatcher {
     tx: async_channel::Sender<()>,
     pending_path_events: Arc<Mutex<Vec<PathEvent>>>,
     registrations: Arc<Mutex<HashMap<WatchKey, FsWatcherRegistration>>>,
-    pending_registrations: Arc<Mutex<HashMap<Arc<std::path::Path>, Task<()>>>>,
+    pending_registrations: Arc<Mutex<HashMap<Arc<Path>, Task<()>>>>,
 }
 
 #[derive(Clone)]
@@ -182,7 +187,7 @@ impl Drop for FsWatcher {
         let mut registrations = HashMap::new();
         {
             let old = &mut self.registrations.lock();
-            std::mem::swap(&mut **old, &mut registrations);
+            mem::swap(&mut **old, &mut registrations);
         }
 
         for (_, registration) in registrations {
@@ -192,7 +197,7 @@ impl Drop for FsWatcher {
 }
 
 impl Watcher for FsWatcher {
-    fn add(&self, path: &std::path::Path) -> anyhow::Result<()> {
+    fn add(&self, path: &Path) -> anyhow::Result<()> {
         log::trace!("watcher add: {path:?}");
 
         let path: Arc<Path> = path.into();
@@ -214,7 +219,7 @@ impl Watcher for FsWatcher {
         self.add_existing_path(path)
     }
 
-    fn remove(&self, path: &std::path::Path) -> anyhow::Result<()> {
+    fn remove(&self, path: &Path) -> anyhow::Result<()> {
         log::trace!("remove watched path: {path:?}");
         self.pending_registrations.lock().remove(path);
 
@@ -319,7 +324,7 @@ impl WatchKey {
 
     fn folded(path: &SanitizedPath) -> Self {
         // Event ancestors omit trailing separators, even when registration paths include them.
-        let normalized_path = path.as_path().components().collect::<std::path::PathBuf>();
+        let normalized_path = path.as_path().components().collect::<PathBuf>();
         let lossy = normalized_path.to_string_lossy();
         // macOS (APFS/HFS+) compares names normalization-insensitively (NFC vs
         // NFD), and FSEvents can report NFD while a config/LSP supplies NFC, so
@@ -421,7 +426,7 @@ async fn poll_path_until_created(
 }
 
 fn enqueue_path_events(
-    tx: &smol::channel::Sender<()>,
+    tx: &Sender<()>,
     pending_path_events: &Arc<Mutex<Vec<PathEvent>>>,
     mut path_events: Vec<PathEvent>,
 ) {
@@ -439,7 +444,7 @@ fn enqueue_path_events(
 }
 
 fn push_notify_event(
-    tx: &smol::channel::Sender<()>,
+    tx: &Sender<()>,
     pending_path_events: &Arc<Mutex<Vec<PathEvent>>>,
     root_path: &SanitizedPath,
     case_insensitive: bool,
@@ -483,11 +488,11 @@ fn coalesce_pending_rescans(pending_paths: &mut Vec<PathEvent>, path_events: &mu
         return;
     }
 
-    let mut new_rescan_paths: Vec<std::path::PathBuf> =
+    let mut new_rescan_paths: Vec<PathBuf> =
         path_events.iter().filter(|e| e.kind == Some(PathEventKind::Rescan)).map(|e| e.path.clone()).collect();
     new_rescan_paths.sort_unstable();
 
-    let mut deduped_rescans: Vec<std::path::PathBuf> = Vec::with_capacity(new_rescan_paths.len());
+    let mut deduped_rescans: Vec<PathBuf> = Vec::with_capacity(new_rescan_paths.len());
     for path in new_rescan_paths {
         if deduped_rescans.iter().any(|ancestor| path != *ancestor && path.starts_with(ancestor)) {
             continue;
@@ -697,7 +702,7 @@ impl OsWatcher {
 
     fn add(
         &self,
-        path: Arc<std::path::Path>,
+        path: Arc<Path>,
         case_insensitive: bool,
         cb: impl Fn(&notify::Event) + Send + Sync + 'static,
     ) -> anyhow::Result<Option<WatcherRegistrationId>> {
@@ -819,7 +824,7 @@ impl OsWatcher {
             return;
         };
         let mut pending = match &mut released.coverage {
-            Coverage::Watched { covered } => std::mem::take(covered),
+            Coverage::Watched { covered } => mem::take(covered),
             Coverage::CoveredBy(_) => {
                 state.paths.0.insert(key, released);
                 return;
@@ -933,7 +938,7 @@ fn dispatch(state: &Mutex<WatcherState>, event: notify::Result<notify::Event>) {
                 path_state.stale = true;
             }
         } else if !RECURSIVE_WATCH
-            && matches!(event.kind, EventKind::Remove(_) | EventKind::Modify(notify::event::ModifyKind::Name(_)))
+            && matches!(event.kind, EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(_)))
         {
             for path in &event.paths {
                 let path = SanitizedPath::new(path);
@@ -1025,7 +1030,7 @@ fn dispatch_batch(
     // all dispatched; ordinary events still run.
     let mut rescan_dispatched = false;
 
-    for event in std::iter::once(first).chain(std::iter::from_fn(|| event_rx.try_recv().ok())) {
+    for event in iter::once(first).chain(iter::from_fn(|| event_rx.try_recv().ok())) {
         if event.as_ref().is_ok_and(|event| event.need_rescan() && event.paths.is_empty()) {
             if rescan_dispatched {
                 continue;
@@ -1058,7 +1063,7 @@ fn is_max_files_watch_error(error: &anyhow::Error) -> bool {
 }
 
 static NATIVE_WATCH_LIMIT_COOLDOWN: LazyLock<Duration> = LazyLock::new(|| {
-    let cooldown_seconds: u64 = std::env::var("ED_NATIVE_WATCH_LIMIT_COOLDOWN_SECONDS")
+    let cooldown_seconds: u64 = env::var("ED_NATIVE_WATCH_LIMIT_COOLDOWN_SECONDS")
         .ok()
         .and_then(|value| value.parse().ok())
         .unwrap_or(5)

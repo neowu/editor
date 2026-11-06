@@ -11,6 +11,7 @@ use super::types::ErEntity;
 use super::types::ErRelationship;
 use super::types::ErSubgraph;
 use super::types::RelSpec;
+use crate::error;
 use crate::text::label::trim;
 use crate::text::label::trim_start;
 use crate::util::chars::is_space;
@@ -108,7 +109,7 @@ impl ErDb {
         let mut id = String::from("entity-");
         id.push_str(name);
         id.push('-');
-        crate::error::push_u32(&mut id, u32::try_from(self.entities.values.len()).unwrap_or(u32::MAX));
+        error::push_u32(&mut id, u32::try_from(self.entities.values.len()).unwrap_or(u32::MAX));
         self.entities.insert(
             name.to_owned(),
             ErEntity {

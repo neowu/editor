@@ -19,6 +19,7 @@ use std::any::Any;
 use std::any::TypeId;
 use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::fmt;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem;
@@ -700,7 +701,7 @@ pub trait InteractiveElement: Sized {
     fn key_context<C, E>(mut self, key_context: C) -> Self
     where
         C: TryInto<KeyContext, Error = E>,
-        E: std::fmt::Display,
+        E: fmt::Display,
     {
         if let Some(key_context) = key_context.try_into().log_err() {
             self.interactivity().key_context = Some(key_context);
@@ -1599,7 +1600,6 @@ pub struct Interactivity {
     pub(crate) tab_index: Option<isize>,
     pub(crate) tab_group: bool,
     pub(crate) tab_stop: bool,
-
 }
 
 impl Interactivity {
@@ -2158,7 +2158,7 @@ impl Interactivity {
                                 if let Some(button) = keyboard_button
                                     && !stroke.modifiers.modified()
                                 {
-                                    let pending = std::mem::take(&mut *pending_keyboard_down.borrow_mut());
+                                    let pending = mem::take(&mut *pending_keyboard_down.borrow_mut());
                                     if pending != Some(window.focus_generation) {
                                         return;
                                     }

@@ -156,7 +156,7 @@ impl PartialEq for AnyWeakView {
     }
 }
 
-impl std::fmt::Debug for AnyWeakView {
+impl fmt::Debug for AnyWeakView {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AnyWeakView").field("entity_id", &self.entity.entity_id).finish_non_exhaustive()
     }
@@ -251,11 +251,7 @@ impl<V: View> ViewElement<V> {
     /// Wrap a [`View`] as an element.
     pub fn new(view: V) -> Self {
         let entity_id = view.entity_id();
-        ViewElement {
-            entity_id,
-            cached_style: None,
-            view: Some(view),
-        }
+        ViewElement { entity_id, cached_style: None, view: Some(view) }
     }
 
     /// Enable caching of this view's rendered subtree, laid out at `style`.
@@ -360,7 +356,7 @@ impl<V: View> Element for ViewElement<V> {
             paint_view(entity_id, self.cached_style.is_some(), global_id, element, window, cx);
         } else {
             // Stateless path: just paint the element.
-            paint_component(std::any::type_name::<V>(), element, window, cx);
+            paint_component(type_name::<V>(), element, window, cx);
         }
     }
 }

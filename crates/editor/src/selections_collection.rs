@@ -2,6 +2,7 @@ use std::cmp;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::iter;
+use std::marker::Copy;
 use std::mem;
 use std::ops::AddAssign;
 use std::ops::Deref;
@@ -228,7 +229,7 @@ impl SelectionsCollection {
 
     pub fn disjoint_in_row_range<D>(&self, range: Range<Anchor>, snapshot: &DisplaySnapshot) -> Vec<Selection<D>>
     where
-        D: MultiBufferDimension + Sub + AddAssign<<D as Sub>::Output> + Ord + std::fmt::Debug,
+        D: MultiBufferDimension + Sub + AddAssign<<D as Sub>::Output> + Ord + fmt::Debug,
     {
         let buffer = snapshot.buffer_snapshot();
         let start_row = range.start.to_point(buffer).row;
@@ -240,7 +241,7 @@ impl SelectionsCollection {
 
     pub fn disjoint_in_range<D>(&self, range: Range<Anchor>, snapshot: &DisplaySnapshot) -> Vec<Selection<D>>
     where
-        D: MultiBufferDimension + Sub + AddAssign<<D as Sub>::Output> + Ord + std::fmt::Debug,
+        D: MultiBufferDimension + Sub + AddAssign<<D as Sub>::Output> + Ord + fmt::Debug,
     {
         let buffer = snapshot.buffer_snapshot();
         let start_ix = self.disjoint.partition_point(|probe| probe.end.cmp(&range.start, buffer).is_lt());
@@ -359,7 +360,7 @@ impl SelectionsCollection {
         let start_col = line.closest_index_for_x(positions.start) as u32;
 
         let (start, end) = if is_empty {
-            let point = DisplayPoint::new(row, std::cmp::min(start_col, line_len));
+            let point = DisplayPoint::new(row, cmp::min(start_col, line_len));
             (point, point)
         } else {
             if start_col >= line_len {
@@ -752,7 +753,7 @@ impl MutableSelectionsCollection<'_, '_> {
 
     pub fn select<T>(&mut self, selections: Vec<Selection<T>>)
     where
-        T: ToOffset + std::marker::Copy + std::fmt::Debug,
+        T: ToOffset + Copy + fmt::Debug,
     {
         let mut selections = selections
             .into_iter()

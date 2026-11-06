@@ -9,6 +9,7 @@ use crate::util::chars::has;
 use crate::util::chars::is_line_end;
 use crate::util::chars::is_space;
 use crate::util::chars::is_word;
+use crate::util::float;
 use crate::yaml::Value;
 use crate::yaml::{self};
 
@@ -486,7 +487,7 @@ impl Json<'_> {
                 return None;
             }
         }
-        let number = crate::util::float::parse(self.text.get(start..self.pos)?)?;
+        let number = float::parse(self.text.get(start..self.pos)?)?;
         Some(Value::Number(number))
     }
 }

@@ -2,6 +2,8 @@
 //! running down when that fits the host better. Port of Pele's
 //! `src/diagrams/eventmodeling/render.ts`.
 
+use std::mem;
+
 use super::model::EmBox;
 use super::model::EntityKind;
 use super::model::EventModelingModel;
@@ -86,7 +88,7 @@ fn hard_wrap(text: &str, columns: usize) -> Vec<String> {
         let mut next = columns;
         for c in line.chars() {
             if at >= next {
-                out.push(std::mem::take(&mut piece));
+                out.push(mem::take(&mut piece));
                 next += columns;
             }
             piece.push(c);
@@ -454,7 +456,6 @@ fn horizontal(model: &EventModelingModel, options: &Options) -> Rendered {
             #[expect(clippy::float_cmp, reason = "Pele compares the two exactly")]
             if sx == tx {
                 d.push('V');
-                push_num(&mut d, end);
             } else {
                 d.push('C');
                 push_num(&mut d, sx);
@@ -467,8 +468,8 @@ fn horizontal(model: &EventModelingModel, options: &Options) -> Rendered {
                 d.push(' ');
                 push_num(&mut d, tx);
                 d.push(',');
-                push_num(&mut d, end);
             }
+            push_num(&mut d, end);
             marker("arrow_point", tx, ty, 0.0, dir, "var(--_l)")
         };
         push_edge(&mut edges, model, relation, &d, &head);

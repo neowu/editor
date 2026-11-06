@@ -12,6 +12,8 @@ use serde::Serialize;
 
 use crate::Envelope;
 use crate::PeerId;
+use crate::lsp_query::Request;
+use crate::lsp_response::Response;
 
 pub trait EnvelopedMessage: Clone + Debug + Serialize + Sized + Send + Sync + 'static {
     const NAME: &'static str;
@@ -36,9 +38,9 @@ pub trait RequestMessage: EnvelopedMessage {
 pub trait LspRequestMessage: EnvelopedMessage {
     type Response: EnvelopedMessage;
 
-    fn to_proto_query(self) -> crate::lsp_query::Request;
+    fn to_proto_query(self) -> Request;
 
-    fn response_to_proto_query(response: Self::Response) -> crate::lsp_response::Response;
+    fn response_to_proto_query(response: Self::Response) -> Response;
 
     fn buffer_id(&self) -> u64;
 
