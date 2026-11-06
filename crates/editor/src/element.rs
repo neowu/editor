@@ -5825,6 +5825,7 @@ impl Element for EditorElement {
                         .row_infos(start_row)
                         .take((start_row..end_row).len())
                         .collect::<Vec<RowInfo>>();
+                    parse_drawn_buffers(&self.editor, &row_infos, cx);
                     let is_row_soft_wrapped =
                         |row: usize| row_infos.get(row).is_none_or(|info| info.buffer_row.is_none());
 
@@ -7708,9 +7709,43 @@ fn compute_auto_height_layout(
     Some(size(width, final_height))
 }
 
+/// Buffers load with parsing deferred (see `Buffer::defer_parsing`); start the
+/// parse for the ones this frame draws.
+fn parse_drawn_buffers(editor: &Entity<Editor>, row_infos: &[RowInfo], cx: &mut App) {
+    let multi_buffer = editor.read(cx).buffer().clone();
+    for buffer_id in drawn_buffer_ids(row_infos) {
+        if let Some(buffer) = multi_buffer.read(cx).buffer(buffer_id)
+            && buffer.read(cx).is_parse_deferred()
+        {
+            buffer.update(cx, |buffer, cx| buffer.ensure_parsed(cx));
+        }
+    }
+}
+
+/// The distinct buffers behind the given rows, in first-drawn order.
+fn drawn_buffer_ids(row_infos: &[RowInfo]) -> Vec<BufferId> {
+    let mut buffer_ids: Vec<BufferId> = Vec::new();
+    for buffer_id in row_infos.iter().filter_map(|row_info| row_info.buffer_id) {
+        if !buffer_ids.contains(&buffer_id) {
+            buffer_ids.push(buffer_id);
+        }
+    }
+    buffer_ids
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn drawn_buffer_ids_are_distinct_in_draw_order() {
+        let row =
+            |id: Option<u64>| RowInfo { buffer_id: id.map(|id| BufferId::new(id).unwrap()), ..RowInfo::default() };
+        let rows = [row(Some(2)), row(Some(2)), row(None), row(Some(1)), row(Some(2)), row(Some(3))];
+        let ids = drawn_buffer_ids(&rows).into_iter().map(u64::from).collect::<Vec<_>>();
+        assert_eq!(ids, [2, 1, 3]);
+        assert!(drawn_buffer_ids(&[row(None)]).is_empty());
+    }
 
     #[test]
     fn active_rows_skip_block_rows() {

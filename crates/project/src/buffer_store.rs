@@ -211,8 +211,10 @@ impl RemoteBufferStore {
                 match buffer_file_result {
                     Ok(buffer_file) => {
                         let buffer = cx.new(|cx| {
-                            Buffer::from_proto(replica_id, capability, state, buffer_file, cx)
-                                .expect("buffer_id was validated above")
+                            let mut buffer = Buffer::from_proto(replica_id, capability, state, buffer_file, cx)
+                                .expect("buffer_id was validated above");
+                            buffer.defer_parsing();
+                            buffer
                         });
                         self.loading_remote_buffers_by_id.insert(buffer_id, buffer);
                     }
@@ -631,6 +633,9 @@ impl LocalBufferStore {
                         .await;
                     cx.insert_entity(reservation, |cx| {
                         let mut buffer = Buffer::build(text_buffer, Some(loaded.file), capability, cx);
+                        // Bulk loads (project search, multi-file diffs) mostly never get
+                        // displayed; editors start the parse for the buffers they draw.
+                        buffer.defer_parsing();
                         buffer.set_encoding(loaded.encoding);
                         buffer.set_has_bom(loaded.has_bom);
                         buffer

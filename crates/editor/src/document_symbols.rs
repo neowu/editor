@@ -50,6 +50,8 @@ impl Editor {
                     .unwrap_or_default()
             })
         } else {
+            // Outlines come from the syntax tree; the panel refetches on `Reparsed`.
+            buffer.update(cx, |buffer, cx| buffer.ensure_parsed(cx));
             let buffer_snapshot = buffer.read(cx).snapshot();
             let syntax = cx.theme().syntax().clone();
             cx.background_executor().spawn(async move { buffer_snapshot.outline(Some(&syntax)).items })

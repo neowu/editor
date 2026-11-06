@@ -179,6 +179,9 @@ pub struct Buffer {
     sync_parse_timeout: Option<Duration>,
     syntax_map: Mutex<SyntaxMap>,
     reparse: Option<Task<()>>,
+    /// Set by [`Buffer::defer_parsing`]: no syntax tree is built until
+    /// [`Buffer::ensure_parsed`] is called or an edit needs autoindent.
+    parse_deferred: bool,
     parse_status: (watch::Sender<ParseStatus>, watch::Receiver<ParseStatus>),
     non_text_state_update_count: usize,
     diagnostics: TreeMap<LanguageServerId, DiagnosticSet>,
@@ -1134,6 +1137,7 @@ impl Buffer {
             capability,
             syntax_map,
             reparse: None,
+            parse_deferred: false,
             non_text_state_update_count: 0,
             sync_parse_timeout: Some(Duration::from_millis(1)),
             parse_status: watch::channel(ParseStatus::Idle),
@@ -1723,6 +1727,26 @@ impl Buffer {
         }
     }
 
+    /// Stops this buffer from building a syntax tree until it is needed. Used
+    /// for buffers loaded in bulk (project search, multi-file diffs), most of
+    /// which are never displayed.
+    pub const fn defer_parsing(&mut self) {
+        self.parse_deferred = true;
+    }
+
+    pub const fn is_parse_deferred(&self) -> bool {
+        self.parse_deferred
+    }
+
+    /// Starts parsing a buffer whose parsing was deferred. Cheap when it
+    /// already parses.
+    pub fn ensure_parsed(&mut self, cx: &mut Context<Self>) {
+        if self.parse_deferred {
+            self.parse_deferred = false;
+            self.reparse(cx, true);
+        }
+    }
+
     /// Called after an edit to synchronize the buffer's main parse tree with
     /// the buffer's new underlying state.
     ///
@@ -1758,6 +1782,10 @@ impl Buffer {
         } else {
             return;
         };
+        if parse_stays_deferred(self.parse_deferred, !self.autoindent_requests.is_empty()) {
+            return;
+        }
+        self.parse_deferred = false;
 
         let text = self.text_snapshot();
         let parsed_version = self.version();
@@ -4782,6 +4810,12 @@ pub struct WordsQuery<'a> {
     pub range: Range<usize>,
 }
 
+/// Whether a buffer with deferred parsing keeps skipping its parse. Autoindent
+/// needs a syntax tree, so a pending autoindent request ends the deferral.
+const fn parse_stays_deferred(parse_deferred: bool, has_autoindent_requests: bool) -> bool {
+    parse_deferred && !has_autoindent_requests
+}
+
 fn indent_size_for_line(text: &text::BufferSnapshot, row: u32) -> IndentSize {
     indent_size_for_text(text.chars_at(Point::new(row, 0)))
 }
@@ -5354,4 +5388,17 @@ pub(crate) fn trailing_whitespace_ranges(rope: &Rope, row_ranges: Option<&[Range
     }
 
     ranges
+}
+
+#[cfg(test)]
+mod parse_deferral_tests {
+    use super::parse_stays_deferred;
+
+    #[test]
+    fn test_parse_stays_deferred() {
+        assert!(parse_stays_deferred(true, false));
+        assert!(!parse_stays_deferred(true, true));
+        assert!(!parse_stays_deferred(false, false));
+        assert!(!parse_stays_deferred(false, true));
+    }
 }

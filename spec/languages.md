@@ -32,6 +32,14 @@
 - The status bar language button and the language selector follow the buffer
   under the cursor, including in multi-buffer views (diffs, commits), and act
   on the pane shown in the current mode (the history pane in Git History).
+- Buffers loaded from disk or from a remote host defer tree-sitter parsing:
+  most bulk loads (project search, multi-file diffs) are never displayed, and
+  a syntax tree costs many times the file's size. Parsing starts, and then
+  stays on, when an editor draws any of the buffer's rows, when an edit needs
+  autoindent, or when a feature reads the tree off-screen (outline items
+  without LSP symbols, a remote task context). Until then the buffer reports
+  its file's language and resolves scopes from it. Diff base texts are not
+  deferred this way (see `git.md`).
 - Fallback highlighting: any buffer whose language has no tree-sitter grammar
   (including plain text) is highlighted with the Sublime/TextMate syntaxes
   bundled by `two-face` (syntect, Oniguruma regex). The syntax is picked by

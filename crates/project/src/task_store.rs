@@ -99,6 +99,13 @@ impl TaskStore {
             })
             .await?;
 
+        // Runnable captures come from the syntax tree, which a host-side buffer
+        // may not have built yet.
+        let parsed = buffer.update(&mut cx, |buffer, cx| {
+            buffer.ensure_parsed(cx);
+            buffer.parsing_idle()
+        });
+        parsed.await;
         let location = Location { buffer, range: start..end };
         let context_task = store.update(&mut cx, |store, cx| {
             let captured_variables = {
