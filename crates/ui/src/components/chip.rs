@@ -7,14 +7,6 @@ use gpui::Styled;
 use crate::prelude::*;
 
 /// Chips provide a container for an informative label.
-///
-/// # Usage Example
-///
-/// ```
-/// use ui::Chip;
-///
-/// let chip = Chip::new("This Chip");
-/// ```
 #[derive(IntoElement)]
 pub struct Chip {
     label: SharedString,

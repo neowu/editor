@@ -9,16 +9,6 @@ use gpui::img;
 use crate::prelude::*;
 
 /// An element that renders a user avatar with customizable appearance options.
-///
-/// # Examples
-///
-/// ```
-/// use ui::Avatar;
-///
-/// Avatar::new("path/to/image.png")
-///     .grayscale(true)
-///     .border_color(gpui::red());
-/// ```
 #[derive(IntoElement)]
 pub struct Avatar {
     image: Img,
@@ -34,14 +24,6 @@ impl Avatar {
     }
 
     /// Applies a grayscale filter to the avatar image.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use ui::Avatar;
-    ///
-    /// let avatar = Avatar::new("path/to/image.png").grayscale(true);
-    /// ```
     pub fn grayscale(mut self, grayscale: bool) -> Self {
         self.image = self.image.grayscale(grayscale);
         self

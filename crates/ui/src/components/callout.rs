@@ -9,21 +9,6 @@ pub enum CalloutBorderPosition {
 }
 
 /// A callout component for displaying important information that requires user attention.
-///
-/// # Usage Example
-///
-/// ```
-/// use ui::prelude::*;
-/// use ui::{Button, Callout, IconName, Label, Severity};
-///
-/// let callout = Callout::new()
-///     .severity(Severity::Warning)
-///     .icon(IconName::Warning)
-///     .title("Be aware of your subscription!")
-///     .description("Your subscription is about to expire. Renew now!")
-///     .actions_slot(Button::new("renew", "Renew Now"));
-/// ```
-///
 #[derive(IntoElement)]
 pub struct Callout {
     severity: Severity,

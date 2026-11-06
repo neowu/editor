@@ -404,84 +404,6 @@ impl PathWithPosition {
     ///
     /// Be mindful that `test_file:10:1:` is a valid posix filename.
     /// `PathWithPosition` class assumes that the ending position-like suffix is **not** part of the filename.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// # use util::paths::PathWithPosition;
-    /// # use std::path::PathBuf;
-    /// assert_eq!(PathWithPosition::parse_str("test_file"), PathWithPosition {
-    ///     path: PathBuf::from("test_file"),
-    ///     row: None,
-    ///     column: None,
-    /// });
-    /// assert_eq!(PathWithPosition::parse_str("test_file:10"), PathWithPosition {
-    ///     path: PathBuf::from("test_file"),
-    ///     row: Some(10),
-    ///     column: None,
-    /// });
-    /// assert_eq!(PathWithPosition::parse_str("test_file.rs"), PathWithPosition {
-    ///     path: PathBuf::from("test_file.rs"),
-    ///     row: None,
-    ///     column: None,
-    /// });
-    /// assert_eq!(PathWithPosition::parse_str("test_file.rs:1"), PathWithPosition {
-    ///     path: PathBuf::from("test_file.rs"),
-    ///     row: Some(1),
-    ///     column: None,
-    /// });
-    /// assert_eq!(PathWithPosition::parse_str("test_file.rs:1:2"), PathWithPosition {
-    ///     path: PathBuf::from("test_file.rs"),
-    ///     row: Some(1),
-    ///     column: Some(2),
-    /// });
-    /// ```
-    ///
-    /// # Expected parsing results when encounter ill-formatted inputs.
-    /// ```
-    /// # use util::paths::PathWithPosition;
-    /// # use std::path::PathBuf;
-    /// assert_eq!(PathWithPosition::parse_str("test_file.rs:a"), PathWithPosition {
-    ///     path: PathBuf::from("test_file.rs:a"),
-    ///     row: None,
-    ///     column: None,
-    /// });
-    /// assert_eq!(PathWithPosition::parse_str("test_file.rs:a:b"), PathWithPosition {
-    ///     path: PathBuf::from("test_file.rs:a:b"),
-    ///     row: None,
-    ///     column: None,
-    /// });
-    /// assert_eq!(PathWithPosition::parse_str("test_file.rs"), PathWithPosition {
-    ///     path: PathBuf::from("test_file.rs"),
-    ///     row: None,
-    ///     column: None,
-    /// });
-    /// assert_eq!(PathWithPosition::parse_str("test_file.rs::1"), PathWithPosition {
-    ///     path: PathBuf::from("test_file.rs"),
-    ///     row: Some(1),
-    ///     column: None,
-    /// });
-    /// assert_eq!(PathWithPosition::parse_str("test_file.rs:1::"), PathWithPosition {
-    ///     path: PathBuf::from("test_file.rs"),
-    ///     row: Some(1),
-    ///     column: None,
-    /// });
-    /// assert_eq!(PathWithPosition::parse_str("test_file.rs::1:2"), PathWithPosition {
-    ///     path: PathBuf::from("test_file.rs"),
-    ///     row: Some(1),
-    ///     column: Some(2),
-    /// });
-    /// assert_eq!(PathWithPosition::parse_str("test_file.rs:1::2"), PathWithPosition {
-    ///     path: PathBuf::from("test_file.rs:1"),
-    ///     row: Some(2),
-    ///     column: None,
-    /// });
-    /// assert_eq!(PathWithPosition::parse_str("test_file.rs:1:2:3"), PathWithPosition {
-    ///     path: PathBuf::from("test_file.rs:1"),
-    ///     row: Some(2),
-    ///     column: Some(3),
-    /// });
-    /// ```
     pub fn parse_str(s: &str) -> Self {
         let trimmed = s.trim();
         let path = Path::new(trimmed);
@@ -1045,5 +967,72 @@ pub fn compare_paths((path_a, a_is_file): (&Path, bool), (path_b, b_is_file): (&
             (None, Some(_)) => break Ordering::Less,
             (None, None) => break Ordering::Equal,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn path_with_position_parse_str() {
+        use std::path::PathBuf;
+        assert_eq!(
+            PathWithPosition::parse_str("test_file"),
+            PathWithPosition { path: PathBuf::from("test_file"), row: None, column: None }
+        );
+        assert_eq!(
+            PathWithPosition::parse_str("test_file:10"),
+            PathWithPosition { path: PathBuf::from("test_file"), row: Some(10), column: None }
+        );
+        assert_eq!(
+            PathWithPosition::parse_str("test_file.rs"),
+            PathWithPosition { path: PathBuf::from("test_file.rs"), row: None, column: None }
+        );
+        assert_eq!(
+            PathWithPosition::parse_str("test_file.rs:1"),
+            PathWithPosition { path: PathBuf::from("test_file.rs"), row: Some(1), column: None }
+        );
+        assert_eq!(
+            PathWithPosition::parse_str("test_file.rs:1:2"),
+            PathWithPosition { path: PathBuf::from("test_file.rs"), row: Some(1), column: Some(2) }
+        );
+    }
+
+    #[test]
+    fn path_with_position_parse_str_2() {
+        use std::path::PathBuf;
+        assert_eq!(
+            PathWithPosition::parse_str("test_file.rs:a"),
+            PathWithPosition { path: PathBuf::from("test_file.rs:a"), row: None, column: None }
+        );
+        assert_eq!(
+            PathWithPosition::parse_str("test_file.rs:a:b"),
+            PathWithPosition { path: PathBuf::from("test_file.rs:a:b"), row: None, column: None }
+        );
+        assert_eq!(
+            PathWithPosition::parse_str("test_file.rs"),
+            PathWithPosition { path: PathBuf::from("test_file.rs"), row: None, column: None }
+        );
+        assert_eq!(
+            PathWithPosition::parse_str("test_file.rs::1"),
+            PathWithPosition { path: PathBuf::from("test_file.rs"), row: Some(1), column: None }
+        );
+        assert_eq!(
+            PathWithPosition::parse_str("test_file.rs:1::"),
+            PathWithPosition { path: PathBuf::from("test_file.rs"), row: Some(1), column: None }
+        );
+        assert_eq!(
+            PathWithPosition::parse_str("test_file.rs::1:2"),
+            PathWithPosition { path: PathBuf::from("test_file.rs"), row: Some(1), column: Some(2) }
+        );
+        assert_eq!(
+            PathWithPosition::parse_str("test_file.rs:1::2"),
+            PathWithPosition { path: PathBuf::from("test_file.rs:1"), row: Some(2), column: None }
+        );
+        assert_eq!(
+            PathWithPosition::parse_str("test_file.rs:1:2:3"),
+            PathWithPosition { path: PathBuf::from("test_file.rs:1"), row: Some(2), column: Some(3) }
+        );
     }
 }

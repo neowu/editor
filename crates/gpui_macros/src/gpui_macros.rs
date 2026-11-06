@@ -39,17 +39,6 @@ pub fn derive_render(input: TokenStream) -> TokenStream {
 
 /// #[derive(AppContext)] is used to create a context out of anything that holds a `&mut App`
 /// Note that a `#[app]` attribute is required to identify the variable holding the &mut App.
-///
-/// Failure to add the attribute causes a compile error:
-///
-/// ```compile_fail
-/// # #[macro_use] extern crate gpui_macros;
-/// # #[macro_use] extern crate gpui;
-/// #[derive(AppContext)]
-/// struct MyContext<'a> {
-///     app: &'a mut gpui::App
-/// }
-/// ```
 #[proc_macro_derive(AppContext, attributes(app))]
 pub fn derive_app_context(input: TokenStream) -> TokenStream {
     derive_app_context::derive_app_context(input)
@@ -59,30 +48,6 @@ pub fn derive_app_context(input: TokenStream) -> TokenStream {
 /// implements `AppContext`
 /// Note that a `#[app]` and a `#[window]` attribute are required to identify the variables holding the &mut App,
 /// and &mut Window respectively.
-///
-/// Failure to add both attributes causes a compile error:
-///
-/// ```compile_fail
-/// # #[macro_use] extern crate gpui_macros;
-/// # #[macro_use] extern crate gpui;
-/// #[derive(VisualContext)]
-/// struct MyContext<'a, 'b> {
-///     #[app]
-///     app: &'a mut gpui::App,
-///     window: &'b mut gpui::Window
-/// }
-/// ```
-///
-/// ```compile_fail
-/// # #[macro_use] extern crate gpui_macros;
-/// # #[macro_use] extern crate gpui;
-/// #[derive(VisualContext)]
-/// struct MyContext<'a, 'b> {
-///     app: &'a mut gpui::App,
-///     #[window]
-///     window: &'b mut gpui::Window
-/// }
-/// ```
 #[proc_macro_derive(VisualContext, attributes(window, app))]
 pub fn derive_visual_context(input: TokenStream) -> TokenStream {
     derive_visual_context::derive_visual_context(input)

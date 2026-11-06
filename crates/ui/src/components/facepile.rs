@@ -10,22 +10,6 @@ use crate::prelude::*;
 ///
 /// Facepiles are used to display a group of people or things,
 /// such as a list of participants in a collaboration session.
-///
-/// # Examples
-///
-/// ## Default
-///
-/// A default, horizontal facepile.
-///
-/// ```
-/// use gpui::IntoElement;
-/// use ui::{Avatar, Facepile, EXAMPLE_FACES};
-///
-/// let facepile = Facepile::new(
-///     EXAMPLE_FACES.iter().take(3).map(|&url|
-///         Avatar::new(url).into_any_element()).collect()
-/// );
-/// ```
 #[derive(IntoElement)]
 pub struct Facepile {
     base: Div,

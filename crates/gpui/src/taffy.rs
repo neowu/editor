@@ -624,15 +624,6 @@ impl AvailableSpace {
     ///
     /// This function is useful when you want to create a `Size` with the minimum content constraints
     /// for both dimensions.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use gpui::AvailableSpace;
-    /// let min_content_size = AvailableSpace::min_size();
-    /// assert_eq!(min_content_size.width, AvailableSpace::MinContent);
-    /// assert_eq!(min_content_size.height, AvailableSpace::MinContent);
-    /// ```
     pub const fn min_size() -> Size<Self> {
         Size { width: Self::MinContent, height: Self::MinContent }
     }
@@ -667,5 +658,17 @@ impl From<Pixels> for AvailableSpace {
 impl From<Size<Pixels>> for Size<AvailableSpace> {
     fn from(size: Size<Pixels>) -> Self {
         Size { width: AvailableSpace::Definite(size.width), height: AvailableSpace::Definite(size.height) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn available_space_min_size() {
+        let min_content_size = AvailableSpace::min_size();
+        assert_eq!(min_content_size.width, AvailableSpace::MinContent);
+        assert_eq!(min_content_size.height, AvailableSpace::MinContent);
     }
 }

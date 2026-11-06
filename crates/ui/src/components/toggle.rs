@@ -489,23 +489,6 @@ impl RenderOnce for Switch {
 /// # SwitchField
 ///
 /// A field component that combines a label, description, and switch into one reusable component.
-///
-/// # Examples
-///
-/// ```
-/// use ui::prelude::*;
-/// use ui::{SwitchField, ToggleState};
-///
-/// let switch_field = SwitchField::new(
-///     "feature-toggle",
-///     Some("Enable feature"),
-///     Some("This feature adds new functionality to the app.".into()),
-///     ToggleState::Unselected,
-///     |state, window, cx| {
-///         // Logic here
-///     }
-/// );
-/// ```
 #[derive(IntoElement)]
 pub struct SwitchField {
     id: ElementId,

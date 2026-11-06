@@ -14,17 +14,6 @@ use serde::Serializer;
 /// # Returns
 ///
 /// Result of the serialization operation
-///
-/// # Usage
-///
-/// This function can be used with Serde's `serialize_with` attribute:
-/// ```
-/// use serde::Serialize;
-/// use settings_content::serialize_f32_with_two_decimal_places;
-///
-/// #[derive(Serialize)]
-/// struct ExampleStruct(#[serde(serialize_with = "serialize_f32_with_two_decimal_places")] f32);
-/// ```
 pub fn serialize_f32_with_two_decimal_places<S>(value: &f32, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -55,20 +44,6 @@ where
 ///
 /// * `Some(v)` - Serializes the value rounded to 2 decimal places
 /// * `None` - Serializes as JSON null
-///
-/// # Usage
-///
-/// This function can be used with Serde's `serialize_with` attribute:
-/// ```
-/// use serde::Serialize;
-/// use settings_content::serialize_optional_f32_with_two_decimal_places;
-///
-/// #[derive(Serialize)]
-/// struct ExampleStruct {
-///     #[serde(serialize_with = "serialize_optional_f32_with_two_decimal_places")]
-///     optional_value: Option<f32>,
-/// }
-/// ```
 pub fn serialize_optional_f32_with_two_decimal_places<S>(value: &Option<f32>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,

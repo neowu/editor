@@ -7,14 +7,6 @@ use crate::prelude::*;
 
 /// A button that takes an underline to look like a regular web link.
 /// It also contains an arrow icon to communicate the link takes you out of ed.
-///
-/// # Usage Example
-///
-/// ```
-/// use ui::ButtonLink;
-///
-/// let button_link = ButtonLink::new("Click me", "https://example.com");
-/// ```
 #[derive(IntoElement)]
 pub struct ButtonLink {
     label: SharedString,

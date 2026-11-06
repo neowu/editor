@@ -30,58 +30,14 @@ use crate::traits::animation_ext::CommonAnimationExt;
 /// **A button with a label**, is typically used in scenarios such as a form, where the button's label
 /// indicates what action will be performed when the button is clicked.
 ///
-/// ```
-/// use ui::prelude::*;
-///
-/// Button::new("button_id", "Click me!")
-///     .on_click(|event, window, cx| {
-///         // Handle click event
-///     });
-/// ```
-///
 /// **A toggleable button**, is typically used in scenarios such as a toolbar,
 /// where the button's state indicates whether a feature is enabled or not, or
 /// a trigger for a popover menu, where clicking the button toggles the visibility of the menu.
 ///
-/// ```
-/// use ui::prelude::*;
-///
-/// Button::new("button_id", "Click me!")
-///     .start_icon(Icon::new(IconName::Check))
-///     .toggle_state(true)
-///     .on_click(|event, window, cx| {
-///         // Handle click event
-///     });
-/// ```
-///
 /// To change the style of the button when it is selected use the [`selected_style`][Button::selected_style] method.
-///
-/// ```
-/// use ui::prelude::*;
-/// use ui::TintColor;
-///
-/// Button::new("button_id", "Click me!")
-///     .toggle_state(true)
-///     .selected_style(ButtonStyle::Tinted(TintColor::Accent))
-///     .on_click(|event, window, cx| {
-///         // Handle click event
-///     });
-/// ```
-/// This will create a button with a blue tinted background when selected.
 ///
 /// **A full-width button**, is typically used in scenarios such as the bottom of a modal or form, where it occupies the entire width of its container.
 /// The button's content, including text and icons, is centered by default.
-///
-/// ```
-/// use ui::prelude::*;
-///
-/// let button = Button::new("button_id", "Click me!")
-///     .full_width()
-///     .on_click(|event, window, cx| {
-///         // Handle click event
-///     });
-/// ```
-///
 #[derive(IntoElement)]
 pub struct Button {
     base: ButtonLike,
@@ -216,25 +172,6 @@ impl Button {
 
 impl Toggleable for Button {
     /// Sets the selected state of the button.
-    ///
-    /// # Examples
-    ///
-    /// Create a toggleable button that changes appearance when selected:
-    ///
-    /// ```
-    /// use ui::prelude::*;
-    /// use ui::TintColor;
-    ///
-    /// let selected = true;
-    ///
-    /// Button::new("toggle_button", "Toggle Me")
-    ///     .start_icon(Icon::new(IconName::Check))
-    ///     .toggle_state(selected)
-    ///     .selected_style(ButtonStyle::Tinted(TintColor::Accent))
-    ///     .on_click(|event, window, cx| {
-    ///         // Toggle the selected state
-    ///     });
-    /// ```
     fn toggle_state(mut self, selected: bool) -> Self {
         self.base = self.base.toggle_state(selected);
         self
@@ -243,19 +180,6 @@ impl Toggleable for Button {
 
 impl SelectableButton for Button {
     /// Sets the style for the button in a selected state.
-    ///
-    /// # Examples
-    ///
-    /// Customize the selected appearance of a button:
-    ///
-    /// ```
-    /// use ui::prelude::*;
-    /// use ui::TintColor;
-    ///
-    /// Button::new("styled_button", "Styled Button")
-    ///     .toggle_state(true)
-    ///     .selected_style(ButtonStyle::Tinted(TintColor::Accent));
-    /// ```
     fn selected_style(mut self, style: ButtonStyle) -> Self {
         self.base = self.base.selected_style(style);
         self
@@ -266,17 +190,6 @@ impl Disableable for Button {
     /// Disables the button, preventing interaction and changing its appearance.
     ///
     /// When disabled, the button's icon and label will use `Color::Disabled`.
-    ///
-    /// # Examples
-    ///
-    /// Create a disabled button:
-    ///
-    /// ```
-    /// use ui::prelude::*;
-    ///
-    /// Button::new("disabled_button", "Can't Click Me")
-    ///     .disabled(true);
-    /// ```
     fn disabled(mut self, disabled: bool) -> Self {
         self.base = self.base.disabled(disabled);
         self
@@ -298,34 +211,12 @@ impl Clickable for Button {
 
 impl FixedWidth for Button {
     /// Sets a fixed width for the button.
-    ///
-    /// # Examples
-    ///
-    /// Create a button with a fixed width of 100 pixels:
-    ///
-    /// ```
-    /// use ui::prelude::*;
-    ///
-    /// Button::new("fixed_width_button", "Fixed Width")
-    ///     .width(px(100.0));
-    /// ```
     fn width(mut self, width: impl Into<DefiniteLength>) -> Self {
         self.base = self.base.width(width);
         self
     }
 
     /// Makes the button take up the full width of its container.
-    ///
-    /// # Examples
-    ///
-    /// Create a button that takes up the full width of its container:
-    ///
-    /// ```
-    /// use ui::prelude::*;
-    ///
-    /// Button::new("full_width_button", "Full Width")
-    ///     .full_width();
-    /// ```
     fn full_width(mut self) -> Self {
         self.base = self.base.full_width();
         self
@@ -350,17 +241,6 @@ impl ButtonCommon for Button {
     }
 
     /// Sets a tooltip that appears on hover.
-    ///
-    /// # Examples
-    ///
-    /// Add a tooltip to a button:
-    ///
-    /// ```
-    /// use ui::{Tooltip, prelude::*};
-    ///
-    /// Button::new("tooltip_button", "Hover Me")
-    ///     .tooltip(Tooltip::text("This is a tooltip"));
-    /// ```
     #[inline(always)]
     fn tooltip(mut self, tooltip: impl Fn(&mut Window, &mut App) -> AnyView + 'static) -> Self {
         self.base = self.base.tooltip(tooltip);

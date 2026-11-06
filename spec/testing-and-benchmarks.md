@@ -8,9 +8,12 @@
   `bench_group!`/`bench_main!`, and no `debug_selector` element hook.
 - The `perf` tooling, `util_macros`, and the dylint UI test fixtures are removed.
 - No crate opts its library out of `cargo test` (`test`, `doctest` or
-  `bench = false`); unit and doc tests run with the rest of the workspace.
+  `bench = false`); unit tests run with the rest of the workspace.
+- Doc comments carry no Rust code examples (no doctests). Real call sites show
+  usage and unit tests pin behaviour; examples that asserted behaviour became
+  unit tests. Non-Rust blocks (`json`, `text`) stay as documentation.
 - GPUI and component-preview examples and their development-only dependencies
-  are removed. GPUI keeps the development dependency needed by its documentation examples.
+  are removed.
 - GPUI entity leak detection is removed: no `leak-detection` feature,
   `GPUI_LEAK_DETECTION`/`LEAK_BACKTRACE` handling, handle tracking, or
   `assert_released`/leak-snapshot APIs, and no `track-project-leak` feature in ed.

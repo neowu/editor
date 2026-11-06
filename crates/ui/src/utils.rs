@@ -74,16 +74,6 @@ pub const fn reveal_in_file_manager_label(is_remote: bool) -> &'static str {
 ///
 /// This function takes a string slice as input and returns a new `String` with the first character
 /// capitalized.
-///
-/// # Examples
-///
-/// ```
-/// use ui::utils::capitalize;
-///
-/// assert_eq!(capitalize("hello"), "Hello");
-/// assert_eq!(capitalize("WORLD"), "WORLD");
-/// assert_eq!(capitalize(""), "");
-/// ```
 pub fn capitalize(str: &str) -> String {
     let mut chars = str.chars();
     match chars.next() {
@@ -102,4 +92,16 @@ pub fn format_number_with_commas(value: u128) -> String {
         formatted.push(digit);
     }
     formatted
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn capitalize_first_letter() {
+        assert_eq!(capitalize("hello"), "Hello");
+        assert_eq!(capitalize("WORLD"), "WORLD");
+        assert_eq!(capitalize(""), "");
+    }
 }

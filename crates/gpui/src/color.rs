@@ -76,52 +76,12 @@ impl Rgba {
 
     /// Returns a new RGBA color with the same red, green and blue channels, but
     /// with a new alpha value.
-    ///
-    /// Example:
-    /// ```
-    /// use gpui::rgba;
-    /// let color = rgba(0xFF0000FF);
-    /// let faded = color.alpha(0.25);
-    /// assert_eq!(faded.a, 0.25);
-    /// ```
-    ///
-    /// This will return a red color with 25% opacity.
-    ///
-    /// Example:
-    /// ```
-    /// use gpui::rgba;
-    /// let color = rgba(0x3399FFCC);
-    /// let transparent = color.alpha(0.0);
-    /// assert_eq!(transparent.a, 0.0);
-    /// ```
-    ///
-    /// This will return the same blue color, fully transparent.
     pub const fn alpha(&self, a: f32) -> Self {
         Rgba { r: self.r, g: self.g, b: self.b, a: a.clamp(0., 1.) }
     }
 
     /// Returns a new RGBA color with the same red, green, and blue channels,
     /// but with the alpha channel multiplied by the given factor.
-    ///
-    /// Example:
-    /// ```
-    /// use gpui::rgba;
-    /// let color = rgba(0xFF0000FF); // Fully opaque red
-    /// let faded = color.opacity(0.5);
-    /// assert_eq!(faded.a, 0.5);
-    /// ```
-    ///
-    /// This will return a red color with 50% opacity.
-    ///
-    /// Example:
-    /// ```
-    /// use gpui::rgba;
-    /// let color = rgba(0x3399FFCC); // A light blue with 80% opacity
-    /// let faded = color.opacity(0.5);
-    /// assert!((faded.a - 0.4).abs() < 1e-6);
-    /// ```
-    ///
-    /// This will return the same blue color scaled down to 40% opacity.
     pub fn opacity(&self, factor: f32) -> Self {
         Rgba { r: self.r, g: self.g, b: self.b, a: self.a * factor.clamp(0., 1.) }
     }
@@ -486,52 +446,12 @@ impl Hsla {
     ///
     /// Useful for transforming colors with dynamic opacity,
     /// like a color from an external source.
-    ///
-    /// Example:
-    /// ```
-    /// let color = gpui::red();
-    /// let faded_color = color.opacity(0.5);
-    /// assert_eq!(faded_color.a, 0.5);
-    /// ```
-    ///
-    /// This will return a red color with half the opacity.
-    ///
-    /// Example:
-    /// ```
-    /// use gpui::hsla;
-    /// let color = hsla(0.7, 1.0, 0.5, 0.7); // A saturated blue
-    /// let faded_color = color.opacity(0.16);
-    /// assert!((faded_color.a - 0.112).abs() < 1e-6);
-    /// ```
-    ///
-    /// This will return a blue color with around ~10% opacity,
-    /// suitable for an element's hover or selected state.
-    ///
     pub fn opacity(&self, factor: f32) -> Self {
         Hsla { h: self.h, s: self.s, l: self.l, a: self.a * factor.clamp(0., 1.) }
     }
 
     /// Returns a new HSLA color with the same hue, saturation,
     /// and lightness, but with a new alpha value.
-    ///
-    /// Example:
-    /// ```
-    /// let color = gpui::red();
-    /// let red_color = color.alpha(0.25);
-    /// assert_eq!(red_color.a, 0.25);
-    /// ```
-    ///
-    /// This will return a red color with 25% opacity.
-    ///
-    /// Example:
-    /// ```
-    /// use gpui::hsla;
-    /// let color = hsla(0.7, 1.0, 0.5, 0.7); // A saturated blue
-    /// let faded_color = color.alpha(0.25);
-    /// assert_eq!(faded_color.a, 0.25);
-    /// ```
-    ///
-    /// This will return a blue color with 25% opacity.
     pub const fn alpha(&self, a: f32) -> Self {
         Hsla { h: self.h, s: self.s, l: self.l, a: a.clamp(0., 1.) }
     }
@@ -780,5 +700,66 @@ impl From<Hsla> for Background {
 impl From<Rgba> for Background {
     fn from(value: Rgba) -> Self {
         Background { tag: BackgroundTag::Solid, solid: Hsla::from(value), ..Default::default() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rgba_alpha() {
+        let color = rgba(0xFF0000FF);
+        let faded = color.alpha(0.25);
+        assert_eq!(faded.a, 0.25);
+    }
+
+    #[test]
+    fn rgba_alpha_2() {
+        let color = rgba(0x3399FFCC);
+        let transparent = color.alpha(0.0);
+        assert_eq!(transparent.a, 0.0);
+    }
+
+    #[test]
+    fn rgba_opacity() {
+        let color = rgba(0xFF0000FF); // Fully opaque red
+        let faded = color.opacity(0.5);
+        assert_eq!(faded.a, 0.5);
+    }
+
+    #[test]
+    fn rgba_opacity_2() {
+        let color = rgba(0x3399FFCC); // A light blue with 80% opacity
+        let faded = color.opacity(0.5);
+        assert!((faded.a - 0.4).abs() < 1e-6);
+    }
+
+    #[test]
+    fn hsla_opacity() {
+        let color = crate::red();
+        let faded_color = color.opacity(0.5);
+        assert_eq!(faded_color.a, 0.5);
+    }
+
+    #[test]
+    fn hsla_opacity_2() {
+        let color = hsla(0.7, 1.0, 0.5, 0.7); // A saturated blue
+        let faded_color = color.opacity(0.16);
+        assert!((faded_color.a - 0.112).abs() < 1e-6);
+    }
+
+    #[test]
+    fn hsla_alpha() {
+        let color = crate::red();
+        let red_color = color.alpha(0.25);
+        assert_eq!(red_color.a, 0.25);
+    }
+
+    #[test]
+    fn hsla_alpha_2() {
+        let color = hsla(0.7, 1.0, 0.5, 0.7); // A saturated blue
+        let faded_color = color.alpha(0.25);
+        assert_eq!(faded_color.a, 0.25);
     }
 }

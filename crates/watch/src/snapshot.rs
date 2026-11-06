@@ -2,14 +2,6 @@
 //!
 //! Channel synchronization uses atomic publication rather than reader/writer
 //! locks. Retaining a snapshot never prevents publication.
-//!
-//! ```
-//! let (mut sender, mut receiver) = watch::snapshot::channel(1);
-//! let previous = receiver.snapshot();
-//! assert_eq!(sender.send(2), Ok(()));
-//! assert_eq!(*previous, 1);
-//! assert_eq!(*receiver.snapshot(), 2);
-//! ```
 
 use std::ops;
 use std::pin::Pin;
@@ -223,5 +215,19 @@ impl<T> Future for Changed<'_, T> {
 impl<T> Drop for Changed<'_, T> {
     fn drop(&mut self) {
         self.receiver.waker.take();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn channel_snapshot_keeps_previous_value() {
+        let (mut sender, mut receiver) = channel(1);
+        let previous = receiver.snapshot();
+        assert_eq!(sender.send(2), Ok(()));
+        assert_eq!(*previous, 1);
+        assert_eq!(*receiver.snapshot(), 2);
     }
 }

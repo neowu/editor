@@ -28,19 +28,6 @@ use crate::relative;
 /// By default the element fills its parent (equivalent to `.size_full()`);
 /// use the [`Styled`] methods to size it differently. Because the contents
 /// don't exist until after layout, they cannot influence the element's size.
-///
-/// # Example
-///
-/// ```
-/// # use gpui::{container_query, div, px, IntoElement, ParentElement};
-/// container_query(|size, _window, _cx| {
-///     if size.width < px(240.) {
-///         div().child("Narrow layout")
-///     } else {
-///         div().child("Wide layout")
-///     }
-/// });
-/// ```
 pub fn container_query<E>(render: impl 'static + FnOnce(Size<Pixels>, &mut Window, &mut App) -> E) -> ContainerQuery
 where
     E: IntoElement,

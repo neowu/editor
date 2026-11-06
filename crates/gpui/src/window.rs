@@ -887,17 +887,6 @@ pub enum HitboxBehavior {
     /// skipping of all mouse events, hover styles, and tooltips. This flag is set by
     /// [`InteractiveElement::occlude`].
     ///
-    /// For mouse handlers that check those hitboxes, this behaves the same as registering a
-    /// bubble-phase handler for every mouse event type:
-    ///
-    /// ```ignore
-    /// window.on_mouse_event(move |_: &EveryMouseEventTypeHere, phase, window, cx| {
-    ///     if phase == DispatchPhase::Capture && hitbox.is_hovered(window) {
-    ///         cx.stop_propagation();
-    ///     }
-    /// })
-    /// ```
-    ///
     /// This has effects beyond event handling - any use of hitbox checking, such as hover
     /// styles and tooltips. These other behaviors are the main point of this mechanism. An
     /// alternative might be to not affect mouse event handling - but this would allow
@@ -911,20 +900,9 @@ pub enum HitboxBehavior {
     /// [`Hitbox::is_hovered`] for details. This flag is set by
     /// [`InteractiveElement::block_mouse_except_scroll`].
     ///
-    /// For mouse handlers that check those hitboxes, this behaves the same as registering a
-    /// bubble-phase handler for every mouse event type **except** `ScrollWheelEvent`:
-    ///
-    /// ```ignore
-    /// window.on_mouse_event(move |_: &EveryMouseEventTypeExceptScroll, phase, window, cx| {
-    ///     if phase == DispatchPhase::Bubble && hitbox.should_handle_scroll(window) {
-    ///         cx.stop_propagation();
-    ///     }
-    /// })
-    /// ```
-    ///
     /// See the documentation of [`Hitbox::is_hovered`] for details of why `ScrollWheelEvent` is
     /// handled differently than other mouse events. If also blocking these scroll events is
-    /// desired, then a `cx.stop_propagation()` handler like the one above can be used.
+    /// desired, add a `ScrollWheelEvent` handler that calls `cx.stop_propagation()`.
     ///
     /// This has effects beyond event handling - this affects any use of `is_hovered`, such as
     /// hover styles and tooltips. These other behaviors are the main point of this mechanism.

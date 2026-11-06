@@ -42,16 +42,6 @@ const fn printable_substitute(character: char) -> Option<char> {
 ///
 /// The input is returned untouched when it holds no control characters, which
 /// is the overwhelmingly common case.
-///
-/// # Examples
-///
-/// ```
-/// use ui::utils::replace_control_characters;
-///
-/// assert_eq!(replace_control_characters("main.rs"), "main.rs");
-/// assert_eq!(replace_control_characters("two\nlines.rs"), "two⏎lines.rs");
-/// assert_eq!(replace_control_characters("tab\there.rs"), "tab␉here.rs");
-/// ```
 pub fn replace_control_characters(text: &str) -> Cow<'_, str> {
     let Some(first_control_character) = text.find(|character: char| character.is_ascii_control()) else {
         return Cow::Borrowed(text);
@@ -81,18 +71,6 @@ pub fn replace_control_characters(text: &str) -> Cow<'_, str> {
 ///
 /// Each offset must sit on a character boundary. Offsets past the end of the
 /// text are clamped to the end of the replaced string.
-///
-/// # Examples
-///
-/// ```
-/// use ui::utils::replace_control_characters_remapping_offsets;
-///
-/// // The offset of "b" moves from 2 to 4, the stand-in being three bytes wide.
-/// let mut offsets = vec![0, 2];
-/// let replaced = replace_control_characters_remapping_offsets("a\tb", &mut offsets);
-/// assert_eq!(replaced.as_deref(), Some("a␉b"));
-/// assert_eq!(offsets, vec![0, 4]);
-/// ```
 pub fn replace_control_characters_remapping_offsets(text: &str, offsets: &mut [usize]) -> Option<String> {
     // Control characters are single bytes below 0x80, so scanning raw bytes
     // cannot mistake a UTF-8 continuation byte for one.
@@ -123,4 +101,25 @@ pub fn replace_control_characters_remapping_offsets(text: &str, offsets: &mut [u
     }
 
     Some(replaced)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replace_control_characters_with_symbols() {
+        assert_eq!(replace_control_characters("main.rs"), "main.rs");
+        assert_eq!(replace_control_characters("two\nlines.rs"), "two⏎lines.rs");
+        assert_eq!(replace_control_characters("tab\there.rs"), "tab␉here.rs");
+    }
+
+    #[test]
+    fn replace_control_characters_remaps_offsets() {
+        // The offset of "b" moves from 2 to 4, the stand-in being three bytes wide.
+        let mut offsets = vec![0, 2];
+        let replaced = replace_control_characters_remapping_offsets("a\tb", &mut offsets);
+        assert_eq!(replaced.as_deref(), Some("a␉b"));
+        assert_eq!(offsets, vec![0, 4]);
+    }
 }

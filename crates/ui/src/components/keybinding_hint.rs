@@ -13,23 +13,6 @@ use crate::prelude::*;
 ///
 /// This struct allows for the creation and customization of a keybinding hint,
 /// which can be used to display keyboard shortcuts or commands in a user interface.
-///
-/// # Examples
-///
-/// ```no_run
-/// use gpui::{App, Hsla, KeybindingKeystroke, Keystroke};
-/// use ui::prelude::*;
-/// use ui::{KeyBinding, KeybindingHint};
-///
-/// # fn example(cx: &App) {
-/// let hint = KeybindingHint::new(
-///     KeyBinding::from_keystrokes(vec![KeybindingKeystroke::from_keystroke(Keystroke::parse("ctrl-s").unwrap())].into()),
-///     Hsla::black()
-/// )
-///     .prefix("Save:")
-///     .size(Pixels::from(14.0));
-/// # }
-/// ```
 #[derive(Debug, IntoElement)]
 pub struct KeybindingHint {
     prefix: Option<SharedString>,
@@ -44,21 +27,6 @@ impl KeybindingHint {
     ///
     /// This method initializes a new `KeybindingHint` instance with the given keybinding,
     /// setting all other fields to their default values.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use gpui::{App, Hsla, KeybindingKeystroke, Keystroke};
-    /// use ui::prelude::*;
-    /// use ui::{KeyBinding, KeybindingHint};
-    ///
-    /// # fn example(cx: &App) {
-    /// let hint = KeybindingHint::new(
-    ///     KeyBinding::from_keystrokes(vec![KeybindingKeystroke::from_keystroke(Keystroke::parse("ctrl-c").unwrap())].into()),
-    ///     Hsla::black()
-    /// );
-    /// # }
-    /// ```
     pub const fn new(keybinding: KeyBinding, background_color: Hsla) -> Self {
         Self { prefix: None, suffix: None, keybinding, size: None, background_color }
     }
@@ -67,22 +35,6 @@ impl KeybindingHint {
     ///
     /// This method initializes a new `KeybindingHint` instance with the given prefix and keybinding,
     /// setting all other fields to their default values.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use gpui::{App, Hsla, KeybindingKeystroke, Keystroke};
-    /// use ui::prelude::*;
-    /// use ui::{KeyBinding, KeybindingHint};
-    ///
-    /// # fn example(cx: &App) {
-    /// let hint = KeybindingHint::with_prefix(
-    ///     "Copy:",
-    ///     KeyBinding::from_keystrokes(vec![KeybindingKeystroke::from_keystroke(Keystroke::parse("ctrl-c").unwrap())].into()),
-    ///     Hsla::black()
-    /// );
-    /// # }
-    /// ```
     pub fn with_prefix(prefix: impl Into<SharedString>, keybinding: KeyBinding, background_color: Hsla) -> Self {
         Self { prefix: Some(prefix.into()), suffix: None, keybinding, size: None, background_color }
     }
@@ -91,22 +43,6 @@ impl KeybindingHint {
     ///
     /// This method initializes a new `KeybindingHint` instance with the given keybinding and suffix,
     /// setting all other fields to their default values.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use gpui::{App, Hsla, KeybindingKeystroke, Keystroke};
-    /// use ui::prelude::*;
-    /// use ui::{KeyBinding, KeybindingHint};
-    ///
-    /// # fn example(cx: &App) {
-    /// let hint = KeybindingHint::with_suffix(
-    ///     KeyBinding::from_keystrokes(vec![KeybindingKeystroke::from_keystroke(Keystroke::parse("ctrl-v").unwrap())].into()),
-    ///     "Paste",
-    ///     Hsla::black()
-    /// );
-    /// # }
-    /// ```
     pub fn with_suffix(keybinding: KeyBinding, suffix: impl Into<SharedString>, background_color: Hsla) -> Self {
         Self { prefix: None, suffix: Some(suffix.into()), keybinding, size: None, background_color }
     }
@@ -114,22 +50,6 @@ impl KeybindingHint {
     /// Sets the prefix for the keybinding hint.
     ///
     /// This method allows adding or changing the prefix text that appears before the keybinding.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use gpui::{App, Hsla, KeybindingKeystroke, Keystroke};
-    /// use ui::prelude::*;
-    /// use ui::{KeyBinding, KeybindingHint};
-    ///
-    /// # fn example(cx: &App) {
-    /// let hint = KeybindingHint::new(
-    ///     KeyBinding::from_keystrokes(vec![KeybindingKeystroke::from_keystroke(Keystroke::parse("ctrl-x").unwrap())].into()),
-    ///     Hsla::black()
-    /// )
-    ///     .prefix("Cut:");
-    /// # }
-    /// ```
     pub fn prefix(mut self, prefix: impl Into<SharedString>) -> Self {
         self.prefix = Some(prefix.into());
         self
@@ -138,22 +58,6 @@ impl KeybindingHint {
     /// Sets the suffix for the keybinding hint.
     ///
     /// This method allows adding or changing the suffix text that appears after the keybinding.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use gpui::{App, Hsla, KeybindingKeystroke, Keystroke};
-    /// use ui::prelude::*;
-    /// use ui::{KeyBinding, KeybindingHint};
-    ///
-    /// # fn example(cx: &App) {
-    /// let hint = KeybindingHint::new(
-    ///     KeyBinding::from_keystrokes(vec![KeybindingKeystroke::from_keystroke(Keystroke::parse("ctrl-f").unwrap())].into()),
-    ///     Hsla::black()
-    /// )
-    ///     .suffix("Find");
-    /// # }
-    /// ```
     pub fn suffix(mut self, suffix: impl Into<SharedString>) -> Self {
         self.suffix = Some(suffix.into());
         self
@@ -162,22 +66,6 @@ impl KeybindingHint {
     /// Sets the size of the keybinding hint.
     ///
     /// This method allows specifying the size of the keybinding hint in pixels.
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use gpui::{App, Hsla, KeybindingKeystroke, Keystroke};
-    /// use ui::prelude::*;
-    /// use ui::{KeyBinding, KeybindingHint};
-    ///
-    /// # fn example(cx: &App) {
-    /// let hint = KeybindingHint::new(
-    ///     KeyBinding::from_keystrokes(vec![KeybindingKeystroke::from_keystroke(Keystroke::parse("ctrl-z").unwrap())].into()),
-    ///     Hsla::black()
-    /// )
-    ///     .size(Pixels::from(16.0));
-    /// # }
-    /// ```
     pub fn size(mut self, size: impl Into<Option<Pixels>>) -> Self {
         self.size = size.into();
         self

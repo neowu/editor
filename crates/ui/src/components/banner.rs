@@ -7,21 +7,6 @@ use crate::prelude::*;
 
 /// Banners provide informative and brief messages without interrupting the user.
 /// This component offers four severity levels that can be used depending on the message.
-///
-/// # Usage Example
-///
-/// ```
-/// use ui::prelude::*;
-/// use ui::{Banner, Button, Icon, IconName, IconSize, Label, Severity};
-///
-/// Banner::new()
-///     .severity(Severity::Success)
-///     .children([Label::new("This is a success message")])
-///     .action_slot(
-///         Button::new("learn-more", "Learn More")
-///             .end_icon(Icon::new(IconName::ArrowUpRight).size(IconSize::Small)),
-///     );
-/// ```
 #[derive(IntoElement)]
 pub struct Banner {
     severity: Severity,

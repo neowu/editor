@@ -20,15 +20,6 @@ use serde_json::json;
 
 /// Defines and registers unit structs that can be used as actions. For more complex data types, derive `Action`.
 ///
-/// For example:
-///
-/// ```
-/// use gpui::actions;
-/// actions!(editor, [MoveUp, MoveDown, MoveLeft, MoveRight, Newline]);
-/// ```
-///
-/// This will create actions with names like `editor::MoveUp`, `editor::MoveDown`, etc.
-///
 /// The namespace argument `editor` can also be omitted, though it is required for ed actions.
 #[macro_export]
 macro_rules! actions {
@@ -55,25 +46,9 @@ macro_rules! actions {
 /// To declare a list of simple actions, you can use the actions! macro, which defines a simple unit
 /// struct action for each listed action name in the given namespace.
 ///
-/// ```
-/// use gpui::actions;
-/// actions!(editor, [MoveUp, MoveDown, MoveLeft, MoveRight, Newline]);
-/// ```
-///
 /// Registering the actions with the same name will result in a panic during  `App` creation.
 ///
 /// # Derive Macro
-///
-/// More complex data types can also be actions, by using the derive macro for `Action`:
-///
-/// ```
-/// use gpui::Action;
-/// #[derive(Clone, PartialEq, serde::Deserialize, Action)]
-/// #[action(namespace = editor)]
-/// pub struct SelectNext {
-///     pub replace_newest: bool,
-/// }
-/// ```
 ///
 /// The derive macro for `Action` requires that the type implement `Clone` and `PartialEq`. It also
 /// requires `serde::Deserialize` unless `#[action(no_json)]` is
@@ -96,26 +71,6 @@ macro_rules! actions {
 /// If you want to control the behavior of the action trait manually, you can use the lower-level
 /// `#[register_action]` macro, which only generates the code needed to register your action before
 /// `main`.
-///
-/// ```
-/// use gpui::{SharedString, register_action};
-/// #[derive(Clone, PartialEq, Eq, serde::Deserialize)]
-/// pub struct Paste {
-///     pub content: SharedString,
-/// }
-///
-/// impl gpui::Action for Paste {
-///     # fn boxed_clone(&self) -> Box<dyn gpui::Action> { unimplemented!()}
-///     # fn partial_eq(&self, other: &dyn gpui::Action) -> bool { unimplemented!() }
-///     # fn name(&self) -> &'static str { "Paste" }
-///     # fn name_for_type() -> &'static str { "Paste" }
-///     # fn build(value: serde_json::Value) -> anyhow::Result<Box<dyn gpui::Action>> {
-///     #     unimplemented!()
-///     # }
-/// }
-///
-/// register_action!(Paste);
-/// ```
 pub trait Action: Any + Send {
     /// Clone the action into a new box
     fn boxed_clone(&self) -> Box<dyn Action>;

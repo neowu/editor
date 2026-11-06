@@ -74,15 +74,6 @@ impl Uri {
     ///
     /// This is a convenience method that converts a file path to a file:// URI.
     /// On Windows, this handles drive letters and backslashes appropriately.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use lsp_types::Uri;
-    ///
-    /// let uri = Uri::from_file_path("/Users/test/file.txt").unwrap();
-    /// assert_eq!(uri.scheme(), "file");
-    /// ```
     #[allow(clippy::result_unit_err, reason = "mirrors `url::Url::from_file_path`")]
     pub fn from_file_path<P: AsRef<Path>>(path: P) -> Result<Self, ()> {
         url::Url::from_file_path(path).map(Self)
@@ -129,6 +120,12 @@ mod tests {
     use crate::TextDocumentIdentifier;
     use crate::TextEdit;
     use crate::WorkspaceEdit;
+
+    #[test]
+    fn uri_from_file_path() {
+        let uri = Uri::from_file_path("/Users/test/file.txt").unwrap();
+        assert_eq!(uri.scheme(), "file");
+    }
 
     #[test]
     fn test_from_str_and_deserialize_consistency() {

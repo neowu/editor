@@ -595,16 +595,6 @@ pub fn __fs_embed_get(
 /// [`dev_repo_root`]. Baking the build-time path into that arm would point at the
 /// wrong checkout from another worktree and is rejected by corgi, whose sandbox
 /// requires checkout-independent output.
-///
-/// ```ignore
-/// util::fs_embed! {
-///     pub struct Assets,
-///     crate_relative = "../../assets",
-///     root_relative = "assets",
-///     include = ["themes/**/*", "*.md"],
-///     exclude = ["themes/src/*", "*.DS_Store"],
-/// }
-/// ```
 #[macro_export]
 macro_rules! fs_embed {
     (

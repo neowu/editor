@@ -2752,22 +2752,6 @@ pub enum MarkupKind {
 /// documentation properties of result literals like `CompletionItem` or `SignatureInformation`.
 /// If the format is `markdown` the content should follow the [GitHub Flavored Markdown Specification](https://github.github.com/gfm/).
 ///
-/// Here is an example how such a string can be constructed using JavaScript / TypeScript:
-///
-/// ```ignore
-/// let markdown: MarkupContent = {
-///     kind: MarkupKind::Markdown,
-///     value: [
-///         "# Header",
-///         "Some text",
-///         "```typescript",
-///         "someCode();",
-///         "```"
-///     ]
-///     .join("\n"),
-/// };
-/// ```
-///
 /// Please *Note* that clients might sanitize the return markdown. A client could decide to
 /// remove HTML from the markdown to avoid script execution.
 #[derive(Debug, Eq, PartialEq, Deserialize, Serialize, Clone)]

@@ -17,22 +17,6 @@ pub enum SpinnerVariant {
 
 /// A spinner indication, based on the label component, that loops through
 /// frames of the specified animation. It implements `LabelCommon` as well.
-///
-/// # Default Example
-///
-/// ```
-/// use ui::{SpinnerLabel};
-///
-/// SpinnerLabel::new();
-/// ```
-///
-/// # Variant Example
-///
-/// ```
-/// use ui::{SpinnerLabel};
-///
-/// SpinnerLabel::dots_variant();
-/// ```
 #[derive(IntoElement)]
 pub struct SpinnerLabel {
     base: Label,

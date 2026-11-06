@@ -27,18 +27,6 @@ use std::io::ErrorKind;
 ///
 /// When handling an error you can use .error_code() to match which error it was
 /// and .error_tag() to read any tags.
-///
-/// ```ignore
-/// use proto::{ErrorCode, ErrorExt};
-///
-/// match err.error_code() {
-///   ErrorCode::AlreadyExists => alert("That file already exists."),
-///   ErrorCode::PathDoesNotExist =>
-///     alert(format!("Path {} does not exist.", err.error_tag("path").unwrap())),
-///   ErrorCode::Internal => alert("Sorry, something went wrong"),
-/// }
-/// ```
-///
 pub use crate::ErrorCode;
 
 /// ErrorCodeExt provides some helpers for structured error handling.
