@@ -15,6 +15,9 @@ repository's `$PATH`; if none is found, the repository is not opened.
   the user's own config, so hooks, credential helpers, `core.sshCommand` and
   external diff tools all apply. Only `core.fsmonitor` and
   `log.showSignature` are forced off.
+- Editing git's global config (`~/.gitconfig` or
+  `$XDG_CONFIG_HOME/git/config`, `~/.config/git/config` by default) refreshes
+  local repositories, as git reads both.
 - No permalinks: the editor's Copy/Open Permalink to Line, the file
   Copy/Open File Permalink actions and their menu entries are removed, along
   with the matching RPCs.

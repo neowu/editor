@@ -4,6 +4,7 @@ use std::fs;
 use std::io::ErrorKind;
 use std::os::unix::net::UnixStream;
 use std::path;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process;
 use std::process::Stdio;
@@ -615,18 +616,36 @@ fn launch(
     println!("socket {}", socket.display());
     if let Some(dir) = user_data_dir {
         println!("user data dir {}", dir.display());
+        println!("log {}", log_file_for_data_dir(&dir).display());
     }
     Ok(())
 }
 
+/// Where `ed --user-data-dir <dir>` writes its log; mirrors `paths::log_file`.
+fn log_file_for_data_dir(dir: &Path) -> PathBuf {
+    dir.join("state").join("logs").join("ed.log")
+}
+
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+    use std::path::PathBuf;
+
     use control::CpuUsage;
     use control::Durations;
     use control::FrameTimes;
     use control::Perf;
 
     use super::format_perf;
+    use super::log_file_for_data_dir;
+
+    #[test]
+    fn log_file_lives_in_data_dir_state() {
+        assert_eq!(
+            log_file_for_data_dir(Path::new("/tmp/ed-control-data-1")),
+            PathBuf::from("/tmp/ed-control-data-1/state/logs/ed.log")
+        );
+    }
 
     #[test]
     fn format_perf_reports_shares_and_per_frame_costs() {

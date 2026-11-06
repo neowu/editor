@@ -145,7 +145,7 @@ fn main() {
     }
 
     let restart_arguments = if let Some(directory) = args.user_data_dir.as_deref() {
-        let directory = paths::set_custom_data_dir(directory);
+        let directory = paths::set_custom_root_dir(directory);
         vec![OsString::from("--user-data-dir"), directory.as_os_str().to_owned()]
     } else {
         Vec::new()
@@ -537,7 +537,7 @@ fn install_panic_hook() {
 }
 
 fn init_paths() -> HashMap<io::ErrorKind, Vec<&'static Path>> {
-    [paths::config_dir(), paths::data_dir(), paths::logs_dir(), paths::temp_dir()].into_iter().fold(
+    [paths::data_dir(), paths::logs_dir(), paths::temp_dir()].into_iter().fold(
         HashMap::default(),
         |mut errors, path| {
             if let Err(e) = std::fs::create_dir_all(path) {
@@ -568,10 +568,11 @@ struct Args {
     #[arg(long, action = clap::ArgAction::Append, num_args = 2, value_names = ["OLD_PATH", "NEW_PATH"])]
     diff: Vec<String>,
 
-    /// Sets a custom directory for all user data (e.g., state, logs).
+    /// Sets one root directory for everything this instance writes.
     ///
-    /// This overrides the default data directory location, `$XDG_DATA_HOME/ed`
-    /// (`~/.local/share/ed`).
+    /// Data, state (lock, logs) and cache go to `<DIR>/data`, `<DIR>/state`
+    /// and `<DIR>/cache` instead of the XDG bases (`~/.local/share/ed`,
+    /// `~/.local/state/ed`, `~/.cache/ed`).
     #[arg(long, value_name = "DIR", verbatim_doc_comment)]
     user_data_dir: Option<String>,
 

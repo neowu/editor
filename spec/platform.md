@@ -108,7 +108,7 @@ or UNC prefixes. There is no path-style abstraction; code uses
   insets/safe areas, visual viewport, system back action, soft keyboard requests,
   text-input state notifications, or soft-keyboard text configuration
   (autocorrect, autocapitalize, enter-key hint).
-- Linux remote data, configuration, and logs follow XDG directory settings.
+- Linux remote data and logs follow XDG directory settings.
 
 ## App identity and user directories
 
@@ -121,13 +121,15 @@ or UNC prefixes. There is no path-style abstraction; code uses
   label and no Copy button.
 - macOS and Linux use the same XDG layout; nothing is written under
   `~/Library`. Each base honours its `XDG_*_HOME` variable when absolute:
-  - config `~/.config/ed`
   - data (`projects.json`, remote server state) `~/.local/share/ed`
   - state `~/.local/state/ed`, logs in `~/.local/state/ed/logs/ed.log`
   - cache/temp `~/.cache/ed`
-  - `--user-data-dir` still overrides data (and config under it).
+  - no config directory: ed reads no config files.
+  - `--user-data-dir <dir>` replaces all three bases with one root:
+    `<dir>/data`, `<dir>/state` (lock, logs) and `<dir>/cache`, so such an
+    instance shares nothing with the default one (e.g. `edctl launch --fresh` beside a running app).
 - Single instance (release builds only): an exclusive `flock` on
-  `~/.local/state/ed/ed.lock`, held for the process lifetime. No TCP port, so it
+  `<state>/ed.lock`, held for the process lifetime. No TCP port, so it
   cannot collide with Zed or other apps, and a crash leaves no stale lock.
 - Minimal macOS footprint: the bundle declares no privacy usage descriptions
   (camera, contacts, AppleScript, etc.), so such requests from processes it

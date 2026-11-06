@@ -400,7 +400,7 @@ fn start_server(listeners: ServerListeners, log_rx: Receiver<Vec<u8>>, cx: &App)
 }
 
 fn init_paths() -> anyhow::Result<()> {
-    for path in &[paths::config_dir(), paths::logs_dir(), paths::temp_dir()] {
+    for path in &[paths::logs_dir(), paths::temp_dir()] {
         std_fs::create_dir_all(path).with_context(|| format!("creating directory {path:?}"))?;
     }
     Ok(())

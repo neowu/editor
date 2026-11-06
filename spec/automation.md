@@ -27,8 +27,10 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
 
 - `edctl launch [--fresh]` starts the `ed` next to it with automation enabled
   and returns once a window exists. `--fresh` uses a new data directory so
-  tests never touch the user's session. Logs still go to the XDG log file
-  (`platform.md`), not the fresh directory. Other
+  tests never touch the user's session; it also holds the instance's state
+  (single-instance lock and log, `platform.md`), so a fresh release build runs
+  beside the user's own release build. `launch` prints the pid, socket, data
+  directory and log file. Other
   commands find the socket via `--socket`, `$ED_CONTROL_SOCKET`, or the only
   live `ed-control-*.sock` (stale ones are removed).
 - `tree` lists, from the last frame, every element that has an id and takes

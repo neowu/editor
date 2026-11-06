@@ -1,7 +1,9 @@
 //! Paths to locations used by ed.
 
 use std::env;
+use std::ffi::OsString;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -9,62 +11,50 @@ use ignore::gitignore;
 use util::paths::SanitizedPath;
 pub use util::paths::home_dir;
 
-/// The application name, used for the XDG data, config, cache, and state
+/// The application name, used for the XDG data, cache, and state
 /// directories and the log file name. Must match the editor binary name.
 pub const APP_NAME: &str = "ed";
 
-/// A custom data directory override, set only by `set_custom_data_dir`.
-/// This is used to override the default data directory location.
-/// The directory will be created if it doesn't exist when set.
-static CUSTOM_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+/// A custom root override, set only by `set_custom_root_dir`. When set, the
+/// data, state and cache directories all live under it instead of the XDG
+/// bases, so an instance with its own root shares nothing with the default one.
+static CUSTOM_ROOT_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-/// The resolved data directory, combining custom override or the XDG default
-/// (`$XDG_DATA_HOME/ed`, `~/.local/share/ed`). Set once and cached.
-static CURRENT_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+static STATE_DIR: OnceLock<PathBuf> = OnceLock::new();
+static TEMP_DIR: OnceLock<PathBuf> = OnceLock::new();
 
-/// The resolved config directory, combining custom override or the XDG default
-/// (`$XDG_CONFIG_HOME/ed`, `~/.config/ed`). Set once and cached.
-static CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
-
-/// Resolves an XDG base directory for [`APP_NAME`] on every platform, including
-/// macOS: the absolute value of `env_var` if set, else `~/<fallback>`.
-fn xdg_dir(env_var: &str, fallback: &str) -> PathBuf {
-    env::var_os(env_var)
-        .map(PathBuf::from)
-        .filter(|path| path.is_absolute())
-        .unwrap_or_else(|| home_dir().join(fallback))
-        .join(APP_NAME)
+/// Resolves one of ed's base directories: `<custom_root>/<name>` when a custom
+/// root is set, else the XDG base for [`APP_NAME`] on every platform, including
+/// macOS: the absolute value of `xdg_env` if set, else `~/<xdg_fallback>`.
+fn base_dir(custom_root: Option<&PathBuf>, name: &str, xdg_env: &str, xdg_fallback: &str) -> PathBuf {
+    match custom_root {
+        Some(root) => root.join(name),
+        None => env::var_os(xdg_env)
+            .map(PathBuf::from)
+            .filter(|path| path.is_absolute())
+            .unwrap_or_else(|| home_dir().join(xdg_fallback))
+            .join(APP_NAME),
+    }
 }
 
-/// Sets a custom directory for all user data, overriding the default data directory.
-/// This function must be called before any other path operations that depend on the data directory.
-/// The directory's path will be canonicalized to an absolute path by a blocking FS operation.
-/// The directory will be created if it doesn't exist.
-///
-/// # Arguments
-///
-/// * `dir` - The path to use as the custom data directory. This will be used as the base
-///   directory for all user data, including databases and logs.
-///
-/// # Returns
-///
-/// A reference to the static `PathBuf` containing the custom data directory path.
+/// Sets a custom root for the data, state and cache directories
+/// (`<dir>/data`, `<dir>/state`, `<dir>/cache`). The path is created and
+/// canonicalized by blocking FS operations.
 ///
 /// # Panics
 ///
-/// Panics if:
-/// * Called after the data directory has been initialized (e.g., via `data_dir` or `config_dir`)
-/// * The directory's path cannot be canonicalized to an absolute path
-/// * The directory cannot be created
-pub fn set_custom_data_dir(dir: &str) -> &'static PathBuf {
-    if CURRENT_DATA_DIR.get().is_some() || CONFIG_DIR.get().is_some() {
-        panic!("set_custom_data_dir called after data_dir or config_dir was initialized");
+/// Panics if called after any of those directories was resolved, or if the
+/// directory cannot be created or canonicalized.
+pub fn set_custom_root_dir(dir: &str) -> &'static PathBuf {
+    if DATA_DIR.get().is_some() || STATE_DIR.get().is_some() || TEMP_DIR.get().is_some() {
+        panic!("set_custom_root_dir called after data_dir, state_dir or temp_dir was resolved");
     }
-    CUSTOM_DATA_DIR.get_or_init(|| {
+    CUSTOM_ROOT_DIR.get_or_init(|| {
         let path = PathBuf::from(dir);
-        fs::create_dir_all(&path).expect("failed to create custom data directory");
+        fs::create_dir_all(&path).expect("failed to create custom root directory");
         let canonicalized =
-            path.canonicalize().expect("failed to canonicalize custom data directory's path to an absolute path");
+            path.canonicalize().expect("failed to canonicalize custom root directory's path to an absolute path");
         // On Windows, `canonicalize` produces extended-length paths prefixed
         // with `\\?\`. Strip that prefix so downstream consumers (e.g.
         // Node.js language servers) that receive derived paths as arguments
@@ -73,37 +63,19 @@ pub fn set_custom_data_dir(dir: &str) -> &'static PathBuf {
     })
 }
 
-/// Returns the path to the configuration directory used by ed.
-pub fn config_dir() -> &'static PathBuf {
-    CONFIG_DIR.get_or_init(|| {
-        if let Some(custom_dir) = CUSTOM_DATA_DIR.get() {
-            custom_dir.join("config")
-        } else {
-            xdg_dir("XDG_CONFIG_HOME", ".config")
-        }
-    })
-}
-
-/// Returns the path to the data directory used by ed.
+/// Returns the path to the data directory (`projects.json`, remote server state).
 pub fn data_dir() -> &'static PathBuf {
-    CURRENT_DATA_DIR.get_or_init(|| {
-        if let Some(custom_dir) = CUSTOM_DATA_DIR.get() {
-            custom_dir.clone()
-        } else {
-            xdg_dir("XDG_DATA_HOME", ".local/share")
-        }
-    })
+    DATA_DIR.get_or_init(|| base_dir(CUSTOM_ROOT_DIR.get(), "data", "XDG_DATA_HOME", ".local/share"))
 }
 
+/// Returns the path to the state directory (single-instance lock, logs).
 pub fn state_dir() -> &'static PathBuf {
-    static STATE_DIR: OnceLock<PathBuf> = OnceLock::new();
-    STATE_DIR.get_or_init(|| xdg_dir("XDG_STATE_HOME", ".local/state"))
+    STATE_DIR.get_or_init(|| base_dir(CUSTOM_ROOT_DIR.get(), "state", "XDG_STATE_HOME", ".local/state"))
 }
 
-/// Returns the path to the cache/temp directory used by ed.
+/// Returns the path to the cache/temp directory.
 pub fn temp_dir() -> &'static PathBuf {
-    static TEMP_DIR: OnceLock<PathBuf> = OnceLock::new();
-    TEMP_DIR.get_or_init(|| xdg_dir("XDG_CACHE_HOME", ".cache"))
+    TEMP_DIR.get_or_init(|| base_dir(CUSTOM_ROOT_DIR.get(), "cache", "XDG_CACHE_HOME", ".cache"))
 }
 
 /// Returns the path to the logs directory.
@@ -130,7 +102,64 @@ pub fn old_log_file() -> &'static PathBuf {
     OLD_LOG_FILE.get_or_init(|| logs_dir().join(format!("{}.log.old", APP_NAME)))
 }
 
+/// Git's global config files: `~/.gitconfig` and `$XDG_CONFIG_HOME/git/config`
+/// (`~/.config/git/config` when unset or empty), as git itself reads them.
+pub fn git_global_config_files() -> [PathBuf; 2] {
+    git_global_config_files_for(home_dir(), env::var_os("XDG_CONFIG_HOME"))
+}
+
+fn git_global_config_files_for(home: &Path, xdg_config_home: Option<OsString>) -> [PathBuf; 2] {
+    let xdg_config_home =
+        xdg_config_home.filter(|dir| !dir.is_empty()).map(PathBuf::from).unwrap_or_else(|| home.join(".config"));
+    [home.join(".gitconfig"), xdg_config_home.join("git").join("config")]
+}
+
 pub fn global_gitignore_path() -> Option<PathBuf> {
     static GLOBAL_GITIGNORE_PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
     GLOBAL_GITIGNORE_PATH.get_or_init(gitignore::gitconfig_excludes_path).clone()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsString;
+    use std::path::Path;
+    use std::path::PathBuf;
+
+    use super::APP_NAME;
+    use super::base_dir;
+    use super::git_global_config_files_for;
+
+    #[test]
+    fn git_global_config_files_follow_xdg_config_home() {
+        let home = Path::new("/home/me");
+        assert_eq!(
+            git_global_config_files_for(home, Some(OsString::from("/xdg"))),
+            [PathBuf::from("/home/me/.gitconfig"), PathBuf::from("/xdg/git/config")]
+        );
+    }
+
+    #[test]
+    fn git_global_config_files_default_to_dot_config() {
+        let home = Path::new("/home/me");
+        let expected = [PathBuf::from("/home/me/.gitconfig"), PathBuf::from("/home/me/.config/git/config")];
+        assert_eq!(git_global_config_files_for(home, None), expected);
+        assert_eq!(git_global_config_files_for(home, Some(OsString::new())), expected);
+    }
+
+    #[test]
+    fn base_dir_lives_under_custom_root() {
+        let root = PathBuf::from("/tmp/ed-root");
+        assert_eq!(
+            base_dir(Some(&root), "state", "XDG_STATE_HOME", ".local/state"),
+            PathBuf::from("/tmp/ed-root/state")
+        );
+        assert_eq!(base_dir(Some(&root), "data", "XDG_DATA_HOME", ".local/share"), PathBuf::from("/tmp/ed-root/data"));
+    }
+
+    #[test]
+    fn base_dir_defaults_to_xdg_base() {
+        let dir = base_dir(None, "state", "ED_TEST_UNSET_XDG_VAR", ".local/state");
+        assert!(dir.is_absolute());
+        assert!(dir.ends_with(PathBuf::from(".local/state").join(APP_NAME)));
+    }
 }

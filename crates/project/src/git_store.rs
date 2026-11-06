@@ -138,8 +138,6 @@ use language::Language;
 use language::LanguageRegistry;
 use language::proto::deserialize_version;
 use language::proto::serialize_version;
-use paths::config_dir;
-use paths::home_dir;
 use pending_op::PendingOp;
 use pending_op::PendingOpId;
 use pending_op::PendingOps;
@@ -871,7 +869,7 @@ impl GitStore {
         let _fs_watches = if fs.is_fake() {
             Box::new([])
         } else {
-            [config_dir().join("git/config"), home_dir().join(".gitconfig")]
+            paths::git_global_config_files()
                 .into_iter()
                 .map(|path| {
                     let fs = fs.clone();
