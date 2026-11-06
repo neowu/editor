@@ -20,5 +20,7 @@
   logic. Verify invariants in unit tests and with `edctl` instead. Use
   `assert!` only when a violation must stop the program in every build;
   otherwise report it with `log::error!` and recover.
-  The only dev-build switch is the single-instance bypass; assets and grammar
-  queries are embedded in every build.
+  Dev-build switches are limited to the single-instance bypass and rust-embed
+  loading assets and grammar queries from the source tree at runtime (no
+  `debug-embed`), so debug binaries only run from this checkout; release
+  builds embed them.
