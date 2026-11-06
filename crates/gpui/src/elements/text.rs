@@ -198,7 +198,6 @@ impl StyledText {
         default_style: &TextStyle,
         highlights: impl IntoIterator<Item = (Range<usize>, HighlightStyle)>,
     ) -> Self {
-        debug_assert!(self.delayed_highlights.is_none(), "Can't use `with_default_highlights` and `with_highlights`");
         let runs = Self::compute_runs(&self.text, default_style, highlights);
         self.with_runs(runs)
     }
@@ -206,16 +205,7 @@ impl StyledText {
     /// Set the styling attributes for the given text, as well as
     /// as any ranges of text that have had their style customized.
     pub fn with_highlights(mut self, highlights: impl IntoIterator<Item = (Range<usize>, HighlightStyle)>) -> Self {
-        debug_assert!(self.runs.is_none(), "Can't use `with_highlights` and `with_default_highlights`");
-        self.delayed_highlights = Some(
-            highlights
-                .into_iter()
-                .inspect(|(run, _)| {
-                    debug_assert!(self.text.is_char_boundary(run.start));
-                    debug_assert!(self.text.is_char_boundary(run.end));
-                })
-                .collect::<Vec<_>>(),
-        );
+        self.delayed_highlights = Some(highlights.into_iter().collect::<Vec<_>>());
         self
     }
 
@@ -228,10 +218,8 @@ impl StyledText {
         let mut ix = 0;
         for (range, highlight) in highlights {
             if ix < range.start {
-                debug_assert!(text.is_char_boundary(range.start));
                 runs.push(default_style.clone().to_run(range.start - ix));
             }
-            debug_assert!(text.is_char_boundary(range.end));
             runs.push(default_style.clone().highlight(highlight).to_run(range.len()));
             ix = range.end;
         }
@@ -253,15 +241,7 @@ impl StyledText {
         mut self,
         overrides: impl IntoIterator<Item = (Range<usize>, SharedString)>,
     ) -> Self {
-        self.delayed_font_family_overrides = Some(
-            overrides
-                .into_iter()
-                .inspect(|(range, _)| {
-                    debug_assert!(self.text.is_char_boundary(range.start));
-                    debug_assert!(self.text.is_char_boundary(range.end));
-                })
-                .collect(),
-        );
+        self.delayed_font_family_overrides = Some(overrides.into_iter().collect());
         self
     }
 
@@ -287,12 +267,7 @@ impl StyledText {
     pub fn with_runs(mut self, runs: Vec<TextRun>) -> Self {
         let mut text = &*self.text;
         for run in &runs {
-            text = text.get(run.len..).unwrap_or_else(|| {
-                #[cfg(debug_assertions)]
-                panic!("invalid text run. Text: '{text}', run: {run:?}");
-                #[cfg(not(debug_assertions))]
-                panic!("invalid text run");
-            });
+            text = text.get(run.len..).unwrap_or_else(|| panic!("invalid text run. Text: '{text}', run: {run:?}"));
         }
         assert!(text.is_empty(), "invalid text run");
         self.runs = Some(runs);

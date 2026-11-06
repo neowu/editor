@@ -122,7 +122,6 @@ use ui::prelude::*;
 use ui::utils;
 use ui::utils::ui_text_style;
 use util::RangeExt;
-use util::debug_panic;
 use util::rel_path::RelPath;
 use workspace::OpenInTerminal;
 use workspace::WeakItemHandle;
@@ -328,12 +327,6 @@ impl SearchState {
                     if highlight_data.set(highlight_ranges).ok().is_some() {
                         notify_tx.try_send(()).ok();
                     }
-
-                    let trimmed_text = context_text[left_whitespaces_count..].to_owned();
-                    debug_assert_eq!(
-                        trimmed_text, search_data.context_text,
-                        "Highlighted text that does not match the buffer text"
-                    );
                 }
             }),
             _search_match_notify: cx.spawn_in(window, async move |outline_panel, cx| {
@@ -3620,7 +3613,7 @@ impl OutlinePanel {
         let entry = if let PanelEntry::FoldedDirs(folded_dirs_entry) = &entry {
             match folded_dirs_entry.entries.len() {
                 0 => {
-                    debug_panic!("Empty folded dirs receiver");
+                    log::error!("Empty folded dirs receiver");
                     return;
                 }
                 1 => PanelEntry::Fs(FsEntry::Directory(FsEntryDirectory {

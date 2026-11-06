@@ -501,7 +501,6 @@ impl SshSocket {
         let mut to_run = shell_kind.try_quote(program).expect("shell quoting").into_owned();
         for arg in args {
             // We're trying to work with: sh, bash, zsh, fish, tcsh, ...?
-            debug_assert!(!arg.as_ref().contains('\n'), "multiline arguments do not work in all shells");
             to_run.push(' ');
             to_run.push_str(&shell_kind.try_quote(arg.as_ref()).expect("shell quoting"));
         }

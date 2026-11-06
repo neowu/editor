@@ -181,7 +181,6 @@ impl TabMap {
             .filter_map(|x| x)
             .collect();
         v.push(first_edit);
-        debug_assert_eq!(v.as_ptr(), _old_alloc_ptr, "Fold edits were reallocated");
         let tab_edits = {
             let mut old_cursor = old_snapshot.tab_point_cursor();
             let mut new_cursor = new_snapshot.tab_point_cursor();

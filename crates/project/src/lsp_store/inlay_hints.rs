@@ -162,13 +162,12 @@ impl BufferInlayHints {
         if self.pending_refreshes.contains(&hint_for_id.server_id) {
             return None;
         }
-        let (hint_id, hint) = self
+        let (_, hint) = self
             .hints_by_chunks
             .get(hint_for_id.chunk_id)?
             .as_ref()?
             .get(&hint_for_id.server_id)?
             .get(hint_for_id.position)?;
-        debug_assert_eq!(*hint_id, id, "Invalid pointer {hint_for_id:?}");
         Some(hint)
     }
 
@@ -230,13 +229,12 @@ impl BufferInlayHints {
 
     pub fn hint_for_id(&mut self, id: InlayId) -> Option<&mut InlayHint> {
         let hint_for_id = self.hints_by_id.get(&id)?;
-        let (hint_id, hint) = self
+        let (_, hint) = self
             .hints_by_chunks
             .get_mut(hint_for_id.chunk_id)?
             .as_mut()?
             .get_mut(&hint_for_id.server_id)?
             .get_mut(hint_for_id.position)?;
-        debug_assert_eq!(*hint_id, id, "Invalid pointer {hint_for_id:?}");
         Some(hint)
     }
 

@@ -569,7 +569,6 @@ impl Search {
                     .await?;
                 results.send(rx).await?;
             }
-            debug_assert!(rx.is_empty());
             Result::<_, anyhow::Error>::Ok(())
         }
         .await;

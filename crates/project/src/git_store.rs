@@ -165,7 +165,6 @@ use text::OffsetRangeExt;
 use text::Rope;
 use text::ToOffset;
 use util::ResultExt;
-use util::debug_panic;
 use util::paths::SanitizedPath;
 use util::post_inc;
 use util::rel_path::RelPath;
@@ -1991,9 +1990,9 @@ impl GitStore {
                 }
             }
             WorktreeStoreEvent::WorktreeUpdatedGitRepositories(worktree_id, changed_repos) => {
-                let Some(worktree) = worktree_store.read(cx).worktree_for_id(*worktree_id, cx) else {
+                if worktree_store.read(cx).worktree_for_id(*worktree_id, cx).is_none() {
                     return;
-                };
+                }
                 log::debug!("received worktree update for repositories: {changed_repos:?}");
                 self.update_repositories_from_worktree(
                     *worktree_id,
@@ -2003,7 +2002,7 @@ impl GitStore {
                     fs.clone(),
                     cx,
                 );
-                self.local_worktree_git_repos_changed(worktree, changed_repos, cx);
+                self.local_worktree_git_repos_changed(changed_repos, cx);
             }
             WorktreeStoreEvent::WorktreeRemoved(_entity_id, worktree_id) => {
                 self.parked_repositories.retain(|parked| parked.worktree_id != *worktree_id);
@@ -2512,14 +2511,8 @@ impl GitStore {
         .detach();
     }
 
-    fn local_worktree_git_repos_changed(
-        &self,
-        worktree: Entity<Worktree>,
-        changed_repos: &UpdatedGitRepositoriesSet,
-        cx: &mut Context<Self>,
-    ) {
+    fn local_worktree_git_repos_changed(&self, changed_repos: &UpdatedGitRepositoriesSet, cx: &mut Context<Self>) {
         log::debug!("local worktree repos changed");
-        debug_assert!(worktree.read(cx).is_local());
 
         for repository in self.repositories.values() {
             repository.update(cx, |repository, cx| {
@@ -3147,7 +3140,7 @@ impl GitStore {
                     }
                     CommitDataState::Loading(None) => {
                         // todo(git_graph) this could happen if the request fails, we should encode an error case
-                        debug_panic!("This should never happen since we passed true into fetch commit data");
+                        log::error!("This should never happen since we passed true into fetch commit data");
                     }
                 }
             }
@@ -4139,10 +4132,6 @@ impl BufferGitState {
     fn pending_index_text(&self, cx: &App) -> Option<Rope> {
         let index_text_buffer = self.index_text_buffer.upgrade()?;
         let edits = self.pending_index_edits.as_ref()?;
-        #[cfg(debug_assertions)]
-        for window in edits.windows(2) {
-            debug_assert!(window[0].0.end <= window[1].0.start);
-        }
         let mut index_text = index_text_buffer.read(cx).text_snapshot().as_rope().clone();
         for (old_range, replacement_text) in edits.iter().rev() {
             index_text.replace(old_range.clone(), replacement_text);
@@ -5646,7 +5635,7 @@ impl Repository {
                             }
                             data.subscribers.clear();
                         } else {
-                            debug_panic!("This task would be dropped if this entry doesn't exist");
+                            log::error!("This task would be dropped if this entry doesn't exist");
                         }
                     })
                     .log_err();
@@ -5698,7 +5687,7 @@ impl Repository {
             match &graph_data {
                 Entry::Occupied(_) => {}
                 Entry::Vacant(_) => {
-                    debug_panic!("This task should be dropped if data doesn't exist");
+                    log::error!("This task should be dropped if data doesn't exist");
                 }
             }
         })
@@ -5799,22 +5788,13 @@ impl Repository {
         if let Some(tx) = completer {
             handler.completion_senders.insert(sha, tx);
         }
-        let mut has_failed = false;
         if handler.commit_data_request.try_send(sha).is_ok() {
             handler.pending_requests.insert(sha);
         } else {
-            has_failed = true;
             handler.completion_senders.remove(&sha);
-            debug_assert!(
-                matches!(self.commit_data.remove(&sha), Some(CommitDataState::Loading(_))),
-                "Commit data should still be loading when enqueueing the request fails"
-            );
         }
 
-        self.commit_data.get(&sha).unwrap_or_else(|| {
-            debug_assert!(!has_failed, "This should always be inserted");
-            &CommitDataState::Loading(None)
-        })
+        self.commit_data.get(&sha).unwrap_or_else(|| &CommitDataState::Loading(None))
     }
 
     fn get_handler(&mut self, cx: &Context<Self>) -> &mut CommitDataHandler {
@@ -5844,14 +5824,10 @@ impl Repository {
                             completion_sender.send(data.clone()).ok();
                         }
                     } else {
-                        debug_panic!("The handler state has to be open for this task to exist");
+                        log::error!("The handler state has to be open for this task to exist");
                     }
 
-                    let old_value = this.commit_data.insert(sha, CommitDataState::Loaded(data));
-                    debug_assert!(
-                        !matches!(old_value, Some(CommitDataState::Loaded(_))),
-                        "We should never overwrite commit data"
-                    );
+                    this.commit_data.insert(sha, CommitDataState::Loaded(data));
 
                     cx.notify();
                 });
@@ -5864,7 +5840,7 @@ impl Repository {
                 let CommitDataHandlerState::Open(handler) =
                     mem::replace(&mut this.commit_data_handler, CommitDataHandlerState::Closed)
                 else {
-                    debug_panic!("The handler state has to be open for this task to exist");
+                    log::error!("The handler state has to be open for this task to exist");
                     return;
                 };
 

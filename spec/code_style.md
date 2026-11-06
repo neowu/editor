@@ -15,3 +15,10 @@
 - Prefer explicit code over convenience macros: write an immediately-invoked
   closure (`(|| { ... })()`) or an `async` block directly to scope `?`, rather
   than a `maybe!`-style macro.
+- No debug-only checks: no `debug_assert*!` and no `cfg(debug_assertions)`
+  invariant checks or debug-only code paths; dev and release run the same
+  logic. Verify invariants in unit tests and with `edctl` instead. Use
+  `assert!` only when a violation must stop the program in every build;
+  otherwise report it with `log::error!` and recover.
+  The only dev-build switch is the single-instance bypass; assets and grammar
+  queries are embedded in every build.

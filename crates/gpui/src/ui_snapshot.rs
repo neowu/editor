@@ -99,7 +99,6 @@ impl Window {
         clickable: bool,
         focus: Option<&FocusHandle>,
     ) {
-        self.invalidator.debug_assert_paint();
         let bounds = bounds.intersect(&self.content_mask().bounds);
         if bounds.is_empty() {
             return;

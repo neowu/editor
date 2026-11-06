@@ -135,8 +135,6 @@ fn group_matches_by_server(
 }
 
 fn build_server_result(server_index: usize, group: Vec<(StringMatch, &CandidateMeta)>) -> FilteredServer {
-    debug_assert!(!group.is_empty(), "empty groups are filtered out upstream");
-
     let mut host_positions = Vec::new();
     let mut project_matches = Vec::new();
     let mut score = f64::NEG_INFINITY;

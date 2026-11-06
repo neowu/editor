@@ -530,10 +530,6 @@ impl Interactivity {
         T: 'static,
         W: 'static + Render,
     {
-        debug_assert!(
-            self.drag_listener.is_none(),
-            "calling on_drag more than once on the same element is not supported"
-        );
         self.drag_listener = Some(DragListener {
             value: Arc::new(value),
             render: Box::new(move |value, offset, window, cx| {
@@ -556,10 +552,6 @@ impl Interactivity {
     where
         Self: Sized,
     {
-        debug_assert!(
-            self.hover_listener.is_none(),
-            "calling on_hover more than once on the same element is not supported"
-        );
         self.hover_listener = Some(Box::new(listener));
     }
 
@@ -579,10 +571,6 @@ impl Interactivity {
     where
         Self: Sized,
     {
-        debug_assert!(
-            self.tooltip_builder.is_none(),
-            "calling tooltip more than once on the same element is not supported"
-        );
         self.tooltip_builder = Some(TooltipBuilder { build: Rc::new(build_tooltip), hoverable: false });
     }
 
@@ -593,10 +581,6 @@ impl Interactivity {
     where
         Self: Sized,
     {
-        debug_assert!(
-            self.tooltip_builder.is_none(),
-            "calling tooltip more than once on the same element is not supported"
-        );
         self.tooltip_builder = Some(TooltipBuilder { build: Rc::new(build_tooltip), hoverable: true });
     }
 
@@ -711,7 +695,6 @@ pub trait InteractiveElement: Sized {
 
     /// Apply the given style to this element when the mouse hovers over it
     fn hover(mut self, f: impl FnOnce(StyleRefinement) -> StyleRefinement) -> Self {
-        debug_assert!(self.interactivity().hover_style.is_none(), "hover style already set");
         self.interactivity().hover_style = Some(Box::new(f(StyleRefinement::default())));
         self
     }

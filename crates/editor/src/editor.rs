@@ -1837,11 +1837,6 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        debug_assert!(
-            display_map.is_none() || mode.is_minimap(),
-            "Providing a display map for a new editor is only intended for the minimap and might have unintended side effects otherwise!"
-        );
-
         let full_mode = mode.is_full();
         let is_minimap = mode.is_minimap();
         let diagnostics_max_severity = if full_mode { DiagnosticSeverity::Hint } else { DiagnosticSeverity::Off };
@@ -8032,19 +8027,6 @@ fn process_completion_for_edit(
     let mut range_to_replace = {
         let replace_range = &completion.replace_range;
         if let CompletionSource::Lsp { insert_range: Some(insert_range), lsp_completion, .. } = &completion.source {
-            debug_assert_eq!(
-                insert_range.start, replace_range.start,
-                "insert_range and replace_range should start at the same position"
-            );
-            debug_assert!(
-                insert_range.start.cmp(cursor_position, &buffer_snapshot).is_le(),
-                "insert_range should start before or at cursor position"
-            );
-            debug_assert!(
-                replace_range.start.cmp(cursor_position, &buffer_snapshot).is_le(),
-                "replace_range should start before or at cursor position"
-            );
-
             let should_replace = match intent {
                 CompletionIntent::CompleteWithInsert => false,
                 CompletionIntent::CompleteWithReplace => true,

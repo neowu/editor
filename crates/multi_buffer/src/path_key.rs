@@ -583,10 +583,6 @@ impl MultiBuffer {
     }
 
     pub fn ranges_grouped_by_excerpt_path(&self, ranges: &[Range<Anchor>]) -> Vec<(PathKey, Range<usize>)> {
-        debug_assert!(
-            ranges.iter().all(|range| matches!(range.start, Anchor::Excerpt(_))),
-            "ranges must start with excerpt anchors, Min/Max starts stall the grouping"
-        );
         let snapshot = self.snapshot.borrow();
         let mut grouped: Vec<(PathKey, Range<usize>)> = Vec::new();
         let mut next_range_index = 0;
@@ -632,7 +628,6 @@ impl MultiBuffer {
     }
 
     pub fn remove_excerpts_for_paths(&mut self, paths: Vec<PathKey>, cx: &mut Context<Self>) {
-        debug_assert!(paths.is_sorted(), "paths must be in ascending order");
         assert_eq!(self.history.transaction_depth(), 0);
         self.sync_mut(cx);
 

@@ -387,8 +387,6 @@ impl<E: IntoElement + 'static> Element for AnimationElement<E> {
             }
             let delta = (self.animations[animation_ix].easing)(delta);
 
-            debug_assert!(delta.is_finite(), "animated value should be finite");
-
             let element = self.element.take().expect("should only be called once");
             let mut element = (self.animator)(element, animation_ix, delta).into_any_element();
 

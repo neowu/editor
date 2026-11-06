@@ -1,7 +1,6 @@
 use std::cmp;
 use std::ops::Range;
 
-use gpui_util::debug_panic;
 use gpui_util::is_utf8_char_boundary;
 use heapless::String as ArrayString;
 use sum_tree::Bias;
@@ -210,7 +209,7 @@ impl Chunk {
         if self.is_char_boundary(offset) {
             return true;
         }
-        if PANIC || cfg!(debug_assertions) {
+        if PANIC {
             panic_char_boundary(&self.text, offset);
         } else {
             log_err_char_boundary(&self.text, offset);
@@ -400,13 +399,13 @@ impl<'a> ChunkSlice<'a> {
     #[inline(always)]
     pub fn point_to_offset(&self, point: Point) -> usize {
         if point.row > self.lines().row {
-            debug_panic!("point {:?} extends beyond rows for string {:?}", point, self.text);
+            log::error!("point {:?} extends beyond rows for string {:?}", point, self.text);
             return self.len();
         }
 
         let row_offset_range = self.offset_range_for_row(point.row);
         if point.column > row_offset_range.len() as u32 {
-            debug_panic!("point {:?} extends beyond row for string {:?}", point, self.text);
+            log::error!("point {:?} extends beyond row for string {:?}", point, self.text);
             row_offset_range.end
         } else {
             row_offset_range.start + point.column as usize
@@ -434,7 +433,7 @@ impl<'a> ChunkSlice<'a> {
     #[inline(always)]
     pub fn point_to_offset_utf16(&self, point: Point) -> OffsetUtf16 {
         if point.row > self.lines().row {
-            debug_panic!("point {:?} extends beyond rows for string {:?}", point, self.text);
+            log::error!("point {:?} extends beyond rows for string {:?}", point, self.text);
             return self.len_utf16();
         }
         self.offset_to_offset_utf16(self.point_to_offset(point))
@@ -483,7 +482,7 @@ impl<'a> ChunkSlice<'a> {
         let lines = self.lines();
         if point.row > lines.row {
             if !clip {
-                debug_panic!("point {:?} is beyond this chunk's extent {:?}", point, self.text);
+                log::error!("point {:?} is beyond this chunk's extent {:?}", point, self.text);
             }
             return self.len();
         }
@@ -492,7 +491,7 @@ impl<'a> ChunkSlice<'a> {
         let line = self.slice(row_offset_range.clone());
         if point.column > line.last_line_len_utf16() {
             if !clip {
-                debug_panic!("point {:?} is beyond the end of the line in chunk {:?}", point, self.text);
+                log::error!("point {:?} is beyond the end of the line in chunk {:?}", point, self.text);
             }
             return row_offset_range.end;
         }
@@ -506,7 +505,7 @@ impl<'a> ChunkSlice<'a> {
                     offset -= 1;
                 }
                 if !clip {
-                    debug_panic!("point {:?} is within character in chunk {:?}", point, self.text,);
+                    log::error!("point {:?} is within character in chunk {:?}", point, self.text,);
                 }
             }
         }

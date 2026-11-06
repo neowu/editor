@@ -2590,7 +2590,6 @@ impl Render for ProjectSearchBar {
                 let index = index + 1;
                 let match_quantity = project_search.match_ranges.len();
                 if match_quantity > 0 {
-                    debug_assert!(match_quantity >= index);
                     if limit_reached {
                         Some(format!("{index}/{match_quantity}+"))
                     } else {

@@ -2618,7 +2618,7 @@ impl GitPanel {
 
     fn stage_status_for_directory(&self, entry: &GitTreeDirEntry, repo: &Repository) -> StageStatus {
         let GitPanelViewMode::Tree(tree_state) = &self.view_mode else {
-            util::debug_panic!("We should never render a directory entry while in flat view mode");
+            log::error!("We should never render a directory entry while in flat view mode");
             return StageStatus::Unstaged;
         };
 
@@ -3810,7 +3810,7 @@ impl GitPanel {
             self.tree_expanded_dirs = state.expanded_dirs.clone();
             self.update_visible_entries(window, cx);
         } else {
-            util::debug_panic!("Attempted to toggle directory in flat Git Panel state");
+            log::error!("Attempted to toggle directory in flat Git Panel state");
         }
     }
 
@@ -5830,7 +5830,7 @@ impl GitPanel {
         let stage_status = if let Some(repo) = &self.active_repository {
             self.stage_status_for_directory(entry, repo.read(cx))
         } else {
-            util::debug_panic!("Won't have entries to render without an active repository in Git Panel");
+            log::error!("Won't have entries to render without an active repository in Git Panel");
             StageStatus::PartiallyStaged
         };
 

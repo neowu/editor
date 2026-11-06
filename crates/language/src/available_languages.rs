@@ -116,12 +116,6 @@ impl AvailableLanguages {
         self.0.iter().find(|language| language.name.0.as_ref() == name).cloned()
     }
 
-    pub(super) fn mark_all_unloaded(&mut self) {
-        for language in &mut self.0 {
-            language.loaded = false;
-        }
-    }
-
     pub(super) fn mark_loaded(&mut self, id: LanguageId) {
         if let Some(language) = self.0.iter_mut().find(|language| language.id == id) {
             language.loaded = true;

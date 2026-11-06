@@ -32,7 +32,6 @@ use project::ConflictRegion;
 use project::ConflictSet;
 use project::ConflictSetUpdate;
 use ui::prelude::*;
-use util::debug_panic;
 
 pub(crate) struct ConflictAddon {
     buffers: HashMap<BufferId, BufferConflicts>,
@@ -167,7 +166,7 @@ fn conflicts_updated(
         match buffer_conflicts.block_ids.get(event.old_range.clone()) {
             Some(_) => Some(event.old_range.clone()),
             None => {
-                debug_panic!(
+                log::error!(
                     "conflicts updated event old range is invalid for buffer conflicts view (block_ids len is {:?}, old_range is {:?})",
                     buffer_conflicts.block_ids.len(),
                     event.old_range,

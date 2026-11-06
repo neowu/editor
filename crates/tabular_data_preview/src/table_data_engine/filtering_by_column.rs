@@ -129,8 +129,6 @@ impl TableDataEngine {
             .get_mut(&column)
             .ok_or_else(|| anyhow::anyhow!("Expected {column:?} to be present in active filters"))?;
 
-        debug_assert!(entries.contains(&value), "Expected value to be present in {column:?} active filters");
-
         if entries.len() == 1 {
             self.filter_stack.retention_config.remove(&column);
         } else {

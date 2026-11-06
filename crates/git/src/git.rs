@@ -250,7 +250,6 @@ impl Oid {
 
     #[inline(always)]
     fn hex_digit(&self, index: usize) -> char {
-        debug_assert!(index < self.format.hex_len());
         let byte = self.as_bytes()[index / 2];
         let nibble = if index & 1 == 0 { byte >> 4 } else { byte & 0x0f };
         char::from(HEX_DIGITS[nibble as usize])

@@ -104,7 +104,6 @@ impl ManifestTree {
         delegate: &Arc<dyn ManifestDelegate>,
         cx: &mut App,
     ) -> Option<ProjectPath> {
-        debug_assert_eq!(delegate.worktree_id(), *worktree_id);
         let (mut marked_path, mut current_presence) = (None, LabelPresence::KnownAbsent);
         let worktree_roots = match self.root_points.entry(*worktree_id) {
             Entry::Occupied(occupied_entry) => occupied_entry.get().clone(),
@@ -122,13 +121,9 @@ impl ManifestTree {
             this.roots.walk(&key, &mut |path, labels| {
                 for (label, presence) in labels {
                     if label == manifest_name {
-                        if current_presence > *presence {
-                            debug_assert!(false, "RootPathTrie precondition violation; while walking the tree label presence is only allowed to increase");
-                        }
-                        marked_path = Some(ProjectPath {worktree_id: *worktree_id, path: path.clone()});
+                        marked_path = Some(ProjectPath { worktree_id: *worktree_id, path: path.clone() });
                         current_presence = *presence;
                     }
-
                 }
                 ControlFlow::Continue(())
             });

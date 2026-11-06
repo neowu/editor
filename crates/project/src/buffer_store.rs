@@ -49,7 +49,6 @@ use settings::Settings;
 use text::BufferId;
 use text::ReplicaId;
 use util::ResultExt as _;
-use util::debug_panic;
 use util::rel_path::RelPath;
 use worktree::File;
 use worktree::PathChange;
@@ -940,7 +939,7 @@ impl BufferStore {
                     if is_remote {
                         return Ok(());
                     } else {
-                        debug_panic!("buffer {remote_id} was already registered");
+                        log::error!("buffer {remote_id} was already registered");
                         anyhow::bail!("buffer {remote_id} was already registered");
                     }
                 }
@@ -1109,7 +1108,7 @@ impl BufferStore {
             buffer.lsp_handle = Some(handle);
             return;
         }
-        debug_panic!("tried to register shared lsp handle, but buffer was not shared")
+        log::error!("tried to register shared lsp handle, but buffer was not shared")
     }
 
     pub fn handle_create_buffer_for_peer(
@@ -1235,7 +1234,7 @@ impl BufferStore {
                 }
                 return;
             }
-            debug_panic!(
+            log::error!(
                 "peer_id {} closed buffer_id {} which was either not open or already closed",
                 peer_id,
                 buffer_id
@@ -1451,7 +1450,7 @@ impl BufferStore {
         if let Some(this) = self.as_remote_mut() {
             this.deserialize_project_transaction(message, push_to_history, cx)
         } else {
-            debug_panic!("not a remote buffer store");
+            log::error!("not a remote buffer store");
             Task::ready(Err(anyhow!("not a remote buffer store")))
         }
     }
@@ -1464,7 +1463,7 @@ impl BufferStore {
         if let Some(this) = self.as_remote_mut() {
             this.wait_for_remote_buffer(id, cx)
         } else {
-            debug_panic!("not a remote buffer store");
+            log::error!("not a remote buffer store");
             Task::ready(Err(anyhow!("not a remote buffer store")))
         }
     }
@@ -1489,13 +1488,11 @@ impl BufferStore {
         let (tx, rx) = async_channel::unbounded();
         let handle = util::post_inc(&mut self.project_search.next_id);
         let _old_entry = self.project_search.chunks.insert(handle, tx);
-        debug_assert!(_old_entry.is_none());
         (handle, rx)
     }
 
     pub fn register_ongoing_project_search(&mut self, id: (PeerId, u64), search: Task<anyhow::Result<()>>) {
         let _old = self.project_search.searches_in_progress.insert(id, search);
-        debug_assert!(_old.is_none());
     }
 
     pub async fn handle_find_search_candidates_cancel(

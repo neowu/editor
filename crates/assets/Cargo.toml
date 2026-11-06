@@ -9,7 +9,7 @@ path = "src/assets.rs"
 [dependencies]
 anyhow.workspace = true
 gpui.workspace = true
-util.workspace = true
+rust-embed.workspace = true
 
 [lints]
 workspace = true

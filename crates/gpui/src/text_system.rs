@@ -593,7 +593,6 @@ impl WindowTextSystem {
         runs: &[TextRun],
         force_width: Option<Pixels>,
     ) -> ShapedLine {
-        debug_assert!(text.find('\n').is_none(), "text argument should not contain newlines");
         let decoration_runs = decoration_runs(runs);
         let layout = self.layout_line(&text, font_size, runs, force_width);
         ShapedLine { layout, text, decoration_runs }

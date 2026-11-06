@@ -76,8 +76,7 @@ impl NodeChildren {
         Self { indices: [0; MAX_CHILDREN], len: 0 }
     }
 
-    fn push(&mut self, index: usize) {
-        debug_assert!((self.len as usize) < MAX_CHILDREN);
+    const fn push(&mut self, index: usize) {
         self.indices[self.len as usize] = index;
         self.len += 1;
     }

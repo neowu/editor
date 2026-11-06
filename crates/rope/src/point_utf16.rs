@@ -61,8 +61,6 @@ impl Sub for PointUtf16 {
     type Output = PointUtf16;
 
     fn sub(self, other: Self) -> Self::Output {
-        debug_assert!(other <= self);
-
         if self.row == other.row {
             PointUtf16::new(0, self.column - other.column)
         } else {

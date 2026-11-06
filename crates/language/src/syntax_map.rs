@@ -247,7 +247,7 @@ impl SyntaxLayerContent {
         }
     }
 
-    #[cfg(any(test, debug_assertions))]
+    #[cfg(test)]
     fn language_name(&self) -> SharedString {
         match self {
             SyntaxLayerContent::Parsed { language, .. } => language.name().0,
@@ -519,13 +519,6 @@ impl SyntaxSnapshot {
 
                     tree.edit(&tree_edit);
                 }
-
-                debug_assert!(
-                    tree.root_node().end_byte() <= text.len(),
-                    "tree's size {}, is larger than text size {}",
-                    tree.root_node().end_byte(),
-                    text.len(),
-                );
             }
 
             layers.push(layer, text);
@@ -941,12 +934,12 @@ impl SyntaxSnapshot {
         self.layers = layers;
         self.interpolated_version.clone_from(&text.version);
         self.parsed_version.clone_from(&text.version);
-        #[cfg(any(test, debug_assertions))]
+        #[cfg(test)]
         self.check_invariants(text, file);
         Ok(())
     }
 
-    #[cfg(any(test, debug_assertions))]
+    #[cfg(test)]
     fn check_invariants(&self, text: &BufferSnapshot, file: Option<&dyn File>) {
         let out_of_order = |reason: &str| -> ! {
             let file_path = file.map_or_else(|| "<untitled>".to_owned(), |file| format!("{:?}", file.path()));

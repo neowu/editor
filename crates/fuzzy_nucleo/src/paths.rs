@@ -120,7 +120,6 @@ const TAIL_REWARD_SCALE: f64 = 1.5;
 /// Rewards matches close to the end of the path, so `x/x.py` outranks `y/x.py` for `x`.
 #[inline]
 fn get_tail_proximity_bonus(matched_chars: &[u32], haystack_len: u32) -> f64 {
-    debug_assert!(haystack_len != 0 && !matched_chars.is_empty(), "This should only be called on a successful match.");
     let trailing: u32 = matched_chars.iter().map(|&i| haystack_len - 1 - i).sum();
     let mean_trailing = f64::from(trailing) / matched_chars.len() as f64;
     (1.0 / (1.0 + mean_trailing)) * TAIL_REWARD_SCALE

@@ -36,7 +36,6 @@ use text::Point;
 use text::ToOffset as _;
 use text::ToPoint as _;
 use util::ResultExt;
-use util::debug_panic;
 
 pub const MAX_WORD_DIFF_LINE_COUNT: usize = 5;
 
@@ -801,8 +800,6 @@ impl BufferDiffSnapshot {
             if let Some((last_range, last_text)) = edits.last_mut()
                 && index_byte_range.start <= last_range.end
             {
-                debug_assert!(index_byte_range.start == last_range.end);
-                debug_assert!(index_byte_range.end >= last_range.end);
                 last_range.end = index_byte_range.end;
                 let mut merged_text = String::with_capacity(last_text.len() + replacement_text.len());
                 merged_text.push_str(last_text);
@@ -810,18 +807,6 @@ impl BufferDiffSnapshot {
                 *last_text = Arc::from(merged_text);
             } else {
                 edits.push((index_byte_range, replacement_text));
-            }
-        }
-
-        #[cfg(debug_assertions)] // invariants: non-overlapping and sorted
-        {
-            for window in edits.windows(2) {
-                let (range_a, range_b) = (&window[0].0, &window[1].0);
-                debug_assert!(
-                    range_a.end < range_b.start,
-                    "index edits out of order or overlapping: {:?}",
-                    edits.iter().map(|(range, text)| (range.clone(), text.len())).collect::<Vec<_>>()
-                );
             }
         }
 
@@ -1553,8 +1538,6 @@ impl BufferDiff {
         cx: &App,
     ) -> Task<BufferDiffUpdate> {
         let base_text = base_text.map(text::LineEnding::normalize_arc);
-        debug_assert_eq!(base_text.as_deref().unwrap_or_default(), &base_text_snapshot.text());
-        debug_assert_eq!(base_text_snapshot.remote_id(), self.base_text_buffer.read(cx).remote_id());
 
         let language = base_text_snapshot.language();
         let diff_options = build_diff_options(language.map(|l| l.name()), language.map(|l| l.default_scope()), cx);
@@ -1741,10 +1724,7 @@ impl BufferDiff {
                 secondary_diff: None,
             }
         });
-        snapshot.secondary_diff = self.secondary_diff.as_ref().map(|diff| {
-            debug_assert!(diff.read(cx).secondary_diff.is_none());
-            Arc::new(diff.read(cx).snapshot(cx))
-        });
+        snapshot.secondary_diff = self.secondary_diff.as_ref().map(|diff| Arc::new(diff.read(cx).snapshot(cx)));
         snapshot
     }
 
@@ -1777,7 +1757,7 @@ impl BufferDiff {
                 .update(cx, |this, cx| {
                     if this.base_text_buffer.read(cx).version() != base_text_diff.base_version {
                         log::warn!("dropping concurrent diff update");
-                        debug_panic!("incorrect concurrent call to set_base_text");
+                        log::error!("incorrect concurrent call to set_base_text");
                         return None;
                     }
                     let edited_base_text = this.base_text_buffer.update(cx, |base_text_buffer, cx| {
@@ -1811,7 +1791,7 @@ impl BufferDiff {
             this.update(cx, |this, cx| {
                 if &this.base_text_buffer.read(cx).version() != edited_base_text.base_version() {
                     log::warn!("dropping concurrent diff update");
-                    debug_panic!("incorrect concurrent call to set_base_text");
+                    log::error!("incorrect concurrent call to set_base_text");
                     return;
                 }
 

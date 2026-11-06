@@ -1675,8 +1675,7 @@ pub const fn radians(value: f32) -> Radians {
 pub struct Percentage(pub f32);
 
 /// Generate a `Radian` from a percentage of a full circle.
-pub fn percentage(value: f32) -> Percentage {
-    debug_assert!((0.0..=1.0).contains(&value), "Percentage must be between 0 and 1");
+pub const fn percentage(value: f32) -> Percentage {
     Percentage(value)
 }
 

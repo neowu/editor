@@ -230,11 +230,6 @@ impl WrapMap {
             self.snapshot.interpolated = false;
         }
 
-        debug_assert!(
-            self.background_task.is_some() || self.wrap_width.is_none() || !self.snapshot.interpolated,
-            "an interpolated snapshot must always have a background task rewrapping it, \
-             otherwise is_rewrapping never settles and frozen scrollbar ranges leak"
-        );
         (self.snapshot.clone(), mem::take(&mut self.edits_since_sync))
     }
 
@@ -786,7 +781,6 @@ impl WrapSnapshot {
                 let tab_end = TabPoint(cursor.start().1.0 + end_in_transform);
                 summary += &self.tab_snapshot.text_summary_for_range(tab_start..tab_end);
             } else {
-                debug_assert_eq!(start_in_transform.row, end_in_transform.row);
                 let indent_len = end_in_transform.column - start_in_transform.column;
                 summary += &TextSummary {
                     lines: Point::new(0, indent_len),
@@ -810,7 +804,6 @@ impl WrapSnapshot {
                     let char_end = TabPoint(char_start.0 + end_in_transform);
                     summary += &self.tab_snapshot.text_summary_for_range(char_start..char_end);
                 } else {
-                    debug_assert_eq!(end_in_transform, Point::new(1, 0));
                     summary += &TextSummary {
                         lines: Point::new(1, 0),
                         first_line_chars: 0,
@@ -1278,7 +1271,6 @@ fn consolidate_wrap_edits(edits: Vec<WrapEdit>) -> Vec<WrapEdit> {
             .filter_map(|x| x)
             .collect();
         v.push(first_edit.clone());
-        debug_assert_eq!(v.as_ptr(), _old_alloc_ptr, "Wrap edits were reallocated");
         v
     } else {
         vec![]

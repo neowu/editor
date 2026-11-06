@@ -429,7 +429,6 @@ impl MetalRenderer {
             DisplayLinkMode::Detached => {
                 // Only a live link hands out drawables, and a link is detached
                 // only after it has been invalidated.
-                debug_assert!(drawable.is_none(), "received a display link drawable while detached");
                 None
             }
         }

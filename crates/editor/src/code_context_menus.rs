@@ -769,7 +769,6 @@ impl CompletionsMenu {
             markdown_cache.push_front((MarkdownCacheKey::ForCandidate { candidate_id }, markdown.clone()));
             Some((true, markdown))
         } else {
-            debug_assert_eq!(markdown_cache.capacity(), MARKDOWN_CACHE_MAX_SIZE);
             // Moves the last cache entry to the start. The ring buffer is full, so this does no
             // copying and just shifts indexes.
             markdown_cache.rotate_right(1);

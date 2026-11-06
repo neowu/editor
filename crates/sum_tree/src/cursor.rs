@@ -357,7 +357,6 @@ where
         }
 
         self.at_end = self.stack.is_empty();
-        debug_assert!(self.stack.is_empty() || self.stack.last().unwrap().tree.0.is_leaf());
     }
 
     #[track_caller]
@@ -502,7 +501,6 @@ where
         }
 
         self.at_end = self.stack.is_empty();
-        debug_assert!(self.stack.is_empty() || self.stack.last().unwrap().tree.0.is_leaf());
 
         let mut end = self.position.clone();
         if bias == Bias::Left

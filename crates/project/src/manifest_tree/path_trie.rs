@@ -61,7 +61,6 @@ impl<Label: Ord + Clone> RootPathTrie<Label> {
             };
         }
         let _previous_value = current.labels.insert(value, presence);
-        debug_assert_eq!(_previous_value, None);
         current
     }
 

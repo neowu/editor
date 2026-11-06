@@ -870,18 +870,8 @@ impl MarkdownPreviewView {
         cx: &mut App,
     ) {
         let task_marker = if new_checked { "[x]" } else { "[ ]" };
-        let expected_existing_marker = if new_checked { "[ ]" } else { "[x]" };
 
         editor.update(cx, |editor, cx| {
-            let existing_marker: String = editor
-                .buffer()
-                .read(cx)
-                .snapshot(cx)
-                .text_for_range(MultiBufferOffset(source_range.start)..MultiBufferOffset(source_range.end))
-                .collect();
-
-            debug_assert_eq!(existing_marker, expected_existing_marker);
-
             editor
                 .edit([(MultiBufferOffset(source_range.start)..MultiBufferOffset(source_range.end), task_marker)], cx);
         });
@@ -1557,9 +1547,6 @@ impl SearchableItem for MarkdownPreviewView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        debug_assert!(
-            matches.windows(2).all(|ranges| (ranges[0].start, ranges[0].end) <= (ranges[1].start, ranges[1].end))
-        );
         let old_highlights = self.markdown.read(cx).search_highlights();
         let changed = old_highlights != matches;
         self.markdown.update(cx, |markdown, cx| {

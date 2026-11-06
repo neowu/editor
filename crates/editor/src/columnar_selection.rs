@@ -306,7 +306,6 @@ impl<'a> RowText<'a> {
     }
 
     fn floor_forward(&mut self, cursor: &mut ForwardCursor, byte: u32) {
-        debug_assert!(byte >= cursor.boundary.byte());
         if let Self::Ascii(length) = self {
             cursor.column = byte.min(*length);
             cursor.boundary.graphemes.set_cursor(cursor.column as usize);

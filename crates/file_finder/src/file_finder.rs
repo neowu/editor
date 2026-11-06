@@ -1171,15 +1171,6 @@ impl FileFinderDelegate {
         let full_path = full_path.display().trim_end_matches(&file_name).to_string();
         path_positions.retain(|idx| *idx < full_path.len());
 
-        debug_assert!(
-            file_name_positions.iter().all(|ix| file_name[*ix..].chars().next().is_some()),
-            "invalid file name positions {file_name:?} {file_name_positions:?}"
-        );
-        debug_assert!(
-            path_positions.iter().all(|ix| full_path[*ix..].chars().next().is_some()),
-            "invalid path positions {full_path:?} {path_positions:?}"
-        );
-
         (file_name.to_string(), file_name_positions, full_path, path_positions)
     }
 

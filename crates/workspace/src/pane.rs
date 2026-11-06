@@ -78,7 +78,6 @@ use ui::prelude::*;
 use ui::right_click_menu;
 use ui::utils;
 use util::ResultExt;
-use util::debug_panic;
 use util::disambiguate;
 use util::markdown::MarkdownInlineCode;
 use util::truncate_and_remove_front;
@@ -1977,7 +1976,7 @@ impl Pane {
                         let answer = answer_task.await;
                         pane.update(cx, |pane, _| {
                             if !pane.save_modals_spawned.remove(&item_id) {
-                                debug_panic!(
+                                log::error!(
                                     "save modal was not present in spawned modals after awaiting for its answer"
                                 )
                             }

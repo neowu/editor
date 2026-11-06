@@ -2,7 +2,6 @@ use std::time::Instant;
 
 use editor::Editor;
 use editor::EditorEvent;
-use gpui::Action;
 use gpui::AnyView;
 use gpui::AppContext;
 use gpui::Entity;
@@ -10,7 +9,6 @@ use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::Task;
-use serde::Deserialize;
 use ui::SharedString;
 use ui::prelude::*;
 use workspace::Item;
@@ -19,7 +17,6 @@ use workspace::Workspace;
 use workspace::preview;
 
 use crate::parser::EditorState;
-pub use crate::table_view::CellSelection;
 pub use crate::table_view::TableView;
 
 mod parser;
@@ -29,22 +26,6 @@ mod settings;
 mod table_data_engine;
 mod table_view;
 pub mod types;
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum NavigationDirection {
-    #[default]
-    Up,
-    Down,
-    Left,
-    Right,
-}
-
-#[derive(Clone, Deserialize, PartialEq, Action)]
-#[action(namespace = tabular_data)]
-pub struct MoveFocusedCell {
-    pub direction: NavigationDirection,
-}
 
 /// Editor-backed adapter: watches an [`Editor`], parses its buffer into a [`crate::types::TableLikeContent`],
 /// and feeds the result to an embedded [`TableView`] that owns all grid rendering.

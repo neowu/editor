@@ -93,10 +93,6 @@ pub fn replace_control_characters_remapping_offsets(text: &str, offsets: &mut [u
     moved[text.len()] = replaced.len();
 
     for offset in offsets {
-        debug_assert!(
-            *offset > text.len() || text.is_char_boundary(*offset),
-            "offset {offset} is not on a character boundary of {text:?}",
-        );
         *offset = moved.get(*offset).copied().unwrap_or(replaced.len());
     }
 

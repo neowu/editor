@@ -76,13 +76,7 @@ pub(crate) struct ReusedSubtree {
 }
 
 impl ReusedSubtree {
-    pub fn refresh_node_id(&self, node_id: DispatchNodeId) -> DispatchNodeId {
-        debug_assert!(
-            self.old_range.contains(&node_id.0),
-            "node {} was not part of the reused subtree {:?}",
-            node_id.0,
-            self.old_range
-        );
+    pub const fn refresh_node_id(&self, node_id: DispatchNodeId) -> DispatchNodeId {
         DispatchNodeId((node_id.0 - self.old_range.start) + self.new_range.start)
     }
 
@@ -167,8 +161,6 @@ impl DispatchTree {
                 self.context_stack.push(context);
             }
         } else {
-            debug_assert_eq!(self.node_stack.len(), 0);
-
             let mut current_node_id = Some(node_id);
             while let Some(node_id) = current_node_id {
                 let node = &self.nodes[node_id.0];
@@ -529,8 +521,7 @@ impl DispatchTree {
         self.focusable_node_ids.get(&target).copied()
     }
 
-    pub fn root_node_id(&self) -> DispatchNodeId {
-        debug_assert!(!self.nodes.is_empty());
+    pub const fn root_node_id(&self) -> DispatchNodeId {
         DispatchNodeId(0)
     }
 

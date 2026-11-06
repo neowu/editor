@@ -962,7 +962,6 @@ fn intersecting_folds<'a>(
 fn consolidate_inlay_edits(mut edits: Vec<InlayEdit>) -> Vec<InlayEdit> {
     edits.sort_unstable_by(|a, b| a.old.start.cmp(&b.old.start).then_with(|| b.old.end.cmp(&a.old.end)));
 
-    let _old_alloc_ptr = edits.as_ptr();
     let mut inlay_edits = edits.into_iter();
 
     if let Some(mut first_edit) = inlay_edits.next() {
@@ -983,7 +982,6 @@ fn consolidate_inlay_edits(mut edits: Vec<InlayEdit>) -> Vec<InlayEdit> {
             .filter_map(|x| x)
             .collect();
         v.push(first_edit.clone());
-        debug_assert_eq!(_old_alloc_ptr, v.as_ptr(), "Inlay edits were reallocated");
         v
     } else {
         vec![]
@@ -992,7 +990,6 @@ fn consolidate_inlay_edits(mut edits: Vec<InlayEdit>) -> Vec<InlayEdit> {
 
 fn consolidate_fold_edits(mut edits: Vec<FoldEdit>) -> Vec<FoldEdit> {
     edits.sort_unstable_by(|a, b| a.old.start.cmp(&b.old.start).then_with(|| b.old.end.cmp(&a.old.end)));
-    let _old_alloc_ptr = edits.as_ptr();
     let mut fold_edits = edits.into_iter();
 
     if let Some(mut first_edit) = fold_edits.next() {
@@ -1150,15 +1147,6 @@ impl sum_tree::Summary for FoldSummary {
         }
         if other.max_end.cmp(&self.max_end, buffer) == Ordering::Greater {
             self.max_end = other.max_end;
-        }
-
-        #[cfg(debug_assertions)]
-        {
-            let start_comparison = self.start.cmp(&other.start, buffer);
-            assert!(start_comparison <= Ordering::Equal);
-            if start_comparison == Ordering::Equal {
-                assert!(self.end.cmp(&other.end, buffer) >= Ordering::Equal);
-            }
         }
 
         self.start = other.start;

@@ -317,30 +317,6 @@ impl WindowInvalidator {
     pub fn not_drawing(&self) -> bool {
         self.inner.borrow().draw_phase == DrawPhase::None
     }
-
-    #[track_caller]
-    pub fn debug_assert_paint(&self) {
-        debug_assert!(
-            matches!(self.inner.borrow().draw_phase, DrawPhase::Paint),
-            "this method can only be called during paint"
-        );
-    }
-
-    #[track_caller]
-    pub fn debug_assert_prepaint(&self) {
-        debug_assert!(
-            matches!(self.inner.borrow().draw_phase, DrawPhase::Prepaint),
-            "this method can only be called during request_layout, or prepaint"
-        );
-    }
-
-    #[track_caller]
-    pub fn debug_assert_paint_or_prepaint(&self) {
-        debug_assert!(
-            matches!(self.inner.borrow().draw_phase, DrawPhase::Paint | DrawPhase::Prepaint),
-            "this method can only be called during request_layout, prepaint, or paint"
-        );
-    }
 }
 
 type AnyObserver = Box<dyn FnMut(&mut Window, &mut App) -> bool + 'static>;
@@ -481,7 +457,6 @@ impl Drop for ElementArenaScope {
         // normal and unwinding paths, since the guard is a local of the draw.
         unsafe { &*self.entered }.borrow_mut().end_scope();
         if !self.exited && !thread::panicking() {
-            debug_assert!(false, "ElementArenaScope dropped without calling exit()");
             log::error!(
                 "ElementArenaScope dropped without calling exit(); \
                  the arena clear for this draw was never requested"
@@ -1399,8 +1374,6 @@ struct PendingInput {
 
 pub(crate) struct ElementStateBox {
     pub(crate) inner: Box<dyn Any>,
-    #[cfg(debug_assertions)]
-    pub(crate) type_name: &'static str,
 }
 
 fn default_bounds(display_id: Option<DisplayId>, cx: &mut App) -> WindowBounds {
@@ -2490,8 +2463,6 @@ impl Window {
     where
         F: FnOnce(&mut Self) -> R,
     {
-        self.invalidator.debug_assert_paint_or_prepaint();
-
         if let Some(rem_size) = rem_size {
             self.rem_size_override_stack.push(rem_size.into());
             let result = f(self);
@@ -2556,7 +2527,6 @@ impl Window {
         style: &UnderlineStyle,
         exclusions: &[Range<ScaledPixels>],
     ) {
-        self.invalidator.debug_assert_paint();
         let underline = self.underline(origin, width, style);
         if exclusions.is_empty() {
             self.next_frame.scene.insert_primitive(underline);
@@ -2733,7 +2703,6 @@ impl Window {
         }
         self.invalidate_entities();
         cx.entities.clear_accessed();
-        debug_assert!(self.rendered_entity_stack.is_empty());
         self.invalidator.set_dirty(false);
         self.requested_autoscroll = None;
 
@@ -2798,7 +2767,6 @@ impl Window {
             self.focus_listeners.clone().retain(|listener| listener(&event, self, cx));
         }
 
-        debug_assert!(self.rendered_entity_stack.is_empty());
         self.record_entities_accessed(cx);
         self.reset_cursor_style(cx);
         self.refreshing = false;
@@ -3207,7 +3175,6 @@ impl Window {
     where
         F: FnOnce(&mut Self) -> R,
     {
-        self.invalidator.debug_assert_paint_or_prepaint();
         if let Some(style) = style {
             self.text_style_stack.push(style);
             let result = f(self);
@@ -3221,7 +3188,6 @@ impl Window {
     /// Updates the cursor style at the platform level. This method should only be called
     /// during the paint phase of element drawing.
     pub fn set_cursor_style(&mut self, style: CursorStyle, hitbox: &Hitbox) {
-        self.invalidator.debug_assert_paint();
         self.next_frame.cursor_styles.push(CursorStyleRequest { hitbox_id: Some(hitbox.id), style });
     }
 
@@ -3230,14 +3196,12 @@ impl Window {
     /// `set_cursor_style`. This method should only be called during the paint
     /// phase of element drawing.
     pub fn set_window_cursor_style(&mut self, style: CursorStyle) {
-        self.invalidator.debug_assert_paint();
         self.next_frame.cursor_styles.push(CursorStyleRequest { hitbox_id: None, style })
     }
 
     /// Sets a tooltip to be rendered for the upcoming frame. This method should only be called
     /// during the paint phase of element drawing.
     pub fn set_tooltip(&mut self, tooltip: AnyTooltip) -> TooltipId {
-        self.invalidator.debug_assert_prepaint();
         let id = TooltipId(post_inc(&mut self.next_tooltip_id.0));
         self.next_frame.tooltip_requests.push(Some(TooltipRequest { id, tooltip }));
         id
@@ -3249,7 +3213,6 @@ impl Window {
     // prepainting, make sure its inlined to reduce the stack burden
     #[inline]
     pub fn with_content_mask<R>(&mut self, mask: Option<ContentMask<Pixels>>, f: impl FnOnce(&mut Self) -> R) -> R {
-        self.invalidator.debug_assert_paint_or_prepaint();
         if let Some(mask) = mask {
             let mask = mask.intersect(&self.content_mask());
             self.content_mask_stack.push(mask);
@@ -3264,8 +3227,6 @@ impl Window {
     /// Updates the global element offset relative to the current offset. This is used to implement
     /// scrolling. This method should only be called during the prepaint phase of element drawing.
     pub fn with_element_offset<R>(&mut self, offset: Point<Pixels>, f: impl FnOnce(&mut Self) -> R) -> R {
-        self.invalidator.debug_assert_prepaint();
-
         if offset.is_zero() {
             return f(self);
         };
@@ -3278,7 +3239,6 @@ impl Window {
     /// drag handles and other manual painting of elements. This method should only be called during
     /// the prepaint phase of element drawing.
     pub fn with_absolute_element_offset<R>(&mut self, offset: Point<Pixels>, f: impl FnOnce(&mut Self) -> R) -> R {
-        self.invalidator.debug_assert_prepaint();
         self.element_offset_stack.push(offset);
         let result = f(self);
         self.element_offset_stack.pop();
@@ -3286,8 +3246,6 @@ impl Window {
     }
 
     pub(crate) fn with_element_opacity<R>(&mut self, opacity: Option<f32>, f: impl FnOnce(&mut Self) -> R) -> R {
-        self.invalidator.debug_assert_paint_or_prepaint();
-
         let Some(opacity) = opacity else {
             return f(self);
         };
@@ -3305,7 +3263,6 @@ impl Window {
     /// element offset and prepaint again. See [`crate::List`] for an example. This method should only be
     /// called during the prepaint phase of element drawing.
     pub fn transact<T, U>(&mut self, f: impl FnOnce(&mut Self) -> Result<T, U>) -> Result<T, U> {
-        self.invalidator.debug_assert_prepaint();
         let index = self.prepaint_index();
         let result = f(self);
         if result.is_err() {
@@ -3324,15 +3281,13 @@ impl Window {
     /// [`Element::prepaint`] again with a new set of bounds. See [`crate::List`] for an example of an element
     /// that supports this method being called on the elements it contains. This method should only be
     /// called during the prepaint phase of element drawing.
-    pub fn request_autoscroll(&mut self, bounds: Bounds<Pixels>) {
-        self.invalidator.debug_assert_prepaint();
+    pub const fn request_autoscroll(&mut self, bounds: Bounds<Pixels>) {
         self.requested_autoscroll = Some(bounds);
     }
 
     /// This method can be called from a containing element such as [`crate::List`] to support the autoscroll behavior
     /// described in [`Self::request_autoscroll`].
-    pub fn take_autoscroll(&mut self) -> Option<Bounds<Pixels>> {
-        self.invalidator.debug_assert_prepaint();
+    pub const fn take_autoscroll(&mut self) -> Option<Bounds<Pixels>> {
         self.requested_autoscroll.take()
     }
 
@@ -3356,21 +3311,18 @@ impl Window {
     /// Obtain the current element offset. This method should only be called during the
     /// prepaint phase of element drawing.
     pub fn element_offset(&self) -> Point<Pixels> {
-        self.invalidator.debug_assert_prepaint();
         self.element_offset_stack.last().copied().unwrap_or_default()
     }
 
     /// Obtain the current element opacity. This method should only be called during the
     /// prepaint phase of element drawing.
     #[inline]
-    pub(crate) fn element_opacity(&self) -> f32 {
-        self.invalidator.debug_assert_paint_or_prepaint();
+    pub(crate) const fn element_opacity(&self) -> f32 {
         self.element_opacity
     }
 
     /// Obtain the current content mask. This method should only be called during element drawing.
     pub fn content_mask(&self) -> ContentMask<Pixels> {
-        self.invalidator.debug_assert_paint_or_prepaint();
         self.content_mask_stack
             .last()
             .copied()
@@ -3434,33 +3386,15 @@ impl Window {
     where
         S: 'static,
     {
-        self.invalidator.debug_assert_paint_or_prepaint();
-
         let (key, state) = self.take_element_state(global_id, TypeId::of::<S>());
 
         if let Some(any) = state {
-            let ElementStateBox {
-                inner,
-                #[cfg(debug_assertions)]
-                type_name,
-            } = any;
+            let ElementStateBox { inner } = any;
             // Using the extra inner option to avoid needing to reallocate a new box.
             let mut state_box = inner
                 .downcast::<Option<S>>()
                 .map_err(|_| {
-                    #[cfg(debug_assertions)]
-                    {
-                        anyhow::anyhow!(
-                            "invalid element state type for id, requested {:?}, actual: {:?}",
-                            any::type_name::<S>(),
-                            type_name
-                        )
-                    }
-
-                    #[cfg(not(debug_assertions))]
-                    {
-                        anyhow::anyhow!("invalid element state type for id, requested {:?}", any::type_name::<S>(),)
-                    }
+                    anyhow::anyhow!("invalid element state type for id, requested {:?}", any::type_name::<S>(),)
                 })
                 .unwrap();
 
@@ -3468,25 +3402,11 @@ impl Window {
                 state_box.take().expect("reentrant call to with_element_state for the same state type and element id");
             let (result, state) = f(Some(state), self);
             state_box.replace(state);
-            self.insert_element_state(
-                key,
-                ElementStateBox {
-                    inner: state_box,
-                    #[cfg(debug_assertions)]
-                    type_name,
-                },
-            );
+            self.insert_element_state(key, ElementStateBox { inner: state_box });
             result
         } else {
             let (result, state) = f(None, self);
-            self.insert_element_state(
-                key,
-                ElementStateBox {
-                    inner: Box::new(Some(state)),
-                    #[cfg(debug_assertions)]
-                    type_name: any::type_name::<S>(),
-                },
-            );
+            self.insert_element_state(key, ElementStateBox { inner: Box::new(Some(state)) });
             result
         }
     }
@@ -3505,8 +3425,6 @@ impl Window {
     where
         S: 'static,
     {
-        self.invalidator.debug_assert_paint_or_prepaint();
-
         if let Some(global_id) = global_id {
             self.with_element_state(global_id, |state, cx| {
                 let (result, state) = f(Some(state), cx);
@@ -3514,9 +3432,7 @@ impl Window {
                 (result, state)
             })
         } else {
-            let (result, state) = f(None, self);
-            debug_assert!(state.is_none(), "you must not return an element state when passing None for the global id");
-            result
+            f(None, self).0
         }
     }
 
@@ -3548,7 +3464,6 @@ impl Window {
         priority: usize,
         content_mask: Option<ContentMask<Pixels>>,
     ) {
-        self.invalidator.debug_assert_prepaint();
         let parent_node = self.next_frame.dispatch_tree.active_node_id().unwrap();
         self.next_frame.deferred_draws.push(DeferredDraw {
             current_view: self.current_view(),
@@ -3572,8 +3487,6 @@ impl Window {
     ///
     /// This method should only be called as part of the paint phase of element drawing.
     pub fn paint_layer<R>(&mut self, bounds: Bounds<Pixels>, f: impl FnOnce(&mut Self) -> R) -> R {
-        self.invalidator.debug_assert_paint();
-
         let content_mask = self.content_mask();
         let clipped_bounds = bounds.intersect(&content_mask.bounds);
         if !clipped_bounds.is_empty() {
@@ -3595,8 +3508,6 @@ impl Window {
     ///
     /// This method should only be called as part of the paint phase of element drawing.
     pub fn paint_drop_shadows(&mut self, bounds: Bounds<Pixels>, corner_radii: Corners<Pixels>, shadows: &[BoxShadow]) {
-        self.invalidator.debug_assert_paint();
-
         let scale_factor = self.scale_factor();
         let content_mask = self.snapped_content_mask();
         let opacity = self.element_opacity();
@@ -3631,8 +3542,6 @@ impl Window {
         corner_radii: Corners<Pixels>,
         shadows: &[BoxShadow],
     ) {
-        self.invalidator.debug_assert_paint();
-
         let scale_factor = self.scale_factor();
         let content_mask = self.snapped_content_mask();
         let opacity = self.element_opacity();
@@ -3710,8 +3619,6 @@ impl Window {
     /// where the circular arcs meet. This will not display well when combined with dashed borders.
     /// Use `Corners::clamp_radii_for_quad_size` if the radii should fit within the bounds.
     pub fn paint_quad(&mut self, quad: PaintQuad) {
-        self.invalidator.debug_assert_paint();
-
         let opacity = self.element_opacity();
         let snapped_bounds = self.snap_bounds(quad.bounds);
         let snapped_border_widths = self.snap_border_widths(quad.border_widths);
@@ -3766,8 +3673,6 @@ impl Window {
     ///
     /// This method should only be called as part of the paint phase of element drawing.
     pub fn paint_path(&mut self, mut path: Path<Pixels>, color: impl Into<Background>) {
-        self.invalidator.debug_assert_paint();
-
         let scale_factor = self.scale_factor();
         let content_mask = self.content_mask();
         let opacity = self.element_opacity();
@@ -3781,7 +3686,6 @@ impl Window {
     ///
     /// This method should only be called as part of the paint phase of element drawing.
     pub fn paint_underline(&mut self, origin: Point<Pixels>, width: Pixels, style: &UnderlineStyle) {
-        self.invalidator.debug_assert_paint();
         let underline = self.underline(origin, width, style);
         self.next_frame.scene.insert_primitive(underline);
     }
@@ -3790,8 +3694,6 @@ impl Window {
     ///
     /// This method should only be called as part of the paint phase of element drawing.
     pub fn paint_strikethrough(&mut self, origin: Point<Pixels>, width: Pixels, style: &StrikethroughStyle) {
-        self.invalidator.debug_assert_paint();
-
         let scale_factor = self.scale_factor();
         let height = style.thickness;
         let bounds = Bounds {
@@ -3827,8 +3729,6 @@ impl Window {
         font_size: Pixels,
         color: Hsla,
     ) -> Result<()> {
-        self.invalidator.debug_assert_paint();
-
         let element_opacity = self.element_opacity();
         let scale_factor = self.scale_factor();
         let glyph_origin = origin.scale(scale_factor);
@@ -3927,8 +3827,6 @@ impl Window {
         glyph_id: GlyphId,
         font_size: Pixels,
     ) -> Result<()> {
-        self.invalidator.debug_assert_paint();
-
         let scale_factor = self.scale_factor();
         let glyph_origin = origin.scale(scale_factor);
         let integer_origin = glyph_origin.map(|c| ScaledPixels(round_half_toward_zero(c.0)));
@@ -3986,8 +3884,6 @@ impl Window {
         color: Hsla,
         cx: &App,
     ) -> Result<()> {
-        self.invalidator.debug_assert_paint();
-
         let element_opacity = self.element_opacity();
         let bounds = self.snap_bounds(bounds);
 
@@ -4047,8 +3943,6 @@ impl Window {
         frame_index: usize,
         grayscale: bool,
     ) -> Result<()> {
-        self.invalidator.debug_assert_paint();
-
         let visible_bounds = bounds.intersect(&image_bounds);
         if visible_bounds.size.width <= Pixels::ZERO || visible_bounds.size.height <= Pixels::ZERO {
             return Ok(());
@@ -4148,8 +4042,6 @@ impl Window {
         children: impl IntoIterator<Item = LayoutId>,
         cx: &mut App,
     ) -> LayoutId {
-        self.invalidator.debug_assert_prepaint();
-
         cx.layout_id_buffer.clear();
         cx.layout_id_buffer.extend(children);
         let rem_size = self.rem_size();
@@ -4170,8 +4062,6 @@ impl Window {
     where
         F: Fn(Size<Option<Pixels>>, Size<AvailableSpace>, &mut Window, &mut App) -> Size<Pixels> + 'static,
     {
-        self.invalidator.debug_assert_prepaint();
-
         let rem_size = self.rem_size();
         let scale_factor = self.scale_factor();
         self.layout_engine.as_mut().unwrap().request_measured_layout(style, rem_size, scale_factor, measure)
@@ -4183,8 +4073,6 @@ impl Window {
     ///
     /// This method should only be called as part of the prepaint phase of element drawing.
     pub fn compute_layout(&mut self, layout_id: LayoutId, available_space: Size<AvailableSpace>, cx: &mut App) {
-        self.invalidator.debug_assert_prepaint();
-
         let mut layout_engine = self.layout_engine.take().unwrap();
         layout_engine.compute_layout(layout_id, available_space, self, cx);
         self.layout_engine = Some(layout_engine);
@@ -4195,8 +4083,6 @@ impl Window {
     ///
     /// This method should only be called as part of element drawing.
     pub fn layout_bounds(&mut self, layout_id: LayoutId) -> Bounds<Pixels> {
-        self.invalidator.debug_assert_prepaint();
-
         let scale_factor = self.scale_factor();
         let mut bounds = self.layout_engine.as_mut().unwrap().layout_bounds(layout_id, scale_factor).map(Into::into);
         let snapped_offset = self.pixel_snap_point(self.element_offset());
@@ -4210,8 +4096,6 @@ impl Window {
     ///
     /// This method should only be called as part of the prepaint phase of element drawing.
     pub fn insert_hitbox(&mut self, bounds: Bounds<Pixels>, behavior: HitboxBehavior) -> Hitbox {
-        self.invalidator.debug_assert_prepaint();
-
         let content_mask = self.content_mask();
         let id = self.next_hitbox_id;
         self.next_hitbox_id = self.next_hitbox_id.next();
@@ -4224,7 +4108,6 @@ impl Window {
     ///
     /// This method should only be called as part of the paint phase of element drawing.
     pub fn insert_window_control_hitbox(&mut self, area: WindowControlArea, hitbox: Hitbox) {
-        self.invalidator.debug_assert_paint();
         self.next_frame.window_control_hitboxes.push((area, hitbox));
     }
 
@@ -4233,7 +4116,6 @@ impl Window {
     ///
     /// This method should only be called as part of the paint phase of element drawing.
     pub fn set_key_context(&mut self, context: KeyContext) {
-        self.invalidator.debug_assert_paint();
         self.next_frame.dispatch_tree.set_key_context(context);
     }
 
@@ -4242,7 +4124,6 @@ impl Window {
     ///
     /// This method should only be called as part of the prepaint phase of element drawing.
     pub fn set_focus_handle(&mut self, focus_handle: &FocusHandle, _: &App) {
-        self.invalidator.debug_assert_prepaint();
         if focus_handle.is_focused(self) {
             self.next_frame.focus = Some(focus_handle.id);
         }
@@ -4255,13 +4136,11 @@ impl Window {
     /// method eventually when we solve some issues that require us to construct editor elements
     /// directly instead of always using editors via views.
     pub fn set_view_id(&mut self, view_id: EntityId) {
-        self.invalidator.debug_assert_prepaint();
         self.next_frame.dispatch_tree.set_view_id(view_id);
     }
 
     /// Get the entity ID for the currently rendering view
     pub fn current_view(&self) -> EntityId {
-        self.invalidator.debug_assert_paint_or_prepaint();
         self.rendered_entity_stack.last().copied().unwrap()
     }
 
@@ -4297,8 +4176,6 @@ impl Window {
     ///
     /// [element_input_handler]: crate::ElementInputHandler
     pub fn handle_input(&mut self, focus_handle: &FocusHandle, input_handler: impl InputHandler, cx: &App) {
-        self.invalidator.debug_assert_paint();
-
         if focus_handle.is_focused(self) {
             let cx = self.to_async(cx);
             self.next_frame.input_handlers.push(Some(PlatformInputHandler::new(cx, Box::new(input_handler))));
@@ -4314,8 +4191,6 @@ impl Window {
         &mut self,
         mut listener: impl FnMut(&Event, DispatchPhase, &mut Window, &mut App) + 'static,
     ) {
-        self.invalidator.debug_assert_paint();
-
         self.next_frame.mouse_listeners.push(Some(Box::new(
             move |event: &dyn Any, phase: DispatchPhase, window: &mut Window, cx: &mut App| {
                 if let Some(event) = event.downcast_ref() {
@@ -4337,8 +4212,6 @@ impl Window {
         &mut self,
         listener: impl Fn(&Event, DispatchPhase, &mut Window, &mut App) + 'static,
     ) {
-        self.invalidator.debug_assert_paint();
-
         self.next_frame.dispatch_tree.on_key_event(Rc::new(
             move |event: &dyn Any, phase, window: &mut Window, cx: &mut App| {
                 if let Some(event) = event.downcast_ref::<Event>() {
@@ -4355,8 +4228,6 @@ impl Window {
     ///
     /// This method should only be called as part of the paint phase of element drawing.
     pub fn on_modifiers_changed(&mut self, listener: impl Fn(&ModifiersChangedEvent, &mut Window, &mut App) + 'static) {
-        self.invalidator.debug_assert_paint();
-
         self.next_frame.dispatch_tree.on_modifiers_changed(Rc::new(
             move |event: &ModifiersChangedEvent, window: &mut Window, cx: &mut App| listener(event, window, cx),
         ));
@@ -5361,8 +5232,6 @@ impl Window {
         action_type: TypeId,
         listener: impl Fn(&dyn Any, DispatchPhase, &mut Window, &mut App) + 'static,
     ) {
-        self.invalidator.debug_assert_paint();
-
         self.next_frame.dispatch_tree.on_action(action_type, Rc::new(listener));
     }
 
@@ -5380,8 +5249,6 @@ impl Window {
         action_type: TypeId,
         listener: impl Fn(&dyn Any, DispatchPhase, &mut Window, &mut App) + 'static,
     ) {
-        self.invalidator.debug_assert_paint();
-
         if condition {
             self.next_frame.dispatch_tree.on_action(action_type, Rc::new(listener));
         }

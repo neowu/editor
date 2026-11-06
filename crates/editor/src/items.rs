@@ -64,7 +64,6 @@ use ui::IconDecorationKind;
 use ui::prelude::*;
 use util::ResultExt;
 use util::TryFutureExt;
-use util::debug_panic;
 use util::paths::PathExt;
 use workspace::ItemNavHistory;
 use workspace::OpenOptions;
@@ -1157,7 +1156,7 @@ pub async fn open_resolved_target(
         .context("workspace update")?
         .await;
     if opened_items.len() != 1 {
-        debug_panic!("Received {} items for one path {path_to_open:?}", opened_items.len(),);
+        log::error!("Received {} items for one path {path_to_open:?}", opened_items.len(),);
     }
     let Some(opened_item) = opened_items.pop() else {
         return Ok(false);

@@ -129,11 +129,6 @@ impl LanguageRegistry {
         this
     }
 
-    /// Clears out all of the loaded languages and reload them from scratch.
-    pub fn reload(&self) {
-        self.state.write().reload();
-    }
-
     pub fn register_lsp_adapter(&self, language_name: LanguageName, adapter: Arc<dyn LspAdapter>) {
         let mut state = self.state.write();
 
@@ -520,14 +515,6 @@ impl LanguageRegistryState {
         );
         self.languages.push(language);
         self.version += 1;
-        self.subscription.send(()).ok();
-    }
-
-    fn reload(&mut self) {
-        self.languages.clear();
-        self.version += 1;
-        self.reload_count += 1;
-        self.available_languages.mark_all_unloaded();
         self.subscription.send(()).ok();
     }
 

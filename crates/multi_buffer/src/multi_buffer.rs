@@ -3350,7 +3350,6 @@ impl MultiBufferSnapshot {
                     let mut end_position = self.max_position();
                     if let Some(end_region) = &end_region {
                         end_position = end_region.range.start;
-                        debug_assert!(end_region.is_main_buffer);
                         let region_buffer_start = end_region.buffer_range.start;
                         if metadata_buffer_range.end > region_buffer_start {
                             end_position += metadata_buffer_range.end - region_buffer_start;
@@ -4458,12 +4457,9 @@ impl MultiBufferSnapshot {
         let offset_in_transform = offset - diff_transforms.start().0;
         let mut excerpt_offset = diff_transforms.start().1;
         let mut diff_base_anchor = None;
-        if let Some(DiffTransform::DeletedHunk { buffer_id, base_text_byte_range, has_trailing_newline, .. }) =
-            diff_transforms.item()
-        {
+        if let Some(DiffTransform::DeletedHunk { buffer_id, base_text_byte_range, .. }) = diff_transforms.item() {
             let diff = self.diff_state(*buffer_id).expect("missing diff");
             if offset_in_transform > base_text_byte_range.len() {
-                debug_assert!(*has_trailing_newline);
                 bias = Bias::Right;
             } else {
                 diff_base_anchor =
@@ -6316,13 +6312,6 @@ impl sum_tree::ContextLessSummary for ExcerptSummary {
     }
 
     fn add_summary(&mut self, summary: &Self) {
-        debug_assert!(
-            summary.path_key >= self.path_key,
-            "Path keys must be in ascending order: {:?} > {:?}",
-            summary.path_key,
-            self.path_key
-        );
-
         self.path_key = summary.path_key.clone();
         self.path_key_index = summary.path_key_index;
         self.max_anchor = summary.max_anchor;
@@ -6351,7 +6340,6 @@ impl sum_tree::SeekTarget<'_, ExcerptSummary, ExcerptSummary> for AnchorSeekTarg
                 if Some(*path_key_index) != cursor_location.path_key_index {
                     Ord::cmp(*path_key, &cursor_location.path_key)
                 } else if let Some(max_anchor) = cursor_location.max_anchor {
-                    debug_assert_eq!(max_anchor.buffer_id, snapshot.remote_id());
                     anchor.cmp(&max_anchor, snapshot)
                 } else {
                     Ordering::Greater
@@ -6368,8 +6356,6 @@ impl sum_tree::ContextLessSummary for PathKey {
     }
 
     fn add_summary(&mut self, summary: &Self) {
-        debug_assert!(summary >= self, "Path keys must be in ascending order: {:?} > {:?}", summary, self);
-
         *self = summary.clone();
     }
 }
@@ -6790,13 +6776,6 @@ impl<'a> Iterator for MultiBufferChunks<'a> {
 
         let diff_transform_start = self.diff_transforms.start().0;
         let diff_transform_end = self.diff_transforms.end().0;
-        debug_assert!(
-            self.range.start < diff_transform_end,
-            "{:?} < {:?} of ({1:?}..{2:?})",
-            self.range.start,
-            diff_transform_end,
-            diff_transform_start
-        );
 
         let diff_transform = self.diff_transforms.item()?;
         match diff_transform {
@@ -6836,7 +6815,7 @@ impl<'a> Iterator for MultiBufferChunks<'a> {
                     self.buffer_chunk.take()
                 }
             }
-            DiffTransform::DeletedHunk { buffer_id, base_text_byte_range, has_trailing_newline, .. } => {
+            DiffTransform::DeletedHunk { buffer_id, base_text_byte_range, .. } => {
                 let base_text_start = base_text_byte_range.start + (self.range.start - diff_transform_start);
                 let base_text_end = base_text_byte_range.start + (self.range.end - diff_transform_start);
                 let base_text_end = base_text_end.min(base_text_byte_range.end);
@@ -6857,7 +6836,6 @@ impl<'a> Iterator for MultiBufferChunks<'a> {
                     self.diff_base_chunks = Some((*buffer_id, chunks));
                     chunk
                 } else {
-                    debug_assert!(has_trailing_newline);
                     self.range.start += "\n".len();
                     Chunk { text: "\n", chars: 1u128, newlines: 1u128, ..Default::default() }
                 };

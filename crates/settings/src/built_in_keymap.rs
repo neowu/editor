@@ -925,17 +925,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
     );
     add_bindings(
         &mut keymap,
-        Some("TableView"),
-        true,
-        [
-            KeyBindingSpec::new("up", "tabular_data::MoveFocusedCell").with_input(json!({"direction": "up"})),
-            KeyBindingSpec::new("down", "tabular_data::MoveFocusedCell").with_input(json!({"direction": "down"})),
-            KeyBindingSpec::new("left", "tabular_data::MoveFocusedCell").with_input(json!({"direction": "left"})),
-            KeyBindingSpec::new("right", "tabular_data::MoveFocusedCell").with_input(json!({"direction": "right"})),
-        ],
-    );
-    add_bindings(
-        &mut keymap,
         Some("Picker > Editor"),
         true,
         [KeyBindingSpec::new("cmd-shift-s", "picker::ToggleMultiSelect")],

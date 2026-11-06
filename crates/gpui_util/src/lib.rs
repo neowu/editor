@@ -47,18 +47,6 @@ pub fn measure<R>(label: &str, f: impl FnOnce() -> R) -> R {
     }
 }
 
-#[macro_export]
-macro_rules! debug_panic {
-    ( $($fmt_arg:tt)* ) => {
-        if cfg!(debug_assertions) {
-            panic!( $($fmt_arg)* );
-        } else {
-            let backtrace = std::backtrace::Backtrace::capture();
-            log::error!("{}\n{:?}", format_args!($($fmt_arg)*), backtrace);
-        }
-    };
-}
-
 pub trait ResultExt<E> {
     type Ok;
 
@@ -303,7 +291,7 @@ impl Hasher for TypeIdHasher {
                 .map(|&array| self.value = u64::from_ne_bytes(array))
                 .unwrap_or_else(|| unreachable!("slice was sliced to 8 bytes"));
         } else {
-            debug_panic!("expected a 64-bit value, did you use this hasher with something other than a TypeId?");
+            log::error!("expected a 64-bit value, did you use this hasher with something other than a TypeId?");
         }
     }
 

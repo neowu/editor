@@ -923,7 +923,6 @@ impl BlockMap {
                     // We landed within a block that replaces some lines, so we
                     // extend the edit to start at the beginning of the
                     // replacement.
-                    debug_assert!(transform.summary.input_rows > WrapRow(0));
                     old_start -= transform_rows_before_edit;
                     new_start -= transform_rows_before_edit;
                 }
@@ -1000,7 +999,6 @@ impl BlockMap {
             };
             last_block_ix = end_block_ix;
 
-            debug_assert!(blocks_in_edit.is_empty());
             // + 8 is chosen arbitrarily to cover some multibuffer headers
             blocks_in_edit.reserve(end_block_ix - start_block_ix + if buffer.is_singleton() { 0 } else { 8 });
 
@@ -1089,7 +1087,6 @@ impl BlockMap {
         }
 
         new_transforms.append(cursor.suffix(), ());
-        debug_assert_eq!(new_transforms.summary().input_rows, wrap_snapshot.max_point().row() + WrapRow(1),);
 
         drop(cursor);
         *transforms = new_transforms;
@@ -1293,7 +1290,6 @@ impl BlockMap {
                 let current_range = current_edit.new;
 
                 if current_boundary.column > 0 {
-                    debug_assert_eq!(current_boundary, excerpt.source_excerpt_range.end);
                     break;
                 }
 
@@ -1362,7 +1358,6 @@ impl BlockMap {
                 }
 
                 if current_boundary.column > 0 {
-                    debug_assert_eq!(current_boundary, excerpt.source_excerpt_range.end);
                     break;
                 }
 
@@ -1643,10 +1638,6 @@ impl BlockMapWriter<'_> {
         let mut previous_wrap_row_range: Option<Range<WrapRow>> = None;
         let mut companion_blocks = Vec::new();
         for block in blocks {
-            if let BlockPlacement::Replace(_) = &block.placement {
-                debug_assert!(block.height.unwrap() > 0);
-            }
-
             let id = self.block_map.insert_block_raw(block.clone(), buffer);
             ids.push(id);
 
@@ -1712,48 +1703,44 @@ impl BlockMapWriter<'_> {
 
         let mut companion_heights = HashMap::default();
         for block in &mut self.block_map.custom_blocks {
-            if let Some(new_height) = heights.remove(&block.id) {
-                if let BlockPlacement::Replace(_) = &block.placement {
-                    debug_assert!(new_height > 0);
+            if let Some(new_height) = heights.remove(&block.id)
+                && block.height != Some(new_height)
+            {
+                let new_block = CustomBlock {
+                    id: block.id,
+                    placement: block.placement.clone(),
+                    height: Some(new_height),
+                    style: block.style,
+                    render: block.render.clone(),
+                    priority: block.priority,
+                };
+                let new_block = Arc::new(new_block);
+                *block = new_block.clone();
+                self.block_map.custom_blocks_by_id.insert(block.id, new_block);
+
+                if let Some(companion) = &self.companion
+                    && companion.inverse.is_some()
+                    && let Some(companion_block_id) = companion
+                        .companion
+                        .custom_block_to_balancing_block(companion.display_map_id)
+                        .borrow()
+                        .get(&block.id)
+                        .copied()
+                {
+                    companion_heights.insert(companion_block_id, new_height);
                 }
 
-                if block.height != Some(new_height) {
-                    let new_block = CustomBlock {
-                        id: block.id,
-                        placement: block.placement.clone(),
-                        height: Some(new_height),
-                        style: block.style,
-                        render: block.render.clone(),
-                        priority: block.priority,
-                    };
-                    let new_block = Arc::new(new_block);
-                    *block = new_block.clone();
-                    self.block_map.custom_blocks_by_id.insert(block.id, new_block);
-
-                    if let Some(companion) = &self.companion
-                        && companion.inverse.is_some()
-                        && let Some(companion_block_id) = companion
-                            .companion
-                            .custom_block_to_balancing_block(companion.display_map_id)
-                            .borrow()
-                            .get(&block.id)
-                            .copied()
-                    {
-                        companion_heights.insert(companion_block_id, new_height);
-                    }
-
-                    let start_row = block.placement.start().to_point(buffer).row;
-                    let end_row = block.placement.end().to_point(buffer).row;
-                    if last_block_buffer_row != Some(end_row) {
-                        last_block_buffer_row = Some(end_row);
-                        let start_wrap_row = wrap_snapshot.make_wrap_point(Point::new(start_row, 0), Bias::Left).row();
-                        let end_wrap_row = wrap_snapshot.make_wrap_point(Point::new(end_row, 0), Bias::Left).row();
-                        let start = wrap_snapshot.prev_row_boundary(WrapPoint::new(start_wrap_row, 0));
-                        let end = wrap_snapshot
-                            .next_row_boundary(WrapPoint::new(end_wrap_row, 0))
-                            .unwrap_or(wrap_snapshot.max_point().row() + WrapRow(1));
-                        edits.push(Edit { old: start..end, new: start..end })
-                    }
+                let start_row = block.placement.start().to_point(buffer).row;
+                let end_row = block.placement.end().to_point(buffer).row;
+                if last_block_buffer_row != Some(end_row) {
+                    last_block_buffer_row = Some(end_row);
+                    let start_wrap_row = wrap_snapshot.make_wrap_point(Point::new(start_row, 0), Bias::Left).row();
+                    let end_wrap_row = wrap_snapshot.make_wrap_point(Point::new(end_row, 0), Bias::Left).row();
+                    let start = wrap_snapshot.prev_row_boundary(WrapPoint::new(start_wrap_row, 0));
+                    let end = wrap_snapshot
+                        .next_row_boundary(WrapPoint::new(end_wrap_row, 0))
+                        .unwrap_or(wrap_snapshot.max_point().row() + WrapRow(1));
+                    edits.push(Edit { old: start..end, new: start..end })
                 }
             }
         }

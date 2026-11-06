@@ -642,8 +642,6 @@ impl PaneAxis {
     }
 
     fn bounding_box_for_pane(&self, pane: &Entity<Pane>) -> Option<Bounds<Pixels>> {
-        debug_assert!(self.members.len() == self.bounding_boxes.lock().len());
-
         for (idx, member) in self.members.iter().enumerate() {
             match member {
                 Member::Pane(found) => {
@@ -662,8 +660,6 @@ impl PaneAxis {
     }
 
     fn pane_at_pixel_position(&self, coordinate: Point<Pixels>) -> Option<&Entity<Pane>> {
-        debug_assert!(self.members.len() == self.bounding_boxes.lock().len());
-
         let bounding_boxes = self.bounding_boxes.lock();
 
         for (idx, member) in self.members.iter().enumerate() {
@@ -698,7 +694,6 @@ impl PaneAxis {
             }
         }
 
-        debug_assert!(self.members.len() == self.flexes.lock().len());
         let mut active_pane_ix = None;
         let mut contains_active_pane = false;
         let mut leaf_panes = vec![None; self.members.len()];
@@ -928,7 +923,6 @@ mod element {
                 Axis::Vertical => px(VERTICAL_MIN_SIZE),
             };
             let mut flexes = flexes.lock();
-            debug_assert!(flex_values_in_bounds(flexes.as_slice()));
 
             // Math to convert a flex value to a pixel value
             let size = move |ix, flexes: &[f32]| container_size.along(axis) * (flexes[ix] / flexes.len() as f32);
@@ -1068,8 +1062,6 @@ mod element {
                 });
             let flexes = self.flexes.lock().clone();
             let len = self.children.len();
-            debug_assert!(flexes.len() == len);
-            debug_assert!(flex_values_in_bounds(flexes.as_slice()));
 
             let total_flex = len as f32;
 
@@ -1216,10 +1208,6 @@ mod element {
         fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
             self.children.extend(elements)
         }
-    }
-
-    fn flex_values_in_bounds(flexes: &[f32]) -> bool {
-        (flexes.iter().copied().sum::<f32>() - flexes.len() as f32).abs() < 0.001
     }
 }
 

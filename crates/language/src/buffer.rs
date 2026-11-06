@@ -94,7 +94,6 @@ use text::operation_queue::OperationQueue;
 use theme::ActiveTheme as _;
 use theme::SyntaxTheme;
 use util::RangeExt;
-use util::debug_panic;
 use util::rel_path::RelPath;
 
 pub use crate::CaptureId;
@@ -1294,7 +1293,7 @@ impl Buffer {
     /// be a branch buffer to call this method.
     pub fn merge_into_base(&mut self, ranges: Vec<Range<usize>>, cx: &mut Context<Self>) {
         let Some(base_buffer) = self.base_buffer() else {
-            debug_panic!("not a branch buffer");
+            log::error!("not a branch buffer");
             return;
         };
 
@@ -4911,11 +4910,6 @@ impl<'a> BufferChunks<'a> {
                     self.highlights =
                         Some(BufferChunkHighlights { captures, next_capture: None, stack: Vec::new(), highlight_maps });
                 }
-            } else {
-                debug_assert!(
-                    false,
-                    "Attempted to seek on a language-aware buffer iterator without associated buffer snapshot"
-                );
             }
         } else if let Some(highlights) = self.highlights.as_mut() {
             if old_range.start <= self.range.start && old_range.end >= self.range.end {
@@ -4936,13 +4930,6 @@ impl<'a> BufferChunks<'a> {
             } else if let Some(snapshot) = self.buffer_snapshot {
                 let (captures, highlight_maps) = snapshot.get_highlights(self.range.clone());
                 *highlights = BufferChunkHighlights { captures, next_capture: None, stack: Vec::new(), highlight_maps };
-            } else {
-                // We cannot obtain new highlights for a language-aware buffer iterator, as we don't have a buffer snapshot.
-                // Seeking such BufferChunks is not supported.
-                debug_assert!(
-                    false,
-                    "Attempted to seek on a language-aware buffer iterator without associated buffer snapshot"
-                );
             }
 
             highlights.captures.set_byte_range(self.range.clone());

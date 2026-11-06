@@ -253,7 +253,6 @@ use text::OffsetRangeExt;
 use text::ToPoint as _;
 use util::ConnectionResult;
 use util::ResultExt as _;
-use util::debug_panic;
 use util::defer;
 use util::merge_json_value_into;
 use util::paths::SanitizedPath;
@@ -590,8 +589,6 @@ impl LocalLspStore {
             );
             if let Some(state) = self.language_server_ids.get_mut(&key) {
                 state.project_roots.insert(disposition.path.path.clone());
-            } else {
-                debug_assert!(false, "Expected `start_language_server` to ensure that `key` exists in a map");
             }
             Some(new_language_server_id)
         }
@@ -1635,7 +1632,7 @@ impl LocalLspStore {
                 return Ok(());
             }
             Formatter::Auto => {
-                debug_panic!("Auto resolved above");
+                log::error!("Auto resolved above");
                 return Ok(());
             }
             Formatter::External { command, arguments } => {
@@ -2616,7 +2613,6 @@ impl LocalLspStore {
     ) {
         let worktree = worktree.read(cx);
         let worktree_id = worktree.id();
-        debug_assert!(!worktree.is_visible());
         let Some(mut origin_seed) = self
             .language_server_ids
             .iter()
@@ -3496,7 +3492,7 @@ impl LocalLspStore {
                     .strip_prefix(&path)
                     .map(|p| p.to_string_lossy().into_owned())
                     .unwrap_or_else(|e| {
-                        debug_panic!(
+                        log::error!(
                             "Failed to strip prefix for string pattern: {}, with prefix: {}, with error: {}",
                             s,
                             path.display(),
@@ -3520,7 +3516,7 @@ impl LocalLspStore {
                     .strip_prefix(&path)
                     .map(|p| p.to_string_lossy().into_owned())
                     .unwrap_or_else(|e| {
-                        debug_panic!(
+                        log::error!(
                             "Failed to strip prefix for relative pattern: {}, with prefix: {}, with error: {}",
                             rp.pattern,
                             path.display(),
@@ -4454,7 +4450,7 @@ impl LspStore {
                 let refcount = {
                     let local = lsp_store.as_local_mut().unwrap();
                     let Some(refcount) = local.registered_buffers.get_mut(&buffer_id) else {
-                        debug_panic!("bad refcounting");
+                        log::error!("bad refcounting");
                         return;
                     };
 
@@ -5672,8 +5668,7 @@ impl LspStore {
             })
             .shared();
         let buffer_lsp_hints = &mut self.lsp_data.get_mut(&buffer_id)?.inlay_hints;
-        let previous_task = buffer_lsp_hints.hint_resolves.insert(id, resolve_task.clone());
-        debug_assert!(previous_task.is_none(), "Did not change hint's resolve state after spawning its resolve");
+        buffer_lsp_hints.hint_resolves.insert(id, resolve_task.clone());
         buffer_lsp_hints.hint_for_id(id)?.resolve_state = ResolveState::Resolving;
         Some(ResolvedHint::Resolving(resolve_task))
     }
@@ -12128,7 +12123,7 @@ fn lsp_workspace_diagnostics_refresh(
                 // >  If a server closes a workspace diagnostic pull request the client should re-trigger the request.
                 match response_result {
                     ConnectionResult::Timeout => {
-                        debug_panic!("Unexpected workspace diagnostics pull timeout without a request timer");
+                        log::error!("Unexpected workspace diagnostics pull timeout without a request timer");
                         continue 'request;
                     }
                     ConnectionResult::ConnectionReset => {
@@ -12150,7 +12145,6 @@ fn lsp_workspace_diagnostics_refresh(
                             if refresh_requested {
                                 continue 'request;
                             }
-                            debug_assert!(queued_completion_txs.is_empty());
                             break 'request;
                         }
                     }

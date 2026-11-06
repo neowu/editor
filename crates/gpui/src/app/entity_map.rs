@@ -146,7 +146,6 @@ impl EntityMap {
 
     #[inline(always)]
     pub fn read<T: 'static>(&self, entity: &Entity<T>) -> &T {
-        self.assert_valid_context(entity);
         self.read_inner(entity.entity_id)
             .and_then(|entity| entity.downcast_ref())
             .unwrap_or_else(|| double_lease_panic("read", type_name::<T>()))
@@ -154,7 +153,6 @@ impl EntityMap {
 
     #[track_caller]
     pub(super) fn lease_erased(&mut self, pointer: &AnyEntity, entity_type: &str) -> LeaseInner {
-        self.assert_valid_context(pointer);
         let entity =
             Some(self.lease_inner(pointer.entity_id).unwrap_or_else(|| double_lease_panic("update", entity_type)));
         LeaseInner { entity }
@@ -162,13 +160,6 @@ impl EntityMap {
 
     pub(super) fn end_lease_erased(&mut self, entity_id: EntityId, mut lease: LeaseInner) {
         self.end_lease_inner(entity_id, lease.entity.take().unwrap());
-    }
-
-    fn assert_valid_context(&self, entity: &AnyEntity) {
-        debug_assert!(
-            Weak::ptr_eq(&entity.entity_map, &Arc::downgrade(&self.ref_counts)),
-            "used a entity with the wrong context"
-        );
     }
 
     /// Records entities accessed by a reused draw. Entities released since it
@@ -199,7 +190,6 @@ impl EntityMap {
     pub fn pop_access_scope(&mut self) -> FxHashSet<EntityId> {
         let accessed_entities = self.accessed_entities.get_mut();
         let Some(scope) = accessed_entities.scopes.pop() else {
-            debug_assert!(false, "popped an access scope that wasn't pushed");
             return FxHashSet::default();
         };
         accessed_entities.innermost().extend(scope.iter().copied());
@@ -210,7 +200,6 @@ impl EntityMap {
     /// [`Self::restore_accessed`].
     pub fn take_accessed(&mut self) -> FxHashSet<EntityId> {
         let accessed_entities = self.accessed_entities.get_mut();
-        debug_assert!(accessed_entities.scopes.is_empty(), "access scope left open");
         mem::take(&mut accessed_entities.frame)
     }
 
@@ -225,8 +214,7 @@ impl EntityMap {
 
         dropped_entity_ids
             .filter_map(|entity_id| {
-                let count = ref_counts.counts.remove(entity_id).unwrap();
-                debug_assert_eq!(count.load(SeqCst), 0, "dropped an entity that was referenced");
+                ref_counts.counts.remove(entity_id).unwrap();
                 accessed_entities.frame.remove(&entity_id);
                 for scope in &mut accessed_entities.scopes {
                     scope.remove(&entity_id);

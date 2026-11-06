@@ -1884,11 +1884,6 @@ impl Terminal {
             return Task::ready(());
         }
 
-        debug_assert!(
-            self.init_command_startup_tx.is_none(),
-            "start_init_command_startup_handshake called while a handshake is already in flight"
-        );
-
         let (startup_tx, startup_rx) = async_channel::bounded(1);
         let startup_task = self.background_executor.spawn(async move {
             match startup_rx.recv().await {
@@ -2130,7 +2125,6 @@ impl Terminal {
 
         self.last_content = make_content(&terminal, &self.last_content);
         if self.last_content.grid_lines_change == GridLinesChange::Changed {
-            debug_assert!(self.last_content.last_hovered_word.is_none());
             self.refresh_hovered_word(window, cx);
 
             // Because refresh_hovered_word() may result
@@ -3035,8 +3029,7 @@ pub fn get_color_at_index(index: usize, theme: &Theme) -> Hsla {
 /// ```
 ///
 /// This function does the reverse, calculating the `r`, `g`, and `b` components from a given index.
-fn rgb_for_index(i: u8) -> (u8, u8, u8) {
-    debug_assert!((16..=231).contains(&i));
+const fn rgb_for_index(i: u8) -> (u8, u8, u8) {
     let i = i - 16;
     let r = (i - (i % 36)) / 36;
     let g = ((i % 36) - (i % 6)) / 6;

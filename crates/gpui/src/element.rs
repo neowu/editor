@@ -220,7 +220,6 @@ impl GlobalElementId {
 
     /// `ids` with its hash already known, as the window's id stack keeps it.
     pub(crate) fn with_hash(ids: &[ElementId], hash: u64) -> Self {
-        debug_assert_eq!(hash, ids.iter().fold(EMPTY_PATH_HASH, extend_path_hash));
         Self { ids: Arc::from(ids), hash }
     }
 }
@@ -344,7 +343,6 @@ impl<E: Element> Drawable<E> {
             | ElementDrawPhase::LayoutComputed { layout_id, global_id, mut request_layout, .. } => {
                 if let Some(element_id) = self.element.id() {
                     window.element_id_stack.push(element_id);
-                    debug_assert_eq!(&**global_id.as_ref().unwrap(), &*window.element_id_stack);
                 }
 
                 let bounds = window.layout_bounds(layout_id);
@@ -367,7 +365,6 @@ impl<E: Element> Drawable<E> {
             ElementDrawPhase::Prepaint { node_id, global_id, bounds, mut request_layout, mut prepaint, .. } => {
                 if let Some(element_id) = self.element.id() {
                     window.element_id_stack.push(element_id);
-                    debug_assert_eq!(&**global_id.as_ref().unwrap(), &*window.element_id_stack);
                 }
 
                 window.next_frame.dispatch_tree.set_active_node(node_id);

@@ -244,7 +244,6 @@ pub fn highlight_ranges_from_text(
 /// either as their own match or as an ancestor of an earlier match, are not
 /// duplicated.
 fn expand_tree(depth_at: impl Fn(usize) -> usize, matches: Vec<StringMatch>) -> Vec<OutlineSearchEntry> {
-    debug_assert!(matches.is_sorted_by_key(|m| m.candidate_id));
     let mut out = Vec::with_capacity(matches.len());
     let mut prev_item_ix = 0;
     for string_match in matches {

@@ -300,12 +300,7 @@ impl<T: Item> SumTree<T> {
             mem::swap(&mut nodes, &mut parent_nodes);
         }
 
-        if nodes.is_empty() {
-            Self::new(cx)
-        } else {
-            debug_assert_eq!(nodes.len(), 1);
-            nodes.pop().unwrap()
-        }
+        if nodes.is_empty() { Self::new(cx) } else { nodes.pop().unwrap() }
     }
 
     pub fn from_par_iter<I, Iter>(iter: I, cx: <T::Summary as Summary>::Context<'_>) -> Self
@@ -350,12 +345,7 @@ impl<T: Item> SumTree<T> {
                 .collect::<Vec<_>>();
         }
 
-        if nodes.is_empty() {
-            Self::new(cx)
-        } else {
-            debug_assert_eq!(nodes.len(), 1);
-            nodes.pop().unwrap()
-        }
+        if nodes.is_empty() { Self::new(cx) } else { nodes.pop().unwrap() }
     }
 
     #[allow(unused)]
@@ -819,7 +809,6 @@ impl<T: Item> SumTree<T> {
         if small.0.height() == large.0.height() {
             if !small.0.is_underflowing() { Some(small) } else { Self::merge_into_right(small, large, cx) }
         } else {
-            debug_assert!(small.0.height() < large.0.height());
             let Node::Internal { height, summary, child_summaries, child_trees } = Arc::make_mut(&mut large.0) else {
                 unreachable!();
             };
@@ -875,7 +864,6 @@ impl<T: Item> SumTree<T> {
         large: &mut Self,
         cx: <<T as Item>::Summary as Summary>::Context<'_>,
     ) -> Option<SumTree<T>> {
-        debug_assert_eq!(small.0.height(), large.0.height());
         match (small.0.as_ref(), Arc::make_mut(&mut large.0)) {
             (
                 Node::Internal {

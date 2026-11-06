@@ -93,7 +93,6 @@ impl Global {
     ///
     /// This sets the current sequence number of the observed replica ID to the maximum of this global's observed sequence and the observed timestamp.
     pub fn observe(&mut self, timestamp: Lamport) {
-        debug_assert_ne!(timestamp.replica_id, Lamport::MAX.replica_id);
         if timestamp.value > 0 {
             let new_len = timestamp.replica_id.0 as usize + 1;
             if new_len > self.values.len() {

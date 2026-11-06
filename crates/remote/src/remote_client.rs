@@ -145,9 +145,9 @@ pub trait RemoteClientDelegate: Send + Sync {
 const MAX_MISSED_HEARTBEATS: usize = 5;
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(5);
-const INITIAL_CONNECTION_TIMEOUT: Duration = Duration::from_secs(if cfg!(debug_assertions) { 5 } else { 60 });
-const RECONNECT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(if cfg!(debug_assertions) { 5 } else { 15 });
-const RESYNC_TIMEOUT: Duration = Duration::from_secs(if cfg!(debug_assertions) { 5 } else { 15 });
+const INITIAL_CONNECTION_TIMEOUT: Duration = Duration::from_secs(60);
+const RECONNECT_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(15);
+const RESYNC_TIMEOUT: Duration = Duration::from_secs(15);
 
 pub const MAX_RECONNECT_ATTEMPTS: usize = 3;
 
@@ -1018,18 +1018,15 @@ impl ConnectionPool {
                             .map(|connection| Arc::new(connection) as Arc<dyn RemoteConnection>),
                     };
 
-                    cx.update_global(|pool: &mut Self, _| {
-                        debug_assert!(matches!(pool.connections.get(&opts), Some(ConnectionPoolEntry::Connecting(_))));
-                        match connection {
-                            Ok(connection) => {
-                                pool.connections
-                                    .insert(opts.clone(), ConnectionPoolEntry::Connected(Arc::downgrade(&connection)));
-                                Ok(connection)
-                            }
-                            Err(error) => {
-                                pool.connections.remove(&opts);
-                                Err(Arc::new(error))
-                            }
+                    cx.update_global(|pool: &mut Self, _| match connection {
+                        Ok(connection) => {
+                            pool.connections
+                                .insert(opts.clone(), ConnectionPoolEntry::Connected(Arc::downgrade(&connection)));
+                            Ok(connection)
+                        }
+                        Err(error) => {
+                            pool.connections.remove(&opts);
+                            Err(Arc::new(error))
                         }
                     })
                 }

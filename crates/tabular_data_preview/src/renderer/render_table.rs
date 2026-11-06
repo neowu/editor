@@ -9,7 +9,6 @@ use ui::prelude::*;
 
 use crate::TableView;
 use crate::types::AnyColumn;
-use crate::types::DataCellId;
 use crate::types::DisplayCellId;
 use crate::types::DisplayRow;
 
@@ -76,11 +75,6 @@ impl TableView {
             let cell_content = table_cell.display_value().cloned().unwrap_or_default();
 
             let display_cell_id = DisplayCellId::new(display_row, col);
-            let data_cell_id = DataCellId::new(data_row, col);
-
-            let is_focus_cell = this.selection.as_ref().is_some_and(|selection| selection.focus == data_cell_id);
-
-            let cell_bg = if is_focus_cell { Some(cx.theme().colors().element_selected) } else { None };
 
             let cell = div()
                 .size_full()
@@ -94,8 +88,7 @@ impl TableView {
                     cx,
                 ));
 
-            elements
-                .push(div().size_full().when_some(cell_bg, |div, color| div.bg(color)).child(cell).into_any_element());
+            elements.push(div().size_full().child(cell).into_any_element());
         }
 
         Some(elements)

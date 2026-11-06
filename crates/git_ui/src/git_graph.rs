@@ -1976,11 +1976,6 @@ impl GitGraph {
 
     fn select_entry(&mut self, idx: usize, scroll_strategy: ScrollStrategy, cx: &mut Context<Self>) {
         if self.selected_entry_idx == Some(idx) || idx >= self.graph_data.commits.len() {
-            debug_assert!(
-                idx < self.graph_data.commits.len(),
-                "attempted to select out of bounds index: {idx}, commits.len: {}",
-                self.graph_data.commits.len()
-            );
             return;
         }
 

@@ -520,8 +520,7 @@ fn open_about_window(cx: &mut App) {
             let app_name = "ed";
             let version = env!("CARGO_PKG_VERSION");
 
-            let debug = if cfg!(debug_assertions) { "(debug)" } else { "" };
-            let message: SharedString = format!("{app_name} {version} {debug}").into();
+            let message: SharedString = format!("{app_name} {version}").into();
 
             Self {
                 ok_focus_handle: cx.focus_handle(),

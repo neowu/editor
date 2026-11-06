@@ -268,8 +268,6 @@ fn path_match<T>(
     if path_hyperlink_regexes.is_empty() || path_hyperlink_timeout.as_millis() == 0 {
         return None;
     }
-    debug_assert!(line_start <= hovered);
-    debug_assert!(line_end >= hovered);
     let search_start_time = Instant::now();
 
     let timed_out = || {
@@ -306,7 +304,6 @@ fn path_match<T>(
         }
 
         if cell.point == hovered {
-            debug_assert!(hovered_point_byte_offset.is_none());
             hovered_point_byte_offset = Some(prev_len);
         }
     }

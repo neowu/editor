@@ -14,7 +14,6 @@ use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::ListAlignment;
 use gpui::ListState;
-use gpui::Point;
 use gpui::Task;
 use gpui::Window;
 use ui::AbsoluteLength;
@@ -24,38 +23,11 @@ use ui::TableInteractionState;
 use ui::TableResizeBehavior;
 use ui::prelude::*;
 
-use crate::MoveFocusedCell;
-use crate::NavigationDirection;
 use crate::settings::TableViewSettings;
 use crate::table_data_engine::DisplayToDataMapping;
 use crate::table_data_engine::TableDataEngine;
 use crate::types::AnyColumn;
-use crate::types::DataCellId;
-use crate::types::DisplayRow;
 use crate::types::TableLikeContent;
-
-/// The keyboard cursor: which cell is currently focused for navigation.
-/// Both fields are stored in data-space so the selection survives sort/filter changes.
-/// In single-cell navigation, `anchor == focus`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CellSelection {
-    pub anchor: DataCellId,
-    pub focus: DataCellId,
-}
-
-impl CellSelection {
-    pub const fn new(anchor: DataCellId, focus: DataCellId) -> Self {
-        Self { anchor, focus }
-    }
-
-    pub const fn single_cell(cell: DataCellId) -> Self {
-        Self { anchor: cell, focus: cell }
-    }
-
-    pub fn is_single_cell(&self) -> bool {
-        self.anchor == self.focus
-    }
-}
 
 pub struct TableView {
     pub(crate) engine: TableDataEngine,
@@ -74,8 +46,6 @@ pub struct TableView {
     /// Whether the producer feeding this view is currently computing content. While set, the grid
     /// shows a loading indicator instead of the (stale or empty) table.
     pub(crate) is_loading: bool,
-    /// The keyboard navigation cursor. `None` until the user first navigates.
-    pub(crate) selection: Option<CellSelection>,
 }
 
 impl TableView {
@@ -102,7 +72,6 @@ impl TableView {
                 .with_uniform_item_height(row_height + px(1.0)),
             row_height,
             is_loading: false,
-            selection: None,
         }
     }
 
@@ -184,106 +153,6 @@ impl TableView {
             })
             .ok();
         }));
-    }
-
-    #[inline]
-    pub(crate) const fn is_selection_enabled(&self) -> bool {
-        cfg!(debug_assertions)
-    }
-
-    pub(crate) fn move_focused_cell(&mut self, action: &MoveFocusedCell, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.is_selection_enabled() {
-            return;
-        }
-
-        let row_count = self.engine.d2d_mapping().visible_row_count();
-        let column_count = self.engine.contents.number_of_cols;
-
-        if row_count == 0 || column_count == 0 {
-            return;
-        }
-
-        let current_pos = self.selection.as_ref().and_then(|selection| {
-            self.engine.d2d_mapping().get_display_row(selection.focus.row).map(|r| (r.0, selection.focus.col.0))
-        });
-
-        let (new_row, new_column) = match current_pos {
-            Some(pos) => self.compute_move(pos, action.direction),
-            None => (0, 0),
-        };
-
-        let Some(new_data_row) = self.engine.d2d_mapping().get_data_row(DisplayRow(new_row)) else {
-            return;
-        };
-        let new_cell = DataCellId::new(new_data_row, AnyColumn(new_column));
-        self.selection = Some(CellSelection::single_cell(new_cell));
-
-        self.scroll_to_reveal_row(new_row, action.direction);
-        self.scroll_to_reveal_column(new_column, window, cx);
-        cx.notify();
-    }
-
-    pub(crate) fn scroll_to_reveal_row(&self, row: usize, direction: NavigationDirection) {
-        let row_count = self.engine.d2d_mapping().visible_row_count();
-        if row_count == 0 {
-            return;
-        }
-
-        match direction {
-            NavigationDirection::Down => {
-                // When moving down, reveal row + 1 (if not already at the end) so that the focused
-                // cell isn't obscured by the bottom border or horizontal scrollbar overlay.
-                let reveal_row = (row + 1).min(row_count.saturating_sub(1));
-                self.list_state.scroll_to_reveal_item(reveal_row);
-            }
-            NavigationDirection::Up => {
-                // When moving up, reveal row - 1 (if not at top) for top peek cushion.
-                let reveal_row = row.saturating_sub(1);
-                self.list_state.scroll_to_reveal_item(reveal_row);
-            }
-            NavigationDirection::Left | NavigationDirection::Right => {
-                self.list_state.scroll_to_reveal_item(row);
-            }
-        }
-    }
-
-    pub(crate) fn compute_move(&self, current: (usize, usize), direction: NavigationDirection) -> (usize, usize) {
-        let row_count = self.engine.d2d_mapping().visible_row_count();
-        let column_count = self.engine.contents.number_of_cols;
-        let (row, column) = current;
-
-        match direction {
-            NavigationDirection::Up => (row.saturating_sub(1), column),
-            NavigationDirection::Down => ((row + 1).min(row_count.saturating_sub(1)), column),
-            NavigationDirection::Left => (row, column.saturating_sub(1)),
-            NavigationDirection::Right => (row, (column + 1).min(column_count.saturating_sub(1))),
-        }
-    }
-
-    pub(crate) fn scroll_to_reveal_column(&self, column_index: usize, window: &Window, cx: &App) {
-        let handle = self.table_interaction_state.read(cx).horizontal_scroll_handle.clone();
-
-        let widths_state = self.column_widths.read(cx);
-        let total_cols = widths_state.cols();
-        if total_cols <= 1 || column_index + 2 > total_cols {
-            return;
-        }
-
-        let rem_size = window.rem_size();
-        let peek_padding = px(20.0);
-
-        let left_px = widths_state.pinned_width(column_index + 1, rem_size) - widths_state.pinned_width(1, rem_size);
-        let right_px = widths_state.pinned_width(column_index + 2, rem_size) - widths_state.pinned_width(1, rem_size);
-
-        let scroll_x = -handle.offset().x;
-        let viewport_width = handle.bounds().size.width;
-
-        if left_px < scroll_x {
-            handle.set_offset(Point::new(-left_px, px(0.)));
-        } else if right_px + peek_padding > scroll_x + viewport_width {
-            let target = (right_px + peek_padding) - viewport_width;
-            handle.set_offset(Point::new(-target, px(0.)));
-        }
     }
 }
 

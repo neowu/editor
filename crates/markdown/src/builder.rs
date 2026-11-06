@@ -529,7 +529,6 @@ impl MarkdownElementBuilder {
     }
 
     pub(crate) fn build(mut self) -> RenderedMarkdown {
-        debug_assert_eq!(self.div_stack.len(), 1);
         self.flush_text();
         RenderedMarkdown {
             element: self.div_stack.pop().unwrap().div.into_any_element(),

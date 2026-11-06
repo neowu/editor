@@ -125,7 +125,6 @@ use ui::utils::ensure_highlight_contrast;
 use ui::utils::merge_highlight_backgrounds;
 use unicode_segmentation::UnicodeSegmentation;
 use util::ResultExt;
-use util::debug_panic;
 use workspace::Workspace;
 use workspace::item::Item;
 use workspace::item::ItemBufferKind;
@@ -2119,8 +2118,6 @@ impl EditorElement {
                     DisplayPoint::new(row, u32::MAX)
                 };
                 let ix = row.minus(rows.start) as usize;
-                debug_assert!(row >= rows.start && row < rows.end);
-                debug_assert!(ix < per_row_map.len());
                 per_row_map[ix].push((seg_start..seg_end, color));
             }
         }
@@ -2430,7 +2427,6 @@ impl EditorElement {
         let mut element_height_in_lines = ((final_size.height / line_height).ceil() as u32).max(1);
 
         let effective_row_start = block_row_start.0.cast_signed() + *block_resize_offset;
-        debug_assert!(effective_row_start >= 0);
         let mut row = DisplayRow(effective_row_start.max(0) as u32);
 
         let mut x_offset = px(0.);
@@ -3456,7 +3452,7 @@ impl EditorElement {
                     DiffHunkStatusKind::Added => colors.version_control_word_added,
                     DiffHunkStatusKind::Deleted => colors.version_control_word_deleted,
                     DiffHunkStatusKind::Modified => {
-                        debug_panic!("modified diff status for row info");
+                        log::error!("modified diff status for row info");
                         continue;
                     }
                 };
@@ -5918,7 +5914,7 @@ impl Element for EditorElement {
                             DiffHunkStatusKind::Added => &added_diff_hunk_colors,
                             DiffHunkStatusKind::Deleted => &deleted_diff_hunk_colors,
                             DiffHunkStatusKind::Modified => {
-                                debug_panic!("modified diff status for row info");
+                                log::error!("modified diff status for row info");
                                 continue;
                             }
                         };
@@ -6249,7 +6245,7 @@ impl Element for EditorElement {
                             });
                             return self.prepaint(None, bounds, request_layout, window, cx);
                         } else {
-                            debug_panic!(
+                            log::error!(
                                 "dropping block resize because prepaint depth \
                                  limit was reached"
                             );

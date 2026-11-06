@@ -821,9 +821,6 @@ impl WorktreeStore {
     }
 
     pub fn add(&mut self, worktree: &Entity<Worktree>, cx: &mut Context<Self>) {
-        let worktree_id = worktree.read(cx).id();
-        debug_assert!(self.worktrees().all(|w| w.read(cx).id() != worktree_id));
-
         let push_strong_handle = self.retain_worktrees || worktree.read(cx).is_visible();
         let handle = if push_strong_handle {
             WorktreeHandle::Strong(worktree.clone())

@@ -13,3 +13,8 @@ preview actions (see ui-layout.md).
 - Built on `ui::Table` with `ColumnWidthConfig::Resizable`; for that mode the
   table draws its resize handles over the header and the body, while
   redistributable tables keep handles over the body only.
+
+## Cells
+
+- Cells are read-only text with no keyboard cell cursor; arrow keys are not
+  bound in the grid.

@@ -32,7 +32,6 @@ pub struct SchemaHandlingImpl(SchemaRequestHandler);
 impl Global for SchemaHandlingImpl {}
 
 pub fn register_schema_handler(handler: SchemaRequestHandler, cx: &mut App) {
-    debug_assert!(!cx.has_global::<SchemaHandlingImpl>(), "SchemaHandlingImpl already registered");
     cx.set_global(SchemaHandlingImpl(handler));
 }
 

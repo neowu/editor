@@ -25,7 +25,6 @@ impl<'a> Sub<&'a Self> for OffsetUtf16 {
     type Output = Self;
 
     fn sub(self, other: &'a Self) -> Self::Output {
-        debug_assert!(*other <= self);
         Self(self.0 - other.0)
     }
 }

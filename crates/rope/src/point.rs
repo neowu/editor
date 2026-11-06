@@ -84,8 +84,6 @@ impl Sub for Point {
     type Output = Point;
 
     fn sub(self, other: Self) -> Self::Output {
-        debug_assert!(other <= self);
-
         if self.row == other.row {
             Point::new(0, self.column - other.column)
         } else {

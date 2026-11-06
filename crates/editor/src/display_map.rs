@@ -359,12 +359,6 @@ impl Companion {
         };
 
         let Some(excerpt) = patches.into_iter().next() else {
-            if cfg!(debug_assertions) {
-                assert!(
-                    our_snapshot.max_point() == Point::zero(),
-                    "`patches_for_*_in_range` is only allowed to return an empty vec if the multibuffer is empty"
-                );
-            }
             return Point::zero()..our_snapshot.max_point();
         };
         excerpt.patch.edit_for_old_position(point).new

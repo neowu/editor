@@ -224,7 +224,7 @@ resvg = {
     "text",
   ]
 }
-rust-embed = { version = "8.11", features = ["compression", "include-exclude"] }
+rust-embed = { version = "8.11", features = ["compression", "debug-embed", "include-exclude"] }
 rustc-hash = "2"
 rustix = { version = "1.1", features = ["fs"] }
 serde = { version = "1", features = ["rc"] }

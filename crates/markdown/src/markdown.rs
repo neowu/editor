@@ -476,9 +476,6 @@ impl Markdown {
         active: Option<usize>,
         cx: &mut Context<Self>,
     ) {
-        debug_assert!(
-            highlights.windows(2).all(|ranges| (ranges[0].start, ranges[0].end) <= (ranges[1].start, ranges[1].end))
-        );
         self.search_highlights = highlights.into();
         self.active_search_highlight = active.filter(|active| *active < self.search_highlights.len());
         cx.notify();

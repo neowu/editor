@@ -173,7 +173,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "gpui",
- "util",
+ "rust-embed",
 ]
 
 [[package]]
@@ -1731,7 +1731,6 @@ dependencies = [
  "tree-sitter-rust",
  "tree-sitter-typescript",
  "tree-sitter-yaml",
- "util",
 ]
 
 [[package]]
@@ -4540,7 +4539,6 @@ dependencies = [
  "indexmap",
  "log",
  "picker",
- "serde",
  "serde_json",
  "text",
  "ui",
@@ -4664,7 +4662,6 @@ dependencies = [
  "clock",
  "collections",
  "futures",
- "gpui_util",
  "log",
  "parking_lot",
  "regex",

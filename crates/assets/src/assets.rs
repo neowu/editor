@@ -6,20 +6,13 @@ use anyhow::Context as _;
 use gpui::AssetSource;
 use gpui::Result;
 use gpui::SharedString;
+use rust_embed::RustEmbed;
 
-// Release builds embed the assets; dev builds read them from the checkout at
-// runtime so edits show up on the next launch without a rebuild and no
-// build-time path is baked in (which corgi's sandbox rejects). See
-// `util::fs_embed!`.
-util::fs_embed! {
-    pub struct Assets,
-    crate_relative = "../../assets",
-    root_relative = "assets",
-    include = [
-        "icons/**/*",
-    ],
-    exclude = ["*.DS_Store"],
-}
+#[derive(RustEmbed)]
+#[folder = "../../assets"]
+#[include = "icons/**/*"]
+#[exclude = "*.DS_Store"]
+pub struct Assets;
 
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {

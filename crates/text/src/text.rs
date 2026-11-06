@@ -36,7 +36,6 @@ pub use clock::ReplicaId;
 use collections::HashMap;
 use collections::HashSet;
 use futures::channel::oneshot;
-use gpui_util::debug_panic;
 use locator::Locator;
 use operation_queue::OperationQueue;
 pub use patch::Patch;
@@ -938,12 +937,10 @@ impl Buffer {
                     new_ropes.push_fragment(fragment, fragment.visible);
                     new_fragments.push(fragment.clone(), &None);
                     old_fragments.next();
-                    debug_assert_eq!(fragment_start, range.start);
                 } else {
                     break;
                 }
             }
-            debug_assert!(fragment_start <= range.start);
 
             // Preserve any portion of the current fragment that precedes this range.
             if fragment_start < range.start {
@@ -2137,13 +2134,6 @@ impl BufferSnapshot {
         } else if anchor.is_max() {
             self.visible_text.len()
         } else {
-            debug_assert_eq!(anchor.buffer_id, self.remote_id);
-            debug_assert!(
-                self.version.observed(anchor.timestamp()),
-                "Anchor timestamp {:?} not observed by buffer {:?}",
-                anchor.timestamp(),
-                self.version
-            );
             let item = self.try_find_fragment(anchor);
             let Some(insertion) = item.filter(|insertion| insertion.timestamp == anchor.timestamp()) else {
                 self.panic_bad_anchor(anchor);
@@ -2188,8 +2178,7 @@ impl BufferSnapshot {
             Some(Locator::max_ref())
         } else {
             let item = self.try_find_fragment(anchor);
-            item.filter(|insertion| !cfg!(debug_assertions) || insertion.timestamp == anchor.timestamp())
-                .map(|insertion| &insertion.fragment_id)
+            item.map(|insertion| &insertion.fragment_id)
         }
     }
 
@@ -2237,10 +2226,10 @@ impl BufferSnapshot {
     fn anchor_at_offset(&self, mut offset: usize, bias: Bias) -> Anchor {
         if bias == Bias::Left && offset == 0 {
             Anchor::min_for_buffer(self.remote_id)
-        } else if bias == Bias::Right && ((!cfg!(debug_assertions) && offset >= self.len()) || offset == self.len()) {
+        } else if bias == Bias::Right && offset >= self.len() {
             Anchor::max_for_buffer(self.remote_id)
         } else {
-            if !self.visible_text.assert_char_boundary::<{ cfg!(debug_assertions) }>(offset) {
+            if !self.visible_text.assert_char_boundary::<false>(offset) {
                 offset = match bias {
                     Bias::Left => self.visible_text.floor_char_boundary(offset),
                     Bias::Right => self.visible_text.ceil_char_boundary(offset),
@@ -2249,7 +2238,7 @@ impl BufferSnapshot {
             let (start, _, item) = self.fragments.find::<usize, _>(&None, &offset, bias);
             let Some(fragment) = item else {
                 // We got a bad offset, likely out of bounds
-                debug_panic!("Failed to find fragment at offset {} (len: {})", offset, self.len());
+                log::error!("Failed to find fragment at offset {} (len: {})", offset, self.len());
                 return Anchor::max_for_buffer(self.remote_id);
             };
             let overshoot = offset - start;
@@ -2513,7 +2502,6 @@ impl<'a> RopeBuilder<'a> {
     }
 
     fn push_fragment(&mut self, fragment: &Fragment, was_visible: bool) {
-        debug_assert!(fragment.len > 0);
         self.push(fragment.len as usize, was_visible, fragment.visible)
     }
 
@@ -2904,7 +2892,7 @@ impl ToOffset for Point {
 impl ToOffset for usize {
     #[track_caller]
     fn to_offset(&self, snapshot: &BufferSnapshot) -> usize {
-        if !snapshot.as_rope().assert_char_boundary::<{ cfg!(debug_assertions) }>(*self) {
+        if !snapshot.as_rope().assert_char_boundary::<false>(*self) {
             snapshot.as_rope().floor_char_boundary(*self)
         } else {
             *self

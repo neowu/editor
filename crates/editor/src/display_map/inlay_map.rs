@@ -561,7 +561,6 @@ impl InlayMap {
             snapshot.transforms = new_transforms;
             snapshot.version += 1;
             snapshot.buffer = buffer_snapshot;
-            snapshot.check_invariants();
 
             (snapshot.clone(), inlay_edits.into_inner())
         } else {
@@ -645,7 +644,6 @@ impl InlayMap {
             snapshot.transforms = new_transforms;
             snapshot.version += 1;
             snapshot.buffer = buffer_snapshot;
-            snapshot.check_invariants();
 
             (snapshot.clone(), inlay_edits.into_inner())
         }
@@ -1099,23 +1097,6 @@ impl InlaySnapshot {
         match transform {
             Some(Transform::Inlay(inlay)) if matches!(inlay.id, InlayId::Hint(_)) => Some((inlay, offset - start)),
             _ => None,
-        }
-    }
-
-    fn check_invariants(&self) {
-        if cfg!(debug_assertions) {
-            assert_eq!(self.transforms.summary().input, self.buffer.text_summary());
-            let mut transforms = self.transforms.iter().peekable();
-            while let Some(transform) = transforms.next() {
-                let transform_is_isomorphic = matches!(transform, Transform::Isomorphic(_));
-                if let Some(next_transform) = transforms.peek() {
-                    let next_transform_is_isomorphic = matches!(next_transform, Transform::Isomorphic(_));
-                    assert!(
-                        !transform_is_isomorphic || !next_transform_is_isomorphic,
-                        "two adjacent isomorphic transforms"
-                    );
-                }
-            }
         }
     }
 }

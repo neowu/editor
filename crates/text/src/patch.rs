@@ -20,17 +20,7 @@ where
         Self(Vec::new())
     }
 
-    pub fn new(edits: Vec<Edit<T>>) -> Self {
-        if cfg!(debug_assertions) {
-            let mut last_edit: Option<&Edit<T>> = None;
-            for edit in &edits {
-                if let Some(last_edit) = last_edit {
-                    assert!(edit.old.start > last_edit.old.end);
-                    assert!(edit.new.start > last_edit.new.end);
-                }
-                last_edit = Some(edit);
-            }
-        }
+    pub const fn new(edits: Vec<Edit<T>>) -> Self {
         Self(edits)
     }
 

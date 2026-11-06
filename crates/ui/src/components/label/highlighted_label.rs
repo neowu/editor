@@ -4,7 +4,6 @@ use gpui::FontWeight;
 use gpui::HighlightStyle;
 use gpui::StyleRefinement;
 use gpui::StyledText;
-use gpui_util::debug_panic;
 
 use crate::LabelCommon;
 use crate::LabelLike;
@@ -29,7 +28,7 @@ impl HighlightedLabel {
 
         if let Some(index) = highlight_indices.iter().find(|&i| !label.is_char_boundary(*i)) {
             let location = std::panic::Location::caller();
-            debug_panic!("highlight index {index} is not a valid UTF-8 boundary (called from {location})");
+            log::error!("highlight index {index} is not a valid UTF-8 boundary (called from {location})");
             highlight_indices.clear();
         }
 

@@ -45,7 +45,6 @@ use futures::channel::oneshot;
 use futures::future;
 use futures::future::LocalBoxFuture;
 use gpui_util::ResultExt;
-use gpui_util::debug_panic;
 use parking_lot::RwLock;
 use scheduler::Instant;
 use slotmap::SlotMap;
@@ -566,8 +565,6 @@ pub struct App {
     pub(crate) window_invalidators_by_entity: FxHashMap<EntityId, FxHashMap<WindowId, WindowInvalidator>>,
     pub(crate) tracked_entities: FxHashMap<WindowId, FxHashSet<EntityId>>,
     pub(crate) current_window_by_entity: FxHashMap<EntityId, WindowId>,
-    #[cfg(debug_assertions)]
-    pub(crate) name: Option<&'static str>,
     pub(crate) text_rendering_mode: Rc<Cell<TextRenderingMode>>,
 
     pub(crate) window_update_stack: Vec<WindowId>,
@@ -651,8 +648,6 @@ impl App {
                 cursor_hide_mode: CursorHideMode::default(),
                 synced_animation_epoch,
 
-                #[cfg(debug_assertions)]
-                name: None,
                 element_arena: Rc::new(RefCell::new(Arena::new(1024 * 1024))),
                 event_arena: Arena::new(1024 * 1024),
             }),
@@ -1596,7 +1591,7 @@ impl App {
         R: 'static,
     {
         if self.quitting {
-            debug_panic!("Can't spawn on main thread after on_app_quit")
+            log::error!("Can't spawn on main thread after on_app_quit")
         };
 
         let mut cx = self.to_async();
@@ -2170,12 +2165,6 @@ impl App {
         self.window_invalidators_by_entity.insert(entity_id, window_invalidators);
     }
 
-    /// Returns the name for this [`App`].
-    #[cfg(debug_assertions)]
-    pub const fn get_name(&self) -> Option<&'static str> {
-        self.name
-    }
-
     /// Returns `true` if the platform file picker supports selecting a mix of files and directories.
     pub fn can_select_mixed_files_and_dirs(&self) -> bool {
         self.platform.can_select_mixed_files_and_dirs()
@@ -2280,7 +2269,7 @@ impl App {
     #[track_caller]
     fn prepare_spawn(&self) -> AsyncApp {
         if self.quitting {
-            debug_panic!("Can't spawn on main thread after on_app_quit")
+            log::error!("Can't spawn on main thread after on_app_quit")
         };
         self.to_async()
     }

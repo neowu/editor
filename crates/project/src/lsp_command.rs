@@ -87,7 +87,6 @@ use serde_json::Value;
 use text::BufferId;
 use text::LineEnding;
 use util::ResultExt as _;
-use util::debug_panic;
 
 use crate::CodeAction;
 use crate::CompletionSource;
@@ -4339,7 +4338,7 @@ fn process_unchanged_diagnostics_report(
                 ..
             } => {
                 if server_id != *existing_server_id || &uri != existing_uri {
-                    debug_panic!("Unexpected state: file {uri} has two different sets of diagnostics reported");
+                    log::error!("Unexpected state: file {uri} has two different sets of diagnostics reported");
                 }
                 match existing_diagnostics {
                     PulledDiagnostics::Unchanged { .. } => {
@@ -4385,7 +4384,7 @@ fn process_full_diagnostics_report(
                 ..
             } => {
                 if server_id != *existing_server_id || &uri != existing_uri {
-                    debug_panic!("Unexpected state: file {uri} has two different sets of diagnostics reported");
+                    log::error!("Unexpected state: file {uri} has two different sets of diagnostics reported");
                 }
                 match existing_diagnostics {
                     PulledDiagnostics::Unchanged { .. } => {

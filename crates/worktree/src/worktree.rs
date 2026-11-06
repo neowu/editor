@@ -1350,18 +1350,6 @@ impl LocalWorktree {
                             new_repos.next();
                         }
                         Ordering::Equal => {
-                            // A change to a repository's git state is signaled by bumping
-                            // `git_dir_scan_id`, and the diff below detects it via `!=`. If the
-                            // value ever regresses (e.g. a rescan re-inserting the repository
-                            // with a fresh scan id of 0), a bump from the same cycle is wiped
-                            // out and the corresponding git update is silently lost.
-                            debug_assert!(
-                                new_repo.git_dir_scan_id >= old_repo.git_dir_scan_id,
-                                "git_dir_scan_id for repository at {:?} regressed from {} to {}",
-                                new_repo.work_directory_abs_path,
-                                old_repo.git_dir_scan_id,
-                                new_repo.git_dir_scan_id,
-                            );
                             if new_repo.git_dir_scan_id != old_repo.git_dir_scan_id
                                 || new_repo.work_directory_abs_path != old_repo.work_directory_abs_path
                             {

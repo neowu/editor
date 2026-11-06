@@ -92,7 +92,6 @@ impl<T> Sender<T> {
         if let Some(state) = Arc::get_mut(&mut self.state) {
             let state = state.get_mut();
             state.value = value;
-            debug_assert_eq!(state.wakers.len(), 0);
             Err(NoReceiverError)
         } else {
             let mut state = self.state.write();

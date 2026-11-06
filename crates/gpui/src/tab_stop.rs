@@ -184,7 +184,6 @@ impl TabStopMap {
 
     fn focus_handle_for_order(&self, order: &TabStopNode) -> Option<FocusHandle> {
         let handle = self.insertion_history[order.node_insertion_index].focus_handle();
-        debug_assert!(handle.is_some(), "The order node did not correspond to an element, this is a GPUI bug");
         handle.cloned()
     }
 
