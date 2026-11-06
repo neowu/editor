@@ -131,32 +131,6 @@ impl<T: 'static> DragMoveEvent<T> {
 }
 
 impl Interactivity {
-    /// Create an `Interactivity`, capturing the caller location in debug mode.
-    #[cfg(debug_assertions)]
-    #[track_caller]
-    pub fn new() -> Interactivity {
-        Interactivity { source_location: Some(core::panic::Location::caller()), ..Default::default() }
-    }
-
-    /// Create an `Interactivity`, capturing the caller location in debug mode.
-    #[cfg(not(debug_assertions))]
-    pub fn new() -> Interactivity {
-        Interactivity::default()
-    }
-
-    /// Gets the source location of construction. Returns `None` when not in debug mode.
-    pub const fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-        #[cfg(debug_assertions)]
-        {
-            self.source_location
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            None
-        }
-    }
-
     /// Bind the given callback to the mouse down event for the given mouse button, during the bubble phase.
     /// The imperative API equivalent of [`InteractiveElement::on_mouse_down`].
     ///
@@ -1336,10 +1310,9 @@ pub(crate) type ModifiersChangedListener = Box<dyn Fn(&ModifiersChangedEvent, &m
 pub(crate) type ActionListener = Box<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App) + 'static>;
 
 /// Construct a new [`Div`] element
-#[track_caller]
 pub fn div() -> Div {
     Div {
-        interactivity: Interactivity::new(),
+        interactivity: Interactivity::default(),
         children: SmallVec::default(),
         prepaint_listener: None,
         image_cache: None,
@@ -1424,10 +1397,6 @@ impl Element for Div {
 
     fn id(&self) -> Option<ElementId> {
         self.interactivity.element_id.clone()
-    }
-
-    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-        self.interactivity.source_location()
     }
 
     fn request_layout(
@@ -1631,8 +1600,6 @@ pub struct Interactivity {
     pub(crate) tab_group: bool,
     pub(crate) tab_stop: bool,
 
-    #[cfg(debug_assertions)]
-    pub(crate) source_location: Option<&'static core::panic::Location<'static>>,
 }
 
 impl Interactivity {
@@ -1902,9 +1869,6 @@ impl Interactivity {
                                     window.next_frame.tab_stops.insert(focus_handle);
                                 }
                                 if let Some(hitbox) = hitbox {
-                                    #[cfg(debug_assertions)]
-                                    self.paint_debug_info(global_id, hitbox, &style, window, cx);
-
                                     if let Some(drag) = cx.active_drag.as_ref() {
                                         if let Some(mouse_cursor) = drag.cursor_style {
                                             window.set_window_cursor_style(mouse_cursor);
@@ -1942,107 +1906,6 @@ impl Interactivity {
 
             ((), element_state)
         });
-    }
-
-    #[cfg(debug_assertions)]
-    fn paint_debug_info(
-        &self,
-        global_id: Option<&GlobalElementId>,
-        hitbox: &Hitbox,
-        style: &Style,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        use crate::BorderStyle;
-        use crate::TextAlign;
-
-        if let Some(global_id) = global_id
-            && (style.debug || style.debug_below || cx.has_global::<crate::DebugBelow>())
-            && hitbox.is_hovered(window)
-        {
-            const FONT_SIZE: crate::Pixels = crate::Pixels(10.);
-            let element_id = format!("{global_id:?}");
-            let str_len = element_id.len();
-
-            let render_debug_text = |window: &mut Window| {
-                if let Some(text) = window
-                    .text_system()
-                    .shape_text(element_id.into(), FONT_SIZE, &[window.text_style().to_run(str_len)], None, None)
-                    .ok()
-                    .and_then(|mut text| text.pop())
-                {
-                    text.paint(hitbox.origin, FONT_SIZE, TextAlign::Left, None, window, cx).ok();
-
-                    let text_bounds = crate::Bounds { origin: hitbox.origin, size: text.size(FONT_SIZE) };
-                    if let Some(source_location) = self.source_location
-                        && text_bounds.contains(&window.mouse_position())
-                        && window.modifiers().secondary()
-                    {
-                        let secondary_held = window.modifiers().secondary();
-                        window.on_key_event({
-                            move |e: &crate::ModifiersChangedEvent, _phase, window, _cx| {
-                                if e.modifiers.secondary() != secondary_held
-                                    && text_bounds.contains(&window.mouse_position())
-                                {
-                                    window.refresh();
-                                }
-                            }
-                        });
-
-                        let was_hovered = hitbox.is_hovered(window);
-                        let current_view = window.current_view();
-                        window.on_mouse_event({
-                            let hitbox = hitbox.clone();
-                            move |_: &MouseMoveEvent, phase, window, cx| {
-                                if phase == DispatchPhase::Capture {
-                                    let hovered = hitbox.is_hovered(window);
-                                    if hovered != was_hovered {
-                                        cx.notify(current_view)
-                                    }
-                                }
-                            }
-                        });
-
-                        window.on_mouse_event({
-                            let hitbox = hitbox.clone();
-                            move |e: &crate::MouseDownEvent, phase, window, cx| {
-                                if text_bounds.contains(&e.position) && phase.capture() && hitbox.is_hovered(window) {
-                                    cx.stop_propagation();
-                                    let Ok(dir) = std::env::current_dir() else {
-                                        return;
-                                    };
-
-                                    eprintln!(
-                                        "This element was created at:\n{}:{}:{}",
-                                        dir.join(source_location.file()).to_string_lossy(),
-                                        source_location.line(),
-                                        source_location.column()
-                                    );
-                                }
-                            }
-                        });
-                        window.paint_quad(crate::outline(
-                            crate::Bounds {
-                                origin: hitbox.origin + crate::point(crate::px(0.), FONT_SIZE - px(2.)),
-                                size: crate::Size { width: text_bounds.size.width, height: crate::px(1.) },
-                            },
-                            crate::red(),
-                            BorderStyle::default(),
-                        ))
-                    }
-                }
-            };
-
-            window.with_text_style(
-                Some(crate::TextStyleRefinement {
-                    color: Some(crate::red()),
-                    line_height: Some(FONT_SIZE.into()),
-                    background_color: Some(crate::white()),
-                    ..Default::default()
-                }),
-                render_debug_text,
-            )
-        }
     }
 
     fn paint_mouse_listeners(
@@ -3103,10 +2966,6 @@ where
 
     fn id(&self) -> Option<ElementId> {
         self.element.id()
-    }
-
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        self.element.source_location()
     }
 
     fn request_layout(

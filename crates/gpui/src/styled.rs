@@ -882,18 +882,4 @@ pub trait Styled: Sized {
         grid_location.row = GridPlacement::Line(1)..GridPlacement::Line(-1);
         self
     }
-
-    /// Draws a debug border around this element.
-    #[cfg(debug_assertions)]
-    fn debug(mut self) -> Self {
-        self.style().debug = Some(true);
-        self
-    }
-
-    /// Draws a debug border on all conforming elements below this element.
-    #[cfg(debug_assertions)]
-    fn debug_below(mut self) -> Self {
-        self.style().debug_below = Some(true);
-        self
-    }
 }

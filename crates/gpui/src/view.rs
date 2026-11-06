@@ -234,7 +234,6 @@ impl<T: Render> Entity<T> {
     /// a cached view is laid out from `style` and is *not* measured from its
     /// contents. Use [`ViewElement::new`] (or `.child(entity)`) for the
     /// uncached case.
-    #[track_caller]
     pub fn cached(self, style: StyleRefinement) -> ViewElement<Entity<T>> {
         ViewElement::new(self).cached(style)
     }
@@ -246,21 +245,16 @@ pub struct ViewElement<V: View> {
     view: Option<V>,
     entity_id: Option<EntityId>,
     cached_style: Option<StyleRefinement>,
-    #[cfg(debug_assertions)]
-    source: &'static core::panic::Location<'static>,
 }
 
 impl<V: View> ViewElement<V> {
     /// Wrap a [`View`] as an element.
-    #[track_caller]
     pub fn new(view: V) -> Self {
         let entity_id = view.entity_id();
         ViewElement {
             entity_id,
             cached_style: None,
             view: Some(view),
-            #[cfg(debug_assertions)]
-            source: core::panic::Location::caller(),
         }
     }
 
@@ -309,14 +303,6 @@ impl<V: View> Element for ViewElement<V> {
 
     fn id(&self) -> Option<ElementId> {
         self.entity_id.map(ElementId::View)
-    }
-
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        #[cfg(debug_assertions)]
-        return Some(self.source);
-
-        #[cfg(not(debug_assertions))]
-        return None;
     }
 
     fn request_layout(

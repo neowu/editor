@@ -1138,10 +1138,6 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
         Some(("scrollbar_animation", self.state.entity_id()).into())
     }
 
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        None
-    }
-
     fn request_layout(
         &mut self,
         _id: Option<&GlobalElementId>,

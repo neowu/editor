@@ -49,15 +49,6 @@ use crate::quad;
 use crate::rems;
 use crate::size;
 
-/// Use this struct for interfacing with the 'debug_below' styling from your own elements.
-/// If a parent element has this style set on it, then this struct will be set as a global in
-/// GPUI.
-#[cfg(debug_assertions)]
-pub struct DebugBelow;
-
-#[cfg(debug_assertions)]
-impl crate::Global for DebugBelow {}
-
 /// How to fit the image into the bounds of the element.
 pub enum ObjectFit {
     /// The image will be stretched to fill the bounds of the element.
@@ -304,14 +295,6 @@ pub struct Style {
 
     /// The grid location of this element
     pub grid_location: Option<GridLocation>,
-
-    /// Whether to draw a red debugging outline around this element
-    #[cfg(debug_assertions)]
-    pub debug: bool,
-
-    /// Whether to draw a red debugging outline around this element and all of its conforming children
-    #[cfg(debug_assertions)]
-    pub debug_below: bool,
 }
 
 impl Styled for StyleRefinement {
@@ -656,16 +639,6 @@ impl Style {
         cx: &mut App,
         continuation: impl FnOnce(&mut Window, &mut App),
     ) {
-        #[cfg(debug_assertions)]
-        if self.debug_below {
-            cx.set_global(DebugBelow)
-        }
-
-        #[cfg(debug_assertions)]
-        if self.debug || cx.has_global::<DebugBelow>() {
-            window.paint_quad(crate::outline(bounds, crate::red(), BorderStyle::default()));
-        }
-
         let rem_size = window.rem_size();
         let corner_radii = self.corner_radii.to_pixels(rem_size).clamp_radii_for_quad_size(bounds.size);
 
@@ -708,11 +681,6 @@ impl Style {
                 self.border_color.unwrap_or_default(),
                 self.border_style,
             ));
-        }
-
-        #[cfg(debug_assertions)]
-        if self.debug_below {
-            cx.remove_global::<DebugBelow>();
         }
     }
 
@@ -763,11 +731,6 @@ impl Default for Style {
             grid_rows: None,
             grid_cols: None,
             grid_location: None,
-
-            #[cfg(debug_assertions)]
-            debug: false,
-            #[cfg(debug_assertions)]
-            debug_below: false,
         }
     }
 }

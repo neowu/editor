@@ -196,9 +196,8 @@ pub struct Img {
 }
 
 /// Create a new image element.
-#[track_caller]
 pub fn img(source: impl Into<ImageSource>) -> Img {
-    Img { interactivity: Interactivity::new(), source: source.into(), style: ImageStyle::default(), image_cache: None }
+    Img { interactivity: Interactivity::default(), source: source.into(), style: ImageStyle::default(), image_cache: None }
 }
 
 impl Img {
@@ -256,10 +255,6 @@ impl Element for Img {
 
     fn id(&self) -> Option<ElementId> {
         self.interactivity.element_id.clone()
-    }
-
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        self.interactivity.source_location()
     }
 
     fn request_layout(

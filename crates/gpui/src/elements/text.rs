@@ -51,10 +51,6 @@ impl Element for &'static str {
         None
     }
 
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        None
-    }
-
     fn request_layout(
         &mut self,
         _id: Option<&GlobalElementId>,
@@ -119,10 +115,6 @@ impl Element for SharedString {
     type PrepaintState = ();
 
     fn id(&self) -> Option<ElementId> {
-        None
-    }
-
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
         None
     }
 
@@ -313,10 +305,6 @@ impl Element for StyledText {
     type PrepaintState = ();
 
     fn id(&self) -> Option<ElementId> {
-        None
-    }
-
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
         None
     }
 
@@ -795,10 +783,6 @@ impl Element for InteractiveText {
 
     fn id(&self) -> Option<ElementId> {
         Some(self.element_id.clone())
-    }
-
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        None
     }
 
     fn request_layout(

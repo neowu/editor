@@ -38,10 +38,6 @@ impl Element for Deferred {
         None
     }
 
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        None
-    }
-
     fn request_layout(&mut self, _id: Option<&GlobalElementId>, window: &mut Window, cx: &mut App) -> (LayoutId, ()) {
         let layout_id = self.child.as_mut().unwrap().request_layout(window, cx);
         (layout_id, ())

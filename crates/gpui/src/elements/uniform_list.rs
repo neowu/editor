@@ -43,7 +43,6 @@ use crate::size;
 /// uniform_list provides lazy rendering for a set of items that are of uniform height.
 /// When rendered into a container with overflow-y: hidden and a fixed (or max) height,
 /// uniform_list will only render the visible subset of items.
-#[track_caller]
 pub fn uniform_list<R>(
     id: impl Into<ElementId>,
     item_count: usize,
@@ -65,7 +64,7 @@ where
         item_to_measure_index: 0,
         render_items: Box::new(render_range),
         decorations: Vec::new(),
-        interactivity: Interactivity { element_id: Some(id), base_style: Box::new(base_style), ..Interactivity::new() },
+        interactivity: Interactivity { element_id: Some(id), base_style: Box::new(base_style), ..Interactivity::default() },
         scroll_handle: None,
         sizing_behavior: ListSizingBehavior::default(),
         horizontal_sizing_behavior: ListHorizontalSizingBehavior::default(),
@@ -247,10 +246,6 @@ impl Element for UniformList {
 
     fn id(&self) -> Option<ElementId> {
         self.interactivity.element_id.clone()
-    }
-
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        None
     }
 
     fn request_layout(

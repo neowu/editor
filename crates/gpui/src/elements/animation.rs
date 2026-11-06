@@ -246,10 +246,6 @@ impl<E: IntoElement + 'static> Element for SpringAnimationElement<E> {
         Some(self.id.clone())
     }
 
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        None
-    }
-
     fn request_layout(
         &mut self,
         global_id: Option<&GlobalElementId>,
@@ -349,10 +345,6 @@ impl<E: IntoElement + 'static> Element for AnimationElement<E> {
 
     fn id(&self) -> Option<ElementId> {
         Some(self.id.clone())
-    }
-
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        None
     }
 
     fn request_layout(

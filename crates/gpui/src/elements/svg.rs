@@ -41,10 +41,9 @@ pub struct Svg {
 }
 
 /// Create a new SVG element.
-#[track_caller]
 pub fn svg() -> Svg {
     Svg {
-        interactivity: Interactivity::new(),
+        interactivity: Interactivity::default(),
         transformation: None,
         path: None,
         external_path: None,
@@ -93,10 +92,6 @@ impl Element for Svg {
 
     fn id(&self) -> Option<crate::ElementId> {
         self.interactivity.element_id.clone()
-    }
-
-    fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
-        self.interactivity.source_location()
     }
 
     fn request_layout(

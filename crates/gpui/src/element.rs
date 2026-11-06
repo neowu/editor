@@ -76,9 +76,6 @@ pub trait Element: 'static + IntoElement {
     /// frames. This id must be unique among children of the first containing element with an id.
     fn id(&self) -> Option<ElementId>;
 
-    /// Source location where this element was constructed, used for debugging.
-    fn source_location(&self) -> Option<&'static panic::Location<'static>>;
-
     /// Before an element can be painted, we need to know where it's going to be and how big it is.
     /// Use this method to request a layout from Taffy and initialize the element's state.
     fn request_layout(
@@ -535,10 +532,6 @@ impl Element for AnyElement {
         None
     }
 
-    fn source_location(&self) -> Option<&'static panic::Location<'static>> {
-        None
-    }
-
     fn request_layout(
         &mut self,
         _: Option<&GlobalElementId>,
@@ -601,10 +594,6 @@ impl Element for Empty {
     type PrepaintState = ();
 
     fn id(&self) -> Option<ElementId> {
-        None
-    }
-
-    fn source_location(&self) -> Option<&'static panic::Location<'static>> {
         None
     }
 

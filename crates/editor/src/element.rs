@@ -5553,10 +5553,6 @@ impl Element for EditorElement {
         Some("editor".into())
     }
 
-    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
-        None
-    }
-
     fn request_layout(
         &mut self,
         _: Option<&GlobalElementId>,
