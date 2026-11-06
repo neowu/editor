@@ -1,14 +1,18 @@
 use std::borrow::Borrow;
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::fmt;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
+use std::result;
 use std::sync::Arc;
+use std::sync::OnceLock;
 
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
+use serde::de;
 
 use crate::abs_path::AbsPath;
 use crate::abs_path::AbsPathBuf;
@@ -20,7 +24,7 @@ use crate::abs_path::AbsPathBuf;
 /// Relative paths are also guaranteed to be valid unicode.
 #[repr(transparent)]
 #[derive(PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(serde::Serialize)]
 pub struct RelPath(str);
 
 /// An owned representation of a file system path that is guaranteed to be
@@ -28,7 +32,7 @@ pub struct RelPath(str);
 ///
 /// This type is to [`RelPath`] as [`std::path::PathBuf`] is to [`std::path::Path`]
 #[derive(PartialEq, Eq, Clone, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(serde::Serialize)]
 pub struct RelPathBuf(String);
 
 impl RelPath {
@@ -39,7 +43,7 @@ impl RelPath {
 
     /// Creates an empty [`RelPath`].
     pub fn empty_arc() -> Arc<Self> {
-        static EMPTY: std::sync::OnceLock<Arc<RelPath>> = std::sync::OnceLock::new();
+        static EMPTY: OnceLock<Arc<RelPath>> = OnceLock::new();
         EMPTY.get_or_init(|| Arc::from(Self::empty())).clone()
     }
 
@@ -262,13 +266,13 @@ impl Borrow<RelPath> for RelPathBuf {
 }
 
 impl PartialOrd for RelPath {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for RelPath {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.components().cmp(other.components())
     }
 }
@@ -349,13 +353,13 @@ impl Default for RelPathBuf {
 }
 
 impl PartialOrd for RelPathBuf {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for RelPathBuf {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.as_rel_path().cmp(other.as_rel_path())
     }
 }
@@ -372,7 +376,7 @@ impl AsRef<RelPath> for RelPathBuf {
     }
 }
 
-impl AsRef<std::path::Path> for RelPathBuf {
+impl AsRef<Path> for RelPathBuf {
     fn as_ref(&self) -> &Path {
         self.as_std_path()
     }
@@ -384,7 +388,7 @@ impl AsRef<RelPath> for RelPath {
     }
 }
 
-impl AsRef<std::path::Path> for RelPath {
+impl AsRef<Path> for RelPath {
     fn as_ref(&self) -> &Path {
         self.as_std_path()
     }
@@ -546,14 +550,13 @@ impl DoubleEndedIterator for RelPathComponents<'_> {
     }
 }
 
-#[cfg(feature = "serde")]
 impl<'de> serde::Deserialize<'de> for RelPathBuf {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let path = String::deserialize(deserializer)?;
-        let rel_path = RelPath::new(Path::new(&path)).map_err(serde::de::Error::custom)?;
+        let rel_path = RelPath::new(Path::new(&path)).map_err(de::Error::custom)?;
         Ok(rel_path.into_owned())
     }
 }

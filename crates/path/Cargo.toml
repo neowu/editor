@@ -8,7 +8,7 @@ path = "src/path.rs"
 
 [dependencies]
 anyhow.workspace = true
-serde = { workspace = true, features = ["derive"], optional = true }
+serde = { workspace = true, features = ["derive"] }
 
 [lints]
 workspace = true
