@@ -29,10 +29,32 @@ pub trait CommonAnimationExt: AnimationExt {
     where
         Self: Transformable + Sized,
     {
-        self.with_animation(id, Animation::new(Duration::from_secs(duration)).repeat_synced(), |component, delta| {
+        self.with_animation(id, rotate_animation(duration), |component, delta| {
             component.transform(Transformation::rotate(percentage(delta)))
         })
     }
 }
 
 impl<T: AnimationExt> CommonAnimationExt for T {}
+
+/// Re-renders per second for rotating spinners. A spinner shown while a
+/// language server indexes would otherwise redraw the window every vsync.
+const ROTATE_ANIMATION_MAX_FPS: f32 = 10.;
+
+fn rotate_animation(duration: u64) -> Animation {
+    Animation::new(Duration::from_secs(duration)).repeat_synced().with_max_fps(ROTATE_ANIMATION_MAX_FPS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rotate_animation_repeats_synced_and_is_throttled() {
+        let animation = rotate_animation(2);
+        assert_eq!(animation.duration, Duration::from_secs(2));
+        assert!(!animation.oneshot);
+        assert!(animation.synced);
+        assert_eq!(animation.max_fps, Some(ROTATE_ANIMATION_MAX_FPS));
+    }
+}

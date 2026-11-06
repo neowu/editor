@@ -3,13 +3,8 @@ name = "worktree"
 version = "0.1.0"
 edition.workspace = true
 
-
 [lib]
 path = "src/worktree.rs"
-doctest = false
-
-[lints]
-workspace = true
 
 [dependencies]
 anyhow.workspace = true
@@ -37,3 +32,6 @@ sum_tree.workspace = true
 text.workspace = true
 util.workspace = true
 watch.workspace = true
+
+[lints]
+workspace = true

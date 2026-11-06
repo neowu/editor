@@ -1608,6 +1608,7 @@ dependencies = [
  "inventory",
  "itertools 0.15.0",
  "log",
+ "lru",
  "lyon",
  "num_cpus",
  "parking",

@@ -26,88 +26,45 @@ Baseline after the minimap work (`crates/editor/src/element.rs` open,
 | Scroll, minimap off | 31 M | 2.35 ms | ~8.5 |
 | Idle (cursor blink, 2 fps) | 29 M | 5.3 ms | ~0 |
 
-## 1. Redraws while a language server reports progress
+## Results (both done)
 
-### Finding
+Same workload, HEAD vs this change (`crates/editor/src/element.rs`, 60 ×
+200px scrolls per pass, rust-analyzer idle for scrolls):
 
-While rust-analyzer reports work ("Fetching…", "Indexing: 395/469"), the window
-draws at display rate: 240–320 frames per 3s, ~11% of a core on the main
-thread. It drops to the cursor blink (~2 fps) the moment the work list is
-empty. On a big project, indexing lasts minutes, and `cargo check` progress
-runs on every save, so this is steady-state cost, not just startup.
+| Workload | Before | After |
+|---|--:|--:|
+| Indexing, first 6s: frames | 573 | 141 |
+| Indexing, first 6s: main thread | 514 ms | 270 ms |
+| Scroll down, first pass: instr/frame (shaped) | 68.8 M (1235) | 59.4 M (1174) |
+| Scroll back up: instr/frame (shaped) | 63.5 M (1199) | 35.1 M (16) |
+| Scroll down again: instr/frame (shaped) | 65.2 M (1177) | 34.7 M (0) |
 
-Repro: `edctl launch --fresh` on a Rust file in this repo, then every 3s
-`perf-reset` / sleep / `perf` and `state` (its `language_servers[].work`).
-Frames per window track `work` being non-empty exactly.
+The first scroll pass is noisy (LSP requests for newly visible rows); don't
+read the 14% there as a win.
 
-### What isn't known yet
+### 1. Redraws while a language server reports progress
 
-Which entity notifies. A 3s startup sample showed the frames were cheap
-(~1 ms draw), but they included the main editor's prepaint and the minimap,
-plus `Scene::replay` and `BoundsTree::insert` for the cached pane. So
-it's not only the status bar redrawing. Candidates:
+Not notifies. Counting `cx.notify()` per entity type during indexing:
+`ActivityIndicator` 2–18/s, `LogStore` hundreds/s but not rendered, while the
+window drew ~115 fps. The frames came from the status bar's rotating
+`LoadCircle` spinner (`Button::loading`), an animation that asked for a frame
+every vsync. Fix: `with_rotate_animation` uses `Animation::with_max_fps(10)`
+(already in GPUI, unused). Applies to every spinner (14 call sites).
+Coalescing `ActivityIndicator` notifies isn't worth it at that rate.
 
-- `activity_indicator` (`crates/activity_indicator/src/activity_indicator.rs`):
-  it calls `cx.notify()` on every language server status update (around
-  line 188) and on `fs` job events. Every `$/progress` notification
-  (rust-analyzer sends many per second while indexing) becomes a redraw.
-- The LSP status button (`lsp-tool` in the status bar).
-- Something in the editor that refreshes per progress event (inlay hints,
-  diagnostics pulls, semantic tokens), which would explain the editor
-  prepaint in those frames.
+Possible further step: 10 fps is still ~10 full-window redraws/s (~1 ms each)
+for minutes during indexing. A static icon, or 4–5 fps, would halve it again
+at the cost of a choppier spinner.
 
-First step: find who notifies. Options: count `cx.notify()` per entity type for
-one second, or sample during indexing and check which views' `render` show up
-(not just `prepaint`).
+### 2. Keep shaped lines longer than one frame
 
-### Fix direction
+Unwrapped lines evicted from `previous_frame` go into an `lru::LruCache` of
+4096 lines (`LineLayoutCache::finish_frame`), checked after both frame maps.
+Hits move back into the current frame, so `used_lines` stays correct for
+cached views. Wrapped lines aren't stored: their unwrapped line is. Cost per
+frame is one LRU insert per line that left the frame; no measurable overhead.
 
-- Coalesce: on a status event, store the new status and schedule at most one
-  `cx.notify()` per interval (e.g. 250ms) with a pending flag and a
-  `cx.spawn` timer. The text "Indexing: 395/469" doesn't need 120 updates/s.
-- If the editor is the one notifying, make that path skip the notify when
-  nothing it renders changed.
-- Check any spinner/animation shown while work is in flight. A rotating icon
-  would ask for a frame every vsync by design.
-
-Done when `perf` during indexing shows a few frames per second, not ~100.
-
-## 2. Keep shaped lines longer than one frame
-
-### Finding
-
-`LineLayoutCache` (`crates/gpui/src/text_system/line_layout.rs`) keeps two
-generations: `current_frame` and `previous_frame`. `finish_frame` swaps
-them and clears the new current one. A line shaped two frames ago is gone. So:
-
-- Scrolling down then back up reshapes every line that left the viewport.
-- In a scroll sample, CoreText shaping (`shape_line` →
-  `CTLineCreateWithAttributedString`) was ~35% of draw time. Much of it is
-  `OTL::GlyphLookups` setup per created line (font feature tables), so cost
-  is per line, not per glyph. The minimap no longer shapes; what's left is
-  the main editor: ~8.5 lines shaped per frame on a 200px-per-step scroll.
-- Line numbers in the gutter are shaped the same way (`shape_line_number`).
-
-### Fix direction
-
-Add a bounded third tier: lines evicted from `previous_frame` go into an LRU
-(keyed by the same `CacheKey`: text, font size, font runs, wrap width, force
-width), capped by count and/or total glyphs. A miss in both frame maps checks
-the LRU before calling `platform_text_system.layout_line`. Same for
-`wrapped_lines`.
-
-Constraints:
-
-- Keep the frame maps as they are: `layout_index` / `reuse_layouts` /
-  `truncate_layouts` rely on `used_lines` ordering for cached views. The LRU
-  is only a fallback behind them.
-- `clear_if_font_generation_changed` must clear the LRU too.
-- The cache is per window (`WindowTextSystem`, `RefCell`, single-threaded).
-- Bound the memory. A `LineLayout` holds one `ShapedGlyph` (~32 bytes) per
-  glyph; 5–10k lines is a few MB.
-- Unit tests next to the existing `LineLayoutCache` tests
-  (`shaped_line_count_counts_only_cache_misses` shows how to count misses).
-
-Measure with `lines shaped` from `edctl perf`: scroll down N steps then back up
-N steps. The way back should shape ~0 lines. Also check instructions per frame
-for a plain scroll; the LRU lookup must not cost more than it saves.
+Shaping costs ~3M instructions per line (~28M / 9.5 lines per frame), so the
+remaining cost is first-visit shaping. Ideas if that matters: shape lines
+about to scroll in during idle time, or reuse CoreText attributed-string /
+font setup across lines (`OTL::GlyphLookups` setup dominated the sample).

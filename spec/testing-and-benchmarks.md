@@ -7,6 +7,8 @@
 - GPUI exposes no `test`, `bench`, or `property_test` macros, no
   `bench_group!`/`bench_main!`, and no `debug_selector` element hook.
 - The `perf` tooling, `util_macros`, and the dylint UI test fixtures are removed.
+- No crate opts its library out of `cargo test` (`test`, `doctest` or
+  `bench = false`); unit and doc tests run with the rest of the workspace.
 - GPUI and component-preview examples and their development-only dependencies
   are removed. GPUI keeps the development dependency needed by its documentation examples.
 - GPUI entity leak detection is removed: no `leak-detection` feature,

@@ -3,16 +3,8 @@ name = "remote_connection"
 version = "0.1.0"
 edition.workspace = true
 
-
-[lints]
-workspace = true
-
 [lib]
 path = "src/remote_connection.rs"
-doctest = false
-
-[features]
-default = []
 
 [dependencies]
 anyhow.workspace = true
@@ -23,3 +15,9 @@ menu.workspace = true
 remote.workspace = true
 ui.workspace = true
 workspace.workspace = true
+
+[features]
+default = []
+
+[lints]
+workspace = true

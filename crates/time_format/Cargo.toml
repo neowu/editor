@@ -3,16 +3,14 @@ name = "time_format"
 version = "0.1.0"
 edition.workspace = true
 
-
-[lints]
-workspace = true
-
 [lib]
 path = "src/time_format.rs"
-doctest = false
 
 [dependencies]
 time.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2-core-foundation = { workspace = true, features = ["std", "CFDate", "CFDateFormatter", "CFLocale", "CFString"] }
+objc2-core-foundation = { workspace = true, features = ["CFDate", "CFDateFormatter", "CFLocale", "CFString", "std"] }
+
+[lints]
+workspace = true

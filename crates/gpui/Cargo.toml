@@ -3,19 +3,14 @@ name = "gpui"
 version = "0.2.2"
 edition.workspace = true
 description = "ed's GPU-accelerated UI framework"
-repository = "https://github.com/zed-industries/zed"
-homepage = "https://gpui.rs"
 readme = "README.md"
+homepage = "https://gpui.rs"
+repository = "https://github.com/zed-industries/zed"
 keywords = ["desktop", "gui", "immediate"]
 categories = ["gui"]
 
-[lints]
-workspace = true
-
 [lib]
 path = "src/gpui.rs"
-test = false
-bench = false
 
 [dependencies]
 anyhow.workspace = true
@@ -28,21 +23,23 @@ etagere.workspace = true
 futures.workspace = true
 gpui_macros.workspace = true
 gpui_shared_string.workspace = true
+gpui_util.workspace = true
 image.workspace = true
 inventory.workspace = true
 itertools.workspace = true
 log.workspace = true
+lru.workspace = true
+lyon = "1.0"
 num_cpus = "1.13"
 parking = "2.0.0"
 parking_lot.workspace = true
+pin-project = "1.1.10"
 rand = { workspace = true, features = ["thread_rng"] }
 raw-window-handle.workspace = true
-regex = { workspace = true, default-features = true }
 refineable.workspace = true
-scheduler.workspace = true
+regex = { workspace = true, default-features = true }
 resvg.workspace = true
-usvg.workspace = true
-ttf-parser = "0.25"
+scheduler.workspace = true
 seahash = "4.1"
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
@@ -50,26 +47,31 @@ slotmap.workspace = true
 smallvec.workspace = true
 strum.workspace = true
 sum_tree.workspace = true
-taffy = { workspace = true, features = [
+taffy = {
+  workspace = true,
+  features = [
+    "block_layout",
+    "content_size",
+    "flexbox",
+    "float_layout",
+    "grid",
     "std",
     "taffy_tree",
-    "flexbox",
-    "grid",
-    "block_layout",
-    "float_layout",
-    "content_size",
-] }
+  ]
+}
 thiserror.workspace = true
-gpui_util.workspace = true
-waker-fn = "1.2.0"
-lyon = "1.0"
-pin-project = "1.1.10"
+ttf-parser = "0.25"
+usvg.workspace = true
 uuid = { workspace = true, features = ["v4"] }
+waker-fn = "1.2.0"
 
 async-channel = { workspace = true, features = ["std"] }
+
+[dev-dependencies]
+lyon = { version = "1.0", features = ["extra"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 log.workspace = true
 
-[dev-dependencies]
-lyon = { version = "1.0", features = ["extra"] }
+[lints]
+workspace = true

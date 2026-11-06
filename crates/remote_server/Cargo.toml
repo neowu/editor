@@ -1,15 +1,11 @@
 [package]
 name = "remote_server"
-description = "Daemon used for remote editing"
-edition.workspace = true
 version = "0.1.0"
-
-[lints]
-workspace = true
+edition.workspace = true
+description = "Daemon used for remote editing"
 
 [lib]
 path = "src/server.rs"
-doctest = false
 
 [[bin]]
 name = "remote_server"
@@ -30,6 +26,7 @@ log.workspace = true
 lsp.workspace = true
 paths.workspace = true
 project.workspace = true
+rayon.workspace = true
 remote.workspace = true
 rpc.workspace = true
 serde_json.workspace = true
@@ -39,10 +36,12 @@ smol.workspace = true
 sysinfo.workspace = true
 task.workspace = true
 terminal.workspace = true
+thiserror.workspace = true
 util.workspace = true
 worktree.workspace = true
-thiserror.workspace = true
-rayon.workspace = true
 
-[target.'cfg(unix)'.dependencies]
+[target."cfg(unix)".dependencies]
 libc.workspace = true
+
+[lints]
+workspace = true

@@ -4,12 +4,15 @@ use std::cell::RefCell;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::mem;
+use std::num::NonZeroUsize;
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
+use collections::FxBuildHasher;
 use collections::FxHashMap;
+use lru::LruCache;
 use smallvec::SmallVec;
 
 use super::LineWrapper;
@@ -428,10 +431,29 @@ pub(crate) struct LineLayoutCache {
     shaped_lines: Cell<usize>,
 }
 
-#[derive(Default)]
+/// How many unwrapped lines [`LineLayoutCache`] keeps after they leave both
+/// frames, so scrolling back doesn't reshape them. A line holds ~32 bytes per
+/// glyph, so this is a few MB for typical code.
+const RECENT_LINES_CAPACITY: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
+
 struct LineLayoutCacheState {
     previous_frame: FrameCache,
     current_frame: FrameCache,
+    /// Lines used before the previous frame, least recently used evicted first.
+    /// Only a fallback behind the frame maps, whose `used_lines` order
+    /// cached views rely on. Wrapped lines aren't kept: their unwrapped line
+    /// lands here, and recomputing wrap boundaries doesn't call the shaper.
+    recent_lines: LruCache<Arc<CacheKey>, Arc<LineLayout>, FxBuildHasher>,
+}
+
+impl Default for LineLayoutCacheState {
+    fn default() -> Self {
+        Self {
+            previous_frame: FrameCache::default(),
+            current_frame: FrameCache::default(),
+            recent_lines: LruCache::with_hasher(RECENT_LINES_CAPACITY, FxBuildHasher),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -476,7 +498,7 @@ impl LineLayoutCache {
         if range.start.font_generation != font_generation || range.end.font_generation != font_generation {
             return;
         }
-        let LineLayoutCacheState { previous_frame, current_frame } = &mut *self.state.borrow_mut();
+        let LineLayoutCacheState { previous_frame, current_frame, .. } = &mut *self.state.borrow_mut();
 
         for key in &previous_frame.used_lines[range.start.lines_index..range.end.lines_index] {
             if let Some((key, line)) = previous_frame.lines.remove_entry(key) {
@@ -510,7 +532,10 @@ impl LineLayoutCache {
 
     pub fn finish_frame(&self) {
         let _font_generation = self.clear_if_font_generation_changed();
-        let LineLayoutCacheState { previous_frame, current_frame } = &mut *self.state.borrow_mut();
+        let LineLayoutCacheState { previous_frame, current_frame, recent_lines } = &mut *self.state.borrow_mut();
+        for (key, layout) in previous_frame.lines.drain() {
+            recent_lines.put(key, layout);
+        }
         mem::swap(previous_frame, current_frame);
         current_frame.lines.clear();
         current_frame.wrapped_lines.clear();
@@ -535,7 +560,7 @@ impl LineLayoutCache {
             &CacheKeyRef { text: text.as_ref(), font_size, runs, wrap_width, force_width: None } as &dyn AsCacheKeyRef;
 
         {
-            let LineLayoutCacheState { previous_frame, current_frame } = &mut *self.state.borrow_mut();
+            let LineLayoutCacheState { previous_frame, current_frame, .. } = &mut *self.state.borrow_mut();
             if let Some(layout) = current_frame.wrapped_lines.get(key) {
                 return layout.clone();
             }
@@ -578,11 +603,11 @@ impl LineLayoutCache {
         let key =
             &CacheKeyRef { text: text.as_ref(), font_size, runs, wrap_width: None, force_width } as &dyn AsCacheKeyRef;
 
-        let LineLayoutCacheState { previous_frame, current_frame } = &mut *self.state.borrow_mut();
+        let LineLayoutCacheState { previous_frame, current_frame, recent_lines } = &mut *self.state.borrow_mut();
         if let Some(layout) = current_frame.lines.get(key) {
             return layout.clone();
         }
-        if let Some((key, layout)) = previous_frame.lines.remove_entry(key) {
+        if let Some((key, layout)) = previous_frame.lines.remove_entry(key).or_else(|| recent_lines.pop_entry(key)) {
             current_frame.lines.insert(key.clone(), layout.clone());
             current_frame.used_lines.push(key);
             return layout;
@@ -755,10 +780,49 @@ mod tests {
 
         cache.finish_frame();
         assert!(Arc::ptr_eq(&first, &layout(&cache, "hello")));
+        assert_eq!(cache.shaped_line_count(), 1);
+    }
+
+    #[test]
+    fn layout_line_keeps_lines_that_left_both_frames() {
+        let (cache, _) = cache();
+        let first = layout(&cache, "hello");
+        for _ in 0..5 {
+            cache.finish_frame();
+        }
+
+        let index = cache.layout_index();
+        assert!(Arc::ptr_eq(&first, &layout(&cache, "hello")));
+        assert_eq!(cache.shaped_line_count(), 1);
+        // A recent line is used by this frame again, like a frame map hit.
+        assert_eq!(cache.layout_index().lines_index, index.lines_index + 1);
 
         cache.finish_frame();
+        assert!(Arc::ptr_eq(&first, &layout(&cache, "hello")));
+        assert_eq!(cache.shaped_line_count(), 1);
+    }
+
+    #[test]
+    fn recent_lines_evict_least_recently_used() {
+        let (cache, _) = cache();
+        let oldest = layout(&cache, "oldest");
         cache.finish_frame();
-        assert!(!Arc::ptr_eq(&first, &layout(&cache, "hello")));
+        cache.finish_frame();
+
+        let newer: Vec<String> = (0..RECENT_LINES_CAPACITY.get()).map(|ix| format!("line {ix}")).collect();
+        let runs = |text: &str| [FontRun { len: text.len(), font_id: FontId(0) }];
+        let first_newer = cache.layout_line(newer[0].as_str(), px(16.), &runs(&newer[0]), None);
+        for text in &newer[1..] {
+            cache.layout_line(text.as_str(), px(16.), &runs(text), None);
+        }
+        cache.finish_frame();
+        cache.finish_frame();
+        let shaped = cache.shaped_line_count();
+
+        assert!(Arc::ptr_eq(&first_newer, &cache.layout_line(newer[0].as_str(), px(16.), &runs(&newer[0]), None)));
+        assert_eq!(cache.shaped_line_count(), shaped);
+        assert!(!Arc::ptr_eq(&oldest, &layout(&cache, "oldest")));
+        assert_eq!(cache.shaped_line_count(), shaped + 1);
     }
 
     #[test]
@@ -787,9 +851,21 @@ mod tests {
         cache.finish_frame();
         assert!(Arc::ptr_eq(&first, &wrapped_layout(&cache, "hello world")));
 
-        cache.finish_frame();
-        cache.finish_frame();
-        assert!(!Arc::ptr_eq(&first, &wrapped_layout(&cache, "hello world")));
+        assert_eq!(cache.shaped_line_count(), 1);
+    }
+
+    #[test]
+    fn layout_wrapped_line_reuses_recent_unwrapped_line() {
+        let (cache, _) = cache();
+        let first = wrapped_layout(&cache, "hello world");
+        for _ in 0..3 {
+            cache.finish_frame();
+        }
+
+        let again = wrapped_layout(&cache, "hello world");
+        assert!(!Arc::ptr_eq(&first, &again));
+        assert!(Arc::ptr_eq(&first.unwrapped_layout, &again.unwrapped_layout));
+        assert_eq!(cache.shaped_line_count(), 1);
     }
 
     #[test]
@@ -842,5 +918,17 @@ mod tests {
         cache.reuse_layouts(start..end.clone());
         cache.truncate_layouts(end);
         assert_eq!(cache.layout_index().lines_index, 1);
+    }
+
+    #[test]
+    fn font_generation_change_clears_recent_lines() {
+        let (cache, font_generation) = cache();
+        let first = layout(&cache, "hello");
+        cache.finish_frame();
+        cache.finish_frame();
+
+        font_generation.fetch_add(1, Ordering::Release);
+        assert!(!Arc::ptr_eq(&first, &layout(&cache, "hello")));
+        assert_eq!(cache.shaped_line_count(), 2);
     }
 }

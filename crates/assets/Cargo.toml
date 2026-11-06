@@ -5,7 +5,6 @@ edition.workspace = true
 
 [lib]
 path = "src/assets.rs"
-test = false
 
 [dependencies]
 anyhow.workspace = true

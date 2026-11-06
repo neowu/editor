@@ -3,9 +3,6 @@ name = "ed_actions"
 version = "0.1.0"
 edition.workspace = true
 
-[lib]
-test = false
-
 [dependencies]
 gpui.workspace = true
 serde.workspace = true
