@@ -1,4 +1,6 @@
 use std::cmp;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::mem;
@@ -11,11 +13,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{self};
 use std::time::Duration;
 
-use collections::BTreeMap;
-use collections::BTreeSet;
-use collections::HashMap;
-use collections::HashSet;
-use collections::IndexMap;
 use ed_actions::workspace::CopyPath;
 use ed_actions::workspace::CopyRelativePath;
 use editor::AnchorRangeExt;
@@ -84,6 +81,7 @@ use gpui::point;
 use gpui::px;
 use gpui::size;
 use gpui::uniform_list;
+use indexmap::IndexMap;
 use language::Anchor;
 use language::BufferId;
 use language::BufferSnapshot;
@@ -100,6 +98,9 @@ use menu::SelectPrevious;
 use project::File;
 use project::Project;
 use project::ProjectPath;
+use rustc_hash::FxBuildHasher;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use search::BufferSearchBar;
 use search::ProjectSearchView;
 use settings::SettingsStore;
@@ -183,7 +184,7 @@ const DEFAULT_WIDTH: Pixels = px(360.);
 const INDENT_SIZE: Pixels = px(20.);
 
 type Outline = OutlineItem<language::Anchor>;
-type OutlineChildren = HashMap<(Range<Anchor>, usize), bool>;
+type OutlineChildren = FxHashMap<(Range<Anchor>, usize), bool>;
 type HighlightStyleData = Arc<OnceLock<Vec<(Range<usize>, HighlightStyle)>>>;
 
 pub struct OutlinePanel {
@@ -197,27 +198,27 @@ pub struct OutlinePanel {
     focus_handle: FocusHandle,
 
     fs_entries: Vec<FsEntry>,
-    fs_children_count: HashMap<WorktreeId, HashMap<Arc<RelPath>, FsChildren>>,
-    collapsed_entries: HashSet<CollapsedEntry>,
-    unfolded_dirs: HashMap<WorktreeId, BTreeSet<Arc<RelPath>>>,
+    fs_children_count: FxHashMap<WorktreeId, FxHashMap<Arc<RelPath>, FsChildren>>,
+    collapsed_entries: FxHashSet<CollapsedEntry>,
+    unfolded_dirs: FxHashMap<WorktreeId, BTreeSet<Arc<RelPath>>>,
     selected_entry: SelectedEntry,
     active_item: Option<ActiveItem>,
     _subscriptions: Vec<Subscription>,
-    new_entries_for_fs_update: HashSet<BufferId>,
+    new_entries_for_fs_update: FxHashSet<BufferId>,
     fs_entries_update_task: Task<()>,
     fs_entries_update_pending: bool,
     cached_entries_update_task: Task<()>,
     cached_entries_update_pending: Option<CachedEntriesUpdate>,
     reveal_selection_task: Task<anyhow::Result<()>>,
     lsp_outline_refresh_task: Task<()>,
-    outline_fetch_tasks: HashMap<BufferId, Task<()>>,
-    buffers: HashMap<BufferId, BufferOutlines>,
+    outline_fetch_tasks: FxHashMap<BufferId, Task<()>>,
+    buffers: FxHashMap<BufferId, BufferOutlines>,
     cached_entries: Vec<CachedEntry>,
     filter_editor: Entity<Editor>,
     mode: ItemsDisplayMode,
     max_width_item_index: Option<usize>,
-    preserve_selection_on_buffer_fold_toggles: HashSet<BufferId>,
-    outline_children_cache: HashMap<BufferId, OutlineChildren>,
+    preserve_selection_on_buffer_fold_toggles: FxHashSet<BufferId>,
+    outline_children_cache: FxHashMap<BufferId, OutlineChildren>,
 }
 
 #[derive(Debug)]
@@ -246,7 +247,7 @@ impl SearchState {
     fn new(
         kind: SearchKind,
         query: String,
-        previous_matches: HashMap<Range<editor::Anchor>, Arc<OnceLock<SearchData>>>,
+        previous_matches: FxHashMap<Range<editor::Anchor>, Arc<OnceLock<SearchData>>>,
         new_matches: Vec<Range<editor::Anchor>>,
         theme: Arc<SyntaxTheme>,
         window: &Window,
@@ -711,8 +712,8 @@ struct SearchData {
 struct SearchPrecomputed {
     multi_buffer_snapshot: MultiBufferSnapshot,
     #[allow(clippy::type_complexity)]
-    matches_by_buffer: HashMap<BufferId, Vec<(Range<editor::Anchor>, Arc<OnceLock<SearchData>>)>>,
-    folded_buffers: HashSet<BufferId>,
+    matches_by_buffer: FxHashMap<BufferId, Vec<(Range<editor::Anchor>, Arc<OnceLock<SearchData>>)>>,
+    folded_buffers: FxHashSet<BufferId>,
 }
 
 impl PartialEq for PanelEntry {
@@ -1030,7 +1031,7 @@ impl OutlinePanel {
                 cx.notify();
             });
 
-            let mut document_symbols_by_buffer = HashMap::default();
+            let mut document_symbols_by_buffer = FxHashMap::default();
             let settings_subscription =
                 cx.observe_global_in::<SettingsStore>(window, move |outline_panel, window, cx| {
                     let new_document_symbols = outline_panel
@@ -1070,22 +1071,22 @@ impl OutlinePanel {
                 focus_handle,
                 filter_editor,
                 fs_entries: Vec::new(),
-                fs_children_count: HashMap::default(),
-                collapsed_entries: HashSet::default(),
-                unfolded_dirs: HashMap::default(),
+                fs_children_count: FxHashMap::default(),
+                collapsed_entries: FxHashSet::default(),
+                unfolded_dirs: FxHashMap::default(),
                 selected_entry: SelectedEntry::None,
                 context_menu: None,
                 active_item: None,
-                new_entries_for_fs_update: HashSet::default(),
-                preserve_selection_on_buffer_fold_toggles: HashSet::default(),
+                new_entries_for_fs_update: FxHashSet::default(),
+                preserve_selection_on_buffer_fold_toggles: FxHashSet::default(),
                 fs_entries_update_task: Task::ready(()),
                 fs_entries_update_pending: false,
                 cached_entries_update_task: Task::ready(()),
                 cached_entries_update_pending: None,
                 reveal_selection_task: Task::ready(Ok(())),
                 lsp_outline_refresh_task: Task::ready(()),
-                outline_fetch_tasks: HashMap::default(),
-                buffers: HashMap::default(),
+                outline_fetch_tasks: FxHashMap::default(),
+                buffers: FxHashMap::default(),
                 cached_entries: Vec::new(),
                 _subscriptions: vec![
                     settings_subscription,
@@ -1094,7 +1095,7 @@ impl OutlinePanel {
                     workspace_subscription,
                     filter_update_subscription,
                 ],
-                outline_children_cache: HashMap::default(),
+                outline_children_cache: FxHashMap::default(),
             };
             if let Some((item, editor)) = workspace_active_editor(workspace, cx) {
                 outline_panel.replace_active_editor(item, editor, window, cx);
@@ -1506,7 +1507,7 @@ impl OutlinePanel {
         let Some(selected_entry) = self.selected_entry().cloned() else {
             return;
         };
-        let mut buffers_to_unfold = HashSet::default();
+        let mut buffers_to_unfold = FxHashSet::default();
         let entry_to_expand = match &selected_entry {
             PanelEntry::FoldedDirs(FoldedDirsEntry { entries: dir_entries, worktree_id, .. }) => {
                 dir_entries.last().map(|entry| {
@@ -1557,7 +1558,7 @@ impl OutlinePanel {
             return;
         };
 
-        let mut buffers_to_fold = HashSet::default();
+        let mut buffers_to_fold = FxHashSet::default();
         let collapsed = match &selected_entry {
             PanelEntry::Fs(FsEntry::Directory(FsEntryDirectory { worktree_id, entry, .. })) => {
                 if self.collapsed_entries.insert(CollapsedEntry::Dir(*worktree_id, entry.path.clone())) {
@@ -1624,8 +1625,8 @@ impl OutlinePanel {
             return;
         };
 
-        let mut to_uncollapse: HashSet<CollapsedEntry> = HashSet::default();
-        let mut buffers_to_unfold: HashSet<BufferId> = HashSet::default();
+        let mut to_uncollapse: FxHashSet<CollapsedEntry> = FxHashSet::default();
+        let mut buffers_to_unfold: FxHashSet<BufferId> = FxHashSet::default();
 
         for fs_entry in &self.fs_entries {
             match fs_entry {
@@ -1685,7 +1686,7 @@ impl OutlinePanel {
         let Some(active_editor) = self.active_editor() else {
             return;
         };
-        let mut buffers_to_fold = HashSet::default();
+        let mut buffers_to_fold = FxHashSet::default();
         self.collapsed_entries.extend(self.cached_entries.iter().filter_map(
             |cached_entry| match &cached_entry.entry {
                 PanelEntry::Fs(FsEntry::Directory(FsEntryDirectory { worktree_id, entry, .. })) => {
@@ -1725,7 +1726,7 @@ impl OutlinePanel {
             return;
         };
         let mut fold = false;
-        let mut buffers_to_toggle = HashSet::default();
+        let mut buffers_to_toggle = FxHashSet::default();
         match entry {
             PanelEntry::Fs(FsEntry::Directory(FsEntryDirectory { worktree_id, entry: dir_entry, .. })) => {
                 let directory_path = &dir_entry.path;
@@ -1795,7 +1796,7 @@ impl OutlinePanel {
 
     fn toggle_buffers_fold(
         &self,
-        buffers: HashSet<BufferId>,
+        buffers: FxHashSet<BufferId>,
         fold: bool,
         scroll_to_selection: bool,
         window: &Window,
@@ -2427,7 +2428,7 @@ impl OutlinePanel {
                 cx.background_executor().timer(debounce).await;
             }
 
-            let mut new_buffers = HashMap::<BufferId, BufferOutlines>::default();
+            let mut new_buffers = FxHashMap::<BufferId, BufferOutlines>::default();
             let Ok((buffer_excerpts, repo_snapshots, mut collapsed_entries, mut unfolded_dirs)) =
                 outline_panel.update(cx, |outline_panel, cx| {
                     outline_panel.fs_entries_update_pending = false;
@@ -2435,7 +2436,7 @@ impl OutlinePanel {
                     let repo_snapshots = git_store.read(cx).repo_snapshots(cx);
                     let editor = active_editor.read(cx);
                     let snapshot = editor.buffer().read(cx).snapshot(cx);
-                    let mut buffer_excerpts = IndexMap::<BufferId, BufferExcerpts>::default();
+                    let mut buffer_excerpts = IndexMap::<BufferId, BufferExcerpts, FxBuildHasher>::default();
 
                     for excerpt in snapshot.excerpts() {
                         let buffer_id = excerpt.context.start.buffer_id;
@@ -2509,7 +2510,7 @@ impl OutlinePanel {
             let (fs_entries, children_count, collapsed_entries, unfolded_dirs) = cx
                 .background_spawn(async move {
                     let mut fs_entries = Vec::new();
-                    let mut directories = HashMap::<ProjectPath, FsEntryPath>::default();
+                    let mut directories = FxHashMap::<ProjectPath, FsEntryPath>::default();
                     let mut parent_paths = Vec::<ProjectPath>::new();
                     let repositories_by_root = repo_snapshots
                         .values()
@@ -2614,7 +2615,7 @@ impl OutlinePanel {
                         });
                         !paths.is_empty()
                     });
-                    let mut children_count = HashMap::<WorktreeId, HashMap<Arc<RelPath>, FsChildren>>::default();
+                    let mut children_count = FxHashMap::<WorktreeId, FxHashMap<Arc<RelPath>, FsChildren>>::default();
                     for directory in directories.keys() {
                         if let Some(parent) = directory.path.parent() {
                             children_count
@@ -2848,7 +2849,7 @@ impl OutlinePanel {
             .collect::<Vec<_>>();
 
         let mut matching_outline_indices = Vec::new();
-        let mut children = HashMap::default();
+        let mut children = FxHashMap::default();
         let mut parents_stack = Vec::<(&Range<DisplayPoint>, &&Outline, usize)>::new();
 
         for (i, (outline_range, outline)) in excerpt_outlines.iter().enumerate() {
@@ -3039,8 +3040,8 @@ impl OutlinePanel {
         }
     }
 
-    fn buffers_to_fetch(&self) -> HashSet<BufferId> {
-        self.fs_entries.iter().fold(HashSet::default(), |mut buffers_to_fetch, fs_entry| {
+    fn buffers_to_fetch(&self) -> FxHashSet<BufferId> {
+        self.fs_entries.iter().fold(FxHashSet::default(), |mut buffers_to_fetch, fs_entry| {
             match fs_entry {
                 FsEntry::File(FsEntryFile { buffer_id, .. })
                 | FsEntry::ExternalFile(FsEntryExternalFile { buffer_id, .. }) => {
@@ -3253,9 +3254,9 @@ impl OutlinePanel {
 
                 let search_precomputed = if let ItemsDisplayMode::Search(search_state) = &outline_panel.mode {
                     let multi_buffer_snapshot = active_editor.read(cx).buffer().read(cx).snapshot(cx);
-                    let mut folded_buffers = HashSet::default();
-                    let mut not_folded_buffers = HashSet::default();
-                    let mut matches_by_buffer = HashMap::default();
+                    let mut folded_buffers = FxHashSet::default();
+                    let mut not_folded_buffers = FxHashSet::default();
+                    let mut matches_by_buffer = FxHashMap::default();
 
                     for (match_range, search_data) in &search_state.matches {
                         let Some((start_anchor, _)) = multi_buffer_snapshot.anchor_to_buffer_anchor(match_range.start)
@@ -3420,7 +3421,7 @@ impl OutlinePanel {
                         FsEntry::ExternalFile(..) => {
                             if let Some((folded_depth, folded_dir)) = folded_dirs_entry.take() {
                                 let folded_paths =
-                                    folded_dir.entries.iter().map(|entry| &entry.path).collect::<HashSet<_>>();
+                                    folded_dir.entries.iter().map(|entry| &entry.path).collect::<FxHashSet<_>>();
                                 let parent_expanded = parent_dirs
                                     .iter()
                                     .rev()
@@ -3442,7 +3443,7 @@ impl OutlinePanel {
                         FsEntry::File(file) => {
                             if let Some((folded_depth, folded_dirs)) = folded_dirs_entry.take() {
                                 let folded_paths =
-                                    folded_dirs.entries.iter().map(|entry| &entry.path).collect::<HashSet<_>>();
+                                    folded_dirs.entries.iter().map(|entry| &entry.path).collect::<FxHashSet<_>>();
                                 let parent_expanded = parent_dirs
                                     .iter()
                                     .rev()
@@ -3551,7 +3552,7 @@ impl OutlinePanel {
                 }
 
                 if let Some((folded_depth, folded_dirs)) = folded_dirs_entry.take() {
-                    let folded_paths = folded_dirs.entries.iter().map(|entry| &entry.path).collect::<HashSet<_>>();
+                    let folded_paths = folded_dirs.entries.iter().map(|entry| &entry.path).collect::<FxHashSet<_>>();
                     let parent_expanded = parent_dirs
                         .iter()
                         .rev()
@@ -3590,7 +3591,7 @@ impl OutlinePanel {
             .await
             .into_iter()
             .map(|string_match| (string_match.candidate_id, string_match))
-            .collect::<HashMap<_, _>>();
+            .collect::<FxHashMap<_, _>>();
 
             let mut id = 0;
             generation_state.entries.retain_mut(|cached_entry| {
@@ -3763,7 +3764,7 @@ impl OutlinePanel {
             if changed {
                 let previous_matches = match &mut self.mode {
                     ItemsDisplayMode::Search(current) if current.kind == kind => current.matches.drain(..).collect(),
-                    _ => HashMap::default(),
+                    _ => FxHashMap::default(),
                 };
                 self.mode = ItemsDisplayMode::Search(SearchState::new(
                     kind,
@@ -4268,7 +4269,7 @@ impl OutlinePanel {
             )
     }
 
-    fn buffers_inside_directory(&self, worktree_id: WorktreeId, directory: &FsEntryPath) -> HashSet<BufferId> {
+    fn buffers_inside_directory(&self, worktree_id: WorktreeId, directory: &FsEntryPath) -> FxHashSet<BufferId> {
         self.fs_entries
             .iter()
             .filter_map(|entry| match entry {

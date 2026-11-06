@@ -72,6 +72,9 @@ use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::cmp::Reverse;
 use std::cmp::{self};
+use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::collections::hash_map;
 use std::iter::Peekable;
 use std::iter::{self};
@@ -344,11 +347,6 @@ use code_context_menus::CodeActionsMenu;
 use code_context_menus::CodeContextMenu;
 use code_context_menus::CompletionsMenu;
 use code_context_menus::ContextMenuOrigin;
-use collections::BTreeMap;
-use collections::HashMap;
-use collections::HashSet;
-use collections::TypeIdHashMap;
-use collections::VecDeque;
 pub use completions::CompletionProvider;
 pub(crate) use completions::split_words;
 use convert_case::Case;
@@ -468,6 +466,7 @@ use gpui::prelude::*;
 use gpui::px;
 use gpui::relative;
 use gpui::size;
+use gpui_util::TypeIdHashBuilder;
 use hover_links::HoverLink;
 use hover_links::HoveredLinkState;
 use hover_links::find_file;
@@ -580,6 +579,8 @@ use project::project_settings::GoToDiagnosticSeverityFilter;
 use project::project_settings::ProjectSettings;
 use rand::seq::SliceRandom;
 use regex::Regex;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use scroll::Autoscroll;
 use scroll::ScrollAnchor;
 use scroll::ScrollManager;
@@ -1215,12 +1216,12 @@ pub struct Editor {
     show_runnables: Option<bool>,
     show_wrap_guides: Option<bool>,
     show_indent_guides: Option<bool>,
-    buffers_with_disabled_indent_guides: HashSet<BufferId>,
+    buffers_with_disabled_indent_guides: FxHashSet<BufferId>,
     highlight_order: usize,
-    highlighted_rows: TypeIdHashMap<Vec<RowHighlight>>,
-    background_highlights: HashMap<HighlightKey, BackgroundHighlight>,
-    navigation_overlays: HashMap<NavigationOverlayKey, Arc<[NavigationTargetOverlay]>>,
-    gutter_highlights: TypeIdHashMap<GutterHighlight>,
+    highlighted_rows: HashMap<TypeId, Vec<RowHighlight>, TypeIdHashBuilder>,
+    background_highlights: FxHashMap<HighlightKey, BackgroundHighlight>,
+    navigation_overlays: FxHashMap<NavigationOverlayKey, Arc<[NavigationTargetOverlay]>>,
+    gutter_highlights: HashMap<TypeId, GutterHighlight, TypeIdHashBuilder>,
     allow_git_diff_scrollbar_markers: bool,
     scrollbar_marker_state: ScrollbarMarkerState,
     active_indent_guides_state: ActiveIndentGuidesState,
@@ -1312,15 +1313,15 @@ pub struct Editor {
     gutter_copied_row: (Option<DisplayRow>, Option<Task<()>>),
     hovered_diff_hunk_row: Option<DisplayRow>,
     /// One task per buffer and data kind, so refreshing one buffer never cancels another's.
-    lsp_data_tasks: HashMap<BufferId, HashMap<LspDataKind, Shared<Task<()>>>>,
+    lsp_data_tasks: FxHashMap<BufferId, FxHashMap<LspDataKind, Shared<Task<()>>>>,
     /// Latest refresh per data kind for a buffer that is not visible.
-    offscreen_lsp_data_tasks: HashMap<LspDataKind, (BufferId, Task<()>)>,
+    offscreen_lsp_data_tasks: FxHashMap<LspDataKind, (BufferId, Task<()>)>,
     in_project_search: bool,
     previous_search_ranges: Option<Arc<[Range<Anchor>]>>,
     focused_block: Option<FocusedBlock>,
     next_scroll_position: NextScrollCursorCenterTopBottom,
-    addons: TypeIdHashMap<Box<dyn Addon>>,
-    registered_buffers: HashMap<BufferId, OpenLspBufferHandle>,
+    addons: HashMap<TypeId, Box<dyn Addon>, TypeIdHashBuilder>,
+    registered_buffers: FxHashMap<BufferId, OpenLspBufferHandle>,
     load_diff_task: Option<Shared<Task<()>>>,
     diff_hunk_renderer: Option<Arc<dyn DiffHunkRenderer>>,
     diff_hunk_action_target: Option<WeakEntity<Editor>>,
@@ -1343,15 +1344,15 @@ pub struct Editor {
     #[allow(clippy::type_complexity)]
     on_local_selections_changed: Option<Box<dyn Fn(Point, &mut Window, &mut Context<Self>) + 'static>>,
     suppress_selection_callback: bool,
-    applicable_language_settings: HashMap<Option<LanguageName>, Arc<LanguageSettings>>,
+    applicable_language_settings: FxHashMap<Option<LanguageName>, Arc<LanguageSettings>>,
     accent_data: Option<AccentData>,
-    bracket_fetched_tree_sitter_chunks: HashMap<Range<text::Anchor>, HashSet<Range<BufferRow>>>,
+    bracket_fetched_tree_sitter_chunks: FxHashMap<Range<text::Anchor>, FxHashSet<Range<BufferRow>>>,
     semantic_token_state: SemanticTokenState,
     pub(crate) refresh_matching_bracket_highlights_task: Task<()>,
     /// One fetch per buffer, so refreshing one buffer never cancels another's.
-    refresh_document_symbols_tasks: HashMap<BufferId, Shared<Task<()>>>,
+    refresh_document_symbols_tasks: FxHashMap<BufferId, Shared<Task<()>>>,
     lsp_document_links: LspDocumentLinks,
-    lsp_document_symbols: HashMap<BufferId, Vec<OutlineItem<text::Anchor>>>,
+    lsp_document_symbols: FxHashMap<BufferId, Vec<OutlineItem<text::Anchor>>>,
     pub(crate) colorize_brackets_task: Task<()>,
     spell_check: Option<spell_check::SpellCheckState>,
 }
@@ -1531,7 +1532,7 @@ pub struct TransactionSelections {
 
 #[derive(Default)]
 struct SelectionHistory {
-    selections_by_transaction: HashMap<TransactionId, TransactionSelections>,
+    selections_by_transaction: FxHashMap<TransactionId, TransactionSelections>,
     mode: SelectionHistoryMode,
     undo_stack: VecDeque<SelectionHistoryEntry>,
     redo_stack: VecDeque<SelectionHistoryEntry>,
@@ -1728,7 +1729,7 @@ pub enum GotoDefinitionKind {
 }
 
 pub enum FormatTarget {
-    Buffers(HashSet<Entity<Buffer>>),
+    Buffers(FxHashSet<Entity<Buffer>>),
     Ranges(Vec<Range<MultiBufferPoint>>),
 }
 
@@ -2108,12 +2109,12 @@ impl Editor {
             show_runnables: None,
             show_wrap_guides: None,
             show_indent_guides,
-            buffers_with_disabled_indent_guides: HashSet::default(),
+            buffers_with_disabled_indent_guides: FxHashSet::default(),
             highlight_order: 0,
-            highlighted_rows: TypeIdHashMap::default(),
-            background_highlights: HashMap::default(),
-            navigation_overlays: HashMap::default(),
-            gutter_highlights: TypeIdHashMap::default(),
+            highlighted_rows: HashMap::default(),
+            background_highlights: FxHashMap::default(),
+            navigation_overlays: FxHashMap::default(),
+            gutter_highlights: HashMap::default(),
             allow_git_diff_scrollbar_markers: false,
             scrollbar_marker_state: ScrollbarMarkerState::default(),
             active_indent_guides_state: ActiveIndentGuidesState::default(),
@@ -2197,8 +2198,8 @@ impl Editor {
                 Vec::default()
             },
             runnables: RunnableData::new(),
-            lsp_data_tasks: HashMap::default(),
-            offscreen_lsp_data_tasks: HashMap::default(),
+            lsp_data_tasks: FxHashMap::default(),
+            offscreen_lsp_data_tasks: FxHashMap::default(),
             colors: None,
             use_document_folding_ranges: false,
             inlay_hints: None,
@@ -2209,8 +2210,8 @@ impl Editor {
             previous_search_ranges: None,
             focused_block: None,
             next_scroll_position: NextScrollCursorCenterTopBottom::default(),
-            addons: TypeIdHashMap::default(),
-            registered_buffers: HashMap::default(),
+            addons: HashMap::default(),
+            registered_buffers: FxHashMap::default(),
             _scroll_cursor_center_top_bottom_task: Task::ready(()),
             selection_mark_mode: false,
             toggle_fold_multiple_buffers: Task::ready(()),
@@ -2227,15 +2228,15 @@ impl Editor {
             select_next_options: None,
             on_local_selections_changed: None,
             suppress_selection_callback: false,
-            applicable_language_settings: HashMap::default(),
+            applicable_language_settings: FxHashMap::default(),
             semantic_token_state: SemanticTokenState::new(cx),
             accent_data: None,
-            bracket_fetched_tree_sitter_chunks: HashMap::default(),
+            bracket_fetched_tree_sitter_chunks: FxHashMap::default(),
             number_deleted_lines: false,
             refresh_matching_bracket_highlights_task: Task::ready(()),
-            refresh_document_symbols_tasks: HashMap::default(),
+            refresh_document_symbols_tasks: FxHashMap::default(),
             lsp_document_links: LspDocumentLinks::default(),
-            lsp_document_symbols: HashMap::default(),
+            lsp_document_symbols: FxHashMap::default(),
             colorize_brackets_task: Task::ready(()),
             spell_check,
         };
@@ -3432,7 +3433,7 @@ impl Editor {
         range: Range<DisplayRow>,
         window: &Window,
         cx: &mut Context<Self>,
-    ) -> HashSet<DisplayRow> {
+    ) -> FxHashSet<DisplayRow> {
         let snapshot = self.snapshot(window, cx);
 
         let offset_range_start = snapshot.display_point_to_point(DisplayPoint::new(range.start, 0), Bias::Left);
@@ -4470,7 +4471,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.manipulate_immutable_lines(window, cx, |lines| {
-            let mut seen = HashSet::default();
+            let mut seen = FxHashSet::default();
             lines.retain(|line| seen.insert(line.to_lowercase()));
         })
     }
@@ -4482,7 +4483,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.manipulate_immutable_lines(window, cx, |lines| {
-            let mut seen = HashSet::default();
+            let mut seen = FxHashSet::default();
             lines.retain(|line| seen.insert(*line));
         })
     }
@@ -4845,7 +4846,8 @@ impl Editor {
                     .collect();
 
                 let num_rows = all_rows.len();
-                let row_to_index: HashMap<u32, usize> = all_rows.iter().enumerate().map(|(i, &row)| (row, i)).collect();
+                let row_to_index: FxHashMap<u32, usize> =
+                    all_rows.iter().enumerate().map(|(i, &row)| (row, i)).collect();
 
                 let mut old_line_end = 0;
                 let mut new_line_end = 0;
@@ -6060,7 +6062,7 @@ impl Editor {
             FormatTarget::Ranges(selection_ranges) => {
                 let multi_buffer = buffer.read(cx);
                 let snapshot = multi_buffer.read(cx);
-                let mut buffers = HashSet::default();
+                let mut buffers = FxHashSet::default();
                 let mut buffer_id_to_ranges: BTreeMap<BufferId, Vec<Range<text::Anchor>>> = BTreeMap::new();
                 for selection_range in selection_ranges {
                     for (buffer_snapshot, buffer_range, _) in
@@ -6186,7 +6188,7 @@ impl Editor {
                 project.update(cx, |project, cx| {
                     project.restart_language_servers_for_buffers(
                         multi_buffer.all_buffers().into_iter().collect(),
-                        HashSet::default(),
+                        FxHashSet::default(),
                         cx,
                     );
                 });
@@ -6200,7 +6202,7 @@ impl Editor {
                 project.update(cx, |project, cx| {
                     project.stop_language_servers_for_buffers(
                         multi_buffer.all_buffers().into_iter().collect(),
-                        HashSet::default(),
+                        FxHashSet::default(),
                         cx,
                     );
                 });
@@ -6218,7 +6220,7 @@ impl Editor {
         let buffers = workspace
             .active_item(cx)
             .and_then(|item| item.act_as::<Editor>(cx))
-            .map_or(HashSet::default(), |editor| editor.read(cx).buffer.read(cx).all_buffers());
+            .map_or(FxHashSet::default(), |editor| editor.read(cx).buffer.read(cx).all_buffers());
         project.update(cx, |project, cx| {
             project.cancel_language_server_work_for_buffers(buffers, cx);
         });
@@ -6323,7 +6325,7 @@ impl Editor {
 
     pub fn resize_blocks(
         &mut self,
-        heights: HashMap<CustomBlockId, u32>,
+        heights: FxHashMap<CustomBlockId, u32>,
         autoscroll: Option<Autoscroll>,
         cx: &mut Context<Self>,
     ) {
@@ -6336,7 +6338,7 @@ impl Editor {
 
     pub fn replace_blocks(
         &mut self,
-        renderers: HashMap<CustomBlockId, RenderBlock>,
+        renderers: FxHashMap<CustomBlockId, RenderBlock>,
         autoscroll: Option<Autoscroll>,
         cx: &mut Context<Self>,
     ) {
@@ -6349,7 +6351,7 @@ impl Editor {
 
     pub fn remove_blocks(
         &mut self,
-        block_ids: HashSet<CustomBlockId>,
+        block_ids: FxHashSet<CustomBlockId>,
         autoscroll: Option<Autoscroll>,
         cx: &mut Context<Self>,
     ) {
@@ -6751,7 +6753,7 @@ impl Editor {
         }
 
         let buffer_snapshot = snapshot.buffer_snapshot();
-        let mut used_highlight_orders = HashMap::default();
+        let mut used_highlight_orders = FxHashMap::default();
         self.highlighted_rows
             .values()
             .flat_map(|highlighted_rows| {
@@ -7008,7 +7010,7 @@ impl Editor {
 
     pub(crate) const fn navigation_overlay_sets(
         &self,
-    ) -> &HashMap<NavigationOverlayKey, Arc<[NavigationTargetOverlay]>> {
+    ) -> &FxHashMap<NavigationOverlayKey, Arc<[NavigationTargetOverlay]>> {
         &self.navigation_overlays
     }
 
@@ -7219,12 +7221,12 @@ impl Editor {
         Some(AccentData { colors: auto_accent_colors })
     }
 
-    fn fetch_applicable_language_settings(&self, cx: &App) -> HashMap<Option<LanguageName>, Arc<LanguageSettings>> {
+    fn fetch_applicable_language_settings(&self, cx: &App) -> FxHashMap<Option<LanguageName>, Arc<LanguageSettings>> {
         if !self.mode.is_full() {
-            return HashMap::default();
+            return FxHashMap::default();
         }
 
-        self.buffer().read(cx).all_buffers().into_iter().fold(HashMap::default(), |mut acc, buffer| {
+        self.buffer().read(cx).all_buffers().into_iter().fold(FxHashMap::default(), |mut acc, buffer| {
             let buffer = buffer.read(cx);
             let language = buffer.language().map(|language| language.name());
             if let hash_map::Entry::Vacant(v) = acc.entry(language) {
@@ -7288,7 +7290,7 @@ impl Editor {
     /// commit view opens a file's revision right after moving its cursor there.
     pub fn open_excerpt_at_newest_cursor(&self, window: &Window, cx: &mut Context<Self>) {
         let head = self.selections.newest::<Point>(&self.display_snapshot(cx)).head();
-        let mut new_selections_by_buffer = HashMap::default();
+        let mut new_selections_by_buffer = FxHashMap::default();
         if let Some((buffer, buffer_point)) = self.buffer.read(cx).point_to_buffer_point(head, cx) {
             let buffer_offset = BufferOffset(buffer.read(cx).point_to_offset(buffer_point));
             new_selections_by_buffer.insert(buffer, (vec![buffer_offset..buffer_offset], None));
@@ -7304,7 +7306,7 @@ impl Editor {
         window: &Window,
         cx: &mut Context<Self>,
     ) {
-        let mut new_selections_by_buffer = HashMap::default();
+        let mut new_selections_by_buffer = FxHashMap::default();
         match jump_data {
             JumpData::MultiBufferPoint { anchor, position, line_offset_from_top } => {
                 if let Some(buffer) = self.buffer.read(cx).buffer(anchor.buffer_id) {
@@ -7336,7 +7338,7 @@ impl Editor {
     #[allow(clippy::type_complexity)]
     fn open_selections_by_buffer(
         &self,
-        mut new_selections_by_buffer: HashMap<Entity<language::Buffer>, (Vec<Range<BufferOffset>>, Option<u32>)>,
+        mut new_selections_by_buffer: FxHashMap<Entity<language::Buffer>, (Vec<Range<BufferOffset>>, Option<u32>)>,
         split: bool,
         window: &Window,
         cx: &mut Context<Self>,
@@ -7347,7 +7349,7 @@ impl Editor {
         }
 
         if self.delegate_open_excerpts {
-            let selections_by_buffer: HashMap<_, _> = new_selections_by_buffer
+            let selections_by_buffer: FxHashMap<_, _> = new_selections_by_buffer
                 .into_iter()
                 .map(|(buffer, value)| (buffer.read(cx).remote_id(), value))
                 .collect();
@@ -7374,7 +7376,7 @@ impl Editor {
     #[allow(clippy::type_complexity)]
     pub(crate) fn open_buffers_in_workspace(
         workspace: WeakEntity<Workspace>,
-        new_selections_by_buffer: HashMap<Entity<language::Buffer>, (Vec<Range<BufferOffset>>, Option<u32>)>,
+        new_selections_by_buffer: FxHashMap<Entity<language::Buffer>, (Vec<Range<BufferOffset>>, Option<u32>)>,
         split: bool,
         window: &Window,
         cx: &mut App,
@@ -7688,7 +7690,7 @@ impl Editor {
 
     pub fn restore(
         &mut self,
-        revert_changes: HashMap<BufferId, Vec<(Range<text::Anchor>, Rope)>>,
+        revert_changes: FxHashMap<BufferId, Vec<(Range<text::Anchor>, Rope)>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -8102,16 +8104,16 @@ pub trait SemanticsProvider {
         cx: &mut App,
     ) -> Vec<Range<BufferRow>>;
 
-    fn invalidate_inlay_hints(&self, for_buffers: &HashSet<BufferId>, cx: &mut App);
+    fn invalidate_inlay_hints(&self, for_buffers: &FxHashSet<BufferId>, cx: &mut App);
 
     fn inlay_hints(
         &self,
         invalidate: InvalidationStrategy,
         buffer: Entity<Buffer>,
         ranges: Vec<Range<text::Anchor>>,
-        known_chunks: Option<(clock::Global, HashSet<Range<BufferRow>>)>,
+        known_chunks: Option<(clock::Global, FxHashSet<Range<BufferRow>>)>,
         cx: &mut App,
-    ) -> Option<HashMap<Range<BufferRow>, Task<Result<CacheInlayHints>>>>;
+    ) -> Option<FxHashMap<Range<BufferRow>, Task<Result<CacheInlayHints>>>>;
 
     #[allow(clippy::type_complexity)]
     fn semantic_tokens(
@@ -8242,7 +8244,7 @@ impl SemanticsProvider for WeakEntity<Project> {
         .unwrap_or_default()
     }
 
-    fn invalidate_inlay_hints(&self, for_buffers: &HashSet<BufferId>, cx: &mut App) {
+    fn invalidate_inlay_hints(&self, for_buffers: &FxHashSet<BufferId>, cx: &mut App) {
         self.update(cx, |project, cx| {
             project.lsp_store().update(cx, |lsp_store, _| lsp_store.invalidate_inlay_hints(for_buffers))
         })
@@ -8254,9 +8256,9 @@ impl SemanticsProvider for WeakEntity<Project> {
         invalidate: InvalidationStrategy,
         buffer: Entity<Buffer>,
         ranges: Vec<Range<text::Anchor>>,
-        known_chunks: Option<(clock::Global, HashSet<Range<BufferRow>>)>,
+        known_chunks: Option<(clock::Global, FxHashSet<Range<BufferRow>>)>,
         cx: &mut App,
-    ) -> Option<HashMap<Range<BufferRow>, Task<Result<CacheInlayHints>>>> {
+    ) -> Option<FxHashMap<Range<BufferRow>, Task<Result<CacheInlayHints>>>> {
         self.update(cx, |project, cx| {
             project
                 .lsp_store()
@@ -8616,7 +8618,7 @@ pub enum EditorEvent {
         direction: ExpandExcerptDirection,
     },
     OpenExcerptsRequested {
-        selections_by_buffer: HashMap<BufferId, (Vec<Range<BufferOffset>>, Option<u32>)>,
+        selections_by_buffer: FxHashMap<BufferId, (Vec<Range<BufferOffset>>, Option<u32>)>,
         split: bool,
     },
     /// Emitted when an underlying buffer changes, including edits made through another editor.

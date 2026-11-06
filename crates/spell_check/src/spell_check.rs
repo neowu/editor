@@ -8,8 +8,8 @@ use std::iter;
 use std::ops::Range;
 use std::sync::LazyLock;
 
-use collections::HashSet;
 use regex::Regex;
+use rustc_hash::FxHashSet;
 
 /// Name of the optional per-project word list, at the worktree root. One word
 /// per line; blank lines and lines starting with `#` are ignored.
@@ -68,7 +68,7 @@ pub fn warm_up() {
 
 /// Parses a project word list (see [`PROJECT_WORDS_FILE`]). Words match
 /// case-insensitively.
-pub fn parse_project_words(text: &str) -> HashSet<String> {
+pub fn parse_project_words(text: &str) -> FxHashSet<String> {
     text.lines()
         .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
@@ -104,7 +104,7 @@ pub fn project_word_insertion(text: &str, word: &str) -> Option<(usize, String)>
 }
 
 /// Returns the byte ranges of the misspelled words in `text`.
-pub fn misspelled_words(text: &str, project_words: &HashSet<String>) -> Vec<Range<usize>> {
+pub fn misspelled_words(text: &str, project_words: &FxHashSet<String>) -> Vec<Range<usize>> {
     let skip = SKIP_PATTERNS.find_iter(text).map(|m| m.range()).collect::<Vec<_>>();
     let mut skip = skip.iter().peekable();
     let mut parts = Vec::new();
@@ -129,7 +129,7 @@ pub fn misspelled_words(text: &str, project_words: &HashSet<String>) -> Vec<Rang
     result
 }
 
-pub fn is_correct(word: &str, project_words: &HashSet<String>) -> bool {
+pub fn is_correct(word: &str, project_words: &FxHashSet<String>) -> bool {
     if word.chars().count() < MIN_WORD_LEN || word.chars().any(|c| c.is_numeric()) {
         return true;
     }
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn load_code_dictionary() {
-        let project_words = HashSet::default();
+        let project_words = FxHashSet::default();
         assert!(is_correct("addr", &project_words));
         assert!(is_correct("ADDR", &project_words));
         assert!(is_correct("addrs", &project_words));

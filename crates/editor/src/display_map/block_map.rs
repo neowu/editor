@@ -2,6 +2,7 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::cmp::{self};
+use std::collections::Bound;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -17,9 +18,6 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering::SeqCst;
 
-use collections::Bound;
-use collections::HashMap;
-use collections::HashSet;
 use gpui::AnyElement;
 use gpui::App;
 use gpui::EntityId;
@@ -39,6 +37,8 @@ use multi_buffer::RowInfo;
 use multi_buffer::ToOffset;
 use multi_buffer::ToPoint as _;
 use parking_lot::Mutex;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use sum_tree::Bias;
 use sum_tree::ContextLessSummary;
 use sum_tree::Dimensions;
@@ -76,8 +76,8 @@ pub struct BlockMap {
     transforms: RefCell<SumTree<Transform>>,
     buffer_header_height: u32,
     excerpt_header_height: u32,
-    pub(super) folded_buffers: HashSet<BufferId>,
-    buffers_with_disabled_headers: HashSet<BufferId>,
+    pub(super) folded_buffers: FxHashSet<BufferId>,
+    buffers_with_disabled_headers: FxHashSet<BufferId>,
     pub(super) deferred_edits: Cell<Patch<WrapRow>>,
 }
 
@@ -111,7 +111,7 @@ pub struct BlockSnapshot {
     custom_blocks_by_id: TreeMap<CustomBlockId, Arc<CustomBlock>>,
     pub(super) buffer_header_height: u32,
     pub(super) excerpt_header_height: u32,
-    pub(super) buffers_with_disabled_headers: HashSet<BufferId>,
+    pub(super) buffers_with_disabled_headers: FxHashSet<BufferId>,
 }
 
 impl Deref for BlockSnapshot {
@@ -644,8 +644,8 @@ impl BlockMap {
             next_block_id: AtomicUsize::new(0),
             custom_blocks: Vec::new(),
             custom_blocks_by_id: TreeMap::default(),
-            folded_buffers: HashSet::default(),
-            buffers_with_disabled_headers: HashSet::default(),
+            folded_buffers: FxHashSet::default(),
+            buffers_with_disabled_headers: FxHashSet::default(),
             transforms: RefCell::new(transforms),
             wrap_snapshot: RefCell::new(wrap_snapshot.clone()),
             buffer_header_height,
@@ -751,7 +751,7 @@ impl BlockMap {
 
     // Warning: doesn't sync the block map, use advisedly
     pub(crate) fn retain_blocks_raw(&mut self, pred: &mut dyn FnMut(&Arc<CustomBlock>) -> bool) {
-        let mut ids_to_remove = HashSet::default();
+        let mut ids_to_remove = FxHashSet::default();
         self.custom_blocks.retain(|block| {
             let keep = pred(block);
             if !keep {
@@ -1092,7 +1092,7 @@ impl BlockMap {
         *transforms = new_transforms;
     }
 
-    pub fn replace_blocks(&mut self, mut renderers: HashMap<CustomBlockId, RenderBlock>) {
+    pub fn replace_blocks(&mut self, mut renderers: FxHashMap<CustomBlockId, RenderBlock>) {
         for block in &mut self.custom_blocks {
             if let Some(render) = renderers.remove(&block.id) {
                 *block.render.lock() = render;
@@ -1695,13 +1695,13 @@ impl BlockMapWriter<'_> {
         ids
     }
 
-    pub fn resize(&mut self, mut heights: HashMap<CustomBlockId, u32>) {
+    pub fn resize(&mut self, mut heights: FxHashMap<CustomBlockId, u32>) {
         let wrap_snapshot = self.block_map.wrap_snapshot.borrow().clone();
         let buffer = wrap_snapshot.buffer_snapshot();
         let mut edits = Patch::default();
         let mut last_block_buffer_row = None;
 
-        let mut companion_heights = HashMap::default();
+        let mut companion_heights = FxHashMap::default();
         for block in &mut self.block_map.custom_blocks {
             if let Some(new_height) = heights.remove(&block.id)
                 && block.height != Some(new_height)
@@ -1757,13 +1757,13 @@ impl BlockMapWriter<'_> {
         }
     }
 
-    pub fn remove(&mut self, block_ids: HashSet<CustomBlockId>) {
+    pub fn remove(&mut self, block_ids: FxHashSet<CustomBlockId>) {
         let wrap_snapshot = &*self.block_map.wrap_snapshot.borrow();
         let buffer = wrap_snapshot.buffer_snapshot();
         let mut edits = Patch::default();
         let mut last_block_buffer_row = None;
         let mut previous_wrap_row_range: Option<Range<WrapRow>> = None;
-        let mut companion_block_ids: HashSet<CustomBlockId> = HashSet::default();
+        let mut companion_block_ids: FxHashSet<CustomBlockId> = FxHashSet::default();
         self.block_map.custom_blocks.retain(|block| {
             if block_ids.contains(&block.id) {
                 let start = block.placement.start().to_point(buffer);
@@ -1825,7 +1825,7 @@ impl BlockMapWriter<'_> {
         inclusive: bool,
     ) {
         let wrap_snapshot = self.block_map.wrap_snapshot.borrow();
-        let mut blocks_to_remove = HashSet::default();
+        let mut blocks_to_remove = FxHashSet::default();
         for range in ranges {
             for block in self.blocks_intersecting_buffer_range(range, inclusive) {
                 if matches!(block.placement, BlockPlacement::Replace(_)) {
@@ -1868,7 +1868,7 @@ impl BlockMapWriter<'_> {
     ) {
         let multi_buffer_snapshot = multi_buffer.snapshot(cx);
         let mut ranges = Vec::new();
-        let mut companion_buffer_ids = HashSet::default();
+        let mut companion_buffer_ids = FxHashSet::default();
         for buffer_id in buffer_ids {
             if fold {
                 self.block_map.folded_buffers.insert(buffer_id);

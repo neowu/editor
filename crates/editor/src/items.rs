@@ -13,8 +13,6 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use collections::HashMap;
-use collections::HashSet;
 use file_icons::FileIcons;
 use futures::channel::oneshot;
 use git::status::GitSummary;
@@ -56,6 +54,8 @@ use project::lsp_store::FormatTrigger;
 use project::lsp_store::LanguageServerShowDocumentRequest;
 use project::search::SearchQuery;
 use rope::TextSummary;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::SeedQuerySetting;
 use text::BufferSnapshot;
 use text::OffsetRangeExt;
@@ -373,7 +373,7 @@ impl Item for Editor {
         let buffers = buffers
             .into_iter()
             .map(|handle| handle.read(cx).base_buffer().unwrap_or(handle.clone()))
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
 
         let buffers_to_save = if self.buffer.read(cx).is_singleton() && !options.autosave {
             buffers
@@ -571,7 +571,7 @@ impl SerializableItem for Editor {
 
 #[derive(Debug, Default)]
 struct EditorRestorationData {
-    entries: HashMap<PathBuf, RestorationData>,
+    entries: FxHashMap<PathBuf, RestorationData>,
 }
 
 #[derive(Default, Debug)]
@@ -1339,7 +1339,7 @@ fn chunk_search_range(
 /// falls back to formatting entire buffers.
 /// When a diff is available but empty, nothing is formatted in either mode.
 fn compute_format_target(
-    buffers: &HashSet<Entity<Buffer>>,
+    buffers: &FxHashSet<Entity<Buffer>>,
     trigger: FormatTrigger,
     multi_buffer: &Entity<MultiBuffer>,
     git_store: &Entity<GitStore>,

@@ -7,7 +7,6 @@ use std::sync::LazyLock;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use collections::HashMap;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::Entity;
@@ -18,6 +17,7 @@ use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
 use project::lsp_store::language_server_settings;
 use regex::Regex;
+use rustc_hash::FxHashMap;
 use serde_json::Value;
 use serde_json::json;
 use settings::SemanticTokenRules;
@@ -329,7 +329,7 @@ impl ContextProvider for GoContextProvider {
         &self,
         variables: &TaskVariables,
         location: ContextLocation<'_>,
-        _: Option<HashMap<String, String>>,
+        _: Option<FxHashMap<String, String>>,
         cx: &mut gpui::App,
     ) -> Task<Result<TaskVariables>> {
         let local_abs_path =

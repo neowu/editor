@@ -1,6 +1,6 @@
-use collections::HashSet;
 use rand::Rng;
 use rand::RngExt;
+use rustc_hash::FxHashSet;
 
 const ADJECTIVES: &[&str] = &[
     "able", "agate", "airy", "alpine", "amber", "ample", "aqua", "arctic", "arid", "ashen", "astral", "autumn", "avid",
@@ -51,7 +51,7 @@ const NOUNS: &[&str] = &[
 /// Tries up to 10 random combinations, skipping any name that already appears
 /// in `existing_names`. Returns `None` if no unused name is found.
 pub fn generate_worktree_name(existing_names: &[&str], rng: &mut impl Rng) -> Option<String> {
-    let existing: HashSet<&str> = existing_names.iter().copied().collect();
+    let existing: FxHashSet<&str> = existing_names.iter().copied().collect();
 
     for _ in 0..10 {
         let adjective = ADJECTIVES[rng.random_range(0..ADJECTIVES.len())];

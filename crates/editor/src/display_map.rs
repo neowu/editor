@@ -116,9 +116,6 @@ pub use block_map::CustomBlockId;
 pub use block_map::EditorMargins;
 pub use block_map::RenderBlock;
 pub use block_map::StickyHeaderExcerpt;
-use collections::HashMap;
-use collections::HashSet;
-use collections::IndexSet;
 pub use crease_map::*;
 pub use fold_map::ChunkRenderer;
 pub use fold_map::ChunkRendererContext;
@@ -140,6 +137,7 @@ use gpui::LineLayout;
 use gpui::Pixels;
 use gpui::UnderlineStyle;
 use gpui::WeakEntity;
+use indexmap::IndexSet;
 use inlay_map::BufferOffsetToInlayPointCursor;
 pub use inlay_map::InlayOffset;
 pub use inlay_map::InlayPoint;
@@ -168,6 +166,9 @@ use project::InlayId;
 use project::lsp_store::LspFoldingRange;
 use project::lsp_store::TokenType;
 use project::project_settings::DiagnosticSeverity;
+use rustc_hash::FxBuildHasher;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use settings::Settings;
 use smallvec::SmallVec;
@@ -244,8 +245,8 @@ pub trait ToDisplayPoint {
     fn to_display_point(&self, map: &DisplaySnapshot) -> DisplayPoint;
 }
 
-type TextHighlights = Arc<HashMap<HighlightKey, Arc<(HighlightStyle, Vec<Range<Anchor>>)>>>;
-type SemanticTokensHighlights = Arc<HashMap<BufferId, (Arc<[SemanticTokenHighlight]>, Arc<HighlightStyleInterner>)>>;
+type TextHighlights = Arc<FxHashMap<HighlightKey, Arc<(HighlightStyle, Vec<Range<Anchor>>)>>>;
+type SemanticTokensHighlights = Arc<FxHashMap<BufferId, (Arc<[SemanticTokenHighlight]>, Arc<HighlightStyleInterner>)>>;
 type InlayHighlights = TreeMap<HighlightKey, TreeMap<InlayId, (HighlightStyle, InlayHighlight)>>;
 
 /// Whether two text highlight sets paint the same, comparing each key's
@@ -298,13 +299,13 @@ pub struct DisplayMap {
     pub(crate) masked: bool,
     pub(crate) diagnostics_max_severity: DiagnosticSeverity,
     pub(crate) companion: Option<(WeakEntity<DisplayMap>, Entity<Companion>)>,
-    lsp_folding_crease_ids: HashMap<BufferId, Vec<CreaseId>>,
+    lsp_folding_crease_ids: FxHashMap<BufferId, Vec<CreaseId>>,
 }
 
 pub(crate) struct Companion {
     rhs_display_map_id: EntityId,
-    rhs_custom_block_to_balancing_block: RefCell<HashMap<CustomBlockId, CustomBlockId>>,
-    lhs_custom_block_to_balancing_block: RefCell<HashMap<CustomBlockId, CustomBlockId>>,
+    rhs_custom_block_to_balancing_block: RefCell<FxHashMap<CustomBlockId, CustomBlockId>>,
+    lhs_custom_block_to_balancing_block: RefCell<FxHashMap<CustomBlockId, CustomBlockId>>,
 }
 
 impl Companion {
@@ -323,7 +324,7 @@ impl Companion {
     pub(crate) fn custom_block_to_balancing_block(
         &self,
         display_map_id: EntityId,
-    ) -> &RefCell<HashMap<CustomBlockId, CustomBlockId>> {
+    ) -> &RefCell<FxHashMap<CustomBlockId, CustomBlockId>> {
         if self.is_rhs(display_map_id) {
             &self.rhs_custom_block_to_balancing_block
         } else {
@@ -386,7 +387,7 @@ impl Companion {
 
 #[derive(Default, Debug)]
 pub struct HighlightStyleInterner {
-    styles: IndexSet<HighlightStyle>,
+    styles: IndexSet<HighlightStyle, FxBuildHasher>,
 }
 
 impl HighlightStyleInterner {
@@ -463,7 +464,7 @@ impl DisplayMap {
             clip_at_line_ends: false,
             masked: false,
             companion: None,
-            lsp_folding_crease_ids: HashMap::default(),
+            lsp_folding_crease_ids: FxHashMap::default(),
         }
     }
 
@@ -854,7 +855,7 @@ impl DisplayMap {
         self.block_map.folded_buffers.contains(&buffer_id)
     }
 
-    pub(crate) const fn folded_buffers(&self) -> &HashSet<BufferId> {
+    pub(crate) const fn folded_buffers(&self) -> &FxHashSet<BufferId> {
         &self.block_map.folded_buffers
     }
 
@@ -945,7 +946,7 @@ impl DisplayMap {
         })
     }
 
-    pub fn resize_blocks(&mut self, heights: HashMap<CustomBlockId, u32>, cx: &mut Context<Self>) {
+    pub fn resize_blocks(&mut self, heights: FxHashMap<CustomBlockId, u32>, cx: &mut Context<Self>) {
         let (self_wrap_snapshot, self_wrap_edits) = self.sync_through_wrap(cx);
 
         Self::with_synced_companion_mut(self.entity_id, &self.companion, cx, |companion_view, _cx| {
@@ -953,11 +954,11 @@ impl DisplayMap {
         })
     }
 
-    pub fn replace_blocks(&mut self, renderers: HashMap<CustomBlockId, RenderBlock>) {
+    pub fn replace_blocks(&mut self, renderers: FxHashMap<CustomBlockId, RenderBlock>) {
         self.block_map.replace_blocks(renderers);
     }
 
-    pub fn remove_blocks(&mut self, ids: HashSet<CustomBlockId>, cx: &mut Context<Self>) {
+    pub fn remove_blocks(&mut self, ids: FxHashSet<CustomBlockId>, cx: &mut Context<Self>) {
         let (self_wrap_snapshot, self_wrap_edits) = self.sync_through_wrap(cx);
 
         Self::with_synced_companion_mut(self.entity_id, &self.companion, cx, |companion_view, _cx| {
@@ -2344,17 +2345,17 @@ impl DisplayPointConverter<'_> {
 mod same_text_highlights_tests {
     use std::sync::Arc;
 
-    use collections::HashMap;
     use gpui::HighlightStyle;
     use gpui::red;
     use multi_buffer::Anchor;
+    use rustc_hash::FxHashMap;
 
     use super::HighlightKey;
     use super::TextHighlights;
     use super::same_text_highlights;
 
     fn highlights(entries: Vec<(HighlightKey, Option<gpui::Hsla>)>) -> TextHighlights {
-        let mut map = HashMap::default();
+        let mut map = FxHashMap::default();
         for (key, color) in entries {
             let style = HighlightStyle { color, ..HighlightStyle::default() };
             map.insert(key, Arc::new((style, vec![Anchor::Min..Anchor::Max])));

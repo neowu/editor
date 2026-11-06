@@ -1,11 +1,9 @@
 use std::any::TypeId;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::collections::VecDeque;
 use std::sync::Arc;
 
-use collections::HashMap;
-use collections::HashSet;
-use collections::VecDeque;
 use editor::Editor;
 use editor::EditorEvent;
 use editor::MultiBufferOffset;
@@ -48,6 +46,8 @@ use project::lsp_store::log_store::LogStore;
 use project::lsp_store::log_store::Message;
 use project::lsp_store::log_store::{self};
 use project::search::SearchQuery;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::SeedQuerySetting;
 use ui::Checkbox;
 use ui::ContextMenu;
@@ -136,7 +136,7 @@ pub struct LspLogView {
     log_store: Entity<LogStore>,
     current_server_key: Option<LanguageServerLogKey>,
     active_entry_kind: LogKind,
-    enabled_streams: HashMap<LanguageServerLogKey, EnabledLogStreams>,
+    enabled_streams: FxHashMap<LanguageServerLogKey, EnabledLogStreams>,
     project: Entity<Project>,
     focus_handle: FocusHandle,
     _log_store_subscriptions: Vec<Subscription>,
@@ -144,7 +144,7 @@ pub struct LspLogView {
 
 struct EnabledLogStreams {
     generation: usize,
-    log_kinds: HashSet<LogKind>,
+    log_kinds: FxHashSet<LogKind>,
 }
 
 pub struct LspLogToolbarItemView {
@@ -305,7 +305,7 @@ impl LspLogView {
             log_store,
             current_server_key: None,
             active_entry_kind: LogKind::Logs,
-            enabled_streams: HashMap::default(),
+            enabled_streams: FxHashMap::default(),
             _log_store_subscriptions: vec![model_changes_subscription, events_subscriptions, focus_subscription],
         };
         if let Some(server_key) = server_key {
@@ -434,7 +434,7 @@ impl LspLogView {
             };
             self.enabled_streams
                 .entry(key.clone())
-                .or_insert_with(|| EnabledLogStreams { generation, log_kinds: HashSet::default() })
+                .or_insert_with(|| EnabledLogStreams { generation, log_kinds: FxHashSet::default() })
                 .log_kinds
                 .insert(log_kind);
         } else {
@@ -1207,7 +1207,7 @@ impl ServerInfo {
                 server_readable_version: server.readable_version(),
                 pending_work: BTreeMap::default(),
                 has_pending_diagnostic_updates: false,
-                progress_tokens: HashSet::default(),
+                progress_tokens: FxHashSet::default(),
                 worktree: None,
                 binary: Some(server.binary().clone()),
                 configuration: Some(server.configuration().clone()),

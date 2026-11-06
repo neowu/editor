@@ -3,7 +3,7 @@ use std::iter;
 use std::ops::Range;
 use std::sync::Arc;
 
-use collections::HashMap;
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use text::BufferId;
 use tree_sitter::QueryCapture;
@@ -21,7 +21,7 @@ pub struct RunnableRange {
     pub run_range: Range<usize>,
     pub full_range: Range<usize>,
     pub runnable: Runnable,
-    pub extra_captures: HashMap<String, String>,
+    pub extra_captures: FxHashMap<String, String>,
 }
 
 #[derive(Clone, Debug)]

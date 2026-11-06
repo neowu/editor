@@ -11,7 +11,6 @@ activity_indicator = { path = "crates/activity_indicator" }
 assets = { path = "crates/assets" }
 buffer_diff = { path = "crates/buffer_diff" }
 clock = { path = "crates/clock" }
-collections = { path = "crates/collections" }
 command_palette = { path = "crates/command_palette" }
 control = { path = "crates/control" }
 derive_refineable = { path = "crates/refineable/derive_refineable" }
@@ -357,7 +356,6 @@ syn = { opt-level = 3 }
 # Build single-source-file crates with cg=1 as it helps make `cargo build` of a whole workspace a bit faster
 activity_indicator = { codegen-units = 1 }
 assets = { codegen-units = 1 }
-collections = { codegen-units = 1 }
 command_palette = { codegen-units = 1 }
 ed_actions = { codegen-units = 1 }
 file_content = { codegen-units = 1 }

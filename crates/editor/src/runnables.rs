@@ -4,8 +4,6 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use clock::Global;
-use collections::HashMap;
-use collections::HashSet;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::AsyncWindowContext;
@@ -29,6 +27,8 @@ use project::Location;
 use project::Project;
 use project::TaskSourceKind;
 use project::project_settings::ProjectSettings;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::Settings as _;
 use smallvec::SmallVec;
 use task::ResolvedTask;
@@ -60,18 +60,18 @@ use crate::display_map::DisplayRow;
 
 #[derive(Debug)]
 pub(super) struct RunnableData {
-    runnables: HashMap<BufferId, (Global, BTreeMap<BufferRow, RunnableTasks>)>,
-    task_statuses: HashMap<(BufferId, BufferRow), RunnableTaskStatus>,
-    invalidate_buffer_data: HashSet<BufferId>,
+    runnables: FxHashMap<BufferId, (Global, BTreeMap<BufferRow, RunnableTasks>)>,
+    task_statuses: FxHashMap<(BufferId, BufferRow), RunnableTaskStatus>,
+    invalidate_buffer_data: FxHashSet<BufferId>,
     runnables_update_task: Task<()>,
 }
 
 impl RunnableData {
     pub fn new() -> Self {
         Self {
-            runnables: HashMap::default(),
-            task_statuses: HashMap::default(),
-            invalidate_buffer_data: HashSet::default(),
+            runnables: FxHashMap::default(),
+            task_statuses: FxHashMap::default(),
+            invalidate_buffer_data: FxHashSet::default(),
             runnables_update_task: Task::ready(()),
         }
     }
@@ -126,7 +126,7 @@ pub struct RunnableTasks {
     // We need the column at which the task context evaluation should take place (when we're spawning it via gutter).
     pub column: u32,
     // Values of all named captures, including those starting with '_'
-    pub extra_variables: HashMap<String, String>,
+    pub extra_variables: FxHashMap<String, String>,
     // Full range of the tagged region. We use it to determine which `extra_variables` to grab for context resolution in e.g. a modal.
     pub context_range: Range<BufferOffset>,
 }
@@ -230,7 +230,7 @@ impl Editor {
                     .flat_map(|(kind, tasks)| {
                         tasks.into_iter().filter_map(move |(location, task)| Some((kind.clone(), location?, task)))
                     })
-                    .fold(HashMap::default(), |mut acc, (kind, location, task)| {
+                    .fold(FxHashMap::default(), |mut acc, (kind, location, task)| {
                         let buffer = location.target.buffer;
                         let buffer_snapshot = buffer.read(cx).snapshot();
                         let offset = multi_buffer_snapshot.anchor_in_excerpt(location.target.range.start);
@@ -245,7 +245,7 @@ impl Editor {
                                     templates: Vec::new(),
                                     offset,
                                     column: task_buffer_range.start.column,
-                                    extra_variables: HashMap::default(),
+                                    extra_variables: FxHashMap::default(),
                                     context_range,
                                 })
                                 .templates
@@ -466,9 +466,9 @@ impl Editor {
         visible_only: bool,
         skip_cached: bool,
         cx: &mut Context<Self>,
-    ) -> HashMap<LanguageServerName, Vec<BufferId>> {
+    ) -> FxHashMap<LanguageServerName, Vec<BufferId>> {
         if !self.lsp_data_enabled() {
-            return HashMap::default();
+            return FxHashMap::default();
         }
         let buffers = if visible_only {
             self.visible_buffers(cx)
@@ -496,7 +496,7 @@ impl Editor {
                     None
                 }
             })
-            .fold(HashMap::default(), |mut acc, (lsp_task_source, buffer_id)| {
+            .fold(FxHashMap::default(), |mut acc, (lsp_task_source, buffer_id)| {
                 acc.entry(lsp_task_source).or_insert_with(Vec::new).push(buffer_id);
                 acc
             })

@@ -3,7 +3,7 @@ use std::iter;
 use std::mem;
 use std::sync::Arc;
 
-use collections::HashMap;
+use rustc_hash::FxHashMap;
 
 use crate::FontId;
 use crate::Pixels;
@@ -47,12 +47,12 @@ pub struct LineWrapper {
 /// wrappers, since a wrapper holds an `Arc<TextSystem>` and pooling it would keep the text system alive.
 pub(crate) struct CharWidthCache {
     ascii: [Option<Pixels>; 128],
-    other: HashMap<char, Pixels>,
+    other: FxHashMap<char, Pixels>,
 }
 
 impl Default for CharWidthCache {
     fn default() -> CharWidthCache {
-        CharWidthCache { ascii: [None; 128], other: HashMap::default() }
+        CharWidthCache { ascii: [None; 128], other: FxHashMap::default() }
     }
 }
 

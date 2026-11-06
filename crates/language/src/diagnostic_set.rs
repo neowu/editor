@@ -5,8 +5,8 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use anyhow::Result;
-use collections::HashMap;
 use lsp::LanguageServerId;
+use rustc_hash::FxHashMap;
 use serde::Serialize;
 use sum_tree::Bias;
 use sum_tree::SumTree;
@@ -285,7 +285,7 @@ impl DiagnosticSet {
         output: &mut Vec<(LanguageServerId, DiagnosticGroup<'a, Anchor>)>,
         buffer: &text::BufferSnapshot,
     ) {
-        let mut groups = HashMap::default();
+        let mut groups = FxHashMap::default();
         for entry in self.diagnostics.iter() {
             groups
                 .entry(entry.diagnostic.group_id)

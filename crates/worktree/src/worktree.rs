@@ -10,6 +10,8 @@ mod worktree_settings;
 use std::any::Any;
 use std::borrow::Borrow as _;
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
+use std::collections::VecDeque;
 use std::collections::hash_map;
 use std::convert::TryFrom;
 use std::ffi::OsStr;
@@ -38,10 +40,6 @@ use anyhow::anyhow;
 use async_channel::Sender;
 use async_channel::{self};
 use clock::ReplicaId;
-use collections::BTreeMap;
-use collections::HashMap;
-use collections::HashSet;
-use collections::VecDeque;
 use encoding_rs::Encoding;
 use file_content::ByteContent;
 use file_content::DecodingReader;
@@ -106,6 +104,8 @@ use parking_lot::Mutex;
 use rpc::AnyProtoClient;
 use rpc::proto::split_worktree_update;
 use rpc::proto::{self};
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::Settings;
 use settings::SettingsStore;
 pub use settings::WorktreeId;
@@ -301,10 +301,10 @@ pub struct LocalSnapshot {
     global_gitignore: Option<Arc<Gitignore>>,
     /// Exclude files for all git repositories in the worktree, indexed by their absolute path.
     /// The boolean indicates whether the gitignore needs to be updated.
-    repo_exclude_by_work_dir_abs_path: HashMap<Arc<Path>, (Arc<Gitignore>, bool)>,
+    repo_exclude_by_work_dir_abs_path: FxHashMap<Arc<Path>, (Arc<Gitignore>, bool)>,
     /// All of the gitignore files in the worktree, indexed by their absolute path.
     /// The boolean indicates whether the gitignore needs to be updated.
-    ignores_by_parent_abs_path: HashMap<Arc<Path>, (Arc<Gitignore>, bool)>,
+    ignores_by_parent_abs_path: FxHashMap<Arc<Path>, (Arc<Gitignore>, bool)>,
     /// All of the git repositories in the worktree, indexed by the project entry
     /// id of their parent directory.
     git_repositories: TreeMap<ProjectEntryId, LocalRepositoryEntry>,
@@ -319,11 +319,11 @@ pub struct LocalSnapshot {
 
 struct BackgroundScannerState {
     snapshot: LocalSnapshot,
-    symlink_paths_by_target: HashMap<Arc<Path>, SmallVec<[Arc<RelPath>; 1]>>,
-    scanned_dirs: HashSet<ProjectEntryId>,
-    watched_dir_abs_paths_by_entry_id: HashMap<ProjectEntryId, Arc<Path>>,
-    path_prefixes_to_scan: HashSet<Arc<RelPath>>,
-    paths_to_scan: HashSet<Arc<RelPath>>,
+    symlink_paths_by_target: FxHashMap<Arc<Path>, SmallVec<[Arc<RelPath>; 1]>>,
+    scanned_dirs: FxHashSet<ProjectEntryId>,
+    watched_dir_abs_paths_by_entry_id: FxHashMap<ProjectEntryId, Arc<Path>>,
+    path_prefixes_to_scan: FxHashSet<Arc<RelPath>>,
+    paths_to_scan: FxHashSet<Arc<RelPath>>,
     removed_entries: RemovedEntries,
     changed_paths: Vec<Arc<RelPath>>,
     prev_snapshot: Snapshot,
@@ -346,8 +346,8 @@ struct RemovedEntries {
 
 #[derive(Default)]
 struct RemovedEntriesGeneration {
-    by_inode: HashMap<u64, Entry>,
-    by_path: HashMap<Arc<RelPath>, Entry>,
+    by_inode: FxHashMap<u64, Entry>,
+    by_path: FxHashMap<Arc<RelPath>, Entry>,
 }
 
 impl RemovedEntries {
@@ -544,9 +544,9 @@ impl Worktree {
         };
         Ok(cx.new(move |cx: &mut Context<Worktree>| {
             let mut snapshot = LocalSnapshot {
-                ignores_by_parent_abs_path: HashMap::default(),
+                ignores_by_parent_abs_path: FxHashMap::default(),
                 global_gitignore: Option::default(),
-                repo_exclude_by_work_dir_abs_path: HashMap::default(),
+                repo_exclude_by_work_dir_abs_path: FxHashMap::default(),
                 git_repositories: TreeMap::default(),
                 external_canonical_to_relative: BTreeMap::default(),
                 snapshot: Snapshot::new(
@@ -1232,12 +1232,12 @@ impl LocalWorktree {
                     state: async_lock::Mutex::new(BackgroundScannerState {
                         prev_snapshot: snapshot.snapshot.clone(),
                         snapshot,
-                        symlink_paths_by_target: HashMap::default(),
-                        scanned_dirs: HashSet::default(),
-                        watched_dir_abs_paths_by_entry_id: HashMap::default(),
+                        symlink_paths_by_target: FxHashMap::default(),
+                        scanned_dirs: FxHashSet::default(),
+                        watched_dir_abs_paths_by_entry_id: FxHashMap::default(),
                         scanning_enabled,
-                        path_prefixes_to_scan: HashSet::default(),
-                        paths_to_scan: HashSet::default(),
+                        path_prefixes_to_scan: FxHashSet::default(),
+                        paths_to_scan: FxHashSet::default(),
                         removed_entries: RemovedEntries::default(),
                         changed_paths: Vec::default(),
                     }),
@@ -1891,7 +1891,7 @@ impl LocalWorktree {
 
     pub fn update_abs_path_and_refresh(&mut self, new_path: Arc<SanitizedPath>, cx: &Context<Worktree>) {
         self.snapshot.git_repositories = TreeMap::default();
-        self.snapshot.ignores_by_parent_abs_path = HashMap::default();
+        self.snapshot.ignores_by_parent_abs_path = FxHashMap::default();
         let root_name = new_path
             .as_path()
             .file_name()
@@ -2792,7 +2792,7 @@ impl BackgroundScannerState {
         removed_descendant_abs_paths: Vec<PathBuf>,
         preserve_repository_watches: bool,
     ) {
-        let mut repository_watches_to_preserve = HashSet::<Arc<Path>>::default();
+        let mut repository_watches_to_preserve = FxHashSet::<Arc<Path>>::default();
         if preserve_repository_watches {
             for repository in self.snapshot.git_repositories.values() {
                 repository_watches_to_preserve.insert(repository.common_dir_abs_path.clone());
@@ -5158,7 +5158,7 @@ impl BackgroundScanner {
 
         // Remove any git repositories whose .git entry no longer exists.
         let snapshot = &mut state.snapshot;
-        let mut ids_to_preserve = HashSet::default();
+        let mut ids_to_preserve = FxHashSet::default();
         for (&work_directory_id, entry) in snapshot.git_repositories.iter() {
             let exists_in_snapshot = snapshot.entry_for_id(work_directory_id).is_some_and(|entry| {
                 snapshot.entry_for_path(&entry.path.join(RelPath::from_unix_str(DOT_GIT).unwrap())).is_some()
@@ -5232,9 +5232,9 @@ impl BackgroundScanner {
 async fn discover_ancestor_git_repo(
     fs: Arc<dyn Fs>,
     root_abs_path: &SanitizedPath,
-) -> (HashMap<Arc<Path>, (Arc<Gitignore>, bool)>, Option<Arc<Gitignore>>, Option<(PathBuf, WorkDirectory)>) {
+) -> (FxHashMap<Arc<Path>, (Arc<Gitignore>, bool)>, Option<Arc<Gitignore>>, Option<(PathBuf, WorkDirectory)>) {
     let mut exclude = None;
-    let mut ignores = HashMap::default();
+    let mut ignores = FxHashMap::default();
     for (index, ancestor) in root_abs_path.as_path().ancestors().enumerate() {
         if index != 0 {
             if ancestor == paths::home_dir() {

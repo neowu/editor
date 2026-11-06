@@ -7,8 +7,8 @@ edition.workspace = true
 path = "src/spell_check.rs"
 
 [dependencies]
-collections.workspace = true
 regex = { workspace = true, features = ["unicode"] }
+rustc-hash.workspace = true
 spellbook.workspace = true
 
 [lints]

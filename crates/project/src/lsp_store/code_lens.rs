@@ -4,8 +4,6 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
-use collections::HashSet;
 use futures::FutureExt as _;
 use futures::future::Shared;
 use futures::future::join_all;
@@ -19,6 +17,8 @@ use lsp::LanguageServerId;
 use lsp::request::CodeLensResolve;
 use rpc::TypedEnvelope;
 use rpc::proto;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::Settings as _;
 use util::ResultExt as _;
 
@@ -49,7 +49,7 @@ use crate::project_settings::ProjectSettings;
 #[derive(Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct CodeLensActionId(u64);
 
-pub type CodeLensActions = HashMap<CodeLensActionId, CodeAction>;
+pub type CodeLensActions = FxHashMap<CodeLensActionId, CodeAction>;
 
 pub(super) type CodeLensTask = Shared<Task<result::Result<Option<CodeLensActions>, Arc<anyhow::Error>>>>;
 
@@ -57,11 +57,11 @@ pub type CodeLensResolveTask = Shared<Task<Option<(CodeLensActionId, CodeAction)
 
 #[derive(Debug, Default)]
 pub(super) struct CodeLensData {
-    pub(super) lens: HashMap<LanguageServerId, CodeLensActions>,
-    fetched_servers: HashSet<LanguageServerId>,
+    pub(super) lens: FxHashMap<LanguageServerId, CodeLensActions>,
+    fetched_servers: FxHashSet<LanguageServerId>,
     pub(super) next_id: u64,
     pub(super) update: Option<RunningFetch<CodeLensTask>>,
-    pub(super) resolving: HashMap<(LanguageServerId, CodeLensActionId), CodeLensResolveTask>,
+    pub(super) resolving: FxHashMap<(LanguageServerId, CodeLensActionId), CodeLensResolveTask>,
 }
 
 impl CodeLensData {
@@ -85,7 +85,7 @@ impl CodeLensData {
     }
 }
 
-fn flatten_cache(lens: &HashMap<LanguageServerId, CodeLensActions>) -> CodeLensActions {
+fn flatten_cache(lens: &FxHashMap<LanguageServerId, CodeLensActions>) -> CodeLensActions {
     let mut out = CodeLensActions::default();
     out.reserve(lens.values().map(|per_server| per_server.len()).sum());
     for per_server in lens.values() {
@@ -212,7 +212,7 @@ impl LspStore {
                                 return Some(flatten_cache(&code_lens.lens));
                             }
                             if let Some(fetched_lens) = fetched_lens {
-                                let mut tagged: HashMap<LanguageServerId, CodeLensActions> = HashMap::default();
+                                let mut tagged: FxHashMap<LanguageServerId, CodeLensActions> = FxHashMap::default();
                                 for (server_id, actions) in fetched_lens {
                                     let mut cache = CodeLensActions::default();
                                     cache.reserve(actions.len());
@@ -251,9 +251,9 @@ impl LspStore {
     fn fetch_code_lens_for_buffer(
         &mut self,
         buffer: &Entity<Buffer>,
-        for_servers: Option<HashSet<LanguageServerId>>,
+        for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,
-    ) -> Task<Result<Option<HashMap<LanguageServerId, Vec<CodeAction>>>>> {
+    ) -> Task<Result<Option<FxHashMap<LanguageServerId, Vec<CodeAction>>>>> {
         if let Some((upstream_client, project_id)) = self.upstream_client() {
             let request = GetCodeLens;
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
@@ -300,7 +300,7 @@ impl LspStore {
                             None
                         }
                     })
-                    .collect::<HashMap<_, _>>();
+                    .collect::<FxHashMap<_, _>>();
                 anyhow::ensure!(!has_errors || !code_lens_actions.is_empty(), "Failed to fetch code lens");
                 Ok(Some(code_lens_actions))
             })

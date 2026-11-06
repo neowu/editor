@@ -3,14 +3,13 @@
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
-use collections::FxHashMap;
-use collections::HashMap;
-use collections::HashSet;
 use globset::Glob;
 use globset::GlobSet;
 use globset::GlobSetBuilder;
 use gpui::App;
 use gpui::SharedString;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 pub use settings::AutoIndentMode;
 pub use settings::CompletionSettingsContent;
 use settings::DocumentFoldingRanges;
@@ -44,7 +43,7 @@ pub fn all_language_settings(cx: &App) -> &AllLanguageSettings {
 pub struct AllLanguageSettings {
     /// The default language settings.
     pub defaults: Arc<LanguageSettings>,
-    languages: HashMap<LanguageName, Arc<LanguageSettings>>,
+    languages: FxHashMap<LanguageName, Arc<LanguageSettings>>,
     pub file_types: FxHashMap<Arc<str>, (GlobSet, Vec<String>)>,
 }
 
@@ -129,7 +128,7 @@ pub struct LanguageSettings {
     /// Controls how the editor handles the autoclosed characters.
     pub always_treat_brackets_as_autoclosed: bool,
     /// Which code actions to run on save
-    pub code_actions_on_format: HashMap<String, bool>,
+    pub code_actions_on_format: FxHashMap<String, bool>,
     /// Whether to perform linked edits
     pub linked_edits: bool,
     /// Task configuration for this language.
@@ -220,7 +219,7 @@ impl IndentGuideSettings {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LanguageTaskSettings {
     /// Extra task variables to set for a particular language.
-    pub variables: HashMap<String, String>,
+    pub variables: FxHashMap<String, String>,
     pub enabled: bool,
     /// Use LSP tasks over built-in language tasks.
     /// If no LSP tasks are returned due to error/timeout or regular execution,
@@ -321,8 +320,8 @@ pub struct InlayHintSettings {
 
 impl InlayHintSettings {
     /// Returns the kinds of inlay hints that are enabled based on the settings.
-    pub fn enabled_inlay_hint_kinds(&self) -> HashSet<Option<InlayHintKind>> {
-        let mut kinds = HashSet::default();
+    pub fn enabled_inlay_hint_kinds(&self) -> FxHashSet<Option<InlayHintKind>> {
+        let mut kinds = FxHashSet::default();
         if self.show_type_hints {
             kinds.insert(Some(InlayHintKind::Type));
         }
@@ -427,7 +426,7 @@ impl settings::Settings for AllLanguageSettings {
 
         let default_language_settings = Arc::new(load_from_content(all_languages.defaults.clone()));
 
-        let mut languages = HashMap::default();
+        let mut languages = FxHashMap::default();
         for (language_name, settings) in &all_languages.languages.0 {
             let mut language_settings = all_languages.defaults.clone();
             language_settings.merge_from(settings);

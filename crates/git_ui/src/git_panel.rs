@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::cell::Cell;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -12,9 +13,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context as _;
-use collections::BTreeMap;
-use collections::HashMap;
-use collections::HashSet;
 use ed_actions::DecreaseBufferFontSize;
 use ed_actions::IncreaseBufferFontSize;
 use ed_actions::ResetBufferFontSize;
@@ -120,6 +118,8 @@ use project::git_store::Repository;
 use project::git_store::RepositoryEvent;
 use project::git_store::RepositoryId;
 use project::git_store::pending_op;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::FolderIndicator;
 use smallvec::SmallVec;
 use strum::IntoEnumIterator;
@@ -728,8 +728,8 @@ enum SelectionTargetKind {
 /// reversing direction shrinks the range instead of growing it.
 struct MarkRangeGesture {
     anchor_ix: usize,
-    base_files: HashSet<RepoPath>,
-    base_directories: HashSet<TreeKey>,
+    base_files: FxHashSet<RepoPath>,
+    base_directories: FxHashSet<TreeKey>,
 }
 
 /// Tracks, while walking `entries` in display order, whether the current row
@@ -742,7 +742,7 @@ struct MarkedDirectoryCoverage {
 impl MarkedDirectoryCoverage {
     /// Feeds the next row in display order; returns whether that row is
     /// inside a marked directory.
-    fn observe(&mut self, entry: &GitListEntry, marked_directories: &HashSet<TreeKey>) -> bool {
+    fn observe(&mut self, entry: &GitListEntry, marked_directories: &FxHashSet<TreeKey>) -> bool {
         let depth = match entry {
             GitListEntry::Header(_) => {
                 self.covering_depth = None;
@@ -808,8 +808,8 @@ struct TreeViewState {
     // Length equals the number of visible entries.
     // This is needed because some entries (like collapsed directories) may be hidden.
     logical_indices: Vec<usize>,
-    expanded_dirs: HashMap<TreeKey, bool>,
-    directory_descendants: HashMap<TreeKey, Vec<GitStatusEntry>>,
+    expanded_dirs: FxHashMap<TreeKey, bool>,
+    directory_descendants: FxHashMap<TreeKey, Vec<GitStatusEntry>>,
 }
 
 impl TreeViewState {
@@ -817,7 +817,7 @@ impl TreeViewState {
         &mut self,
         section: Section,
         mut entries: Vec<GitStatusEntry>,
-        seen_directories: &mut HashSet<TreeKey>,
+        seen_directories: &mut FxHashSet<TreeKey>,
     ) -> Vec<(GitListEntry, bool)> {
         if entries.is_empty() {
             return Vec::new();
@@ -866,7 +866,7 @@ impl TreeViewState {
         node: &TreeNode,
         section: Section,
         depth: usize,
-        seen_directories: &mut HashSet<TreeKey>,
+        seen_directories: &mut FxHashSet<TreeKey>,
     ) -> (Vec<(GitListEntry, bool)>, Vec<GitStatusEntry>) {
         let mut all_statuses = Vec::new();
         let mut flattened = Vec::new();
@@ -1048,10 +1048,10 @@ pub struct GitPanel {
     conflicted_staged_count: usize,
 
     entries: Vec<GitListEntry>,
-    collapsed_sections: HashSet<Section>,
+    collapsed_sections: FxHashSet<Section>,
     view_mode: GitPanelViewMode,
-    tree_expanded_dirs: HashMap<TreeKey, bool>,
-    projected_entries_by_path: HashMap<RepoPath, SmallVec<[ProjectedChangeEntry; 2]>>,
+    tree_expanded_dirs: FxHashMap<TreeKey, bool>,
+    projected_entries_by_path: FxHashMap<RepoPath, SmallVec<[ProjectedChangeEntry; 2]>>,
     single_staged_entry: Option<GitStatusEntry>,
     single_tracked_entry: Option<GitStatusEntry>,
     focus_handle: FocusHandle,
@@ -1070,12 +1070,12 @@ pub struct GitPanel {
     scroll_handle: UniformListScrollHandle,
     max_width_item_index: Option<usize>,
     selected_entry: Option<usize>,
-    marked_entries: HashSet<RepoPath>,
-    marked_directories: HashSet<TreeKey>,
+    marked_entries: FxHashSet<RepoPath>,
+    marked_directories: FxHashSet<TreeKey>,
     mark_range_gesture: Option<MarkRangeGesture>,
     tracked_count: usize,
     tracked_staged_count: usize,
-    section_file_counts: HashMap<Section, usize>,
+    section_file_counts: FxHashMap<Section, usize>,
     update_visible_entries_task: Task<()>,
     reopen_commit_buffer_task: Task<()>,
     pub(crate) workspace: WeakEntity<Workspace>,
@@ -1240,10 +1240,10 @@ impl GitPanel {
                 conflicted_staged_count: 0,
 
                 entries: Vec::new(),
-                collapsed_sections: HashSet::default(),
+                collapsed_sections: FxHashSet::default(),
                 view_mode: GitPanelViewMode::from_settings(cx),
-                tree_expanded_dirs: HashMap::default(),
-                projected_entries_by_path: HashMap::default(),
+                tree_expanded_dirs: FxHashMap::default(),
+                projected_entries_by_path: FxHashMap::default(),
                 focus_handle,
                 new_count: 0,
                 new_staged_count: 0,
@@ -1261,12 +1261,12 @@ impl GitPanel {
                 scroll_handle,
                 max_width_item_index: None,
                 selected_entry: None,
-                marked_entries: HashSet::default(),
-                marked_directories: HashSet::default(),
+                marked_entries: FxHashSet::default(),
+                marked_directories: FxHashSet::default(),
                 mark_range_gesture: None,
                 tracked_count: 0,
                 tracked_staged_count: 0,
-                section_file_counts: HashMap::default(),
+                section_file_counts: FxHashMap::default(),
                 update_visible_entries_task: Task::ready(()),
                 reopen_commit_buffer_task: Task::ready(()),
                 show_placeholders: false,
@@ -1389,7 +1389,7 @@ impl GitPanel {
     fn marked_file_entries(&self) -> Vec<GitStatusEntry> {
         let mut coverage = MarkedDirectoryCoverage::default();
         let mut marked = Vec::new();
-        let mut seen_paths = HashSet::default();
+        let mut seen_paths = FxHashSet::default();
         for entry in &self.entries {
             let covered = coverage.observe(entry, &self.marked_directories);
             if let Some(status_entry) = entry.status_entry()
@@ -1533,7 +1533,7 @@ impl GitPanel {
         }
 
         let mut paths = Vec::new();
-        let mut seen_paths = HashSet::default();
+        let mut seen_paths = FxHashSet::default();
         for (index, entry) in self.entries.iter().enumerate() {
             let marked = match self.row_mark(index) {
                 Some(RowMark::File(path)) => self.marked_entries.contains(&path),
@@ -3974,7 +3974,7 @@ impl GitPanel {
         let mut tracked_entries = Vec::new();
         let mut single_staged_entry = None;
         let mut staged_count = 0;
-        let mut seen_directories = HashSet::default();
+        let mut seen_directories = FxHashSet::default();
         let mut max_width_estimate = 0usize;
         let mut max_width_item_index = None;
 
@@ -4220,7 +4220,7 @@ impl GitPanel {
             GitPanelViewMode::Flat => self.marked_directories.clear(),
         }
         if !self.marked_entries.is_empty() {
-            let present_paths: HashSet<RepoPath> = self
+            let present_paths: FxHashSet<RepoPath> = self
                 .entries
                 .iter()
                 .filter_map(|entry| entry.status_entry())

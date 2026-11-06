@@ -6,7 +6,6 @@ edition.workspace = true
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
-collections.workspace = true
 futures.workspace = true
 gpui.workspace = true
 grammars.workspace = true
@@ -17,6 +16,7 @@ log.workspace = true
 lsp.workspace = true
 project.workspace = true
 regex.workspace = true
+rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 settings.workspace = true

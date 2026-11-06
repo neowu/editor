@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::cmp::Reverse;
 use std::cmp::min;
+use std::collections::VecDeque;
 use std::iter;
 use std::ops::Range;
 use std::rc::Rc;
@@ -8,8 +9,6 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 
-use collections::HashSet;
-use collections::VecDeque;
 use fuzzy::StringMatch;
 use fuzzy::StringMatchCandidate;
 use gpui::AnyElement;
@@ -48,6 +47,7 @@ use project::CompletionGroup;
 use project::CompletionSource;
 use project::TaskSourceKind;
 use project::lsp_store::CompletionDocumentation;
+use rustc_hash::FxHashSet;
 use task::ResolvedTask;
 use ui::Divider;
 use ui::ListItem;
@@ -1225,7 +1225,7 @@ impl CompletionsMenu {
 
             // Remove duplicate snippet prefixes (e.g., "cool code" will match
             // the text "c c" in two places; we should only show the longer one)
-            let mut snippets_seen = HashSet::<(usize, usize)>::default();
+            let mut snippets_seen = FxHashSet::<(usize, usize)>::default();
             results.filter_matches.retain(|result| {
                 match completions_ref[result.candidate_id].snippet_deduplication_key {
                     Some(key) => snippets_seen.insert(key),

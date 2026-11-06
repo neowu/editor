@@ -8,7 +8,6 @@ path = "src/project_panel.rs"
 
 [dependencies]
 anyhow.workspace = true
-collections.workspace = true
 ed_actions.workspace = true
 editor.workspace = true
 file_icons.workspace = true
@@ -28,6 +27,7 @@ notifications.workspace = true
 project.workspace = true
 rayon.workspace = true
 rpc.workspace = true
+rustc-hash.workspace = true
 serde.workspace = true
 settings.workspace = true
 smallvec.workspace = true

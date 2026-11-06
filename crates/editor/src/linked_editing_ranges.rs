@@ -2,7 +2,6 @@ use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
 
-use collections::HashMap;
 use futures::future;
 use gpui::AppContext;
 use gpui::Context;
@@ -10,6 +9,7 @@ use gpui::Entity;
 use gpui::Window;
 use itertools::Itertools;
 use language::Buffer;
+use rustc_hash::FxHashMap;
 use text::Anchor;
 use text::AnchorRangeExt;
 use text::Bias;
@@ -24,7 +24,7 @@ use crate::Editor;
 pub(super) struct LinkedEditingRanges(
     /// Ranges are non-overlapping and sorted by .0 (thus, [x + 1].start > [x].end must hold)
     #[allow(clippy::type_complexity)]
-    pub HashMap<BufferId, Vec<(Range<Anchor>, Vec<Range<Anchor>>)>>,
+    pub FxHashMap<BufferId, Vec<(Range<Anchor>, Vec<Range<Anchor>>)>>,
 );
 
 impl LinkedEditingRanges {
@@ -108,7 +108,7 @@ pub(super) fn refresh_linked_ranges(editor: &mut Editor, window: &Window, cx: &C
                         });
                         _current_selection_contains_range?;
                         // Now link every range as each-others sibling.
-                        let mut siblings: HashMap<Range<Anchor>, Vec<_>> = HashMap::default();
+                        let mut siblings: FxHashMap<Range<Anchor>, Vec<_>> = FxHashMap::default();
                         let mut insert_sorted_anchor = |key: &Range<Anchor>, value: &Range<Anchor>| {
                             siblings.entry(key.clone()).or_default().push(value.clone());
                         };
@@ -162,11 +162,11 @@ pub(super) fn refresh_linked_ranges(editor: &mut Editor, window: &Window, cx: &C
 /// so they track buffer changes and are only resolved to concrete points at
 /// apply time.
 #[allow(clippy::type_complexity)]
-pub struct LinkedEdits(HashMap<Entity<Buffer>, Vec<(Range<Anchor>, Arc<str>)>>);
+pub struct LinkedEdits(FxHashMap<Entity<Buffer>, Vec<(Range<Anchor>, Arc<str>)>>);
 
 impl LinkedEdits {
     pub fn new() -> Self {
-        Self(HashMap::default())
+        Self(FxHashMap::default())
     }
 
     /// Queries the editor's linked editing ranges for the given anchor range and, if any

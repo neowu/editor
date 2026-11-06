@@ -5,7 +5,6 @@ use std::process::ExitStatus;
 use std::sync::Arc;
 
 use anyhow::Result;
-use collections::HashMap;
 use futures::channel::oneshot;
 use futures::future::join_all;
 use gpui::Action;
@@ -29,6 +28,7 @@ use gpui::Window;
 use gpui::actions;
 use itertools::Itertools;
 use project::Project;
+use rustc_hash::FxHashMap;
 use settings::Settings;
 use task::RevealStrategy;
 use task::SpawnInTerminal;
@@ -114,7 +114,7 @@ pub struct TerminalPanel {
     focus_handle: FocusHandle,
     workspace: WeakEntity<Workspace>,
     pending_terminals_to_add: usize,
-    deferred_tasks: HashMap<TaskId, Task<()>>,
+    deferred_tasks: FxHashMap<TaskId, Task<()>>,
     active: bool,
 }
 
@@ -129,7 +129,7 @@ impl TerminalPanel {
             focus_handle: cx.focus_handle(),
             workspace: workspace.weak_handle(),
             pending_terminals_to_add: 0,
-            deferred_tasks: HashMap::default(),
+            deferred_tasks: FxHashMap::default(),
             active: false,
         }
     }

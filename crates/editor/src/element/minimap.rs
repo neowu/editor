@@ -8,7 +8,6 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use buffer_diff::DiffHunkStatusKind;
-use collections::HashMap;
 use gpui::AbsoluteLength;
 use gpui::Along;
 use gpui::AnyElement;
@@ -43,6 +42,7 @@ use gpui::quad;
 use gpui::size;
 use itertools::Itertools;
 use multi_buffer::MultiBufferPoint;
+use rustc_hash::FxHashMap;
 use theme::ActiveTheme;
 use workspace::item::Item as _;
 use workspace::item::ItemBufferKind;
@@ -72,12 +72,12 @@ const MINIMAP_ROW_CACHE_MARGIN: u32 = 2;
 
 /// Laid-out rows by display row.
 struct RowCache<L> {
-    rows: HashMap<u32, L>,
+    rows: FxHashMap<u32, L>,
 }
 
 impl<L> Default for RowCache<L> {
     fn default() -> RowCache<L> {
-        RowCache { rows: HashMap::default() }
+        RowCache { rows: FxHashMap::default() }
     }
 }
 
@@ -145,7 +145,7 @@ impl EditorElement {
             };
         }
 
-        let mut fresh: HashMap<u32, LineWithInvisibles> = HashMap::default();
+        let mut fresh: FxHashMap<u32, LineWithInvisibles> = FxHashMap::default();
         for missing in cache.rows.missing(rows.start.0..rows.end.0) {
             let lines = layout(DisplayRow(missing.start)..DisplayRow(missing.end), window, cx);
             fresh.extend(missing.zip(lines));

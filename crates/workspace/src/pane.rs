@@ -1,5 +1,7 @@
 use std::any::Any;
 use std::cmp;
+use std::collections::BTreeSet;
+use std::collections::VecDeque;
 use std::fmt;
 use std::iter;
 use std::mem;
@@ -10,10 +12,6 @@ use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use anyhow::Result;
-use collections::BTreeSet;
-use collections::HashMap;
-use collections::HashSet;
-use collections::VecDeque;
 use ed_actions::command_palette::Toggle;
 use ed_actions::editor::RevealInFileManager;
 use ed_actions::workspace::CopyPath;
@@ -59,6 +57,8 @@ use project::Project;
 use project::ProjectEntryId;
 use project::ProjectPath;
 use project::WorktreeId;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use settings::SettingsStore;
 use theme::ThemeColors;
@@ -449,7 +449,7 @@ pub struct Pane {
     was_focused: bool,
     active_item_index: usize,
     preview_item_id: Option<EntityId>,
-    last_focus_handle_by_item: HashMap<EntityId, WeakFocusHandle>,
+    last_focus_handle_by_item: FxHashMap<EntityId, WeakFocusHandle>,
     nav_history: NavHistory,
     toolbar: Entity<Toolbar>,
     pub(crate) workspace: WeakEntity<Workspace>,
@@ -482,7 +482,7 @@ pub struct Pane {
     /// We want to suppress certain system scrolls when the user has intentionally scrolled
     suppress_scroll: bool,
     double_click_dispatch_action: Box<dyn Action>,
-    save_modals_spawned: HashSet<EntityId>,
+    save_modals_spawned: FxHashSet<EntityId>,
     close_pane_if_empty: bool,
     empty_pane_hints: EmptyPaneHints,
     /// Every tab is read-only, so the tab menu leaves out entries about
@@ -491,7 +491,7 @@ pub struct Pane {
     pinned_tab_count: usize,
     zoom_out_on_close: bool,
     /// If a certain project item wants to get recreated with specific data, it can persist its data before the recreation here.
-    pub project_item_restoration_data: HashMap<ProjectItemKind, Box<dyn Any + Send>>,
+    pub project_item_restoration_data: FxHashMap<ProjectItemKind, Box<dyn Any + Send>>,
 
     pub in_center_group: bool,
 }
@@ -518,11 +518,11 @@ struct NavHistoryState {
     closed_stack: VecDeque<NavigationEntry>,
     tag_stack: VecDeque<TagStackEntry>,
     tag_stack_pos: usize,
-    paths_by_item: HashMap<EntityId, (ProjectPath, Option<PathBuf>)>,
+    paths_by_item: FxHashMap<EntityId, (ProjectPath, Option<PathBuf>)>,
     workspace: WeakEntity<Workspace>,
     next_timestamp: Arc<AtomicUsize>,
     /// The preview tab of every pane sharing this history.
-    preview_item_ids: HashSet<EntityId>,
+    preview_item_ids: FxHashSet<EntityId>,
 }
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -614,7 +614,7 @@ impl Pane {
             zoomed: false,
             active_item_index: 0,
             preview_item_id: None,
-            last_focus_handle_by_item: HashMap::default(),
+            last_focus_handle_by_item: FxHashMap::default(),
             nav_history: NavHistory::new(workspace.clone(), next_timestamp),
             toolbar,
             tab_bar_scroll_handle: ScrollHandle::new(),
@@ -633,13 +633,13 @@ impl Pane {
             tab_bar_header_room: px(0.),
             _subscriptions: subscriptions,
             double_click_dispatch_action,
-            save_modals_spawned: HashSet::default(),
+            save_modals_spawned: FxHashSet::default(),
             close_pane_if_empty: true,
             empty_pane_hints: EmptyPaneHints::Files,
             read_only_tabs: false,
             pinned_tab_count: 0,
             zoom_out_on_close: true,
-            project_item_restoration_data: HashMap::default(),
+            project_item_restoration_data: FxHashMap::default(),
             in_center_group: false,
         }
     }
@@ -1003,7 +1003,7 @@ impl Pane {
             // A special case that won't ever get a `project_entry_id` but has to be deduplicated nonetheless.
             if let Some(invalid_buffer_view) = new_item.downcast::<InvalidItemView>() {
                 let mut already_open_view = None;
-                let mut views_to_close = HashSet::default();
+                let mut views_to_close = FxHashSet::default();
                 for existing_error_view in self
                     .items_of_type::<InvalidItemView>()
                     .filter(|item| item.read(cx).abs_path == invalid_buffer_view.read(cx).abs_path)
@@ -2122,9 +2122,9 @@ impl Pane {
         &self.toolbar
     }
 
-    pub fn remove_navigation_history_paths(&mut self, project_paths: &HashSet<ProjectPath>, cx: &mut Context<Self>) {
-        let open_item_ids = self.items.iter().map(|item| item.item_id()).collect::<HashSet<_>>();
-        let mut item_ids = HashSet::default();
+    pub fn remove_navigation_history_paths(&mut self, project_paths: &FxHashSet<ProjectPath>, cx: &mut Context<Self>) {
+        let open_item_ids = self.items.iter().map(|item| item.item_id()).collect::<FxHashSet<_>>();
+        let mut item_ids = FxHashSet::default();
         self.nav_history.for_each_entry(cx, &mut |entry, (path, _)| {
             if project_paths.contains(&path) && !open_item_ids.contains(&entry.item.id()) {
                 item_ids.insert(entry.item.id());
@@ -3619,10 +3619,10 @@ impl NavHistory {
             closed_stack: VecDeque::default(),
             tag_stack: VecDeque::default(),
             tag_stack_pos: Default::default(),
-            paths_by_item: HashMap::default(),
+            paths_by_item: FxHashMap::default(),
             workspace,
             next_timestamp,
-            preview_item_ids: HashSet::default(),
+            preview_item_ids: FxHashSet::default(),
         })))
     }
 
@@ -3801,7 +3801,7 @@ impl NavHistory {
         state.retain_entries(|id| id != item_id);
     }
 
-    pub fn remove_items(&mut self, item_ids: &HashSet<EntityId>) {
+    pub fn remove_items(&mut self, item_ids: &FxHashSet<EntityId>) {
         let mut state = self.0.lock();
         for item_id in item_ids {
             state.paths_by_item.remove(item_id);

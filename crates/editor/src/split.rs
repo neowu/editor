@@ -7,7 +7,6 @@ use std::sync::Arc;
 use buffer_diff::BufferDiff;
 use buffer_diff::BufferDiffSnapshot;
 use buffer_diff::DiffHunkStatus;
-use collections::HashMap;
 use gpui::Action;
 use gpui::AnyElement;
 use gpui::Entity;
@@ -32,6 +31,7 @@ use multi_buffer::PathKey;
 use project::Project;
 use project::search::SearchQuery;
 use rope::Point;
+use rustc_hash::FxHashMap;
 use settings::SeedQuerySetting;
 use text::Bias;
 use text::BufferId;
@@ -129,17 +129,17 @@ fn buffer_range_to_base_text_range(
 
 #[allow(clippy::type_complexity)]
 fn translate_lhs_selections_to_rhs(
-    selections_by_buffer: &HashMap<BufferId, (Vec<Range<BufferOffset>>, Option<u32>)>,
+    selections_by_buffer: &FxHashMap<BufferId, (Vec<Range<BufferOffset>>, Option<u32>)>,
     splittable: &SplittableEditor,
     cx: &App,
-) -> HashMap<Entity<Buffer>, (Vec<Range<BufferOffset>>, Option<u32>)> {
+) -> FxHashMap<Entity<Buffer>, (Vec<Range<BufferOffset>>, Option<u32>)> {
     let Some(lhs) = &splittable.lhs else {
-        return HashMap::default();
+        return FxHashMap::default();
     };
     let lhs_snapshot = lhs.multibuffer.read(cx).snapshot(cx);
 
     #[allow(clippy::type_complexity)]
-    let mut translated: HashMap<Entity<Buffer>, (Vec<Range<BufferOffset>>, Option<u32>)> = HashMap::default();
+    let mut translated: FxHashMap<Entity<Buffer>, (Vec<Range<BufferOffset>>, Option<u32>)> = FxHashMap::default();
 
     for (lhs_buffer_id, (ranges, scroll_offset)) in selections_by_buffer {
         let Some(diff) = lhs_snapshot.diff_for_buffer_id(*lhs_buffer_id) else {
@@ -1017,7 +1017,7 @@ impl SplittableEditor {
                     let diff = rhs_multibuffer.diff_for(anchor.buffer_id)?;
                     Some((path.clone(), diff))
                 })
-                .collect::<HashMap<_, _>>()
+                .collect::<FxHashMap<_, _>>()
                 .into_iter()
                 .collect();
             rhs_multibuffer.expand_excerpts(excerpt_anchors, lines, direction, cx);

@@ -1,3 +1,4 @@
+use std::collections::hash_map;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -9,9 +10,6 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
-use collections::HashSet;
-use collections::hash_map;
 use futures::channel::oneshot;
 use gpui::App;
 use gpui::Asset;
@@ -38,6 +36,8 @@ use rpc::AnyProtoClient;
 use rpc::ErrorExt as _;
 use rpc::TypedEnvelope;
 use rpc::proto;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use util::ResultExt;
 use util::rel_path::RelPath;
 use worktree::LoadedBinaryFile;
@@ -328,7 +328,7 @@ trait ImageStoreImpl {
         cx: &mut Context<ImageStore>,
     ) -> Task<Result<Entity<ImageItem>>>;
 
-    fn reload_images(&self, images: HashSet<Entity<ImageItem>>, cx: &mut Context<ImageStore>) -> Task<Result<()>>;
+    fn reload_images(&self, images: FxHashSet<Entity<ImageItem>>, cx: &mut Context<ImageStore>) -> Task<Result<()>>;
 
     fn as_local(&self) -> Option<Entity<LocalImageStore>>;
     fn as_remote(&self) -> Option<Entity<RemoteImageStore>>;
@@ -337,9 +337,9 @@ trait ImageStoreImpl {
 struct RemoteImageStore {
     upstream_client: AnyProtoClient,
     project_id: u64,
-    loading_remote_images_by_id: HashMap<ImageId, LoadingRemoteImage>,
-    remote_image_listeners: HashMap<ImageId, Vec<oneshot::Sender<anyhow::Result<Entity<ImageItem>>>>>,
-    loaded_images: HashMap<ImageId, Entity<ImageItem>>,
+    loading_remote_images_by_id: FxHashMap<ImageId, LoadingRemoteImage>,
+    remote_image_listeners: FxHashMap<ImageId, Vec<oneshot::Sender<anyhow::Result<Entity<ImageItem>>>>>,
+    loaded_images: FxHashMap<ImageId, Entity<ImageItem>>,
 }
 
 struct LoadingRemoteImage {
@@ -349,19 +349,19 @@ struct LoadingRemoteImage {
 }
 
 struct LocalImageStore {
-    local_image_ids_by_path: HashMap<ProjectPath, ImageId>,
-    local_image_ids_by_entry_id: HashMap<ProjectEntryId, ImageId>,
+    local_image_ids_by_path: FxHashMap<ProjectPath, ImageId>,
+    local_image_ids_by_entry_id: FxHashMap<ProjectEntryId, ImageId>,
     image_store: WeakEntity<ImageStore>,
     _subscription: Subscription,
 }
 
 pub struct ImageStore {
     state: Box<dyn ImageStoreImpl>,
-    opened_images: HashMap<ImageId, WeakEntity<ImageItem>>,
+    opened_images: FxHashMap<ImageId, WeakEntity<ImageItem>>,
     worktree_store: Entity<WorktreeStore>,
     #[allow(clippy::type_complexity)]
     loading_images_by_path:
-        HashMap<ProjectPath, watch::Receiver<Option<Result<Entity<ImageItem>, Arc<anyhow::Error>>>>>,
+        FxHashMap<ProjectPath, watch::Receiver<Option<Result<Entity<ImageItem>, Arc<anyhow::Error>>>>>,
 }
 
 impl ImageStore {
@@ -376,14 +376,14 @@ impl ImageStore {
                 });
 
                 LocalImageStore {
-                    local_image_ids_by_path: HashMap::default(),
-                    local_image_ids_by_entry_id: HashMap::default(),
+                    local_image_ids_by_path: FxHashMap::default(),
+                    local_image_ids_by_entry_id: FxHashMap::default(),
                     image_store: this,
                     _subscription: subscription,
                 }
             })),
-            opened_images: HashMap::default(),
-            loading_images_by_path: HashMap::default(),
+            opened_images: FxHashMap::default(),
+            loading_images_by_path: FxHashMap::default(),
             worktree_store,
         }
     }
@@ -398,12 +398,12 @@ impl ImageStore {
             state: Box::new(cx.new(|_| RemoteImageStore {
                 upstream_client,
                 project_id,
-                loading_remote_images_by_id: HashMap::default(),
-                remote_image_listeners: HashMap::default(),
-                loaded_images: HashMap::default(),
+                loading_remote_images_by_id: FxHashMap::default(),
+                remote_image_listeners: FxHashMap::default(),
+                loaded_images: FxHashMap::default(),
             })),
-            opened_images: HashMap::default(),
-            loading_images_by_path: HashMap::default(),
+            opened_images: FxHashMap::default(),
+            loading_images_by_path: FxHashMap::default(),
             worktree_store,
         }
     }
@@ -477,7 +477,11 @@ impl ImageStore {
         }
     }
 
-    pub fn reload_images(&self, images: HashSet<Entity<ImageItem>>, cx: &mut Context<ImageStore>) -> Task<Result<()>> {
+    pub fn reload_images(
+        &self,
+        images: FxHashSet<Entity<ImageItem>>,
+        cx: &mut Context<ImageStore>,
+    ) -> Task<Result<()>> {
         if images.is_empty() {
             return Task::ready(Ok(()));
         }
@@ -647,7 +651,7 @@ impl ImageStoreImpl for Entity<LocalImageStore> {
         })
     }
 
-    fn reload_images(&self, images: HashSet<Entity<ImageItem>>, cx: &mut Context<ImageStore>) -> Task<Result<()>> {
+    fn reload_images(&self, images: FxHashSet<Entity<ImageItem>>, cx: &mut Context<ImageStore>) -> Task<Result<()>> {
         cx.spawn(async move |_, cx| {
             for image in images {
                 if let Some(rec) = image.update(cx, |image, cx| image.reload(cx)) {
@@ -692,7 +696,7 @@ impl ImageStoreImpl for Entity<RemoteImageStore> {
         })
     }
 
-    fn reload_images(&self, _images: HashSet<Entity<ImageItem>>, _cx: &mut Context<ImageStore>) -> Task<Result<()>> {
+    fn reload_images(&self, _images: FxHashSet<Entity<ImageItem>>, _cx: &mut Context<ImageStore>) -> Task<Result<()>> {
         Task::ready(Err(anyhow::anyhow!("Reloading images from remote is not supported")))
     }
 

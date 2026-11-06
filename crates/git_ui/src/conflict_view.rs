@@ -2,8 +2,6 @@ use std::any::Any;
 use std::ops::Range;
 use std::sync::Arc;
 
-use collections::HashMap;
-use collections::HashSet;
 use editor::ConflictsOurs;
 use editor::ConflictsOursMarker;
 use editor::ConflictsOuter;
@@ -31,10 +29,12 @@ use language::BufferId;
 use project::ConflictRegion;
 use project::ConflictSet;
 use project::ConflictSetUpdate;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use ui::prelude::*;
 
 pub(crate) struct ConflictAddon {
-    buffers: HashMap<BufferId, BufferConflicts>,
+    buffers: FxHashMap<BufferId, BufferConflicts>,
 }
 
 struct BufferConflicts {
@@ -62,7 +62,7 @@ pub fn register_editor(editor: &mut Editor, buffer: Entity<MultiBuffer>, cx: &Co
         return;
     }
 
-    editor.register_addon(ConflictAddon { buffers: HashMap::default() });
+    editor.register_addon(ConflictAddon { buffers: FxHashMap::default() });
 
     if is_singleton {
         let buffers = buffer.read(cx).all_buffers();
@@ -131,7 +131,7 @@ pub(crate) fn buffer_ranges_updated(editor: &mut Editor, conflict_set: Entity<Co
 }
 
 pub(crate) fn buffers_removed(editor: &mut Editor, removed_buffer_ids: &[BufferId], cx: &mut Context<Editor>) {
-    let mut removed_block_ids = HashSet::default();
+    let mut removed_block_ids = FxHashSet::default();
     let Some(conflict_addon) = editor.addon_mut::<ConflictAddon>() else {
         return;
     };
@@ -190,7 +190,7 @@ fn conflicts_updated(
     if let Some((buffer_conflicts, old_range)) = conflict_addon.buffers.get_mut(&buffer_id).zip(old_range.clone()) {
         let old_conflicts = buffer_conflicts.block_ids[old_range].to_owned();
         let mut removed_highlighted_ranges = Vec::new();
-        let mut removed_block_ids = HashSet::default();
+        let mut removed_block_ids = FxHashSet::default();
         for (conflict_range, block_id) in old_conflicts {
             let Some(range) = snapshot.buffer_anchor_range_to_anchor_range(conflict_range) else {
                 continue;
@@ -360,7 +360,7 @@ pub(crate) fn resolve_conflict(
                 editor.remove_highlighted_rows::<ConflictsTheirs>(vec![range.clone()], cx);
                 editor.remove_highlighted_rows::<ConflictsOursMarker>(vec![range.clone()], cx);
                 editor.remove_highlighted_rows::<ConflictsTheirsMarker>(vec![range], cx);
-                editor.remove_blocks(HashSet::from_iter([block_id]), None, cx);
+                editor.remove_blocks(FxHashSet::from_iter([block_id]), None, cx);
                 Some(())
             })
             .ok();

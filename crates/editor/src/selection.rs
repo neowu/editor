@@ -1481,17 +1481,17 @@ impl Editor {
             .disjoint_anchors()
             .iter()
             .map(|selection| (selection.id, selection))
-            .collect::<HashMap<_, _>>();
+            .collect::<FxHashMap<_, _>>();
         let unchanged = previous
             .iter()
             .filter(|selection| current.get(&selection.id) == Some(selection))
             .map(|selection| selection.id)
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
         let removed = previous
             .iter()
             .filter(|selection| !current.contains_key(&selection.id))
             .map(|selection| selection.id)
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
         if let Some(state) = &mut self.add_selections_state {
             Self::retain_add_selection_goals(state, &unchanged, &removed, &current);
             if state.groups.is_empty() {
@@ -1502,9 +1502,9 @@ impl Editor {
 
     fn retain_add_selection_goals<T>(
         state: &mut AddSelectionsState,
-        unchanged: &HashSet<usize>,
-        removed: &HashSet<usize>,
-        current: &HashMap<usize, &Selection<T>>,
+        unchanged: &FxHashSet<usize>,
+        removed: &FxHashSet<usize>,
+        current: &FxHashMap<usize, &Selection<T>>,
     ) {
         let skip_soft_wrap = state.skip_soft_wrap;
         state.groups.retain_mut(|group| {
@@ -1523,9 +1523,9 @@ impl Editor {
         previous: &[Selection<Point>],
         current: &[Selection<Point>],
     ) {
-        let current_by_id = current.iter().map(|selection| (selection.id, selection)).collect::<HashMap<_, _>>();
-        let mut unchanged = HashSet::default();
-        let mut removed = HashSet::default();
+        let current_by_id = current.iter().map(|selection| (selection.id, selection)).collect::<FxHashMap<_, _>>();
+        let mut unchanged = FxHashSet::default();
+        let mut removed = FxHashSet::default();
         for selection in previous {
             if let Some(current) = current_by_id.get(&selection.id) {
                 if **current == *selection {
@@ -1649,18 +1649,18 @@ impl Editor {
             Self::reconcile_add_selection_groups(&mut state, &previous, &all_selections);
         }
         let columnar_selection_ids =
-            state.groups.iter().flat_map(|group| group.stack.iter()).copied().collect::<HashSet<_>>();
+            state.groups.iter().flat_map(|group| group.stack.iter()).copied().collect::<FxHashSet<_>>();
         let columnar_rows = ColumnarSelectionRows::new(&display_map);
         let (mut columnar_selections, new_selections_to_columnarize) = all_selections
             .into_iter()
             .partition::<Vec<_>, _>(|selection| columnar_selection_ids.contains(&selection.id));
 
-        let mut goal_columns_by_selection_id = HashMap::default();
+        let mut goal_columns_by_selection_id = FxHashMap::default();
         let mut projected_selections = Vec::new();
         let mut projection_counts = vec![None; new_selections_to_columnarize.len()];
         if skip_soft_wrap {
             let selections_by_id =
-                columnar_selections.iter().map(|selection| (selection.id, selection)).collect::<HashMap<_, _>>();
+                columnar_selections.iter().map(|selection| (selection.id, selection)).collect::<FxHashMap<_, _>>();
             let mut sources = Vec::new();
             for group in &mut state.groups {
                 let Some(oldest_selection) = group.stack.first().and_then(|id| selections_by_id.get(id)) else {
@@ -1784,14 +1784,14 @@ impl Editor {
             }
         }
 
-        let mut last_added_item_per_group = HashMap::default();
+        let mut last_added_item_per_group = FxHashMap::default();
         for group in &mut state.groups {
             if let Some(last_id) = group.stack.last() {
                 last_added_item_per_group.insert(*last_id, group);
             }
         }
 
-        let mut next_logical_selections = HashMap::default();
+        let mut next_logical_selections = FxHashMap::default();
         if skip_soft_wrap {
             let queries = columnar_selections
                 .iter()

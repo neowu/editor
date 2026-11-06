@@ -36,7 +36,9 @@ use std::any::TypeId;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp;
+use std::collections::HashMap;
 use std::collections::VecDeque;
+use std::collections::hash_map;
 use std::env;
 use std::hash::Hash;
 use std::path::Path;
@@ -52,10 +54,6 @@ use std::time::Duration;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use collections::HashMap;
-use collections::HashSet;
-use collections::TypeIdHashMap;
-use collections::hash_map;
 use dock::Dock;
 use dock::DockPosition;
 pub use dock::Panel;
@@ -103,6 +101,7 @@ use gpui::WindowOptions;
 use gpui::actions;
 use gpui::point;
 use gpui::size;
+use gpui_util::TypeIdHashBuilder;
 pub use history_manager::*;
 pub use item::Item;
 pub use item::ItemHandle;
@@ -160,6 +159,8 @@ pub use remote::same_remote_connection_identity;
 use rpc::ErrorExt;
 use rpc::proto::ErrorCode;
 use rpc::proto::{self};
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use settings::Settings;
 use status_bar::StatusBar;
@@ -705,7 +706,7 @@ type BuildProjectItemForPathFn = fn(
 
 #[derive(Clone, Default)]
 struct ProjectItemRegistry {
-    build_project_item_fns_by_type: TypeIdHashMap<BuildProjectItemFn>,
+    build_project_item_fns_by_type: HashMap<TypeId, BuildProjectItemFn, TypeIdHashBuilder>,
     build_project_item_for_path_fns: Vec<BuildProjectItemForPathFn>,
 }
 
@@ -806,8 +807,8 @@ struct SerializableItemDescriptor {
 
 #[derive(Default)]
 struct SerializableItemRegistry {
-    descriptors_by_kind: HashMap<Arc<str>, SerializableItemDescriptor>,
-    descriptors_by_type: TypeIdHashMap<SerializableItemDescriptor>,
+    descriptors_by_kind: FxHashMap<Arc<str>, SerializableItemDescriptor>,
+    descriptors_by_type: HashMap<TypeId, SerializableItemDescriptor, TypeIdHashBuilder>,
 }
 
 impl Global for SerializableItemRegistry {}
@@ -885,7 +886,7 @@ pub struct PreviousWorkspaceState {
 }
 
 pub struct WorkspaceStore {
-    workspaces: HashSet<(gpui::AnyWindowHandle, WeakEntity<Workspace>)>,
+    workspaces: FxHashSet<(gpui::AnyWindowHandle, WeakEntity<Workspace>)>,
 }
 
 impl AppState {
@@ -1007,7 +1008,7 @@ type PromptForOpenPath = Box<
 
 #[derive(Default)]
 struct DispatchingKeystrokes {
-    dispatched: HashSet<Vec<Keystroke>>,
+    dispatched: FxHashSet<Vec<Keystroke>>,
     queue: VecDeque<Keystroke>,
     task: Option<Shared<Task<()>>>,
 }
@@ -1031,7 +1032,7 @@ pub struct Workspace {
     bottom_dock: Entity<Dock>,
     right_dock: Entity<Dock>,
     panes: Vec<Entity<Pane>>,
-    panes_by_item: HashMap<EntityId, WeakEntity<Pane>>,
+    panes_by_item: FxHashMap<EntityId, WeakEntity<Pane>>,
     active_pane: Entity<Pane>,
     last_active_center_pane: Option<WeakEntity<Pane>>,
     mode: WorkspaceMode,
@@ -1056,12 +1057,12 @@ pub struct Workspace {
     titlebar_item: Option<AnyView>,
     titlebar_focus_handle: FocusHandle,
     notifications: Notifications,
-    suppressed_notifications: HashSet<NotificationId>,
+    suppressed_notifications: FxHashSet<NotificationId>,
     project: Entity<Project>,
 
     window_edited: bool,
     last_window_title: Option<String>,
-    dirty_items: HashMap<EntityId, Subscription>,
+    dirty_items: FxHashMap<EntityId, Subscription>,
 
     app_state: Arc<AppState>,
     dispatching_keystrokes: Rc<RefCell<DispatchingKeystrokes>>,
@@ -1298,7 +1299,7 @@ impl Workspace {
             previous_dock_drag_coordinates: None,
             center,
             panes: vec![center_pane.clone()],
-            panes_by_item: HashMap::default(),
+            panes_by_item: FxHashMap::default(),
             active_pane: center_pane.clone(),
             last_active_center_pane: Some(center_pane.downgrade()),
             mode: WorkspaceMode::Editor,
@@ -1319,7 +1320,7 @@ impl Workspace {
             titlebar_item: None,
             titlebar_focus_handle: cx.focus_handle(),
             notifications: Notifications::default(),
-            suppressed_notifications: HashSet::default(),
+            suppressed_notifications: FxHashSet::default(),
             left_dock,
             bottom_dock,
             right_dock,
@@ -1329,7 +1330,7 @@ impl Workspace {
             dispatching_keystrokes: Rc::default(),
             window_edited: false,
             last_window_title: None,
-            dirty_items: HashMap::default(),
+            dirty_items: FxHashMap::default(),
 
             app_state,
 
@@ -1693,8 +1694,8 @@ impl Workspace {
         &self.project
     }
 
-    pub fn recently_activated_items(&self, cx: &App) -> HashMap<EntityId, usize> {
-        let mut history: HashMap<EntityId, usize> = HashMap::default();
+    pub fn recently_activated_items(&self, cx: &App) -> FxHashMap<EntityId, usize> {
+        let mut history: FxHashMap<EntityId, usize> = FxHashMap::default();
 
         for pane_handle in &self.panes {
             let pane = pane_handle.read(cx);
@@ -1713,7 +1714,7 @@ impl Workspace {
         let mut recent_timestamp = 0;
         for pane_handle in &self.panes {
             let pane = pane_handle.read(cx);
-            let item_map: HashMap<EntityId, &Box<dyn ItemHandle>> =
+            let item_map: FxHashMap<EntityId, &Box<dyn ItemHandle>> =
                 pane.items().map(|item| (item.item_id(), item)).collect();
             for entry in pane.activation_history() {
                 if entry.timestamp > recent_timestamp
@@ -1732,8 +1733,8 @@ impl Workspace {
         &self,
         cx: &App,
     ) -> impl Iterator<Item = (ProjectPath, Option<PathBuf>)> + use<> {
-        let mut abs_paths_opened: HashMap<PathBuf, HashSet<ProjectPath>> = HashMap::default();
-        let mut history: HashMap<ProjectPath, (Option<PathBuf>, usize)> = HashMap::default();
+        let mut abs_paths_opened: FxHashMap<PathBuf, FxHashSet<ProjectPath>> = FxHashMap::default();
+        let mut history: FxHashMap<ProjectPath, (Option<PathBuf>, usize)> = FxHashMap::default();
 
         for pane in &self.panes {
             let pane = pane.read(cx);
@@ -1785,7 +1786,7 @@ impl Workspace {
             .collect::<Vec<_>>();
 
         let mut seen_paths =
-            recent_history.iter().map(|(project_path, _)| project_path.clone()).collect::<HashSet<_>>();
+            recent_history.iter().map(|(project_path, _)| project_path.clone()).collect::<FxHashSet<_>>();
         let project = self.project.read(cx);
         for abs_path in &self.persisted_recent_navigation_history {
             let Some(project_path) = project.project_path_for_absolute_path(abs_path, cx) else {
@@ -1854,12 +1855,12 @@ impl Workspace {
                     && Workspace::history_path_is_removed(worktree, path, cx)
             })
             .map(|(path, _, _)| path.clone())
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
         if removed_paths.is_empty() {
             return;
         }
 
-        let (paths, absolute_paths): (HashSet<_>, HashSet<_>) = self
+        let (paths, absolute_paths): (FxHashSet<_>, FxHashSet<_>) = self
             .recent_navigation_history_iter(cx)
             .chain(self.persisted_recent_navigation_history.iter().filter_map(|absolute_path| {
                 let path = project.project_path_for_absolute_path(absolute_path, cx)?;
@@ -1903,7 +1904,7 @@ impl Workspace {
         }
 
         if changed {
-            let mut seen_paths = HashSet::default();
+            let mut seen_paths = FxHashSet::default();
             self.persisted_recent_navigation_history.retain(|path| seen_paths.insert(path.clone()));
         }
         changed
@@ -4641,7 +4642,7 @@ impl Workspace {
                 center_group = Some((group, active_pane))
             }
 
-            let mut items_by_project_path = HashMap::default();
+            let mut items_by_project_path = FxHashMap::default();
             cx.update(|_, cx| {
                 for item in center_items.unwrap_or_default().into_iter().flatten() {
                     if let Some(project_path) = item.project_path(cx) {
@@ -5438,7 +5439,7 @@ fn open_items(
             let restored_project_paths = restored_items
                 .iter()
                 .filter_map(|item| cx.update(|_, cx| item.as_ref()?.project_path(cx)).ok().flatten())
-                .collect::<HashSet<_>>();
+                .collect::<FxHashSet<_>>();
 
             for restored_item in restored_items {
                 opened_items.push(restored_item.map(Ok));
@@ -5680,7 +5681,7 @@ impl Render for Workspace {
 
 impl WorkspaceStore {
     pub fn new(_cx: &mut Context<Self>) -> Self {
-        Self { workspaces: HashSet::default() }
+        Self { workspaces: FxHashSet::default() }
     }
 
     pub fn workspaces(&self) -> impl Iterator<Item = &WeakEntity<Workspace>> {

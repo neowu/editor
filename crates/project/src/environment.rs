@@ -3,7 +3,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use collections::HashMap;
 use futures::FutureExt;
 use futures::StreamExt as _;
 use futures::channel::mpsc;
@@ -19,6 +18,7 @@ use language::Buffer;
 use remote::RemoteClient;
 use rpc::proto;
 use rpc::proto::REMOTE_SERVER_PROJECT_ID;
+use rustc_hash::FxHashMap;
 use task::Shell;
 use task::shell_to_proto;
 use util::ResultExt;
@@ -29,9 +29,9 @@ use crate::worktree_store::WorktreeStore;
 
 pub struct ProjectEnvironment {
     #[allow(clippy::type_complexity)]
-    local_environments: HashMap<(Shell, Arc<Path>), Shared<Task<Option<HashMap<String, String>>>>>,
+    local_environments: FxHashMap<(Shell, Arc<Path>), Shared<Task<Option<FxHashMap<String, String>>>>>,
     #[allow(clippy::type_complexity)]
-    remote_environments: HashMap<(Shell, Arc<Path>), Shared<Task<Option<HashMap<String, String>>>>>,
+    remote_environments: FxHashMap<(Shell, Arc<Path>), Shared<Task<Option<FxHashMap<String, String>>>>>,
     environment_error_messages: VecDeque<String>,
     environment_error_messages_tx: mpsc::UnboundedSender<String>,
     remote_client: Option<WeakEntity<RemoteClient>>,
@@ -62,8 +62,8 @@ impl ProjectEnvironment {
             }
         });
         Self {
-            local_environments: HashMap::default(),
-            remote_environments: HashMap::default(),
+            local_environments: FxHashMap::default(),
+            remote_environments: FxHashMap::default(),
             environment_error_messages: VecDeque::default(),
             environment_error_messages_tx: tx,
             remote_client,
@@ -77,7 +77,7 @@ impl ProjectEnvironment {
         buffer: &Entity<Buffer>,
         worktree_store: &Entity<WorktreeStore>,
         cx: &mut Context<Self>,
-    ) -> Shared<Task<Option<HashMap<String, String>>>> {
+    ) -> Shared<Task<Option<FxHashMap<String, String>>>> {
         let Some(worktree) = buffer
             .read(cx)
             .file()
@@ -93,7 +93,7 @@ impl ProjectEnvironment {
         &mut self,
         worktree: Entity<Worktree>,
         cx: &mut App,
-    ) -> Shared<Task<Option<HashMap<String, String>>>> {
+    ) -> Shared<Task<Option<FxHashMap<String, String>>>> {
         let worktree = worktree.read(cx);
         let mut abs_path = worktree.abs_path();
         if worktree.is_single_file() {
@@ -123,7 +123,7 @@ impl ProjectEnvironment {
         shell: &Shell,
         abs_path: Arc<Path>,
         cx: &mut App,
-    ) -> Shared<Task<Option<HashMap<String, String>>>> {
+    ) -> Shared<Task<Option<FxHashMap<String, String>>>> {
         self.local_environments
             .entry((shell.clone(), abs_path.clone()))
             .or_insert_with(|| {
@@ -163,7 +163,7 @@ impl ProjectEnvironment {
         abs_path: Arc<Path>,
         remote_client: Entity<RemoteClient>,
         cx: &mut App,
-    ) -> Shared<Task<Option<HashMap<String, String>>>> {
+    ) -> Shared<Task<Option<FxHashMap<String, String>>>> {
         self.remote_environments
             .entry((shell.clone(), abs_path.clone()))
             .or_insert_with(|| {
@@ -194,7 +194,7 @@ async fn load_directory_shell_environment(
     shell: Shell,
     abs_path: Arc<Path>,
     tx: mpsc::UnboundedSender<String>,
-) -> anyhow::Result<HashMap<String, String>> {
+) -> anyhow::Result<FxHashMap<String, String>> {
     let (shell, args) = shell.program_and_args();
     shell_env::capture(shell.clone(), args, abs_path).await.with_context(|| {
         tx.unbounded_send("Failed to load environment variables".into()).ok();

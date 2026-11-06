@@ -1,20 +1,20 @@
 use std::sync::LazyLock;
 
-use collections::HashMap;
 use gpui::SharedString;
+use rustc_hash::FxHashMap;
 
 /// The built-in file icon set. To change icons, replace the SVGs under
 /// `assets/icons/file_icons/` or edit the tables below.
 pub(crate) struct Icons {
     pub directory: FolderIcons,
-    pub named_directories: HashMap<String, FolderIcons>,
+    pub named_directories: FxHashMap<String, FolderIcons>,
     pub chevron: FolderIcons,
     /// File stem → icon key.
-    pub file_stems: HashMap<String, String>,
+    pub file_stems: FxHashMap<String, String>,
     /// File suffix → icon key.
-    pub file_suffixes: HashMap<String, String>,
+    pub file_suffixes: FxHashMap<String, String>,
     /// Icon key → icon path.
-    pub file_icons: HashMap<String, SharedString>,
+    pub file_icons: FxHashMap<String, SharedString>,
 }
 
 /// Collapsed / expanded icon pair.
@@ -330,8 +330,8 @@ const FILE_ICONS: &[(&str, &str)] = &[
 ];
 
 /// Returns a mapping of file associations to icon keys.
-fn icon_keys_by_association(associations_by_icon_key: &[(&str, &[&str])]) -> HashMap<String, String> {
-    let mut icon_keys_by_association = HashMap::default();
+fn icon_keys_by_association(associations_by_icon_key: &[(&str, &[&str])]) -> FxHashMap<String, String> {
+    let mut icon_keys_by_association = FxHashMap::default();
     for (icon_key, associations) in associations_by_icon_key {
         for association in *associations {
             icon_keys_by_association.insert(association.to_string(), icon_key.to_string());
@@ -346,7 +346,7 @@ pub(crate) static ICONS: LazyLock<Icons> = LazyLock::new(|| Icons {
         collapsed: "icons/file_icons/folder.svg".into(),
         expanded: "icons/file_icons/folder_open.svg".into(),
     },
-    named_directories: HashMap::default(),
+    named_directories: FxHashMap::default(),
     chevron: FolderIcons {
         collapsed: "icons/file_icons/chevron_right.svg".into(),
         expanded: "icons/file_icons/chevron_down.svg".into(),

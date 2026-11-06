@@ -6,17 +6,17 @@ use std::process;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use smol::process::Command;
 
 use crate::shell::ShellKind;
 
-fn parse_env_map_from_noisy_output(output: &str) -> Result<collections::HashMap<String, String>> {
+fn parse_env_map_from_noisy_output(output: &str) -> Result<rustc_hash::FxHashMap<String, String>> {
     for (position, _) in output.match_indices('{') {
         let candidate = &output[position..];
         let mut deserializer = serde_json::Deserializer::from_str(candidate);
-        if let Ok(env_map) = HashMap::<String, String>::deserialize(&mut deserializer) {
+        if let Ok(env_map) = FxHashMap::<String, String>::deserialize(&mut deserializer) {
             return Ok(env_map);
         }
     }
@@ -24,7 +24,7 @@ fn parse_env_map_from_noisy_output(output: &str) -> Result<collections::HashMap<
 }
 
 pub fn print_env() {
-    let env_vars: HashMap<String, String> = env::vars().collect();
+    let env_vars: FxHashMap<String, String> = env::vars().collect();
     let json = serde_json::to_string_pretty(&env_vars).unwrap_or_else(|err| {
         eprintln!("Error serializing environment variables: {}", err);
         process::exit(1);
@@ -37,7 +37,7 @@ pub async fn capture(
     shell_path: impl AsRef<Path>,
     args: &[String],
     directory: impl AsRef<Path>,
-) -> Result<collections::HashMap<String, String>> {
+) -> Result<rustc_hash::FxHashMap<String, String>> {
     return capture_unix(shell_path.as_ref(), args, directory.as_ref()).await;
 }
 
@@ -51,7 +51,7 @@ fn parse_env_output(
     status: &process::ExitStatus,
     successful_capture_warning: impl FnOnce() -> String,
     failed_capture_error: impl FnOnce() -> String,
-) -> Result<collections::HashMap<String, String>> {
+) -> Result<rustc_hash::FxHashMap<String, String>> {
     match parse_env_map_from_noisy_output(env_output) {
         Ok(env_map) => {
             if !status.success() {
@@ -76,7 +76,7 @@ async fn capture_unix(
     shell_path: &Path,
     args: &[String],
     directory: &Path,
-) -> Result<collections::HashMap<String, String>> {
+) -> Result<rustc_hash::FxHashMap<String, String>> {
     use crate::command::new_std_command;
 
     let shell_kind = ShellKind::new(shell_path);

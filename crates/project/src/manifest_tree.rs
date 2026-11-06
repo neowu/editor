@@ -12,7 +12,6 @@ use std::collections::hash_map::Entry;
 use std::ops::ControlFlow;
 use std::sync::Arc;
 
-use collections::HashMap;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Context;
@@ -25,6 +24,7 @@ pub use manifest_store::ManifestProvidersStore;
 use path_trie::LabelPresence;
 use path_trie::RootPathTrie;
 use path_trie::TriePath;
+use rustc_hash::FxHashMap;
 pub(crate) use server_tree::LanguageServerTree;
 pub(crate) use server_tree::LanguageServerTreeNode;
 pub(crate) use server_tree::LaunchDisposition;
@@ -74,7 +74,7 @@ impl WorktreeRoots {
 }
 
 pub struct ManifestTree {
-    root_points: HashMap<WorktreeId, Entity<WorktreeRoots>>,
+    root_points: FxHashMap<WorktreeId, Entity<WorktreeRoots>>,
     worktree_store: Entity<WorktreeStore>,
     _subscriptions: [Subscription; 2],
 }
@@ -82,7 +82,7 @@ pub struct ManifestTree {
 impl ManifestTree {
     pub fn new(worktree_store: Entity<WorktreeStore>, cx: &mut App) -> Entity<Self> {
         cx.new(|cx| Self {
-            root_points: HashMap::default(),
+            root_points: FxHashMap::default(),
             _subscriptions: [
                 cx.subscribe(&worktree_store, Self::on_worktree_store_event),
                 cx.observe_global::<SettingsStore>(|this, cx| {

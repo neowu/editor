@@ -8,7 +8,6 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use anyhow::Result;
 use buffer_diff::BufferDiff;
-use collections::HashMap;
 use editor::Addon;
 use editor::DiffViewStyle;
 use editor::EXCERPT_CONTEXT_LINES;
@@ -71,6 +70,7 @@ use project::git_store::CommitDiff;
 use project::git_store::CommitFile;
 use project::git_store::Repository;
 use project::git_store::UnshallowState;
+use rustc_hash::FxHashMap;
 use theme::ActiveTheme;
 use ui::ContextMenu;
 use ui::DiffStat;
@@ -247,7 +247,7 @@ struct LoadedCommitFile {
 }
 
 struct CommitDiffAddon {
-    file_statuses: HashMap<language::BufferId, FileStatus>,
+    file_statuses: FxHashMap<language::BufferId, FileStatus>,
     commit_view: WeakEntity<CommitView>,
 }
 
@@ -532,7 +532,7 @@ impl CommitView {
             );
             editor.set_diff_hunk_renderer(Some(Arc::new(HiddenDiffHunkRenderer)), cx);
             editor.rhs_editor().update(cx, |editor, _cx| {
-                editor.register_addon(CommitDiffAddon { file_statuses: HashMap::default(), commit_view });
+                editor.register_addon(CommitDiffAddon { file_statuses: FxHashMap::default(), commit_view });
                 editor.set_semantics_provider(Some(semantics_provider.clone()));
             });
 
@@ -1440,11 +1440,11 @@ fn shows_sidebar_beside_other_tab(
 
 #[cfg(test)]
 mod tests {
-    use collections::HashMap;
     use editor::Addon;
     use git::repository::RepoPath;
     use gpui::WeakEntity;
     use project::git_store::CommitFile;
+    use rustc_hash::FxHashMap;
 
     use super::CommitDiffAddon;
     use super::InitialFile;
@@ -1489,13 +1489,13 @@ mod tests {
 
     #[test]
     fn test_commit_diff_addon_open_file_label() {
-        let addon = CommitDiffAddon { file_statuses: HashMap::default(), commit_view: WeakEntity::new_invalid() };
+        let addon = CommitDiffAddon { file_statuses: FxHashMap::default(), commit_view: WeakEntity::new_invalid() };
         assert_eq!(addon.open_file_label(), Some("Open Revision"));
     }
 
     #[test]
     fn test_commit_diff_addon_hides_project_file_actions() {
-        let addon = CommitDiffAddon { file_statuses: HashMap::default(), commit_view: WeakEntity::new_invalid() };
+        let addon = CommitDiffAddon { file_statuses: FxHashMap::default(), commit_view: WeakEntity::new_invalid() };
         assert!(!addon.shows_project_file_actions());
     }
 

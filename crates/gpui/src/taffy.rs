@@ -5,8 +5,8 @@ use std::hash::Hasher;
 use std::mem;
 use std::ops::Range;
 
-use collections::FxHashMap;
-use collections::FxHashSet;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use taffy::TaffyTree;
 use taffy::TraversePartialTree as _;
 use taffy::geometry::Point as TaffyPoint;

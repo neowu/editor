@@ -4,8 +4,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context as _;
-use collections::HashMap;
-use collections::HashSet;
 use futures::FutureExt as _;
 use futures::future::Shared;
 use futures::future::join_all;
@@ -20,6 +18,8 @@ use language::Buffer;
 use lsp::LanguageServerId;
 use rpc::TypedEnvelope;
 use rpc::proto;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::Settings as _;
 use text::Anchor;
 use util::ResultExt as _;
@@ -44,8 +44,8 @@ pub(super) type FoldingRangeTask = Shared<Task<result::Result<Vec<LspFoldingRang
 
 #[derive(Debug, Default)]
 pub(super) struct FoldingRangeData {
-    pub(super) ranges: HashMap<LanguageServerId, Vec<LspFoldingRange>>,
-    fetched_servers: HashSet<LanguageServerId>,
+    pub(super) ranges: FxHashMap<LanguageServerId, Vec<LspFoldingRange>>,
+    fetched_servers: FxHashSet<LanguageServerId>,
     ranges_update: Option<RunningFetch<FoldingRangeTask>>,
 }
 
@@ -226,9 +226,9 @@ impl LspStore {
     fn fetch_folding_ranges_for_buffer(
         &mut self,
         buffer: &Entity<Buffer>,
-        for_servers: Option<HashSet<LanguageServerId>>,
+        for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<Option<HashMap<LanguageServerId, Vec<LspFoldingRange>>>>> {
+    ) -> Task<anyhow::Result<Option<FxHashMap<LanguageServerId, Vec<LspFoldingRange>>>>> {
         if let Some((client, project_id)) = self.upstream_client() {
             let request = GetFoldingRanges;
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
@@ -276,7 +276,7 @@ impl LspStore {
                             None
                         }
                     })
-                    .collect::<HashMap<_, _>>();
+                    .collect::<FxHashMap<_, _>>();
                 anyhow::ensure!(!has_errors || !result.is_empty(), "Failed to fetch folding ranges");
                 Ok(Some(result))
             })

@@ -78,7 +78,10 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::cmp::Reverse;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::collections::VecDeque;
+use std::collections::btree_map;
 use std::convert::TryInto;
 use std::ffi::OsStr;
 use std::iter;
@@ -102,11 +105,6 @@ use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use clock::Global;
-use collections::BTreeMap;
-use collections::BTreeSet;
-use collections::HashMap;
-use collections::HashSet;
-use collections::btree_map;
 pub use document_colors::DocumentColors;
 pub use document_links::BufferDocumentLinks;
 pub use document_links::DocumentLinkId;
@@ -234,6 +232,8 @@ use rpc::TypedEnvelope;
 use rpc::proto;
 use rpc::proto::LspRequestId;
 use rpc::proto::LspRequestMessage as _;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 pub use semantic_tokens::BufferSemanticToken;
 pub use semantic_tokens::BufferSemanticTokens;
 pub use semantic_tokens::SemanticTokenStylizer;
@@ -436,7 +436,7 @@ impl FormatTrigger {
 #[derive(Clone)]
 struct UnifiedLanguageServer {
     id: LanguageServerId,
-    project_roots: HashSet<Arc<RelPath>>,
+    project_roots: FxHashSet<Arc<RelPath>>,
 }
 
 /// Settings that affect language server identity.
@@ -483,38 +483,38 @@ pub struct LocalLspStore {
     environment: Entity<ProjectEnvironment>,
     fs: Arc<dyn Fs>,
     languages: Arc<LanguageRegistry>,
-    language_server_ids: HashMap<LanguageServerSeed, UnifiedLanguageServer>,
-    pub language_servers: HashMap<LanguageServerId, LanguageServerState>,
-    buffers_being_formatted: HashSet<BufferId>,
-    last_workspace_edits_by_language_server: HashMap<LanguageServerId, ProjectTransaction>,
-    language_server_watched_paths: HashMap<LanguageServerId, LanguageServerWatchedPaths>,
-    watched_manifest_filenames: HashSet<ManifestName>,
-    language_server_paths_watched_for_rename: HashMap<LanguageServerId, RenamePathsWatchedForServer>,
-    language_server_dynamic_registrations: HashMap<LanguageServerId, DynamicRegistrations>,
-    initial_server_capabilities: HashMap<LanguageServerId, lsp::ServerCapabilities>,
+    language_server_ids: FxHashMap<LanguageServerSeed, UnifiedLanguageServer>,
+    pub language_servers: FxHashMap<LanguageServerId, LanguageServerState>,
+    buffers_being_formatted: FxHashSet<BufferId>,
+    last_workspace_edits_by_language_server: FxHashMap<LanguageServerId, ProjectTransaction>,
+    language_server_watched_paths: FxHashMap<LanguageServerId, LanguageServerWatchedPaths>,
+    watched_manifest_filenames: FxHashSet<ManifestName>,
+    language_server_paths_watched_for_rename: FxHashMap<LanguageServerId, RenamePathsWatchedForServer>,
+    language_server_dynamic_registrations: FxHashMap<LanguageServerId, DynamicRegistrations>,
+    initial_server_capabilities: FxHashMap<LanguageServerId, lsp::ServerCapabilities>,
     next_diagnostic_group_id: usize,
     #[allow(clippy::type_complexity)]
-    diagnostics: HashMap<
+    diagnostics: FxHashMap<
         WorktreeId,
-        HashMap<Arc<RelPath>, Vec<(LanguageServerId, Vec<DiagnosticEntry<Unclipped<PointUtf16>>>)>>,
+        FxHashMap<Arc<RelPath>, Vec<(LanguageServerId, Vec<DiagnosticEntry<Unclipped<PointUtf16>>>)>>,
     >,
-    buffer_snapshots: HashMap<BufferId, HashMap<LanguageServerId, Vec<LspBufferSnapshot>>>, // buffer_id -> server_id -> vec of snapshots
+    buffer_snapshots: FxHashMap<BufferId, FxHashMap<LanguageServerId, Vec<LspBufferSnapshot>>>, // buffer_id -> server_id -> vec of snapshots
     _subscription: gpui::Subscription,
     _binary_status_task: Task<()>,
     lsp_tree: LanguageServerTree,
-    registered_buffers: HashMap<BufferId, usize>,
-    buffers_opened_in_servers: HashMap<BufferId, HashSet<LanguageServerId>>,
+    registered_buffers: FxHashMap<BufferId, usize>,
+    buffers_opened_in_servers: FxHashMap<BufferId, FxHashSet<LanguageServerId>>,
     #[allow(clippy::type_complexity)]
     buffer_pull_diagnostics_result_ids:
-        HashMap<LanguageServerId, HashMap<Option<SharedString>, HashMap<PathBuf, Option<SharedString>>>>,
+        FxHashMap<LanguageServerId, FxHashMap<Option<SharedString>, FxHashMap<PathBuf, Option<SharedString>>>>,
     #[allow(clippy::type_complexity)]
     workspace_pull_diagnostics_result_ids:
-        HashMap<LanguageServerId, HashMap<Option<SharedString>, HashMap<PathBuf, Option<SharedString>>>>,
+        FxHashMap<LanguageServerId, FxHashMap<Option<SharedString>, FxHashMap<PathBuf, Option<SharedString>>>>,
     auto_start_language_servers: bool,
-    language_server_start_overrides: HashMap<LanguageServerName, bool>,
+    language_server_start_overrides: FxHashMap<LanguageServerName, bool>,
     language_server_restart_tasks: Vec<Task<()>>,
 
-    buffers_to_refresh_hash_set: HashSet<BufferId>,
+    buffers_to_refresh_hash_set: FxHashSet<BufferId>,
     buffers_to_refresh_queue: VecDeque<BufferId>,
     _background_diagnostics_worker: Shared<Task<()>>,
 }
@@ -756,7 +756,7 @@ impl LocalLspStore {
         self.language_servers.insert(server_id, state);
         self.language_server_ids
             .entry(key)
-            .or_insert(UnifiedLanguageServer { id: server_id, project_roots: HashSet::default() });
+            .or_insert(UnifiedLanguageServer { id: server_id, project_roots: FxHashSet::default() });
         server_id
     }
 
@@ -2623,7 +2623,7 @@ impl LocalLspStore {
         origin_seed.worktree_id = worktree_id;
         self.language_server_ids
             .entry(origin_seed)
-            .or_insert_with(|| UnifiedLanguageServer { id: language_server_id, project_roots: HashSet::default() });
+            .or_insert_with(|| UnifiedLanguageServer { id: language_server_id, project_roots: FxHashSet::default() });
     }
 
     fn language_server_line_length_limit_exceeded(buffer: &Buffer, cx: &App) -> Option<(u32, u32)> {
@@ -2635,7 +2635,7 @@ impl LocalLspStore {
     fn register_buffer_with_language_servers(
         &mut self,
         buffer_handle: &Entity<Buffer>,
-        only_register_servers: HashSet<LanguageServerSelector>,
+        only_register_servers: FxHashSet<LanguageServerSelector>,
         start_mode: LanguageServerStartMode,
         cx: &mut Context<LspStore>,
     ) {
@@ -2809,7 +2809,7 @@ impl LocalLspStore {
                         (*worktree_id, LanguageServerTreeNode::from(Arc::downgrade(server_node)))
                     })
             })
-            .fold(HashMap::default(), |mut acc, (worktree_id, server_node)| {
+            .fold(FxHashMap::default(), |mut acc, (worktree_id, server_node)| {
                 acc.entry(worktree_id).or_insert_with(Vec::new).push(server_node);
                 acc
             })
@@ -3426,7 +3426,7 @@ impl LocalLspStore {
         self.diagnostics.remove(&id_to_remove);
 
         let mut servers_to_remove = BTreeSet::default();
-        let mut servers_to_preserve = HashSet::default();
+        let mut servers_to_preserve = FxHashSet::default();
         for (seed, state) in &self.language_server_ids {
             if seed.worktree_id == id_to_remove {
                 servers_to_remove.insert(state.id);
@@ -3746,16 +3746,16 @@ impl LocalLspStore {
 /// language server statuses have not synced yet, while data of genuinely removed servers
 /// is cleaned up via the `remove_server_data` methods.
 fn missing_servers_to_query<T>(
-    cached: &mut HashMap<LanguageServerId, T>,
-    fetched_servers: &mut HashSet<LanguageServerId>,
-    current_servers: &HashSet<LanguageServerId>,
-) -> Option<HashSet<LanguageServerId>> {
+    cached: &mut FxHashMap<LanguageServerId, T>,
+    fetched_servers: &mut FxHashSet<LanguageServerId>,
+    current_servers: &FxHashSet<LanguageServerId>,
+) -> Option<FxHashSet<LanguageServerId>> {
     if current_servers.is_empty() {
         return None;
     }
     cached.retain(|server_id, _| current_servers.contains(server_id));
     fetched_servers.retain(|server_id| current_servers.contains(server_id));
-    let missing_servers = current_servers.difference(fetched_servers).copied().collect::<HashSet<_>>();
+    let missing_servers = current_servers.difference(fetched_servers).copied().collect::<FxHashSet<_>>();
     if missing_servers.is_empty() { None } else { Some(missing_servers) }
 }
 
@@ -3763,7 +3763,7 @@ fn missing_servers_to_query<T>(
 /// Evictions are per-server, so a missing set larger than one is rare: fall back to an
 /// unfiltered query then, which is correct as the extra results merely refresh the
 /// non-missing servers' cache entries.
-fn upstream_lsp_query_server_filter(for_servers: Option<&HashSet<LanguageServerId>>) -> Option<u64> {
+fn upstream_lsp_query_server_filter(for_servers: Option<&FxHashSet<LanguageServerId>>) -> Option<u64> {
     let servers = for_servers?;
     if servers.len() == 1 { servers.iter().next().map(|server_id| server_id.to_proto()) } else { None }
 }
@@ -3777,7 +3777,7 @@ fn next_lsp_fetch_id() -> u64 {
 struct RunningFetch<T> {
     id: u64,
     version: Global,
-    servers: HashSet<LanguageServerId>,
+    servers: FxHashSet<LanguageServerId>,
     task: T,
 }
 
@@ -3824,7 +3824,7 @@ struct SyncedServerCapabilities {
 pub struct FormattableBuffer {
     handle: Entity<Buffer>,
     abs_path: Option<PathBuf>,
-    env: Option<HashMap<String, String>>,
+    env: Option<FxHashMap<String, String>>,
     ranges: Option<Vec<Range<Anchor>>>,
 }
 
@@ -3856,13 +3856,15 @@ pub struct LspStore {
     active_entry: Option<ProjectEntryId>,
     _maintain_workspace_config: (Task<Result<()>>, watch::Sender<()>),
     _maintain_buffer_languages: Task<()>,
-    diagnostic_summaries: HashMap<WorktreeId, HashMap<Arc<RelPath>, HashMap<LanguageServerId, DiagnosticSummary>>>,
-    pub lsp_server_capabilities: HashMap<LanguageServerId, lsp::ServerCapabilities>,
-    lsp_server_initial_capabilities: HashMap<LanguageServerId, lsp::ServerCapabilities>,
-    lsp_server_text_document_registrations: HashMap<LanguageServerId, dynamic_registration::TextDocumentRegistrations>,
+    diagnostic_summaries:
+        FxHashMap<WorktreeId, FxHashMap<Arc<RelPath>, FxHashMap<LanguageServerId, DiagnosticSummary>>>,
+    pub lsp_server_capabilities: FxHashMap<LanguageServerId, lsp::ServerCapabilities>,
+    lsp_server_initial_capabilities: FxHashMap<LanguageServerId, lsp::ServerCapabilities>,
+    lsp_server_text_document_registrations:
+        FxHashMap<LanguageServerId, dynamic_registration::TextDocumentRegistrations>,
     semantic_token_config: SemanticTokenConfig,
-    lsp_data: HashMap<BufferId, BufferLspData>,
-    buffer_reload_tasks: HashMap<BufferId, Task<anyhow::Result<()>>>,
+    lsp_data: FxHashMap<BufferId, BufferLspData>,
+    buffer_reload_tasks: FxHashMap<BufferId, Task<anyhow::Result<()>>>,
     next_hint_id: Arc<AtomicUsize>,
 }
 
@@ -3876,8 +3878,8 @@ pub struct BufferLspData {
     document_links: Option<DocumentLinksData>,
     document_symbols: Option<DocumentSymbolsData>,
     inlay_hints: BufferInlayHints,
-    lsp_requests: HashMap<LspKey, HashMap<LspRequestId, Task<()>>>,
-    chunk_lsp_requests: HashMap<LspKey, HashMap<RowChunk, LspRequestId>>,
+    lsp_requests: FxHashMap<LspKey, FxHashMap<LspRequestId, Task<()>>>,
+    chunk_lsp_requests: FxHashMap<LspKey, FxHashMap<RowChunk, LspRequestId>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -3898,8 +3900,8 @@ impl BufferLspData {
             document_links: None,
             document_symbols: None,
             inlay_hints: BufferInlayHints::new(buffer, cx),
-            lsp_requests: HashMap::default(),
-            chunk_lsp_requests: HashMap::default(),
+            lsp_requests: FxHashMap::default(),
+            chunk_lsp_requests: FxHashMap::default(),
         }
     }
 
@@ -3973,7 +3975,7 @@ pub struct LanguageServerStatus {
     pub server_readable_version: Option<SharedString>,
     pub pending_work: BTreeMap<ProgressToken, LanguageServerProgress>,
     pub has_pending_diagnostic_updates: bool,
-    pub progress_tokens: HashSet<ProgressToken>,
+    pub progress_tokens: FxHashSet<ProgressToken>,
     pub worktree: Option<WorktreeId>,
     pub binary: Option<LanguageServerBinary>,
     pub configuration: Option<Value>,
@@ -4140,32 +4142,32 @@ impl LspStore {
                 worktree_store: worktree_store.clone(),
 
                 languages: languages.clone(),
-                language_server_ids: HashMap::default(),
-                language_servers: HashMap::default(),
-                last_workspace_edits_by_language_server: HashMap::default(),
-                language_server_watched_paths: HashMap::default(),
-                language_server_paths_watched_for_rename: HashMap::default(),
-                language_server_dynamic_registrations: HashMap::default(),
-                initial_server_capabilities: HashMap::default(),
-                buffers_being_formatted: HashSet::default(),
-                buffers_to_refresh_hash_set: HashSet::default(),
+                language_server_ids: FxHashMap::default(),
+                language_servers: FxHashMap::default(),
+                last_workspace_edits_by_language_server: FxHashMap::default(),
+                language_server_watched_paths: FxHashMap::default(),
+                language_server_paths_watched_for_rename: FxHashMap::default(),
+                language_server_dynamic_registrations: FxHashMap::default(),
+                initial_server_capabilities: FxHashMap::default(),
+                buffers_being_formatted: FxHashSet::default(),
+                buffers_to_refresh_hash_set: FxHashSet::default(),
                 buffers_to_refresh_queue: VecDeque::new(),
                 _background_diagnostics_worker: Task::ready(()).shared(),
-                buffer_snapshots: HashMap::default(),
+                buffer_snapshots: FxHashMap::default(),
                 environment,
                 fs,
                 next_diagnostic_group_id: Default::default(),
-                diagnostics: HashMap::default(),
+                diagnostics: FxHashMap::default(),
                 _subscription: cx
                     .on_app_quit(|this, _| this.as_local_mut().unwrap().shutdown_language_servers_on_quit()),
                 _binary_status_task: binary_status_task,
                 lsp_tree: LanguageServerTree::new(manifest_tree, languages.clone()),
-                registered_buffers: HashMap::default(),
-                buffers_opened_in_servers: HashMap::default(),
-                buffer_pull_diagnostics_result_ids: HashMap::default(),
-                workspace_pull_diagnostics_result_ids: HashMap::default(),
+                registered_buffers: FxHashMap::default(),
+                buffers_opened_in_servers: FxHashMap::default(),
+                buffer_pull_diagnostics_result_ids: FxHashMap::default(),
+                workspace_pull_diagnostics_result_ids: FxHashMap::default(),
                 auto_start_language_servers: true,
-                language_server_start_overrides: HashMap::default(),
+                language_server_start_overrides: FxHashMap::default(),
                 language_server_restart_tasks: Vec::new(),
                 watched_manifest_filenames: ManifestProvidersStore::global(cx).manifest_file_names(),
             }),
@@ -4176,13 +4178,13 @@ impl LspStore {
             languages: languages.clone(),
             language_server_statuses: BTreeMap::default(),
             nonce: rand::make_rng::<StdRng>().random(),
-            diagnostic_summaries: HashMap::default(),
-            lsp_server_capabilities: HashMap::default(),
-            lsp_server_initial_capabilities: HashMap::default(),
-            lsp_server_text_document_registrations: HashMap::default(),
+            diagnostic_summaries: FxHashMap::default(),
+            lsp_server_capabilities: FxHashMap::default(),
+            lsp_server_initial_capabilities: FxHashMap::default(),
+            lsp_server_text_document_registrations: FxHashMap::default(),
             semantic_token_config: SemanticTokenConfig::new(cx),
-            lsp_data: HashMap::default(),
-            buffer_reload_tasks: HashMap::default(),
+            lsp_data: FxHashMap::default(),
+            buffer_reload_tasks: FxHashMap::default(),
             next_hint_id: Arc::default(),
             active_entry: None,
             _maintain_workspace_config,
@@ -4239,14 +4241,14 @@ impl LspStore {
             languages: languages.clone(),
             language_server_statuses: BTreeMap::default(),
             nonce: rand::make_rng::<StdRng>().random(),
-            diagnostic_summaries: HashMap::default(),
-            lsp_server_capabilities: HashMap::default(),
-            lsp_server_initial_capabilities: HashMap::default(),
-            lsp_server_text_document_registrations: HashMap::default(),
+            diagnostic_summaries: FxHashMap::default(),
+            lsp_server_capabilities: FxHashMap::default(),
+            lsp_server_initial_capabilities: FxHashMap::default(),
+            lsp_server_text_document_registrations: FxHashMap::default(),
             semantic_token_config: SemanticTokenConfig::new(cx),
             next_hint_id: Arc::default(),
-            lsp_data: HashMap::default(),
-            buffer_reload_tasks: HashMap::default(),
+            lsp_data: FxHashMap::default(),
+            buffer_reload_tasks: FxHashMap::default(),
             active_entry: None,
 
             _maintain_workspace_config,
@@ -4277,7 +4279,7 @@ impl LspStore {
                     if local.registered_buffers.contains_key(&buffer_id) {
                         local.register_buffer_with_language_servers(
                             buffer,
-                            HashSet::default(),
+                            FxHashSet::default(),
                             LanguageServerStartMode::Automatic,
                             cx,
                         );
@@ -4367,7 +4369,7 @@ impl LspStore {
 
     pub fn refresh_background_diagnostics_for_buffers(
         &mut self,
-        buffers: HashSet<BufferId>,
+        buffers: FxHashSet<BufferId>,
         cx: &mut Context<Self>,
     ) -> Shared<Task<()>> {
         let Some(local) = self.as_local_mut() else {
@@ -4418,7 +4420,7 @@ impl LspStore {
     pub(crate) fn register_buffer_with_language_servers(
         &mut self,
         buffer: &Entity<Buffer>,
-        only_register_servers: HashSet<LanguageServerSelector>,
+        only_register_servers: FxHashSet<LanguageServerSelector>,
         cx: &mut Context<Self>,
     ) -> OpenLspBufferHandle {
         let buffer_id = buffer.read(cx).remote_id();
@@ -4594,7 +4596,7 @@ impl LspStore {
                                 if local.registered_buffers.contains_key(&buffer.read(cx).remote_id()) {
                                     local.register_buffer_with_language_servers(
                                         &buffer,
-                                        HashSet::default(),
+                                        FxHashSet::default(),
                                         LanguageServerStartMode::Automatic,
                                         cx,
                                     );
@@ -4610,7 +4612,7 @@ impl LspStore {
                                 if local.registered_buffers.contains_key(&buffer.read(cx).remote_id()) {
                                     local.register_buffer_with_language_servers(
                                         &buffer,
-                                        HashSet::default(),
+                                        FxHashSet::default(),
                                         LanguageServerStartMode::Automatic,
                                         cx,
                                     );
@@ -4676,7 +4678,7 @@ impl LspStore {
         {
             local.register_buffer_with_language_servers(
                 buffer_entity,
-                HashSet::default(),
+                FxHashSet::default(),
                 LanguageServerStartMode::Automatic,
                 cx,
             );
@@ -4758,21 +4760,21 @@ impl LspStore {
         &self,
         buffer: &Entity<Buffer>,
         cx: &App,
-    ) -> HashSet<LanguageServerId> {
+    ) -> FxHashSet<LanguageServerId> {
         let buffer_id = buffer.read(cx).remote_id();
         if let Some(local) = self.as_local() {
             return local.buffers_opened_in_servers.get(&buffer_id).into_iter().flatten().copied().collect();
         }
 
         let Some(language) = buffer.read(cx).language().cloned() else {
-            return HashSet::default();
+            return FxHashSet::default();
         };
         let registered_language_servers = self
             .languages
             .lsp_adapters(&language.name())
             .into_iter()
             .map(|lsp_adapter| lsp_adapter.name())
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
         self.language_server_statuses
             .iter()
             .filter_map(|(server_id, server_status)| {
@@ -5572,7 +5574,7 @@ impl LspStore {
 
     pub fn apply_code_action_kind(
         &mut self,
-        buffers: HashSet<Entity<Buffer>>,
+        buffers: FxHashSet<Entity<Buffer>>,
         kind: CodeActionKind,
         push_to_history: bool,
         cx: &mut Context<Self>,
@@ -6317,7 +6319,7 @@ impl LspStore {
                     cx,
                 )
             })
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
 
         cx.spawn(async move |lsp_store, cx| {
             let request_timeout =
@@ -6906,9 +6908,9 @@ impl LspStore {
         invalidate: InvalidationStrategy,
         buffer: Entity<Buffer>,
         ranges: Vec<Range<text::Anchor>>,
-        known_chunks: Option<(clock::Global, HashSet<Range<BufferRow>>)>,
+        known_chunks: Option<(clock::Global, FxHashSet<Range<BufferRow>>)>,
         cx: &mut Context<Self>,
-    ) -> HashMap<Range<BufferRow>, Task<Result<CacheInlayHints>>> {
+    ) -> FxHashMap<Range<BufferRow>, Task<Result<CacheInlayHints>>> {
         let next_hint_id = self.next_hint_id.clone();
         let capability_probe =
             InlayHints { range: text::Anchor::min_max_range_for_buffer(buffer.read(cx).remote_id()) };
@@ -6921,7 +6923,7 @@ impl LspStore {
         let existing_inlay_hints = &mut lsp_data.inlay_hints;
         existing_inlay_hints.fetched_servers.retain(|server_id| current_servers.contains(server_id));
         let missing_servers =
-            current_servers.difference(&existing_inlay_hints.fetched_servers).copied().collect::<HashSet<_>>();
+            current_servers.difference(&existing_inlay_hints.fetched_servers).copied().collect::<FxHashSet<_>>();
         let known_chunks = known_chunks
             .filter(|(known_version, _)| !query_version.changed_since(known_version))
             .map(|(_, known_chunks)| known_chunks)
@@ -6935,10 +6937,10 @@ impl LspStore {
             .filter(|chunk| !known_chunks.contains(&chunk.row_range()))
             .collect::<Vec<_>>();
         if applicable_chunks.is_empty() {
-            return HashMap::default();
+            return FxHashMap::default();
         }
 
-        let mut chunk_hint_tasks = HashMap::default();
+        let mut chunk_hint_tasks = FxHashMap::default();
         for chunk in applicable_chunks {
             let cached_hints = existing_inlay_hints.cached_hints(&chunk).cloned();
             let running_fetch = existing_inlay_hints.fetched_hints(&chunk).clone();
@@ -7058,15 +7060,15 @@ impl LspStore {
 
     fn fetch_inlay_hints(
         &mut self,
-        for_servers: Option<HashSet<LanguageServerId>>,
+        for_servers: Option<FxHashSet<LanguageServerId>>,
         buffer: &Entity<Buffer>,
         range: Range<Anchor>,
         cx: &mut Context<Self>,
-    ) -> Task<Result<HashMap<LanguageServerId, Vec<InlayHint>>>> {
+    ) -> Task<Result<FxHashMap<LanguageServerId, Vec<InlayHint>>>> {
         let request = InlayHints { range: range.clone() };
         if let Some((upstream_client, project_id)) = self.upstream_client() {
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
-                return Task::ready(Ok(HashMap::default()));
+                return Task::ready(Ok(FxHashMap::default()));
             }
             let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
             let request_task = upstream_client.request_lsp(
@@ -7079,10 +7081,10 @@ impl LspStore {
             let buffer = buffer.clone();
             cx.spawn(async move |weak_lsp_store, cx| {
                 let Some(lsp_store) = weak_lsp_store.upgrade() else {
-                    return Ok(HashMap::default());
+                    return Ok(FxHashMap::default());
                 };
                 let Some(responses) = request_task.await? else {
-                    return Ok(HashMap::default());
+                    return Ok(FxHashMap::default());
                 };
 
                 let inlay_hints = join_all(responses.payload.into_iter().map(|response| {
@@ -7114,7 +7116,7 @@ impl LspStore {
                     .map(|(server_id, new_hints)| {
                         (server_id, inlay_hints::hints_in_range(new_hints, &range, &buffer_snapshot))
                     })
-                    .collect::<HashMap<_, _>>();
+                    .collect::<FxHashMap<_, _>>();
                 anyhow::ensure!(!has_errors || !inlay_hints.is_empty(), "Failed to fetch inlay hints");
                 Ok(inlay_hints)
             })
@@ -7191,7 +7193,7 @@ impl LspStore {
                     return;
                 }
 
-                let mut unchanged_buffers = HashMap::default();
+                let mut unchanged_buffers = FxHashMap::default();
                 let server_diagnostics_updates = diagnostics
                     .into_iter()
                     .filter_map(|diagnostics_set| match diagnostics_set {
@@ -7203,12 +7205,12 @@ impl LspStore {
                     .filter(|(server_id, _, _, registration_id)| {
                         lsp_store.diagnostic_registration_exists(*server_id, registration_id)
                     })
-                    .fold(HashMap::default(), |mut acc, (server_id, uri, diagnostics, new_registration_id)| {
+                    .fold(FxHashMap::default(), |mut acc, (server_id, uri, diagnostics, new_registration_id)| {
                         let (result_id, diagnostics) = match diagnostics {
                             PulledDiagnostics::Unchanged { result_id } => {
                                 unchanged_buffers
                                     .entry(new_registration_id.clone())
-                                    .or_insert_with(HashSet::default)
+                                    .or_insert_with(FxHashSet::default)
                                     .insert(uri.clone());
                                 (Some(result_id), Vec::new())
                             }
@@ -7223,7 +7225,7 @@ impl LspStore {
                                 .to_vec(),
                         );
                         acc.entry(server_id)
-                            .or_insert_with(HashMap::default)
+                            .or_insert_with(FxHashMap::default)
                             .entry(new_registration_id.clone())
                             .or_insert_with(Vec::new)
                             .push(DocumentDiagnosticsUpdate {
@@ -7668,7 +7670,7 @@ impl LspStore {
 
     async fn refresh_workspace_configurations(lsp_store: &WeakEntity<Self>, cx: &mut AsyncApp) {
         async move {
-            let mut refreshed_servers = HashSet::default();
+            let mut refreshed_servers = FxHashSet::default();
             let servers = lsp_store
                 .update(cx, |lsp_store, cx| {
                     let local = lsp_store.as_local()?;
@@ -7778,7 +7780,7 @@ impl LspStore {
         })
     }
 
-    pub fn language_server_ids_for_opened_buffer(&self, buffer_id: BufferId) -> Option<&HashSet<LanguageServerId>> {
+    pub fn language_server_ids_for_opened_buffer(&self, buffer_id: BufferId) -> Option<&FxHashSet<LanguageServerId>> {
         self.as_local()?.buffers_opened_in_servers.get(&buffer_id)
     }
 
@@ -7840,7 +7842,7 @@ impl LspStore {
         };
 
         let mut cleared_paths: Vec<ProjectPath> = Vec::new();
-        let mut cleared_server_ids: HashSet<LanguageServerId> = HashSet::default();
+        let mut cleared_server_ids: FxHashSet<LanguageServerId> = FxHashSet::default();
         let downstream = self.downstream_client.clone();
 
         for (path, _, _) in changes.iter().filter(|(_, _, change)| *change == PathChange::Removed) {
@@ -7946,7 +7948,7 @@ impl LspStore {
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
         let mut diagnostics_summary = None::<proto::UpdateDiagnosticSummary>;
-        let mut updated_diagnostics_paths = HashMap::default();
+        let mut updated_diagnostics_paths = FxHashMap::default();
         for mut update in diagnostic_updates {
             let abs_path = &update.diagnostics.document_abs_path;
             let server_id = update.server_id;
@@ -8228,7 +8230,7 @@ impl LspStore {
         buffer: &Entity<Buffer>,
         request: &R,
         cx: &mut App,
-    ) -> HashSet<LanguageServerId>
+    ) -> FxHashSet<LanguageServerId>
     where
         R: LspCommand,
     {
@@ -8278,7 +8280,7 @@ impl LspStore {
         &mut self,
         buffer: &Entity<Buffer>,
         request: R,
-        only_servers: Option<&HashSet<LanguageServerId>>,
+        only_servers: Option<&FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,
     ) -> Task<Vec<(LanguageServerId, R::Response)>>
     where
@@ -8764,7 +8766,7 @@ impl LspStore {
     ) -> Result<()> {
         this.update(&mut cx, |lsp_store, cx| {
             let worktree_id = WorktreeId::from_proto(envelope.payload.worktree_id);
-            let mut updated_diagnostics_paths = HashMap::default();
+            let mut updated_diagnostics_paths = FxHashMap::default();
             let mut diagnostics_summary = None::<proto::UpdateDiagnosticSummary>;
             for message_summary in envelope.payload.summary.into_iter().chain(envelope.payload.more_summaries) {
                 let project_path = ProjectPath {
@@ -8858,7 +8860,7 @@ impl LspStore {
                     server_readable_version: None,
                     pending_work: BTreeMap::default(),
                     has_pending_diagnostic_updates: false,
-                    progress_tokens: HashSet::default(),
+                    progress_tokens: FxHashSet::default(),
                     worktree: server.worktree_id.map(WorktreeId::from_proto),
                     binary: None,
                     configuration: None,
@@ -9812,7 +9814,7 @@ impl LspStore {
         &self,
         buffer: &Entity<Buffer>,
         cx: &mut Context<Self>,
-    ) -> Shared<Task<Option<HashMap<String, String>>>> {
+    ) -> Shared<Task<Option<FxHashMap<String, String>>>> {
         if let Some(environment) = &self.as_local().map(|local| local.environment.clone()) {
             environment.update(cx, |env, cx| env.buffer_environment(buffer, &self.worktree_store, cx))
         } else {
@@ -9822,7 +9824,7 @@ impl LspStore {
 
     pub fn format(
         &mut self,
-        buffers: HashSet<Entity<Buffer>>,
+        buffers: FxHashSet<Entity<Buffer>>,
         target: LspFormatTarget,
         push_to_history: bool,
         trigger: FormatTrigger,
@@ -9917,7 +9919,7 @@ impl LspStore {
     ) -> Result<proto::FormatBuffersResponse> {
         let sender_id = envelope.original_sender_id().unwrap_or_default();
         let format = this.update(&mut cx, |this, cx| {
-            let mut buffers = HashSet::default();
+            let mut buffers = FxHashSet::default();
             for buffer_id in &envelope.payload.buffer_ids {
                 let buffer_id = BufferId::new(*buffer_id)?;
                 buffers.insert(this.buffer_store.read(cx).get_existing(buffer_id)?);
@@ -9959,7 +9961,7 @@ impl LspStore {
     ) -> Result<proto::ApplyCodeActionKindResponse> {
         let sender_id = envelope.original_sender_id().unwrap_or_default();
         let format = this.update(&mut cx, |this, cx| {
-            let mut buffers = HashSet::default();
+            let mut buffers = FxHashSet::default();
             for buffer_id in &envelope.payload.buffer_ids {
                 let buffer_id = BufferId::new(*buffer_id)?;
                 buffers.insert(this.buffer_store.read(cx).get_existing(buffer_id)?);
@@ -10163,13 +10165,13 @@ impl LspStore {
             local.language_server_start_overrides.clear();
         }
         let buffers = self.buffer_store.read(cx).buffers().collect();
-        self.restart_language_servers_for_buffers(buffers, HashSet::default(), cx);
+        self.restart_language_servers_for_buffers(buffers, FxHashSet::default(), cx);
     }
 
     pub fn restart_language_servers_for_buffers(
         &mut self,
         buffers: Vec<Entity<Buffer>>,
-        only_restart_servers: HashSet<LanguageServerSelector>,
+        only_restart_servers: FxHashSet<LanguageServerSelector>,
         cx: &mut Context<Self>,
     ) {
         if let Some((client, project_id)) = self.upstream_client() {
@@ -10206,7 +10208,7 @@ impl LspStore {
     pub fn stop_language_servers_for_buffers(
         &mut self,
         buffers: Vec<Entity<Buffer>>,
-        also_stop_servers: HashSet<LanguageServerSelector>,
+        also_stop_servers: FxHashSet<LanguageServerSelector>,
         cx: &mut Context<Self>,
     ) -> Task<Result<()>> {
         if let Some((client, project_id)) = self.upstream_client() {
@@ -10248,7 +10250,7 @@ impl LspStore {
     fn restart_local_language_servers_for_buffers(
         &mut self,
         buffers: Vec<Entity<Buffer>>,
-        only_restart_servers: HashSet<LanguageServerSelector>,
+        only_restart_servers: FxHashSet<LanguageServerSelector>,
         start_mode: LanguageServerStartMode,
         cx: &mut Context<Self>,
     ) {
@@ -10257,7 +10259,7 @@ impl LspStore {
         };
         local.language_server_restart_tasks.retain(|task| !task.is_ready());
         let (_, stop_task) = if only_restart_servers.is_empty() {
-            self.stop_local_language_servers_for_buffers(&buffers, HashSet::default(), cx)
+            self.stop_local_language_servers_for_buffers(&buffers, FxHashSet::default(), cx)
         } else {
             self.stop_local_language_servers_for_buffers(&[], only_restart_servers.clone(), cx)
         };
@@ -10291,11 +10293,11 @@ impl LspStore {
     fn stop_local_language_servers_for_buffers(
         &mut self,
         buffers: &[Entity<Buffer>],
-        also_stop_servers: HashSet<LanguageServerSelector>,
+        also_stop_servers: FxHashSet<LanguageServerSelector>,
         cx: &mut Context<Self>,
-    ) -> (HashSet<LanguageServerName>, Task<()>) {
+    ) -> (FxHashSet<LanguageServerName>, Task<()>) {
         let Some(local) = self.as_local_mut() else {
-            return (HashSet::default(), Task::ready(()));
+            return (FxHashSet::default(), Task::ready(()));
         };
         let mut language_server_names_to_stop = BTreeSet::default();
         let mut language_servers_to_stop = also_stop_servers
@@ -10309,7 +10311,7 @@ impl LspStore {
             })
             .collect::<BTreeSet<_>>();
 
-        let mut covered_worktrees = HashSet::default();
+        let mut covered_worktrees = FxHashSet::default();
         for buffer in buffers {
             buffer.update(cx, |buffer, cx| {
                 language_servers_to_stop.extend(local.language_server_ids_for_buffer(buffer, cx));
@@ -10333,7 +10335,7 @@ impl LspStore {
                 .extend(local.language_server_ids.iter().filter_map(|(seed, v)| seed.name.eq(&name).then_some(v.id)));
         }
 
-        let stopped_names: HashSet<LanguageServerName> = language_servers_to_stop
+        let stopped_names: FxHashSet<LanguageServerName> = language_servers_to_stop
             .iter()
             .filter_map(|id| {
                 local.language_server_ids.iter().find(|(_, state)| state.id == *id).map(|(seed, _)| seed.name.clone())
@@ -10391,9 +10393,9 @@ impl LspStore {
         registration_id: Option<SharedString>,
     ) -> DocumentDiagnostics {
         let mut diagnostics = Vec::default();
-        let mut primary_diagnostic_group_ids = HashMap::default();
-        let mut sources_by_group_id = HashMap::default();
-        let mut supporting_diagnostics = HashMap::default();
+        let mut primary_diagnostic_group_ids = FxHashMap::default();
+        let mut sources_by_group_id = FxHashMap::default();
+        let mut supporting_diagnostics = FxHashMap::default();
 
         let adapter = self.language_server_adapter_for_id(server_id);
 
@@ -10583,7 +10585,7 @@ impl LspStore {
                 server_readable_version: language_server.readable_version(),
                 pending_work: BTreeMap::default(),
                 has_pending_diagnostic_updates: false,
-                progress_tokens: HashSet::default(),
+                progress_tokens: FxHashSet::default(),
                 worktree: Some(key.worktree_id),
                 binary: Some(language_server.binary().clone()),
                 configuration: Some(language_server.configuration().clone()),
@@ -10630,7 +10632,7 @@ impl LspStore {
 
         let mut buffer_paths_registered = Vec::new();
         self.buffer_store.clone().update(cx, |buffer_store, cx| {
-            let mut lsp_adapters = HashMap::default();
+            let mut lsp_adapters = FxHashMap::default();
             for buffer_handle in buffer_store.buffers() {
                 let buffer = buffer_handle.read(cx);
                 let file = match File::from_dyn(buffer.file()) {
@@ -10752,7 +10754,7 @@ impl LspStore {
                 .flat_map(|buffer| {
                     buffer.update(cx, |buffer, cx| local.language_server_ids_for_buffer(buffer, cx).into_iter())
                 })
-                .collect::<HashSet<_>>();
+                .collect::<FxHashSet<_>>();
             for server_id in servers {
                 self.cancel_language_server_work(server_id, None, cx);
             }
@@ -11121,9 +11123,9 @@ impl LspStore {
         &self,
         server_id: LanguageServerId,
         registration_id: &Option<SharedString>,
-    ) -> HashMap<PathBuf, SharedString> {
+    ) -> FxHashMap<PathBuf, SharedString> {
         let Some(local) = self.as_local() else {
-            return HashMap::default();
+            return FxHashMap::default();
         };
         local
             .workspace_pull_diagnostics_result_ids
@@ -11166,7 +11168,7 @@ impl LspStore {
         let Some(local) = self.as_local_mut() else {
             return Task::ready(()).shared();
         };
-        let mut buffers_to_refresh = HashSet::default();
+        let mut buffers_to_refresh = FxHashSet::default();
         for (buffer_id, server_ids) in &local.buffers_opened_in_servers {
             if server_ids.contains(&server_id) && Some(buffer_id) != source_buffer_id.as_ref() {
                 buffers_to_refresh.insert(*buffer_id);
@@ -11218,7 +11220,7 @@ impl LspStore {
             }
             LspPullDiagnostics::Default => false,
         });
-        let mut unchanged_buffers = HashMap::default();
+        let mut unchanged_buffers = FxHashMap::default();
         let workspace_diagnostics_updates = workspace_diagnostics
             .into_iter()
             .filter_map(|workspace_diagnostics| match workspace_diagnostics.diagnostics {
@@ -11227,12 +11229,12 @@ impl LspStore {
                 }
                 LspPullDiagnostics::Default => None,
             })
-            .fold(HashMap::default(), |mut acc, (server_id, uri, diagnostics, version, new_registration_id)| {
+            .fold(FxHashMap::default(), |mut acc, (server_id, uri, diagnostics, version, new_registration_id)| {
                 let (result_id, diagnostics) = match diagnostics {
                     PulledDiagnostics::Unchanged { result_id } => {
                         unchanged_buffers
                             .entry(new_registration_id.clone())
-                            .or_insert_with(HashSet::default)
+                            .or_insert_with(FxHashSet::default)
                             .insert(uri.clone());
                         (Some(result_id), Vec::new())
                     }
@@ -11269,7 +11271,7 @@ impl LspStore {
                 // Since we actively pull diagnostics for documents with open buffers, we ignore contents of workspace pulls for these documents.
                 if self.buffer_store.read(cx).get_by_path(&project_path).is_none() {
                     acc.entry(server_id)
-                        .or_insert_with(HashMap::default)
+                        .or_insert_with(FxHashMap::default)
                         .entry(new_registration_id.clone())
                         .or_insert_with(Vec::new)
                         .push(DocumentDiagnosticsUpdate {
@@ -11310,7 +11312,7 @@ impl LspStore {
         cleared_registration_id: SharedString,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
-        let mut affected_abs_paths: HashSet<PathBuf> = HashSet::default();
+        let mut affected_abs_paths: FxHashSet<PathBuf> = FxHashSet::default();
 
         self.buffer_store.update(cx, |buffer_store, cx| {
             for buffer_handle in buffer_store.buffers() {
@@ -11486,7 +11488,7 @@ impl LspStore {
                                                 .into(),
                                         )
                                     })
-                                    .collect::<HashMap<_, _>>();
+                                    .collect::<FxHashMap<_, _>>();
                                 match client.send_lsp_response::<T::ProtoRequest>(
                                     project_id,
                                     sender_id,
@@ -11514,7 +11516,7 @@ impl LspStore {
         lsp_request_id: LspRequestId,
         buffer: &Entity<Buffer>,
         buffer_version: Global,
-        fetch_task: Task<HashMap<LanguageServerId, T::Response>>,
+        fetch_task: Task<FxHashMap<LanguageServerId, T::Response>>,
         cx: &mut Context<Self>,
     ) where
         T: LspCommand + 'static,
@@ -11546,7 +11548,7 @@ impl LspStore {
                                     T::response_to_proto(response, lsp_store, sender_id, &buffer_version, cx).into(),
                                 )
                             })
-                            .collect::<HashMap<_, _>>();
+                            .collect::<FxHashMap<_, _>>();
                         if let Err(e) =
                             client.send_lsp_response::<T::ProtoRequest>(project_id, sender_id, lsp_request_id, response)
                         {
@@ -11643,7 +11645,9 @@ fn document_selector_matches(
 fn remote_text_document_capabilities_match(
     initial_capabilities: Option<&lsp::ServerCapabilities>,
     merged_capabilities: Option<&lsp::ServerCapabilities>,
-    registrations: Option<&collections::IndexMap<String, dynamic_registration::DynamicTextDocumentRegistration>>,
+    registrations: Option<
+        &indexmap::IndexMap<String, dynamic_registration::DynamicTextDocumentRegistration, rustc_hash::FxBuildHasher>,
+    >,
     context: Option<&DocumentSelectorContext>,
     mut check: impl FnMut(AdapterServerCapabilities<'_>) -> bool,
 ) -> bool {
@@ -12412,14 +12416,14 @@ impl RenameActionPredicate {
 
 #[derive(Default)]
 struct LanguageServerWatchedPaths {
-    worktree_paths: HashMap<WorktreeId, LazyGlobSet>,
-    abs_paths: HashMap<Arc<Path>, (LazyGlobSet, Task<()>)>,
+    worktree_paths: FxHashMap<WorktreeId, LazyGlobSet>,
+    abs_paths: FxHashMap<Arc<Path>, (LazyGlobSet, Task<()>)>,
 }
 
 #[derive(Default)]
 struct LazyGlobSet {
     /// Globs keyed by registration ID.
-    globs: HashMap<String, Vec<Glob>>,
+    globs: FxHashMap<String, Vec<Glob>>,
     /// Compiled from `globs`, lazily on `is_match`. `None` when stale.
     compiled: Option<GlobSet>,
 }
@@ -12647,7 +12651,7 @@ pub enum LanguageServerState {
         adapter: Arc<CachedLspAdapter>,
         server: Arc<LanguageServer>,
         simulate_disk_based_diagnostics_completion: Option<Task<()>>,
-        workspace_diagnostics_refresh_tasks: HashMap<Option<String>, WorkspaceRefreshTask>,
+        workspace_diagnostics_refresh_tasks: FxHashMap<Option<String>, WorkspaceRefreshTask>,
     },
 }
 
@@ -12848,7 +12852,7 @@ pub struct LocalLspAdapterDelegate {
     worktree: worktree::Snapshot,
     fs: Arc<dyn Fs>,
     language_registry: Arc<LanguageRegistry>,
-    load_shell_env_task: Shared<Task<Option<HashMap<String, String>>>>,
+    load_shell_env_task: Shared<Task<Option<FxHashMap<String, String>>>>,
 }
 
 impl LocalLspAdapterDelegate {
@@ -12884,7 +12888,7 @@ impl LspAdapterDelegate for LocalLspAdapterDelegate {
         self.worktree.resolve_relative_path(path)
     }
 
-    async fn shell_env(&self) -> HashMap<String, String> {
+    async fn shell_env(&self) -> FxHashMap<String, String> {
         let task = self.load_shell_env_task.clone();
         task.await.unwrap_or_default()
     }
@@ -12956,7 +12960,7 @@ async fn populate_labels_for_symbols(
     output: &mut Vec<Symbol>,
 ) {
     #[allow(clippy::mutable_key_type)]
-    let mut symbols_by_language = HashMap::<Option<Arc<Language>>, Vec<CoreSymbol>>::default();
+    let mut symbols_by_language = FxHashMap::<Option<Arc<Language>>, Vec<CoreSymbol>>::default();
 
     let mut unknown_paths = BTreeSet::<Arc<str>>::new();
     for symbol in symbols {

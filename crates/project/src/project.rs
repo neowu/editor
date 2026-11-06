@@ -59,8 +59,6 @@ use buffer_store::BufferStore;
 use buffer_store::BufferStoreEvent;
 pub use buffer_store::ProjectTransaction;
 use clock::ReplicaId;
-use collections::HashMap;
-use collections::HashSet;
 pub use environment::ProjectEnvironment;
 pub use fs::*;
 use futures::StreamExt;
@@ -154,6 +152,8 @@ use rpc::TypedEnvelope;
 use rpc::proto;
 use rpc::proto::LanguageServerPromptResponse;
 use rpc::proto::REMOTE_SERVER_PROJECT_ID;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use search::SearchInputKind;
 use search::SearchQuery;
 use search::SearchResult;
@@ -232,14 +232,14 @@ pub struct Project {
     image_store: Entity<ImageStore>,
     lsp_store: Entity<LspStore>,
     _subscriptions: Vec<gpui::Subscription>,
-    buffers_needing_diff: HashSet<WeakEntity<Buffer>>,
+    buffers_needing_diff: FxHashSet<WeakEntity<Buffer>>,
     remotely_created_models: Arc<Mutex<RemotelyCreatedModels>>,
     terminals: Terminals,
     search_history: SearchHistory,
     search_included_history: SearchHistory,
     search_excluded_history: SearchHistory,
     environment: Entity<ProjectEnvironment>,
-    downloading_files: Arc<Mutex<HashMap<(WorktreeId, String), DownloadingFile>>>,
+    downloading_files: Arc<Mutex<FxHashMap<(WorktreeId, String), DownloadingFile>>>,
 }
 
 struct DownloadingFile {
@@ -1048,7 +1048,7 @@ impl Project {
                 fs,
                 remote_client: None,
 
-                buffers_needing_diff: HashSet::default(),
+                buffers_needing_diff: FxHashSet::default(),
                 terminals: Terminals { local_handles: Vec::new() },
                 search_history: Self::new_search_history(),
                 environment,
@@ -1164,7 +1164,7 @@ impl Project {
 
                 fs,
                 remote_client: Some(remote.clone()),
-                buffers_needing_diff: HashSet::default(),
+                buffers_needing_diff: FxHashSet::default(),
                 terminals: Terminals { local_handles: Vec::new() },
                 search_history: Self::new_search_history(),
                 environment,
@@ -1763,8 +1763,9 @@ impl Project {
     }
 
     pub fn register_buffer_with_language_servers(&self, buffer: &Entity<Buffer>, cx: &mut App) -> OpenLspBufferHandle {
-        self.lsp_store
-            .update(cx, |lsp_store, cx| lsp_store.register_buffer_with_language_servers(buffer, HashSet::default(), cx))
+        self.lsp_store.update(cx, |lsp_store, cx| {
+            lsp_store.register_buffer_with_language_servers(buffer, FxHashSet::default(), cx)
+        })
     }
 
     pub fn open_unstaged_diff(
@@ -1851,7 +1852,7 @@ impl Project {
         self.git_store.update(cx, |git_store, cx| git_store.unstage_staged_hunks(staged_diff, index_ranges, cx))
     }
 
-    pub fn save_buffers(&self, buffers: HashSet<Entity<Buffer>>, cx: &mut Context<Self>) -> Task<Result<()>> {
+    pub fn save_buffers(&self, buffers: FxHashSet<Entity<Buffer>>, cx: &mut Context<Self>) -> Task<Result<()>> {
         cx.spawn(async move |this, cx| {
             let save_tasks =
                 buffers.into_iter().filter_map(|buffer| this.update(cx, |this, cx| this.save_buffer(buffer, cx)).ok());
@@ -2231,7 +2232,7 @@ impl Project {
     pub fn restart_language_servers_for_buffers(
         &mut self,
         buffers: Vec<Entity<Buffer>>,
-        only_restart_servers: HashSet<LanguageServerSelector>,
+        only_restart_servers: FxHashSet<LanguageServerSelector>,
         cx: &mut Context<Self>,
     ) {
         self.lsp_store.update(cx, |lsp_store, cx| {
@@ -2242,7 +2243,7 @@ impl Project {
     pub fn stop_language_servers_for_buffers(
         &mut self,
         buffers: Vec<Entity<Buffer>>,
-        also_restart_servers: HashSet<LanguageServerSelector>,
+        also_restart_servers: FxHashSet<LanguageServerSelector>,
         cx: &mut Context<Self>,
     ) {
         self.lsp_store
@@ -2284,20 +2285,20 @@ impl Project {
 
     pub fn reload_buffers(
         &self,
-        buffers: HashSet<Entity<Buffer>>,
+        buffers: FxHashSet<Entity<Buffer>>,
         push_to_history: bool,
         cx: &mut Context<Self>,
     ) -> Task<Result<ProjectTransaction>> {
         self.buffer_store.update(cx, |buffer_store, cx| buffer_store.reload_buffers(buffers, push_to_history, cx))
     }
 
-    pub fn reload_images(&self, images: HashSet<Entity<ImageItem>>, cx: &mut Context<Self>) -> Task<Result<()>> {
+    pub fn reload_images(&self, images: FxHashSet<Entity<ImageItem>>, cx: &mut Context<Self>) -> Task<Result<()>> {
         self.image_store.update(cx, |image_store, cx| image_store.reload_images(images, cx))
     }
 
     pub fn format(
         &mut self,
-        buffers: HashSet<Entity<Buffer>>,
+        buffers: FxHashSet<Entity<Buffer>>,
         target: LspFormatTarget,
         push_to_history: bool,
         trigger: lsp_store::FormatTrigger,
@@ -2480,7 +2481,7 @@ impl Project {
 
     pub fn apply_code_action_kind(
         &self,
-        buffers: HashSet<Entity<Buffer>>,
+        buffers: FxHashSet<Entity<Buffer>>,
         kind: CodeActionKind,
         push_to_history: bool,
         cx: &mut Context<Self>,
@@ -3143,7 +3144,7 @@ impl Project {
         use proto::create_file_for_peer::Variant;
         log::debug!("handle_create_file_for_peer: received message");
 
-        let downloading_files: Arc<Mutex<HashMap<(WorktreeId, String), DownloadingFile>>> =
+        let downloading_files: Arc<Mutex<FxHashMap<(WorktreeId, String), DownloadingFile>>> =
             this.update(&mut cx, |this, _| this.downloading_files.clone());
 
         match &envelope.payload.variant {
@@ -3295,7 +3296,7 @@ impl Project {
                 .lsp_adapters(&language.name())
                 .into_iter()
                 .map(|lsp_adapter| lsp_adapter.name())
-                .collect::<HashSet<_>>();
+                .collect::<FxHashSet<_>>();
             lsp_store
                 .language_server_statuses()
                 .filter_map(|(server_id, server_status)| {
@@ -3316,7 +3317,7 @@ impl Project {
             .lsp_adapters(&language.name())
             .into_iter()
             .map(|lsp_adapter| lsp_adapter.name())
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
         lsp_store
             .language_server_statuses()
             .filter_map(|(server_id, server_status)| {
@@ -3341,7 +3342,7 @@ impl Project {
             .lsp_adapters(&language.name())
             .into_iter()
             .map(|lsp_adapter| lsp_adapter.name())
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
         lsp_store
             .language_server_statuses()
             .filter_map(|(server_id, server_status)| {
@@ -3363,7 +3364,7 @@ impl Project {
             .lsp_adapters(&language.name())
             .into_iter()
             .map(|lsp_adapter| lsp_adapter.name())
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
         if !relevant_language_servers.contains(name) {
             return None;
         }
@@ -3397,7 +3398,7 @@ impl Project {
         self.git_store.read(cx).active_repository()
     }
 
-    pub fn repositories<'a>(&self, cx: &'a App) -> &'a HashMap<RepositoryId, Entity<Repository>> {
+    pub fn repositories<'a>(&self, cx: &'a App) -> &'a FxHashMap<RepositoryId, Entity<Repository>> {
         self.git_store.read(cx).repositories()
     }
 

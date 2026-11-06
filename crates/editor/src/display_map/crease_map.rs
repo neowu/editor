@@ -5,8 +5,6 @@ use std::fmt::Formatter;
 use std::ops::Range;
 use std::sync::Arc;
 
-use collections::HashMap;
-use collections::HashSet;
 use gpui::AnyElement;
 use gpui::IntoElement;
 use multi_buffer::Anchor;
@@ -14,6 +12,8 @@ use multi_buffer::AnchorRangeExt;
 use multi_buffer::MultiBufferRow;
 use multi_buffer::MultiBufferSnapshot;
 use multi_buffer::ToPoint;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use serde::Serialize;
 use sum_tree::Bias;
@@ -34,7 +34,7 @@ pub struct CreaseId(usize);
 pub struct CreaseMap {
     snapshot: CreaseSnapshot,
     next_id: CreaseId,
-    id_to_range: HashMap<CreaseId, Range<Anchor>>,
+    id_to_range: FxHashMap<CreaseId, Range<Anchor>>,
 }
 
 impl CreaseMap {
@@ -42,7 +42,7 @@ impl CreaseMap {
         CreaseMap {
             snapshot: CreaseSnapshot::new(snapshot),
             next_id: CreaseId::default(),
-            id_to_range: HashMap::default(),
+            id_to_range: FxHashMap::default(),
         }
     }
 }
@@ -255,7 +255,7 @@ impl CreaseMap {
         snapshot: &MultiBufferSnapshot,
     ) -> Vec<(CreaseId, Range<Anchor>)> {
         let mut removals = Vec::new();
-        let mut ids_to_remove = HashSet::default();
+        let mut ids_to_remove = FxHashSet::default();
         for id in ids {
             if let Some(range) = self.id_to_range.remove(&id) {
                 ids_to_remove.insert(id);

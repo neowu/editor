@@ -13,8 +13,6 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
-use collections::HashSet;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Context;
@@ -38,6 +36,8 @@ use project::Project;
 use project::ProjectPath;
 use project::ProjectTransaction;
 use project::WorktreeId;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use spell_check::PROJECT_WORDS_FILE;
 use text::BufferId;
 use text::OffsetRangeExt as _;
@@ -56,7 +56,7 @@ const GIT_SCISSORS: &str = "# ------------------------ >8 ----------------------
 #[derive(Default)]
 pub(crate) struct SpellCheckState {
     refresh_task: Option<Task<()>>,
-    project_words: HashMap<WorktreeId, ProjectWords>,
+    project_words: FxHashMap<WorktreeId, ProjectWords>,
     /// Shared with [`SpellCheckActions`], which runs while the editor is
     /// being updated and so cannot read it.
     #[allow(clippy::type_complexity)]
@@ -64,7 +64,7 @@ pub(crate) struct SpellCheckState {
 }
 
 struct ProjectWords {
-    words: Arc<HashSet<String>>,
+    words: Arc<FxHashSet<String>>,
     _load: Task<()>,
     /// Held strongly: the project only keeps a weak handle, and a dropped
     /// buffer would stop reporting edits and reloads of the file.
@@ -154,7 +154,7 @@ impl Editor {
     /// Words from `spellcheck.txt` at the root of the buffer's worktree, if
     /// the file exists. The file is opened as a buffer, so unsaved edits to it
     /// apply immediately, and remote projects work the same way.
-    fn project_words(&mut self, buffer: &Entity<Buffer>, cx: &mut Context<Self>) -> Arc<HashSet<String>> {
+    fn project_words(&mut self, buffer: &Entity<Buffer>, cx: &mut Context<Self>) -> Arc<FxHashSet<String>> {
         let Some(project) = self.project.clone() else {
             return Arc::default();
         };
@@ -210,7 +210,7 @@ impl Editor {
     fn update_project_words(&mut self, worktree_id: WorktreeId, buffer: &Entity<Buffer>, cx: &mut Context<Self>) {
         let buffer = buffer.read(cx);
         let deleted = buffer.file().is_some_and(|file| file.disk_state() == language::DiskState::Deleted);
-        let words = if deleted { HashSet::default() } else { spell_check::parse_project_words(&buffer.text()) };
+        let words = if deleted { FxHashSet::default() } else { spell_check::parse_project_words(&buffer.text()) };
         if let Some(entry) = self.spell_check.as_mut().and_then(|state| state.project_words.get_mut(&worktree_id)) {
             entry.words = Arc::new(words);
             self.refresh_spell_check(cx);
@@ -273,7 +273,7 @@ fn misspelled_ranges(
     snapshot: &BufferSnapshot,
     range: Range<BufferOffset>,
     mode: CheckMode,
-    words: &HashSet<String>,
+    words: &FxHashSet<String>,
 ) -> Vec<Range<usize>> {
     // Whole lines, so no word is cut at the edge of the visible range.
     let start_row = snapshot.offset_to_point(range.start.0).row;

@@ -1,16 +1,16 @@
+use std::collections::BTreeMap;
 use std::collections::hash_map::IntoIter;
 use std::sync::Arc;
 
-use collections::BTreeMap;
-use collections::HashMap;
 use gpui::Rgba;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::AllLanguageSettingsContent;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct LspSettingsMap(pub HashMap<Arc<str>, LspSettings>);
+pub struct LspSettingsMap(pub FxHashMap<Arc<str>, LspSettings>);
 
 impl IntoIterator for LspSettingsMap {
     type Item = (Arc<str>, LspSettings);

@@ -8,8 +8,6 @@ use std::slice;
 use std::sync::OnceLock;
 
 use anyhow::anyhow;
-use collections::HashMap;
-use collections::HashSet;
 use gpui::Bounds;
 use gpui::DevicePixels;
 use gpui::Font;
@@ -65,6 +63,8 @@ use objc2_core_text::kCTFontAttributeName;
 use objc2_core_text::kCTFontFamilyNameAttribute;
 use parking_lot::RwLock;
 use parking_lot::RwLockUpgradableReadGuard;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 
 use crate::font;
@@ -84,10 +84,10 @@ struct FontKey {
 struct AppleTextSystemState {
     memory_fonts: Vec<SyncFont>,
     fonts: Vec<SyncFont>,
-    font_selections: HashMap<Font, FontId>,
-    font_ids_by_postscript_name: HashMap<String, FontId>,
-    font_ids_by_font_key: HashMap<FontKey, SmallVec<[FontId; 4]>>,
-    postscript_names_by_font_id: HashMap<FontId, String>,
+    font_selections: FxHashMap<Font, FontId>,
+    font_ids_by_postscript_name: FxHashMap<String, FontId>,
+    font_ids_by_font_key: FxHashMap<FontKey, SmallVec<[FontId; 4]>>,
+    postscript_names_by_font_id: FxHashMap<FontId, String>,
 }
 
 impl AppleTextSystem {
@@ -96,10 +96,10 @@ impl AppleTextSystem {
         Self(RwLock::new(AppleTextSystemState {
             memory_fonts: Vec::new(),
             fonts: Vec::new(),
-            font_selections: HashMap::default(),
-            font_ids_by_postscript_name: HashMap::default(),
-            font_ids_by_font_key: HashMap::default(),
-            postscript_names_by_font_id: HashMap::default(),
+            font_selections: FxHashMap::default(),
+            font_ids_by_postscript_name: FxHashMap::default(),
+            font_ids_by_font_key: FxHashMap::default(),
+            postscript_names_by_font_id: FxHashMap::default(),
         }))
     }
 }
@@ -249,7 +249,7 @@ impl AppleTextSystemState {
         let name = gpui::font_name_with_fallbacks(name, ".AppleSystemUIFont");
 
         let mut font_ids = SmallVec::new();
-        let mut postscript_names_seen = HashSet::default();
+        let mut postscript_names_seen = FxHashSet::default();
         let memory_fonts: Vec<CFRetained<CTFont>> = self
             .memory_fonts
             .iter()

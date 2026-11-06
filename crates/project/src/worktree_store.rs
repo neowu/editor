@@ -12,8 +12,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
-use collections::HashMap;
-use collections::HashSet;
 use fs::Fs;
 use fs::copy_recursive;
 use futures::FutureExt;
@@ -36,6 +34,8 @@ use rpc::ErrorExt;
 use rpc::TypedEnvelope;
 use rpc::proto::REMOTE_SERVER_PROJECT_ID;
 use rpc::proto::{self};
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use text::ReplicaId;
 use util::ResultExt;
 use util::path_list::PathList;
@@ -171,10 +171,10 @@ pub struct WorktreeStore {
     /// Library worktrees the user opened a file from. They are held strongly
     /// and listed in the project panel; other library worktrees only live as
     /// long as something (e.g. an inlay hint's location) references them.
-    shown_libraries: HashSet<WorktreeId>,
+    shown_libraries: FxHashSet<WorktreeId>,
     scanning_enabled: bool,
     #[allow(clippy::type_complexity)]
-    loading_worktrees: HashMap<Arc<SanitizedPath>, Shared<Task<Result<Entity<Worktree>, Arc<anyhow::Error>>>>>,
+    loading_worktrees: FxHashMap<Arc<SanitizedPath>, Shared<Task<Result<Entity<Worktree>, Arc<anyhow::Error>>>>>,
     initial_scan_complete: (watch::Sender<bool>, watch::Receiver<bool>),
     state: WorktreeStoreState,
 }
@@ -213,10 +213,10 @@ impl WorktreeStore {
         Self {
             next_entry_id: Arc::default(),
             next_worktree_id,
-            loading_worktrees: HashMap::default(),
+            loading_worktrees: FxHashMap::default(),
             downstream_client: None,
             worktrees: Vec::new(),
-            shown_libraries: HashSet::default(),
+            shown_libraries: FxHashSet::default(),
             scanning_enabled: true,
             retain_worktrees,
             initial_scan_complete: watch::channel(true),
@@ -233,10 +233,10 @@ impl WorktreeStore {
         Self {
             next_entry_id: Arc::default(),
             next_worktree_id,
-            loading_worktrees: HashMap::default(),
+            loading_worktrees: FxHashMap::default(),
             downstream_client: None,
             worktrees: Vec::new(),
-            shown_libraries: HashSet::default(),
+            shown_libraries: FxHashSet::default(),
             scanning_enabled: true,
             retain_worktrees,
             initial_scan_complete: watch::channel(true),
@@ -934,7 +934,7 @@ impl WorktreeStore {
                 let worktree = worktree.upgrade()?;
                 Some((worktree.read(cx).id(), worktree))
             })
-            .collect::<HashMap<_, _>>();
+            .collect::<FxHashMap<_, _>>();
 
         let (client, project_id) = self.upstream_client().context("invalid project")?;
 

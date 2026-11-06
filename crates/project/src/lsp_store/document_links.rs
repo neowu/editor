@@ -5,8 +5,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context as _;
-use collections::HashMap;
-use collections::HashSet;
 use futures::FutureExt as _;
 use futures::future::Shared;
 use futures::future::join_all;
@@ -22,6 +20,8 @@ use lsp::LanguageServerId;
 use lsp::request::DocumentLinkResolve;
 use rpc::TypedEnvelope;
 use rpc::proto;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::Settings as _;
 use text::Anchor;
 use text::BufferId;
@@ -49,7 +49,7 @@ pub struct LspDocumentLink {
     pub resolved: bool,
 }
 
-pub type BufferDocumentLinks = HashMap<LanguageServerId, HashMap<DocumentLinkId, LspDocumentLink>>;
+pub type BufferDocumentLinks = FxHashMap<LanguageServerId, FxHashMap<DocumentLinkId, LspDocumentLink>>;
 
 pub(super) type DocumentLinksTask = Shared<Task<result::Result<Option<BufferDocumentLinks>, Arc<anyhow::Error>>>>;
 
@@ -58,10 +58,10 @@ pub type DocumentLinkResolveTask = Shared<Task<Option<(DocumentLinkId, LspDocume
 #[derive(Debug, Default)]
 pub(super) struct DocumentLinksData {
     pub(super) links: BufferDocumentLinks,
-    fetched_servers: HashSet<LanguageServerId>,
+    fetched_servers: FxHashSet<LanguageServerId>,
     pub(super) next_id: u64,
     links_update: Option<RunningFetch<DocumentLinksTask>>,
-    pub(super) link_resolves: HashMap<(LanguageServerId, DocumentLinkId), DocumentLinkResolveTask>,
+    pub(super) link_resolves: FxHashMap<(LanguageServerId, DocumentLinkId), DocumentLinkResolveTask>,
 }
 
 impl DocumentLinksData {
@@ -207,7 +207,7 @@ impl LspStore {
 
                             let mut tagged = BufferDocumentLinks::default();
                             for (server_id, server_links) in fetched_links {
-                                let mut by_id = HashMap::default();
+                                let mut by_id = FxHashMap::default();
                                 by_id.reserve(server_links.len());
                                 for link in server_links {
                                     let id = DocumentLinkId(links_data.next_id);
@@ -256,9 +256,9 @@ impl LspStore {
     fn fetch_document_links_for_buffer(
         &mut self,
         buffer: &Entity<Buffer>,
-        for_servers: Option<HashSet<LanguageServerId>>,
+        for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<Option<HashMap<LanguageServerId, Vec<LspDocumentLink>>>>> {
+    ) -> Task<anyhow::Result<Option<FxHashMap<LanguageServerId, Vec<LspDocumentLink>>>>> {
         if let Some((client, project_id)) = self.upstream_client() {
             // No `for_servers` filter is forwarded: unlike its siblings, `GetDocumentLinks`
             // is answered from the host's own `fetch_document_links` cache with the full
@@ -310,7 +310,7 @@ impl LspStore {
                             None
                         }
                     })
-                    .collect::<HashMap<_, _>>();
+                    .collect::<FxHashMap<_, _>>();
                 anyhow::ensure!(!has_errors || !result.is_empty(), "Failed to fetch document links");
                 Ok(Some(result))
             })

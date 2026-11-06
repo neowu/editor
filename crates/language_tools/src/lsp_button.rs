@@ -10,7 +10,6 @@ use std::rc::Rc;
 use std::time::Duration;
 use std::time::Instant;
 
-use collections::HashSet;
 use editor::Editor;
 use editor::EditorEvent;
 use gpui::Anchor;
@@ -35,6 +34,7 @@ use project::project_settings::ProjectSettings;
 use proto::status_update::Status;
 use proto::update_language_server::Variant;
 use rpc::proto;
+use rustc_hash::FxHashSet;
 use settings::Settings as _;
 use settings::SettingsStore;
 use sysinfo::Pid;
@@ -141,7 +141,7 @@ impl ProcessMemoryCache {
 
     fn is_descendant_of(&self, pid: Pid, root_pid: Pid, parent_map: &HashMap<Pid, Pid>) -> bool {
         let mut current = pid;
-        let mut visited = HashSet::default();
+        let mut visited = FxHashSet::default();
         while current != root_pid {
             if !visited.insert(current) {
                 return false;
@@ -158,7 +158,7 @@ impl ProcessMemoryCache {
 struct ActiveEditor {
     editor: WeakEntity<Editor>,
     _editor_subscription: Subscription,
-    editor_buffers: HashSet<BufferId>,
+    editor_buffers: FxHashSet<BufferId>,
 }
 
 impl Debug for ActiveEditor {
@@ -474,7 +474,7 @@ impl LanguageServerState {
                                 .update(cx, |lsp_store, cx| {
                                     lsp_store.restart_language_servers_for_buffers(
                                         buffers,
-                                        HashSet::from_iter([LanguageServerSelector::Name(
+                                        FxHashSet::from_iter([LanguageServerSelector::Name(
                                             server_name_for_restart.clone(),
                                         )]),
                                         cx,
@@ -494,7 +494,7 @@ impl LanguageServerState {
                                     lsp_store
                                         .stop_language_servers_for_buffers(
                                             Vec::new(),
-                                            HashSet::from_iter([server_selector_for_stop.clone()]),
+                                            FxHashSet::from_iter([server_selector_for_stop.clone()]),
                                             cx,
                                         )
                                         .detach_and_log_err(cx);
@@ -887,11 +887,11 @@ impl LspButton {
                             .map(|buffer_file| buffer_file.worktree.clone())
                     })
                 })
-                .collect::<HashSet<_>>();
+                .collect::<FxHashSet<_>>();
 
             let mut server_ids_to_worktrees = HashMap::<LanguageServerId, Entity<Worktree>>::default();
             let mut server_names_to_worktrees =
-                HashMap::<LanguageServerName, HashSet<(Entity<Worktree>, LanguageServerId)>>::default();
+                HashMap::<LanguageServerName, FxHashSet<(Entity<Worktree>, LanguageServerId)>>::default();
             for servers_for_path in state.language_servers.servers_per_buffer_abs_path.values() {
                 if let Some(worktree) = servers_for_path.worktree.as_ref().and_then(|worktree| worktree.upgrade()) {
                     for (server_id, server_name) in &servers_for_path.servers {
@@ -923,7 +923,7 @@ impl LspButton {
                 .ok();
 
             let mut servers_per_worktree = BTreeMap::<SharedString, Vec<ServerData>>::new();
-            let mut servers_with_health_checks = HashSet::default();
+            let mut servers_with_health_checks = FxHashSet::default();
 
             for (server_id, health) in &state.language_servers.health_statuses {
                 let worktree = server_ids_to_worktrees.get(server_id).or_else(|| {
@@ -1058,7 +1058,7 @@ impl StatusItemView for LspButton {
                         .and_then(|active_editor| active_editor.editor.upgrade())
                         .as_ref()
                 {
-                    let editor_buffers = HashSet::from_iter(
+                    let editor_buffers = FxHashSet::from_iter(
                         editor
                             .read(cx)
                             .buffer()

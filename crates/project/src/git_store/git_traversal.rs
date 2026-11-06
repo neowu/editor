@@ -2,9 +2,9 @@ use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::path::Path;
 
-use collections::HashMap;
 use git::repository::RepoPath;
 use git::status::GitSummary;
+use rustc_hash::FxHashMap;
 use sum_tree::Cursor;
 use text::Bias;
 use util::rel_path::RelPath;
@@ -27,7 +27,7 @@ pub struct GitTraversal<'a> {
 
 impl<'a> GitTraversal<'a> {
     pub fn new(
-        repo_snapshots: &'a HashMap<RepositoryId, RepositorySnapshot>,
+        repo_snapshots: &'a FxHashMap<RepositoryId, RepositorySnapshot>,
         traversal: Traversal<'a>,
     ) -> GitTraversal<'a> {
         let repo_root_to_snapshot =
@@ -152,7 +152,7 @@ pub struct ChildEntriesGitIter<'a> {
 
 impl<'a> ChildEntriesGitIter<'a> {
     pub fn new(
-        repo_snapshots: &'a HashMap<RepositoryId, RepositorySnapshot>,
+        repo_snapshots: &'a FxHashMap<RepositoryId, RepositorySnapshot>,
         worktree_snapshot: &'a worktree::Snapshot,
         parent_path: &'a RelPath,
     ) -> Self {

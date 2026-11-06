@@ -1,7 +1,6 @@
 use std::cmp;
 use std::ops::Range;
 
-use collections::HashMap;
 use gpui::Entity;
 use gpui::Rgba;
 use gpui::Task;
@@ -13,6 +12,7 @@ use multi_buffer::MultiBufferSnapshot;
 use project::DocumentColor;
 use project::InlayId;
 use project::Project;
+use rustc_hash::FxHashMap;
 use text::Bias;
 use text::BufferId;
 use ui::Context;
@@ -27,18 +27,18 @@ use crate::inlays::Inlay;
 
 #[derive(Debug)]
 pub(super) struct LspColorData {
-    buffer_colors: HashMap<BufferId, BufferColors>,
+    buffer_colors: FxHashMap<BufferId, BufferColors>,
 }
 
 #[derive(Debug, Default)]
 struct BufferColors {
     colors: Vec<(Range<Anchor>, DocumentColor, InlayId)>,
-    inlay_colors: HashMap<InlayId, usize>,
+    inlay_colors: FxHashMap<InlayId, usize>,
 }
 
 impl LspColorData {
     pub fn new() -> LspColorData {
-        LspColorData { buffer_colors: HashMap::default() }
+        LspColorData { buffer_colors: FxHashMap::default() }
     }
 
     fn set_colors(&mut self, buffer_id: BufferId, colors: Vec<(Range<Anchor>, DocumentColor, InlayId)>) -> bool {
@@ -147,7 +147,7 @@ impl Editor {
                 return;
             };
 
-            let mut new_editor_colors: HashMap<BufferId, Vec<(Range<Anchor>, DocumentColor)>> = HashMap::default();
+            let mut new_editor_colors: FxHashMap<BufferId, Vec<(Range<Anchor>, DocumentColor)>> = FxHashMap::default();
             match colors {
                 Ok(colors) => {
                     if colors.colors.is_empty() {

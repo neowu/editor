@@ -1,11 +1,10 @@
+use std::collections::BTreeMap;
 use std::mem;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 
-use collections::BTreeMap;
-use collections::HashMap;
 use file_icons::FileIcons;
 use git::Oid;
 use git::repository::CommitFileStatus;
@@ -49,6 +48,7 @@ use project::git_store::CommitDiff;
 use project::git_store::CommitFile;
 use project::git_store::Repository;
 use project::git_store::RepositoryId;
+use rustc_hash::FxHashMap;
 use ui::Chip;
 use ui::ContextMenu;
 use ui::DiffStat;
@@ -100,7 +100,7 @@ pub struct CommitDetailsPanel {
     search_highlight: Option<(String, bool)>,
     files_scroll_handle: UniformListScrollHandle,
     view_mode: ChangedFilesViewMode,
-    expanded_dirs: HashMap<RepoPath, bool>,
+    expanded_dirs: FxHashMap<RepoPath, bool>,
     /// The file whose revision is open in the active tab.
     revealed_path: Option<RepoPath>,
     scroll_to_revealed: bool,
@@ -129,7 +129,7 @@ impl CommitDetailsPanel {
             search_highlight: None,
             files_scroll_handle: UniformListScrollHandle::new(),
             view_mode: ChangedFilesViewMode::default(),
-            expanded_dirs: HashMap::default(),
+            expanded_dirs: FxHashMap::default(),
             revealed_path: None,
             scroll_to_revealed: false,
             metadata_collapsed: false,
@@ -921,7 +921,7 @@ fn revealed_entry_index(
 
 fn build_changed_file_tree_entries(
     mut files: Vec<ChangedFileEntry>,
-    expanded_dirs: &HashMap<RepoPath, bool>,
+    expanded_dirs: &FxHashMap<RepoPath, bool>,
 ) -> Vec<ChangedFileTreeEntry> {
     files.sort_by(|a, b| a.repo_path.cmp(&b.repo_path));
 
@@ -965,7 +965,7 @@ fn build_changed_file_tree_entries(
 fn flatten_changed_file_tree(
     node: &ChangedFileTreeNode,
     depth: usize,
-    expanded_dirs: &HashMap<RepoPath, bool>,
+    expanded_dirs: &FxHashMap<RepoPath, bool>,
 ) -> Vec<ChangedFileTreeEntry> {
     let mut entries = Vec::new();
 
@@ -1049,7 +1049,7 @@ mod tests {
         let path = RepoPath::new("src/a.rs").unwrap();
         assert_eq!(revealed_entry_index(false, &files, &[], &path), Some(1));
 
-        let tree = build_changed_file_tree_entries(files.clone(), &HashMap::default());
+        let tree = build_changed_file_tree_entries(files.clone(), &FxHashMap::default());
         assert_eq!(describe(&tree), ["dir src", "  file a.rs", "file b.rs"]);
         assert_eq!(revealed_entry_index(true, &files, &tree, &path), Some(1));
         assert_eq!(revealed_entry_index(true, &files, &tree, &RepoPath::new("missing.rs").unwrap()), None);
@@ -1082,13 +1082,13 @@ mod tests {
     fn test_build_changed_file_tree_entries() {
         let files = vec![entry("src/b.rs"), entry("README.md"), entry("src/a.rs"), entry("crates/ui/src/lib.rs")];
 
-        let tree = build_changed_file_tree_entries(files.clone(), &HashMap::default());
+        let tree = build_changed_file_tree_entries(files.clone(), &FxHashMap::default());
         assert_eq!(
             describe(&tree),
             ["dir crates/ui/src", "  file lib.rs", "dir src", "  file a.rs", "  file b.rs", "file README.md"]
         );
 
-        let mut collapsed = HashMap::default();
+        let mut collapsed = FxHashMap::default();
         collapsed.insert(RepoPath::new("src").unwrap(), false);
         let tree = build_changed_file_tree_entries(files, &collapsed);
         assert_eq!(describe(&tree), ["dir crates/ui/src", "  file lib.rs", "dir src", "file README.md"]);

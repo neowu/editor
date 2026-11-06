@@ -1,8 +1,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use collections::HashMap;
-use collections::HashSet;
 use futures::TryFutureExt;
 use gpui::App;
 use gpui::AsyncApp;
@@ -18,6 +16,8 @@ use project::LocationLink;
 use project::Project;
 use project::TaskSourceKind;
 use project::lsp_store::lsp_ext_command::GetLspRunnables;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use task::ResolvedTask;
 use task::TaskContext;
 use text::BufferId;
@@ -37,7 +37,7 @@ where
 {
     let project = editor.project.clone()?;
     let multi_buffer = editor.buffer();
-    let mut seen_buffer_ids = HashSet::default();
+    let mut seen_buffer_ids = FxHashSet::default();
     editor.selections.disjoint_anchors_arc().iter().find_map(|selection| {
         let multi_buffer = multi_buffer.read(cx);
         let multi_buffer_snapshot = multi_buffer.snapshot(cx);
@@ -89,7 +89,7 @@ async fn lsp_task_context(
 #[allow(clippy::type_complexity)]
 pub fn lsp_tasks(
     project: Entity<Project>,
-    task_sources: &HashMap<LanguageServerName, Vec<BufferId>>,
+    task_sources: &FxHashMap<LanguageServerName, Vec<BufferId>>,
     for_position: Option<text::Anchor>,
     cx: &mut App,
 ) -> Task<Vec<(TaskSourceKind, Vec<(Option<LocationLink>, ResolvedTask)>)>> {
@@ -114,7 +114,7 @@ pub fn lsp_tasks(
 
     cx.spawn(async move |cx| {
         cx.spawn(async move |cx| {
-            let mut lsp_tasks = HashMap::default();
+            let mut lsp_tasks = FxHashMap::default();
             for (server_id, buffers) in lsp_task_sources {
                 let mut new_lsp_tasks = Vec::new();
                 for buffer in buffers {

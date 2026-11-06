@@ -7,6 +7,7 @@
 
 use std::cmp;
 use std::cmp::Ordering;
+use std::collections::BTreeSet;
 use std::iter;
 use std::ops::Add;
 use std::ops::AddAssign;
@@ -17,7 +18,6 @@ use std::ops::SubAssign;
 use std::slice;
 use std::sync::Arc;
 
-use collections::BTreeSet;
 use language::Chunk;
 use language::Edit;
 use language::LanguageAwareStyling;

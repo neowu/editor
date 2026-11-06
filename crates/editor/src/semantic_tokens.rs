@@ -2,8 +2,6 @@ use std::collections::hash_map;
 use std::sync::Arc;
 use std::time::Duration;
 
-use collections::HashMap;
-use collections::HashSet;
 use futures::future::join_all;
 use gpui::App;
 use gpui::Context;
@@ -23,6 +21,8 @@ use project::lsp_store::BufferSemanticTokens;
 use project::lsp_store::SemanticTokenStylizer;
 use project::lsp_store::TokenType;
 use project::project_settings::ProjectSettings;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::SemanticTokenColorOverride;
 use settings::SemanticTokenFontStyle;
 use settings::SemanticTokenFontWeight;
@@ -40,7 +40,7 @@ use crate::display_map::SemanticTokenHighlight;
 pub(super) struct SemanticTokenState {
     rules: SemanticTokenRules,
     update_task: Task<()>,
-    fetched_for_buffers: HashMap<BufferId, clock::Global>,
+    fetched_for_buffers: FxHashMap<BufferId, clock::Global>,
 }
 
 impl SemanticTokenState {
@@ -48,7 +48,7 @@ impl SemanticTokenState {
         Self {
             rules: ProjectSettings::get_global(cx).global_lsp_settings.semantic_token_rules.clone(),
             update_task: Task::ready(()),
-            fetched_for_buffers: HashMap::default(),
+            fetched_for_buffers: FxHashMap::default(),
         }
     }
 
@@ -100,7 +100,7 @@ impl Editor {
             self.display_map.update(cx, |display_map, _| {
                 match Arc::get_mut(&mut display_map.semantic_token_highlights) {
                     Some(highlights) => highlights.clear(),
-                    None => display_map.semantic_token_highlights = Arc::new(HashMap::default()),
+                    None => display_map.semantic_token_highlights = Arc::new(FxHashMap::default()),
                 };
             });
             self.semantic_token_state.update_task = Task::ready(());
@@ -108,7 +108,7 @@ impl Editor {
             return;
         }
 
-        let mut invalidate_semantic_highlights_for_buffers = HashSet::default();
+        let mut invalidate_semantic_highlights_for_buffers = FxHashSet::default();
         if server_refreshed {
             invalidate_semantic_highlights_for_buffers
                 .extend(self.semantic_token_state.fetched_for_buffers.drain().map(|(buffer_id, _)| buffer_id));
@@ -132,7 +132,7 @@ impl Editor {
                     None
                 }
             })
-            .collect::<HashMap<_, _>>();
+            .collect::<FxHashMap<_, _>>();
 
         for removed_buffer in self
             .display_map
@@ -282,8 +282,8 @@ fn server_precedences(
     lsp_store: &LspStore,
     languages: &LanguageRegistry,
     language_name: Option<&LanguageName>,
-    tokens: &HashMap<LanguageServerId, Arc<[BufferSemanticToken]>>,
-) -> HashMap<LanguageServerId, u32> {
+    tokens: &FxHashMap<LanguageServerId, Arc<[BufferSemanticToken]>>,
+) -> FxHashMap<LanguageServerId, u32> {
     let ordered_adapters = language_name.map(|language_name| languages.lsp_adapters(language_name)).unwrap_or_default();
 
     // We base this on the ids that are present rather than the adapter count,

@@ -18,6 +18,7 @@ pub mod terminal_settings;
 use std::borrow::Cow;
 use std::cmp::min;
 use std::cmp::{self};
+use std::collections::VecDeque;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::{self};
@@ -40,8 +41,6 @@ use anyhow::Result;
 use anyhow::bail;
 use async_channel::Receiver;
 use async_channel::Sender;
-use collections::HashMap;
-use collections::VecDeque;
 use futures::FutureExt;
 use futures::StreamExt;
 use futures::channel::mpsc::UnboundedReceiver;
@@ -82,6 +81,7 @@ use mappings::mouse::mouse_moved_report;
 use mappings::mouse::scroll_report;
 use pty_info::ProcessIdGetter;
 use pty_info::PtyProcessInfo;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 use settings::Settings;
@@ -652,7 +652,7 @@ const DEBUG_LINE_HEIGHT: Pixels = px(5.);
 
 /// Inserts ed-specific environment variables for terminal sessions.
 /// Used by both local terminals and remote terminals (via SSH).
-pub fn insert_ed_terminal_env(env: &mut HashMap<String, String>) {
+pub fn insert_ed_terminal_env(env: &mut FxHashMap<String, String>) {
     env.insert("ED_TERM".to_string(), "true".to_string());
     env.insert("TERM_PROGRAM".to_string(), "ed".to_string());
     env.insert("TERM".to_string(), "xterm-256color".to_string());
@@ -993,7 +993,7 @@ impl TerminalBuilder {
             shell_program: None,
             template: CopyTemplate {
                 shell: Shell::System,
-                env: HashMap::default(),
+                env: FxHashMap::default(),
                 cursor_shape,
                 alternate_scroll,
                 max_scroll_history_lines,
@@ -1018,7 +1018,7 @@ impl TerminalBuilder {
         working_directory: Option<PathBuf>,
         mode: TerminalMode,
         shell: Shell,
-        mut env: HashMap<String, String>,
+        mut env: FxHashMap<String, String>,
         cursor_shape: SettingsCursorShape,
         alternate_scroll: AlternateScroll,
         max_scroll_history_lines: Option<usize>,
@@ -1349,7 +1349,7 @@ struct CwdHistoryEntry {
 
 struct CopyTemplate {
     shell: Shell,
-    env: HashMap<String, String>,
+    env: FxHashMap<String, String>,
     cursor_shape: SettingsCursorShape,
     alternate_scroll: AlternateScroll,
     max_scroll_history_lines: Option<usize>,
@@ -2792,7 +2792,7 @@ impl SubprocessHandle {
 fn spawn_task_subprocess(
     program: String,
     args: Vec<String>,
-    env: HashMap<String, String>,
+    env: FxHashMap<String, String>,
     working_directory: Option<PathBuf>,
     term: Arc<AlacrittyTermLock>,
     events_tx: UnboundedSender<PtyEvent>,

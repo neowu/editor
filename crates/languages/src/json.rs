@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use collections::HashMap;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::Entity;
@@ -19,6 +18,7 @@ use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
 use lsp::Uri;
 use project::lsp_store::language_server_settings;
+use rustc_hash::FxHashMap;
 use serde_json::Value;
 use serde_json::json;
 use task::TaskTemplate;
@@ -50,7 +50,7 @@ impl ContextProvider for JsonTaskProvider {
             let contents_text = contents.text.to_string();
 
             let task_templates = if is_package_json {
-                let package_json = serde_json::from_str::<HashMap<String, serde_json::Value>>(&contents_text).ok()?;
+                let package_json = serde_json::from_str::<FxHashMap<String, serde_json::Value>>(&contents_text).ok()?;
                 let package_json = PackageJsonData::new(path, package_json);
                 let command = package_json.package_manager.unwrap_or("npm").to_owned();
                 package_json
@@ -184,7 +184,7 @@ impl LspAdapter for JsonLspAdapter {
         Ok(config)
     }
 
-    fn language_ids(&self) -> HashMap<LanguageName, String> {
+    fn language_ids(&self) -> FxHashMap<LanguageName, String> {
         [(LanguageName::new_static("JSON"), "json".into()), (LanguageName::new_static("JSONC"), "jsonc".into())]
             .into_iter()
             .collect()

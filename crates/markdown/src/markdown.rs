@@ -25,8 +25,6 @@ use base64::Engine as _;
 use builder::MarkdownElementBuilder;
 use builder::MarkdownHighlights;
 use builder::MetadataCellStyle;
-use collections::HashMap;
-use collections::HashSet;
 pub use element::AnyDiv;
 pub use element::AutoscrollBehavior;
 use element::CheckboxToggleCallback;
@@ -110,6 +108,8 @@ use rendered_text::RenderedText;
 use rendered_text::SourceMapping;
 use rendered_text::rendered_index_for_source_index;
 use rendered_text::source_range_for_rendered;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 pub use style::BlockQuoteKindColors;
 pub use style::HeadingLevelStyles;
@@ -140,7 +140,7 @@ pub struct Markdown {
     pending_autoscroll: Option<usize>,
     active_root_block: Option<usize>,
     parsed_markdown: Arc<ParsedMarkdown>,
-    images_by_source_offset: HashMap<usize, Arc<Image>>,
+    images_by_source_offset: FxHashMap<usize, Arc<Image>>,
     should_reparse: bool,
     pending_parse: Option<Task<()>>,
     focus_handle: FocusHandle,
@@ -297,7 +297,7 @@ impl Markdown {
             pending_autoscroll: None,
             active_root_block: None,
             should_reparse: false,
-            images_by_source_offset: HashMap::default(),
+            images_by_source_offset: FxHashMap::default(),
             parsed_markdown: Arc::default(),
             pending_parse: None,
             focus_handle,
@@ -606,7 +606,7 @@ impl Markdown {
             let footnote_definitions = parsed.footnote_definitions;
             let link_definition_spans = parsed.link_definition_spans;
             let has_untagged_code_block = parsed.has_untagged_code_block;
-            let mut images_by_source_offset = HashMap::default();
+            let mut images_by_source_offset = FxHashMap::default();
             let mut languages_by_name = TreeMap::default();
             let mut languages_by_path = TreeMap::default();
             let mut fallback_code_block_language = None;
@@ -678,7 +678,7 @@ impl Markdown {
             let (parsed, images_by_source_offset) = parsed.await;
 
             this.update(cx, |this, cx| {
-                let code_block_starts = parsed.code_blocks().map(|block| block.source_offset).collect::<HashSet<_>>();
+                let code_block_starts = parsed.code_blocks().map(|block| block.source_offset).collect::<FxHashSet<_>>();
                 this.code_block_scroll_handles.retain(|start, _| code_block_starts.contains(start));
                 this.parsed_markdown = Arc::new(parsed);
                 this.images_by_source_offset = images_by_source_offset;
@@ -792,8 +792,8 @@ pub struct ParsedMarkdown {
     pub languages_by_path: TreeMap<Arc<str>, Arc<Language>>,
     pub root_block_starts: Arc<[usize]>,
     metadata_blocks: BTreeMap<usize, ParsedMetadataBlock>,
-    pub heading_slugs: HashMap<SharedString, usize>,
-    pub footnote_definitions: HashMap<SharedString, usize>,
+    pub heading_slugs: FxHashMap<SharedString, usize>,
+    pub footnote_definitions: FxHashMap<SharedString, usize>,
     link_definition_spans: Arc<[Range<usize>]>,
     fallback_code_block_language: Option<Arc<Language>>,
     code_block_highlights: Arc<CodeBlockHighlights>,
@@ -856,7 +856,7 @@ fn render_blocks(source: &str, events: &[(Range<usize>, MarkdownEvent)]) -> Vec<
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 struct MarkdownEventIndex(usize);
 
-type CodeBlockHighlights = HashMap<MarkdownEventIndex, ResolvedHighlights>;
+type CodeBlockHighlights = FxHashMap<MarkdownEventIndex, ResolvedHighlights>;
 
 impl ParsedMarkdown {
     pub const fn source(&self) -> &SharedString {

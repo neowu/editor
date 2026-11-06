@@ -1,8 +1,8 @@
-use collections::HashMap;
 use gpui::FontFallbacks;
 use gpui::FontFeatures;
 use gpui::FontWeight;
 use gpui::Pixels;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 pub use settings::AlternateScroll;
@@ -24,7 +24,7 @@ pub struct TerminalSettings {
     pub font_features: Option<FontFeatures>,
     pub font_weight: Option<FontWeight>,
     pub line_height: TerminalLineHeight,
-    pub env: HashMap<String, String>,
+    pub env: FxHashMap<String, String>,
     pub cursor_shape: CursorShape,
     pub blinking: TerminalBlink,
     pub alternate_scroll: AlternateScroll,

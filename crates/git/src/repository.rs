@@ -23,7 +23,6 @@ use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
 use async_channel::Sender;
-use collections::HashMap;
 use file_content::ByteContent;
 use file_content::decode_byte_header;
 use futures::AsyncWriteExt;
@@ -38,6 +37,7 @@ use gpui::SharedString;
 use gpui::Task;
 use parking_lot::Mutex;
 use rope::Rope;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use smallvec::SmallVec;
 use smol::io::AsyncBufRead;
@@ -746,7 +746,7 @@ pub trait GitRepository: Send + Sync {
         &self,
         path: RepoPath,
         content: Option<Vec<u8>>,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
         is_executable: bool,
     ) -> BoxFuture<'_, anyhow::Result<()>>;
 
@@ -758,7 +758,7 @@ pub trait GitRepository: Send + Sync {
     }
 
     /// Returns the URL of all remotes.
-    fn remote_urls(&self) -> BoxFuture<'_, HashMap<String, String>>;
+    fn remote_urls(&self) -> BoxFuture<'_, FxHashMap<String, String>>;
 
     /// Resolve a list of refs to SHAs.
     fn revparse_batch(&self, revs: Vec<String>) -> BoxFuture<'_, Result<Vec<Option<String>>>>;
@@ -819,13 +819,13 @@ pub trait GitRepository: Send + Sync {
 
     fn rename_worktree(&self, old_path: PathBuf, new_path: PathBuf) -> BoxFuture<'_, Result<()>>;
 
-    fn reset(&self, commit: String, mode: ResetMode, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
+    fn reset(&self, commit: String, mode: ResetMode, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
 
     fn checkout_files(
         &self,
         commit: String,
         paths: Vec<RepoPath>,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
     ) -> BoxFuture<'_, Result<()>>;
 
     fn show(&self, commit: String) -> BoxFuture<'_, Result<CommitDetails>>;
@@ -849,40 +849,40 @@ pub trait GitRepository: Send + Sync {
     /// Updates the index to match the worktree at the given paths.
     ///
     /// If any of the paths have been deleted from the worktree, they will be removed from the index if found there.
-    fn stage_paths(&self, paths: Vec<RepoPath>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
+    fn stage_paths(&self, paths: Vec<RepoPath>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
     /// Updates the index to match HEAD at the given paths.
     ///
     /// If any of the paths were previously staged but do not exist in HEAD, they will be removed from the index.
-    fn unstage_paths(&self, paths: Vec<RepoPath>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
+    fn unstage_paths(&self, paths: Vec<RepoPath>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
 
     /// Only used to serve `proto::RunGitHook` requests from older remote clients;
     /// new code lets `git commit` run hooks itself.
     ///
     /// TODO: remove together with `proto::RunGitHook` (see the deprecation note in git.proto).
-    fn run_hook(&self, hook: RunHook, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
+    fn run_hook(&self, hook: RunHook, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
 
     fn commit(
         &self,
         message: SharedString,
         name_and_email: Option<(SharedString, SharedString)>,
         options: CommitOptions,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
     ) -> BoxFuture<'_, Result<()>>;
 
     fn stash_paths(
         &self,
         paths: Vec<RepoPath>,
         message: Option<String>,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
     ) -> BoxFuture<'_, Result<()>>;
 
-    fn stash_staged(&self, message: Option<String>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
+    fn stash_staged(&self, message: Option<String>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
 
-    fn stash_pop(&self, index: Option<usize>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
+    fn stash_pop(&self, index: Option<usize>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
 
-    fn stash_apply(&self, index: Option<usize>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
+    fn stash_apply(&self, index: Option<usize>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
 
-    fn stash_drop(&self, index: Option<usize>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
+    fn stash_drop(&self, index: Option<usize>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>>;
 
     fn push(
         &self,
@@ -890,7 +890,7 @@ pub trait GitRepository: Send + Sync {
         remote_branch_name: String,
         upstream_name: String,
         options: Option<PushOptions>,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
         // This method takes an AsyncApp to ensure it's invoked on the main thread,
         // otherwise git-credentials-manager won't work.
         cx: AsyncApp,
@@ -901,7 +901,7 @@ pub trait GitRepository: Send + Sync {
         branch_name: Option<String>,
         upstream_name: String,
         rebase: bool,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
         // This method takes an AsyncApp to ensure it's invoked on the main thread,
         // otherwise git-credentials-manager won't work.
         cx: AsyncApp,
@@ -910,7 +910,7 @@ pub trait GitRepository: Send + Sync {
     fn fetch(
         &self,
         fetch_options: FetchOptions,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
         // This method takes an AsyncApp to ensure it's invoked on the main thread,
         // otherwise git-credentials-manager won't work.
         cx: AsyncApp,
@@ -1133,8 +1133,8 @@ pub async fn get_git_committer(cx: &AsyncApp) -> GitCommitter {
     .await
 }
 
-fn parse_remote_urls(stdout: &str) -> HashMap<String, String> {
-    let mut urls = HashMap::default();
+fn parse_remote_urls(stdout: &str) -> FxHashMap<String, String> {
+    let mut urls = FxHashMap::default();
     for line in stdout.lines() {
         if let Some((line, suffix)) = line.rsplit_once(" (fetch)")
             && (suffix.is_empty() || suffix.starts_with(" [") && suffix.ends_with(']'))
@@ -1270,7 +1270,7 @@ impl GitRepository for RealGitRepository {
         .boxed()
     }
 
-    fn reset(&self, commit: String, mode: ResetMode, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
+    fn reset(&self, commit: String, mode: ResetMode, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
         let git = self.git_binary_in_worktree();
         async move {
             let git = git?;
@@ -1290,7 +1290,7 @@ impl GitRepository for RealGitRepository {
         &self,
         commit: String,
         paths: Vec<RepoPath>,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
     ) -> BoxFuture<'_, Result<()>> {
         let git = self.git_binary_in_worktree();
         async move {
@@ -1381,7 +1381,7 @@ impl GitRepository for RealGitRepository {
         &self,
         path: RepoPath,
         content: Option<Vec<u8>>,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
         is_executable: bool,
     ) -> BoxFuture<'_, anyhow::Result<()>> {
         let git = self.git_binary();
@@ -1446,14 +1446,14 @@ impl GitRepository for RealGitRepository {
             .boxed()
     }
 
-    fn remote_urls(&self) -> BoxFuture<'_, HashMap<String, String>> {
+    fn remote_urls(&self) -> BoxFuture<'_, FxHashMap<String, String>> {
         let git = self.git_binary();
         self.executor
             .spawn(async move {
                 if let Ok(stdout) = git.run(&["remote", "-v"]).await {
                     parse_remote_urls(&stdout)
                 } else {
-                    HashMap::default()
+                    FxHashMap::default()
                 }
             })
             .boxed()
@@ -2110,7 +2110,7 @@ impl GitRepository for RealGitRepository {
             .boxed()
     }
 
-    fn stage_paths(&self, paths: Vec<RepoPath>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
+    fn stage_paths(&self, paths: Vec<RepoPath>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
         let git = self.git_binary_in_worktree();
         self.executor
             .spawn(async move {
@@ -2133,7 +2133,7 @@ impl GitRepository for RealGitRepository {
             .boxed()
     }
 
-    fn unstage_paths(&self, paths: Vec<RepoPath>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
+    fn unstage_paths(&self, paths: Vec<RepoPath>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
         let git = self.git_binary_in_worktree();
 
         self.executor
@@ -2162,7 +2162,7 @@ impl GitRepository for RealGitRepository {
         &self,
         paths: Vec<RepoPath>,
         message: Option<String>,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
     ) -> BoxFuture<'_, Result<()>> {
         let git = self.git_binary_in_worktree();
         self.executor
@@ -2190,7 +2190,7 @@ impl GitRepository for RealGitRepository {
             .boxed()
     }
 
-    fn stash_staged(&self, message: Option<String>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
+    fn stash_staged(&self, message: Option<String>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
         let git = self.git_binary_in_worktree();
         self.executor
             .spawn(async move {
@@ -2213,7 +2213,7 @@ impl GitRepository for RealGitRepository {
             .boxed()
     }
 
-    fn stash_pop(&self, index: Option<usize>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
+    fn stash_pop(&self, index: Option<usize>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
         let git = self.git_binary_in_worktree();
         self.executor
             .spawn(async move {
@@ -2234,7 +2234,7 @@ impl GitRepository for RealGitRepository {
             .boxed()
     }
 
-    fn stash_apply(&self, index: Option<usize>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
+    fn stash_apply(&self, index: Option<usize>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
         let git = self.git_binary_in_worktree();
         self.executor
             .spawn(async move {
@@ -2255,7 +2255,7 @@ impl GitRepository for RealGitRepository {
             .boxed()
     }
 
-    fn stash_drop(&self, index: Option<usize>, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
+    fn stash_drop(&self, index: Option<usize>, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
         let git = self.git_binary_in_worktree();
         self.executor
             .spawn(async move {
@@ -2281,7 +2281,7 @@ impl GitRepository for RealGitRepository {
         message: SharedString,
         name_and_email: Option<(SharedString, SharedString)>,
         options: CommitOptions,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
     ) -> BoxFuture<'_, Result<()>> {
         let git = self.git_binary_in_worktree();
         async move {
@@ -2349,7 +2349,7 @@ impl GitRepository for RealGitRepository {
         remote_branch_name: String,
         remote_name: String,
         options: Option<PushOptions>,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
         _cx: AsyncApp,
     ) -> BoxFuture<'_, Result<RemoteCommandOutput>> {
         let working_directory = self.command_directory();
@@ -2379,7 +2379,7 @@ impl GitRepository for RealGitRepository {
         branch_name: Option<String>,
         remote_name: String,
         rebase: bool,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
         _cx: AsyncApp,
     ) -> BoxFuture<'_, Result<RemoteCommandOutput>> {
         let working_directory = self.command_directory();
@@ -2403,7 +2403,7 @@ impl GitRepository for RealGitRepository {
     fn fetch(
         &self,
         fetch_options: FetchOptions,
-        env: Arc<HashMap<String, String>>,
+        env: Arc<FxHashMap<String, String>>,
         _cx: AsyncApp,
     ) -> BoxFuture<'_, Result<RemoteCommandOutput>> {
         let working_directory = self.command_directory();
@@ -2542,7 +2542,7 @@ impl GitRepository for RealGitRepository {
                     ])
                     .await
                     .unwrap_or_default();
-                let refs: HashMap<&str, &str> = output.lines().filter_map(|line| line.split_once('\t')).collect();
+                let refs: FxHashMap<&str, &str> = output.lines().filter_map(|line| line.split_once('\t')).collect();
 
                 if let Some(target) = refs.get("refs/remotes/upstream/HEAD") {
                     let strip_prefix = if include_remote_name { "refs/remotes/" } else { "refs/remotes/upstream/" };
@@ -2579,7 +2579,7 @@ impl GitRepository for RealGitRepository {
             .boxed()
     }
 
-    fn run_hook(&self, hook: RunHook, env: Arc<HashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
+    fn run_hook(&self, hook: RunHook, env: Arc<FxHashMap<String, String>>) -> BoxFuture<'_, Result<()>> {
         let git_binary = self.git_binary_in_worktree();
         let git_dir = self.git_dir.clone();
         let help_output = self.git_binary_help_output();
@@ -2608,7 +2608,7 @@ impl GitRepository for RealGitRepository {
                 return Ok(());
             }
 
-            let git_binary = git_binary.envs(HashMap::clone(&env));
+            let git_binary = git_binary.envs(FxHashMap::clone(&env));
             git_binary.run(&["hook", "run", "--ignore-missing", hook.as_str()]).await?;
             Ok(())
         }
@@ -2963,15 +2963,15 @@ fn git_status_args(path_prefixes: &[RepoPath]) -> Vec<OsString> {
 pub(crate) struct GitBinary {
     git_binary_path: PathBuf,
     working_directory: PathBuf,
-    envs: HashMap<String, String>,
+    envs: FxHashMap<String, String>,
 }
 
 impl GitBinary {
     pub(crate) fn new(git_binary_path: PathBuf, working_directory: PathBuf) -> Self {
-        Self { git_binary_path, working_directory, envs: HashMap::default() }
+        Self { git_binary_path, working_directory, envs: FxHashMap::default() }
     }
 
-    fn envs(mut self, envs: HashMap<String, String>) -> Self {
+    fn envs(mut self, envs: FxHashMap<String, String>) -> Self {
         self.envs = envs;
         self
     }
@@ -3037,7 +3037,7 @@ struct GitBinaryCommandError {
 
 async fn run_git_command(
     git: GitBinary,
-    env: Arc<HashMap<String, String>>,
+    env: Arc<FxHashMap<String, String>>,
     mut command: Command,
 ) -> Result<RemoteCommandOutput> {
     let git = git.envs((*env).clone());

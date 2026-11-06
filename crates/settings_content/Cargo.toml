@@ -14,10 +14,11 @@ path = "src/settings_content.rs"
 default = []
 
 [dependencies]
-collections.workspace = true
 derive_more = { workspace = true, features = ["from"] }
 gpui.workspace = true
+indexmap.workspace = true
 log.workspace = true
+rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 strum.workspace = true

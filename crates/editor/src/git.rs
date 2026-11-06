@@ -311,7 +311,7 @@ impl Editor {
         if self.read_only(cx) {
             return;
         }
-        let mut buffer_ids = HashSet::default();
+        let mut buffer_ids = FxHashSet::default();
         let snapshot = self.buffer().read(cx).snapshot(cx);
         for selection in self.selections.all::<MultiBufferOffset>(&self.display_snapshot(cx)) {
             buffer_ids.extend(snapshot.buffer_ids_for_range(selection.range()))
@@ -618,7 +618,7 @@ impl Editor {
         let hunks = snapshot.hunks_for_ranges(
             self.selections.all(&snapshot.display_snapshot).into_iter().map(|selection| selection.range()),
         );
-        let mut ranges_by_buffer = HashMap::default();
+        let mut ranges_by_buffer = FxHashMap::default();
         self.transact(window, cx, |editor, _window, cx| {
             for hunk in hunks {
                 if let Some(buffer) = editor.buffer.read(cx).buffer(hunk.buffer_id) {
@@ -729,11 +729,11 @@ impl Editor {
     ) -> Task<Result<()>> {
         let multibuffer = self.buffer.read(cx);
         let snapshot = multibuffer.read(cx);
-        let buffer_ids: HashSet<_> =
+        let buffer_ids: FxHashSet<_> =
             ranges.iter().flat_map(|range| snapshot.buffer_ids_for_range(range.clone())).collect();
         drop(snapshot);
 
-        let mut buffers = HashSet::default();
+        let mut buffers = FxHashSet::default();
         for buffer_id in buffer_ids {
             if let Some(buffer_entity) = multibuffer.buffer(buffer_id) {
                 let buffer = buffer_entity.read(cx);
@@ -901,7 +901,7 @@ impl EditorSnapshot {
     pub(super) fn display_diff_hunks_for_rows<'a>(
         &'a self,
         display_rows: Range<DisplayRow>,
-        folded_buffers: &'a HashSet<BufferId>,
+        folded_buffers: &'a FxHashSet<BufferId>,
     ) -> impl 'a + Iterator<Item = DisplayDiffHunk> {
         let buffer_start = DisplayPoint::new(display_rows.start, 0).to_point(self);
         let buffer_end = DisplayPoint::new(display_rows.end, 0).to_point(self);
@@ -951,7 +951,7 @@ impl EditorSnapshot {
 
     fn hunks_for_ranges(&self, ranges: impl IntoIterator<Item = Range<Point>>) -> Vec<MultiBufferDiffHunk> {
         let mut hunks = Vec::new();
-        let mut processed_buffer_rows: HashMap<BufferId, HashSet<Range<text::Anchor>>> = HashMap::default();
+        let mut processed_buffer_rows: FxHashMap<BufferId, FxHashSet<Range<text::Anchor>>> = FxHashMap::default();
         for query_range in ranges {
             let query_rows = MultiBufferRow(query_range.start.row)..MultiBufferRow(query_range.end.row + 1);
             for hunk in self

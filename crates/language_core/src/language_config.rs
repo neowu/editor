@@ -2,10 +2,10 @@ use std::num::NonZeroU32;
 use std::path::Path;
 use std::sync::Arc;
 
-use collections::HashMap;
-use collections::HashSet;
 use gpui_shared_string::SharedString;
 use regex::Regex;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
@@ -101,12 +101,12 @@ pub struct LanguageConfig {
     #[serde(default, deserialize_with = "deserialize_regex_vec")]
     pub rewrap_prefixes: Vec<Regex>,
     #[serde(default)]
-    pub overrides: HashMap<String, LanguageConfigOverride>,
+    pub overrides: FxHashMap<String, LanguageConfigOverride>,
     /// A list of characters that ed should treat as word characters for the
     /// purpose of features that operate on word boundaries, like 'move to next word end'
     /// or a whole-word search in buffer search.
     #[serde(default)]
-    pub word_characters: HashSet<char>,
+    pub word_characters: FxHashSet<char>,
     /// Whether to indent lines using tab characters, as opposed to multiple
     /// spaces.
     #[serde(default)]
@@ -129,10 +129,10 @@ pub struct LanguageConfig {
     pub jsx_tag_auto_close: Option<JsxTagAutoCloseConfig>,
     /// A list of characters that ed should treat as word characters for completion queries.
     #[serde(default)]
-    pub completion_query_characters: HashSet<char>,
+    pub completion_query_characters: FxHashSet<char>,
     /// A list of characters that ed should treat as word characters for linked edit operations.
     #[serde(default)]
-    pub linked_edit_characters: HashSet<char>,
+    pub linked_edit_characters: FxHashSet<char>,
 }
 
 impl LanguageConfig {
@@ -326,11 +326,11 @@ pub struct LanguageConfigOverride {
     #[serde(skip)]
     pub disabled_bracket_ixs: Vec<u16>,
     #[serde(default)]
-    pub word_characters: Override<HashSet<char>>,
+    pub word_characters: Override<FxHashSet<char>>,
     #[serde(default)]
-    pub completion_query_characters: Override<HashSet<char>>,
+    pub completion_query_characters: Override<FxHashSet<char>>,
     #[serde(default)]
-    pub linked_edit_characters: Override<HashSet<char>>,
+    pub linked_edit_characters: Override<FxHashSet<char>>,
     #[serde(default)]
     pub prefer_label_for_snippet: Option<bool>,
 }

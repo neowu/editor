@@ -18,6 +18,8 @@ use std::cell::Ref;
 use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::cmp::{self};
+use std::collections::BTreeMap;
+use std::collections::Bound;
 use std::fmt;
 use std::future::Future;
 use std::io;
@@ -51,16 +53,12 @@ use buffer_diff::DiffHunkSecondaryStatus;
 use buffer_diff::DiffHunkStatus;
 use buffer_diff::DiffHunkStatusKind;
 use clock::ReplicaId;
-use collections::BTreeMap;
-use collections::Bound;
-use collections::HashMap;
-use collections::HashSet;
-use collections::IndexSet;
 use futures_lite::future::yield_now;
 use gpui::App;
 use gpui::Context;
 use gpui::Entity;
 use gpui::EventEmitter;
+use indexmap::IndexSet;
 use itertools::Itertools;
 use language::AutoIndentExclusion;
 use language::AutoindentMode;
@@ -99,6 +97,9 @@ use language::Unclipped;
 use language::language_settings::AllLanguageSettings;
 use language::language_settings::LanguageSettings;
 use rope::DimensionPair;
+use rustc_hash::FxBuildHasher;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::Settings;
 use smallvec::SmallVec;
 use sum_tree::Bias;
@@ -132,7 +133,7 @@ pub struct MultiBuffer {
     /// Contains the state of the buffers being edited
     buffers: BTreeMap<BufferId, BufferState>,
     /// Mapping from buffer IDs to their diff states
-    diffs: HashMap<BufferId, DiffState>,
+    diffs: FxHashMap<BufferId, DiffState>,
     subscriptions: Topic<MultiBufferOffset>,
     /// If true, the multi-buffer only contains a single [`Buffer`] and a single [`Excerpt`]
     singleton: bool,
@@ -719,7 +720,7 @@ impl fmt::Debug for BufferStateSnapshot {
 pub struct MultiBufferSnapshot {
     excerpts: SumTree<Excerpt>,
     buffers: TreeMap<BufferId, BufferStateSnapshot>,
-    path_keys: Arc<IndexSet<PathKey>>,
+    path_keys: Arc<IndexSet<PathKey, FxBuildHasher>>,
     diffs: SumTree<DiffStateSnapshot>,
     diff_transforms: SumTree<DiffTransform>,
     non_text_state_update_count: usize,
@@ -1270,7 +1271,7 @@ impl MultiBuffer {
         Self {
             snapshot: RefCell::new(snapshot),
             buffers: BTreeMap::default(),
-            diffs: HashMap::default(),
+            diffs: FxHashMap::default(),
             subscriptions: Topic::default(),
             singleton: false,
             capability,
@@ -1298,7 +1299,7 @@ impl MultiBuffer {
                 },
             );
         }
-        let mut diff_bases = HashMap::default();
+        let mut diff_bases = FxHashMap::default();
         for (buffer_id, diff) in &self.diffs {
             diff_bases.insert(*buffer_id, DiffState::new(diff.diff.clone(), new_cx));
         }
@@ -1549,8 +1550,8 @@ impl MultiBuffer {
         edits: Vec<(Range<MultiBufferOffset>, Arc<str>)>,
         snapshot: &MultiBufferSnapshot,
         original_indent_columns: &[Option<u32>],
-    ) -> HashMap<BufferId, Vec<BufferEdit>> {
-        let mut buffer_edits: HashMap<BufferId, Vec<BufferEdit>> = HashMap::default();
+    ) -> FxHashMap<BufferId, Vec<BufferEdit>> {
+        let mut buffer_edits: FxHashMap<BufferId, Vec<BufferEdit>> = FxHashMap::default();
         let mut cursor = snapshot.cursor::<MultiBufferOffset, BufferOffset>();
         for (ix, (range, new_text)) in edits.into_iter().enumerate() {
             let original_indent_column = original_indent_columns.get(ix).copied().flatten();
@@ -1708,7 +1709,7 @@ impl MultiBuffer {
         cx: &mut Context<Self>,
     ) {
         let snapshot = self.snapshot(cx);
-        let mut selections_by_buffer: HashMap<BufferId, Vec<Selection<text::Anchor>>> = HashMap::default();
+        let mut selections_by_buffer: FxHashMap<BufferId, Vec<Selection<text::Anchor>>> = FxHashMap::default();
 
         for selection in selections {
             for (buffer_snapshot, buffer_range, _) in snapshot.range_to_buffer_ranges(selection.start..selection.end) {
@@ -2000,7 +2001,7 @@ impl MultiBuffer {
         self.buffers.values().map(|state| state.buffer.clone())
     }
 
-    pub fn all_buffers(&self) -> HashSet<Entity<Buffer>> {
+    pub fn all_buffers(&self) -> FxHashSet<Entity<Buffer>> {
         self.all_buffers_iter().collect()
     }
 
@@ -2323,7 +2324,7 @@ impl MultiBuffer {
     fn sync_from_buffer_changes(
         snapshot: &mut MultiBufferSnapshot,
         buffers: &BTreeMap<BufferId, BufferState>,
-        diffs: &HashMap<BufferId, DiffState>,
+        diffs: &FxHashMap<BufferId, DiffState>,
         cx: &App,
     ) -> Vec<Edit<MultiBufferOffset>> {
         let MultiBufferSnapshot {
@@ -2472,7 +2473,7 @@ impl MultiBuffer {
         let mut old_diff_transforms =
             snapshot.diff_transforms.cursor::<Dimensions<ExcerptOffset, MultiBufferOffset>>(());
         let mut new_diff_transforms = SumTree::default();
-        let mut old_expanded_hunks = HashSet::default();
+        let mut old_expanded_hunks = FxHashSet::default();
         let mut output_edits = Vec::new();
         let mut output_delta = 0_isize;
         let mut at_transform_boundary = true;
@@ -2587,7 +2588,7 @@ impl MultiBuffer {
         old_diff_transforms: &mut Cursor<DiffTransform, Dimensions<ExcerptOffset, MultiBufferOffset>>,
         new_diff_transforms: &mut SumTree<DiffTransform>,
         end_of_current_insert: &mut Option<(ExcerptOffset, DiffTransformHunkInfo)>,
-        old_expanded_hunks: &mut HashSet<DiffTransformHunkInfo>,
+        old_expanded_hunks: &mut FxHashSet<DiffTransformHunkInfo>,
         snapshot: &MultiBufferSnapshot,
         change_kind: DiffChangeKind,
     ) -> bool {

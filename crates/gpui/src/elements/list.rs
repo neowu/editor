@@ -9,13 +9,13 @@
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
+use std::collections::VecDeque;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::ops::Range;
 use std::rc::Rc;
 
-use collections::VecDeque;
 use refineable::Refineable as _;
 use sum_tree::Bias;
 use sum_tree::Dimensions;

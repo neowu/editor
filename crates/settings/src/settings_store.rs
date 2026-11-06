@@ -1,21 +1,22 @@
 use std::any::Any;
 use std::any::TypeId;
 use std::any::type_name;
+use std::collections::HashMap;
+use std::collections::hash_map;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
 use anyhow::Result;
-use collections::HashMap;
-use collections::TypeIdHashMap;
-use collections::hash_map;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::BorrowAppContext;
 use gpui::Global;
 use gpui::SharedString;
 use gpui::UpdateGlobal;
+use gpui_util::TypeIdHashBuilder;
+use rustc_hash::FxHashMap;
 
 use crate::SemanticTokenRules;
 use crate::built_in_semantic_token_rules;
@@ -87,10 +88,10 @@ inventory::collect!(RegisteredSetting);
 /// One complete application-wide configuration, with language conventions filled
 /// in from registered language metadata and no file-based settings layers.
 pub struct SettingsStore {
-    setting_values: TypeIdHashMap<Box<dyn AnySettingValue>>,
+    setting_values: HashMap<TypeId, Box<dyn AnySettingValue>, TypeIdHashBuilder>,
     settings: SettingsContent,
     language_defaults: Option<crate::AllLanguageSettingsContent>,
-    language_semantic_token_rules: HashMap<SharedString, SemanticTokenRules>,
+    language_semantic_token_rules: FxHashMap<SharedString, SemanticTokenRules>,
     merged_settings: SettingsContent,
 }
 
@@ -121,10 +122,10 @@ impl SettingsStore {
         }
         let merged_settings = settings.clone();
         let mut this = Self {
-            setting_values: TypeIdHashMap::default(),
+            setting_values: HashMap::default(),
             settings,
             language_defaults: None,
-            language_semantic_token_rules: HashMap::default(),
+            language_semantic_token_rules: FxHashMap::default(),
             merged_settings,
         };
         this.load_settings_types();

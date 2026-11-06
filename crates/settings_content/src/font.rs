@@ -3,7 +3,8 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::sync::Arc;
 
-use collections::IndexMap;
+use indexmap::IndexMap;
+use rustc_hash::FxBuildHasher;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
@@ -15,7 +16,7 @@ use crate::serialize_f32_with_two_decimal_places;
 /// Values can be specified as booleans (true=1, false=0) or integers.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 #[serde(transparent)]
-pub struct FontFeaturesContent(pub IndexMap<String, u32>);
+pub struct FontFeaturesContent(pub IndexMap<String, u32, FxBuildHasher>);
 
 impl FontFeaturesContent {
     pub fn new() -> Self {

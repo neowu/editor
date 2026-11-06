@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use collections::HashMap;
 use gpui::SharedString;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 use util::ResultExt;
@@ -448,7 +448,7 @@ pub enum DiffTreeType {
 
 #[derive(Debug, PartialEq)]
 pub struct TreeDiff {
-    pub entries: HashMap<RepoPath, TreeDiffStatus>,
+    pub entries: FxHashMap<RepoPath, TreeDiffStatus>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -463,7 +463,7 @@ impl FromStr for TreeDiff {
 
     fn from_str(s: &str) -> Result<Self> {
         let mut fields = s.split('\0');
-        let mut parsed = HashMap::default();
+        let mut parsed = FxHashMap::default();
         while let Some((status, path)) = fields.next().zip(fields.next()) {
             let path = RepoPath::from_rel_path(RelPath::from_unix_str(path)?);
 

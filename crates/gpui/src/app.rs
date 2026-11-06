@@ -6,6 +6,9 @@ use std::cell::Cell;
 use std::cell::Ref;
 use std::cell::RefCell;
 use std::cell::RefMut;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::collections::VecDeque;
 use std::ffi::OsString;
 use std::fmt;
 use std::fmt::Debug;
@@ -29,12 +32,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 pub use async_context::*;
-use collections::FxHashMap;
-use collections::FxHashSet;
-use collections::HashMap;
-use collections::TypeIdHashMap;
-use collections::TypeIdHashSet;
-use collections::VecDeque;
 pub use context::*;
 use derive_more::Deref;
 use derive_more::DerefMut;
@@ -45,7 +42,10 @@ use futures::channel::oneshot;
 use futures::future;
 use futures::future::LocalBoxFuture;
 use gpui_util::ResultExt;
+use gpui_util::TypeIdHashBuilder;
 use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use scheduler::Instant;
 use slotmap::SlotMap;
 use smallvec::SmallVec;
@@ -367,7 +367,7 @@ impl DisplayState {
     }
 }
 
-fn read_displays(platform: &dyn Platform) -> HashMap<DisplayId, DisplayState> {
+fn read_displays(platform: &dyn Platform) -> FxHashMap<DisplayId, DisplayState> {
     platform
         .displays()
         .into_iter()
@@ -380,8 +380,8 @@ fn read_displays(platform: &dyn Platform) -> HashMap<DisplayId, DisplayState> {
 
 /// The events that turn one snapshot of the connected displays into the next.
 fn display_events(
-    previous: &HashMap<DisplayId, DisplayState>,
-    current: &HashMap<DisplayId, DisplayState>,
+    previous: &FxHashMap<DisplayId, DisplayState>,
+    current: &FxHashMap<DisplayId, DisplayState>,
 ) -> Vec<DisplayEvent> {
     let removed = previous.keys().filter(|id| !current.contains_key(id)).map(|id| DisplayEvent::Removed(*id));
     let added_or_changed = current.iter().filter_map(|(id, state)| {
@@ -512,7 +512,8 @@ pub struct App {
     pub(crate) keymap: Rc<RefCell<Keymap>>,
     pub(crate) keyboard_layout: Box<dyn PlatformKeyboardLayout>,
     pub(crate) keyboard_mapper: Rc<dyn PlatformKeyboardMapper>,
-    pub(crate) global_action_listeners: TypeIdHashMap<Vec<Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Self)>>>,
+    pub(crate) global_action_listeners:
+        HashMap<TypeId, Vec<Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Self)>>, TypeIdHashBuilder>,
     pending_effects: VecDeque<Effect>,
 
     pub(crate) observers: SubscriberSet<EntityId, Handler>,
@@ -525,7 +526,7 @@ pub struct App {
     pub(crate) display_observers: SingleSubscriberSet<DisplayHandler>,
     /// The connected displays, as of the platform's last display change
     /// notification.
-    displays: HashMap<DisplayId, DisplayState>,
+    displays: FxHashMap<DisplayId, DisplayState>,
     pub(crate) system_sleep_observers: SingleSubscriberSet<Handler>,
     pub(crate) system_wake_observers: SingleSubscriberSet<Handler>,
     pub(crate) release_listeners: SubscriberSet<EntityId, ReleaseListener>,
@@ -547,7 +548,7 @@ pub struct App {
 
     // Drop globals last, after all tasks owned by entities and callbacks are
     // marked cancelled.
-    pub(crate) globals_by_type: TypeIdHashMap<Box<dyn Any>>,
+    pub(crate) globals_by_type: HashMap<TypeId, Box<dyn Any>, TypeIdHashBuilder>,
 
     // assets
     pub(crate) loading_assets: FxHashMap<(TypeId, u64), Box<dyn Any>>,
@@ -556,7 +557,7 @@ pub struct App {
 
     // below is plain data, the drop order is insignificant here
     pub(crate) pending_notifications: FxHashSet<EntityId>,
-    pub(crate) pending_global_notifications: TypeIdHashSet,
+    pub(crate) pending_global_notifications: HashSet<TypeId, TypeIdHashBuilder>,
     pub(crate) restart_arguments: Vec<OsString>,
     pub(crate) layout_id_buffer: Vec<LayoutId>, // We recycle this memory across layout requests.
     pub(crate) propagate_event: bool,
@@ -603,9 +604,9 @@ impl App {
                 background_executor,
                 foreground_executor,
                 svg_renderer: SvgRenderer::new(asset_source.clone()),
-                loading_assets: HashMap::default(),
+                loading_assets: FxHashMap::default(),
                 asset_source,
-                globals_by_type: TypeIdHashMap::default(),
+                globals_by_type: HashMap::default(),
                 entities,
                 new_entity_observers: SubscriberSet::new(),
                 windows: SlotMap::with_key(),
@@ -615,10 +616,10 @@ impl App {
                 keymap: Rc::new(RefCell::new(Keymap::default())),
                 keyboard_layout,
                 keyboard_mapper,
-                global_action_listeners: TypeIdHashMap::default(),
+                global_action_listeners: HashMap::default(),
                 pending_effects: VecDeque::new(),
                 pending_notifications: FxHashSet::default(),
-                pending_global_notifications: TypeIdHashSet::default(),
+                pending_global_notifications: HashSet::default(),
                 observers: SubscriberSet::new(),
                 tracked_entities: FxHashMap::default(),
                 window_invalidators_by_entity: FxHashMap::default(),
@@ -1911,7 +1912,7 @@ impl App {
     }
 
     /// Get a map from an action name to the documentation.
-    pub fn action_documentation(&self) -> &HashMap<&'static str, &'static str> {
+    pub fn action_documentation(&self) -> &FxHashMap<&'static str, &'static str> {
         self.actions.documentation()
     }
 

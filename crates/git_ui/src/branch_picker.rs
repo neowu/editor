@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use anyhow::Context as _;
-use collections::HashSet;
 use editor::Editor;
 use fuzzy_nucleo::StringMatchCandidate;
 use git::repository::Branch;
@@ -39,6 +38,7 @@ use picker::PickerDelegate;
 use picker::PickerEditorPosition;
 use project::git_store::Repository;
 use project::git_store::RepositoryEvent;
+use rustc_hash::FxHashSet;
 use time::OffsetDateTime;
 use ui::Banner;
 use ui::ContextMenu;
@@ -809,7 +809,7 @@ fn sort_branch_entries(matches: &mut [Entry], branch_selection_context: Option<&
 // - kept when selecting a diff base because they may point to a different commit.
 fn process_branches(branches: &Arc<[Branch]>, collapse_tracked_remotes: bool) -> Vec<Branch> {
     let mut result: Vec<Branch> = if collapse_tracked_remotes {
-        let remote_upstreams: HashSet<_> = branches
+        let remote_upstreams: FxHashSet<_> = branches
             .iter()
             .filter_map(|branch| {
                 branch

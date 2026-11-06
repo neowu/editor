@@ -10,8 +10,6 @@ use std::result;
 use std::sync::Arc;
 
 use anyhow::Result;
-use collections::HashMap;
-use collections::HashSet;
 use editor::GotoDefinitionKind;
 use editor::RenameTarget;
 use editor::SemanticsProvider;
@@ -48,6 +46,8 @@ use project::lsp_store::BufferSemanticTokens;
 use project::lsp_store::CacheInlayHints;
 use project::lsp_store::OpenLspBufferHandle;
 use project::lsp_store::SymbolLocation;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use util::ResultExt as _;
 
 use crate::commit_view::project_file_path;
@@ -58,7 +58,7 @@ use crate::commit_view::project_file_path;
 pub(crate) struct RevisionSemanticsProvider {
     project: WeakEntity<Project>,
     repository: WeakEntity<Repository>,
-    live_buffers: Rc<RefCell<HashMap<ProjectPath, LiveBuffer>>>,
+    live_buffers: Rc<RefCell<FxHashMap<ProjectPath, LiveBuffer>>>,
 }
 
 /// A file's current buffer, kept open with its language servers for as long
@@ -299,7 +299,7 @@ impl SemanticsProvider for RevisionSemanticsProvider {
         self.project.applicable_inlay_chunks(buffer, ranges, cx)
     }
 
-    fn invalidate_inlay_hints(&self, for_buffers: &HashSet<BufferId>, cx: &mut App) {
+    fn invalidate_inlay_hints(&self, for_buffers: &FxHashSet<BufferId>, cx: &mut App) {
         self.project.invalidate_inlay_hints(for_buffers, cx)
     }
 
@@ -308,9 +308,9 @@ impl SemanticsProvider for RevisionSemanticsProvider {
         invalidate: InvalidationStrategy,
         buffer: Entity<Buffer>,
         ranges: Vec<Range<Anchor>>,
-        known_chunks: Option<(clock::Global, HashSet<Range<BufferRow>>)>,
+        known_chunks: Option<(clock::Global, FxHashSet<Range<BufferRow>>)>,
         cx: &mut App,
-    ) -> Option<HashMap<Range<BufferRow>, Task<Result<CacheInlayHints>>>> {
+    ) -> Option<FxHashMap<Range<BufferRow>, Task<Result<CacheInlayHints>>>> {
         self.project.inlay_hints(invalidate, buffer, ranges, known_chunks, cx)
     }
 

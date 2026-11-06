@@ -1,3 +1,4 @@
+use std::collections::hash_map;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -6,9 +7,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use collections::FxHashMap;
-use collections::HashMap;
-use collections::hash_map;
 use futures::Future;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
@@ -30,6 +28,7 @@ pub use language_core::ServerHealth;
 use lsp::LanguageServerId;
 use parking_lot::Mutex;
 use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
 use settings::AllLanguageSettingsContent;
 use settings::LanguageSettingsContent;
 use smallvec::SmallVec;
@@ -64,10 +63,10 @@ struct LanguageRegistryState {
     languages: Vec<Arc<Language>>,
     language_settings: AllLanguageSettingsContent,
     available_languages: AvailableLanguages,
-    grammars: HashMap<Arc<str>, tree_sitter::Language>,
-    lsp_adapters: HashMap<LanguageName, Vec<Arc<CachedLspAdapter>>>,
-    all_lsp_adapters: HashMap<LanguageServerName, Arc<CachedLspAdapter>>,
-    loading_languages: HashMap<LanguageId, Vec<oneshot::Sender<Result<Arc<Language>>>>>,
+    grammars: FxHashMap<Arc<str>, tree_sitter::Language>,
+    lsp_adapters: FxHashMap<LanguageName, Vec<Arc<CachedLspAdapter>>>,
+    all_lsp_adapters: FxHashMap<LanguageServerName, Arc<CachedLspAdapter>>,
+    loading_languages: FxHashMap<LanguageId, Vec<oneshot::Sender<Result<Arc<Language>>>>>,
     subscription: watch::Sender<()>,
     theme: Option<Arc<Theme>>,
     version: usize,
@@ -93,7 +92,7 @@ struct ServerStatusSender {
 #[derive(Default)]
 struct ServerStatusSenderState {
     next_subscription_id: usize,
-    txs: HashMap<usize, mpsc::UnboundedSender<ServerStatus>>,
+    txs: FxHashMap<usize, mpsc::UnboundedSender<ServerStatus>>,
 }
 
 pub struct LoadedLanguage {
@@ -112,11 +111,11 @@ impl LanguageRegistry {
                 next_language_server_id: 0,
                 languages: Vec::new(),
                 available_languages: AvailableLanguages::default(),
-                grammars: HashMap::default(),
+                grammars: FxHashMap::default(),
                 language_settings: AllLanguageSettingsContent::default(),
-                loading_languages: HashMap::default(),
-                lsp_adapters: HashMap::default(),
-                all_lsp_adapters: HashMap::default(),
+                loading_languages: FxHashMap::default(),
+                lsp_adapters: FxHashMap::default(),
+                all_lsp_adapters: FxHashMap::default(),
                 subscription: watch::channel(()).0,
                 theme: Option::default(),
                 version: 0,

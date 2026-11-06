@@ -1,12 +1,12 @@
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::mem;
 use std::rc::Rc;
 
-use collections::BTreeMap;
 use gpui_util::post_inc;
 
 /// Stores subscriptions for a single emitter.

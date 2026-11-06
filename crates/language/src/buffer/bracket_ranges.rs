@@ -8,8 +8,8 @@
 use std::iter;
 use std::ops::Range;
 
-use collections::HashMap;
-use collections::HashSet;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use text::Bias;
 use text::OffsetRangeExt;
 use text::ToOffset;
@@ -93,9 +93,9 @@ impl BufferSnapshot {
     pub fn fetch_bracket_ranges(
         &self,
         range: Range<usize>,
-        known_chunks: Option<&HashSet<Range<BufferRow>>>,
-    ) -> HashMap<Range<BufferRow>, Vec<BracketMatch>> {
-        let mut all_bracket_matches = HashMap::default();
+        known_chunks: Option<&FxHashSet<Range<BufferRow>>>,
+    ) -> FxHashMap<Range<BufferRow>, Vec<BracketMatch>> {
+        let mut all_bracket_matches = FxHashMap::default();
         if self.language.as_ref().is_none_or(|language| language.grammar().is_none()) {
             return all_bracket_matches;
         }
@@ -203,12 +203,12 @@ struct ChunkBrackets<'a> {
     grammar_ids: Vec<GrammarId>,
     configs: Vec<&'a BracketsConfig>,
     candidates: Vec<BracketMatchCandidate>,
-    delimiter_kinds_by_pattern: HashMap<BracketPatternKey, (HashSet<u16>, HashSet<u16>)>,
-    syntax_layer_depths_by_delimiter: HashMap<BracketDelimiter, usize>,
-    bogus_patterns: HashSet<BracketPatternKey>,
-    incomplete_patterns: HashSet<BracketPatternKey>,
-    syntax_opens_by_pattern: HashMap<BracketPatternKey, HashSet<BracketDelimiter>>,
-    syntax_closes_by_pattern: HashMap<BracketPatternKey, HashSet<BracketDelimiter>>,
+    delimiter_kinds_by_pattern: FxHashMap<BracketPatternKey, (FxHashSet<u16>, FxHashSet<u16>)>,
+    syntax_layer_depths_by_delimiter: FxHashMap<BracketDelimiter, usize>,
+    bogus_patterns: FxHashSet<BracketPatternKey>,
+    incomplete_patterns: FxHashSet<BracketPatternKey>,
+    syntax_opens_by_pattern: FxHashMap<BracketPatternKey, FxHashSet<BracketDelimiter>>,
+    syntax_closes_by_pattern: FxHashMap<BracketPatternKey, FxHashSet<BracketDelimiter>>,
 }
 
 impl<'a> ChunkBrackets<'a> {
@@ -224,12 +224,12 @@ impl<'a> ChunkBrackets<'a> {
             grammar_ids: Vec::new(),
             configs: Vec::new(),
             candidates: Vec::new(),
-            delimiter_kinds_by_pattern: HashMap::default(),
-            syntax_layer_depths_by_delimiter: HashMap::default(),
-            bogus_patterns: HashSet::default(),
-            incomplete_patterns: HashSet::default(),
-            syntax_opens_by_pattern: HashMap::default(),
-            syntax_closes_by_pattern: HashMap::default(),
+            delimiter_kinds_by_pattern: FxHashMap::default(),
+            syntax_layer_depths_by_delimiter: FxHashMap::default(),
+            bogus_patterns: FxHashSet::default(),
+            incomplete_patterns: FxHashSet::default(),
+            syntax_opens_by_pattern: FxHashMap::default(),
+            syntax_closes_by_pattern: FxHashMap::default(),
         }
     }
 
@@ -253,10 +253,10 @@ impl<'a> ChunkBrackets<'a> {
             )
         });
 
-        let mut seen_pairs = HashSet::default();
+        let mut seen_pairs = FxHashSet::default();
         // Track the close seen for each open delimiter: a second, different close
         // for the same open means the pattern's matches cannot be trusted.
-        let mut close_by_open = HashMap::default();
+        let mut close_by_open = FxHashMap::default();
         for (query_range, options) in iter::once(bounded_query).chain(boundary_queries) {
             let mut matches = snapshot.syntax.matches_with_options(query_range, &snapshot.text, options, |grammar| {
                 grammar.brackets_config.as_ref().map(|c| &c.query)
@@ -307,7 +307,7 @@ impl<'a> ChunkBrackets<'a> {
                     let (open_kinds, close_kinds) = self
                         .delimiter_kinds_by_pattern
                         .entry(pattern_key)
-                        .or_insert_with(|| (HashSet::default(), HashSet::default()));
+                        .or_insert_with(|| (FxHashSet::default(), FxHashSet::default()));
                     open_kinds.insert(open_kind);
                     close_kinds.insert(close_kind);
                 }
@@ -443,14 +443,14 @@ impl<'a> ChunkBrackets<'a> {
                 .filter(|candidate| candidate.pattern == *pattern)
                 .map(|candidate| candidate.open_delimiter())
                 .filter(|open| self.chunk_range.contains(&open.start))
-                .collect::<HashSet<_>>();
+                .collect::<FxHashSet<_>>();
             let query_closes = self
                 .candidates
                 .iter()
                 .filter(|candidate| candidate.pattern == *pattern)
                 .map(|candidate| candidate.close_delimiter())
                 .filter(|close| self.chunk_range.contains(&close.start))
-                .collect::<HashSet<_>>();
+                .collect::<FxHashSet<_>>();
             let has_missing_open = !syntax_opens.is_subset(&query_opens);
             let has_missing_close = !syntax_closes.is_subset(&query_closes);
             if has_missing_open || has_missing_close {
@@ -478,7 +478,7 @@ impl<'a> ChunkBrackets<'a> {
         let pair_counts = self.bogus_pair_counts();
         let mut existing_pairs = bogus_candidates(&self.candidates, &self.bogus_patterns)
             .map(|candidate| (candidate.open_delimiter(), candidate.close_delimiter()))
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
         let mut valid_pairs = self.stack_matched_pairs(&pair_counts, &mut existing_pairs);
         self.trust_cross_chunk_pairs(&pair_counts, &mut valid_pairs);
         self.replace_bogus_pairs(valid_pairs, existing_pairs);
@@ -505,7 +505,7 @@ impl<'a> ChunkBrackets<'a> {
     fn repairable_delimiters(
         &self,
         mut delimiters: Vec<BracketDelimiter>,
-        syntax_delimiters_by_pattern: &HashMap<BracketPatternKey, HashSet<BracketDelimiter>>,
+        syntax_delimiters_by_pattern: &FxHashMap<BracketPatternKey, FxHashSet<BracketDelimiter>>,
     ) -> Vec<BracketDelimiter> {
         delimiters.retain(|delimiter| self.chunk_range.contains(&delimiter.start) && self.is_concrete(delimiter));
         for pattern in &self.incomplete_patterns {
@@ -524,12 +524,12 @@ impl<'a> ChunkBrackets<'a> {
     fn stack_matched_pairs(
         &mut self,
         pair_counts: &DelimiterPairCounts,
-        existing_pairs: &mut HashSet<BracketDelimiterPair>,
-    ) -> HashSet<BracketDelimiterPair> {
+        existing_pairs: &mut FxHashSet<BracketDelimiterPair>,
+    ) -> FxHashSet<BracketDelimiterPair> {
         // Map each close to its expected open length (for inferring opens)
         let close_to_open_len = bogus_candidates(&self.candidates, &self.bogus_patterns)
             .map(|candidate| (candidate.close_delimiter(), candidate.bracket_match.open_range.len()))
-            .collect::<HashMap<_, _>>();
+            .collect::<FxHashMap<_, _>>();
         let sorted_opens = self.repairable_delimiters(
             bogus_candidates(&self.candidates, &self.bogus_patterns)
                 .map(|candidate| candidate.open_delimiter())
@@ -548,10 +548,10 @@ impl<'a> ChunkBrackets<'a> {
                     && pair_counts.uniquely_paired(&candidate.open_delimiter(), &candidate.close_delimiter())
             })
             .map(|candidate| candidate.close_delimiter())
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
 
-        let mut valid_pairs = HashSet::default();
-        let mut open_stacks = HashMap::default();
+        let mut valid_pairs = FxHashSet::default();
+        let mut open_stacks = FxHashMap::default();
         let mut open_idx = 0;
         for close in &unique_closes {
             // Push all opens before this close onto stack
@@ -602,10 +602,10 @@ impl<'a> ChunkBrackets<'a> {
     fn trust_cross_chunk_pairs(
         &self,
         pair_counts: &DelimiterPairCounts,
-        valid_pairs: &mut HashSet<BracketDelimiterPair>,
+        valid_pairs: &mut FxHashSet<BracketDelimiterPair>,
     ) {
-        let matched_opens = valid_pairs.iter().map(|(open, _)| *open).collect::<HashSet<_>>();
-        let matched_closes = valid_pairs.iter().map(|(_, close)| *close).collect::<HashSet<_>>();
+        let matched_opens = valid_pairs.iter().map(|(open, _)| *open).collect::<FxHashSet<_>>();
+        let matched_closes = valid_pairs.iter().map(|(_, close)| *close).collect::<FxHashSet<_>>();
         for candidate in bogus_candidates(&self.candidates, &self.bogus_patterns) {
             let open = candidate.open_delimiter();
             let close = candidate.close_delimiter();
@@ -629,8 +629,8 @@ impl<'a> ChunkBrackets<'a> {
     /// candidates for the repaired pairs that the queries never produced.
     fn replace_bogus_pairs(
         &mut self,
-        valid_pairs: HashSet<BracketDelimiterPair>,
-        existing_pairs: HashSet<BracketDelimiterPair>,
+        valid_pairs: FxHashSet<BracketDelimiterPair>,
+        existing_pairs: FxHashSet<BracketDelimiterPair>,
     ) {
         let mut repaired_pairs =
             valid_pairs.iter().filter(|pair| !existing_pairs.contains(*pair)).copied().collect::<Vec<_>>();
@@ -666,7 +666,7 @@ impl<'a> ChunkBrackets<'a> {
     /// patterns, both when queried and when repaired. Keeps the first match,
     /// following the pattern order in the query.
     fn deduplicate_overlapping_patterns(&mut self) {
-        let mut seen_ranges = HashSet::default();
+        let mut seen_ranges = FxHashSet::default();
         self.candidates.retain(|candidate| {
             seen_ranges.insert((
                 candidate.bracket_match.open_range.start,
@@ -728,15 +728,15 @@ impl<'a> ChunkBrackets<'a> {
 
 fn bogus_candidates<'a>(
     candidates: &'a [BracketMatchCandidate],
-    bogus_patterns: &'a HashSet<BracketPatternKey>,
+    bogus_patterns: &'a FxHashSet<BracketPatternKey>,
 ) -> impl Iterator<Item = &'a BracketMatchCandidate> {
     candidates.iter().filter(|candidate| bogus_patterns.contains(&candidate.pattern))
 }
 
 #[derive(Default)]
 struct DelimiterPairCounts {
-    opens: HashMap<BracketDelimiter, usize>,
-    closes: HashMap<BracketDelimiter, usize>,
+    opens: FxHashMap<BracketDelimiter, usize>,
+    closes: FxHashMap<BracketDelimiter, usize>,
 }
 
 impl DelimiterPairCounts {

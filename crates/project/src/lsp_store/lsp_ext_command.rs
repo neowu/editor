@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::Entity;
@@ -19,6 +18,7 @@ use lsp::notification::Notification;
 use lsp::request::Request;
 use rpc::proto;
 use rpc::proto::PeerId;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 use task::ShellKind;
@@ -446,8 +446,8 @@ pub enum RunnableArgs {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CargoRunnableArgs {
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub environment: HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
+    pub environment: FxHashMap<String, String>,
     pub cwd: PathBuf,
     /// Command to be executed instead of cargo
     #[serde(default)]
@@ -465,8 +465,8 @@ pub struct CargoRunnableArgs {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ShellRunnableArgs {
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub environment: HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "FxHashMap::is_empty")]
+    pub environment: FxHashMap<String, String>,
     pub cwd: PathBuf,
     pub program: String,
     #[serde(default)]

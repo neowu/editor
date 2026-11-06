@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use collections::HashMap;
 use ed_actions::workspace::CopyPath;
 use ed_actions::workspace::CopyRelativePath;
 use file_icons::FileIcons;
@@ -33,6 +32,7 @@ use multi_buffer::Anchor;
 use multi_buffer::ExcerptBoundaryInfo;
 use multi_buffer::MultiBuffer;
 use project::Entry;
+use rustc_hash::FxHashMap;
 use text::BufferId;
 use theme::ActiveTheme;
 use ui::ButtonLike;
@@ -81,7 +81,7 @@ impl EditorElement {
         hitbox: &Hitbox,
         selected_buffer_ids: &[BufferId],
         blocks: &[BlockLayout],
-        latest_selection_anchors: &HashMap<BufferId, Anchor>,
+        latest_selection_anchors: &FxHashMap<BufferId, Anchor>,
         window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
@@ -153,7 +153,7 @@ pub(crate) fn header_jump_data(
     block_row_start: DisplayRow,
     height: u32,
     first_excerpt: &ExcerptBoundaryInfo,
-    latest_selection_anchors: &HashMap<BufferId, Anchor>,
+    latest_selection_anchors: &FxHashMap<BufferId, Anchor>,
 ) -> JumpData {
     let multibuffer_snapshot = editor_snapshot.buffer_snapshot();
     let buffer = first_excerpt.buffer(multibuffer_snapshot);

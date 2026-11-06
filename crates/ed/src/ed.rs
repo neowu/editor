@@ -13,13 +13,13 @@ pub(crate) mod mac_only_instance;
 mod open_listener;
 
 use std::borrow::Cow;
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Context as _;
 pub use app_menus::*;
-use collections::VecDeque;
 use ed_actions::About;
 use ed_actions::OpenBrowser;
 use ed_actions::Quit;

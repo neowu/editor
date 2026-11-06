@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use collections::HashMap;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Entity;
@@ -15,6 +14,7 @@ use language::ContextProvider;
 use language::Language;
 use language::language_settings::LanguageSettings;
 use lsp::LanguageServerId;
+use rustc_hash::FxHashMap;
 use task::TaskTemplate;
 use task::TaskTemplates;
 use task::TaskVariables;
@@ -79,7 +79,7 @@ impl ContextProvider for BasicContextProvider {
         &self,
         _: &TaskVariables,
         location: ContextLocation<'_>,
-        _: Option<HashMap<String, String>>,
+        _: Option<FxHashMap<String, String>>,
         cx: &mut App,
     ) -> Task<Result<TaskVariables>> {
         let location = location.file_location;

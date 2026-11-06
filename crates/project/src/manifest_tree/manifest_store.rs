@@ -1,18 +1,18 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-use collections::HashMap;
-use collections::HashSet;
 use gpui::App;
 use gpui::Global;
 use gpui::SharedString;
 use language::ManifestName;
 use language::ManifestProvider;
 use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 #[derive(Default)]
 struct ManifestProvidersState {
-    providers: HashMap<ManifestName, Arc<dyn ManifestProvider>>,
+    providers: FxHashMap<ManifestName, Arc<dyn ManifestProvider>>,
 }
 
 #[derive(Clone, Default)]
@@ -50,7 +50,7 @@ impl ManifestProvidersStore {
     pub(super) fn get(&self, name: &SharedString) -> Option<Arc<dyn ManifestProvider>> {
         self.0.read().providers.get(name).cloned()
     }
-    pub(crate) fn manifest_file_names(&self) -> HashSet<ManifestName> {
+    pub(crate) fn manifest_file_names(&self) -> FxHashSet<ManifestName> {
         self.0.read().providers.keys().cloned().collect()
     }
 }

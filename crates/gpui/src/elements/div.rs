@@ -27,9 +27,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-use collections::HashMap;
 use gpui_util::ResultExt;
 use refineable::Refineable;
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
 use super::ImageCacheProvider;
@@ -2892,7 +2892,7 @@ fn handle_tooltip_check_visible_and_update(
 }
 
 #[derive(Default)]
-pub(crate) struct GroupHitboxes(HashMap<SharedString, SmallVec<[HitboxId; 1]>>);
+pub(crate) struct GroupHitboxes(FxHashMap<SharedString, SmallVec<[HitboxId; 1]>>);
 
 impl Global for GroupHitboxes {}
 

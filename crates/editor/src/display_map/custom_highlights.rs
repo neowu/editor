@@ -1,7 +1,7 @@
 use std::cmp;
+use std::collections::BTreeMap;
 use std::ops::Range;
 
-use collections::BTreeMap;
 use gpui::HighlightStyle;
 use language::Chunk;
 use language::LanguageAwareStyling;

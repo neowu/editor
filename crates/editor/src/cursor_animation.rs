@@ -11,12 +11,12 @@ use std::ops::Sub;
 use std::time::Duration;
 use std::time::Instant;
 
-use collections::HashMap;
 use gpui::Bounds;
 use gpui::Pixels;
 use gpui::Point;
 use gpui::point;
 use gpui::px;
+use rustc_hash::FxHashMap;
 
 /// Speed-up over the vscode-neovide-cursor timings.
 const ANIMATION_SPEED: f32 = 1.5;
@@ -314,7 +314,7 @@ pub(crate) struct CursorAnimationState {
 
 #[derive(Default)]
 pub(crate) struct CursorAnimationStates {
-    states: HashMap<usize, CursorAnimationState>,
+    states: FxHashMap<usize, CursorAnimationState>,
     newest_selection_id: Option<usize>,
     newest_state: Option<CursorAnimationState>,
 }

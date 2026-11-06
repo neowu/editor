@@ -9,9 +9,9 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use collections::FxHashSet;
 use futures::Future;
 use futures::TryFutureExt;
+use rustc_hash::FxHashSet;
 
 use crate::App;
 use crate::EntityId;
@@ -130,5 +130,5 @@ where
 
 /// Use a quick, non-cryptographically secure hash function to get an identifier from data
 pub fn hash<T: Hash>(data: &T) -> u64 {
-    collections::FxBuildHasher.hash_one(data)
+    rustc_hash::FxBuildHasher.hash_one(data)
 }

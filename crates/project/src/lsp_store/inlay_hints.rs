@@ -8,8 +8,6 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
-use collections::HashSet;
 use futures::future::Shared;
 use gpui::App;
 use gpui::AppContext as _;
@@ -25,6 +23,8 @@ use lsp::LanguageServerId;
 use lsp::request::InlayHintResolveRequest;
 use rpc::TypedEnvelope;
 use rpc::proto;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::Settings as _;
 use text::Anchor;
 use text::BufferId;
@@ -41,7 +41,7 @@ use crate::ResolveState;
 use crate::lsp_command::InlayHints;
 use crate::project_settings::ProjectSettings;
 
-pub type CacheInlayHints = HashMap<LanguageServerId, Vec<(InlayId, InlayHint)>>;
+pub type CacheInlayHints = FxHashMap<LanguageServerId, Vec<(InlayId, InlayHint)>>;
 pub type CacheInlayHintsTask = Shared<Task<Result<CacheInlayHints, Arc<anyhow::Error>>>>;
 
 pub(super) fn hints_in_range(
@@ -96,11 +96,11 @@ pub struct BufferInlayHints {
     chunks: RowChunks,
     hints_by_chunks: Vec<Option<CacheInlayHints>>,
     fetches_by_chunks: Vec<Option<CacheInlayHintsTask>>,
-    hints_by_id: HashMap<InlayId, HintForId>,
-    pending_refreshes: HashSet<LanguageServerId>,
-    work_end_refreshes: HashSet<LanguageServerId>,
-    pub(super) fetched_servers: HashSet<LanguageServerId>,
-    pub(super) hint_resolves: HashMap<InlayId, Shared<Task<Option<InlayHint>>>>,
+    hints_by_id: FxHashMap<InlayId, HintForId>,
+    pending_refreshes: FxHashSet<LanguageServerId>,
+    work_end_refreshes: FxHashSet<LanguageServerId>,
+    pub(super) fetched_servers: FxHashSet<LanguageServerId>,
+    pub(super) hint_resolves: FxHashMap<InlayId, Shared<Task<Option<InlayHint>>>>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -130,11 +130,11 @@ impl BufferInlayHints {
         Self {
             hints_by_chunks: vec![None; chunks.len()],
             fetches_by_chunks: vec![None; chunks.len()],
-            pending_refreshes: HashSet::default(),
-            work_end_refreshes: HashSet::default(),
-            fetched_servers: HashSet::default(),
-            hints_by_id: HashMap::default(),
-            hint_resolves: HashMap::default(),
+            pending_refreshes: FxHashSet::default(),
+            work_end_refreshes: FxHashSet::default(),
+            fetched_servers: FxHashSet::default(),
+            hints_by_id: FxHashMap::default(),
+            hint_resolves: FxHashMap::default(),
             chunks,
         }
     }

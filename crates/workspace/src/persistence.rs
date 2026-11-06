@@ -12,7 +12,6 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
 use fs::Fs;
 use gpui::App;
 use gpui::AppContext as _;
@@ -26,6 +25,7 @@ use remote::RemoteConnectionIdentity;
 use remote::RemoteConnectionOptions;
 use remote::SshConnectionOptions;
 use remote::remote_connection_identity;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 use time::OffsetDateTime;
@@ -529,7 +529,7 @@ async fn resolve_local_workspace_identity(fs: &dyn Fs, paths: &PathList) -> Opti
 
 /// Keeps the first, most recent, workspace of each group.
 fn dedupe_recent_workspaces(workspaces: impl IntoIterator<Item = RecentWorkspace>) -> Vec<RecentWorkspace> {
-    let mut seen: HashMap<(Option<RemoteConnectionIdentity>, Vec<PathBuf>), ()> = HashMap::default();
+    let mut seen: FxHashMap<(Option<RemoteConnectionIdentity>, Vec<PathBuf>), ()> = FxHashMap::default();
     workspaces
         .into_iter()
         .filter(|workspace| {

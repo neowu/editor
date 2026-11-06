@@ -9,14 +9,15 @@ path = "src/rpc.rs"
 
 [dependencies]
 anyhow = { workspace = true, optional = true }
-collections = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 gpui = { workspace = true, optional = true }
+gpui_util = { workspace = true, optional = true }
 parking_lot = { workspace = true, optional = true }
 proto.workspace = true
+rustc-hash = { workspace = true, optional = true }
 
 [features]
-gpui = ["dep:anyhow", "dep:collections", "dep:futures", "dep:gpui", "dep:parking_lot"]
+gpui = ["dep:anyhow", "dep:futures", "dep:gpui", "dep:gpui_util", "dep:parking_lot", "dep:rustc-hash"]
 
 [lints]
 workspace = true

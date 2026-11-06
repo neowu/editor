@@ -6,7 +6,6 @@ use std::sync::LazyLock;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
 use futures::future::join_all;
 use gpui::App;
 use gpui::AppContext;
@@ -18,6 +17,7 @@ use language::ContextLocation;
 use language::ContextProvider;
 use language::File;
 use project::Fs;
+use rustc_hash::FxHashMap;
 use smol::lock::RwLock;
 use task::TaskTemplate;
 use task::TaskTemplates;
@@ -62,7 +62,7 @@ const TYPESCRIPT_NODE_PACKAGE_PATH_VARIABLE: VariableName =
     VariableName::Custom(Cow::Borrowed("TYPESCRIPT_NODE_PACKAGE_PATH"));
 
 #[derive(Clone, Debug, Default)]
-struct PackageJsonContents(Arc<RwLock<HashMap<PathBuf, PackageJson>>>);
+struct PackageJsonContents(Arc<RwLock<FxHashMap<PathBuf, PackageJson>>>);
 
 impl PackageJsonData {
     fn fill_task_templates(&self, task_templates: &mut TaskTemplates) {
@@ -233,8 +233,8 @@ impl PackageJsonData {
             });
         }
 
-        let script_name_counts: HashMap<_, usize> =
-            self.scripts.iter().fold(HashMap::default(), |mut acc, (_, script)| {
+        let script_name_counts: FxHashMap<_, usize> =
+            self.scripts.iter().fold(FxHashMap::default(), |mut acc, (_, script)| {
                 *acc.entry(script).or_default() += 1;
                 acc
             });
@@ -316,9 +316,8 @@ impl TypeScriptContextProvider {
                         .load(&package_json_path)
                         .await
                         .with_context(|| format!("loading package.json from {package_json_path:?}"))?;
-                    let package_json: HashMap<String, serde_json::Value> =
-                        serde_json::from_str(&package_json_string)
-                            .with_context(|| format!("parsing package.json from {package_json_path:?}"))?;
+                    let package_json: FxHashMap<String, serde_json::Value> = serde_json::from_str(&package_json_string)
+                        .with_context(|| format!("parsing package.json from {package_json_path:?}"))?;
                     let new_data = PackageJsonData::new(package_json_path.as_path().into(), package_json);
                     {
                         let mut contents = existing_package_json.0.write().await;
@@ -389,7 +388,7 @@ impl ContextProvider for TypeScriptContextProvider {
         &self,
         current_vars: &task::TaskVariables,
         location: ContextLocation<'_>,
-        _project_env: Option<HashMap<String, String>>,
+        _project_env: Option<FxHashMap<String, String>>,
         cx: &mut App,
     ) -> Task<Result<task::TaskVariables>> {
         let mut vars = task::TaskVariables::default();

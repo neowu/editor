@@ -9,12 +9,12 @@ path = "src/text.rs"
 [dependencies]
 anyhow.workspace = true
 clock.workspace = true
-collections.workspace = true
 futures.workspace = true
 log.workspace = true
 parking_lot.workspace = true
 regex.workspace = true
 rope.workspace = true
+rustc-hash.workspace = true
 smallvec.workspace = true
 sum_tree.workspace = true
 

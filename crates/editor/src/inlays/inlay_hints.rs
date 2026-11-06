@@ -5,8 +5,6 @@ use std::ops::Range;
 use std::time::Duration;
 
 use clock::Global;
-use collections::HashMap;
-use collections::HashSet;
 use futures::FutureExt as _;
 use futures::channel::oneshot;
 use futures::future::Shared;
@@ -37,6 +35,8 @@ use project::ResolveState;
 use project::lsp_store::CacheInlayHints;
 use project::lsp_store::LspStore;
 use project::lsp_store::ResolvedHint;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use text::Bias;
 use text::BufferId;
 use text::ToOffset;
@@ -88,16 +88,16 @@ pub fn inlay_hint_settings(
 
 #[derive(Debug)]
 pub struct LspInlayHintData {
-    allowed_hint_kinds: HashSet<Option<InlayHintKind>>,
+    allowed_hint_kinds: FxHashSet<Option<InlayHintKind>>,
     invalidate_debounce: Option<Duration>,
     append_debounce: Option<Duration>,
-    hint_refresh_tasks: HashMap<BufferId, Vec<HintRefreshTask>>,
-    hint_chunk_fetching: HashMap<BufferId, (Global, HashSet<Range<BufferRow>>)>,
-    invalidate_hints_for_buffers: HashSet<BufferId>,
-    pub added_hints: HashMap<InlayId, Option<InlayHintKind>>,
+    hint_refresh_tasks: FxHashMap<BufferId, Vec<HintRefreshTask>>,
+    hint_chunk_fetching: FxHashMap<BufferId, (Global, FxHashSet<Range<BufferRow>>)>,
+    invalidate_hints_for_buffers: FxHashSet<BufferId>,
+    pub added_hints: FxHashMap<InlayId, Option<InlayHintKind>>,
     hovered_command: Option<HoveredInlayHintCommand>,
     pending_text_edit: Option<PendingHintTextEdit>,
-    pending_refresh_acceptance: Option<(HashSet<BufferId>, Task<()>)>,
+    pending_refresh_acceptance: Option<(FxHashSet<BufferId>, Task<()>)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -122,10 +122,10 @@ struct PendingHintTextEdit {
 impl LspInlayHintData {
     pub fn new(settings: InlayHintSettings) -> Self {
         Self {
-            hint_refresh_tasks: HashMap::default(),
-            added_hints: HashMap::default(),
-            hint_chunk_fetching: HashMap::default(),
-            invalidate_hints_for_buffers: HashSet::default(),
+            hint_refresh_tasks: FxHashMap::default(),
+            added_hints: FxHashMap::default(),
+            hint_chunk_fetching: FxHashMap::default(),
+            invalidate_hints_for_buffers: FxHashSet::default(),
             invalidate_debounce: debounce_value(settings.edit_debounce_ms),
             append_debounce: debounce_value(settings.scroll_debounce_ms),
             allowed_hint_kinds: settings.enabled_inlay_hint_kinds(),
@@ -149,7 +149,7 @@ impl LspInlayHintData {
     /// re-fetched nor duplicated on the next `NewLinesShown`.
     pub fn clear_for_buffers(
         &mut self,
-        buffer_ids: &HashSet<BufferId>,
+        buffer_ids: &FxHashSet<BufferId>,
         current_hints: impl IntoIterator<Item = Inlay>,
         snapshot: &MultiBufferSnapshot,
     ) {
@@ -236,7 +236,7 @@ impl LspInlayHintData {
         )
     }
 
-    fn pending_refreshes(&self, buffer_ids: &HashSet<BufferId>) -> Vec<Shared<oneshot::Receiver<()>>> {
+    fn pending_refreshes(&self, buffer_ids: &FxHashSet<BufferId>) -> Vec<Shared<oneshot::Receiver<()>>> {
         self.hint_refresh_tasks
             .iter()
             .filter(|(buffer_id, _)| buffer_ids.contains(buffer_id))
@@ -623,7 +623,7 @@ impl Editor {
         let mut visible_excerpts = self.visible_buffer_ranges(cx);
         visible_excerpts.retain(|(snapshot, _, _)| self.is_lsp_relevant(snapshot.file(), cx));
 
-        let mut invalidate_hints_for_buffers = HashSet::default();
+        let mut invalidate_hints_for_buffers = FxHashSet::default();
         let ignore_previous_fetches = match reason {
             InlayHintRefreshReason::SettingsChange(_)
             | InlayHintRefreshReason::ServerRemoved
@@ -670,7 +670,7 @@ impl Editor {
         }
         inlay_hints.invalidate_hints_for_buffers.extend(invalidate_hints_for_buffers);
 
-        let mut buffers_to_query = HashMap::default();
+        let mut buffers_to_query = FxHashMap::default();
         for (buffer_snapshot, visible_range, _) in visible_excerpts {
             let buffer_id = buffer_snapshot.remote_id();
 
@@ -830,14 +830,14 @@ impl Editor {
             None
         };
         let buffer_ids = if let Some((target, _, _)) = &clicked_hint {
-            HashSet::from_iter([target.buffer_id])
+            FxHashSet::from_iter([target.buffer_id])
         } else {
             self.selections
                 .all_adjusted(&snapshot)
                 .into_iter()
                 .flat_map(|selection| snapshot.buffer_snapshot().range_to_buffer_ranges(selection.range()))
                 .map(|(buffer, _, _)| buffer.remote_id())
-                .collect::<HashSet<_>>()
+                .collect::<FxHashSet<_>>()
         };
         let Some(inlay_hints) = self.inlay_hints.as_ref() else {
             return false;
@@ -997,7 +997,7 @@ impl Editor {
         &self,
         invalidate_cache: InvalidationStrategy,
         buffer_excerpts: VisibleExcerpts,
-        known_chunks: Option<(Global, HashSet<Range<BufferRow>>)>,
+        known_chunks: Option<(Global, FxHashSet<Range<BufferRow>>)>,
         cx: &mut Context<Self>,
     ) -> Option<Vec<Task<(Range<BufferRow>, anyhow::Result<CacheInlayHints>)>>> {
         let semantics_provider = self.semantics_provider()?;
@@ -1061,7 +1061,7 @@ impl Editor {
             // edit task) would have their hints removed but remain marked as "already
             // fetched" in hint_chunk_fetching, preventing re-fetch on the next
             // NewLinesShown. Fix: retain only chunks that this task has results for.
-            let task_chunk_ranges: HashSet<&Range<BufferRow>> = new_hints.iter().map(|(range, _)| range).collect();
+            let task_chunk_ranges: FxHashSet<&Range<BufferRow>> = new_hints.iter().map(|(range, _)| range).collect();
             if let Some((_, fetched_chunks)) = inlay_hints.hint_chunk_fetching.get_mut(&buffer_id) {
                 fetched_chunks.retain(|chunk| task_chunk_ranges.contains(chunk));
             }
@@ -1136,7 +1136,7 @@ impl Editor {
 
         // Ids that must not be inserted from `new_hints`: re-biased inlays are re-inserted
         // separately, and each id is inserted at most once per batch.
-        let mut seen_ids = rebiased_inlays.iter().map(|inlay| inlay.id).collect::<HashSet<InlayId>>();
+        let mut seen_ids = rebiased_inlays.iter().map(|inlay| inlay.id).collect::<FxHashSet<InlayId>>();
 
         // Already displayed hints go first, so they claim the (offset, text) dedup slot and
         // suppress identical copies from other servers, independently of the servers'
@@ -1145,7 +1145,7 @@ impl Editor {
             !(inlay_hints.added_hints.contains_key(hint_id) || seen_ids.contains(hint_id))
         });
 
-        let mut inserted_hint_text: HashMap<usize, HashMap<String, LanguageServerId>> = HashMap::default();
+        let mut inserted_hint_text: FxHashMap<usize, FxHashMap<String, LanguageServerId>> = FxHashMap::default();
         let new_hints = new_hints
             .into_iter()
             // Hidden kinds must not claim a dedup slot, or they could suppress a visible
@@ -1217,7 +1217,7 @@ fn normalize_hint_biases(
     buffer_snapshot: &BufferSnapshot,
     multi_buffer_snapshot: &MultiBufferSnapshot,
 ) -> Vec<Inlay> {
-    let mut bias_by_offset: HashMap<usize, Bias> = HashMap::default();
+    let mut bias_by_offset: FxHashMap<usize, Bias> = FxHashMap::default();
     let fetched = new_hints.iter().map(|(_, _, hint, offset)| (*offset, hint.position.bias));
     let displayed = displayed_hints.iter().map(|(_, bias, offset)| (*offset, *bias));
     for (offset, bias) in fetched.chain(displayed) {
@@ -1241,7 +1241,7 @@ fn normalize_hint_biases(
         .iter()
         .filter(|(_, bias, offset)| *bias == Bias::Left && bias_by_offset.get(offset) == Some(&Bias::Right))
         .map(|(_, _, offset)| *offset)
-        .collect::<HashSet<_>>();
+        .collect::<FxHashSet<_>>();
     displayed_hints
         .into_iter()
         .filter(|(_, _, offset)| offsets_to_rebias.contains(offset))
@@ -1272,7 +1272,7 @@ fn spawn_editor_hints_refresh(
     invalidate_cache: InvalidationStrategy,
     debounce: Option<Duration>,
     buffer_excerpts: VisibleExcerpts,
-    known_chunks: Option<(Global, HashSet<Range<BufferRow>>)>,
+    known_chunks: Option<(Global, FxHashSet<Range<BufferRow>>)>,
     applicable_chunks: Vec<Range<BufferRow>>,
     cx: &Context<'_, Editor>,
 ) -> HintRefreshTask {

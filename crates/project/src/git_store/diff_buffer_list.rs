@@ -1,7 +1,5 @@
 use anyhow::Result;
 use buffer_diff::BufferDiff;
-use collections::HashMap;
-use collections::HashSet;
 use futures::FutureExt;
 use futures::future::LocalBoxFuture;
 use git::repository::RepoPath;
@@ -21,6 +19,8 @@ use gpui::Subscription;
 use gpui::Task;
 use gpui::WeakEntity;
 use language::Buffer;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use sum_tree::SumTree;
 use text::BufferId;
 use util::ResultExt;
@@ -261,7 +261,7 @@ impl DiffBufferList {
             return output;
         };
         {
-            let mut seen = HashSet::default();
+            let mut seen = FxHashSet::default();
 
             for item in repo.read(cx).cached_status() {
                 let status = match self.diff_base {
@@ -411,7 +411,7 @@ fn build_statuses(
                 },
             )
         })
-        .collect::<HashMap<_, _>>();
+        .collect::<FxHashMap<_, _>>();
     for entry in snapshot.statuses_by_path.iter() {
         if status_overrides_tree(entry.status, committed_tree_diff.entries.get(&entry.repo_path)) {
             entries.insert(entry.repo_path.clone(), entry.clone());

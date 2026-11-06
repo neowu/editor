@@ -1,4 +1,3 @@
-use collections::HashMap;
 use futures::future::join_all;
 use gpui::Entity;
 use gpui::Task;
@@ -8,6 +7,7 @@ use lsp::LanguageServerId;
 use project::lsp_store::BufferDocumentLinks;
 use project::lsp_store::LspDocumentLink;
 use project::lsp_store::ResolvedDocumentLink;
+use rustc_hash::FxHashMap;
 use text::BufferId;
 use ui::Context;
 
@@ -17,7 +17,7 @@ use crate::LspDataKind;
 
 #[derive(Default)]
 pub(super) struct LspDocumentLinks {
-    pub(super) per_buffer: HashMap<BufferId, BufferDocumentLinks>,
+    pub(super) per_buffer: FxHashMap<BufferId, BufferDocumentLinks>,
 }
 
 impl Editor {

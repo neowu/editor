@@ -2,7 +2,6 @@ use std::ops::Range;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use collections::HashMap;
 use editor::Editor;
 use editor::GotoDefinitionKind;
 use editor::OpenResultsIn;
@@ -39,6 +38,7 @@ use picker::PickerDelegate;
 use project::Location;
 use project::LocationLink;
 use project::ProjectPath;
+use rustc_hash::FxHashMap;
 use text::Anchor;
 use text::Point;
 use ui::Divider;
@@ -445,7 +445,7 @@ impl LspLocationsDelegate {
 
 fn build_location_matches(locations: &[Location], cx: &App) -> Vec<LocationMatch> {
     use gpui::EntityId;
-    let mut snapshots: HashMap<EntityId, language::BufferSnapshot> = HashMap::default();
+    let mut snapshots: FxHashMap<EntityId, language::BufferSnapshot> = FxHashMap::default();
     let mut matches = Vec::with_capacity(locations.len());
 
     for location in locations {

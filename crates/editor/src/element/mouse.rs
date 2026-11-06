@@ -1,7 +1,6 @@
 use std::ops::Range;
 use std::time::Duration;
 
-use collections::HashMap;
 use gpui::AnyElement;
 use gpui::App;
 use gpui::AvailableSpace;
@@ -26,6 +25,7 @@ use gpui::deferred;
 use gpui::point;
 use gpui::px;
 use multi_buffer::MultiBufferRow;
+use rustc_hash::FxHashMap;
 use sum_tree::Bias;
 use util::RangeExt;
 
@@ -404,7 +404,7 @@ impl EditorElement {
         editor: &mut Editor,
         event: &MouseDownEvent,
         position_map: &PositionMap,
-        line_numbers: &HashMap<MultiBufferRow, LineNumberLayout>,
+        line_numbers: &FxHashMap<MultiBufferRow, LineNumberLayout>,
         window: &mut Window,
         cx: &mut Context<Editor>,
     ) {

@@ -13,7 +13,6 @@ use std::sync::LazyLock;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use collections::HashMap;
 use gpui::App;
 use gpui::AppContext;
 use gpui::AsyncApp;
@@ -26,6 +25,7 @@ use lsp::LanguageServerBinary;
 use project::lsp_store::rust_analyzer_ext::CARGO_DIAGNOSTICS_SOURCE_NAME;
 use project::project_settings::ProjectSettings;
 use regex::Regex;
+use rustc_hash::FxHashMap;
 use serde_json::json;
 use settings::SemanticTokenRules;
 use settings::Settings as _;
@@ -531,7 +531,7 @@ impl ContextProvider for RustContextProvider {
         &self,
         task_variables: &TaskVariables,
         location: ContextLocation<'_>,
-        project_env: Option<HashMap<String, String>>,
+        project_env: Option<FxHashMap<String, String>>,
         cx: &mut gpui::App,
     ) -> Task<Result<TaskVariables>> {
         let local_abs_path =
@@ -794,7 +794,7 @@ struct TargetInfo {
 
 async fn target_info_from_abs_path(
     abs_path: &Path,
-    project_env: Option<&HashMap<String, String>>,
+    project_env: Option<&FxHashMap<String, String>>,
 ) -> Result<Option<(Option<TargetInfo>, Arc<Path>)>> {
     let directory = abs_path.parent().ok_or_else(|| anyhow::anyhow!("failed to get parent directory"))?;
     if !has_cargo_manifest(directory).await? {
@@ -882,7 +882,7 @@ fn target_info_from_metadata(metadata: CargoMetadata, abs_path: &Path) -> Option
 
 async fn human_readable_package_name(
     package_directory: &Path,
-    project_env: Option<&HashMap<String, String>>,
+    project_env: Option<&FxHashMap<String, String>>,
 ) -> Option<String> {
     let mut command = new_command("cargo");
     if let Some(envs) = project_env {

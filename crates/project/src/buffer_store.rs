@@ -1,3 +1,4 @@
+use std::collections::hash_map;
 use std::io;
 use std::sync::Arc;
 use std::time::Instant;
@@ -5,9 +6,6 @@ use std::time::Instant;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use collections::HashMap;
-use collections::HashSet;
-use collections::hash_map;
 use futures::Future;
 use futures::FutureExt as _;
 use futures::channel::oneshot;
@@ -45,6 +43,8 @@ use rpc::ErrorExt as _;
 use rpc::TypedEnvelope;
 use rpc::proto::PeerId;
 use rpc::proto::{self};
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::Settings;
 use text::BufferId;
 use text::ReplicaId;
@@ -66,26 +66,26 @@ use crate::worktree_store::WorktreeStoreEvent;
 pub struct BufferStore {
     state: BufferStoreState,
     #[allow(clippy::type_complexity)]
-    loading_buffers: HashMap<ProjectPath, Shared<Task<Result<Entity<Buffer>, Arc<anyhow::Error>>>>>,
+    loading_buffers: FxHashMap<ProjectPath, Shared<Task<Result<Entity<Buffer>, Arc<anyhow::Error>>>>>,
     worktree_store: Entity<WorktreeStore>,
-    opened_buffers: HashMap<BufferId, OpenBuffer>,
-    path_to_buffer_id: HashMap<ProjectPath, BufferId>,
+    opened_buffers: FxHashMap<BufferId, OpenBuffer>,
+    path_to_buffer_id: FxHashMap<ProjectPath, BufferId>,
     downstream_client: Option<(AnyProtoClient, u64)>,
-    shared_buffers: HashMap<proto::PeerId, HashMap<BufferId, SharedBuffer>>,
-    pending_buffer_shares: HashMap<u64, Task<()>>,
+    shared_buffers: FxHashMap<proto::PeerId, FxHashMap<BufferId, SharedBuffer>>,
+    pending_buffer_shares: FxHashMap<u64, Task<()>>,
     next_buffer_share_id: u64,
-    non_searchable_buffers: HashSet<BufferId>,
+    non_searchable_buffers: FxHashSet<BufferId>,
     project_search: RemoteProjectSearchState,
 }
 
 #[derive(Default)]
 struct RemoteProjectSearchState {
     // List of ongoing project search chunks from our remote host. Used by the side issuing a search RPC request.
-    chunks: HashMap<u64, async_channel::Sender<BufferId>>,
+    chunks: FxHashMap<u64, async_channel::Sender<BufferId>>,
     // Monotonously-increasing handle to hand out to remote host in order to identify the project search result chunk.
     next_id: u64,
     // Used by the side running the actual search for match candidates to potentially cancel the search prematurely.
-    searches_in_progress: HashMap<(PeerId, u64), Task<Result<()>>>,
+    searches_in_progress: FxHashMap<(PeerId, u64), Task<Result<()>>>,
 }
 
 #[derive(Hash, Eq, PartialEq, Clone)]
@@ -102,13 +102,13 @@ enum BufferStoreState {
 struct RemoteBufferStore {
     upstream_client: AnyProtoClient,
     project_id: u64,
-    loading_remote_buffers_by_id: HashMap<BufferId, Entity<Buffer>>,
-    remote_buffer_listeners: HashMap<BufferId, Vec<oneshot::Sender<anyhow::Result<Entity<Buffer>>>>>,
+    loading_remote_buffers_by_id: FxHashMap<BufferId, Entity<Buffer>>,
+    remote_buffer_listeners: FxHashMap<BufferId, Vec<oneshot::Sender<anyhow::Result<Entity<Buffer>>>>>,
     worktree_store: Entity<WorktreeStore>,
 }
 
 struct LocalBufferStore {
-    local_buffer_ids_by_entry_id: HashMap<ProjectEntryId, BufferId>,
+    local_buffer_ids_by_entry_id: FxHashMap<ProjectEntryId, BufferId>,
     worktree_store: Entity<WorktreeStore>,
     _subscription: Subscription,
 }
@@ -126,7 +126,7 @@ pub enum BufferStoreEvent {
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct ProjectTransaction(pub HashMap<Entity<Buffer>, language::Transaction>);
+pub struct ProjectTransaction(pub FxHashMap<Entity<Buffer>, language::Transaction>);
 
 impl PartialEq for ProjectTransaction {
     fn eq(&self, other: &Self) -> bool {
@@ -347,7 +347,7 @@ impl RemoteBufferStore {
 
     fn reload_buffers(
         &self,
-        buffers: HashSet<Entity<Buffer>>,
+        buffers: FxHashSet<Entity<Buffer>>,
         push_to_history: bool,
         cx: &Context<BufferStore>,
     ) -> Task<Result<ProjectTransaction>> {
@@ -720,7 +720,7 @@ impl LocalBufferStore {
 
     fn reload_buffers(
         &self,
-        buffers: HashSet<Entity<Buffer>>,
+        buffers: FxHashSet<Entity<Buffer>>,
         push_to_history: bool,
         cx: &Context<BufferStore>,
     ) -> Task<Result<ProjectTransaction>> {
@@ -756,7 +756,7 @@ impl BufferStore {
     pub fn local(worktree_store: Entity<WorktreeStore>, cx: &mut Context<Self>) -> Self {
         Self {
             state: BufferStoreState::Local(LocalBufferStore {
-                local_buffer_ids_by_entry_id: HashMap::default(),
+                local_buffer_ids_by_entry_id: FxHashMap::default(),
                 worktree_store: worktree_store.clone(),
                 _subscription: cx.subscribe(&worktree_store, |this, _, event, cx| {
                     if let WorktreeStoreEvent::WorktreeAdded(worktree) = event {
@@ -766,13 +766,13 @@ impl BufferStore {
                 }),
             }),
             downstream_client: None,
-            opened_buffers: HashMap::default(),
-            path_to_buffer_id: HashMap::default(),
-            shared_buffers: HashMap::default(),
-            pending_buffer_shares: HashMap::default(),
+            opened_buffers: FxHashMap::default(),
+            path_to_buffer_id: FxHashMap::default(),
+            shared_buffers: FxHashMap::default(),
+            pending_buffer_shares: FxHashMap::default(),
             next_buffer_share_id: 0,
-            loading_buffers: HashMap::default(),
-            non_searchable_buffers: HashSet::default(),
+            loading_buffers: FxHashMap::default(),
+            non_searchable_buffers: FxHashSet::default(),
             worktree_store,
             project_search: RemoteProjectSearchState::default(),
         }
@@ -786,20 +786,20 @@ impl BufferStore {
     ) -> Self {
         Self {
             state: BufferStoreState::Remote(RemoteBufferStore {
-                loading_remote_buffers_by_id: HashMap::default(),
-                remote_buffer_listeners: HashMap::default(),
+                loading_remote_buffers_by_id: FxHashMap::default(),
+                remote_buffer_listeners: FxHashMap::default(),
                 project_id: remote_id,
                 upstream_client,
                 worktree_store: worktree_store.clone(),
             }),
             downstream_client: None,
-            opened_buffers: HashMap::default(),
-            path_to_buffer_id: HashMap::default(),
-            loading_buffers: HashMap::default(),
-            shared_buffers: HashMap::default(),
-            pending_buffer_shares: HashMap::default(),
+            opened_buffers: FxHashMap::default(),
+            path_to_buffer_id: FxHashMap::default(),
+            loading_buffers: FxHashMap::default(),
+            shared_buffers: FxHashMap::default(),
+            pending_buffer_shares: FxHashMap::default(),
             next_buffer_share_id: 0,
-            non_searchable_buffers: HashSet::default(),
+            non_searchable_buffers: FxHashSet::default(),
             worktree_store,
             project_search: RemoteProjectSearchState::default(),
         }
@@ -1312,7 +1312,7 @@ impl BufferStore {
 
     pub fn reload_buffers(
         &self,
-        buffers: HashSet<Entity<Buffer>>,
+        buffers: FxHashSet<Entity<Buffer>>,
         push_to_history: bool,
         cx: &mut Context<Self>,
     ) -> Task<Result<ProjectTransaction>> {
@@ -1332,7 +1332,7 @@ impl BufferStore {
     ) -> Result<proto::ReloadBuffersResponse> {
         let sender_id = envelope.original_sender_id().unwrap_or_default();
         let reload = this.update(&mut cx, |this, cx| {
-            let mut buffers = HashSet::default();
+            let mut buffers = FxHashSet::default();
             for buffer_id in &envelope.payload.buffer_ids {
                 let buffer_id = BufferId::new(*buffer_id)?;
                 buffers.insert(this.get_existing(buffer_id)?);

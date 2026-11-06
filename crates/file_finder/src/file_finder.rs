@@ -11,8 +11,6 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{self};
 use std::time::Duration;
 
-use collections::HashMap;
-use collections::HashSet;
 use ed_actions::search::ToggleIncludeIgnored;
 use editor::Editor;
 use file_icons::FileIcons;
@@ -50,6 +48,8 @@ use project::Project;
 use project::ProjectPath;
 use project::WorktreeId;
 use project::worktree_store::WorktreeStore;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::SeedQuerySetting;
 use ui::Checkbox;
 use ui::HighlightedLabel;
@@ -487,7 +487,7 @@ impl Matches {
         // At this point we have an unsorted set of new history matches, an unsorted set of new search matches
         // and a sorted set of old search matches.
         // It is possible that the new search matches' paths contain some of the old search matches' paths.
-        // History matches' paths are unique, since store in a HashMap by path.
+        // History matches' paths are unique, since store in an FxHashMap by path.
         // We build a sorted Vec<Match>, eliminating duplicate search matches.
         // Search matches with the same paths should have equal `ProjectPanelOrdMatch`, so we should
         // not have any duplicates after building the final list.
@@ -562,10 +562,10 @@ impl Matches {
 fn matching_history_items<'a>(
     history_items: impl IntoIterator<Item = &'a FoundPath>,
     currently_opened: Option<&'a FoundPath>,
-    worktree_name_by_id: Option<HashMap<WorktreeId, Arc<RelPath>>>,
+    worktree_name_by_id: Option<FxHashMap<WorktreeId, Arc<RelPath>>>,
     query: &FileSearchQuery,
-) -> HashMap<ProjectPath, Match> {
-    let mut candidates_paths = HashMap::default();
+) -> FxHashMap<ProjectPath, Match> {
+    let mut candidates_paths = FxHashMap::default();
 
     let history_items_by_worktrees = history_items
         .into_iter()
@@ -586,11 +586,11 @@ fn matching_history_items<'a>(
             candidates_paths.insert(&found_path.project, found_path);
             (found_path.project.worktree_id, candidate)
         })
-        .fold(HashMap::default(), |mut candidates, (worktree_id, new_candidate)| {
+        .fold(FxHashMap::default(), |mut candidates, (worktree_id, new_candidate)| {
             candidates.entry(worktree_id).or_insert_with(Vec::new).push(new_candidate);
             candidates
         });
-    let mut matching_history_paths = HashMap::default();
+    let mut matching_history_paths = FxHashMap::default();
     for (worktree, candidates) in history_items_by_worktrees {
         let max_results = candidates.len() + 1;
         let worktree_root_name = worktree_name_by_id.as_ref().and_then(|w| w.get(&worktree).cloned());
@@ -638,7 +638,7 @@ fn matching_history_items<'a>(
 fn worktree_names_for_history_matching(
     worktree_store: &Entity<WorktreeStore>,
     cx: &App,
-) -> Option<HashMap<WorktreeId, Arc<RelPath>>> {
+) -> Option<FxHashMap<WorktreeId, Arc<RelPath>>> {
     let names = worktree_store
         .read(cx)
         .worktrees()
@@ -646,7 +646,7 @@ fn worktree_names_for_history_matching(
             let worktree = worktree.read(cx);
             (worktree.id(), worktree.root_name().into())
         })
-        .collect::<HashMap<_, _>>();
+        .collect::<FxHashMap<_, _>>();
 
     if names.is_empty() { None } else { Some(names) }
 }
@@ -857,7 +857,7 @@ impl FileFinderDelegate {
             }))
             .filter(|path| project.entry_for_path(&path.project, cx).is_none_or(|entry| !entry.is_file()))
             .map(|path| (path.project.clone(), path))
-            .collect::<HashMap<_, _>>();
+            .collect::<FxHashMap<_, _>>();
         if paths.is_empty() {
             self.history_refresh = Task::ready(());
             return;
@@ -870,7 +870,7 @@ impl FileFinderDelegate {
             })
             .collect::<Vec<_>>();
         self.history_refresh = cx.spawn_in(window, async move |picker, cx| {
-            let removed_paths = join_all(checks).await.into_iter().flatten().collect::<HashSet<_>>();
+            let removed_paths = join_all(checks).await.into_iter().flatten().collect::<FxHashSet<_>>();
             if removed_paths.is_empty() {
                 return;
             }
@@ -884,7 +884,7 @@ impl FileFinderDelegate {
         });
     }
 
-    fn remove_invalid_paths(&mut self, removed_paths: &HashSet<ProjectPath>, cx: &App) {
+    fn remove_invalid_paths(&mut self, removed_paths: &FxHashSet<ProjectPath>, cx: &App) {
         let retain_path = |path: &ProjectPath| !removed_paths.contains(path);
         self.history_items.retain(|path| retain_path(&path.project));
         if self.currently_opened_path.as_ref().is_some_and(|path| !retain_path(&path.project)) {

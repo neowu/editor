@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::anyhow;
-use collections::HashSet;
 use ed_actions::NewWorktreeBranchTarget;
 use fs::Fs;
 use futures::channel::oneshot::Receiver;
@@ -26,6 +25,7 @@ use gpui::WeakEntity;
 use project::Project;
 use project::git_store::Repository;
 use remote::RemoteConnectionOptions;
+use rustc_hash::FxHashSet;
 use ui::prelude::*;
 use util::ResultExt as _;
 use workspace::CloseIntent;
@@ -299,7 +299,7 @@ pub fn classify_worktrees(project: &Project, cx: &gpui::App) -> (Vec<Entity<Repo
     let repositories = project.repositories(cx).clone();
     let mut git_repos: Vec<Entity<Repository>> = Vec::new();
     let mut non_git_paths: Vec<PathBuf> = Vec::new();
-    let mut seen_repo_ids = HashSet::default();
+    let mut seen_repo_ids = FxHashSet::default();
 
     for worktree in project.visible_worktrees(cx) {
         let wt_path = worktree.read(cx).abs_path();
@@ -389,14 +389,14 @@ fn start_worktree_creations(
     git_repos: &[Entity<Repository>],
     worktree_name: Option<String>,
     existing_worktree_names: &[String],
-    existing_worktree_paths: &HashSet<PathBuf>,
+    existing_worktree_paths: &FxHashSet<PathBuf>,
     base_ref: Option<String>,
     rng: &mut impl rand::Rng,
     cx: &mut gpui::App,
 ) -> anyhow::Result<(Vec<(Entity<Repository>, PathBuf, Receiver<anyhow::Result<()>>)>, Vec<(PathBuf, PathBuf)>)> {
     let mut creation_infos = Vec::new();
     let mut path_remapping = Vec::new();
-    let mut scheduled_paths: HashSet<PathBuf> = HashSet::default();
+    let mut scheduled_paths: FxHashSet<PathBuf> = FxHashSet::default();
 
     let worktree_name = worktree_name.unwrap_or_else(|| {
         let existing_refs: Vec<&str> = existing_worktree_names.iter().map(|s| s.as_str()).collect();
@@ -713,7 +713,7 @@ async fn do_create_worktree(
         cx.update(|_, cx| git_repos.iter().map(|repo| repo.update(cx, |repo, _cx| repo.worktrees())).collect())?;
 
     let mut existing_worktree_names = Vec::new();
-    let mut existing_worktree_paths = HashSet::default();
+    let mut existing_worktree_paths = FxHashSet::default();
     for result in future::join_all(worktree_receivers).await {
         match result {
             Ok(Ok(worktrees)) => {
@@ -948,7 +948,7 @@ async fn open_worktree_workspace(
                 let remapped_active_path = previous_state.active_file_path.and_then(remap_path);
 
                 let mut paths_to_open: Vec<PathBuf> = Vec::new();
-                let mut seen = HashSet::default();
+                let mut seen = FxHashSet::default();
                 for path in previous_state.open_file_paths {
                     if let Some(remapped) = remap_path(path)
                         && remapped_active_path.as_ref() != Some(&remapped)

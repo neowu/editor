@@ -575,15 +575,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "collections"
-version = "0.1.0"
-dependencies = [
- "gpui_util",
- "indexmap",
- "rustc-hash",
-]
-
-[[package]]
 name = "color_quant"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -773,7 +764,6 @@ name = "diagnostics"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections",
  "editor",
  "futures-lite",
  "gpui",
@@ -783,6 +773,7 @@ dependencies = [
  "lsp",
  "markdown",
  "project",
+ "rustc-hash",
  "text",
  "theme",
  "ui",
@@ -860,7 +851,6 @@ dependencies = [
  "anyhow",
  "assets",
  "clap",
- "collections",
  "command_palette",
  "control",
  "diagnostics",
@@ -896,6 +886,7 @@ dependencies = [
  "rayon",
  "recent_projects",
  "remote",
+ "rustc-hash",
  "search",
  "serde_json",
  "settings",
@@ -932,7 +923,6 @@ dependencies = [
  "base64 0.22.1",
  "buffer_diff",
  "clock",
- "collections",
  "convert_case 0.11.0",
  "ed_actions",
  "emojis",
@@ -942,6 +932,8 @@ dependencies = [
  "fuzzy",
  "git",
  "gpui",
+ "gpui_util",
+ "indexmap",
  "itertools 0.15.0",
  "language",
  "linkify",
@@ -957,6 +949,7 @@ dependencies = [
  "regex",
  "rope",
  "rpc",
+ "rustc-hash",
  "serde",
  "serde_json",
  "settings",
@@ -1131,7 +1124,6 @@ name = "file_finder"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections",
  "ed_actions",
  "editor",
  "file_icons",
@@ -1143,6 +1135,7 @@ dependencies = [
  "open_path_prompt",
  "picker",
  "project",
+ "rustc-hash",
  "settings",
  "ui",
  "util",
@@ -1153,8 +1146,8 @@ dependencies = [
 name = "file_icons"
 version = "0.1.0"
 dependencies = [
- "collections",
  "gpui",
+ "rustc-hash",
  "settings_content",
  "util",
 ]
@@ -1464,7 +1457,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-channel",
- "collections",
  "derive_more",
  "file_content",
  "futures",
@@ -1473,6 +1465,7 @@ dependencies = [
  "parking_lot",
  "regex",
  "rope",
+ "rustc-hash",
  "serde",
  "smallvec",
  "smol",
@@ -1493,7 +1486,6 @@ dependencies = [
  "async-channel",
  "buffer_diff",
  "clock",
- "collections",
  "ed_actions",
  "editor",
  "file_icons",
@@ -1504,6 +1496,7 @@ dependencies = [
  "git",
  "git_ui_core",
  "gpui",
+ "indexmap",
  "itertools 0.15.0",
  "language",
  "log",
@@ -1514,6 +1507,7 @@ dependencies = [
  "notifications",
  "picker",
  "project",
+ "rustc-hash",
  "serde",
  "serde_json",
  "settings",
@@ -1536,7 +1530,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "buffer_diff",
- "collections",
  "ed_actions",
  "editor",
  "fs",
@@ -1554,6 +1547,7 @@ dependencies = [
  "rand",
  "remote",
  "remote_connection",
+ "rustc-hash",
  "terminal",
  "ui",
  "util",
@@ -1597,7 +1591,6 @@ dependencies = [
  "async-channel",
  "async-task",
  "bitflags",
- "collections",
  "derive_more",
  "etagere",
  "futures",
@@ -1619,6 +1612,7 @@ dependencies = [
  "refineable",
  "regex",
  "resvg",
+ "rustc-hash",
  "scheduler",
  "seahash",
  "serde",
@@ -1643,7 +1637,6 @@ dependencies = [
  "async-task",
  "block2",
  "cbindgen",
- "collections",
  "derive_more",
  "dispatch2",
  "etagere",
@@ -1659,6 +1652,7 @@ dependencies = [
  "objc2-metal",
  "objc2-quartz-core",
  "parking_lot",
+ "rustc-hash",
  "smallvec",
 ]
 
@@ -2193,7 +2187,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "clock",
- "collections",
  "diffy",
  "encoding_rs",
  "file_content",
@@ -2210,6 +2203,7 @@ dependencies = [
  "parking_lot",
  "regex",
  "rpc",
+ "rustc-hash",
  "serde",
  "serde_json",
  "settings",
@@ -2232,7 +2226,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bitflags",
- "collections",
  "gpui_shared_string",
  "gpui_util",
  "log",
@@ -2240,6 +2233,7 @@ dependencies = [
  "parking_lot",
  "path",
  "regex",
+ "rustc-hash",
  "serde",
  "serde_json",
  "smallvec",
@@ -2270,7 +2264,6 @@ name = "language_tools"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections",
  "ed_actions",
  "editor",
  "gpui",
@@ -2281,6 +2274,7 @@ dependencies = [
  "path",
  "project",
  "rpc",
+ "rustc-hash",
  "serde_json",
  "settings",
  "sysinfo",
@@ -2297,7 +2291,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "collections",
  "futures",
  "gpui",
  "grammars",
@@ -2308,6 +2301,7 @@ dependencies = [
  "lsp",
  "project",
  "regex",
+ "rustc-hash",
  "serde",
  "serde_json",
  "settings",
@@ -2473,7 +2467,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-channel",
- "collections",
  "futures",
  "futures-lite",
  "gpui",
@@ -2481,6 +2474,7 @@ dependencies = [
  "log",
  "lsp_types",
  "parking_lot",
+ "rustc-hash",
  "serde",
  "serde_json",
  "util",
@@ -2508,7 +2502,6 @@ name = "lsp_locations"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections",
  "editor",
  "file_icons",
  "fuzzy",
@@ -2517,6 +2510,7 @@ dependencies = [
  "log",
  "picker",
  "project",
+ "rustc-hash",
  "text",
  "ui",
  "util",
@@ -2590,12 +2584,12 @@ name = "markdown"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "collections",
  "gpui",
  "language",
  "linkify",
  "log",
  "pulldown-cmark",
+ "rustc-hash",
  "smallvec",
  "sum_tree",
  "theme",
@@ -2608,7 +2602,6 @@ name = "markdown_preview"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections",
  "ed_actions",
  "editor",
  "gpui",
@@ -2618,6 +2611,7 @@ dependencies = [
  "mermaid",
  "path",
  "project",
+ "rustc-hash",
  "serde",
  "serde_json",
  "settings",
@@ -2733,14 +2727,15 @@ dependencies = [
  "anyhow",
  "buffer_diff",
  "clock",
- "collections",
  "futures-lite",
  "gpui",
+ "indexmap",
  "itertools 0.15.0",
  "language",
  "log",
  "rand",
  "rope",
+ "rustc-hash",
  "serde",
  "settings",
  "smallvec",
@@ -3072,17 +3067,18 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-channel",
- "collections",
  "ed_actions",
  "editor",
  "file_icons",
  "fuzzy",
  "git",
  "gpui",
+ "indexmap",
  "language",
  "log",
  "menu",
  "project",
+ "rustc-hash",
  "search",
  "settings",
  "smallvec",
@@ -3364,7 +3360,6 @@ dependencies = [
  "async-trait",
  "buffer_diff",
  "clock",
- "collections",
  "encoding_rs",
  "fancy-regex",
  "file_content",
@@ -3376,6 +3371,7 @@ dependencies = [
  "globset",
  "gpui",
  "image",
+ "indexmap",
  "itertools 0.15.0",
  "language",
  "log",
@@ -3387,6 +3383,7 @@ dependencies = [
  "regex",
  "remote",
  "rpc",
+ "rustc-hash",
  "serde",
  "serde_json",
  "settings",
@@ -3411,7 +3408,6 @@ name = "project_panel"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections",
  "ed_actions",
  "editor",
  "file_icons",
@@ -3431,6 +3427,7 @@ dependencies = [
  "project",
  "rayon",
  "rpc",
+ "rustc-hash",
  "serde",
  "settings",
  "smallvec",
@@ -3738,12 +3735,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "collections",
  "futures",
  "gpui",
  "log",
  "parking_lot",
  "rpc",
+ "rustc-hash",
  "serde",
  "serde_json",
  "settings_content",
@@ -3867,11 +3864,12 @@ name = "rpc"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections",
  "futures",
  "gpui",
+ "gpui_util",
  "parking_lot",
  "proto",
+ "rustc-hash",
 ]
 
 [[package]]
@@ -3999,7 +3997,6 @@ dependencies = [
  "any_vec",
  "anyhow",
  "bitflags",
- "collections",
  "ed_actions",
  "editor",
  "file_icons",
@@ -4013,6 +4010,7 @@ dependencies = [
  "picker",
  "project",
  "regex",
+ "rustc-hash",
  "settings",
  "smol",
  "text",
@@ -4095,9 +4093,10 @@ name = "settings"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections",
  "gpui",
+ "gpui_util",
  "inventory",
+ "rustc-hash",
  "serde",
  "serde_json",
  "settings_content",
@@ -4107,10 +4106,11 @@ dependencies = [
 name = "settings_content"
 version = "0.1.0"
 dependencies = [
- "collections",
  "derive_more",
  "gpui",
+ "indexmap",
  "log",
+ "rustc-hash",
  "serde",
  "serde_json",
  "strum",
@@ -4251,8 +4251,8 @@ dependencies = [
 name = "spell_check"
 version = "0.1.0"
 dependencies = [
- "collections",
  "regex",
+ "rustc-hash",
  "spellbook",
 ]
 
@@ -4515,13 +4515,13 @@ dependencies = [
 name = "tab_switcher"
 version = "0.1.0"
 dependencies = [
- "collections",
  "editor",
  "fuzzy_nucleo",
  "gpui",
  "menu",
  "picker",
  "project",
+ "rustc-hash",
  "serde",
  "ui",
  "util",
@@ -4563,10 +4563,10 @@ name = "task"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections",
  "gpui",
  "hex",
  "proto",
+ "rustc-hash",
  "serde",
  "serde_json",
  "sha2",
@@ -4594,7 +4594,6 @@ dependencies = [
  "alacritty_terminal",
  "anyhow",
  "async-channel",
- "collections",
  "futures",
  "futures-lite",
  "gpui",
@@ -4604,6 +4603,7 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "regex",
+ "rustc-hash",
  "serde",
  "settings",
  "sysinfo",
@@ -4631,7 +4631,6 @@ name = "terminal_view"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections",
  "dirs",
  "editor",
  "futures",
@@ -4642,6 +4641,7 @@ dependencies = [
  "menu",
  "project",
  "regex",
+ "rustc-hash",
  "serde",
  "settings",
  "shellexpand",
@@ -4660,12 +4660,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clock",
- "collections",
  "futures",
  "log",
  "parking_lot",
  "regex",
  "rope",
+ "rustc-hash",
  "smallvec",
  "sum_tree",
 ]
@@ -5160,7 +5160,6 @@ name = "util"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "collections",
  "dirs",
  "futures-lite",
  "globset",
@@ -5171,6 +5170,7 @@ dependencies = [
  "path",
  "regex",
  "rust-embed",
+ "rustc-hash",
  "serde",
  "serde_json",
  "shlex",
@@ -5792,13 +5792,13 @@ version = "0.1.0"
 dependencies = [
  "any_vec",
  "anyhow",
- "collections",
  "dirs",
  "ed_actions",
  "fs",
  "futures",
  "futures-lite",
  "gpui",
+ "gpui_util",
  "itertools 0.15.0",
  "language",
  "log",
@@ -5809,6 +5809,7 @@ dependencies = [
  "project",
  "remote",
  "rpc",
+ "rustc-hash",
  "serde",
  "serde_json",
  "settings",
@@ -5831,7 +5832,6 @@ dependencies = [
  "async-channel",
  "async-lock",
  "clock",
- "collections",
  "encoding_rs",
  "file_content",
  "fs",
@@ -5846,6 +5846,7 @@ dependencies = [
  "parking_lot",
  "paths",
  "rpc",
+ "rustc-hash",
  "settings",
  "smallvec",
  "sum_tree",

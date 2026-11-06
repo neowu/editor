@@ -20,11 +20,11 @@ use std::thread::panicking;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::FxHashSet;
 use derive_more::Deref;
 use derive_more::DerefMut;
 use parking_lot::RwLock;
 use parking_lot::RwLockUpgradableReadGuard;
+use rustc_hash::FxHashSet;
 use slotmap::KeyData;
 use slotmap::SecondaryMap;
 use slotmap::SlotMap;
@@ -765,7 +765,7 @@ impl<T: 'static> PartialOrd for WeakEntity<T> {
 
 #[cfg(test)]
 mod tests {
-    use collections::FxHashSet;
+    use rustc_hash::FxHashSet;
 
     use super::EntityMap;
 

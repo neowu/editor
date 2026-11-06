@@ -1,13 +1,11 @@
 use std::cell::Cell;
+use std::collections::BTreeMap;
 use std::mem;
 use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
-use collections::BTreeMap;
-use collections::HashMap;
-use collections::IndexSet;
 use ed_actions::buffer_search;
 pub use ed_actions::git_graph::Open;
 use ed_actions::mode::GitHistory;
@@ -62,6 +60,7 @@ use gpui::point;
 use gpui::prelude::*;
 use gpui::px;
 use gpui::relative;
+use indexmap::IndexSet;
 use language::LanguageRegistry;
 use menu::SelectFirst;
 use menu::SelectLast;
@@ -78,6 +77,8 @@ use project::git_store::GraphDataResponse;
 use project::git_store::Repository;
 use project::git_store::RepositoryEvent;
 use project::git_store::RepositoryId;
+use rustc_hash::FxBuildHasher;
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use smallvec::smallvec;
 use theme::AccentColors;
@@ -250,7 +251,7 @@ struct SearchState {
     case_sensitive: bool,
     editor: Entity<Editor>,
     state: QueryState,
-    matches: IndexSet<Oid>,
+    matches: IndexSet<Oid, FxBuildHasher>,
     selected_index: Option<usize>,
 }
 
@@ -574,8 +575,8 @@ struct CommitLineKey {
 
 struct GraphData {
     lane_states: SmallVec<[LaneState; 8]>,
-    lane_colors: HashMap<ActiveLaneIdx, BranchColor>,
-    parent_to_lanes: HashMap<Oid, SmallVec<[usize; 1]>>,
+    lane_colors: FxHashMap<ActiveLaneIdx, BranchColor>,
+    parent_to_lanes: FxHashMap<Oid, SmallVec<[usize; 1]>>,
     next_color: BranchColor,
     accent_colors_count: usize,
     commits: Vec<Rc<CommitEntry>>,
@@ -586,16 +587,16 @@ struct GraphData {
     /// lazily in `ref_label_gutter_width`.
     widest_ref_label: Option<(SharedString, usize)>,
     lines: Vec<Rc<CommitLine>>,
-    active_commit_lines: HashMap<CommitLineKey, usize>,
-    active_commit_lines_by_parent: HashMap<Oid, SmallVec<[usize; 1]>>,
+    active_commit_lines: FxHashMap<CommitLineKey, usize>,
+    active_commit_lines_by_parent: FxHashMap<Oid, SmallVec<[usize; 1]>>,
 }
 
 impl GraphData {
     fn new(accent_colors_count: usize) -> Self {
         GraphData {
             lane_states: SmallVec::default(),
-            lane_colors: HashMap::default(),
-            parent_to_lanes: HashMap::default(),
+            lane_colors: FxHashMap::default(),
+            parent_to_lanes: FxHashMap::default(),
             next_color: BranchColor(0),
             accent_colors_count,
             commits: Vec::default(),
@@ -603,8 +604,8 @@ impl GraphData {
             max_lanes: 0,
             widest_ref_label: None,
             lines: Vec::default(),
-            active_commit_lines: HashMap::default(),
-            active_commit_lines_by_parent: HashMap::default(),
+            active_commit_lines: FxHashMap::default(),
+            active_commit_lines_by_parent: FxHashMap::default(),
         }
     }
 

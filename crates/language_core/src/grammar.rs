@@ -3,9 +3,9 @@ use std::sync::atomic::Ordering::SeqCst;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
 use gpui_shared_string::SharedString;
 use parking_lot::Mutex;
+use rustc_hash::FxHashMap;
 use tree_sitter::Query;
 
 use crate::CaptureId;
@@ -90,7 +90,7 @@ pub struct IndentConfig {
     pub start_capture_ix: Option<u32>,
     pub end_capture_ix: Option<u32>,
     pub outdent_capture_ix: Option<u32>,
-    pub suffixed_start_captures: HashMap<u32, SharedString>,
+    pub suffixed_start_captures: FxHashMap<u32, SharedString>,
 }
 
 pub struct OutlineConfig {
@@ -184,7 +184,7 @@ pub struct RunnableConfig {
 
 pub struct OverrideConfig {
     pub query: Query,
-    pub values: HashMap<u32, OverrideEntry>,
+    pub values: FxHashMap<u32, OverrideEntry>,
 }
 
 #[derive(Debug)]
@@ -506,7 +506,7 @@ impl Grammar {
                 Capture::Optional("outdent", &mut outdent_capture_ix),
             ],
         ) {
-            let mut suffixed_start_captures = HashMap::default();
+            let mut suffixed_start_captures = FxHashMap::default();
             for (ix, name) in query.capture_names().iter().enumerate() {
                 if let Some(suffix) = name.strip_prefix("start.") {
                     suffixed_start_captures.insert(ix as u32, suffix.to_owned().into());
@@ -594,12 +594,12 @@ impl Grammar {
         mut self,
         source: &str,
         language_name: &LanguageName,
-        overrides: &HashMap<String, LanguageConfigOverride>,
+        overrides: &FxHashMap<String, LanguageConfigOverride>,
         brackets: &mut BracketPairConfig,
     ) -> Result<Self> {
         let query = Query::new(&self.parseable_language()?, source)?;
 
-        let mut override_configs_by_id = HashMap::default();
+        let mut override_configs_by_id = FxHashMap::default();
         for (ix, mut name) in query.capture_names().iter().copied().enumerate() {
             let mut range_is_inclusive = false;
             if name.starts_with('_') {

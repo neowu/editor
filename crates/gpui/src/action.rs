@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::any::TypeId;
+use std::collections::HashMap;
 use std::error;
 use std::fmt;
 use std::fmt::Debug;
@@ -9,13 +10,13 @@ use std::result;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
-use collections::TypeIdHashMap;
 pub use gpui_macros::Action;
+use gpui_util::TypeIdHashBuilder;
 pub use no_action::NoAction;
 pub use no_action::Unbind;
 pub use no_action::is_no_action;
 pub use no_action::is_unbind;
+use rustc_hash::FxHashMap;
 use serde_json::json;
 
 /// Defines and registers unit structs that can be used as actions. For more complex data types, derive `Action`.
@@ -159,18 +160,18 @@ impl Display for ActionBuildError {
 type ActionBuilder = fn(json: serde_json::Value) -> anyhow::Result<Box<dyn Action>>;
 
 pub(crate) struct ActionRegistry {
-    by_name: HashMap<&'static str, ActionData>,
-    names_by_type_id: TypeIdHashMap<&'static str>,
-    all_names: Vec<&'static str>,                       // So we can return a static slice.
-    documentation: HashMap<&'static str, &'static str>, // action name -> documentation
+    by_name: FxHashMap<&'static str, ActionData>,
+    names_by_type_id: HashMap<TypeId, &'static str, TypeIdHashBuilder>,
+    all_names: Vec<&'static str>,                         // So we can return a static slice.
+    documentation: FxHashMap<&'static str, &'static str>, // action name -> documentation
 }
 
 impl Default for ActionRegistry {
     fn default() -> Self {
         let mut this = ActionRegistry {
-            by_name: HashMap::default(),
-            names_by_type_id: TypeIdHashMap::default(),
-            documentation: HashMap::default(),
+            by_name: FxHashMap::default(),
+            names_by_type_id: HashMap::default(),
+            documentation: FxHashMap::default(),
             all_names: Vec::default(),
         };
 
@@ -247,7 +248,7 @@ impl ActionRegistry {
         self.all_names.as_slice()
     }
 
-    pub const fn documentation(&self) -> &HashMap<&'static str, &'static str> {
+    pub const fn documentation(&self) -> &FxHashMap<&'static str, &'static str> {
         &self.documentation
     }
 }

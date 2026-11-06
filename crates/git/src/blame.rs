@@ -2,11 +2,11 @@ use std::ops::Range;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
-use collections::HashSet;
 use futures::AsyncWriteExt;
 use futures::TryFutureExt;
 use futures::try_join;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use serde::Serialize;
 use smol::future;
@@ -29,8 +29,8 @@ use crate::repository::RepoPath;
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Blame {
     pub entries: Vec<BlameEntry>,
-    pub messages: HashMap<Oid, String>,
-    pub tag_names: HashMap<Oid, Vec<String>>,
+    pub messages: FxHashMap<Oid, String>,
+    pub tag_names: FxHashMap<Oid, Vec<String>>,
 }
 
 impl Blame {
@@ -50,7 +50,7 @@ impl Blame {
     }
 
     async fn with_commit_details(git: &GitBinary, mut entries: Vec<BlameEntry>) -> Result<Self> {
-        let mut unique_shas = HashSet::default();
+        let mut unique_shas = FxHashSet::default();
 
         for entry in &mut entries {
             unique_shas.insert(entry.sha);
@@ -64,7 +64,7 @@ impl Blame {
                     Ok(tag_names) => Ok(tag_names),
                     Err(error) => {
                         log::warn!("failed to get commit tag names: {error:#}");
-                        Ok(HashMap::default())
+                        Ok(FxHashMap::default())
                     }
                 }
             },
@@ -304,13 +304,13 @@ impl BlameEntry {
 // More about `--incremental` output: https://mirrors.edge.kernel.org/pub/software/scm/git/docs/git-blame.html
 struct GitBlameParser {
     entries: Vec<BlameEntry>,
-    index: HashMap<Oid, usize>,
+    index: FxHashMap<Oid, usize>,
     current_entry: Option<BlameEntry>,
 }
 
 impl GitBlameParser {
     fn new() -> Self {
-        Self { entries: Vec::new(), index: HashMap::default(), current_entry: None }
+        Self { entries: Vec::new(), index: FxHashMap::default(), current_entry: None }
     }
 
     fn push_line(&mut self, line: &str) -> Result<()> {

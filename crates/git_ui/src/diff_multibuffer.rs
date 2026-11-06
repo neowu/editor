@@ -5,8 +5,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use buffer_diff::BufferDiff;
-use collections::HashMap;
-use collections::HashSet;
 use editor::DiffViewStyle;
 use editor::EXCERPT_CONTEXT_LINES;
 use editor::EditorEvent;
@@ -46,6 +44,8 @@ use project::git_store::Repository;
 use project::git_store::diff_buffer_list::BranchDiffEvent;
 use project::git_store::diff_buffer_list::DiffBase;
 use project::git_store::diff_buffer_list::{self};
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use theme::ActiveTheme;
 use ui::CommonAnimationExt as _;
 use ui::KeyBinding;
@@ -81,7 +81,7 @@ pub struct DiffMultibuffer {
     multibuffer: Entity<MultiBuffer>,
     branch_diff: Entity<diff_buffer_list::DiffBufferList>,
     editor: Entity<SplittableEditor>,
-    buffer_subscriptions: HashMap<RepoPath, BufferSubscriptions>,
+    buffer_subscriptions: FxHashMap<RepoPath, BufferSubscriptions>,
     workspace: WeakEntity<Workspace>,
     focus_handle: FocusHandle,
     pending_scroll: Option<PathKey>,
@@ -157,7 +157,7 @@ impl DiffMultibuffer {
             focus_handle,
             editor,
             multibuffer,
-            buffer_subscriptions: HashMap::default(),
+            buffer_subscriptions: FxHashMap::default(),
             pending_scroll: None,
             empty_label: empty_label.into(),
             _task: task,
@@ -545,10 +545,10 @@ impl DiffMultibuffer {
                 .snapshot(cx)
                 .buffers_with_paths()
                 .map(|(buffer_snapshot, path_key)| (path_key.clone(), buffer_snapshot.remote_id()))
-                .collect::<HashMap<_, _>>();
+                .collect::<FxHashMap<_, _>>();
 
             let mut entries = BTreeMap::new();
-            let mut live_repo_paths = HashSet::default();
+            let mut live_repo_paths = FxHashSet::default();
             if let Some(repo) = repo {
                 let repo = repo.read(cx);
                 for diff_buffer in buffers_to_load {
@@ -563,7 +563,7 @@ impl DiffMultibuffer {
                 .buffer_subscriptions
                 .iter()
                 .map(|(repo_path, sub)| (sub.display_buffer.read(cx).remote_id(), repo_path.clone()))
-                .collect::<HashMap<_, _>>();
+                .collect::<FxHashMap<_, _>>();
 
             this.editor.update(cx, |editor, cx| {
                 for (path, buffer_id) in previous_paths {

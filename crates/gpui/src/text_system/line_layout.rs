@@ -10,9 +10,9 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
-use collections::FxBuildHasher;
-use collections::FxHashMap;
 use lru::LruCache;
+use rustc_hash::FxBuildHasher;
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
 use super::LineWrapper;

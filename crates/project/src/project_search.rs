@@ -19,7 +19,6 @@ use async_channel::Receiver;
 use async_channel::Sender;
 use async_channel::bounded;
 use async_channel::unbounded;
-use collections::HashMap;
 use encoding_rs::Encoding;
 use file_content::ByteContent;
 use file_content::DecodingReader;
@@ -47,6 +46,7 @@ use language::Point;
 use parking_lot::Mutex;
 use rpc::AnyProtoClient;
 use rpc::proto;
+use rustc_hash::FxHashMap;
 use text::Rope;
 use util::ResultExt;
 use util::rel_path::RelPath;
@@ -166,7 +166,7 @@ impl Search {
     /// Prepares a project search run. The resulting [`SearchResultsHandle`] has to be used to specify whether you're interested in matching buffers
     /// or full search results.
     pub fn into_handle(mut self, query: SearchQuery, cx: &mut App) -> SearchResultsHandle {
-        let mut open_buffers = HashMap::default();
+        let mut open_buffers = FxHashMap::default();
         let mut unnamed_buffers = Vec::new();
         let mut entryless_file_buffers = Vec::new();
         const MAX_CONCURRENT_BUFFER_OPENS: usize = 64;
@@ -645,7 +645,7 @@ fn path_key_sort_key(buffer: &Entity<Buffer>, cx: &App) -> (Option<u64>, Option<
 
 struct Worker {
     query: Arc<SearchQuery>,
-    open_buffers: Arc<HashMap<ProjectEntryId, Rope>>,
+    open_buffers: Arc<FxHashMap<ProjectEntryId, Rope>>,
     candidates: FindSearchCandidates,
     /// Ok, we're back in background: run full scan & find all matches in a given buffer snapshot.
     /// Then, when you're done, share them via the channel you were given.
@@ -716,7 +716,7 @@ impl Worker {
 struct RequestHandler<'worker> {
     query: &'worker SearchQuery,
     fs: Option<&'worker dyn Fs>,
-    open_entries: &'worker HashMap<ProjectEntryId, Rope>,
+    open_entries: &'worker FxHashMap<ProjectEntryId, Rope>,
     confirm_contents_will_match_tx: &'worker Sender<MatchingEntry>,
 }
 

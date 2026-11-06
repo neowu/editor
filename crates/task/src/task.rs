@@ -8,13 +8,13 @@ use proto::shell::WithArguments;
 mod task_template;
 
 use std::borrow::Cow;
+use std::collections::hash_map;
 use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::Context as _;
-use collections::HashMap;
-use collections::hash_map;
 use gpui::SharedString;
+use rustc_hash::FxHashMap;
 use serde::Serialize;
 pub use task_template::RevealStrategy;
 pub use task_template::TaskTemplate;
@@ -47,7 +47,7 @@ pub struct SpawnInTerminal {
     /// Current working directory to spawn the command into.
     pub cwd: Option<PathBuf>,
     /// Env overrides for the command, will be appended to the terminal's environment from the settings.
-    pub env: HashMap<String, String>,
+    pub env: FxHashMap<String, String>,
     /// Whether to replace a running instance of the task right away, rather than wait for it to finish.
     pub allow_concurrent_runs: bool,
     /// What to do with the terminal pane and tab, after the command was started.
@@ -211,7 +211,7 @@ impl Display for VariableName {
 
 /// Container for predefined environment variables that describe state of ed at the time the task was spawned.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
-pub struct TaskVariables(HashMap<VariableName, String>);
+pub struct TaskVariables(FxHashMap<VariableName, String>);
 
 impl TaskVariables {
     /// Inserts another variable into the container, overwriting the existing one if it already exists — in this case, the old value is returned.
@@ -239,7 +239,7 @@ impl TaskVariables {
 
 impl FromIterator<(VariableName, String)> for TaskVariables {
     fn from_iter<T: IntoIterator<Item = (VariableName, String)>>(iter: T) -> Self {
-        Self(HashMap::from_iter(iter))
+        Self(FxHashMap::from_iter(iter))
     }
 }
 
@@ -264,7 +264,7 @@ pub struct TaskContext {
     /// Environment variables obtained when loading the project into ed.
     /// This is the environment one would get when `cd`ing in a terminal
     /// into the project's root directory.
-    pub project_env: HashMap<String, String>,
+    pub project_env: FxHashMap<String, String>,
 }
 
 /// This is a new type representing a 'tag' on a 'runnable symbol', typically a test of main() function, found via treesitter.

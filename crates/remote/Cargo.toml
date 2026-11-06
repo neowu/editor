@@ -10,12 +10,12 @@ path = "src/remote.rs"
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
-collections.workspace = true
 futures.workspace = true
 gpui.workspace = true
 log = { workspace = true, features = ["kv_unstable_std"] }
 parking_lot.workspace = true
 rpc = { workspace = true, features = ["gpui"] }
+rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 settings_content.workspace = true

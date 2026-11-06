@@ -33,14 +33,14 @@ use anyhow::Context as _;
 use anyhow::Result;
 use clock::Lamport;
 pub use clock::ReplicaId;
-use collections::HashMap;
-use collections::HashSet;
 use futures::channel::oneshot;
 use locator::Locator;
 use operation_queue::OperationQueue;
 pub use patch::Patch;
 use regex::Regex;
 pub use rope::*;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 pub use selection::*;
 use smallvec::SmallVec;
 pub use subscription::*;
@@ -68,10 +68,10 @@ pub struct Buffer {
     snapshot: BufferSnapshot,
     history: History,
     deferred_ops: OperationQueue<Operation>,
-    deferred_replicas: HashSet<ReplicaId>,
+    deferred_replicas: FxHashSet<ReplicaId>,
     pub lamport_clock: clock::Lamport,
     subscriptions: Topic<usize>,
-    edit_id_resolvers: HashMap<clock::Lamport, Vec<oneshot::Sender<()>>>,
+    edit_id_resolvers: FxHashMap<clock::Lamport, Vec<oneshot::Sender<()>>>,
     wait_for_version_txs: Vec<(clock::Global, oneshot::Sender<()>)>,
 }
 
@@ -574,7 +574,7 @@ pub struct EditOperation {
 pub struct UndoOperation {
     pub timestamp: clock::Lamport,
     pub version: clock::Global,
-    pub counts: HashMap<clock::Lamport, u32>,
+    pub counts: FxHashMap<clock::Lamport, u32>,
 }
 
 /// Stores information about the indentation of a line (tabs and spaces).
@@ -743,10 +743,10 @@ impl Buffer {
             },
             history,
             deferred_ops: OperationQueue::new(),
-            deferred_replicas: HashSet::default(),
+            deferred_replicas: FxHashSet::default(),
             lamport_clock,
             subscriptions: Topic::default(),
-            edit_id_resolvers: HashMap::default(),
+            edit_id_resolvers: FxHashMap::default(),
             wait_for_version_txs: Vec::default(),
         }
     }
@@ -768,10 +768,10 @@ impl Buffer {
             snapshot: self.snapshot.clone(),
             history: History::new(self.base_text().clone()),
             deferred_ops: OperationQueue::new(),
-            deferred_replicas: HashSet::default(),
+            deferred_replicas: FxHashSet::default(),
             lamport_clock: clock::Lamport::new(ReplicaId::LOCAL_BRANCH),
             subscriptions: Topic::default(),
-            edit_id_resolvers: HashMap::default(),
+            edit_id_resolvers: FxHashMap::default(),
             wait_for_version_txs: Vec::default(),
         }
     }
@@ -1278,7 +1278,7 @@ impl Buffer {
     }
 
     fn undo_or_redo(&mut self, transaction: Transaction) -> Operation {
-        let mut counts = HashMap::default();
+        let mut counts = FxHashMap::default();
         for edit_id in transaction.edit_ids {
             counts.insert(edit_id, self.undo_map.undo_count(edit_id).saturating_add(1));
         }
@@ -1288,7 +1288,7 @@ impl Buffer {
         operation
     }
 
-    pub fn undo_operations(&mut self, counts: HashMap<clock::Lamport, u32>) -> Operation {
+    pub fn undo_operations(&mut self, counts: FxHashMap<clock::Lamport, u32>) -> Operation {
         let timestamp = self.lamport_clock.tick();
         let version = self.version();
         self.snapshot.version.observe(timestamp);

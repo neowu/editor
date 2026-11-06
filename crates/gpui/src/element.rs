@@ -207,7 +207,7 @@ pub(crate) const EMPTY_PATH_HASH: u64 = 0;
 pub(crate) fn extend_path_hash(prefix: u64, id: &ElementId) -> u64 {
     use std::hash::Hash;
     use std::hash::Hasher;
-    let mut hasher = collections::FxHasher::with_seed(prefix as usize);
+    let mut hasher = rustc_hash::FxHasher::with_seed(prefix as usize);
     id.hash(&mut hasher);
     hasher.finish()
 }

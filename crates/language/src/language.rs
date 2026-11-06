@@ -44,8 +44,6 @@ use async_trait::async_trait;
 pub use available_languages::AvailableLanguage;
 pub use buffer::Operation;
 pub use buffer::*;
-use collections::HashMap;
-use collections::HashSet;
 pub use diagnostic::Diagnostic;
 pub use diagnostic::DiagnosticMessage;
 pub use diagnostic::DiagnosticSourceKind;
@@ -135,6 +133,8 @@ pub use runnable::ResolvedRunnable;
 pub use runnable::RunnableMatchCapture;
 pub use runnable::RunnableRange;
 pub use runnable::RunnableResolver;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde_json::Value;
 use settings::WorktreeId;
 pub use syntax_map::OwnedSyntaxLayer;
@@ -335,7 +335,7 @@ pub struct CachedLspAdapter {
     pub name: LanguageServerName,
     pub disk_based_diagnostic_sources: Vec<String>,
     pub disk_based_diagnostics_progress_token: Option<String>,
-    language_ids: HashMap<LanguageName, String>,
+    language_ids: FxHashMap<LanguageName, String>,
     pub adapter: Arc<dyn LspAdapter>,
 }
 
@@ -432,7 +432,7 @@ pub trait LspAdapterDelegate: Send + Sync {
     fn registered_lsp_adapters(&self) -> Vec<Arc<dyn LspAdapter>>;
 
     async fn which(&self, command: &OsStr) -> Option<PathBuf>;
-    async fn shell_env(&self) -> HashMap<String, String>;
+    async fn shell_env(&self) -> FxHashMap<String, String>;
     async fn read_text_file(&self, path: &RelPath) -> Result<String>;
     async fn try_exec(&self, binary: LanguageServerBinary) -> Result<()>;
 }
@@ -570,8 +570,8 @@ pub trait LspAdapter: 'static + Send + Sync {
         None
     }
 
-    fn language_ids(&self) -> HashMap<LanguageName, String> {
-        HashMap::default()
+    fn language_ids(&self) -> FxHashMap<LanguageName, String> {
+        FxHashMap::default()
     }
 
     /// Support custom initialize params.
@@ -914,7 +914,7 @@ impl LanguageScope {
     /// By default, ed treats alphanumeric characters (and '_') as word characters for
     /// the purpose of actions like 'move to next word end` or whole-word search.
     /// It additionally accounts for language's additional word characters.
-    pub fn word_characters(&self) -> Option<&HashSet<char>> {
+    pub fn word_characters(&self) -> Option<&FxHashSet<char>> {
         Override::as_option(
             self.config_override().map(|o| &o.word_characters),
             Some(&self.language.config.word_characters),
@@ -923,7 +923,7 @@ impl LanguageScope {
 
     /// Returns a list of language-specific characters that are considered part of
     /// a completion query.
-    pub fn completion_query_characters(&self) -> Option<&HashSet<char>> {
+    pub fn completion_query_characters(&self) -> Option<&FxHashSet<char>> {
         Override::as_option(
             self.config_override().map(|o| &o.completion_query_characters),
             Some(&self.language.config.completion_query_characters),
@@ -932,7 +932,7 @@ impl LanguageScope {
 
     /// Returns a list of language-specific characters that are considered part of
     /// identifiers during linked editing operations.
-    pub fn linked_edit_characters(&self) -> Option<&HashSet<char>> {
+    pub fn linked_edit_characters(&self) -> Option<&FxHashSet<char>> {
         Override::as_option(
             self.config_override().map(|o| &o.linked_edit_characters),
             Some(&self.language.config.linked_edit_characters),

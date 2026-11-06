@@ -55,7 +55,6 @@ use buffer_diff::DiffHunkSecondaryStatus;
 use buffer_diff::DiffOperations;
 use buffer_diff::PendingHunk;
 use buffer_diff::PendingSense;
-use collections::HashMap;
 pub use conflict_set::ConflictRegion;
 pub use conflict_set::ConflictSet;
 pub use conflict_set::ConflictSetSnapshot;
@@ -148,6 +147,7 @@ use rpc::TypedEnvelope;
 use rpc::proto::git_reset;
 use rpc::proto::split_repository_update;
 use rpc::proto::{self};
+use rustc_hash::FxHashMap;
 use settings::Settings;
 use settings::SettingsStore;
 use settings::WorktreeId;
@@ -192,18 +192,18 @@ pub struct GitStore {
     project: Option<WeakEntity<Project>>,
     buffer_store: Entity<BufferStore>,
     worktree_store: Entity<WorktreeStore>,
-    repositories: HashMap<RepositoryId, Entity<Repository>>,
+    repositories: FxHashMap<RepositoryId, Entity<Repository>>,
     parked_repositories: Vec<ParkedRepository>,
-    worktree_ids: HashMap<RepositoryId, HashSet<WorktreeId>>,
+    worktree_ids: FxHashMap<RepositoryId, HashSet<WorktreeId>>,
     active_repo_id: Option<RepositoryId>,
     /// The folder the user is working in. `None` derives it from the active
     /// repository (see `active_worktree`).
     active_worktree_id: Option<WorktreeId>,
     #[allow(clippy::type_complexity)]
-    loading_diffs: HashMap<(BufferId, DiffKind), Shared<Task<Result<Entity<BufferDiff>, Arc<anyhow::Error>>>>>,
-    diffs: HashMap<BufferId, Entity<BufferGitState>>,
-    buffer_ids_by_index_text_buffer_id: HashMap<BufferId, BufferId>,
-    shared_diffs: HashMap<proto::PeerId, HashMap<BufferId, SharedDiffs>>,
+    loading_diffs: FxHashMap<(BufferId, DiffKind), Shared<Task<Result<Entity<BufferDiff>, Arc<anyhow::Error>>>>>,
+    diffs: FxHashMap<BufferId, Entity<BufferGitState>>,
+    buffer_ids_by_index_text_buffer_id: FxHashMap<BufferId, BufferId>,
+    shared_diffs: FxHashMap<proto::PeerId, FxHashMap<BufferId, SharedDiffs>>,
     object_read_limiter: Arc<Semaphore>,
     _subscriptions: Vec<Subscription>,
 }
@@ -233,7 +233,7 @@ struct BufferGitState {
     unstaged_diff: Option<WeakEntity<BufferDiff>>,
     staged_diff: Option<(WeakEntity<BufferDiff>, Entity<Buffer>)>,
     uncommitted_diff: Option<WeakEntity<BufferDiff>>,
-    oid_diffs: HashMap<Option<git::Oid>, WeakEntity<BufferDiff>>,
+    oid_diffs: FxHashMap<Option<git::Oid>, WeakEntity<BufferDiff>>,
     conflict_set: Option<WeakEntity<ConflictSet>>,
     recalculate_diff_task: Option<Task<Result<()>>>,
     reparse_conflict_markers_task: Option<Task<Result<()>>>,
@@ -265,7 +265,7 @@ struct BufferGitState {
     /// this state in the same update), so byte offsets stay valid for the whole
     /// window.
     pending_index_edits: Option<Vec<(Range<usize>, Arc<str>)>>,
-    oid_texts: HashMap<git::Oid, Arc<str>>,
+    oid_texts: FxHashMap<git::Oid, Arc<str>>,
     head_text_buffer: WeakEntity<Buffer>,
     index_text_buffer: WeakEntity<Buffer>,
     index_text_buffer_language_enabled: bool,
@@ -676,7 +676,7 @@ pub struct JobInfo {
 struct CommitDataHandler {
     _task: Task<()>,
     commit_data_request: async_channel::Sender<Oid>,
-    completion_senders: HashMap<Oid, oneshot::Sender<Arc<CommitData>>>,
+    completion_senders: FxHashMap<Oid, oneshot::Sender<Arc<CommitData>>>,
     pending_requests: HashSet<Oid>,
 }
 
@@ -700,7 +700,7 @@ pub struct InitialGitGraphData {
     fetch_task: Task<()>,
     pub error: Option<SharedString>,
     pub commit_data: Vec<Arc<InitialGraphCommitData>>,
-    pub commit_oid_to_index: HashMap<Oid, usize>,
+    pub commit_oid_to_index: FxHashMap<Oid, usize>,
     subscribers: Vec<async_channel::Sender<Result<Vec<Arc<InitialGraphCommitData>>, SharedString>>>,
 }
 
@@ -730,13 +730,13 @@ pub struct Repository {
     paths_needing_status_update: Vec<Vec<RepoPath>>,
     job_sender: mpsc::UnboundedSender<GitJob>,
     _worker_task: Task<()>,
-    active_jobs: HashMap<JobId, JobInfo>,
+    active_jobs: FxHashMap<JobId, JobInfo>,
     pending_ops: SumTree<PendingOps>,
     job_id: JobId,
     repository_state: Shared<Task<Result<RepositoryState, String>>>,
-    initial_graph_data: HashMap<(LogSource, LogOrder), InitialGitGraphData>,
+    initial_graph_data: FxHashMap<(LogSource, LogOrder), InitialGitGraphData>,
     commit_data_handler: CommitDataHandlerState,
-    commit_data: HashMap<Oid, CommitDataState>,
+    commit_data: FxHashMap<Oid, CommitDataState>,
 }
 
 impl Deref for Repository {
@@ -751,7 +751,7 @@ impl Deref for Repository {
 pub struct LocalRepositoryState {
     pub fs: Arc<dyn Fs>,
     pub backend: Arc<dyn GitRepository>,
-    pub environment: Arc<HashMap<String, String>>,
+    pub environment: Arc<FxHashMap<String, String>>,
 }
 
 impl LocalRepositoryState {
@@ -769,7 +769,7 @@ impl LocalRepositoryState {
             .await
             .unwrap_or_else(|| {
                 log::error!("failed to get working directory environment for repository {work_directory_abs_path:?}");
-                HashMap::default()
+                FxHashMap::default()
             });
         let search_paths = environment.get("PATH").map(|val| val.to_owned());
         let backend = cx
@@ -957,17 +957,17 @@ impl GitStore {
             project: None,
             buffer_store,
             worktree_store,
-            repositories: HashMap::default(),
+            repositories: FxHashMap::default(),
             parked_repositories: Vec::new(),
-            worktree_ids: HashMap::default(),
+            worktree_ids: FxHashMap::default(),
             active_repo_id: None,
             active_worktree_id: None,
             _subscriptions,
-            loading_diffs: HashMap::default(),
-            shared_diffs: HashMap::default(),
+            loading_diffs: FxHashMap::default(),
+            shared_diffs: FxHashMap::default(),
             object_read_limiter: Arc::new(Semaphore::new(MAX_CONCURRENT_OBJECT_READS)),
-            diffs: HashMap::default(),
-            buffer_ids_by_index_text_buffer_id: HashMap::default(),
+            diffs: FxHashMap::default(),
+            buffer_ids_by_index_text_buffer_id: FxHashMap::default(),
         }
     }
 
@@ -1180,7 +1180,7 @@ impl GitStore {
                 *downstream_client = Some((client, ProjectId(project_id)));
             }
             GitStoreState::Local { downstream: downstream_client, .. } => {
-                let mut snapshots = HashMap::default();
+                let mut snapshots = FxHashMap::default();
                 let (updates_tx, mut updates_rx) = mpsc::unbounded();
                 for repo in self.repositories.values() {
                     updates_tx.unbounded_send(DownstreamUpdate::UpdateRepository(repo.read(cx).snapshot.clone())).ok();
@@ -2543,7 +2543,7 @@ impl GitStore {
         }
     }
 
-    pub const fn repositories(&self) -> &HashMap<RepositoryId, Entity<Repository>> {
+    pub const fn repositories(&self) -> &FxHashMap<RepositoryId, Entity<Repository>> {
         &self.repositories
     }
 
@@ -3874,7 +3874,7 @@ impl GitStore {
         this.read_with(cx, |this, _| this.repositories.get(&id).context("missing repository handle").cloned())
     }
 
-    pub fn repo_snapshots(&self, cx: &App) -> HashMap<RepositoryId, RepositorySnapshot> {
+    pub fn repo_snapshots(&self, cx: &App) -> FxHashMap<RepositoryId, RepositorySnapshot> {
         self.repositories.iter().map(|(id, repo)| (*id, repo.read(cx).snapshot.clone())).collect()
     }
 
@@ -3902,7 +3902,7 @@ impl GitStore {
         worktree: &Entity<Worktree>,
         updated_entries: &[(Arc<RelPath>, ProjectEntryId, PathChange)],
         cx: &App,
-    ) -> Task<HashMap<Entity<Repository>, Vec<RepoPath>>> {
+    ) -> Task<FxHashMap<Entity<Repository>, Vec<RepoPath>>> {
         let mut repo_paths = self
             .repositories
             .values()
@@ -3917,7 +3917,7 @@ impl GitStore {
         let executor = cx.background_executor().clone();
         cx.background_executor().spawn(async move {
             repo_paths.sort_by(|lhs, rhs| lhs.0.cmp(&rhs.0));
-            let mut paths_by_git_repo = HashMap::<_, Vec<_>>::default();
+            let mut paths_by_git_repo = FxHashMap::<_, Vec<_>>::default();
             let mut tasks = FuturesOrdered::new();
             for (repo_path, repo) in repo_paths.into_iter().rev() {
                 let entries = entries.clone();
@@ -3975,7 +3975,7 @@ impl BufferGitState {
             unstaged_diff: Option::default(),
             staged_diff: Option::default(),
             uncommitted_diff: Option::default(),
-            oid_diffs: HashMap::default(),
+            oid_diffs: FxHashMap::default(),
             recalculate_diff_task: Option::default(),
             language: Option::default(),
             language_registry: Option::default(),
@@ -3985,7 +3985,7 @@ impl BufferGitState {
             head_text: Option::default(),
             index_text: Option::default(),
             pending_index_edits: Some(Vec::new()),
-            oid_texts: HashMap::default(),
+            oid_texts: FxHashMap::default(),
             head_text_buffer: WeakEntity::new_invalid(),
             index_text_buffer: WeakEntity::new_invalid(),
             index_text_buffer_language_enabled: Default::default(),
@@ -4997,9 +4997,9 @@ impl Repository {
             paths_needing_status_update: Vec::default(),
             job_sender: mpsc::unbounded().0,
             job_id: 0,
-            active_jobs: HashMap::default(),
-            initial_graph_data: HashMap::default(),
-            commit_data: HashMap::default(),
+            active_jobs: FxHashMap::default(),
+            initial_graph_data: FxHashMap::default(),
+            commit_data: FxHashMap::default(),
             commit_data_handler: CommitDataHandlerState::Closed,
         };
         repo.respawn_local_worker(project_environment, fs, cx);
@@ -5038,10 +5038,10 @@ impl Repository {
             job_sender,
             _worker_task: worker_task,
             repository_state,
-            active_jobs: HashMap::default(),
+            active_jobs: FxHashMap::default(),
             job_id: 0,
-            initial_graph_data: HashMap::default(),
-            commit_data: HashMap::default(),
+            initial_graph_data: FxHashMap::default(),
+            commit_data: FxHashMap::default(),
             commit_data_handler: CommitDataHandlerState::Closed,
         }
     }
@@ -5682,7 +5682,7 @@ impl Repository {
                 fetch_task,
                 error: None,
                 commit_data: Vec::new(),
-                commit_oid_to_index: HashMap::default(),
+                commit_oid_to_index: FxHashMap::default(),
                 subscribers: Vec::new(),
             }
         });
@@ -5918,7 +5918,7 @@ impl Repository {
         CommitDataHandler {
             _task: foreground_task,
             commit_data_request: request_tx_for_handler,
-            completion_senders: HashMap::default(),
+            completion_senders: FxHashMap::default(),
             pending_requests: HashSet::default(),
         }
     }
@@ -6203,7 +6203,7 @@ impl Repository {
                     this.send_keyed_job(Some(job_key), Some(status.into()), move |git_repo, mut cx| async move {
                         let hunk_staging_operation_counts = weak_this
                             .update(&mut cx, |this, cx| {
-                                let mut hunk_staging_operation_counts = HashMap::default();
+                                let mut hunk_staging_operation_counts = FxHashMap::default();
                                 for path in &entries {
                                     let Some(project_path) = this.repo_path_to_project_path(path, cx) else {
                                         continue;
@@ -7025,7 +7025,7 @@ impl Repository {
         })
     }
 
-    pub fn remote_urls(&mut self) -> oneshot::Receiver<Result<HashMap<String, String>>> {
+    pub fn remote_urls(&mut self) -> oneshot::Receiver<Result<FxHashMap<String, String>>> {
         let id = self.id;
         self.send_job(None, move |repo, _cx| async move {
             match repo {
@@ -7968,12 +7968,12 @@ impl Repository {
                     )
                     .await?;
 
-                    let diff_stats: HashMap<RepoPath, DiffStat> =
-                        HashMap::from_iter(diff_stats.entries.iter().cloned());
-                    let staged_diff_stats: HashMap<RepoPath, DiffStat> =
-                        HashMap::from_iter(staged_diff_stats.entries.iter().cloned());
-                    let unstaged_diff_stats: HashMap<RepoPath, DiffStat> =
-                        HashMap::from_iter(unstaged_diff_stats.entries.iter().cloned());
+                    let diff_stats: FxHashMap<RepoPath, DiffStat> =
+                        FxHashMap::from_iter(diff_stats.entries.iter().cloned());
+                    let staged_diff_stats: FxHashMap<RepoPath, DiffStat> =
+                        FxHashMap::from_iter(staged_diff_stats.entries.iter().cloned());
+                    let unstaged_diff_stats: FxHashMap<RepoPath, DiffStat> =
+                        FxHashMap::from_iter(unstaged_diff_stats.entries.iter().cloned());
 
                     let mut changed_path_statuses = Vec::new();
                     let prev_statuses = prev_snapshot.statuses_by_path.clone();
@@ -8303,7 +8303,7 @@ fn deserialize_blame_entry(entry: proto::BlameEntry) -> Option<BlameEntry> {
     })
 }
 
-fn serialize_commit_messages(messages: HashMap<git::Oid, String>) -> Vec<proto::CommitMessage> {
+fn serialize_commit_messages(messages: FxHashMap<git::Oid, String>) -> Vec<proto::CommitMessage> {
     messages.into_iter().map(|(oid, message)| proto::CommitMessage { oid: oid.as_bytes().into(), message }).collect()
 }
 
@@ -8311,7 +8311,7 @@ fn deserialize_commit_message(message: proto::CommitMessage) -> Option<(git::Oid
     Some((git::Oid::from_bytes(&message.oid).ok()?, message.message))
 }
 
-fn serialize_commit_tag_names(tag_names: HashMap<git::Oid, Vec<String>>) -> Vec<proto::CommitTagNames> {
+fn serialize_commit_tag_names(tag_names: FxHashMap<git::Oid, Vec<String>>) -> Vec<proto::CommitTagNames> {
     tag_names
         .into_iter()
         .map(|(oid, tag_names)| proto::CommitTagNames { oid: oid.as_bytes().into(), tag_names })
@@ -8669,10 +8669,10 @@ async fn compute_snapshot(
     let unstaged_diff_stats = unstaged_diff_stats.log_err().unwrap_or_default();
     log::debug!("fetched statuses, diff stats, stash entries");
 
-    let diff_stat_map: HashMap<&RepoPath, DiffStat> = diff_stats.entries.iter().map(|(p, s)| (p, *s)).collect();
-    let staged_diff_stat_map: HashMap<&RepoPath, DiffStat> =
+    let diff_stat_map: FxHashMap<&RepoPath, DiffStat> = diff_stats.entries.iter().map(|(p, s)| (p, *s)).collect();
+    let staged_diff_stat_map: FxHashMap<&RepoPath, DiffStat> =
         staged_diff_stats.entries.iter().map(|(p, s)| (p, *s)).collect();
-    let unstaged_diff_stat_map: HashMap<&RepoPath, DiffStat> =
+    let unstaged_diff_stat_map: FxHashMap<&RepoPath, DiffStat> =
         unstaged_diff_stats.entries.iter().map(|(p, s)| (p, *s)).collect();
     let mut conflicted_paths = Vec::new();
     let statuses_by_path = SumTree::from_iter(

@@ -204,7 +204,7 @@ impl Editor {
             }
             let cursors_to_pin = editor.update(cx, |editor, cx| {
                 let snapshot = editor.buffer.read(cx).snapshot(cx);
-                cursor_heads.into_iter().map(|head| (head, snapshot.anchor_before(head))).collect::<HashMap<_, _>>()
+                cursor_heads.into_iter().map(|head| (head, snapshot.anchor_before(head))).collect::<FxHashMap<_, _>>()
             })?;
             if let Some(transaction) = on_type_formatting.await? {
                 let (formatted_buffer_id, formatted_ranges) = buffer.update(cx, |buffer, _| {

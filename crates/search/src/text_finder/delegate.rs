@@ -31,8 +31,6 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
-use collections::HashMap;
-use collections::HashSet;
 use editor::EXCERPT_CONTEXT_LINES;
 use editor::Editor;
 use editor::MultiBufferSnapshot;
@@ -67,6 +65,8 @@ use project::Search;
 use project::SearchResults;
 use project::search::SearchQuery;
 use project::search::SearchResult;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use smol::future::yield_now;
 use text::Anchor;
 use ui::Disclosure;
@@ -117,13 +117,13 @@ pub struct Delegate {
     pub(crate) imported_from_project_search: bool,
     /// When `is_ready` there is not a search in progress
     pub(crate) in_progress_search: InProgressSearch,
-    pub(crate) unique_files: HashSet<ProjectPath>,
+    pub(crate) unique_files: FxHashSet<ProjectPath>,
     /// Largest line number across [`Self::matches`], used to size the line-number
     /// column so every row's number right-aligns to the widest one. Recomputed in
     /// [`Delegate::rebuild_entries`].
     pub(crate) max_line_number: u32,
     pub(crate) selected_matches: Vec<SelectedMatch>,
-    pub(crate) collapsed_paths: HashSet<ProjectPath>,
+    pub(crate) collapsed_paths: FxHashSet<ProjectPath>,
     pub(crate) query_editor: Option<Entity<Editor>>,
 }
 
@@ -336,10 +336,10 @@ impl Delegate {
                 active_query,
                 imported_from_project_search,
                 in_progress_search,
-                unique_files: HashSet::default(),
+                unique_files: FxHashSet::default(),
                 max_line_number: 0,
                 selected_matches: Vec::new(),
-                collapsed_paths: HashSet::default(),
+                collapsed_paths: FxHashSet::default(),
                 query_editor: None,
             })
         })
@@ -584,7 +584,7 @@ pub(crate) async fn matches_to_multibuffer(
     cx: &mut AsyncApp,
 ) -> PopulateProjectSearch {
     let mut buffer_order_in_text_finder: Vec<EntityId> = Vec::new();
-    let mut by_buffer: HashMap<_, (_, Vec<_>)> = HashMap::default();
+    let mut by_buffer: FxHashMap<_, (_, Vec<_>)> = FxHashMap::default();
 
     for m in matches {
         let buffer = Entity::clone(&m.buffer);

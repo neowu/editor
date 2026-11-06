@@ -7,8 +7,8 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::ops::Range;
 
-use collections::HashMap;
 use parking_lot::Mutex;
+use rustc_hash::FxHashMap;
 use text::Anchor;
 use text::Point;
 use util::RangeExt;
@@ -34,7 +34,7 @@ pub struct RowChunks {
     buffer_snapshot: text::BufferSnapshot,
     last_row: BufferRow,
     max_rows_per_chunk: u32,
-    computed_chunks: Mutex<HashMap<RowChunkId, RowChunk>>,
+    computed_chunks: Mutex<FxHashMap<RowChunkId, RowChunk>>,
 }
 
 impl Debug for RowChunks {
@@ -53,7 +53,7 @@ impl RowChunks {
             last_row: snapshot.max_point().row,
             buffer_snapshot: snapshot.clone(),
             max_rows_per_chunk,
-            computed_chunks: Mutex::new(HashMap::default()),
+            computed_chunks: Mutex::new(FxHashMap::default()),
         }
     }
 

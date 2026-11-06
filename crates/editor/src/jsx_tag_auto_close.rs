@@ -4,7 +4,6 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use collections::HashMap;
 use gpui::Context;
 use gpui::Entity;
 use gpui::Window;
@@ -15,6 +14,7 @@ use language::language_settings::LanguageSettings;
 use multi_buffer::BufferOffset;
 use multi_buffer::MultiBuffer;
 use multi_buffer::ToOffset;
+use rustc_hash::FxHashMap;
 use text::Anchor;
 use text::OffsetRangeExt as _;
 use util::ResultExt as _;
@@ -318,7 +318,7 @@ pub(crate) fn refresh_enabled_in_any_buffer(
     };
 }
 
-pub(crate) type InitialBufferVersionsMap = HashMap<language::BufferId, clock::Global>;
+pub(crate) type InitialBufferVersionsMap = FxHashMap<language::BufferId, clock::Global>;
 
 pub(crate) fn construct_initial_buffer_versions_map<D: ToOffset + Copy, _S: Into<Arc<str>>>(
     editor: &Editor,
@@ -363,7 +363,7 @@ pub(crate) fn handle_from(
         edits: Vec<Range<Anchor>>,
     }
 
-    let mut edit_contexts = HashMap::<(language::BufferId, language::LanguageId), JsxAutoCloseEditContext>::default();
+    let mut edit_contexts = FxHashMap::<(language::BufferId, language::LanguageId), JsxAutoCloseEditContext>::default();
 
     for (buffer_id, buffer_version_initial) in initial_buffer_versions {
         let Some(buffer) = editor.buffer.read(cx).buffer(buffer_id) else {
@@ -467,7 +467,7 @@ pub(crate) fn handle_from(
             let multi_buffer_snapshot = this.read_with(cx, |this, cx| this.buffer.read(cx).snapshot(cx)).ok()?;
 
             let mut base_selections = Vec::new();
-            let mut buffer_selection_map = HashMap::default();
+            let mut buffer_selection_map = FxHashMap::default();
 
             {
                 let selections = this.read_with(cx, |this, _| this.selections.disjoint_anchors_arc()).ok()?;

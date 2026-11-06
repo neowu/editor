@@ -8,11 +8,11 @@ mod serde_helper;
 mod terminal;
 mod workspace;
 
-use collections::HashMap;
 pub use editor::*;
 pub use font::*;
 pub use language::*;
 pub use project::*;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 pub use serde_helper::serialize_f32_with_two_decimal_places;
@@ -61,7 +61,7 @@ pub struct SettingsContent {
 }
 
 impl SettingsContent {
-    pub const fn languages_mut(&mut self) -> &mut HashMap<String, LanguageSettingsContent> {
+    pub const fn languages_mut(&mut self) -> &mut FxHashMap<String, LanguageSettingsContent> {
         &mut self.project.all_languages.languages.0
     }
 }
@@ -86,7 +86,7 @@ pub struct SshConnection {
     #[serde(default)]
     pub args: Vec<String>,
     #[serde(default)]
-    pub projects: collections::BTreeSet<RemoteProject>,
+    pub projects: std::collections::BTreeSet<RemoteProject>,
     /// Name to use for this server in UI.
     pub nickname: Option<String>,
     pub port_forwards: Option<Vec<SshPortForwardOption>>,

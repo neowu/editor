@@ -1,10 +1,13 @@
 mod binding;
 mod context;
 
+use std::any::TypeId;
+use std::collections::HashMap;
+
 pub use binding::*;
-use collections::HashSet;
-use collections::TypeIdHashMap;
 pub use context::*;
+use gpui_util::TypeIdHashBuilder;
+use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 
 use crate::Action;
@@ -23,7 +26,7 @@ pub struct KeymapVersion(usize);
 #[derive(Default)]
 pub struct Keymap {
     bindings: Vec<KeyBinding>,
-    binding_indices_by_action_id: TypeIdHashMap<SmallVec<[usize; 3]>>,
+    binding_indices_by_action_id: HashMap<TypeId, SmallVec<[usize; 3]>, TypeIdHashBuilder>,
     disabled_binding_indices: Vec<usize>,
     version: KeymapVersion,
 }
@@ -232,7 +235,7 @@ impl Keymap {
             first_binding_index.get_or_insert(ix);
         }
 
-        let mut pending = HashSet::default();
+        let mut pending = FxHashSet::default();
         for (ix, binding) in pending_bindings.into_iter().rev() {
             if let Some(binding_ix) = first_binding_index
                 && binding_ix > ix

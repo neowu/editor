@@ -102,7 +102,7 @@ impl Editor {
             }
         } else {
             let multi_buffer_snapshot = self.buffer.read(cx).snapshot(cx);
-            let buffer_ids: HashSet<_> = self
+            let buffer_ids: FxHashSet<_> = self
                 .selections
                 .disjoint_anchor_ranges()
                 .flat_map(|range| multi_buffer_snapshot.buffer_ids_for_range(range))
@@ -190,7 +190,7 @@ impl Editor {
                 .selections
                 .disjoint_anchor_ranges()
                 .flat_map(|range| multi_buffer_snapshot.buffer_ids_for_range(range))
-                .collect::<HashSet<_>>();
+                .collect::<FxHashSet<_>>();
             for buffer_id in buffer_ids {
                 self.fold_buffer(buffer_id, cx);
             }
@@ -370,7 +370,7 @@ impl Editor {
                 .selections
                 .disjoint_anchor_ranges()
                 .flat_map(|range| multi_buffer_snapshot.buffer_ids_for_range(range))
-                .collect::<HashSet<_>>();
+                .collect::<FxHashSet<_>>();
             for buffer_id in buffer_ids {
                 self.unfold_buffer(buffer_id, cx);
             }
@@ -550,7 +550,7 @@ impl Editor {
         all_buffers_folded(buffer.snapshot(cx).all_buffer_ids(), self.folded_buffers(cx))
     }
 
-    pub fn folded_buffers<'a>(&self, cx: &'a App) -> &'a HashSet<BufferId> {
+    pub fn folded_buffers<'a>(&self, cx: &'a App) -> &'a FxHashSet<BufferId> {
         self.display_map.read(cx).folded_buffers()
     }
 
@@ -651,7 +651,7 @@ impl Editor {
             return;
         }
         let snapshot = self.buffer.read(cx).snapshot(cx);
-        let buffer_ids: HashSet<BufferId> = self
+        let buffer_ids: FxHashSet<BufferId> = self
             .selections
             .disjoint_anchor_ranges()
             .chain(self.selections.pending_anchor().map(|selection| selection.range()))
@@ -776,7 +776,7 @@ impl Editor {
     }
 }
 
-fn all_buffers_folded(mut buffer_ids: impl Iterator<Item = BufferId>, folded: &HashSet<BufferId>) -> bool {
+fn all_buffers_folded(mut buffer_ids: impl Iterator<Item = BufferId>, folded: &FxHashSet<BufferId>) -> bool {
     let mut any = false;
     buffer_ids.all(|buffer_id| {
         any = true;
@@ -793,7 +793,7 @@ mod tests {
     #[test]
     fn test_all_buffers_folded() {
         let ids = [BufferId::new(1).unwrap(), BufferId::new(2).unwrap()];
-        let folded = |folded_ids: &[BufferId]| folded_ids.iter().copied().collect::<HashSet<BufferId>>();
+        let folded = |folded_ids: &[BufferId]| folded_ids.iter().copied().collect::<FxHashSet<BufferId>>();
         assert!(!all_buffers_folded(ids.into_iter(), &folded(&[])));
         assert!(!all_buffers_folded(ids.into_iter(), &folded(&ids[..1])));
         assert!(all_buffers_folded(ids.into_iter(), &folded(&ids)));

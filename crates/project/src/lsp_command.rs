@@ -10,7 +10,6 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::Entity;
@@ -83,6 +82,7 @@ use proto::lsp_diagnostic::Severity;
 use proto::resolve_state::LspResolveState;
 use rpc::proto::PeerId;
 use rpc::proto::{self};
+use rustc_hash::FxHashMap;
 use serde_json::Value;
 use text::BufferId;
 use text::LineEnding;
@@ -3681,7 +3681,7 @@ impl GetDocumentDiagnostics {
         server_id: LanguageServerId,
         registration_id: Option<SharedString>,
     ) -> Vec<WorkspaceLspPullDiagnostics> {
-        let mut pulled_diagnostics = HashMap::default();
+        let mut pulled_diagnostics = FxHashMap::default();
         match report {
             lsp::WorkspaceDiagnosticReportResult::Report(workspace_diagnostic_report) => {
                 for report in workspace_diagnostic_report.items {
@@ -3739,12 +3739,12 @@ pub struct WorkspaceLspPullDiagnostics {
 }
 
 fn process_full_workspace_diagnostics_report(
-    diagnostics: &mut HashMap<lsp::Uri, WorkspaceLspPullDiagnostics>,
+    diagnostics: &mut FxHashMap<lsp::Uri, WorkspaceLspPullDiagnostics>,
     server_id: LanguageServerId,
     report: lsp::WorkspaceFullDocumentDiagnosticReport,
     registration_id: Option<SharedString>,
 ) {
-    let mut new_diagnostics = HashMap::default();
+    let mut new_diagnostics = FxHashMap::default();
     process_full_diagnostics_report(
         &mut new_diagnostics,
         server_id,
@@ -3758,12 +3758,12 @@ fn process_full_workspace_diagnostics_report(
 }
 
 fn process_unchanged_workspace_diagnostics_report(
-    diagnostics: &mut HashMap<lsp::Uri, WorkspaceLspPullDiagnostics>,
+    diagnostics: &mut FxHashMap<lsp::Uri, WorkspaceLspPullDiagnostics>,
     server_id: LanguageServerId,
     report: lsp::WorkspaceUnchangedDocumentDiagnosticReport,
     registration_id: Option<SharedString>,
 ) {
-    let mut new_diagnostics = HashMap::default();
+    let mut new_diagnostics = FxHashMap::default();
     process_unchanged_diagnostics_report(
         &mut new_diagnostics,
         server_id,
@@ -3825,7 +3825,7 @@ impl LspCommand for GetDocumentDiagnostics {
                 .with_context(|| format!("missing url on buffer {}", buffer.remote_id()))
         })?;
 
-        let mut pulled_diagnostics = HashMap::default();
+        let mut pulled_diagnostics = FxHashMap::default();
         match message {
             lsp::DocumentDiagnosticReportResult::Report(report) => match report {
                 lsp::DocumentDiagnosticReport::Full(report) => {
@@ -4296,7 +4296,7 @@ impl LspCommand for GetDocumentLinks {
 }
 
 fn process_related_documents(
-    diagnostics: &mut HashMap<lsp::Uri, LspPullDiagnostics>,
+    diagnostics: &mut FxHashMap<lsp::Uri, LspPullDiagnostics>,
     server_id: LanguageServerId,
     documents: impl IntoIterator<Item = (lsp::Uri, lsp::DocumentDiagnosticReportKind)>,
     registration_id: Option<SharedString>,
@@ -4314,7 +4314,7 @@ fn process_related_documents(
 }
 
 fn process_unchanged_diagnostics_report(
-    diagnostics: &mut HashMap<lsp::Uri, LspPullDiagnostics>,
+    diagnostics: &mut FxHashMap<lsp::Uri, LspPullDiagnostics>,
     server_id: LanguageServerId,
     uri: lsp::Uri,
     report: lsp::UnchangedDocumentDiagnosticReport,
@@ -4360,7 +4360,7 @@ fn process_unchanged_diagnostics_report(
 }
 
 fn process_full_diagnostics_report(
-    diagnostics: &mut HashMap<lsp::Uri, LspPullDiagnostics>,
+    diagnostics: &mut FxHashMap<lsp::Uri, LspPullDiagnostics>,
     server_id: LanguageServerId,
     uri: lsp::Uri,
     report: lsp::FullDocumentDiagnosticReport,

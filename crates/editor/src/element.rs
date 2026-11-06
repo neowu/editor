@@ -12,6 +12,8 @@ use std::borrow::Cow;
 use std::cell::Cell;
 use std::cmp::Ordering;
 use std::cmp::{self};
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fmt::Write;
 use std::fmt::{self};
 use std::iter;
@@ -24,10 +26,6 @@ use std::time::Instant;
 
 use buffer_diff::DiffHunkStatus;
 use buffer_diff::DiffHunkStatusKind;
-use collections::BTreeMap;
-use collections::BTreeSet;
-use collections::HashMap;
-use collections::HashSet;
 use git::Oid;
 use git::blame::BlameEntry;
 use gpui::Action;
@@ -107,6 +105,8 @@ use multi_buffer::MultiBufferRow;
 use multi_buffer::MultiBufferSnapshot;
 use multi_buffer::RowInfo;
 use multi_buffer::ToOffset;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::IndentGuideBackgroundColoring;
 use settings::IndentGuideColoring;
 use smallvec::SmallVec;
@@ -409,8 +409,8 @@ struct RenderBlocksOutput {
     // (spacers -> indent guides -> non-spacers)
     non_spacer_blocks: Vec<BlockLayout>,
     spacer_blocks: Vec<BlockLayout>,
-    row_block_types: HashMap<DisplayRow, bool>,
-    resized_blocks: Option<HashMap<CustomBlockId, u32>>,
+    row_block_types: FxHashMap<DisplayRow, bool>,
+    resized_blocks: Option<FxHashMap<CustomBlockId, u32>>,
 }
 
 pub struct EditorElement {
@@ -966,7 +966,7 @@ impl EditorElement {
         &self,
         snapshot: &EditorSnapshot,
         selections: &[(PlayerColor, Vec<SelectionLayout>)],
-        row_block_types: &HashMap<DisplayRow, bool>,
+        row_block_types: &FxHashMap<DisplayRow, bool>,
         visible_display_row_range: Range<DisplayRow>,
         line_layouts: &[LineWithInvisibles],
         text_hitbox: &Hitbox,
@@ -983,7 +983,7 @@ impl EditorElement {
         let mut autoscroll_bounds = None;
         let cursor_layouts = self.editor.update(cx, |editor, cx| {
             let mut cursors = Vec::new();
-            let mut handled_animation_cursors = HashSet::default();
+            let mut handled_animation_cursors = FxHashSet::default();
             let mut request_animation_frame = false;
 
             let show_local_cursors = editor.show_local_cursors(window, cx);
@@ -1435,7 +1435,7 @@ impl EditorElement {
         &self,
         line_layouts: &[LineWithInvisibles],
         crease_trailers: &[Option<CreaseTrailerLayout>],
-        row_block_types: &HashMap<DisplayRow, bool>,
+        row_block_types: &FxHashMap<DisplayRow, bool>,
         content_origin: gpui::Point<Pixels>,
         scroll_position: gpui::Point<ScrollOffset>,
         scroll_pixel_position: gpui::Point<ScrollPixelOffset>,
@@ -1446,9 +1446,9 @@ impl EditorElement {
         style: &EditorStyle,
         window: &mut Window,
         cx: &mut App,
-    ) -> HashMap<DisplayRow, AnyElement> {
+    ) -> FxHashMap<DisplayRow, AnyElement> {
         if !self.editor.read(cx).inline_diagnostics_enabled() {
-            return HashMap::default();
+            return FxHashMap::default();
         }
 
         let active_diagnostics_group = self.editor.read(cx).active_diagnostic_group_id();
@@ -1470,14 +1470,14 @@ impl EditorElement {
                 .skip_while(|(point, _)| point.row() < start_row)
                 .take_while(|(point, _)| point.row() < end_row)
                 .filter(|(point, _)| !row_block_types.contains_key(&point.row()))
-                .fold(HashMap::default(), |mut acc, (point, diagnostic)| {
+                .fold(FxHashMap::default(), |mut acc, (point, diagnostic)| {
                     acc.entry(point.row()).or_insert_with(Vec::new).push(diagnostic);
                     acc
                 })
         });
 
         if diagnostics_by_rows.is_empty() {
-            return HashMap::default();
+            return FxHashMap::default();
         }
 
         let severity_to_color = |sev: &lsp::DiagnosticSeverity| match *sev {
@@ -1490,7 +1490,7 @@ impl EditorElement {
 
         let padding = INLINE_DIAGNOSTICS_PADDING_COLUMNS * em_width;
 
-        let mut elements = HashMap::default();
+        let mut elements = FxHashMap::default();
         for (row, mut diagnostics) in diagnostics_by_rows {
             diagnostics.sort_by_key(|diagnostic| {
                 (
@@ -1841,7 +1841,7 @@ impl EditorElement {
     fn layout_run_indicators(
         &self,
         gutter: &Gutter,
-        run_indicators: &HashSet<DisplayRow>,
+        run_indicators: &FxHashSet<DisplayRow>,
         window: &mut Window,
         cx: &mut App,
     ) -> Vec<AnyElement> {
@@ -1972,7 +1972,7 @@ impl EditorElement {
         active_rows: &BTreeMap<DisplayRow, LineHighlightSpec>,
         window: &mut Window,
         cx: &App,
-    ) -> Arc<HashMap<MultiBufferRow, LineNumberLayout>> {
+    ) -> Arc<FxHashMap<MultiBufferRow, LineNumberLayout>> {
         let include_line_numbers = gutter.snapshot.show_line_numbers;
         if !include_line_numbers {
             return Arc::default();
@@ -2014,7 +2014,7 @@ impl EditorElement {
             Some((multi_buffer_row, segment))
         });
 
-        let mut line_numbers: HashMap<MultiBufferRow, LineNumberLayout> = HashMap::default();
+        let mut line_numbers: FxHashMap<MultiBufferRow, LineNumberLayout> = FxHashMap::default();
         for (buffer_row, segment) in segments {
             line_numbers
                 .entry(buffer_row)
@@ -2256,11 +2256,11 @@ impl EditorElement {
         text_hitbox: &Hitbox,
         editor_width: Pixels,
         scroll_width: &Pixels,
-        resized_blocks: &mut HashMap<CustomBlockId, u32>,
-        row_block_types: &mut HashMap<DisplayRow, bool>,
+        resized_blocks: &mut FxHashMap<CustomBlockId, u32>,
+        row_block_types: &mut FxHashMap<DisplayRow, bool>,
         selections: &[Selection<Point>],
         selected_buffer_ids: &[BufferId],
-        latest_selection_anchors: &HashMap<BufferId, Anchor>,
+        latest_selection_anchors: &FxHashMap<BufferId, Anchor>,
         is_row_soft_wrapped: impl Copy + Fn(usize) -> bool,
         sticky_header_excerpt_id: Option<BufferId>,
         indent_guides: &Option<Vec<IndentGuideLayout>>,
@@ -2532,7 +2532,7 @@ impl EditorElement {
         line_layouts: &[LineWithInvisibles],
         selections: &[Selection<Point>],
         selected_buffer_ids: &[BufferId],
-        latest_selection_anchors: &HashMap<BufferId, Anchor>,
+        latest_selection_anchors: &FxHashMap<BufferId, Anchor>,
         is_row_soft_wrapped: impl Copy + Fn(usize) -> bool,
         sticky_header_excerpt_id: Option<BufferId>,
         indent_guides: &Option<Vec<IndentGuideLayout>>,
@@ -2547,8 +2547,8 @@ impl EditorElement {
         let mut fixed_block_max_width = Pixels::ZERO;
         let mut blocks = Vec::new();
         let mut spacer_blocks = Vec::new();
-        let mut resized_blocks = HashMap::default();
-        let mut row_block_types = HashMap::default();
+        let mut resized_blocks = FxHashMap::default();
+        let mut row_block_types = FxHashMap::default();
         let mut block_resize_offset: i32 = 0;
 
         for (row, block) in fixed_blocks {
@@ -4108,7 +4108,7 @@ impl EditorElement {
 
     fn add_point_diagnostic<'a>(
         point_diagnostics: &mut Vec<(Point, &'a Diagnostic)>,
-        seen: &mut HashSet<(Point, *const Diagnostic)>,
+        seen: &mut FxHashSet<(Point, *const Diagnostic)>,
         range: &Range<Point>,
         point: Point,
         diagnostic: &'a Diagnostic,
@@ -4120,7 +4120,7 @@ impl EditorElement {
 
     fn point_diagnostics_in_range(snapshot: &MultiBufferSnapshot, range: Range<Point>) -> Vec<(Point, &Diagnostic)> {
         let mut point_diagnostics = Vec::new();
-        let mut seen = HashSet::default();
+        let mut seen = FxHashSet::default();
 
         for (buffer, buffer_range, excerpt) in snapshot.range_to_buffer_ranges(range.clone()) {
             for entry in buffer
@@ -5951,7 +5951,7 @@ impl Element for EditorElement {
                     let (local_selections, selected_buffer_ids, latest_selection_anchors): (
                         Vec<Selection<Point>>,
                         Vec<BufferId>,
-                        HashMap<BufferId, Anchor>,
+                        FxHashMap<BufferId, Anchor>,
                     ) = self
                         .editor_with_selections(cx)
                         .map(|editor| {
@@ -5983,7 +5983,7 @@ impl Element for EditorElement {
                                     .disjoint_in_row_range(start_anchor..end_anchor, &snapshot.display_snapshot);
                                 selections.extend(editor.selections.pending(&snapshot.display_snapshot));
 
-                                let latest_selection_anchors: HashMap<BufferId, Anchor> = if is_singleton {
+                                let latest_selection_anchors: FxHashMap<BufferId, Anchor> = if is_singleton {
                                     let head = editor.selections.newest_anchor().head();
                                     snapshot
                                         .buffer_snapshot()
@@ -5994,7 +5994,8 @@ impl Element for EditorElement {
                                 } else {
                                     let all_anchor_selections =
                                         editor.selections.all_anchors(&snapshot.display_snapshot);
-                                    let mut anchors_by_buffer: HashMap<BufferId, (usize, Anchor)> = HashMap::default();
+                                    let mut anchors_by_buffer: FxHashMap<BufferId, (usize, Anchor)> =
+                                        FxHashMap::default();
                                     for selection in all_anchor_selections.iter() {
                                         let head = selection.head();
                                         if let Some((text_anchor, _)) =
@@ -6020,7 +6021,7 @@ impl Element for EditorElement {
                                 (selections, selected_buffer_ids, latest_selection_anchors)
                             })
                         })
-                        .unwrap_or_else(|| (Vec::new(), Vec::new(), HashMap::default()));
+                        .unwrap_or_else(|| (Vec::new(), Vec::new(), FxHashMap::default()));
 
                     let (selections, active_rows, newest_selection_head) = self.layout_selections(
                         start_anchor,
@@ -6882,10 +6883,10 @@ pub struct EditorLayout {
     active_rows: BTreeMap<DisplayRow, LineHighlightSpec>,
     highlighted_rows: BTreeMap<DisplayRow, LineHighlight>,
     line_elements: SmallVec<[AnyElement; 1]>,
-    line_numbers: Arc<HashMap<MultiBufferRow, LineNumberLayout>>,
+    line_numbers: Arc<FxHashMap<MultiBufferRow, LineNumberLayout>>,
     display_hunks: Vec<(DisplayDiffHunk, Option<Hitbox>)>,
     blamed_display_rows: Option<Vec<AnyElement>>,
-    inline_diagnostics: HashMap<DisplayRow, AnyElement>,
+    inline_diagnostics: FxHashMap<DisplayRow, AnyElement>,
     point_diagnostic_underline_offset: Pixels,
     inline_code_actions: Option<AnyElement>,
     blocks: Vec<BlockLayout>,

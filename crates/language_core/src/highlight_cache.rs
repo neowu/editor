@@ -4,9 +4,9 @@ use std::hash::Hasher as _;
 use std::ops::Range;
 use std::sync::Arc;
 
-use collections::FxHasher;
 use lru::LruCache;
 use parking_lot::Mutex;
+use rustc_hash::FxHasher;
 use smallvec::SmallVec;
 
 use crate::grammar::Grammar;

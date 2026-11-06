@@ -2,9 +2,9 @@ use std::cell::LazyCell;
 use std::path::Path;
 use std::sync::Arc;
 
-use collections::FxHashMap;
 use globset::GlobSet;
 use gpui::SharedString;
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use sum_tree::Bias;
 use text::Point;

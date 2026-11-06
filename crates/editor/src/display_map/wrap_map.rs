@@ -8,7 +8,6 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
 
-use collections::HashMap;
 use futures_lite::future::yield_now;
 use gpui::App;
 use gpui::AppContext as _;
@@ -25,6 +24,7 @@ use language::LanguageAwareStyling;
 use language::Point;
 use language::language_settings::SoftWrapIndent;
 use multi_buffer::RowInfo;
+use rustc_hash::FxHashMap;
 use sum_tree::Bias;
 use sum_tree::Cursor;
 use sum_tree::Dimensions;
@@ -109,13 +109,13 @@ struct LineFragmentBuilder {
     text_system: Arc<TextSystem>,
     font_id: FontId,
     font_size: Pixels,
-    cached_replacement_widths: HashMap<char, Pixels>,
+    cached_replacement_widths: FxHashMap<char, Pixels>,
 }
 
 impl LineFragmentBuilder {
     fn new(text_system: Arc<TextSystem>, font: &Font, font_size: Pixels) -> Self {
         let font_id = text_system.resolve_font(font);
-        Self { text_system, font_id, font_size, cached_replacement_widths: HashMap::default() }
+        Self { text_system, font_id, font_size, cached_replacement_widths: FxHashMap::default() }
     }
 
     fn push_fragments<'a>(&mut self, fragments: &mut Vec<gpui::LineFragment<'a>>, text: &'a str) {

@@ -53,7 +53,7 @@ pub(super) struct ActiveDiagnosticGroup {
     active_range: Range<Anchor>,
     active_message: language::DiagnosticMessage,
     group_id: usize,
-    blocks: HashSet<CustomBlockId>,
+    blocks: FxHashSet<CustomBlockId>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -350,7 +350,7 @@ impl Editor {
             // Ensure that, even if there's no global renderer set, we still use
             // an empty set of blocks, such that we can record the active group
             // below instead of bailing out.
-            HashSet::default()
+            FxHashSet::default()
         };
 
         self.active_diagnostics = ActiveDiagnostic::Group(ActiveDiagnosticGroup {
@@ -447,7 +447,7 @@ impl Editor {
         if self.inline_diagnostics.is_empty() {
             return;
         }
-        let buffer_ids = buffer_ids.iter().copied().collect::<HashSet<BufferId>>();
+        let buffer_ids = buffer_ids.iter().copied().collect::<FxHashSet<BufferId>>();
         let previous_len = self.inline_diagnostics.len();
         self.inline_diagnostics.retain(|(anchor, _)| {
             anchor.buffer_id().is_none_or(|buffer_id| !buffer_ids.contains(&buffer_id))

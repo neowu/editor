@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 
 use ::sum_tree::SumTree;
-use collections::FxHashMap;
+use rustc_hash::FxHashMap;
 use sum_tree::Bias;
 
 use crate::FocusHandle;

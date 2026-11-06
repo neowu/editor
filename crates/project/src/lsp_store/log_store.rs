@@ -7,8 +7,6 @@ use std::sync::Weak;
 use std::time::Duration;
 use std::time::Instant;
 
-use collections::HashMap;
-use collections::HashSet;
 use futures::StreamExt;
 use futures::channel::mpsc;
 use gpui::App;
@@ -30,6 +28,8 @@ use lsp::RequestId;
 use lsp::TraceValue;
 use proto::toggle_lsp_logs::LogType;
 use rpc::proto;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use settings::WorktreeId;
 use util::ResultExt as _;
@@ -61,8 +61,8 @@ impl EventEmitter<Event> for LogStore {}
 
 pub struct LogStore {
     on_headless_host: bool,
-    projects: HashMap<WeakEntity<Project>, ProjectState>,
-    pub language_servers: HashMap<LanguageServerLogKey, LanguageServerState>,
+    projects: FxHashMap<WeakEntity<Project>, ProjectState>,
+    pub language_servers: FxHashMap<LanguageServerLogKey, LanguageServerState>,
     next_server_generation: usize,
     io_tx: mpsc::UnboundedSender<(LanguageServerLogKey, IoKind, String, Instant)>,
 }
@@ -157,8 +157,8 @@ pub struct LanguageServerState {
     pub trace_level: TraceValue,
     pub log_level: MessageType,
     io_logs_subscription: Option<lsp::Subscription>,
-    view_log_stream_refcounts: HashMap<LogKind, usize>,
-    downstream_log_streams: HashMap<proto::PeerId, HashSet<LogKind>>,
+    view_log_stream_refcounts: FxHashMap<LogKind, usize>,
+    downstream_log_streams: FxHashMap<proto::PeerId, FxHashSet<LogKind>>,
 }
 
 impl LanguageServerState {
@@ -274,7 +274,7 @@ struct RpcLogHeaderState {
 
 #[derive(Debug, Default)]
 struct RpcRequestTracker {
-    pending_requests: HashMap<PendingRequestKey, Instant>,
+    pending_requests: FxHashMap<PendingRequestKey, Instant>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -396,8 +396,8 @@ impl LogStore {
         let (io_tx, mut io_rx) = mpsc::unbounded();
 
         let log_store = Self {
-            projects: HashMap::default(),
-            language_servers: HashMap::default(),
+            projects: FxHashMap::default(),
+            language_servers: FxHashMap::default(),
             next_server_generation: 0,
 
             on_headless_host,
@@ -542,8 +542,8 @@ impl LogStore {
                 trace_level: TraceValue::Off,
                 log_level: MessageType::LOG,
                 io_logs_subscription: None,
-                view_log_stream_refcounts: HashMap::default(),
-                downstream_log_streams: HashMap::default(),
+                view_log_stream_refcounts: FxHashMap::default(),
+                downstream_log_streams: FxHashMap::default(),
             }
         });
 

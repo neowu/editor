@@ -1,9 +1,7 @@
+use std::collections::BTreeMap;
 use std::ops::Range;
 use std::sync::Arc;
 
-use collections::BTreeMap;
-use collections::HashMap;
-use collections::HashSet;
 use gpui::DefiniteLength;
 use gpui::SharedString;
 use gpui::TextAlign;
@@ -16,6 +14,8 @@ use pulldown_cmark::MetadataBlockKind;
 use pulldown_cmark::Options;
 use pulldown_cmark::Parser;
 pub use pulldown_cmark::TagEnd as MarkdownTagEnd;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use util::markdown::generate_heading_slug;
 
 use crate::MarkdownOptions;
@@ -46,12 +46,12 @@ pub(crate) struct ParseState {
 #[derive(Debug, Default)]
 pub(crate) struct ParsedMarkdownData {
     pub events: Vec<(Range<usize>, MarkdownEvent)>,
-    pub language_names: HashSet<SharedString>,
-    pub language_paths: HashSet<Arc<str>>,
+    pub language_names: FxHashSet<SharedString>,
+    pub language_paths: FxHashSet<Arc<str>>,
     pub root_block_starts: Vec<usize>,
     pub metadata_blocks: BTreeMap<usize, ParsedMetadataBlock>,
-    pub heading_slugs: HashMap<SharedString, usize>,
-    pub footnote_definitions: HashMap<SharedString, usize>,
+    pub heading_slugs: FxHashMap<SharedString, usize>,
+    pub footnote_definitions: FxHashMap<SharedString, usize>,
     /// Source spans of link reference definitions (`[id]: https://example.com`), which are
     /// consumed by the parser and never appear in any event range.
     pub link_definition_spans: Vec<Range<usize>>,
@@ -107,9 +107,9 @@ impl ParseState {
 
 const MAX_DUPLICATE_HEADING_SLUGS: usize = 128;
 
-fn build_heading_slugs(source: &str, events: &[(Range<usize>, MarkdownEvent)]) -> HashMap<SharedString, usize> {
-    let mut slugs = HashMap::default();
-    let mut slug_counts: HashMap<String, usize> = HashMap::default();
+fn build_heading_slugs(source: &str, events: &[(Range<usize>, MarkdownEvent)]) -> FxHashMap<SharedString, usize> {
+    let mut slugs = FxHashMap::default();
+    let mut slug_counts: FxHashMap<String, usize> = FxHashMap::default();
     let mut inside_heading = false;
     let mut heading_text = String::new();
     let mut heading_source_start: Option<usize> = None;
@@ -253,8 +253,8 @@ pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) 
         return parse_html_document(text, parse_heading_slugs);
     }
     let mut state = ParseState::default();
-    let mut language_names = HashSet::default();
-    let mut language_paths = HashSet::default();
+    let mut language_names = FxHashSet::default();
+    let mut language_paths = FxHashSet::default();
     let mut has_untagged_code_block = false;
     let mut html = parse_html.then(HtmlConverter::default);
     let mut metadata_blocks = BTreeMap::default();
@@ -638,7 +638,8 @@ pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) 
         html.finish(text.len(), &mut state);
     }
 
-    let heading_slugs = if parse_heading_slugs { build_heading_slugs(text, &state.events) } else { HashMap::default() };
+    let heading_slugs =
+        if parse_heading_slugs { build_heading_slugs(text, &state.events) } else { FxHashMap::default() };
     let footnote_definitions = build_footnote_definitions(&state.events);
 
     ParsedMarkdownData {
@@ -660,7 +661,8 @@ fn parse_html_document(text: &str, parse_heading_slugs: bool) -> ParsedMarkdownD
     let tokens = html::lex(text);
     html.convert(text, text, &tokens, &SourceMap::new(vec![(0, 0)]), true, &mut state);
     html.finish(text.len(), &mut state);
-    let heading_slugs = if parse_heading_slugs { build_heading_slugs(text, &state.events) } else { HashMap::default() };
+    let heading_slugs =
+        if parse_heading_slugs { build_heading_slugs(text, &state.events) } else { FxHashMap::default() };
     ParsedMarkdownData {
         events: state.events,
         root_block_starts: state.root_block_starts,
@@ -669,8 +671,8 @@ fn parse_html_document(text: &str, parse_heading_slugs: bool) -> ParsedMarkdownD
     }
 }
 
-fn build_footnote_definitions(events: &[(Range<usize>, MarkdownEvent)]) -> HashMap<SharedString, usize> {
-    let mut definitions = HashMap::default();
+fn build_footnote_definitions(events: &[(Range<usize>, MarkdownEvent)]) -> FxHashMap<SharedString, usize> {
+    let mut definitions = FxHashMap::default();
     let mut current_label: Option<SharedString> = None;
 
     for (range, event) in events {

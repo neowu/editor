@@ -19,10 +19,10 @@ use std::thread::Builder;
 use std::time::Duration;
 use std::time::Instant;
 
-use collections::HashMap;
 use futures::FutureExt;
 use gpui::SharedString;
 use language_core::highlight_map::HighlightCaptureRef;
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use sum_tree::Bias;
 use sum_tree::Dimensions;
@@ -625,7 +625,7 @@ impl SyntaxSnapshot {
 
         let mut changed_regions = ChangeRegionSet::default();
         let mut queue = BinaryHeap::new();
-        let mut injection_groups = HashMap::default();
+        let mut injection_groups = FxHashMap::default();
         queue.push(ParseStep {
             depth: 0,
             language: ParseStepLanguage::Loaded { language: root_language },
@@ -1563,7 +1563,7 @@ fn get_injections(
     language_registry: &Arc<LanguageRegistry>,
     depth: usize,
     changed_ranges: &[Range<usize>],
-    injection_groups: &mut HashMap<InjectionGroupKey, (Arc<Language>, Vec<tree_sitter::Range>)>,
+    injection_groups: &mut FxHashMap<InjectionGroupKey, (Arc<Language>, Vec<tree_sitter::Range>)>,
     queue: &mut BinaryHeap<ParseStep>,
 ) {
     let mut query_cursor = QueryCursorHandle::new();

@@ -663,7 +663,7 @@ impl Editor {
             return;
         }
 
-        let mut buffer_edits: HashMap<EntityId, (Entity<Buffer>, Vec<Point>)> = HashMap::default();
+        let mut buffer_edits: FxHashMap<EntityId, (Entity<Buffer>, Vec<Point>)> = FxHashMap::default();
         let mut rows: Vec<Option<u32>> = Vec::new();
         let mut rows_inserted = 0;
 
@@ -1511,7 +1511,7 @@ impl Editor {
         &self,
         query_range: Range<text::Anchor>,
         cx: &App,
-    ) -> Option<HashMap<Entity<Buffer>, Vec<Range<text::Anchor>>>> {
+    ) -> Option<FxHashMap<Entity<Buffer>, Vec<Range<text::Anchor>>>> {
         use text::ToOffset as TO;
 
         if self.linked_edit_ranges.is_empty() {
@@ -1534,7 +1534,7 @@ impl Editor {
         let end_difference = end_offset - start_byte_offset;
 
         // Current range has associated linked ranges.
-        let mut linked_edits = HashMap::<_, Vec<_>>::default();
+        let mut linked_edits = FxHashMap::<_, Vec<_>>::default();
         for range in linked_ranges {
             let start_offset = TO::to_offset(&range.start, &buffer_snapshot);
             let end_offset = start_offset + end_difference;

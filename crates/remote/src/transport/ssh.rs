@@ -15,7 +15,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
-use collections::HashMap;
 use futures::FutureExt as _;
 use futures::channel::mpsc::Sender;
 use futures::channel::mpsc::UnboundedReceiver;
@@ -26,6 +25,7 @@ use gpui::AppContext as _;
 use gpui::AsyncApp;
 use gpui::Task;
 use rpc::proto::Envelope;
+use rustc_hash::FxHashMap;
 pub use settings_content::SshPortForwardOption;
 use util::command;
 use util::command::Command;
@@ -142,7 +142,7 @@ impl From<settings_content::SshConnection> for SshConnectionOptions {
 struct SshSocket {
     connection_options: SshConnectionOptions,
     /// Extra environment variables needed for the ssh process
-    envs: HashMap<String, String>,
+    envs: FxHashMap<String, String>,
 }
 
 struct RemoteEnvironment {
@@ -215,7 +215,7 @@ impl RemoteConnection for SshRemoteConnection {
         &self,
         input_program: Option<String>,
         input_args: &[String],
-        input_env: &HashMap<String, String>,
+        input_env: &FxHashMap<String, String>,
         working_dir: Option<String>,
         port_forward: Option<(u16, String, u16)>,
         interactive: Interactive,
@@ -267,7 +267,7 @@ impl RemoteConnection for SshRemoteConnection {
             args.push(format!("{}:{}:{}", local_port, bracket_ipv6(&host), remote_port));
         }
         args.extend(socket.connection_options.ssh_destination_args());
-        Ok(CommandTemplate { program: "ssh".into(), args, env: HashMap::default() })
+        Ok(CommandTemplate { program: "ssh".into(), args, env: FxHashMap::default() })
     }
 
     fn upload_directory(&self, src_path: PathBuf, dest_path: RemotePathBuf, cx: &App) -> Task<Result<()>> {
@@ -481,7 +481,7 @@ impl SshRemoteConnection {
 
 impl SshSocket {
     fn new(options: SshConnectionOptions) -> Self {
-        Self { connection_options: options, envs: HashMap::default() }
+        Self { connection_options: options, envs: FxHashMap::default() }
     }
 
     // :WARNING: ssh unquotes arguments when executing on the remote :WARNING:
@@ -844,10 +844,10 @@ impl SshConnectionOptions {
 fn build_command_posix(
     input_program: Option<String>,
     input_args: &[String],
-    input_env: &HashMap<String, String>,
+    input_env: &FxHashMap<String, String>,
     working_dir: Option<String>,
     port_forward: Option<(u16, String, u16)>,
-    ssh_env: HashMap<String, String>,
+    ssh_env: FxHashMap<String, String>,
     ssh_shell: &str,
     ssh_shell_kind: ShellKind,
     ssh_options: Vec<String>,
@@ -909,7 +909,7 @@ fn ssh_command_template(
     interactive: Interactive,
     ssh_destination_args: Vec<String>,
     exec: String,
-    ssh_env: HashMap<String, String>,
+    ssh_env: FxHashMap<String, String>,
 ) -> CommandTemplate {
     let mut args = Vec::new();
     args.extend(ssh_options);

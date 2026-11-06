@@ -1,8 +1,6 @@
 use std::cmp::Reverse;
 use std::sync::Arc;
 
-use collections::HashMap;
-use collections::HashSet;
 use editor::items::entry_git_aware_label_color;
 use fuzzy_nucleo::StringMatchCandidate;
 use gpui::Action;
@@ -31,6 +29,8 @@ use gpui::rems;
 use picker::Picker;
 use picker::PickerDelegate;
 use project::Project;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use ui::ListItem;
 use ui::ListItemSpacing;
@@ -361,7 +361,7 @@ impl TabSwitcherDelegate {
         };
 
         if self.open_in_active_pane {
-            let mut seen_paths: HashSet<project::ProjectPath> = HashSet::default();
+            let mut seen_paths: FxHashSet<project::ProjectPath> = FxHashSet::default();
             matches.retain(
                 |tab| {
                     if let Some(path) = tab.item.project_path(cx) { seen_paths.insert(path) } else { true }
@@ -394,7 +394,7 @@ impl TabSwitcherDelegate {
         };
 
         let pane = pane.read(cx);
-        let mut history_indices = HashMap::default();
+        let mut history_indices = FxHashMap::default();
         pane.activation_history().iter().rev().enumerate().for_each(|(history_index, history_entry)| {
             history_indices.insert(history_entry.entity_id, history_index);
         });

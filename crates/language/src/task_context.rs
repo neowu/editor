@@ -2,12 +2,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
-use collections::HashMap;
 use fs::Fs;
 use gpui::App;
 use gpui::Entity;
 use gpui::Task;
 use lsp::LanguageServerName;
+use rustc_hash::FxHashMap;
 use task::TaskTemplates;
 use task::TaskVariables;
 
@@ -25,7 +25,7 @@ pub trait ContextProvider: Send + Sync {
         &self,
         _variables: &TaskVariables,
         _location: ContextLocation<'_>,
-        _project_env: Option<HashMap<String, String>>,
+        _project_env: Option<FxHashMap<String, String>>,
         _cx: &mut App,
     ) -> Task<Result<TaskVariables>> {
         let _ = _location;

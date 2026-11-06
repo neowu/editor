@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use collections::HashSet;
 use ed_actions::CreateWorktree;
 use ed_actions::NewWorktreeBranchTarget;
 use ed_actions::OpenWorktreeInNewWindow;
@@ -41,6 +40,7 @@ use project::Project;
 use project::git_store::RepositoryEvent;
 use project::repo_identity_path;
 use remote::remote_client::ConnectionIdentifier;
+use rustc_hash::FxHashSet;
 use ui::Button;
 use ui::CommonAnimationExt as _;
 use ui::Divider;
@@ -113,7 +113,7 @@ impl WorktreePicker {
     ) -> Self {
         let project_ref = project.read(cx);
 
-        let active_worktree_paths: HashSet<PathBuf> =
+        let active_worktree_paths: FxHashSet<PathBuf> =
             project_ref.visible_worktrees(cx).map(|wt| wt.read(cx).abs_path().to_path_buf()).collect();
 
         let has_multiple_repositories = project_ref.repositories(cx).len() > 1;
@@ -150,7 +150,7 @@ impl WorktreePicker {
             modifiers: Modifiers::default(),
             active_worktree_paths,
             hovered_delete_index: None,
-            deleting_worktree_paths: HashSet::default(),
+            deleting_worktree_paths: FxHashSet::default(),
         };
 
         let picker = cx.new(|cx| Picker::list(delegate, window, cx).list_measure_all().show_scrollbar(true).embedded());
@@ -283,7 +283,7 @@ struct WorktreePickerDelegate {
     matches: Vec<WorktreeEntry>,
     all_worktrees: Vec<GitWorktree>,
     repository_identity_path: Option<PathBuf>,
-    active_worktree_paths: HashSet<PathBuf>,
+    active_worktree_paths: FxHashSet<PathBuf>,
     selected_index: usize,
     project: Entity<Project>,
     workspace: WeakEntity<Workspace>,
@@ -295,7 +295,7 @@ struct WorktreePickerDelegate {
     show_footer: bool,
     modifiers: Modifiers,
     hovered_delete_index: Option<usize>,
-    deleting_worktree_paths: HashSet<PathBuf>,
+    deleting_worktree_paths: FxHashSet<PathBuf>,
 }
 
 fn worktree_name_anchor<'a>(

@@ -9,6 +9,7 @@ mod diagnostic_renderer;
 use std::any::Any;
 use std::any::TypeId;
 use std::cmp;
+use std::collections::BTreeSet;
 use std::ops::Range;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
@@ -16,9 +17,6 @@ use std::time::Duration;
 
 use anyhow::Result;
 use buffer_diagnostics::BufferDiagnosticsEditor;
-use collections::BTreeSet;
-use collections::HashMap;
-use collections::HashSet;
 use diagnostic_renderer::DiagnosticBlock;
 use diagnostic_renderer::DiagnosticsEditor;
 use editor::Anchor;
@@ -66,6 +64,8 @@ use project::DiagnosticSummary;
 use project::Project;
 use project::ProjectPath;
 use project::project_settings::DiagnosticSeverity;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use text::BufferId;
 use text::OffsetRangeExt;
 use theme::ActiveTheme;
@@ -103,8 +103,8 @@ pub(crate) struct ProjectDiagnosticsEditor {
     workspace: WeakEntity<Workspace>,
     focus_handle: FocusHandle,
     editor: Entity<Editor>,
-    diagnostics: HashMap<BufferId, Vec<DiagnosticEntry<text::Anchor>>>,
-    blocks: HashMap<BufferId, Vec<CustomBlockId>>,
+    diagnostics: FxHashMap<BufferId, Vec<DiagnosticEntry<text::Anchor>>>,
+    blocks: FxHashMap<BufferId, Vec<CustomBlockId>>,
     summary: DiagnosticSummary,
     multibuffer: Entity<MultiBuffer>,
     paths_to_update: BTreeSet<ProjectPath>,
@@ -220,8 +220,8 @@ impl ProjectDiagnosticsEditor {
         let mut this = Self {
             project: project_handle.clone(),
             summary: project.diagnostic_summary(false, cx),
-            diagnostics: HashMap::default(),
-            blocks: HashMap::default(),
+            diagnostics: FxHashMap::default(),
+            blocks: FxHashMap::default(),
             workspace,
             multibuffer: excerpts,
             focus_handle,
@@ -247,7 +247,7 @@ impl ProjectDiagnosticsEditor {
                 .all_anchors(&snapshot)
                 .iter()
                 .filter_map(|anchor| Some(snapshot.anchor_to_buffer_anchor(anchor.start)?.0.buffer_id))
-                .collect::<HashSet<_>>()
+                .collect::<FxHashSet<_>>()
         });
         for buffer_id in snapshot.excerpts().map(|excerpt| excerpt.context.start.buffer_id).dedup() {
             if retain_selections && selected_buffers.contains(&buffer_id) {
@@ -402,7 +402,7 @@ impl ProjectDiagnosticsEditor {
                 return Ok(());
             }
 
-            let mut grouped: HashMap<usize, Vec<_>> = HashMap::default();
+            let mut grouped: FxHashMap<usize, Vec<_>> = FxHashMap::default();
             for entry in diagnostics {
                 grouped.entry(entry.diagnostic.group_id).or_default().push(DiagnosticEntryRef {
                     range: entry.range.to_point(&buffer_snapshot),

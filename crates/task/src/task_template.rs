@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Context as _;
 use anyhow::bail;
-use collections::HashMap;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 use sha2::Digest;
@@ -31,7 +31,7 @@ pub struct TaskTemplate {
     /// Arguments to the command.
     pub args: Vec<String>,
     /// Env overrides for the command, will be appended to the terminal's environment from the settings.
-    pub env: HashMap<String, String>,
+    pub env: FxHashMap<String, String>,
     /// Current working directory to spawn the command into, defaults to current project root.
     pub cwd: Option<String>,
     /// The runnable tags (from `runnables.scm`) this template attaches to.
@@ -65,8 +65,12 @@ impl TaskTemplate {
             return None;
         }
 
-        let task_variables =
-            cx.task_variables.0.iter().map(|(key, value)| (key.to_string(), value.as_str())).collect::<HashMap<_, _>>();
+        let task_variables = cx
+            .task_variables
+            .0
+            .iter()
+            .map(|(key, value)| (key.to_string(), value.as_str()))
+            .collect::<FxHashMap<_, _>>();
         let truncated_variables = truncate_variables(&task_variables);
         let cwd = match self.cwd.as_deref() {
             Some(cwd) => Some(PathBuf::from(substitute_all_template_variables_in_str(cwd, &task_variables)?)),
@@ -143,7 +147,7 @@ impl TaskTemplate {
 
 const MAX_DISPLAY_VARIABLE_LENGTH: usize = 15;
 
-fn truncate_variables(task_variables: &HashMap<String, &str>) -> HashMap<String, String> {
+fn truncate_variables(task_variables: &FxHashMap<String, &str>) -> FxHashMap<String, String> {
     task_variables
         .iter()
         .map(|(key, value)| (key.clone(), truncate_and_remove_front(value, MAX_DISPLAY_VARIABLE_LENGTH)))
@@ -159,7 +163,7 @@ fn to_hex_hash(object: impl Serialize) -> anyhow::Result<String> {
 
 fn substitute_all_template_variables_in_str<A: AsRef<str>>(
     template_str: &str,
-    task_variables: &HashMap<String, A>,
+    task_variables: &FxHashMap<String, A>,
 ) -> Option<String> {
     let substituted_string = shellexpand::env_with_context(template_str, |var| {
         // Colons denote a default value in case the variable is not set. We
@@ -198,7 +202,7 @@ fn substitute_all_template_variables_in_str<A: AsRef<str>>(
 
 fn substitute_all_template_variables_in_vec(
     template_strs: &[String],
-    task_variables: &HashMap<String, &str>,
+    task_variables: &FxHashMap<String, &str>,
 ) -> Option<Vec<String>> {
     let mut expanded = Vec::with_capacity(template_strs.len());
     for variable in template_strs {
@@ -213,10 +217,10 @@ fn substitute_all_template_variables_in_vec(
 }
 
 fn substitute_all_template_variables_in_map(
-    keys_and_values: &HashMap<String, String>,
-    task_variables: &HashMap<String, &str>,
-) -> Option<HashMap<String, String>> {
-    let mut new_map: HashMap<String, String> = HashMap::default();
+    keys_and_values: &FxHashMap<String, String>,
+    task_variables: &FxHashMap<String, &str>,
+) -> Option<FxHashMap<String, String>> {
+    let mut new_map: FxHashMap<String, String> = FxHashMap::default();
     for (key, value) in keys_and_values {
         let new_value = substitute_all_template_variables_in_str(value, task_variables)?;
         let new_key = substitute_all_template_variables_in_str(key, task_variables)?;

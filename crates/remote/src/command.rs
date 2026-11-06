@@ -3,7 +3,7 @@ use std::io::Read;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::ensure;
-use collections::HashMap;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 use util::shell::ShellKind;
@@ -12,7 +12,7 @@ use util::shell::ShellKind;
 pub struct RemoteCommand {
     pub program: String,
     pub args: Vec<String>,
-    pub env: HashMap<String, String>,
+    pub env: FxHashMap<String, String>,
     pub working_dir: Option<String>,
 }
 

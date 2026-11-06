@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use collections::HashMap;
 use gpui::AsyncApp;
 use language::LanguageName;
 use language::LspAdapter;
@@ -11,6 +10,7 @@ use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
 use lsp::Uri;
 use project::lsp_store::language_server_settings;
+use rustc_hash::FxHashMap;
 use serde_json::json;
 
 use crate::npx;
@@ -59,7 +59,7 @@ impl LspAdapter for HtmlLspAdapter {
         Ok(project_options.unwrap_or_else(|| json!({})))
     }
 
-    fn language_ids(&self) -> HashMap<LanguageName, String> {
+    fn language_ids(&self) -> FxHashMap<LanguageName, String> {
         [(LanguageName::new_static("HTML"), "html".into())].into_iter().collect()
     }
 }

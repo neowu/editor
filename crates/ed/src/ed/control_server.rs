@@ -9,7 +9,6 @@ use std::time::Instant;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
 use control::Command;
 use control::MouseCommand;
 use control::MouseKind;
@@ -41,6 +40,7 @@ use gpui::Window;
 use gpui::point;
 use gpui::px;
 use language::Point;
+use rustc_hash::FxHashMap;
 use serde_json::Value;
 use smol::io::AsyncBufReadExt as _;
 use smol::io::AsyncWriteExt as _;
@@ -413,7 +413,7 @@ fn dispatch_mouse(
 fn tree(window: &Window) -> control::Tree {
     let focus = window.focus_id();
     let ui_elements = window.ui_elements();
-    let index_by_id: HashMap<&[ElementId], usize> =
+    let index_by_id: FxHashMap<&[ElementId], usize> =
         ui_elements.iter().enumerate().map(|(ix, element)| (&element.id[..], ix)).collect();
 
     let mut elements: Vec<control::Element> = ui_elements

@@ -12,6 +12,10 @@
   `Self::Target` and `Self::Output`. Use explicit names inside concrete trait
   implementations wherever these exceptions do not apply. Generated code follows
   the same convention.
+- Name collection types by their real source: `rustc_hash::FxHashMap` /
+  `FxHashSet` (or `indexmap::IndexMap<K, V, FxBuildHasher>`) where the fast
+  hasher is wanted, `std::collections` types otherwise. No crate-level aliases
+  that shadow std names such as `HashMap`.
 - Prefer explicit code over convenience macros: write an immediately-invoked
   closure (`(|| { ... })()`) or an `async` block directly to scope `?`, rather
   than a `maybe!`-style macro.

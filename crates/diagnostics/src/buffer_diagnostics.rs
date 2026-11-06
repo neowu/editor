@@ -6,7 +6,6 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use anyhow::Result;
-use collections::HashMap;
 use editor::EXCERPT_CONTEXT_LINES;
 use editor::Editor;
 use editor::EditorEvent;
@@ -50,6 +49,7 @@ use project::Project;
 use project::ProjectItem;
 use project::ProjectPath;
 use project::project_settings::DiagnosticSeverity;
+use rustc_hash::FxHashMap;
 use text::Anchor;
 use text::BufferSnapshot;
 use text::OffsetRangeExt;
@@ -330,7 +330,7 @@ impl BufferDiagnosticsEditor {
             }
 
             // Mapping between the Group ID and a vector of DiagnosticEntry.
-            let mut grouped: HashMap<usize, Vec<_>> = HashMap::default();
+            let mut grouped: FxHashMap<usize, Vec<_>> = FxHashMap::default();
             for entry in diagnostics {
                 grouped.entry(entry.diagnostic.group_id).or_default().push(DiagnosticEntryRef {
                     range: entry.range.to_point(&buffer_snapshot),

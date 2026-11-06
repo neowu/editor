@@ -26,7 +26,7 @@ use std::mem;
 use std::ops::Range;
 use std::rc::Rc;
 
-use collections::FxHashMap;
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
 use crate::Action;

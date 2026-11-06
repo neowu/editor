@@ -3,9 +3,9 @@ use std::str::FromStr;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
-use collections::HashSet;
 use gpui::SharedString;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 
 use crate::Oid;
 use crate::repository::GitBinary;
@@ -16,19 +16,19 @@ pub struct ParsedCommitMessage {
     pub message: SharedString,
 }
 
-pub(crate) async fn get_messages(git: &GitBinary, shas: &[Oid]) -> Result<HashMap<Oid, String>> {
+pub(crate) async fn get_messages(git: &GitBinary, shas: &[Oid]) -> Result<FxHashMap<Oid, String>> {
     if shas.is_empty() {
-        return Ok(HashMap::default());
+        return Ok(FxHashMap::default());
     }
 
     let output = { get_messages_impl(git, shas).await? };
 
-    Ok(shas.iter().copied().zip(output).collect::<HashMap<Oid, String>>())
+    Ok(shas.iter().copied().zip(output).collect::<FxHashMap<Oid, String>>())
 }
 
-pub(crate) async fn get_tag_names(git: &GitBinary, shas: &[Oid]) -> Result<HashMap<Oid, Vec<String>>> {
+pub(crate) async fn get_tag_names(git: &GitBinary, shas: &[Oid]) -> Result<FxHashMap<Oid, Vec<String>>> {
     if shas.is_empty() {
-        return Ok(HashMap::default());
+        return Ok(FxHashMap::default());
     }
 
     let output = git
@@ -50,9 +50,9 @@ pub(crate) async fn get_tag_names(git: &GitBinary, shas: &[Oid]) -> Result<HashM
     Ok(parse_tag_names(&String::from_utf8_lossy(&output.stdout), shas))
 }
 
-fn parse_tag_names(output: &str, shas: &[Oid]) -> HashMap<Oid, Vec<String>> {
-    let shas = shas.iter().copied().collect::<HashSet<_>>();
-    let mut result = HashMap::<Oid, Vec<String>>::default();
+fn parse_tag_names(output: &str, shas: &[Oid]) -> FxHashMap<Oid, Vec<String>> {
+    let shas = shas.iter().copied().collect::<FxHashSet<_>>();
+    let mut result = FxHashMap::<Oid, Vec<String>>::default();
 
     for line in output.lines() {
         let mut fields = line.split('\0');

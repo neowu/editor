@@ -1,4 +1,4 @@
-use collections::HashMap;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -21,7 +21,7 @@ pub struct ProjectTerminalSettingsContent {
     /// environment. Use `:` to separate multiple values.
     ///
     /// Default: {}
-    pub env: Option<HashMap<String, String>>,
+    pub env: Option<FxHashMap<String, String>>,
     /// Puts the worktree's `.venv` in front of `PATH` (and sets `VIRTUAL_ENV`)
     /// in terminals and tasks opened inside that worktree.
     ///

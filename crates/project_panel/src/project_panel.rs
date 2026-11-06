@@ -21,7 +21,9 @@ mod utils;
 use std::any::TypeId;
 use std::cell::OnceCell;
 use std::cmp;
+use std::collections::BTreeSet;
 use std::collections::HashSet;
+use std::collections::hash_map;
 use std::ops::Neg;
 use std::ops::Range;
 use std::path::Path;
@@ -31,9 +33,6 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::BTreeSet;
-use collections::HashMap;
-use collections::hash_map;
 use ed_actions::project_panel::Toggle;
 use ed_actions::project_panel::ToggleFocus;
 use ed_actions::workspace::OpenWithSystem;
@@ -129,6 +128,7 @@ use project::project_settings::GoToDiagnosticSeverityFilter;
 use rayon::slice::ParallelSliceMut;
 use rpc::ErrorCode;
 use rpc::ErrorExt;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use settings::FolderIndicator;
 use smallvec::SmallVec;
@@ -201,13 +201,13 @@ struct State {
     /// Maps from leaf project entry ID to the currently selected ancestor.
     /// Relevant only for auto-fold dirs, where a single project panel entry may actually consist of several
     /// project entries (and all non-leaf nodes are guaranteed to be directories).
-    ancestors: HashMap<ProjectEntryId, FoldedAncestors>,
+    ancestors: FxHashMap<ProjectEntryId, FoldedAncestors>,
     visible_entries: Vec<VisibleEntriesForWorktree>,
     max_width_item_index: Option<usize>,
     edit_state: Option<EditState>,
     temporarily_unfolded_pending_state: Option<TemporaryUnfoldedPendingState>,
     unfolded_dir_ids: HashSet<ProjectEntryId>,
-    expanded_dir_ids: HashMap<WorktreeId, Vec<ProjectEntryId>>,
+    expanded_dir_ids: FxHashMap<WorktreeId, Vec<ProjectEntryId>>,
 }
 
 impl State {
@@ -219,7 +219,7 @@ impl State {
     fn derive(old: &Self) -> Self {
         Self {
             last_worktree_root_id: None,
-            ancestors: HashMap::default(),
+            ancestors: FxHashMap::default(),
             visible_entries: Vec::default(),
             max_width_item_index: None,
             edit_state: old.edit_state.clone(),
@@ -250,8 +250,8 @@ pub struct ProjectPanel {
     clipboard: Option<ClipboardEntry>,
     _dragged_entry_destination: Option<Arc<Path>>,
     workspace: WeakEntity<Workspace>,
-    diagnostics: HashMap<(WorktreeId, Arc<RelPath>), DiagnosticSeverity>,
-    diagnostic_counts: HashMap<(WorktreeId, Arc<RelPath>), DiagnosticCount>,
+    diagnostics: FxHashMap<(WorktreeId, Arc<RelPath>), DiagnosticSeverity>,
+    diagnostic_counts: FxHashMap<(WorktreeId, Arc<RelPath>), DiagnosticCount>,
     diagnostic_summary_update: Task<()>,
     libraries_expanded: bool,
     // We keep track of the mouse down state on entries so we don't flash the UI
@@ -890,8 +890,8 @@ impl ProjectPanel {
                     clipboard: None,
                     _dragged_entry_destination: None,
                     workspace: workspace.weak_handle(),
-                    diagnostics: HashMap::default(),
-                    diagnostic_counts: HashMap::default(),
+                    diagnostics: FxHashMap::default(),
+                    diagnostic_counts: FxHashMap::default(),
                     diagnostic_summary_update: Task::ready(()),
                     libraries_expanded: true,
                     scroll_handle,
@@ -908,8 +908,8 @@ impl ProjectPanel {
                         temporarily_unfolded_pending_state: None,
                         last_worktree_root_id: Option::default(),
                         visible_entries: Vec::default(),
-                        ancestors: HashMap::default(),
-                        expanded_dir_ids: HashMap::default(),
+                        ancestors: FxHashMap::default(),
+                        expanded_dir_ids: FxHashMap::default(),
                         unfolded_dir_ids: HashSet::default(),
                     },
                     update_visible_entries_task: UpdateVisibleEntriesTask::default(),
@@ -1004,8 +1004,8 @@ impl ProjectPanel {
     }
 
     fn update_diagnostics(&mut self, cx: &Context<Self>) {
-        let mut diagnostics: HashMap<(WorktreeId, Arc<RelPath>), DiagnosticSeverity> = HashMap::default();
-        let mut diagnostic_counts: HashMap<(WorktreeId, Arc<RelPath>), DiagnosticCount> = HashMap::default();
+        let mut diagnostics: FxHashMap<(WorktreeId, Arc<RelPath>), DiagnosticSeverity> = FxHashMap::default();
+        let mut diagnostic_counts: FxHashMap<(WorktreeId, Arc<RelPath>), DiagnosticCount> = FxHashMap::default();
         for (project_path, _, summary) in self.project.read(cx).diagnostic_summaries(false, cx) {
             let count = diagnostic_counts.entry((project_path.worktree_id, project_path.path.clone())).or_default();
             count.error_count += summary.error_count;
@@ -1021,7 +1021,7 @@ impl ProjectPanel {
     }
 
     fn update_strongest_diagnostic_severity(
-        diagnostics: &mut HashMap<(WorktreeId, Arc<RelPath>), DiagnosticSeverity>,
+        diagnostics: &mut FxHashMap<(WorktreeId, Arc<RelPath>), DiagnosticSeverity>,
         project_path: &ProjectPath,
         path_buffer: Arc<RelPath>,
         diagnostic_severity: DiagnosticSeverity,
@@ -3581,8 +3581,8 @@ impl ProjectPanel {
         }
 
         let project = self.project.read(cx);
-        let entries_by_worktree: HashMap<WorktreeId, Vec<SelectedEntry>> =
-            entries.into_iter().fold(HashMap::default(), |mut map, entry| {
+        let entries_by_worktree: FxHashMap<WorktreeId, Vec<SelectedEntry>> =
+            entries.into_iter().fold(FxHashMap::default(), |mut map, entry| {
                 map.entry(entry.worktree_id).or_default().push(entry);
                 map
             });
@@ -4408,7 +4408,7 @@ impl ProjectPanel {
             };
 
             // Capture old paths before moving so we can record undo operations.
-            let old_paths: HashMap<ProjectEntryId, ProjectPath> = {
+            let old_paths: FxHashMap<ProjectEntryId, ProjectPath> = {
                 let project = self.project.read(cx);
                 entries
                     .iter()
@@ -5944,7 +5944,7 @@ impl ProjectPanel {
 
         let root_name = worktree.root_name();
 
-        let git_summaries_by_id = visible.entries.iter().map(|e| (e.id, e.git_summary)).collect::<HashMap<_, _>>();
+        let git_summaries_by_id = visible.entries.iter().map(|e| (e.id, e.git_summary)).collect::<FxHashMap<_, _>>();
 
         // already checked if non empty above
         let last_item_index = sticky_parents.len() - 1;

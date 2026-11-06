@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use collections::HashMap;
+use rustc_hash::FxHashMap;
 use settings_content::AllLanguageSettingsContent;
 use settings_content::AlternateScroll;
 use settings_content::AutoIndentMode;
@@ -82,7 +82,7 @@ fn terminal_settings() -> Option<TerminalSettingsContent> {
         project: ProjectTerminalSettingsContent {
             shell: Some(Shell::System),
             working_directory: Some(WorkingDirectory::CurrentProjectDirectory),
-            env: Some(HashMap::default()),
+            env: Some(FxHashMap::default()),
             detect_venv: Some(true),
             path_hyperlink_regexes: Some(vec![
                 PathHyperlinkRegex::SingleLine("File \"(?<path>[^\"]+)\", line (?<line>[0-9]+)".into()),
@@ -211,12 +211,12 @@ fn language_settings() -> AllLanguageSettingsContent {
             use_auto_surround: Some(true),
             always_treat_brackets_as_autoclosed: Some(false),
             use_on_type_format: Some(true),
-            code_actions_on_format: Some(HashMap::default()),
+            code_actions_on_format: Some(FxHashMap::default()),
             linked_edits: Some(true),
             auto_indent: Some(AutoIndentMode::SyntaxAware),
             auto_indent_on_paste: Some(true),
             tasks: Some(LanguageTaskSettingsContent {
-                variables: Some(HashMap::default()),
+                variables: Some(FxHashMap::default()),
                 enabled: Some(true),
                 prefer_lsp: Some(true),
             }),

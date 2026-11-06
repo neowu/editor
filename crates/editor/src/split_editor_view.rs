@@ -1,7 +1,5 @@
 use std::cmp;
 
-use collections::HashMap;
-use collections::HashSet;
 use gpui::AbsoluteLength;
 use gpui::AnyElement;
 use gpui::App;
@@ -31,6 +29,8 @@ use gpui::px;
 use gpui::size;
 use multi_buffer::Anchor;
 use multi_buffer::ExcerptBoundaryInfo;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use smallvec::smallvec;
 use text::BufferId;
 use theme::ActiveTheme;
@@ -469,19 +469,19 @@ impl SplitBufferHeadersElement {
         &self,
         snapshot: &EditorSnapshot,
         cx: &App,
-    ) -> (HashSet<BufferId>, HashMap<BufferId, Anchor>) {
+    ) -> (FxHashSet<BufferId>, FxHashMap<BufferId, Anchor>) {
         let editor = self.rhs_editor.read(cx);
         let all_selections = editor.selections.all::<crate::Point>(&snapshot.display_snapshot);
         let all_anchor_selections = editor.selections.all_anchors(&snapshot.display_snapshot);
 
-        let mut selected_buffer_ids = HashSet::default();
+        let mut selected_buffer_ids = FxHashSet::default();
         for selection in &all_selections {
             for buffer_id in snapshot.buffer_snapshot().buffer_ids_for_range(selection.range()) {
                 selected_buffer_ids.insert(buffer_id);
             }
         }
 
-        let mut anchors_by_buffer: HashMap<BufferId, (usize, Anchor)> = HashMap::default();
+        let mut anchors_by_buffer: FxHashMap<BufferId, (usize, Anchor)> = FxHashMap::default();
         for selection in all_anchor_selections.iter() {
             let head = selection.head();
             if let Some((text_anchor, _)) = snapshot.buffer_snapshot().anchor_to_buffer_anchor(head) {
@@ -510,8 +510,8 @@ impl SplitBufferHeadersElement {
         bounds: Bounds<Pixels>,
         available_width: Pixels,
         line_height: Pixels,
-        selected_buffer_ids: &HashSet<BufferId>,
-        latest_selection_anchors: &HashMap<BufferId, Anchor>,
+        selected_buffer_ids: &FxHashSet<BufferId>,
+        latest_selection_anchors: &FxHashMap<BufferId, Anchor>,
         start_row: DisplayRow,
         end_row: DisplayRow,
         window: &mut Window,
@@ -586,8 +586,8 @@ impl SplitBufferHeadersElement {
         line_height: Pixels,
         start_row: DisplayRow,
         end_row: DisplayRow,
-        selected_buffer_ids: &HashSet<BufferId>,
-        latest_selection_anchors: &HashMap<BufferId, Anchor>,
+        selected_buffer_ids: &FxHashSet<BufferId>,
+        latest_selection_anchors: &FxHashMap<BufferId, Anchor>,
         sticky_header: Option<&ExcerptBoundaryInfo>,
         window: &mut Window,
         cx: &mut App,

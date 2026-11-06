@@ -14,7 +14,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use async_trait::async_trait;
-use collections::HashMap;
 use futures::Future;
 use futures::FutureExt as _;
 use futures::StreamExt as _;
@@ -56,6 +55,7 @@ use rpc::proto::PeerId;
 use rpc::proto::RequestMessage;
 use rpc::proto::build_typed_envelope;
 use rpc::proto::{self};
+use rustc_hash::FxHashMap;
 use smol::future;
 use util::ResultExt;
 use util::paths::RemotePathBuf;
@@ -126,7 +126,7 @@ pub struct RemotePlatform {
 pub struct CommandTemplate {
     pub program: String,
     pub args: Vec<String>,
-    pub env: HashMap<String, String>,
+    pub env: FxHashMap<String, String>,
 }
 
 /// Whether a command should be run with TTY allocation for interactive use.
@@ -829,7 +829,7 @@ impl RemoteClient {
         &self,
         program: Option<String>,
         args: &[String],
-        env: &HashMap<String, String>,
+        env: &FxHashMap<String, String>,
         working_dir: Option<String>,
         port_forward: Option<(u16, String, u16)>,
         interactive: Interactive,
@@ -967,7 +967,7 @@ enum ConnectionPoolEntry {
 
 #[derive(Default)]
 struct ConnectionPool {
-    connections: HashMap<RemoteConnectionOptions, ConnectionPoolEntry>,
+    connections: FxHashMap<RemoteConnectionOptions, ConnectionPoolEntry>,
 }
 
 impl Global for ConnectionPool {}
@@ -1095,7 +1095,7 @@ pub trait RemoteConnection: Send + Sync {
         &self,
         program: Option<String>,
         args: &[String],
-        env: &HashMap<String, String>,
+        env: &FxHashMap<String, String>,
         working_dir: Option<String>,
         port_forward: Option<(u16, String, u16)>,
         interactive: Interactive,
@@ -1114,8 +1114,9 @@ pub trait RemoteConnection: Send + Sync {
     fn default_system_shell(&self) -> String;
 }
 
-type ResponseChannels = Mutex<HashMap<MessageId, oneshot::Sender<(Envelope, oneshot::Sender<()>)>>>;
-type StreamResponseChannels = Arc<Mutex<HashMap<MessageId, UnboundedSender<(Result<Envelope>, oneshot::Sender<()>)>>>>;
+type ResponseChannels = Mutex<FxHashMap<MessageId, oneshot::Sender<(Envelope, oneshot::Sender<()>)>>>;
+type StreamResponseChannels =
+    Arc<Mutex<FxHashMap<MessageId, UnboundedSender<(Result<Envelope>, oneshot::Sender<()>)>>>>;
 
 struct Signal<T: 'static> {
     tx: Mutex<Option<oneshot::Sender<T>>>,

@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
 use futures::AsyncBufReadExt;
 use futures::AsyncRead;
 use futures::AsyncReadExt as _;
@@ -16,6 +15,7 @@ use gpui::BackgroundExecutor;
 use gpui::Task;
 use log::warn;
 use parking_lot::Mutex;
+use rustc_hash::FxHashMap;
 
 use crate::AnyResponse;
 use crate::CONTENT_LEN_HEADER;
@@ -60,8 +60,8 @@ where
 impl LspStdoutHandler {
     pub fn new<Input>(
         stdout: Input,
-        response_handlers: Arc<Mutex<Option<HashMap<RequestId, ResponseHandler>>>>,
-        io_handlers: Arc<Mutex<HashMap<i32, IoHandler>>>,
+        response_handlers: Arc<Mutex<Option<FxHashMap<RequestId, ResponseHandler>>>>,
+        io_handlers: Arc<Mutex<FxHashMap<i32, IoHandler>>>,
         cx: BackgroundExecutor,
     ) -> Self
     where
@@ -75,8 +75,8 @@ impl LspStdoutHandler {
     async fn handler<Input>(
         stdout: Input,
         mut notifications_sender: Sender<NotificationOrRequest>,
-        response_handlers: Arc<Mutex<Option<HashMap<RequestId, ResponseHandler>>>>,
-        io_handlers: Arc<Mutex<HashMap<i32, IoHandler>>>,
+        response_handlers: Arc<Mutex<Option<FxHashMap<RequestId, ResponseHandler>>>>,
+        io_handlers: Arc<Mutex<FxHashMap<i32, IoHandler>>>,
     ) -> anyhow::Result<()>
     where
         Input: AsyncRead + Unpin + Send + 'static,

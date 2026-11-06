@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use collections::HashMap;
 use fs::Fs;
 use gpui::App;
 use gpui::AsyncApp;
@@ -19,6 +18,7 @@ use language::proto::serialize_anchor;
 use rpc::AnyProtoClient;
 use rpc::TypedEnvelope;
 use rpc::proto;
+use rustc_hash::FxHashMap;
 use task::TaskContext;
 use task::TaskVariables;
 use task::VariableName;
@@ -330,7 +330,7 @@ fn combine_task_variables(
     fs: Option<Arc<dyn Fs>>,
     worktree_store: Entity<WorktreeStore>,
     location: Location,
-    project_env: Option<HashMap<String, String>>,
+    project_env: Option<FxHashMap<String, String>>,
     baseline: BasicContextProvider,
     cx: &App,
 ) -> Task<anyhow::Result<TaskVariables>> {

@@ -1,9 +1,9 @@
+use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::SystemTime;
 
-use collections::BTreeSet;
-use collections::HashMap;
+use rustc_hash::FxHashMap;
 use serde_json::Value;
 
 #[derive(Clone, Debug)]
@@ -25,7 +25,7 @@ pub struct PackageJsonData {
 }
 
 impl PackageJsonData {
-    pub fn new(path: Arc<Path>, package_json: HashMap<String, Value>) -> Self {
+    pub fn new(path: Arc<Path>, package_json: FxHashMap<String, Value>) -> Self {
         let mut scripts = BTreeSet::new();
         if let Some(Value::Object(package_json_scripts)) = package_json.get("scripts") {
             scripts.extend(package_json_scripts.keys().cloned().map(|name| (path.clone(), name)));
@@ -104,7 +104,7 @@ impl PackageJsonData {
     }
 }
 
-fn package_manager_from_package_json(package_json: &HashMap<String, Value>) -> Option<&'static str> {
+fn package_manager_from_package_json(package_json: &FxHashMap<String, Value>) -> Option<&'static str> {
     package_json.get("packageManager").and_then(|value| value.as_str()).and_then(package_manager_name).or_else(|| {
         package_json
             .get("devEngines")

@@ -8,16 +8,17 @@
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
-use collections::HashSet;
-use collections::IndexMap;
 use gpui::Context;
 use gpui::SharedString;
+use indexmap::IndexMap;
 use lsp::DiagnosticServerCapabilities;
 use lsp::LanguageServer;
 use lsp::LanguageServerId;
 use lsp::OneOf;
 use lsp::TextDocumentSyncSaveOptions;
+use rustc_hash::FxBuildHasher;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde::de::DeserializeOwned;
 
 use crate::lsp_store::LanguageServerState;
@@ -66,11 +67,12 @@ pub(super) struct DynamicTextDocumentRegistration {
     pub(super) server_capabilities: lsp::ServerCapabilities,
 }
 
-pub(super) type TextDocumentRegistrations = HashMap<String, IndexMap<String, DynamicTextDocumentRegistration>>;
+pub(super) type TextDocumentRegistrations =
+    FxHashMap<String, IndexMap<String, DynamicTextDocumentRegistration, FxBuildHasher>>;
 
 #[derive(Default, Debug)]
 pub(super) struct DynamicRegistrations {
-    pub(super) did_change_watched_files: HashSet<String>,
+    pub(super) did_change_watched_files: FxHashSet<String>,
     pub(super) text_documents: TextDocumentRegistrations,
     workspace_folders: CapabilityRegistrations<lsp::WorkspaceFoldersServerCapabilities>,
     workspace_symbol: CapabilityRegistrations<OneOf<bool, lsp::WorkspaceSymbolOptions>>,
@@ -970,7 +972,7 @@ fn log_unknown_unregistration(unregistration: &lsp::Unregistration) {
 /// Returns `None` when an identical registration with the same ID is already stored, otherwise
 /// whether the set of (selector, options) values that buffer caches consume changed.
 fn insert_text_document_registration(
-    registrations: &mut IndexMap<String, DynamicTextDocumentRegistration>,
+    registrations: &mut IndexMap<String, DynamicTextDocumentRegistration, FxBuildHasher>,
     method: &str,
     registration_id: String,
     new_registration: DynamicTextDocumentRegistration,
@@ -995,7 +997,7 @@ fn insert_text_document_registration(
 /// Returns `None` when no registration has the ID, otherwise whether the set of
 /// (selector, options) values changed.
 fn remove_text_document_registration(
-    registrations: &mut IndexMap<String, DynamicTextDocumentRegistration>,
+    registrations: &mut IndexMap<String, DynamicTextDocumentRegistration, FxBuildHasher>,
     registration_id: &str,
 ) -> Option<bool> {
     let removed = registrations.shift_remove(registration_id)?;
@@ -1004,7 +1006,7 @@ fn remove_text_document_registration(
 
 /// The most recent registration wins; with none left, the statically declared capability applies.
 fn active_text_document_capability<T>(
-    registrations: &IndexMap<String, DynamicTextDocumentRegistration>,
+    registrations: &IndexMap<String, DynamicTextDocumentRegistration, FxBuildHasher>,
     initial_capabilities: Option<&lsp::ServerCapabilities>,
     capability_of: impl Fn(&mut lsp::ServerCapabilities) -> &mut Option<T>,
 ) -> Option<T> {

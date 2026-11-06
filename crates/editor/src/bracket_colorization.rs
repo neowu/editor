@@ -6,8 +6,6 @@ use std::cmp::Ordering;
 use std::ops::Range;
 use std::sync::Arc;
 
-use collections::HashMap;
-use collections::HashSet;
 use gpui::AppContext as _;
 use gpui::Context;
 use gpui::HighlightStyle;
@@ -19,6 +17,8 @@ use multi_buffer::Anchor;
 use multi_buffer::BufferOffset;
 use multi_buffer::ExcerptRange;
 use multi_buffer::MultiBufferSnapshot;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use text::OffsetRangeExt as _;
 use theme::Appearance;
 use theme::Oklab;
@@ -70,16 +70,16 @@ impl Editor {
                 let key = excerpt_range.context.clone();
                 Some((key.clone(), self.bracket_fetched_tree_sitter_chunks.get(&key).cloned()?))
             })
-            .collect::<HashMap<Range<text::Anchor>, HashSet<Range<BufferRow>>>>();
+            .collect::<FxHashMap<Range<text::Anchor>, FxHashSet<Range<BufferRow>>>>();
 
         let accents_count = accents.len();
         let bracket_matches_by_accent = cx.background_spawn(async move {
             if accents_count == 0 {
-                return (HashMap::default(), fetched_tree_sitter_chunks);
+                return (FxHashMap::default(), fetched_tree_sitter_chunks);
             }
 
-            let bracket_matches_by_accent: HashMap<usize, Vec<Range<Anchor>>> = excerpt_data.into_iter().fold(
-                HashMap::default(),
+            let bracket_matches_by_accent: FxHashMap<usize, Vec<Range<Anchor>>> = excerpt_data.into_iter().fold(
+                FxHashMap::default(),
                 |mut acc, (buffer_snapshot, buffer_range, excerpt_range)| {
                     let fetched_chunks = fetched_tree_sitter_chunks.entry(excerpt_range.context.clone()).or_default();
 
@@ -292,7 +292,7 @@ fn compute_bracket_ranges(
     buffer_snapshot: &BufferSnapshot,
     buffer_range: Range<BufferOffset>,
     excerpt_range: ExcerptRange<text::Anchor>,
-    fetched_chunks: &mut HashSet<Range<BufferRow>>,
+    fetched_chunks: &mut FxHashSet<Range<BufferRow>>,
     accents_count: usize,
 ) -> Vec<(usize, Vec<Range<Anchor>>)> {
     let context = excerpt_range.context.to_offset(buffer_snapshot);

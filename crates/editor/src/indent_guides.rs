@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::ops::Range;
 use std::time::Duration;
 
-use collections::HashSet;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Context;
@@ -12,6 +11,7 @@ use language::language_settings::LanguageSettings;
 use multi_buffer::IndentGuide;
 use multi_buffer::MultiBufferRow;
 use multi_buffer::ToPoint;
+use rustc_hash::FxHashSet;
 use text::LineIndent;
 use text::Point;
 use util::ResultExt;
@@ -72,7 +72,7 @@ impl Editor {
         snapshot: &DisplaySnapshot,
         window: &mut Window,
         cx: &mut Context<Editor>,
-    ) -> Option<HashSet<usize>> {
+    ) -> Option<FxHashSet<usize>> {
         let selection = self.selections.newest::<Point>(&self.display_snapshot(cx));
         let cursor_row = MultiBufferRow(selection.head().row);
 
@@ -127,7 +127,7 @@ impl Editor {
             indent_guide.indent_level() == active_indent_range.indent.len(indent_guide.tab_size)
         });
 
-        let mut matches = HashSet::default();
+        let mut matches = FxHashSet::default();
         for (i, indent) in candidates {
             // Find matches that are either an exact match, partially on screen, or inside the enclosing indent
             if active_indent_range.row_range.start <= indent.end_row

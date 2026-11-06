@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
 use futures::future;
 use git::Oid;
 use git::blame::Blame;
@@ -34,6 +33,7 @@ use project::Project;
 use project::ProjectItem as _;
 use project::git_store::GitStoreEvent;
 use project::git_store::Repository;
+use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use sum_tree::SumTree;
 use text::BufferId;
@@ -84,8 +84,8 @@ struct GitBlameBuffer {
     entries: SumTree<GitBlameEntry>,
     buffer_snapshot: BufferSnapshot,
     buffer_edits: text::Subscription<usize>,
-    commit_details: HashMap<Oid, ParsedCommitMessage>,
-    commit_tag_names: HashMap<Oid, Vec<SharedString>>,
+    commit_details: FxHashMap<Oid, ParsedCommitMessage>,
+    commit_tag_names: FxHashMap<Oid, Vec<SharedString>>,
 }
 
 /// Determines where the blame data comes from and whether it is kept up to date.
@@ -111,7 +111,7 @@ enum GitBlameKind {
 pub struct GitBlame {
     project: Entity<Project>,
     multi_buffer: WeakEntity<MultiBuffer>,
-    buffers: HashMap<BufferId, GitBlameBuffer>,
+    buffers: FxHashMap<BufferId, GitBlameBuffer>,
     task: Task<Result<()>>,
     focused: bool,
     changed_while_blurred: bool,
@@ -252,7 +252,7 @@ impl GitBlame {
         let mut this = Self {
             project,
             multi_buffer: multi_buffer.downgrade(),
-            buffers: HashMap::default(),
+            buffers: FxHashMap::default(),
             user_triggered,
             focused,
             changed_while_blurred: false,
@@ -273,7 +273,7 @@ impl GitBlame {
         highlighted_sha: Option<Oid>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let mut buffers = HashMap::default();
+        let mut buffers = FxHashMap::default();
         for (buffer, blame) in blames {
             let snapshot = buffer.read(cx).snapshot();
             let buffer_edits = buffer.update(cx, |buffer, _| buffer.subscribe());
@@ -561,8 +561,8 @@ impl GitBlame {
                                         snapshot,
                                         buffer_edits,
                                         None,
-                                        HashMap::default(),
-                                        HashMap::default(),
+                                        FxHashMap::default(),
+                                        FxHashMap::default(),
                                     )),
                                     Err(e) => errors.push(e),
                                 }
@@ -630,9 +630,9 @@ impl GitBlame {
 const REGENERATE_ON_EDIT_DEBOUNCE_INTERVAL: Duration = Duration::from_secs(2);
 
 fn parse_commit_details(
-    messages: HashMap<Oid, String>,
-    tag_names: HashMap<Oid, Vec<String>>,
-) -> (HashMap<Oid, ParsedCommitMessage>, HashMap<Oid, Vec<SharedString>>) {
+    messages: FxHashMap<Oid, String>,
+    tag_names: FxHashMap<Oid, Vec<String>>,
+) -> (FxHashMap<Oid, ParsedCommitMessage>, FxHashMap<Oid, Vec<SharedString>>) {
     let commit_details =
         messages.into_iter().map(|(oid, message)| (oid, ParsedCommitMessage { message: message.into() })).collect();
     let commit_tag_names = tag_names

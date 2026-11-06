@@ -4,8 +4,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context as _;
-use collections::HashMap;
-use collections::HashSet;
 use futures::FutureExt as _;
 use futures::future::Shared;
 use futures::future::join_all;
@@ -21,6 +19,8 @@ use language::OutlineItem;
 use lsp::LanguageServerId;
 use rpc::TypedEnvelope;
 use rpc::proto;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::Settings as _;
 use text::Anchor;
 use text::Bias;
@@ -42,8 +42,8 @@ pub(super) type DocumentSymbolsTask = Shared<Task<result::Result<Vec<OutlineItem
 
 #[derive(Debug, Default)]
 pub(super) struct DocumentSymbolsData {
-    symbols: HashMap<LanguageServerId, Vec<OutlineItem<Anchor>>>,
-    fetched_servers: HashSet<LanguageServerId>,
+    symbols: FxHashMap<LanguageServerId, Vec<OutlineItem<Anchor>>>,
+    fetched_servers: FxHashSet<LanguageServerId>,
     symbols_update: Option<RunningFetch<DocumentSymbolsTask>>,
 }
 
@@ -239,9 +239,9 @@ impl LspStore {
     fn fetch_document_symbols_for_buffer(
         &mut self,
         buffer: &Entity<Buffer>,
-        for_servers: Option<HashSet<LanguageServerId>>,
+        for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<Option<HashMap<LanguageServerId, Vec<DocumentSymbol>>>>> {
+    ) -> Task<anyhow::Result<Option<FxHashMap<LanguageServerId, Vec<DocumentSymbol>>>>> {
         if let Some((client, project_id)) = self.upstream_client() {
             let request = GetDocumentSymbols;
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
@@ -289,7 +289,7 @@ impl LspStore {
                             None
                         }
                     })
-                    .collect::<HashMap<_, _>>();
+                    .collect::<FxHashMap<_, _>>();
                 anyhow::ensure!(!has_errors || !result.is_empty(), "Failed to fetch document symbols");
                 Ok(Some(result))
             })

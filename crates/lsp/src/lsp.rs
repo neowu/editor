@@ -32,7 +32,6 @@ use std::time::Instant;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use collections::HashMap;
 use futures::AsyncBufReadExt;
 use futures::AsyncRead;
 use futures::AsyncWrite;
@@ -60,6 +59,7 @@ pub use lsp_types::*;
 use notification::DidChangeWorkspaceFolders;
 use parking_lot::Mutex;
 use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -105,7 +105,7 @@ pub fn workspace_folder_for_uri(uri: Uri) -> WorkspaceFolder {
 }
 
 type NotificationHandler = Box<dyn Send + FnMut(Option<RequestId>, Value, &mut AsyncApp)>;
-type PendingRespondTasks = Arc<Mutex<HashMap<RequestId, Task<()>>>>;
+type PendingRespondTasks = Arc<Mutex<FxHashMap<RequestId, Task<()>>>>;
 type ResponseHandler = Box<dyn Send + FnOnce(Result<String, ResponseError>) -> Task<()>>;
 type IoHandler = Box<dyn Send + FnMut(IoKind, &str)>;
 
@@ -123,7 +123,7 @@ pub enum IoKind {
 pub struct LanguageServerBinary {
     pub path: PathBuf,
     pub arguments: Vec<OsString>,
-    pub env: Option<HashMap<String, String>>,
+    pub env: Option<FxHashMap<String, String>>,
 }
 
 /// Requests, responses, and notifications share one queue so the server sees them in send order;
@@ -148,12 +148,12 @@ pub struct LanguageServer {
     /// be large in cases like sending schemas to the json server).
     configuration: Arc<DidChangeConfigurationParams>,
     code_action_kinds: Option<Vec<CodeActionKind>>,
-    notification_handlers: Arc<Mutex<HashMap<&'static str, NotificationHandler>>>,
-    response_handlers: Arc<Mutex<Option<HashMap<RequestId, ResponseHandler>>>>,
+    notification_handlers: Arc<Mutex<FxHashMap<&'static str, NotificationHandler>>>,
+    response_handlers: Arc<Mutex<Option<FxHashMap<RequestId, ResponseHandler>>>>,
     /// Tasks spawned by `on_custom_request` to compute responses. Tracked so that
     /// incoming `$/cancelRequest` notifications can cancel them by dropping the task.
     pending_respond_tasks: PendingRespondTasks,
-    io_handlers: Arc<Mutex<HashMap<i32, IoHandler>>>,
+    io_handlers: Arc<Mutex<FxHashMap<i32, IoHandler>>>,
     executor: BackgroundExecutor,
     #[allow(clippy::type_complexity)]
     io_tasks: Mutex<Option<(Task<Option<()>>, Task<Option<()>>)>>,
@@ -233,11 +233,11 @@ impl PartialEq<str> for LanguageServerName {
 pub enum Subscription {
     Notification {
         method: &'static str,
-        notification_handlers: Option<Weak<Mutex<HashMap<&'static str, NotificationHandler>>>>,
+        notification_handlers: Option<Weak<Mutex<FxHashMap<&'static str, NotificationHandler>>>>,
     },
     Io {
         id: i32,
-        io_handlers: Option<Weak<Mutex<HashMap<i32, IoHandler>>>>,
+        io_handlers: Option<Weak<Mutex<FxHashMap<i32, IoHandler>>>>,
     },
 }
 
@@ -599,10 +599,10 @@ impl LanguageServer {
         let (outbound_tx, outbound_rx) = async_channel::unbounded::<OutboundMessage>();
         let (serialized_tx, serialized_rx) = async_channel::unbounded::<String>();
         let (output_done_tx, output_done_rx) = oneshot::channel::<()>();
-        let notification_handlers = Arc::new(Mutex::new(HashMap::<_, NotificationHandler>::default()));
-        let response_handlers = Arc::new(Mutex::new(Some(HashMap::<_, ResponseHandler>::default())));
+        let notification_handlers = Arc::new(Mutex::new(FxHashMap::<_, NotificationHandler>::default()));
+        let response_handlers = Arc::new(Mutex::new(Some(FxHashMap::<_, ResponseHandler>::default())));
         let pending_respond_tasks = PendingRespondTasks::default();
-        let io_handlers = Arc::new(Mutex::new(HashMap::default()));
+        let io_handlers = Arc::new(Mutex::new(FxHashMap::default()));
 
         let stdout_input_task = cx.spawn({
             let unhandled_notification_wrapper = {
@@ -711,10 +711,10 @@ impl LanguageServer {
     async fn handle_incoming_messages<Stdout>(
         stdout: Stdout,
         on_unhandled_notification: impl AsyncFn(NotificationOrRequest) + 'static + Send,
-        notification_handlers: Arc<Mutex<HashMap<&'static str, NotificationHandler>>>,
-        response_handlers: Arc<Mutex<Option<HashMap<RequestId, ResponseHandler>>>>,
+        notification_handlers: Arc<Mutex<FxHashMap<&'static str, NotificationHandler>>>,
+        response_handlers: Arc<Mutex<Option<FxHashMap<RequestId, ResponseHandler>>>>,
         pending_respond_tasks: PendingRespondTasks,
-        io_handlers: Arc<Mutex<HashMap<i32, IoHandler>>>,
+        io_handlers: Arc<Mutex<FxHashMap<i32, IoHandler>>>,
         cx: &mut AsyncApp,
     ) -> anyhow::Result<()>
     where
@@ -770,7 +770,7 @@ impl LanguageServer {
 
     async fn handle_stderr<Stderr>(
         stderr: Stderr,
-        io_handlers: Arc<Mutex<HashMap<i32, IoHandler>>>,
+        io_handlers: Arc<Mutex<FxHashMap<i32, IoHandler>>>,
         stderr_capture: Arc<Mutex<Option<String>>>,
     ) -> anyhow::Result<()>
     where
@@ -807,8 +807,8 @@ impl LanguageServer {
         stdin: Stdin,
         outbound_rx: async_channel::Receiver<String>,
         output_done_tx: oneshot::Sender<()>,
-        response_handlers: Arc<Mutex<Option<HashMap<RequestId, ResponseHandler>>>>,
-        io_handlers: Arc<Mutex<HashMap<i32, IoHandler>>>,
+        response_handlers: Arc<Mutex<Option<FxHashMap<RequestId, ResponseHandler>>>>,
+        io_handlers: Arc<Mutex<FxHashMap<i32, IoHandler>>>,
     ) -> anyhow::Result<()>
     where
         Stdin: AsyncWrite + Unpin + Send + 'static,
@@ -1395,7 +1395,7 @@ impl LanguageServer {
 
     fn request_internal_with_timer<T, U>(
         next_id: &AtomicI32,
-        response_handlers: &Arc<Mutex<Option<HashMap<RequestId, ResponseHandler>>>>,
+        response_handlers: &Arc<Mutex<Option<FxHashMap<RequestId, ResponseHandler>>>>,
         outbound_tx: &async_channel::Sender<OutboundMessage>,
         executor: &BackgroundExecutor,
         timer: U,
@@ -1502,7 +1502,7 @@ impl LanguageServer {
 
     fn request_internal<T>(
         next_id: &AtomicI32,
-        response_handlers: &Arc<Mutex<Option<HashMap<RequestId, ResponseHandler>>>>,
+        response_handlers: &Arc<Mutex<Option<FxHashMap<RequestId, ResponseHandler>>>>,
         outbound_tx: &async_channel::Sender<OutboundMessage>,
         executor: &BackgroundExecutor,
         request_timeout: Duration,

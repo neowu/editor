@@ -5,7 +5,6 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
 use futures::FutureExt;
 use futures::future::Shared;
 use gpui::App;
@@ -17,6 +16,7 @@ use gpui::WeakEntity;
 use remote::Interactive;
 use remote::RemoteClient;
 use rpc::proto;
+use rustc_hash::FxHashMap;
 use settings::Settings;
 use task::Shell;
 use task::ShellBuilder;
@@ -348,7 +348,7 @@ impl Project {
         path: Option<Arc<Path>>,
         remote_client: Option<Entity<RemoteClient>>,
         cx: &mut App,
-    ) -> Shared<Task<Option<HashMap<String, String>>>> {
+    ) -> Shared<Task<Option<FxHashMap<String, String>>>> {
         if let Some(path) = &path {
             let shell = Shell::Program(shell.to_string());
             self.environment.update(cx, |project_env, cx| match &remote_client {
@@ -365,11 +365,11 @@ impl Project {
 
 fn create_remote_shell(
     spawn_command: Option<(&String, &Vec<String>)>,
-    mut env: HashMap<String, String>,
+    mut env: FxHashMap<String, String>,
     working_directory: Option<Arc<Path>>,
     remote_client: Entity<RemoteClient>,
     cx: &App,
-) -> Result<(Shell, HashMap<String, String>)> {
+) -> Result<(Shell, FxHashMap<String, String>)> {
     insert_ed_terminal_env(&mut env);
 
     let (program, args) = match spawn_command {
@@ -401,7 +401,7 @@ fn create_remote_shell(
 
 /// Puts the project `.venv` in front of `PATH` and sets `VIRTUAL_ENV`, so its
 /// executables win in any shell without sourcing an activation script.
-fn add_venv_to_env(env: &mut HashMap<String, String>, venv: &Path) {
+fn add_venv_to_env(env: &mut FxHashMap<String, String>, venv: &Path) {
     let (bin_dir, separator) = ("bin", ":");
     let bin = venv.join(bin_dir).to_string_lossy().into_owned();
     let path = match env.get("PATH") {

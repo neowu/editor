@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-use collections::HashMap;
 use gpui::Action as _;
 use gpui::App;
 use gpui::KeyBinding;
 use gpui::KeyBindingContextPredicate;
 use gpui::KeyBindingMetaIndex;
 use gpui::NoAction;
+use rustc_hash::FxHashMap;
 use serde_json::Value;
 
 use crate::built_in_keymap;
@@ -53,7 +53,7 @@ impl KeyBindingSpec {
 
 /// Build the application keymap using the current keyboard layout.
 pub fn built_in_key_bindings(cx: &App) -> Vec<KeyBinding> {
-    let mut contexts = HashMap::<&'static str, Rc<KeyBindingContextPredicate>>::default();
+    let mut contexts = FxHashMap::<&'static str, Rc<KeyBindingContextPredicate>>::default();
     built_in_keymap::keymap()
         .into_iter()
         .map(|binding| {

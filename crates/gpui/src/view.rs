@@ -5,8 +5,8 @@ use std::mem;
 use std::ops::Range;
 
 use anyhow::Result;
-use collections::FxHashSet;
 use refineable::Refineable;
+use rustc_hash::FxHashSet;
 
 use crate::AnyElement;
 use crate::AnyEntity;

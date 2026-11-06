@@ -4,8 +4,6 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use collections::HashMap;
-use collections::HashSet;
 use futures::FutureExt as _;
 use futures::future::Shared;
 use futures::future::join_all;
@@ -25,6 +23,8 @@ use lsp::LanguageServerId;
 use lsp::request::ColorPresentationRequest;
 use rpc::TypedEnvelope;
 use rpc::proto;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::Settings as _;
 use text::BufferId;
 use util::ResultExt as _;
@@ -45,15 +45,15 @@ use crate::project_settings::ProjectSettings;
 
 #[derive(Debug, Default, Clone)]
 pub struct DocumentColors {
-    pub colors: HashSet<DocumentColor>,
+    pub colors: FxHashSet<DocumentColor>,
 }
 
 pub(super) type DocumentColorTask = Shared<Task<result::Result<DocumentColors, Arc<anyhow::Error>>>>;
 
 #[derive(Debug, Default)]
 pub(super) struct DocumentColorData {
-    pub(super) colors: HashMap<LanguageServerId, HashSet<DocumentColor>>,
-    fetched_servers: HashSet<LanguageServerId>,
+    pub(super) colors: FxHashMap<LanguageServerId, FxHashSet<DocumentColor>>,
+    fetched_servers: FxHashSet<LanguageServerId>,
     pub(super) colors_update: Option<RunningFetch<DocumentColorTask>>,
 }
 
@@ -198,7 +198,7 @@ impl LspStore {
                                     lsp_colors.fetched_servers = queried_servers;
                                 }
                             }
-                            let colors = lsp_colors.colors.values().flatten().cloned().collect::<HashSet<_>>();
+                            let colors = lsp_colors.colors.values().flatten().cloned().collect::<FxHashSet<_>>();
                             DocumentColors { colors }
                         })
                         .map_err(Arc::new)
@@ -306,9 +306,9 @@ impl LspStore {
     pub(super) fn fetch_document_colors_for_buffer(
         &mut self,
         buffer: &Entity<Buffer>,
-        for_servers: Option<HashSet<LanguageServerId>>,
+        for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<Option<HashMap<LanguageServerId, HashSet<DocumentColor>>>>> {
+    ) -> Task<anyhow::Result<Option<FxHashMap<LanguageServerId, FxHashSet<DocumentColor>>>>> {
         if let Some((client, project_id)) = self.upstream_client() {
             let request = GetDocumentColor {};
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
@@ -328,7 +328,7 @@ impl LspStore {
                 let Some(lsp_store) = lsp_store.upgrade() else {
                     return Ok(None);
                 };
-                let colors: HashMap<LanguageServerId, HashSet<DocumentColor>> = join_all(
+                let colors: FxHashMap<LanguageServerId, FxHashSet<DocumentColor>> = join_all(
                     request_task
                         .await
                         .log_err()
@@ -351,8 +351,8 @@ impl LspStore {
                 )
                 .await
                 .into_iter()
-                .fold(HashMap::default(), |mut acc, (server_id, colors)| {
-                    acc.entry(server_id).or_insert_with(HashSet::default).extend(colors);
+                .fold(FxHashMap::default(), |mut acc, (server_id, colors)| {
+                    acc.entry(server_id).or_insert_with(FxHashSet::default).extend(colors);
                     acc
                 });
                 Ok(Some(colors))
@@ -365,8 +365,8 @@ impl LspStore {
                     document_colors_task
                         .await
                         .into_iter()
-                        .fold(HashMap::default(), |mut acc, (server_id, colors)| {
-                            acc.entry(server_id).or_insert_with(HashSet::default).extend(colors);
+                        .fold(FxHashMap::default(), |mut acc, (server_id, colors)| {
+                            acc.entry(server_id).or_insert_with(FxHashSet::default).extend(colors);
                             acc
                         })
                         .into_iter()

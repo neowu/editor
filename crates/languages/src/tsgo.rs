@@ -5,7 +5,6 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
-use collections::HashMap;
 use gpui::AsyncApp;
 use language::LanguageName;
 use language::LspAdapter;
@@ -15,6 +14,7 @@ use lsp::LanguageServerName;
 use lsp::Uri;
 use project::Fs;
 use project::lsp_store::language_server_settings;
+use rustc_hash::FxHashMap;
 use serde_json::Value;
 use serde_json::json;
 
@@ -146,8 +146,8 @@ impl LspAdapter for TsgoLspAdapter {
         Ok(settings.unwrap_or_else(|| json!({})))
     }
 
-    fn language_ids(&self) -> HashMap<LanguageName, String> {
-        HashMap::from_iter([
+    fn language_ids(&self) -> FxHashMap<LanguageName, String> {
+        FxHashMap::from_iter([
             (LanguageName::new_static("TypeScript"), "typescript".into()),
             (LanguageName::new_static("JavaScript"), "javascript".into()),
             (LanguageName::new_static("TSX"), "typescriptreact".into()),

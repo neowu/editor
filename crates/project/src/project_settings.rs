@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use collections::HashMap;
 use lsp::DEFAULT_LSP_REQUEST_TIMEOUT_SECS;
 use lsp::LanguageServerName;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 pub use settings::BinarySettings;
@@ -24,7 +24,7 @@ pub struct ProjectSettings {
     // We should change to use a non content type (settings::LspSettings is a content type)
     // Note: Will either require merging with defaults, which also requires deciding where the defaults come from,
     //       or case by case deciding which fields are optional and which are actually required.
-    pub lsp: HashMap<LanguageServerName, settings::LspSettings>,
+    pub lsp: FxHashMap<LanguageServerName, settings::LspSettings>,
 
     /// Common language server settings.
     pub global_lsp_settings: GlobalLspSettings,

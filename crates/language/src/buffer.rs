@@ -35,7 +35,6 @@ use anyhow::Result;
 pub use bracket_ranges::BracketMatch;
 use clock::Lamport;
 pub use clock::ReplicaId;
-use collections::HashMap;
 use encoding_rs::Encoding;
 use file_content::ByteContent;
 use file_content::decode_byte_header;
@@ -57,6 +56,7 @@ use language_core::highlight_cache::ResolvedHighlights;
 pub use lsp::DiagnosticSeverity;
 use lsp::LanguageServerId;
 use parking_lot::Mutex;
+use rustc_hash::FxHashMap;
 use settings::SettingsStore;
 use settings::WorktreeId;
 use smallvec::SmallVec;
@@ -188,7 +188,7 @@ pub struct Buffer {
     remote_selections: TreeMap<ReplicaId, SelectionSet>,
     diagnostics_timestamp: clock::Lamport,
     completion_triggers: BTreeSet<String>,
-    completion_triggers_per_language_server: HashMap<LanguageServerId, BTreeSet<String>>,
+    completion_triggers_per_language_server: FxHashMap<LanguageServerId, BTreeSet<String>>,
     completion_triggers_timestamp: clock::Lamport,
     deferred_ops: OperationQueue<Operation>,
     capability: Capability,
@@ -205,13 +205,13 @@ pub struct Buffer {
     fallback_syntax_override: Option<&'static str>,
     encoding: &'static Encoding,
     has_bom: bool,
-    reload_with_encoding_txns: HashMap<TransactionId, (&'static Encoding, bool)>,
+    reload_with_encoding_txns: FxHashMap<TransactionId, (&'static Encoding, bool)>,
 }
 
 #[derive(Debug)]
 pub struct TreeSitterData {
     chunks: RowChunks,
-    brackets_by_chunks: Mutex<HashMap<RowChunkId, Vec<BracketMatch>>>,
+    brackets_by_chunks: Mutex<FxHashMap<RowChunkId, Vec<BracketMatch>>>,
     highlights_by_chunks: ChunkHighlightCache,
 }
 
@@ -228,7 +228,7 @@ impl TreeSitterData {
     fn new(snapshot: &text::BufferSnapshot) -> Self {
         Self {
             chunks: RowChunks::new(snapshot, MAX_ROWS_IN_A_CHUNK),
-            brackets_by_chunks: Mutex::new(HashMap::default()),
+            brackets_by_chunks: Mutex::new(FxHashMap::default()),
             highlights_by_chunks: ChunkHighlightCache::default(),
         }
     }
@@ -1149,7 +1149,7 @@ impl Buffer {
             diagnostics: TreeMap::default(),
             diagnostics_timestamp: Lamport::MIN,
             completion_triggers: BTreeSet::default(),
-            completion_triggers_per_language_server: HashMap::default(),
+            completion_triggers_per_language_server: FxHashMap::default(),
             completion_triggers_timestamp: Lamport::MIN,
             deferred_ops: OperationQueue::new(),
             has_conflict: false,
@@ -1161,7 +1161,7 @@ impl Buffer {
             })),
             encoding: encoding_rs::UTF_8,
             has_bom: false,
-            reload_with_encoding_txns: HashMap::default(),
+            reload_with_encoding_txns: FxHashMap::default(),
         };
         this.resolved_settings = this.compute_resolved_settings(cx);
         this.refresh_fallback_highlighter(cx);
@@ -3011,7 +3011,7 @@ impl Buffer {
         undone
     }
 
-    pub fn undo_operations(&mut self, counts: HashMap<Lamport, u32>, cx: &mut Context<Buffer>) {
+    pub fn undo_operations(&mut self, counts: FxHashMap<Lamport, u32>, cx: &mut Context<Buffer>) {
         let was_dirty = self.is_dirty();
         let old_version = self.version.clone();
         let operation = self.text.undo_operations(counts);
@@ -3428,8 +3428,8 @@ impl BufferSnapshot {
         start_positions.sort_by_key(|b| b.start);
 
         // Find the suggested indentation increases and decreased based on regexes.
-        let mut regex_outdent_map = HashMap::default();
-        let mut last_seen_suffix: HashMap<String, Vec<StartPosition>> = HashMap::default();
+        let mut regex_outdent_map = FxHashMap::default();
+        let mut last_seen_suffix: FxHashMap<String, Vec<StartPosition>> = FxHashMap::default();
         let mut start_positions_iter = start_positions.iter().peekable();
 
         let mut indent_change_rows = Vec::<(u32, Ordering)>::new();

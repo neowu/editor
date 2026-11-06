@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::any::TypeId;
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -12,8 +13,6 @@ use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::Result;
-use collections::HashMap;
-use collections::TypeIdHashMap;
 use futures::Future;
 use futures::FutureExt as _;
 use futures::Stream;
@@ -28,6 +27,7 @@ use gpui::AsyncApp;
 use gpui::BackgroundExecutor;
 use gpui::Entity;
 use gpui::FutureExt as _;
+use gpui_util::TypeIdHashBuilder;
 use parking_lot::Mutex;
 use proto::AnyTypedEnvelope;
 use proto::EntityMessage;
@@ -38,13 +38,14 @@ use proto::LspRequestMessage;
 use proto::RequestMessage;
 use proto::TypedEnvelope;
 use proto::error::ErrorExt as _;
+use rustc_hash::FxHashMap;
 
 #[derive(Debug, Clone)]
 pub struct AnyProtoClient(Arc<State>);
 
 type RequestIds = Arc<
     Mutex<
-        HashMap<
+        FxHashMap<
             LspRequestId,
             oneshot::Sender<Result<Option<TypedEnvelope<Vec<proto::ProtoLspResponse<Box<dyn AnyTypedEnvelope>>>>>>>,
         >,
@@ -90,11 +91,11 @@ pub trait ProtoClient: Send + Sync {
 
 #[derive(Default)]
 pub struct ProtoMessageHandlerSet {
-    pub entity_types_by_message_type: TypeIdHashMap<TypeId>,
-    pub entities_by_type_and_remote_id: HashMap<(TypeId, u64), EntityMessageSubscriber>,
-    pub entity_id_extractors: TypeIdHashMap<fn(&dyn AnyTypedEnvelope) -> u64>,
-    pub entities_by_message_type: TypeIdHashMap<AnyWeakEntity>,
-    pub message_handlers: TypeIdHashMap<ProtoMessageHandler>,
+    pub entity_types_by_message_type: HashMap<TypeId, TypeId, TypeIdHashBuilder>,
+    pub entities_by_type_and_remote_id: FxHashMap<(TypeId, u64), EntityMessageSubscriber>,
+    pub entity_id_extractors: HashMap<TypeId, fn(&dyn AnyTypedEnvelope) -> u64, TypeIdHashBuilder>,
+    pub entities_by_message_type: HashMap<TypeId, AnyWeakEntity, TypeIdHashBuilder>,
+    pub message_handlers: HashMap<TypeId, ProtoMessageHandler, TypeIdHashBuilder>,
 }
 
 pub type ProtoMessageHandler = Arc<
@@ -305,7 +306,7 @@ impl AnyProtoClient {
         project_id: u64,
         peer_id: proto::PeerId,
         lsp_request_id: LspRequestId,
-        server_responses: HashMap<u64, T::Response>,
+        server_responses: FxHashMap<u64, T::Response>,
     ) -> Result<()> {
         self.send(proto::LspQueryResponse {
             project_id,

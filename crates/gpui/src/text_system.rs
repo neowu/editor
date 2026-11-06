@@ -28,8 +28,6 @@ use std::sync::atomic::Ordering;
 
 use anyhow::Context as _;
 use anyhow::anyhow;
-use collections::FxHashMap;
-use collections::FxHashSet;
 use derive_more::Add;
 use derive_more::Deref;
 use derive_more::FromStr;
@@ -43,6 +41,8 @@ pub use line_wrapper::*;
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 use parking_lot::RwLockUpgradableReadGuard;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use serde::Serialize;
 use smallvec::SmallVec;

@@ -6,8 +6,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clock::Global;
-use collections::HashMap;
-use collections::HashSet;
 use futures::FutureExt as _;
 use futures::future::Shared;
 use futures::future::join_all;
@@ -24,6 +22,8 @@ use language::LanguageName;
 use lsp::LanguageServerId;
 use rpc::TypedEnvelope;
 use rpc::proto;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use settings::DefaultSemanticTokenRules;
 use settings::SemanticTokenRule;
 use settings::SemanticTokenRules;
@@ -54,14 +54,14 @@ use crate::project_settings::ProjectSettings;
 type StylizerKey = (LanguageServerId, Option<LanguageName>);
 
 pub(super) struct SemanticTokenConfig {
-    stylizers: HashMap<StylizerKey, (lsp::SemanticTokensLegend, SemanticTokenStylizer)>,
+    stylizers: FxHashMap<StylizerKey, (lsp::SemanticTokensLegend, SemanticTokenStylizer)>,
     rules: SemanticTokenRules,
 }
 
 impl SemanticTokenConfig {
     pub(super) fn new(cx: &App) -> Self {
         Self {
-            stylizers: HashMap::default(),
+            stylizers: FxHashMap::default(),
             rules: ProjectSettings::get_global(cx).global_lsp_settings.semantic_token_rules.clone(),
         }
     }
@@ -115,11 +115,11 @@ impl LspStore {
         let refreshed_servers = pending_refreshes
             .into_iter()
             .filter(|server_id| current_servers.contains(server_id))
-            .collect::<HashSet<_>>();
+            .collect::<FxHashSet<_>>();
         let missing_servers = if current_servers.is_empty() && current_servers_are_authoritative {
             semantic_tokens_data.raw_tokens.servers.clear();
             semantic_tokens_data.fetched_servers.clear();
-            HashSet::default()
+            FxHashSet::default()
         } else {
             missing_servers_to_query(
                 &mut semantic_tokens_data.raw_tokens.servers,
@@ -152,7 +152,7 @@ impl LspStore {
         };
         if !rebuild_from_cache_only {
             semantic_tokens_data.fetched_servers.extend(match for_server {
-                Some(server_id) => HashSet::from_iter([server_id]),
+                Some(server_id) => FxHashSet::from_iter([server_id]),
                 None => current_servers,
             });
         }
@@ -254,7 +254,7 @@ impl LspStore {
         buffer: &Entity<Buffer>,
         for_server: Option<LanguageServerId>,
         cx: &mut Context<Self>,
-    ) -> Task<Option<HashMap<LanguageServerId, SemanticTokensResponse>>> {
+    ) -> Task<Option<FxHashMap<LanguageServerId, SemanticTokensResponse>>> {
         if let Some((client, upstream_project_id)) = self.upstream_client() {
             let request = SemanticTokensFull { for_server };
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
@@ -504,7 +504,7 @@ pub type SemanticTokensTask = Shared<Task<result::Result<BufferSemanticTokens, A
 
 #[derive(Debug, Default, Clone)]
 pub struct BufferSemanticTokens {
-    pub tokens: Option<HashMap<LanguageServerId, Arc<[BufferSemanticToken]>>>,
+    pub tokens: Option<FxHashMap<LanguageServerId, Arc<[BufferSemanticToken]>>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -522,9 +522,9 @@ pub struct BufferSemanticToken {
 
 pub struct SemanticTokenStylizer {
     server_id: LanguageServerId,
-    rules_by_token_type: HashMap<TokenType, Vec<SemanticTokenRule>>,
-    token_type_names: HashMap<TokenType, SharedString>,
-    modifier_mask: HashMap<SharedString, u32>,
+    rules_by_token_type: FxHashMap<TokenType, Vec<SemanticTokenRule>>,
+    token_type_names: FxHashMap<TokenType, SharedString>,
+    modifier_mask: FxHashMap<SharedString, u32>,
 }
 
 impl SemanticTokenStylizer {
@@ -534,13 +534,13 @@ impl SemanticTokenStylizer {
         language_rules: Option<&SemanticTokenRules>,
         cx: &App,
     ) -> Self {
-        let token_types: HashMap<TokenType, SharedString> = legend
+        let token_types: FxHashMap<TokenType, SharedString> = legend
             .token_types
             .iter()
             .enumerate()
             .map(|(i, token_type)| (TokenType(i as u32), SharedString::from(token_type.as_str().to_string())))
             .collect();
-        let modifier_mask: HashMap<SharedString, u32> = legend
+        let modifier_mask: FxHashMap<SharedString, u32> = legend
             .token_modifiers
             .iter()
             .enumerate()
@@ -605,8 +605,8 @@ impl SemanticTokenStylizer {
 async fn raw_to_buffer_semantic_tokens(
     raw_tokens: RawSemanticTokens,
     buffer_snapshot: text::BufferSnapshot,
-) -> HashMap<LanguageServerId, Arc<[BufferSemanticToken]>> {
-    let mut res = HashMap::default();
+) -> FxHashMap<LanguageServerId, Arc<[BufferSemanticToken]>> {
+    let mut res = FxHashMap::default();
     for (&server_id, server_tokens) in &raw_tokens.servers {
         let mut last = 0;
         // We don't do `collect` here due to the filter map not pre-allocating
@@ -659,8 +659,8 @@ async fn raw_to_buffer_semantic_tokens(
 #[derive(Default, Debug)]
 pub struct SemanticTokensData {
     pub(super) raw_tokens: RawSemanticTokens,
-    pub(super) pending_refreshes: HashSet<LanguageServerId>,
-    fetched_servers: HashSet<LanguageServerId>,
+    pub(super) pending_refreshes: FxHashSet<LanguageServerId>,
+    fetched_servers: FxHashSet<LanguageServerId>,
     update: Option<(Global, SemanticTokensTask)>,
     /// Bumped on every eviction so that fetches started against the evicted state
     /// cannot write their stale results into the new one.
@@ -690,7 +690,7 @@ impl SemanticTokensData {
 /// Semantic tokens later in the list will override earlier ones in case of overlap.
 #[derive(Default, Debug, Clone)]
 pub(super) struct RawSemanticTokens {
-    pub servers: HashMap<lsp::LanguageServerId, Arc<ServerSemanticTokens>>,
+    pub servers: FxHashMap<lsp::LanguageServerId, Arc<ServerSemanticTokens>>,
 }
 
 /// All the semantic tokens for a buffer, from a single language server.

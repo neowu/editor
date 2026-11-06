@@ -12,7 +12,6 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::vec::IntoIter;
 
-use collections::HashMap;
 use ed_actions::search::NewSearchInDirectory;
 use editor::Anchor;
 use editor::EXCERPT_CONTEXT_LINES;
@@ -73,6 +72,7 @@ use project::search::SearchInputKind;
 use project::search::SearchQuery;
 use project::search::SearchResult;
 use project::search_history::SearchHistoryCursor;
+use rustc_hash::FxHashMap;
 use smol::future;
 use text::OffsetRangeExt;
 use ui::CommonAnimationExt;
@@ -177,7 +177,7 @@ fn split_glob_patterns(text: &str) -> Vec<&str> {
 }
 
 #[derive(Default)]
-pub(crate) struct ActiveSettings(pub(crate) HashMap<WeakEntity<Project>, ProjectSearchSettings>);
+pub(crate) struct ActiveSettings(pub(crate) FxHashMap<WeakEntity<Project>, ProjectSearchSettings>);
 
 impl Global for ActiveSettings {}
 
@@ -385,7 +385,7 @@ pub struct ProjectSearchView {
     replacement_editor: Entity<Editor>,
     results_editor: Entity<Editor>,
     pub(crate) search_options: SearchOptions,
-    panels_with_errors: HashMap<InputPanel, String>,
+    panels_with_errors: FxHashMap<InputPanel, String>,
     active_match_index: Option<usize>,
     search_id: usize,
     included_files_editor: Entity<Editor>,
@@ -1470,7 +1470,7 @@ impl ProjectSearchView {
             query_editor,
             results_editor,
             search_options: options,
-            panels_with_errors: HashMap::default(),
+            panels_with_errors: FxHashMap::default(),
             active_match_index: None,
             included_files_editor,
             excluded_files_editor,

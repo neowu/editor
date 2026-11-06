@@ -8,7 +8,6 @@ use std::any::TypeId;
 use std::sync::Arc;
 
 use any_vec::AnyVec;
-use collections::HashMap;
 use ed_actions::workspace::CopyPath;
 use ed_actions::workspace::CopyRelativePath;
 use editor::DiffStyleControls;
@@ -50,6 +49,7 @@ use registrar::ForDeployed;
 use registrar::ForDismissed;
 use registrar::SearchActionsRegistrar;
 pub use registrar::register_pane_search_actions;
+use rustc_hash::FxHashMap;
 use settings::SeedQuerySetting;
 use ui::BASE_REM_SIZE_IN_PX;
 use ui::IconButtonShape;
@@ -127,7 +127,7 @@ pub struct BufferSearchBar {
 
     pending_external_query: Option<(String, SearchOptions)>,
     active_search: Option<Arc<SearchQuery>>,
-    searchable_items_with_matches: HashMap<Box<dyn WeakSearchableItemHandle>, (AnyVec<dyn Send>, SearchToken)>,
+    searchable_items_with_matches: FxHashMap<Box<dyn WeakSearchableItemHandle>, (AnyVec<dyn Send>, SearchToken)>,
     pending_search: Option<Task<()>>,
     search_options: SearchOptions,
     default_options: SearchOptions,
@@ -643,7 +643,7 @@ impl BufferSearchBar {
             active_searchable_item_subscriptions: None,
             pending_external_query: None,
             active_match_index: None,
-            searchable_items_with_matches: HashMap::default(),
+            searchable_items_with_matches: FxHashMap::default(),
             default_options: search_options,
             search_options,
             pending_search: None,

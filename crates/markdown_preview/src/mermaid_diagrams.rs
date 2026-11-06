@@ -8,8 +8,6 @@ use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use collections::HashMap;
-use collections::HashSet;
 use gpui::Animation;
 use gpui::AnimationExt;
 use gpui::AnyElement;
@@ -34,6 +32,8 @@ use markdown::Markdown;
 use markdown::MarkdownStyle;
 use markdown::parser::CodeBlockKind;
 use markdown::parser::MarkdownEvent;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use ui::CopyButton;
 use ui::ScrollAxes;
 use ui::Scrollbars;
@@ -45,7 +45,7 @@ use ui::prelude::*;
 
 use crate::markdown_preview_style::preview_font_size;
 
-type MermaidDiagramCache = HashMap<DiagramContents, Arc<CachedMermaidDiagram>>;
+type MermaidDiagramCache = FxHashMap<DiagramContents, Arc<CachedMermaidDiagram>>;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct DiagramContents {
@@ -65,7 +65,7 @@ pub(crate) struct MermaidDiagrams {
     /// Diagram contents in source order, used to show the previous raster of
     /// an edited diagram while its new raster renders.
     order: Vec<DiagramContents>,
-    views: HashMap<usize, ViewState>,
+    views: FxHashMap<usize, ViewState>,
     /// The preview's temporary font zoom (cmd +/-) the diagrams are rendered
     /// at; see [`preview_zoom`].
     zoom: f32,
@@ -92,9 +92,9 @@ impl MermaidDiagrams {
         Self {
             synced_events: None,
             diagrams: BTreeMap::default(),
-            cache: HashMap::default(),
+            cache: FxHashMap::default(),
             order: Vec::new(),
-            views: HashMap::default(),
+            views: FxHashMap::default(),
             zoom: preview_zoom(cx),
         }
     }
@@ -155,7 +155,7 @@ impl MermaidDiagrams {
             );
         }
 
-        let new_order_set: HashSet<_> = new_order.iter().cloned().collect();
+        let new_order_set: FxHashSet<_> = new_order.iter().cloned().collect();
         self.cache.retain(|content, cached| {
             let keep = new_order_set.contains(content);
             if !keep {

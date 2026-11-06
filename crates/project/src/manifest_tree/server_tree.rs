@@ -13,9 +13,9 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::Weak;
 
-use collections::IndexMap;
 use gpui::App;
 use gpui::Entity;
+use indexmap::IndexMap;
 use language::CachedLspAdapter;
 use language::LanguageName;
 use language::LanguageRegistry;
@@ -23,6 +23,7 @@ use language::ManifestDelegate;
 use language::ManifestName;
 use language::language_settings::AllLanguageSettings;
 use lsp::LanguageServerName;
+use rustc_hash::FxBuildHasher;
 use settings::Settings;
 use settings::WorktreeId;
 use util::rel_path::RelPath;
@@ -150,7 +151,7 @@ impl LanguageServerTree {
         &mut self,
         root_path: ProjectPath,
         language_name: LanguageName,
-        adapters: IndexMap<LanguageServerName, (LspSettings, Arc<CachedLspAdapter>)>,
+        adapters: IndexMap<LanguageServerName, (LspSettings, Arc<CachedLspAdapter>), FxBuildHasher>,
     ) -> impl Iterator<Item = LanguageServerTreeNode> + '_ {
         adapters.into_iter().map(move |(_, (settings, adapter))| {
             let root_path = root_path.clone();
@@ -180,7 +181,7 @@ impl LanguageServerTree {
     fn get_with_adapters(
         &self,
         root_path: ProjectPath,
-        adapters: IndexMap<LanguageServerName, (LspSettings, Arc<CachedLspAdapter>)>,
+        adapters: IndexMap<LanguageServerName, (LspSettings, Arc<CachedLspAdapter>), FxBuildHasher>,
     ) -> impl Iterator<Item = LanguageServerId> + '_ {
         adapters.into_iter().filter_map(move |(_, (_, adapter))| {
             let root_path = root_path.clone();
@@ -206,7 +207,7 @@ impl LanguageServerTree {
         &self,
         language_name: &LanguageName,
         cx: &App,
-    ) -> IndexMap<LanguageServerName, (LspSettings, Arc<CachedLspAdapter>)> {
+    ) -> IndexMap<LanguageServerName, (LspSettings, Arc<CachedLspAdapter>), FxBuildHasher> {
         let settings = AllLanguageSettings::get_global(cx).language(Some(language_name));
         if !settings.enable_language_server {
             return IndexMap::default();

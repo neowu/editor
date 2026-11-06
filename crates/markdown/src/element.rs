@@ -51,7 +51,7 @@ struct BlockRenderer {
 /// The parse state a frame renders from, shared by all of its blocks.
 struct RenderFrame {
     parsed: Arc<ParsedMarkdown>,
-    images: HashMap<usize, Arc<Image>>,
+    images: FxHashMap<usize, Arc<Image>>,
     active_root_block: Option<usize>,
 }
 

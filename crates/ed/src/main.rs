@@ -30,7 +30,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use assets::Assets;
 use clap::Parser;
-use collections::HashMap;
 use ed::OpenListener;
 use ed::OpenRequest;
 use ed::RawOpenRequest;
@@ -55,6 +54,7 @@ use gpui::TaskExt;
 use gpui::UpdateGlobal as _;
 use language::LanguageRegistry;
 use recent_projects::open_remote_project;
+use rustc_hash::FxHashMap;
 use settings::SettingsStore;
 use theme::ActiveTheme;
 use util::ResultExt;
@@ -75,7 +75,7 @@ fn build_application() -> Application {
     Application::with_platform(Rc::new(gpui_macos::MacPlatform::new(false))).with_quit_mode(QuitMode::LastWindowClosed)
 }
 
-fn files_not_created_on_launch(errors: HashMap<io::ErrorKind, Vec<&Path>>) {
+fn files_not_created_on_launch(errors: FxHashMap<io::ErrorKind, Vec<&Path>>) {
     let message = "ed failed to launch";
     let error_details = errors
         .into_iter()
@@ -536,9 +536,9 @@ fn install_panic_hook() {
     }));
 }
 
-fn init_paths() -> HashMap<io::ErrorKind, Vec<&'static Path>> {
+fn init_paths() -> FxHashMap<io::ErrorKind, Vec<&'static Path>> {
     [paths::data_dir(), paths::logs_dir(), paths::temp_dir()].into_iter().fold(
-        HashMap::default(),
+        FxHashMap::default(),
         |mut errors, path| {
             if let Err(e) = std::fs::create_dir_all(path) {
                 errors.entry(e.kind()).or_insert_with(Vec::new).push(path);

@@ -7,8 +7,8 @@ edition.workspace = true
 path = "src/file_icons.rs"
 
 [dependencies]
-collections.workspace = true
 gpui.workspace = true
+rustc-hash.workspace = true
 settings_content.workspace = true
 util.workspace = true
 

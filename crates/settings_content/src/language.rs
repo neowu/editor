@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 use std::slice;
 use std::sync::Arc;
 
-use collections::HashMap;
+use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -333,7 +333,7 @@ pub struct LanguageSettingsContent {
     /// These are not run if formatting is off.
     ///
     /// Default: {} (or {"source.organizeImports": true} for Go).
-    pub code_actions_on_format: Option<HashMap<String, bool>>,
+    pub code_actions_on_format: Option<FxHashMap<String, bool>>,
     /// Whether to perform linked edits of associated ranges, if the language server supports it.
     /// For example, when editing opening <html> tag, the contents of the closing </html> tag will be edited as well.
     ///
@@ -732,7 +732,7 @@ pub struct IndentGuideSettingsContent {
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Serialize)]
 pub struct LanguageTaskSettingsContent {
     /// Extra task variables to set for a particular language.
-    pub variables: Option<HashMap<String, String>>,
+    pub variables: Option<FxHashMap<String, String>>,
     pub enabled: Option<bool>,
     /// Use LSP tasks over built-in language tasks.
     /// If no LSP tasks are returned due to error/timeout or regular execution,
@@ -742,11 +742,11 @@ pub struct LanguageTaskSettingsContent {
 
 /// Map from language name to settings.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct LanguageToSettingsMap(pub HashMap<String, LanguageSettingsContent>);
+pub struct LanguageToSettingsMap(pub FxHashMap<String, LanguageSettingsContent>);
 
 /// Map from language name to file patterns.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct FileTypeMap(pub HashMap<Arc<str>, Vec<String>>);
+pub struct FileTypeMap(pub FxHashMap<Arc<str>, Vec<String>>);
 
 impl<'a> IntoIterator for &'a FileTypeMap {
     type Item = (&'a Arc<str>, &'a Vec<String>);
