@@ -5666,43 +5666,6 @@ impl MultiBufferSnapshot {
         self.all_diff_hunks_expanded
     }
 
-    /// Visually annotates a position or range with the `Debug` representation of a value. The
-    /// callsite of this function is used as a key - previous annotations will be removed.
-    #[cfg(debug_assertions)]
-    #[track_caller]
-    pub fn debug<V, R>(&self, ranges: &R, value: V)
-    where
-        R: debug::ToMultiBufferDebugRanges,
-        V: std::fmt::Debug,
-    {
-        self.debug_with_key(std::panic::Location::caller(), ranges, value);
-    }
-
-    /// Visually annotates a position or range with the `Debug` representation of a value. Previous
-    /// debug annotations with the same key will be removed. The key is also used to determine the
-    /// annotation's color.
-    #[cfg(debug_assertions)]
-    #[track_caller]
-    pub fn debug_with_key<K, R, V>(&self, key: &K, ranges: &R, value: V)
-    where
-        K: std::hash::Hash + 'static,
-        R: debug::ToMultiBufferDebugRanges,
-        V: std::fmt::Debug,
-    {
-        let text_ranges = ranges
-            .to_multi_buffer_debug_ranges(self)
-            .into_iter()
-            .flat_map(|range| {
-                self.range_to_buffer_ranges(range).into_iter().map(|(buffer_snapshot, range, _)| {
-                    buffer_snapshot.anchor_after(range.start)..buffer_snapshot.anchor_before(range.end)
-                })
-            })
-            .collect();
-        text::debug::GlobalDebugRanges::with_locked(|debug_ranges| {
-            debug_ranges.insert(key, text_ranges, format!("{value:?}").into())
-        });
-    }
-
     fn excerpt_edits_for_diff_change(
         &self,
         path: &PathKey,
@@ -7055,55 +7018,5 @@ impl ToPoint for PointUtf16 {
     }
     fn to_point_utf16<'a>(&self, _: &MultiBufferSnapshot) -> PointUtf16 {
         *self
-    }
-}
-
-#[cfg(debug_assertions)]
-pub mod debug {
-    use super::*;
-
-    pub trait ToMultiBufferDebugRanges {
-        fn to_multi_buffer_debug_ranges(&self, snapshot: &MultiBufferSnapshot) -> Vec<Range<MultiBufferOffset>>;
-    }
-
-    impl<T: ToOffset> ToMultiBufferDebugRanges for T {
-        fn to_multi_buffer_debug_ranges(&self, snapshot: &MultiBufferSnapshot) -> Vec<Range<MultiBufferOffset>> {
-            [self.to_offset(snapshot)].to_multi_buffer_debug_ranges(snapshot)
-        }
-    }
-
-    impl<T: ToOffset> ToMultiBufferDebugRanges for Range<T> {
-        fn to_multi_buffer_debug_ranges(&self, snapshot: &MultiBufferSnapshot) -> Vec<Range<MultiBufferOffset>> {
-            [self.start.to_offset(snapshot)..self.end.to_offset(snapshot)].to_multi_buffer_debug_ranges(snapshot)
-        }
-    }
-
-    impl<T: ToOffset> ToMultiBufferDebugRanges for Vec<T> {
-        fn to_multi_buffer_debug_ranges(&self, snapshot: &MultiBufferSnapshot) -> Vec<Range<MultiBufferOffset>> {
-            self.as_slice().to_multi_buffer_debug_ranges(snapshot)
-        }
-    }
-
-    impl<T: ToOffset> ToMultiBufferDebugRanges for Vec<Range<T>> {
-        fn to_multi_buffer_debug_ranges(&self, snapshot: &MultiBufferSnapshot) -> Vec<Range<MultiBufferOffset>> {
-            self.as_slice().to_multi_buffer_debug_ranges(snapshot)
-        }
-    }
-
-    impl<T: ToOffset> ToMultiBufferDebugRanges for [T] {
-        fn to_multi_buffer_debug_ranges(&self, snapshot: &MultiBufferSnapshot) -> Vec<Range<MultiBufferOffset>> {
-            self.iter()
-                .map(|item| {
-                    let offset = item.to_offset(snapshot);
-                    offset..offset
-                })
-                .collect()
-        }
-    }
-
-    impl<T: ToOffset> ToMultiBufferDebugRanges for [Range<T>] {
-        fn to_multi_buffer_debug_ranges(&self, snapshot: &MultiBufferSnapshot) -> Vec<Range<MultiBufferOffset>> {
-            self.iter().map(|range| range.start.to_offset(snapshot)..range.end.to_offset(snapshot)).collect()
-        }
     }
 }

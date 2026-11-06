@@ -940,9 +940,6 @@ impl EditorElement {
             }
         });
 
-        #[cfg(debug_assertions)]
-        Self::layout_debug_ranges(&mut selections, start_anchor..end_anchor, &snapshot.display_snapshot, cx);
-
         (selections, active_rows, newest_selection_head)
     }
 
@@ -4580,54 +4577,6 @@ impl EditorElement {
     fn diff_hunk_hollow(&self, status: DiffHunkStatus, cx: &App) -> bool {
         // Unstaged hunks are filled, staged hunks are hollow.
         self.editor.read(cx).diff_hunk_renderer().render_hunk_as_staged(&status, cx)
-    }
-
-    #[cfg(debug_assertions)]
-    fn layout_debug_ranges(
-        selections: &mut Vec<(PlayerColor, Vec<SelectionLayout>)>,
-        anchor_range: Range<Anchor>,
-        display_snapshot: &DisplaySnapshot,
-        cx: &App,
-    ) {
-        let theme = cx.theme();
-        text::debug::GlobalDebugRanges::with_locked(|debug_ranges| {
-            if debug_ranges.ranges.is_empty() {
-                return;
-            }
-            let buffer_snapshot = &display_snapshot.buffer_snapshot();
-            for (excerpt_buffer_snapshot, buffer_range, _) in
-                buffer_snapshot.range_to_buffer_ranges(anchor_range.start..anchor_range.end)
-            {
-                let buffer_range = excerpt_buffer_snapshot.anchor_after(buffer_range.start)
-                    ..excerpt_buffer_snapshot.anchor_before(buffer_range.end);
-                selections.extend(debug_ranges.ranges.iter().flat_map(|debug_range| {
-                    debug_range.ranges.iter().filter_map(|range| {
-                        let accent = theme.accents().color_for_index(debug_range.occurrence_index as u32 + 1);
-                        let player_color = PlayerColor { cursor: accent, selection: accent.opacity(0.25) };
-                        if range.start.buffer_id != excerpt_buffer_snapshot.remote_id() {
-                            return None;
-                        }
-                        let clipped_start = range.start.max(&buffer_range.start, excerpt_buffer_snapshot);
-                        let clipped_end = range.end.min(&buffer_range.end, excerpt_buffer_snapshot);
-                        let range =
-                            buffer_snapshot.buffer_anchor_range_to_anchor_range(*clipped_start..*clipped_end)?;
-                        let start = range.start.to_display_point(display_snapshot);
-                        let end = range.end.to_display_point(display_snapshot);
-                        let selection_layout = SelectionLayout {
-                            id: 0,
-                            head: start,
-                            range: start..end,
-                            cursor_shape: CursorShape::Bar,
-                            is_newest: false,
-                            is_local: false,
-                            active_rows: start.row()..end.row(),
-                            user_name: Some(SharedString::from(debug_range.value.clone())),
-                        };
-                        Some((player_color, vec![selection_layout]))
-                    })
-                }));
-            }
-        });
     }
 }
 
