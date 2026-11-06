@@ -6,6 +6,7 @@ use ui::font;
 use ui::utils::TRAFFIC_LIGHT_POSITION;
 mod app_menus;
 pub(crate) mod control_server;
+pub(crate) mod cpu_usage;
 
 pub(crate) mod mac_only_instance;
 

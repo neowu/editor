@@ -424,6 +424,8 @@ pub(crate) struct LineLayoutCache {
     font_generation: Arc<AtomicUsize>,
     /// Records the generation represented by both frame caches.
     cached_font_generation: Cell<usize>,
+    /// Lines shaped by the platform (cache misses) since the cache was created.
+    shaped_lines: Cell<usize>,
 }
 
 #[derive(Default)]
@@ -455,6 +457,7 @@ impl LineLayoutCache {
             platform_text_system,
             font_generation,
             cached_font_generation: Cell::new(cached_font_generation),
+            shaped_lines: Cell::new(0),
         }
     }
 
@@ -498,6 +501,11 @@ impl LineLayoutCache {
         let current_frame = &mut self.state.borrow_mut().current_frame;
         current_frame.used_lines.truncate(index.lines_index);
         current_frame.used_wrapped_lines.truncate(index.wrapped_lines_index);
+    }
+
+    /// Lines shaped by the platform text system so far, i.e. layout cache misses.
+    pub const fn shaped_line_count(&self) -> usize {
+        self.shaped_lines.get()
     }
 
     pub fn finish_frame(&self) {
@@ -582,6 +590,7 @@ impl LineLayoutCache {
 
         let text = SharedString::from(text);
         let mut layout = self.platform_text_system.layout_line(&text, font_size, runs);
+        self.shaped_lines.set(self.shaped_lines.get() + 1);
 
         if let Some(force_width) = force_width {
             apply_force_width_to_layout(&mut layout, force_width);
@@ -750,6 +759,23 @@ mod tests {
         cache.finish_frame();
         cache.finish_frame();
         assert!(!Arc::ptr_eq(&first, &layout(&cache, "hello")));
+    }
+
+    #[test]
+    fn shaped_line_count_counts_only_cache_misses() {
+        let (cache, _) = cache();
+        layout(&cache, "hello");
+        layout(&cache, "hello");
+        wrapped_layout(&cache, "world");
+        assert_eq!(cache.shaped_line_count(), 2);
+
+        cache.finish_frame();
+        layout(&cache, "hello");
+        wrapped_layout(&cache, "world");
+        assert_eq!(cache.shaped_line_count(), 2);
+
+        layout(&cache, "new");
+        assert_eq!(cache.shaped_line_count(), 3);
     }
 
     #[test]

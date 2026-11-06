@@ -227,6 +227,11 @@ where
 }
 
 impl<T: Item> SumTree<T> {
+    /// Whether both trees share the same root, i.e. one is an unmodified clone of the other.
+    pub fn ptr_eq(&self, other: &SumTree<T>) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+
     pub fn new(cx: <T::Summary as Summary>::Context<'_>) -> Self {
         SumTree(Arc::new(Node::Leaf {
             summary: <T::Summary as Summary>::zero(cx),

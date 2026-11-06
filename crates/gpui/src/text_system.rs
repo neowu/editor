@@ -60,6 +60,7 @@ use crate::Size;
 use crate::StrikethroughStyle;
 use crate::TextRenderingMode;
 use crate::UnderlineStyle;
+use crate::point;
 use crate::px;
 
 /// An opaque identifier for a specific font.
@@ -593,30 +594,27 @@ impl WindowTextSystem {
         force_width: Option<Pixels>,
     ) -> ShapedLine {
         debug_assert!(text.find('\n').is_none(), "text argument should not contain newlines");
-
-        let mut decoration_runs = SmallVec::<[DecorationRun; 32]>::new();
-        for run in runs {
-            if let Some(last_run) = decoration_runs.last_mut()
-                && last_run.color == run.color
-                && last_run.underline == run.underline
-                && last_run.strikethrough == run.strikethrough
-                && last_run.background_color == run.background_color
-            {
-                last_run.len += run.len as u32;
-                continue;
-            }
-            decoration_runs.push(DecorationRun {
-                len: run.len as u32,
-                color: run.color,
-                background_color: run.background_color,
-                underline: run.underline,
-                strikethrough: run.strikethrough,
-            });
-        }
-
+        let decoration_runs = decoration_runs(runs);
         let layout = self.layout_line(&text, font_size, runs, force_width);
-
         ShapedLine { layout, text, decoration_runs }
+    }
+
+    /// Lay a line out on a grid of the first run's `m` advance, one cell per
+    /// character, without shaping it. For text too small to read, painted
+    /// with [`ShapedLine::paint_blocks`].
+    pub fn layout_monospace_line(&self, text: SharedString, font_size: Pixels, runs: &[TextRun]) -> ShapedLine {
+        let font_id = runs.first().map_or(FontId(0), |run| self.resolve_font(&run.font));
+        let advance = self.em_layout_width(font_id, font_size);
+        let (glyphs, width) = monospace_glyphs(&text, advance);
+        let layout = Arc::new(LineLayout {
+            font_size,
+            width,
+            ascent: self.ascent(font_id, font_size),
+            descent: self.descent(font_id, font_size),
+            runs: vec![ShapedRun { font_id, glyphs }],
+            len: text.len(),
+        });
+        ShapedLine { layout, decoration_runs: decoration_runs(runs), text }
     }
 
     /// Shape a multi line string of text, at the given font_size, for painting to the screen.
@@ -735,6 +733,10 @@ impl WindowTextSystem {
         self.line_layout_cache.finish_frame()
     }
 
+    pub(crate) const fn shaped_line_count(&self) -> usize {
+        self.line_layout_cache.shaped_line_count()
+    }
+
     /// Layout the given line of text, at the given font_size.
     /// Subsets of the line can be styled independently with the `runs` parameter.
     /// Generally, you should prefer to use [`Self::shape_line`] instead, which
@@ -793,6 +795,43 @@ impl WindowTextSystem {
     pub fn em_layout_width(&self, font_id: FontId, font_size: Pixels) -> Pixels {
         self.layout_width(font_id, font_size, 'm')
     }
+}
+
+/// Merges adjacent runs that paint the same way.
+fn decoration_runs(runs: &[TextRun]) -> SmallVec<[DecorationRun; 32]> {
+    let mut decoration_runs = SmallVec::<[DecorationRun; 32]>::new();
+    for run in runs {
+        if let Some(last_run) = decoration_runs.last_mut()
+            && last_run.color == run.color
+            && last_run.underline == run.underline
+            && last_run.strikethrough == run.strikethrough
+            && last_run.background_color == run.background_color
+        {
+            last_run.len += run.len as u32;
+            continue;
+        }
+        decoration_runs.push(DecorationRun {
+            len: run.len as u32,
+            color: run.color,
+            background_color: run.background_color,
+            underline: run.underline,
+            strikethrough: run.strikethrough,
+        });
+    }
+    decoration_runs
+}
+
+/// One placeholder glyph per character at `advance` steps, and the line's width.
+fn monospace_glyphs(text: &str, advance: Pixels) -> (Vec<ShapedGlyph>, Pixels) {
+    let mut glyphs: Vec<ShapedGlyph> = Vec::with_capacity(text.len());
+    glyphs.extend(text.char_indices().enumerate().map(|(column, (index, _))| ShapedGlyph {
+        id: GlyphId(0),
+        position: point(advance * column as f32, Pixels::ZERO),
+        index,
+        is_emoji: false,
+    }));
+    let width = advance * glyphs.len() as f32;
+    (glyphs, width)
 }
 
 #[derive(Hash, Eq, PartialEq)]

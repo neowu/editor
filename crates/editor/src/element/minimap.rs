@@ -3,9 +3,12 @@
 //! scroll widget, since there's no vertical scrollbar.
 
 use std::cmp::Reverse;
+use std::mem;
+use std::ops::Range;
 use std::sync::Arc;
 
 use buffer_diff::DiffHunkStatusKind;
+use collections::HashMap;
 use gpui::AbsoluteLength;
 use gpui::Along;
 use gpui::AnyElement;
@@ -19,6 +22,7 @@ use gpui::Corners;
 use gpui::CursorStyle;
 use gpui::DispatchPhase;
 use gpui::Edges;
+use gpui::Font;
 use gpui::HitboxBehavior;
 use gpui::Hsla;
 use gpui::IntoElement;
@@ -46,21 +50,127 @@ use workspace::item::ItemBufferKind;
 use super::ColoredRange;
 use super::EditorElement;
 use super::EditorLayout;
+use super::LineWithInvisibles;
 use super::ScrollbarLayout;
 use super::ScrollbarLayoutInformation;
 use crate::DisplayRow;
+use crate::DisplaySnapshot;
 use crate::Editor;
 use crate::EditorSnapshot;
 use crate::MINIMAP_FONT_SIZE;
 use crate::Point;
 use crate::RowExt as _;
+use crate::RowRangeExt as _;
 use crate::display_map::HighlightKey;
 use crate::display_map::ToDisplayPoint;
 use crate::scroll::ScrollOffset;
 use crate::scroll::ScrollPixelOffset;
 use crate::scroll::ScrollbarThumbState;
 
+/// Rows kept around the visible ones, as a multiple of the visible row count.
+const MINIMAP_ROW_CACHE_MARGIN: u32 = 2;
+
+/// Laid-out rows by display row.
+struct RowCache<L> {
+    rows: HashMap<u32, L>,
+}
+
+impl<L> Default for RowCache<L> {
+    fn default() -> RowCache<L> {
+        RowCache { rows: HashMap::default() }
+    }
+}
+
+impl<L> RowCache<L> {
+    /// Contiguous runs of `rows` that aren't cached.
+    fn missing(&self, rows: Range<u32>) -> Vec<Range<u32>> {
+        let mut missing: Vec<Range<u32>> = Vec::new();
+        for row in rows {
+            if self.rows.contains_key(&row) {
+                continue;
+            }
+            match missing.last_mut() {
+                Some(run) if run.end == row => run.end += 1,
+                _ => missing.push(row..row + 1),
+            }
+        }
+        missing
+    }
+
+    /// Drop rows more than `margin` rows away from `rows`.
+    fn retain_near(&mut self, rows: Range<u32>, margin: u32) {
+        let keep = rows.start.saturating_sub(margin)..rows.end.saturating_add(margin);
+        self.rows.retain(|row, _| keep.contains(row));
+    }
+}
+
+/// Minimap rows laid out from one display snapshot, reused while later
+/// snapshots lay out the same chunks ([`DisplaySnapshot::same_chunks_as`]).
+/// Scrolling the minimap then only lays out the rows it brings into view.
+#[derive(Default)]
+pub(crate) struct MinimapRowCache {
+    snapshot: Option<DisplaySnapshot>,
+    font: Option<(Font, Pixels)>,
+    rows: RowCache<LineWithInvisibles>,
+}
+
 impl EditorElement {
+    /// The minimap's [`EditorElement::layout_lines`], reusing rows laid out in earlier frames.
+    pub(super) fn layout_minimap_lines(
+        &self,
+        rows: Range<DisplayRow>,
+        snapshot: &EditorSnapshot,
+        editor_width: Pixels,
+        is_row_soft_wrapped: impl Copy + Fn(usize) -> bool,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Vec<LineWithInvisibles> {
+        let layout = |rows: Range<DisplayRow>, window: &mut Window, cx: &mut App| {
+            // Selection contrast tweaks depend on the visible range, not the row; blocks don't need them.
+            Self::layout_lines(rows, snapshot, &self.style, editor_width, is_row_soft_wrapped, &[], window, cx)
+        };
+        if snapshot.is_empty() {
+            return layout(rows, window, cx);
+        }
+
+        let font = (self.style.text.font(), self.style.text.font_size.to_pixels(window.rem_size()));
+        let mut cache = self.editor.update(cx, |editor, _| mem::take(&mut editor.minimap_rows));
+        let unchanged = cache.font.as_ref() == Some(&font)
+            && cache.snapshot.as_ref().is_some_and(|cached| snapshot.display_snapshot.same_chunks_as(cached));
+        if !unchanged {
+            cache = MinimapRowCache {
+                snapshot: Some(snapshot.display_snapshot.clone()),
+                font: Some(font),
+                rows: RowCache::default(),
+            };
+        }
+
+        let mut fresh: HashMap<u32, LineWithInvisibles> = HashMap::default();
+        for missing in cache.rows.missing(rows.start.0..rows.end.0) {
+            let lines = layout(DisplayRow(missing.start)..DisplayRow(missing.end), window, cx);
+            fresh.extend(missing.zip(lines));
+        }
+        let mut lines = Vec::with_capacity(rows.len());
+        for row in rows.start.0..rows.end.0 {
+            if let Some(line) = fresh.remove(&row) {
+                if let Some(copy) = line.cacheable_clone() {
+                    cache.rows.rows.insert(row, copy);
+                }
+                lines.push(line);
+            } else if let Some(line) = cache.rows.rows.get(&row).and_then(LineWithInvisibles::cacheable_clone) {
+                lines.push(line);
+            }
+        }
+        if lines.len() != rows.len() {
+            // Callers index lines by row, so never hand back a gap.
+            self.editor.update(cx, |editor, _| editor.minimap_rows = MinimapRowCache::default());
+            return layout(rows, window, cx);
+        }
+        cache.rows.retain_near(rows.start.0..rows.end.0, rows.len() as u32 * MINIMAP_ROW_CACHE_MARGIN);
+        self.editor.update(cx, |editor, _| editor.minimap_rows = cache);
+        lines
+    }
+
     pub(super) fn layout_minimap(
         &self,
         snapshot: &EditorSnapshot,
@@ -658,5 +768,32 @@ impl MinimapLayout {
                 - minimap_scroll_per_editor_line * ScrollOffset::from(minimap_line_height),
         );
         (pixels_per_line > Pixels::ZERO).then_some(pixels_per_line)
+    }
+}
+
+#[cfg(test)]
+mod row_cache_tests {
+    use super::RowCache;
+
+    fn cache(rows: &[u32]) -> RowCache<()> {
+        let mut cache = RowCache::default();
+        cache.rows.extend(rows.iter().map(|row| (*row, ())));
+        cache
+    }
+
+    #[test]
+    fn missing_groups_uncached_rows_into_runs() {
+        assert_eq!(cache(&[]).missing(3..6), vec![3..6]);
+        assert_eq!(cache(&[3, 4, 5]).missing(3..6), Vec::<std::ops::Range<u32>>::new());
+        assert_eq!(cache(&[4, 7]).missing(2..9), vec![2..4, 5..7, 8..9]);
+    }
+
+    #[test]
+    fn retain_near_drops_rows_beyond_the_margin() {
+        let mut cache = cache(&[0, 5, 10, 20, 31, 40]);
+        cache.retain_near(20..30, 10);
+        let mut kept: Vec<u32> = cache.rows.keys().copied().collect();
+        kept.sort_unstable();
+        assert_eq!(kept, vec![10, 20, 31]);
     }
 }

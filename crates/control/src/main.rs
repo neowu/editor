@@ -18,12 +18,14 @@ use clap::Args;
 use clap::Parser;
 use clap::Subcommand;
 use control::Command;
+use control::Durations;
 use control::Element;
 use control::LanguageServerState;
 use control::Modifiers;
 use control::MouseButton;
 use control::MouseCommand;
 use control::MouseKind;
+use control::Perf;
 use control::Rect;
 use control::Request;
 use control::State;
@@ -165,6 +167,13 @@ enum CliCommand {
     },
     /// Wait until the window stops redrawing.
     Settle,
+    /// Start measuring CPU usage and frame times from now.
+    PerfReset,
+    /// CPU usage and frame times since `perf-reset`.
+    Perf {
+        #[arg(long)]
+        json: bool,
+    },
     /// Quit the app.
     Quit,
 }
@@ -300,6 +309,13 @@ fn run(cli: Cli) -> Result<()> {
         CliCommand::WaitLsp { server, timeout } => client.wait_lsp(server.as_deref(), timeout)?,
         CliCommand::Settle => {
             client.request::<Value>(Command::Settle)?;
+        }
+        CliCommand::PerfReset => {
+            client.request::<Value>(Command::PerfReset)?;
+        }
+        CliCommand::Perf { json } => {
+            let perf: Perf = client.request(Command::Perf)?;
+            if json { print_json(&perf)? } else { print!("{}", format_perf(&perf)) }
         }
         CliCommand::Quit => {
             client.request::<Value>(Command::Quit)?;
@@ -466,6 +482,56 @@ fn print_tree(tree: &Tree) {
     }
 }
 
+fn format_perf(perf: &Perf) -> String {
+    let cpu = &perf.cpu;
+    let frames = &perf.frames;
+    let process_ms = cpu.process_user_ms + cpu.process_system_ms;
+    let percent = |ms: f64| if cpu.wall_ms > 0. { ms / cpu.wall_ms * 100. } else { 0. };
+    let per_frame = |value: f64| if frames.frames > 0 { value / frames.frames as f64 } else { 0. };
+    let mut out = String::new();
+    let durations = |out: &mut String, name: &str, durations: &Durations| {
+        writeln!(
+            out,
+            "  {name:<8} total {:>9.2}  mean {:>7.3}  p50 {:>7.3}  p95 {:>7.3}  max {:>7.3}",
+            durations.total_ms, durations.mean_ms, durations.p50_ms, durations.p95_ms, durations.max_ms
+        )
+        .ok();
+    };
+    writeln!(out, "wall {:.0} ms", cpu.wall_ms).ok();
+    writeln!(
+        out,
+        "process cpu {:.1} ms ({:.1}% of a core; user {:.1}, system {:.1})",
+        process_ms,
+        percent(process_ms),
+        cpu.process_user_ms,
+        cpu.process_system_ms
+    )
+    .ok();
+    writeln!(out, "main thread cpu {:.1} ms ({:.1}%)", cpu.main_thread_ms, percent(cpu.main_thread_ms)).ok();
+    writeln!(
+        out,
+        "instructions {} ({:.0} per frame), cycles {}",
+        cpu.instructions,
+        per_frame(cpu.instructions as f64),
+        cpu.cycles
+    )
+    .ok();
+    writeln!(out, "frames {} drawn, {} presented (ms)", frames.frames, frames.presents).ok();
+    durations(&mut out, "draw", &frames.draw);
+    durations(&mut out, "build", &frames.build);
+    durations(&mut out, "paint", &frames.paint);
+    durations(&mut out, "present", &frames.present);
+    writeln!(
+        out,
+        "lines shaped {} ({:.1} per frame, max {})",
+        frames.shaped_lines,
+        per_frame(frames.shaped_lines as f64),
+        frames.shaped_lines_max
+    )
+    .ok();
+    out
+}
+
 fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(value)?);
     Ok(())
@@ -551,4 +617,51 @@ fn launch(
         println!("user data dir {}", dir.display());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use control::CpuUsage;
+    use control::Durations;
+    use control::FrameTimes;
+    use control::Perf;
+
+    use super::format_perf;
+
+    #[test]
+    fn format_perf_reports_shares_and_per_frame_costs() {
+        let draw = Durations { total_ms: 20., mean_ms: 2., p50_ms: 1.5, p95_ms: 4., max_ms: 5. };
+        let perf = Perf {
+            cpu: CpuUsage {
+                wall_ms: 1000.,
+                process_user_ms: 150.,
+                process_system_ms: 50.,
+                instructions: 1_000_000,
+                cycles: 2_000_000,
+                main_thread_ms: 100.,
+            },
+            frames: FrameTimes {
+                frames: 10,
+                presents: 12,
+                draw,
+                shaped_lines: 25,
+                shaped_lines_max: 9,
+                ..FrameTimes::default()
+            },
+        };
+        let text = format_perf(&perf);
+        assert!(text.contains("process cpu 200.0 ms (20.0% of a core; user 150.0, system 50.0)"), "{text}");
+        assert!(text.contains("main thread cpu 100.0 ms (10.0%)"), "{text}");
+        assert!(text.contains("instructions 1000000 (100000 per frame), cycles 2000000"), "{text}");
+        assert!(text.contains("frames 10 drawn, 12 presented"), "{text}");
+        assert!(text.contains("p95   4.000"), "{text}");
+        assert!(text.contains("lines shaped 25 (2.5 per frame, max 9)"), "{text}");
+    }
+
+    #[test]
+    fn format_perf_handles_no_frames_or_time() {
+        let text = format_perf(&Perf::default());
+        assert!(text.contains("(0.0% of a core"), "{text}");
+        assert!(text.contains("(0 per frame)"), "{text}");
+    }
 }

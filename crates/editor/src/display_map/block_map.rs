@@ -1960,6 +1960,16 @@ impl BlockMapWriter<'_> {
 }
 
 impl BlockSnapshot {
+    /// Whether `other` places the same blocks around the same wrapped rows.
+    pub(super) fn same_layout(&self, other: &BlockSnapshot) -> bool {
+        self.transforms.ptr_eq(&other.transforms)
+            && self.custom_blocks_by_id.ptr_eq(&other.custom_blocks_by_id)
+            && self.buffer_header_height == other.buffer_header_height
+            && self.excerpt_header_height == other.excerpt_header_height
+            && self.buffers_with_disabled_headers == other.buffers_with_disabled_headers
+            && self.wrap_snapshot.same_layout(&other.wrap_snapshot)
+    }
+
     #[inline(always)]
     pub fn has_replacement_blocks(&self) -> bool {
         self.transforms.summary().has_replacement_blocks

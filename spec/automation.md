@@ -65,6 +65,15 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
   polls it until a (named) server exists and has reported no work for 1s,
   since servers go briefly quiet between phases (e.g. rust-analyzer's fetch
   then index). Use it instead of fixed sleeps before LSP-driven steps.
+- `perf-reset` / `perf` measure CPU cost between two points, to compare
+  builds on a scripted workload. They report the process's CPU time,
+  retired instructions and cycles (`proc_pid_rusage`; instructions are the
+  low-noise number for A/B comparisons), the main thread's CPU time, and the
+  window's drawn frames: count and total/mean/p50/p95/max of draw, build
+  (render, layout, prepaint), paint, and present, plus lines shaped by the
+  platform text system (line layout cache misses). Compare per-frame costs,
+  since animations decide how many frames a workload draws. Measure release
+  builds with the window visible: macOS throttles hidden windows.
 
 ## GPUI support
 
@@ -73,5 +82,7 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
   path; custom elements that take input (the editor, id `editor`) call
   `Window::record_ui_element`. Recording is part of the paint range, so cached
   views replay their entries.
+- `Window::reset_frame_stats` starts per-window frame timing; nothing is
+  timed or stored before it is called.
 - `PlatformWindow::render_to_image` (Metal readback on macOS) backs
   `Window::capture_image`.

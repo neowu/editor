@@ -85,6 +85,7 @@ use crate::Entity;
 use crate::EntityId;
 use crate::EventEmitter;
 use crate::FontId;
+use crate::FrameStats;
 use crate::Global;
 use crate::GlobalElementId;
 use crate::GlyphId;
@@ -1214,6 +1215,8 @@ pub struct Window {
         SingleSubscriberSet<Box<dyn FnMut(WindowVisibility, &mut Window, &mut App) -> bool>>,
     hovered: Rc<Cell<bool>>,
     pub(crate) needs_present: Rc<Cell<bool>>,
+    /// Collected only after `Window::reset_frame_stats`.
+    pub(crate) frame_stats: Option<Box<FrameStats>>,
     /// Tracks recent input event timestamps to determine if input is arriving at a high rate.
     /// Used to selectively enable VRR optimization only when input rate exceeds 60fps.
     pub(crate) input_rate_tracker: Rc<RefCell<InputRateTracker>>,
@@ -1821,6 +1824,7 @@ impl Window {
             visibility_observers: SingleSubscriberSet::new(),
             hovered,
             needs_present,
+            frame_stats: None,
             input_rate_tracker,
             last_input_modality: InputModality::Mouse,
             refreshing: false,
@@ -2766,8 +2770,11 @@ impl Window {
                 self.rendered_frame.input_handlers.push(Some(input_handler));
             }
         }
+        let draw_start = self.frame_stats.is_some().then(Instant::now);
+        let shaped_before = self.frame_stats.is_some().then(|| self.text_system().shaped_line_count());
+        let mut phase_times: Option<(Duration, Duration)> = None;
         if !cx.mode.skip_drawing() {
-            self.draw_roots(cx);
+            phase_times = self.draw_roots(cx);
         }
         self.dirty_views.clear();
         self.next_frame.window_active = self.active.get();
@@ -2826,6 +2833,11 @@ impl Window {
             self.refresh();
         }
         self.needs_present.set(true);
+        if let (Some(stats), Some(draw_start)) = (self.frame_stats.as_mut(), draw_start) {
+            let (build, paint) = phase_times.unwrap_or_default();
+            let shaped_lines = self.text_system.shaped_line_count() - shaped_before.unwrap_or_default();
+            stats.record_draw(build, paint, draw_start.elapsed(), shaped_lines);
+        }
 
         // Exit the scope to obtain the arena-clear token this draw owes; the
         // scope's teardown itself happens in `ElementArenaScope::drop`.
@@ -2852,12 +2864,18 @@ impl Window {
         self.invalidator.replace_views(views);
     }
 
-    fn present(&self) {
+    fn present(&mut self) {
+        let start = self.frame_stats.is_some().then(Instant::now);
         self.platform_window.draw(&self.rendered_frame.scene);
         self.needs_present.set(false);
+        if let (Some(stats), Some(start)) = (self.frame_stats.as_mut(), start) {
+            stats.record_present(start.elapsed());
+        }
     }
 
-    fn draw_roots(&mut self, cx: &mut App) {
+    /// Returns the build (render, layout, prepaint) and paint times when frame stats are on.
+    fn draw_roots(&mut self, cx: &mut App) -> Option<(Duration, Duration)> {
+        let build_start = self.frame_stats.is_some().then(Instant::now);
         self.invalidator.set_phase(DrawPhase::Prepaint);
         self.tooltip_bounds.take();
 
@@ -2903,6 +2921,7 @@ impl Window {
         self.mouse_hit_test = self.next_frame.hit_test(self.mouse_position);
 
         // Now actually paint the elements.
+        let paint_start = build_start.map(|build_start| (build_start.elapsed(), Instant::now()));
         self.invalidator.set_phase(DrawPhase::Paint);
         root_element.paint(self, cx);
 
@@ -2915,6 +2934,8 @@ impl Window {
         } else if let Some(mut tooltip_element) = tooltip_element {
             tooltip_element.paint(self, cx);
         }
+
+        paint_start.map(|(build, paint_start)| (build, paint_start.elapsed()))
     }
 
     fn prepaint_tooltip(&mut self, cx: &mut App) -> Option<AnyElement> {

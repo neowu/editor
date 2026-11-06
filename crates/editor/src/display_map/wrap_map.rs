@@ -471,6 +471,11 @@ impl WrapMap {
 }
 
 impl WrapSnapshot {
+    /// Whether `other` wraps the same tab snapshot version the same way.
+    pub(super) fn same_layout(&self, other: &WrapSnapshot) -> bool {
+        self.transforms.ptr_eq(&other.transforms) && self.tab_snapshot.version == other.tab_snapshot.version
+    }
+
     fn new(tab_snapshot: TabSnapshot) -> Self {
         let mut transforms = SumTree::default();
         let extent = tab_snapshot.text_summary();

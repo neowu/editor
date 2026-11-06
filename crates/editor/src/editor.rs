@@ -393,6 +393,7 @@ pub use element::EditorElement;
 pub use element::HighlightedRange;
 pub use element::HighlightedRangeLine;
 use element::LineWithInvisibles;
+use element::MinimapRowCache;
 pub use element::PointForPosition;
 use element::PositionMap;
 pub use element::file_status_label_color;
@@ -1327,6 +1328,8 @@ pub struct Editor {
     toggle_fold_multiple_buffers: Task<()>,
     _scroll_cursor_center_top_bottom_task: Task<()>,
     minimap: Option<Entity<Self>>,
+    /// Rows this editor laid out as a minimap, reused across frames.
+    minimap_rows: MinimapRowCache,
     pub change_list: ChangeList,
     number_deleted_lines: bool,
 
@@ -2221,6 +2224,7 @@ impl Editor {
             diff_hunk_renderer: None,
             diff_hunk_action_target: None,
             minimap: None,
+            minimap_rows: MinimapRowCache::default(),
             change_list: ChangeList::new(),
             mode,
             folding_newlines: Task::ready(()),

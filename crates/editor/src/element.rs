@@ -97,6 +97,7 @@ use language::IndentGuideSettings;
 use language::LanguageAwareStyling;
 use language::language_settings::ShowWhitespaceSetting;
 use minimap::MinimapLayout;
+pub(crate) use minimap::MinimapRowCache;
 use multi_buffer::Anchor;
 use multi_buffer::ExcerptRange;
 use multi_buffer::ExpandExcerptDirection;
@@ -4717,6 +4718,11 @@ fn render_blame_entry(
     )
 }
 
+/// Height of a minimap text block, as a share of the minimap line height.
+const MINIMAP_BLOCK_HEIGHT: f32 = 0.6;
+/// Solid blocks cover more than the glyphs they stand for; fade them to match.
+const MINIMAP_BLOCK_OPACITY: f32 = 0.6;
+
 #[derive(Debug)]
 pub(crate) struct LineWithInvisibles {
     fragments: SmallVec<[LineFragment; 1]>,
@@ -4741,6 +4747,22 @@ impl fmt::Debug for LineFragment {
                 f.debug_struct("Element").field("size", size).field("len", len).finish()
             }
         }
+    }
+}
+
+/// Minimap text is too small to read, so it's laid out on a monospace grid
+/// without shaping and painted as blocks (see `LineWithInvisibles::draw`).
+fn shape_editor_line(
+    text: SharedString,
+    font_size: Pixels,
+    runs: &[TextRun],
+    editor_mode: &EditorMode,
+    window: &Window,
+) -> ShapedLine {
+    if editor_mode.is_minimap() {
+        window.text_system().layout_monospace_line(text, font_size, runs)
+    } else {
+        window.text_system().shape_line(text, font_size, runs, None)
     }
 }
 
@@ -4803,7 +4825,8 @@ impl LineWithInvisibles {
                     } else {
                         &ensure_highlight_contrast(&styles, segments, min_contrast, len)
                     };
-                    let shaped_line = window.text_system().shape_line(line.as_str().into(), font_size, text_runs, None);
+                    let shaped_line =
+                        shape_editor_line(line.as_str().into(), font_size, text_runs, editor_mode, window);
                     width += shaped_line.width;
                     len += shaped_line.len;
 
@@ -4866,9 +4889,7 @@ impl LineWithInvisibles {
                             strikethrough: text_style.strikethrough,
                         };
 
-                        let line_layout = window
-                            .text_system()
-                            .shape_line(x, font_size, &[run], None)
+                        let line_layout = shape_editor_line(x, font_size, &[run], editor_mode, window)
                             .with_len(highlighted_chunk.text.len());
 
                         if let Some(severity) = highlighted_chunk.diagnostic_underline_severity {
@@ -4891,7 +4912,7 @@ impl LineWithInvisibles {
                             &ensure_highlight_contrast(&styles, segments, min_contrast, len)
                         };
                         let shaped_line =
-                            window.text_system().shape_line(line.clone().into(), font_size, text_runs, None);
+                            shape_editor_line(line.clone().into(), font_size, text_runs, editor_mode, window);
                         width += shaped_line.width;
                         len += shaped_line.len;
 
@@ -4989,6 +5010,27 @@ impl LineWithInvisibles {
         layouts
     }
 
+    /// A copy for caching, unless the line holds rendered elements, which can't be copied.
+    fn cacheable_clone(&self) -> Option<LineWithInvisibles> {
+        let fragments = self
+            .fragments
+            .iter()
+            .map(|fragment| match fragment {
+                LineFragment::Text(line) => Some(LineFragment::Text(line.clone())),
+                LineFragment::Element { .. } => None,
+            })
+            .collect::<Option<SmallVec<[LineFragment; 1]>>>()?;
+        Some(LineWithInvisibles {
+            fragments,
+            invisibles: self.invisibles.clone(),
+            diagnostic_underline_severity_ranges: self.diagnostic_underline_severity_ranges.clone(),
+            point_diagnostics: self.point_diagnostics.clone(),
+            len: self.len,
+            width: self.width,
+            font_size: self.font_size,
+        })
+    }
+
     fn add_point_diagnostic(&mut self, point_diagnostic: PointDiagnostic) {
         if let Some(existing) =
             self.point_diagnostics.iter_mut().find(|existing| existing.column == point_diagnostic.column)
@@ -5072,6 +5114,16 @@ impl LineWithInvisibles {
 
         for fragment in &self.fragments {
             let (fragment_len, fragment_width, line) = match fragment {
+                LineFragment::Text(line) if layout.mode.is_minimap() => {
+                    let block_top = fragment_origin.y + line_height * (1. - MINIMAP_BLOCK_HEIGHT) / 2.;
+                    line.paint_blocks(
+                        point(fragment_origin.x, block_top),
+                        line_height * MINIMAP_BLOCK_HEIGHT,
+                        MINIMAP_BLOCK_OPACITY,
+                        window,
+                    );
+                    (line.len(), line.width, Some(line))
+                }
                 LineFragment::Text(line) => {
                     if has_points {
                         let mut glyphs = line.runs.iter().flat_map(|run| &run.glyphs).peekable();
@@ -6066,16 +6118,27 @@ impl Element for EditorElement {
                         self.style.background,
                     );
 
-                    let mut line_layouts = Self::layout_lines(
-                        start_row..end_row,
-                        &snapshot,
-                        &self.style,
-                        editor_width,
-                        is_row_soft_wrapped,
-                        &bg_segments_per_row,
-                        window,
-                        cx,
-                    );
+                    let mut line_layouts = if is_minimap {
+                        self.layout_minimap_lines(
+                            start_row..end_row,
+                            &snapshot,
+                            editor_width,
+                            is_row_soft_wrapped,
+                            window,
+                            cx,
+                        )
+                    } else {
+                        Self::layout_lines(
+                            start_row..end_row,
+                            &snapshot,
+                            &self.style,
+                            editor_width,
+                            is_row_soft_wrapped,
+                            &bg_segments_per_row,
+                            window,
+                            cx,
+                        )
+                    };
                     let new_renderer_widths = (!is_minimap).then(|| {
                         line_layouts.iter().flat_map(|layout| &layout.fragments).filter_map(|fragment| {
                             if let LineFragment::Element { id, size, .. } = fragment {

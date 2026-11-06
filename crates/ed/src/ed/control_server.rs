@@ -21,9 +21,11 @@ use gpui::App;
 use gpui::AsyncApp;
 use gpui::Bounds;
 use gpui::CursorHideMode;
+use gpui::DurationSummary;
 use gpui::ElementId;
 use gpui::Entity;
 use gpui::Focusable as _;
+use gpui::FrameStatsSummary;
 use gpui::Keystroke;
 use gpui::Modifiers;
 use gpui::MouseButton;
@@ -52,6 +54,8 @@ use workspace::WorkspaceMode;
 use workspace::dock::DockPosition;
 use workspace::item::ItemHandle;
 
+use crate::ed::cpu_usage::CpuSample;
+
 const SETTLE_TIMEOUT: Duration = Duration::from_secs(1);
 const SETTLE_TICK: Duration = Duration::from_millis(16);
 /// Consecutive clean ticks before a window counts as settled.
@@ -59,6 +63,8 @@ const SETTLE_QUIET_TICKS: usize = 3;
 
 /// The mouse button held by a `mouse down` without a matching `mouse up`, shared across connections.
 type PressedButton = Rc<Cell<Option<MouseButton>>>;
+/// CPU counters at the last `perf_reset`, shared across connections.
+type PerfStart = Rc<Cell<Option<CpuSample>>>;
 
 pub fn init(cx: &mut App) {
     let Some(socket_path) = control::socket_path_from_env() else {
@@ -81,12 +87,15 @@ pub fn init(cx: &mut App) {
     .detach();
 
     let pressed_button = PressedButton::default();
+    let perf_start = PerfStart::default();
     cx.spawn(async move |cx| {
         loop {
             match listener.accept().await {
                 Ok((stream, _)) => {
                     let pressed_button = pressed_button.clone();
-                    cx.spawn(async move |cx| handle_connection(stream, pressed_button, cx).await.log_err()).detach();
+                    let perf_start = perf_start.clone();
+                    cx.spawn(async move |cx| handle_connection(stream, pressed_button, perf_start, cx).await.log_err())
+                        .detach();
                 }
                 Err(error) => {
                     log::error!("control socket stopped accepting connections: {error}");
@@ -106,7 +115,12 @@ fn bind(socket_path: &Path) -> Result<UnixListener> {
     Ok(UnixListener::bind(socket_path)?)
 }
 
-async fn handle_connection(stream: UnixStream, pressed_button: PressedButton, cx: &mut AsyncApp) -> Result<()> {
+async fn handle_connection(
+    stream: UnixStream,
+    pressed_button: PressedButton,
+    perf_start: PerfStart,
+    cx: &mut AsyncApp,
+) -> Result<()> {
     let mut reader = BufReader::new(stream.clone());
     let mut writer = stream;
     let mut line = String::new();
@@ -115,7 +129,7 @@ async fn handle_connection(stream: UnixStream, pressed_button: PressedButton, cx
         line.clear();
         let quit = matches!(request, Ok(Request { command: Command::Quit, .. }));
         let response = match request {
-            Ok(request) => match handle_request(request, &pressed_button, cx).await {
+            Ok(request) => match handle_request(request, &pressed_button, &perf_start, cx).await {
                 Ok(value) => Response::Ok(value),
                 Err(error) => Response::Error(format!("{error:#}")),
             },
@@ -132,7 +146,12 @@ async fn handle_connection(stream: UnixStream, pressed_button: PressedButton, cx
     Ok(())
 }
 
-async fn handle_request(request: Request, pressed_button: &PressedButton, cx: &mut AsyncApp) -> Result<Value> {
+async fn handle_request(
+    request: Request,
+    pressed_button: &PressedButton,
+    perf_start: &PerfStart,
+    cx: &mut AsyncApp,
+) -> Result<Value> {
     match request.command {
         Command::Windows => return windows(cx),
         Command::Quit => return Ok(Value::Null),
@@ -227,8 +246,41 @@ async fn handle_request(request: Request, pressed_button: &PressedButton, cx: &m
             settle(window, cx).await?;
             Value::Null
         }
+        Command::PerfReset => {
+            window.update(cx, |_, window, _| window.reset_frame_stats())?;
+            perf_start.set(Some(CpuSample::now()));
+            Value::Null
+        }
+        Command::Perf => {
+            let start = perf_start.get().context("call perf_reset first")?;
+            let cpu = CpuSample::now().since(&start);
+            let frames = window.update(cx, |_, window, _| {
+                window.frame_stats().map(|stats| frame_times(&stats.summary())).unwrap_or_default()
+            })?;
+            serde_json::to_value(control::Perf { cpu, frames })?
+        }
     };
     Ok(value)
+}
+
+fn frame_times(summary: &FrameStatsSummary) -> control::FrameTimes {
+    let durations = |durations: &DurationSummary| control::Durations {
+        total_ms: durations.total_ms,
+        mean_ms: durations.mean_ms,
+        p50_ms: durations.p50_ms,
+        p95_ms: durations.p95_ms,
+        max_ms: durations.max_ms,
+    };
+    control::FrameTimes {
+        frames: summary.frames,
+        presents: summary.presents,
+        draw: durations(&summary.draw),
+        build: durations(&summary.build),
+        paint: durations(&summary.paint),
+        present: durations(&summary.present),
+        shaped_lines: summary.shaped_lines.total,
+        shaped_lines_max: summary.shaped_lines.max,
+    }
 }
 
 fn target_window(id: Option<u64>, cx: &App) -> Result<AnyWindowHandle> {

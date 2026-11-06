@@ -139,6 +139,51 @@ impl ShapedLine {
         )
     }
 
+    /// Paint each run of non-whitespace characters as a solid block in its
+    /// run's color, `height` tall from `origin`'s y. Meant for lines laid out
+    /// with [`WindowTextSystem::layout_monospace_line`](crate::WindowTextSystem::layout_monospace_line).
+    pub fn paint_blocks(&self, origin: Point<Pixels>, height: Pixels, opacity: f32, window: &mut Window) {
+        for (span, color) in self.block_spans() {
+            let bounds = Bounds::new(point(origin.x + span.start, origin.y), size(span.end - span.start, height));
+            window.paint_quad(fill(bounds, color.opacity(opacity)));
+        }
+    }
+
+    /// Horizontal extents and colors of the blocks [`ShapedLine::paint_blocks`] paints.
+    fn block_spans(&self) -> SmallVec<[(Range<Pixels>, Hsla); 8]> {
+        let mut spans = SmallVec::new();
+        let mut glyphs = self.layout.runs.iter().flat_map(|run| &run.glyphs).peekable();
+        let mut runs = self.decoration_runs.iter();
+        let mut run_end = 0;
+        let mut color = black();
+        let mut open: Option<(Pixels, Hsla)> = None;
+        for (index, character) in self.text.char_indices() {
+            while glyphs.peek().is_some_and(|glyph| glyph.index < index) {
+                glyphs.next();
+            }
+            let x = glyphs.peek().map_or(self.layout.width, |glyph| glyph.position.x);
+            while index >= run_end
+                && let Some(run) = runs.next()
+            {
+                run_end += run.len as usize;
+                color = run.color;
+            }
+            let continues = !character.is_whitespace() && open.is_some_and(|(_, open_color)| open_color == color);
+            if !continues {
+                if let Some((start, open_color)) = open.take() {
+                    spans.push((start..x, open_color));
+                }
+                if !character.is_whitespace() {
+                    open = Some((x, color));
+                }
+            }
+        }
+        if let Some((start, open_color)) = open {
+            spans.push((start..self.layout.width, open_color));
+        }
+        spans
+    }
+
     /// Paint the line with a handler for each underline.
     pub fn paint_with_underline_handler(
         &self,
@@ -924,5 +969,71 @@ fn aligned_origin_x(
         TextAlign::Left => origin.x,
         TextAlign::Center => (origin.x * 2.0 + align_width - line_width) / 2.0,
         TextAlign::Right => origin.x + align_width - line_width,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::DecorationRun;
+    use super::ShapedLine;
+    use crate::FontId;
+    use crate::Hsla;
+    use crate::LineLayout;
+    use crate::Pixels;
+    use crate::ShapedRun;
+    use crate::SharedString;
+    use crate::px;
+    use crate::red;
+    use crate::text_system::monospace_glyphs;
+    use crate::white;
+
+    fn run(len: u32, color: Hsla) -> DecorationRun {
+        DecorationRun { len, color, background_color: None, underline: None, strikethrough: None }
+    }
+
+    fn monospace_line(text: &'static str, runs: Vec<DecorationRun>) -> ShapedLine {
+        let (glyphs, width) = monospace_glyphs(text, px(2.));
+        let layout = LineLayout {
+            font_size: px(2.),
+            width,
+            ascent: px(1.6),
+            descent: px(0.4),
+            runs: vec![ShapedRun { font_id: FontId(0), glyphs }],
+            len: text.len(),
+        };
+        ShapedLine { layout: Arc::new(layout), text: SharedString::new_static(text), decoration_runs: runs.into() }
+    }
+
+    fn spans(line: &ShapedLine) -> Vec<(f32, f32, Hsla)> {
+        line.block_spans()
+            .into_iter()
+            .map(|(span, color)| (f32::from(span.start), f32::from(span.end), color))
+            .collect()
+    }
+
+    #[test]
+    fn monospace_glyphs_step_one_advance_per_character() {
+        let (glyphs, width) = monospace_glyphs("aé b", px(3.));
+        let positions: Vec<(usize, Pixels)> = glyphs.iter().map(|glyph| (glyph.index, glyph.position.x)).collect();
+        assert_eq!(positions, vec![(0, px(0.)), (1, px(3.)), (3, px(6.)), (4, px(9.))]);
+        assert_eq!(width, px(12.));
+    }
+
+    #[test]
+    fn blocks_split_at_whitespace_and_color_changes() {
+        let line = monospace_line("  let x=1;", vec![run(6, red()), run(4, white())]);
+        assert_eq!(spans(&line), vec![(4., 10., red()), (12., 20., white())]);
+        let line = monospace_line("ab cd", vec![run(1, red()), run(4, white())]);
+        assert_eq!(spans(&line), vec![(0., 2., red()), (2., 4., white()), (6., 10., white())]);
+    }
+
+    #[test]
+    fn blocks_merge_same_colored_runs_and_skip_blank_lines() {
+        let line = monospace_line("ab", vec![run(1, red()), run(1, red())]);
+        assert_eq!(spans(&line), vec![(0., 4., red())]);
+        assert!(monospace_line("   ", vec![run(3, red())]).block_spans().is_empty());
+        assert!(monospace_line("", Vec::new()).block_spans().is_empty());
     }
 }

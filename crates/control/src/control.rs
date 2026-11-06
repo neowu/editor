@@ -110,6 +110,10 @@ pub enum Command {
     },
     /// Wait until the window stops redrawing (or a timeout passes).
     Settle,
+    /// Start measuring CPU usage and the window's frame times from now.
+    PerfReset,
+    /// CPU usage and frame times since `PerfReset`. Returns [`Perf`].
+    Perf,
     Quit,
 }
 
@@ -295,6 +299,52 @@ pub struct Selection {
 pub struct Position {
     pub row: u32,
     pub column: u32,
+}
+
+/// CPU usage and frame times since the last `perf_reset`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Perf {
+    pub cpu: CpuUsage,
+    pub frames: FrameTimes,
+}
+
+/// CPU used by the whole app process, and by its main (UI) thread.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct CpuUsage {
+    pub wall_ms: f64,
+    pub process_user_ms: f64,
+    pub process_system_ms: f64,
+    /// Retired instructions of the process; far less noisy than time for comparing builds.
+    pub instructions: u64,
+    pub cycles: u64,
+    pub main_thread_ms: f64,
+}
+
+/// The window's drawn frames. `build` is render, layout and prepaint; `present`
+/// hands the scene to the GPU renderer.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct FrameTimes {
+    pub frames: usize,
+    pub presents: usize,
+    pub draw: Durations,
+    pub build: Durations,
+    pub paint: Durations,
+    pub present: Durations,
+    /// Lines shaped by the platform text system (line layout cache misses), in total.
+    #[serde(default)]
+    pub shaped_lines: usize,
+    #[serde(default)]
+    pub shaped_lines_max: usize,
+}
+
+/// Milliseconds.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Durations {
+    pub total_ms: f64,
+    pub mean_ms: f64,
+    pub p50_ms: f64,
+    pub p95_ms: f64,
+    pub max_ms: f64,
 }
 
 /// Send one request and wait for its response.

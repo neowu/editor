@@ -248,6 +248,16 @@ type TextHighlights = Arc<HashMap<HighlightKey, Arc<(HighlightStyle, Vec<Range<A
 type SemanticTokensHighlights = Arc<HashMap<BufferId, (Arc<[SemanticTokenHighlight]>, Arc<HighlightStyleInterner>)>>;
 type InlayHighlights = TreeMap<HighlightKey, TreeMap<InlayId, (HighlightStyle, InlayHighlight)>>;
 
+/// Whether two text highlight sets paint the same, comparing each key's
+/// highlights by identity first and by content when that differs.
+fn same_text_highlights(a: &TextHighlights, b: &TextHighlights) -> bool {
+    Arc::ptr_eq(a, b)
+        || (a.len() == b.len()
+            && a.iter().all(|(key, highlights)| {
+                b.get(key).is_some_and(|other| Arc::ptr_eq(highlights, other) || highlights == other)
+            }))
+}
+
 #[derive(Debug)]
 pub struct CompanionExcerptPatch {
     pub patch: Patch<MultiBufferPoint>,
@@ -1374,6 +1384,26 @@ impl DisplaySnapshot {
         })
     }
 
+    /// Whether `highlighted_chunks` yields the same chunks for every row as it
+    /// did for `earlier`, so rows laid out from `earlier` can be reused. Every
+    /// layer under the block map bumps the tab snapshot's version when it
+    /// changes. Highlights are compared by content where identity differs:
+    /// some (spell check) are set again with the same ranges on every scroll.
+    pub(crate) fn same_chunks_as(&self, earlier: &DisplaySnapshot) -> bool {
+        let buffer = self.buffer_snapshot();
+        let earlier_buffer = earlier.buffer_snapshot();
+        self.display_map_id == earlier.display_map_id
+            && buffer.edit_count() == earlier_buffer.edit_count()
+            && buffer.non_text_state_update_count() == earlier_buffer.non_text_state_update_count()
+            && self.block_snapshot.same_layout(&earlier.block_snapshot)
+            && same_text_highlights(&self.text_highlights, &earlier.text_highlights)
+            && Arc::ptr_eq(&self.semantic_token_highlights, &earlier.semantic_token_highlights)
+            && (self.inlay_highlights.ptr_eq(&earlier.inlay_highlights)
+                || self.inlay_highlights == earlier.inlay_highlights)
+            && self.diagnostics_max_severity == earlier.diagnostics_max_severity
+            && self.masked == earlier.masked
+    }
+
     pub(crate) const fn diagnostics_visible(&self) -> bool {
         self.diagnostics_max_severity.into_lsp().is_some()
     }
@@ -2313,5 +2343,43 @@ impl DisplayPointConverter<'_> {
         let tab_point = self.tab_point_cursor.map(fold_point);
         let wrap_point = self.wrap_point_cursor.map(tab_point);
         DisplayPoint(self.block_point_cursor.map(wrap_point))
+    }
+}
+
+#[cfg(test)]
+mod same_text_highlights_tests {
+    use std::sync::Arc;
+
+    use collections::HashMap;
+    use gpui::HighlightStyle;
+    use gpui::red;
+    use multi_buffer::Anchor;
+
+    use super::HighlightKey;
+    use super::TextHighlights;
+    use super::same_text_highlights;
+
+    fn highlights(entries: Vec<(HighlightKey, Option<gpui::Hsla>)>) -> TextHighlights {
+        let mut map = HashMap::default();
+        for (key, color) in entries {
+            let style = HighlightStyle { color, ..HighlightStyle::default() };
+            map.insert(key, Arc::new((style, vec![Anchor::Min..Anchor::Max])));
+        }
+        Arc::new(map)
+    }
+
+    #[test]
+    fn equal_content_counts_as_same_even_when_rebuilt() {
+        let a = highlights(vec![(HighlightKey::SpellCheck, None)]);
+        assert!(same_text_highlights(&a, &a));
+        assert!(same_text_highlights(&a, &highlights(vec![(HighlightKey::SpellCheck, None)])));
+    }
+
+    #[test]
+    fn different_keys_or_styles_count_as_changed() {
+        let a = highlights(vec![(HighlightKey::SpellCheck, None)]);
+        assert!(!same_text_highlights(&a, &highlights(vec![(HighlightKey::SpellCheck, Some(red()))])));
+        assert!(!same_text_highlights(&a, &highlights(vec![(HighlightKey::BufferSearchHighlights, None)])));
+        assert!(!same_text_highlights(&a, &highlights(Vec::new())));
     }
 }

@@ -35,6 +35,7 @@ language.workspace = true
 language_selector.workspace = true
 language_tools.workspace = true
 languages = { workspace = true, features = ["load-grammars"] }
+libc.workspace = true
 log.workspace = true
 lsp_command_selector.workspace = true
 lsp_locations.workspace = true

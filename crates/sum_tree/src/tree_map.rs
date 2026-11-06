@@ -49,6 +49,11 @@ where
     K: Clone + Ord;
 
 impl<K: Clone + Ord, V: Clone> TreeMap<K, V> {
+    /// Whether both maps share the same tree, i.e. one is an unmodified clone of the other.
+    pub fn ptr_eq(&self, other: &TreeMap<K, V>) -> bool {
+        self.0.ptr_eq(&other.0)
+    }
+
     pub fn from_ordered_entries(entries: impl IntoIterator<Item = (K, V)>) -> Self {
         let tree = SumTree::from_iter(entries.into_iter().map(|(key, value)| MapEntry { key, value }), ());
         Self(tree)
@@ -336,5 +341,20 @@ where
 
     pub fn iter_from<'a>(&'a self, key: &K) -> impl Iterator<Item = &'a K> + 'a {
         self.0.iter_from(key).map(move |(k, _)| k)
+    }
+}
+
+#[cfg(test)]
+mod ptr_eq_tests {
+    use super::TreeMap;
+
+    #[test]
+    // Also covers `SumTree::ptr_eq`, which this delegates to.
+    fn ptr_eq_holds_for_clones_until_modified() {
+        let map: TreeMap<u32, u32> = TreeMap::from_ordered_entries([(1, 1)]);
+        let mut clone = map.clone();
+        assert!(map.ptr_eq(&clone));
+        clone.insert(2, 2);
+        assert!(!map.ptr_eq(&clone));
     }
 }
