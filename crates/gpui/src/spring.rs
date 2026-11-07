@@ -1,12 +1,8 @@
-use std::ops::RangeInclusive;
-
-use crate::Hsla;
-use crate::Pixels;
-use crate::Rems;
-use crate::Rgba;
+//! Shared motion math: friction-style `Decay` for surfaces, and a closed-form
+//! spring for motion that must keep velocity across retargets (the cursor trail).
+//! Callers own their state and frame loop.
 
 const CRITICAL_DAMPING_TOLERANCE: f32 = 1e-4;
-const DEFAULT_SPRING_EPSILON: f32 = 0.001;
 
 /// The physical parameters of a damped harmonic oscillator.
 ///
@@ -23,9 +19,13 @@ pub struct SpringConfig {
 }
 
 impl SpringConfig {
-    /// Creates a spring from its physical parameters.
-    pub const fn new(stiffness: f32, damping: f32, mass: f32) -> Self {
-        Self { stiffness, damping, mass }
+    /// A unit-mass spring from its natural angular frequency and damping ratio.
+    pub const fn from_canonical(natural_frequency: f32, damping_ratio: f32) -> Self {
+        Self {
+            stiffness: natural_frequency * natural_frequency,
+            damping: 2.0 * damping_ratio * natural_frequency,
+            mass: 1.0,
+        }
     }
 
     /// Returns the natural angular frequency and damping ratio $(\omega_0, \zeta)$.
@@ -42,19 +42,14 @@ impl SpringConfig {
     pub fn step(&self, state: SpringState, target: f32, delta_time: f32) -> SpringState {
         let propagator = self.propagator(delta_time);
         let displacement = state.position - target;
-
         SpringState {
             position: target + propagator[0][0] * displacement + propagator[0][1] * state.velocity,
             velocity: propagator[1][0] * displacement + propagator[1][1] * state.velocity,
         }
     }
 
-    /// Returns the exact state-transition matrix for a constant target.
-    ///
-    /// Materializing this matrix is useful when many springs share the same
-    /// configuration and frame delta. A matrix must not be reused when the
-    /// frame delta changes.
-    pub fn propagator(&self, delta_time: f32) -> [[f32; 2]; 2] {
+    /// The exact state-transition matrix for a constant target over `delta_time`.
+    fn propagator(&self, delta_time: f32) -> [[f32; 2]; 2] {
         let (natural_frequency, damping_ratio) = self.canonical();
 
         if damping_ratio < 1.0 - CRITICAL_DAMPING_TOLERANCE {
@@ -102,18 +97,40 @@ impl SpringConfig {
             ]
         }
     }
+}
 
-    /// Tests both displacement and velocity against a positional tolerance.
-    ///
-    /// Velocity is compared with `epsilon * natural_frequency`, giving it the
-    /// corresponding animated-units-per-second scale.
-    pub fn is_settled(&self, state: SpringState, target: f32, epsilon: f32) -> bool {
-        let (natural_frequency, _) = self.canonical();
-        epsilon.is_finite()
-            && epsilon >= 0.0
-            && (state.position - target).abs() <= epsilon
-            && state.velocity.abs() <= epsilon * natural_frequency
+/// Friction-style deceleration: exponential decay toward the target, fastest at
+/// the start and slowing like a flung scroll, never overshooting. Frame-rate
+/// independent; a retarget just continues from the current position.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Decay {
+    /// Seconds for the remaining distance to shrink by a factor of e (~63% covered).
+    pub time_constant: f32,
+}
+
+impl Decay {
+    pub const fn new(time_constant: f32) -> Self {
+        Self { time_constant }
     }
+
+    /// Fraction of the remaining distance still left after `delta_time` seconds.
+    /// Compute once per frame and apply to every value sharing this decay.
+    pub fn remaining(&self, delta_time: f32) -> f32 {
+        (-delta_time / self.time_constant).exp()
+    }
+
+    pub fn step(&self, position: f32, target: f32, delta_time: f32) -> f32 {
+        target + (position - target) * self.remaining(delta_time)
+    }
+}
+
+/// Shared presets, so UI motion uses a few consistent feels.
+pub mod motion {
+    use super::Decay;
+
+    /// Surfaces moving or arriving, decelerating like friction: ~95% there in
+    /// 0.14s, a 1000px move fully settled in ~0.35s.
+    pub const GLIDE: Decay = Decay::new(0.045);
 }
 
 /// The instantaneous position and velocity of a spring.
@@ -125,207 +142,60 @@ pub struct SpringState {
     pub velocity: f32,
 }
 
-/// A value that can be targeted by a one-dimensional spring.
-///
-/// Implementations may project the spring coordinate into a richer output,
-/// allowing a discrete state or a path through a multidimensional value to be
-/// driven by one spring.
-pub trait SpringTarget: 'static {
-    /// The value supplied to the spring animator.
-    type Output;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    /// Returns the target in the spring's coordinate space.
-    fn target(&self) -> f32;
-
-    /// Projects a spring coordinate into the animated output.
-    fn resolve(&self, value: f32) -> Self::Output;
-}
-
-impl SpringTarget for f32 {
-    type Output = f32;
-
-    fn target(&self) -> f32 {
-        *self
+    #[test]
+    fn from_canonical_round_trips() {
+        let (frequency, damping) = SpringConfig::from_canonical(12.0, 0.8).canonical();
+        assert!((frequency - 12.0).abs() < 1e-4);
+        assert!((damping - 0.8).abs() < 1e-4);
     }
 
-    fn resolve(&self, value: f32) -> Self::Output {
-        value
-    }
-}
-
-impl SpringTarget for Pixels {
-    type Output = Pixels;
-
-    fn target(&self) -> f32 {
-        self.as_f32()
-    }
-
-    fn resolve(&self, value: f32) -> Self::Output {
-        Pixels::from(value)
-    }
-}
-
-impl SpringTarget for Rems {
-    type Output = Rems;
-
-    fn target(&self) -> f32 {
-        self.0
+    #[test]
+    fn critical_step_matches_closed_form() {
+        let omega = 32.0;
+        let config = SpringConfig::from_canonical(omega, 1.0);
+        let (x0, v0, t) = (10.0_f32, -40.0_f32, 0.01_f32);
+        let next = config.step(SpringState { position: x0, velocity: v0 }, 0.0, t);
+        let decay = (-omega * t).exp();
+        assert!((next.position - (x0 + (x0 * omega + v0) * t) * decay).abs() < 1e-4);
+        assert!((next.velocity - decay * (v0 - omega * t * (x0 * omega + v0))).abs() < 1e-3);
     }
 
-    fn resolve(&self, value: f32) -> Self::Output {
-        Rems(value)
-    }
-}
-
-impl SpringTarget for bool {
-    type Output = AnimationPhase;
-
-    fn target(&self) -> f32 {
-        if *self { 1.0 } else { 0.0 }
-    }
-
-    fn resolve(&self, value: f32) -> Self::Output {
-        AnimationPhase(value)
-    }
-}
-
-/// A potentially overshooting coordinate within an animation.
-///
-/// Phases are not restricted to 0..1. Multi-stage animations can assign each
-/// stage its own coordinate and interpolate over ranges such as 1..=2.
-#[derive(Clone, Copy, Debug, Default, PartialEq, PartialOrd)]
-pub struct AnimationPhase(
-    /// The unbounded phase coordinate.
-    pub f32,
-);
-
-impl AnimationPhase {
-    /// Restricts this phase to the bounds of a range.
-    pub fn clamp(self, range: RangeInclusive<f32>) -> Self {
-        let (first, second) = range.into_inner();
-        Self(self.0.clamp(first.min(second), first.max(second)))
-    }
-
-    /// Interpolates between values using 0 and 1 as their phase coordinates.
-    pub fn interpolate<T: Interpolate>(self, from: T, to: T) -> T {
-        T::interpolate(from, to, self.0)
-    }
-}
-
-impl From<f32> for AnimationPhase {
-    fn from(value: f32) -> Self {
-        Self(value)
-    }
-}
-
-impl From<bool> for AnimationPhase {
-    fn from(value: bool) -> Self {
-        Self(if value { 1.0 } else { 0.0 })
-    }
-}
-
-impl SpringTarget for AnimationPhase {
-    type Output = AnimationPhase;
-
-    fn target(&self) -> f32 {
-        self.0
-    }
-
-    fn resolve(&self, value: f32) -> Self::Output {
-        Self(value)
-    }
-}
-
-/// A value that supports linear interpolation and extrapolation.
-pub trait Interpolate: Sized {
-    /// Resolves the value at `phase`, where 0 is `from` and 1 is `to`.
-    fn interpolate(from: Self, to: Self, phase: f32) -> Self;
-}
-
-impl Interpolate for f32 {
-    fn interpolate(from: Self, to: Self, phase: f32) -> Self {
-        from + (to - from) * phase
-    }
-}
-
-impl Interpolate for Pixels {
-    fn interpolate(from: Self, to: Self, phase: f32) -> Self {
-        from + (to - from) * phase
-    }
-}
-
-impl Interpolate for Rems {
-    fn interpolate(from: Self, to: Self, phase: f32) -> Self {
-        from + (to - from) * phase
-    }
-}
-
-impl Interpolate for Rgba {
-    fn interpolate(from: Self, to: Self, phase: f32) -> Self {
-        Self {
-            r: f32::interpolate(from.r, to.r, phase),
-            g: f32::interpolate(from.g, to.g, phase),
-            b: f32::interpolate(from.b, to.b, phase),
-            a: f32::interpolate(from.a, to.a, phase),
+    #[test]
+    fn decay_decelerates_without_overshoot_and_is_frame_rate_independent() {
+        let decay = motion::GLIDE;
+        let (mut position, mut previous_step) = (100.0_f32, f32::INFINITY);
+        for _ in 0..60 {
+            let next = decay.step(position, 0.0, 1.0 / 120.0);
+            assert!(next >= 0.0 && next < position);
+            assert!(position - next < previous_step);
+            previous_step = position - next;
+            position = next;
         }
+        let once = decay.step(100.0, 0.0, 0.02);
+        let twice = decay.step(decay.step(100.0, 0.0, 0.01), 0.0, 0.01);
+        assert!((once - twice).abs() < 1e-4);
+        assert!((decay.remaining(decay.time_constant) - (-1.0_f32).exp()).abs() < 1e-6);
     }
-}
 
-impl Interpolate for Hsla {
-    fn interpolate(from: Self, to: Self, phase: f32) -> Self {
-        let hue_delta = (to.h - from.h + 0.5).rem_euclid(1.0) - 0.5;
-        Self {
-            h: (from.h + hue_delta * phase).rem_euclid(1.0),
-            s: f32::interpolate(from.s, to.s, phase),
-            l: f32::interpolate(from.l, to.l, phase),
-            a: f32::interpolate(from.a, to.a, phase),
+    #[test]
+    fn spring_retarget_keeps_velocity_and_every_damping_settles() {
+        for damping_ratio in [0.5, 1.0, 2.0] {
+            let config = SpringConfig::from_canonical(30.0, damping_ratio);
+            let moving = config.step(SpringState { position: 0.0, velocity: 0.0 }, 1.0, 0.02);
+            assert!(moving.velocity > 0.0);
+            // Retargeting continues from the current position and velocity.
+            let retargeted = config.step(moving, -1.0, 0.0);
+            assert!((retargeted.position - moving.position).abs() < 1e-5);
+            assert!((retargeted.velocity - moving.velocity).abs() < 1e-4);
+            let mut state = moving;
+            for _ in 0..240 {
+                state = config.step(state, 1.0, 1.0 / 120.0);
+            }
+            assert!((state.position - 1.0).abs() < 1e-3, "ζ={damping_ratio} ended at {state:?}");
         }
-    }
-}
-
-/// Controls how a spring advances and resolves its presentation value.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum SpringPlayback {
-    /// Advances toward the latest target, preserving velocity across retargets.
-    #[default]
-    Running,
-    /// Holds the current position and velocity until playback resumes.
-    Paused,
-    /// Holds the current position and discards velocity.
-    Stopped,
-    /// Snaps to the latest target and discards velocity.
-    Completed,
-    /// Returns to the initial value and discards velocity.
-    Cancelled,
-}
-
-/// A stateful spring animation targeting a value or projected path.
-#[derive(Clone, Debug)]
-pub struct SpringAnimation<T = ()> {
-    pub(crate) config: SpringConfig,
-    pub(crate) target: T,
-    pub(crate) epsilon: f32,
-    pub(crate) initial: Option<f32>,
-    pub(crate) playback: SpringPlayback,
-}
-
-impl SpringAnimation<()> {
-    /// Creates a spring animation builder.
-    pub const fn new(config: SpringConfig) -> Self {
-        Self { config, target: (), epsilon: DEFAULT_SPRING_EPSILON, initial: None, playback: SpringPlayback::Running }
-    }
-
-    /// Sets the value or path targeted by this spring.
-    pub const fn to<T: SpringTarget>(self, target: T) -> SpringAnimation<T> {
-        let SpringAnimation { config, target: (), epsilon, initial, playback } = self;
-        SpringAnimation { config, target, epsilon, initial, playback }
-    }
-}
-
-impl<T: SpringTarget> SpringAnimation<T> {
-    /// Sets the coordinate used when this element has no prior spring state.
-    pub fn from(mut self, initial: T) -> Self {
-        self.initial = Some(initial.target());
-        self
     }
 }

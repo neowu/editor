@@ -186,9 +186,9 @@ use crate::code_context_menus::MENU_ASIDE_MAX_WIDTH;
 use crate::code_context_menus::MENU_ASIDE_MIN_WIDTH;
 use crate::code_context_menus::MENU_GAP;
 use crate::column_pixels;
-use crate::cursor_animation::CursorViewport;
-use crate::cursor_animation::LogicalCursorPosition;
-use crate::cursor_animation::animated_corners_overlap_target;
+use crate::cursor_motion::CursorViewport;
+use crate::cursor_motion::LogicalCursorPosition;
+use crate::cursor_motion::animated_corners_overlap_target;
 use crate::display_map::Block;
 use crate::display_map::BlockContext;
 use crate::display_map::BlockStyle;
@@ -1008,9 +1008,9 @@ impl EditorElement {
             );
             let animation_now = Instant::now();
 
-            let newest_animation_selection_id = cursor_shape_supports_cursor_animation(editor.cursor_shape)
-                .then(|| editor.selections.newest_anchor().id);
-            editor.cursor_animations.reconcile_newest_selection(newest_animation_selection_id);
+            let newest_animation_selection_id =
+                cursor_shape_supports_cursor_motion(editor.cursor_shape).then(|| editor.selections.newest_anchor().id);
+            editor.cursor_motions.reconcile_newest_selection(newest_animation_selection_id);
 
             for (player_color, selections) in selections {
                 for selection in selections {
@@ -1137,10 +1137,10 @@ impl EditorElement {
                         is_top_row: cursor_position.row().0 == 0,
                     });
                     cursor.layout(content_origin, cursor_name, window, cx);
-                    if selection.is_local && cursor_shape_supports_cursor_animation(selection.cursor_shape) {
+                    if selection.is_local && cursor_shape_supports_cursor_motion(selection.cursor_shape) {
                         handled_animation_cursors.insert(selection.id);
                         let target_bounds = window.pixel_snap_bounds(cursor.bounds(content_origin));
-                        cursor.animated_corners = editor.cursor_animations.update(
+                        cursor.animated_corners = editor.cursor_motions.update(
                             selection.id,
                             LogicalCursorPosition { row: cursor_position.row().0, column: cursor_position.column() },
                             target_bounds,
@@ -1149,14 +1149,14 @@ impl EditorElement {
                         );
                         request_animation_frame |= cursor.animated_corners.is_some();
                     } else if selection.is_local {
-                        editor.cursor_animations.remove(selection.id);
+                        editor.cursor_motions.remove(selection.id);
                     }
                     cursors.push(cursor);
                 }
             }
 
-            editor.cursor_animations.capture_newest_state();
-            editor.cursor_animations.retain(|selection_id| handled_animation_cursors.contains(&selection_id));
+            editor.cursor_motions.capture_newest_state();
+            editor.cursor_motions.retain(|selection_id| handled_animation_cursors.contains(&selection_id));
             if request_animation_frame {
                 window.request_animation_frame();
             }
@@ -7461,7 +7461,7 @@ impl CursorLayout {
     }
 }
 
-const fn cursor_shape_supports_cursor_animation(shape: CursorShape) -> bool {
+const fn cursor_shape_supports_cursor_motion(shape: CursorShape) -> bool {
     matches!(shape, CursorShape::Bar | CursorShape::Block)
 }
 

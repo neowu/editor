@@ -111,6 +111,8 @@
   and trackpad scrolling are not animated.
 - Cursor animation (neovide-style trail) runs 1.5× faster than the
   vscode-neovide-cursor timings it is adapted from (~83ms for a long move).
+  Each corner axis is a critically damped `gpui::SpringConfig` (ω = 4 / length);
+  the trail logic (per-corner lengths, snapping) stays in `cursor_motion`.
 - No mouse-wheel zoom: Cmd/Ctrl+scroll scrolls like a plain scroll and never
   changes the buffer font size (removed with its `mouse_wheel_zoom` setting).
 - The gutter has no settings: line numbers (with space reserved for 4

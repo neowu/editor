@@ -89,7 +89,7 @@ or UNC prefixes. There is no path-style abstraction; code uses
   the minimap inherits the buffer font, and SVG/Mermaid text uses system fonts.
 - No reduce-motion mode: GPUI has no `reduce_motion` flag and there is no
   `reduce_motion` setting; animations (spinners, GIFs, scrollbar fades,
-  notification fades, cursor animation, smooth scrolling) always run.
+  notification fades, cursor animation, smooth scrolling, dock open/close) always run.
 - The remote server needs no display server, GPU, desktop integration, or fonts.
   It retains background execution, timers, and a foreground event loop for remote projects.
 - There is no platform-selection crate: the editor constructs `gpui_macos::MacPlatform`

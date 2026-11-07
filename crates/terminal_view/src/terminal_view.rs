@@ -1392,26 +1392,6 @@ impl Item for TerminalView {
         ItemBufferKind::Singleton
     }
 
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>> {
-        let Ok(terminal) = self.project.update(cx, |project, cx| {
-            let cwd = project.active_project_directory(cx).map(|it| it.to_path_buf());
-            project.clone_terminal(self.terminal(), cx, cwd)
-        }) else {
-            return Task::ready(None);
-        };
-        cx.spawn_in(window, async move |this, cx| {
-            let terminal = terminal.await.log_err()?;
-            this.update_in(cx, |this, window, cx| {
-                cx.new(|cx| TerminalView::new(terminal, this.workspace.clone(), this.project.clone(), window, cx))
-            })
-            .ok()
-        })
-    }
-
     fn is_dirty(&self, cx: &App) -> bool {
         match self.terminal.read(cx).task() {
             Some(task) => task.status == TaskStatus::Running,

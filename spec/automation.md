@@ -42,7 +42,9 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
 - `state` reports the window's bounds and its display's visible area,
   workspace roots, panes and items, and the active editor's text and
   selections. `screenshot` renders the last frame offscreen at device
-  resolution, so the window may be hidden or covered.
+  resolution, so the window may be hidden or covered. It waits for the window
+  to settle first (no redraw and no animation frame pending); `--no-settle` captures the current frame, to see an
+  animation mid-flight.
 - `action`, `keys` (keymap syntax), `type`, `click`, `mouse`, and `scroll`
   inject input as the platform would, except that injected keystrokes don't
   hide the cursor: only a real mouse move shows it again, and hover features

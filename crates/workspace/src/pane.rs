@@ -288,13 +288,12 @@ pub struct DeploySearch {
 #[derive(Clone, Copy, PartialEq, Debug, Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub enum SplitMode {
-    /// Clone the current pane.
+    /// Move the active tab into a new pane. A lone tab stays and an empty pane
+    /// opens on the other side; terminals open a new shell beside it instead.
     #[default]
-    ClonePane,
-    /// Create an empty new pane.
-    EmptyPane,
-    /// Move the item into a new pane. This will map to nop if only one pane exists.
     MovePane,
+    /// Open an empty pane; terminals open a new shell in the active one's folder.
+    EmptyPane,
 }
 
 macro_rules! split_structs {
@@ -367,14 +366,6 @@ actions!(
         JoinAll,
         /// Reopens the most recently closed item.
         ReopenClosedItem,
-        /// Splits the pane to the left, moving the current item.
-        SplitAndMoveLeft,
-        /// Splits the pane upward, moving the current item.
-        SplitAndMoveUp,
-        /// Splits the pane to the right, moving the current item.
-        SplitAndMoveRight,
-        /// Splits the pane downward, moving the current item.
-        SplitAndMoveDown,
         /// Swaps the current item with the one to the left.
         SwapItemLeft,
         /// Swaps the current item with the one to the right.
@@ -2090,22 +2081,8 @@ impl Pane {
         }
     }
 
-    pub fn split(&mut self, direction: SplitDirection, mode: SplitMode, window: &mut Window, cx: &mut Context<Self>) {
-        if self.items.len() <= 1 && mode == SplitMode::MovePane {
-            // MovePane with only one pane present behaves like a SplitEmpty in the opposite direction
-            let active_item = self.active_item();
-            cx.emit(Event::Split { direction: direction.opposite(), mode: SplitMode::EmptyPane });
-            // ensure that we focus the moved pane
-            // in this case we know that the window is the same as the active_item
-            if let Some(active_item) = active_item {
-                cx.defer_in(window, move |_, window, cx| {
-                    let focus_handle = active_item.item_focus_handle(cx);
-                    window.focus(&focus_handle, cx);
-                });
-            }
-        } else {
-            cx.emit(Event::Split { direction, mode });
-        }
+    pub fn split(&mut self, direction: SplitDirection, mode: SplitMode, cx: &mut Context<Self>) {
+        cx.emit(Event::Split { direction, mode });
     }
 
     /// Opens `item`'s preview in this pane or beside it. Deferred, since opening
@@ -3319,36 +3296,16 @@ impl Render for Pane {
                     }
                 }))
             })
-            .on_action(cx.listener(|pane, split: &SplitLeft, window, cx| {
-                pane.split(SplitDirection::Left, split.mode, window, cx)
-            }))
+            .on_action(cx.listener(|pane, split: &SplitLeft, _, cx| pane.split(SplitDirection::Left, split.mode, cx)))
+            .on_action(cx.listener(|pane, split: &SplitUp, _, cx| pane.split(SplitDirection::Up, split.mode, cx)))
             .on_action(
-                cx.listener(|pane, split: &SplitUp, window, cx| pane.split(SplitDirection::Up, split.mode, window, cx)),
+                cx.listener(|pane, split: &SplitHorizontal, _, cx| pane.split(SplitDirection::Down, split.mode, cx)),
             )
-            .on_action(cx.listener(|pane, split: &SplitHorizontal, window, cx| {
-                pane.split(SplitDirection::Down, split.mode, window, cx)
-            }))
-            .on_action(cx.listener(|pane, split: &SplitVertical, window, cx| {
-                pane.split(SplitDirection::Right, split.mode, window, cx)
-            }))
-            .on_action(cx.listener(|pane, split: &SplitRight, window, cx| {
-                pane.split(SplitDirection::Right, split.mode, window, cx)
-            }))
-            .on_action(cx.listener(|pane, split: &SplitDown, window, cx| {
-                pane.split(SplitDirection::Down, split.mode, window, cx)
-            }))
-            .on_action(cx.listener(|pane, _: &SplitAndMoveUp, window, cx| {
-                pane.split(SplitDirection::Up, SplitMode::MovePane, window, cx)
-            }))
-            .on_action(cx.listener(|pane, _: &SplitAndMoveDown, window, cx| {
-                pane.split(SplitDirection::Down, SplitMode::MovePane, window, cx)
-            }))
-            .on_action(cx.listener(|pane, _: &SplitAndMoveLeft, window, cx| {
-                pane.split(SplitDirection::Left, SplitMode::MovePane, window, cx)
-            }))
-            .on_action(cx.listener(|pane, _: &SplitAndMoveRight, window, cx| {
-                pane.split(SplitDirection::Right, SplitMode::MovePane, window, cx)
-            }))
+            .on_action(
+                cx.listener(|pane, split: &SplitVertical, _, cx| pane.split(SplitDirection::Right, split.mode, cx)),
+            )
+            .on_action(cx.listener(|pane, split: &SplitRight, _, cx| pane.split(SplitDirection::Right, split.mode, cx)))
+            .on_action(cx.listener(|pane, split: &SplitDown, _, cx| pane.split(SplitDirection::Down, split.mode, cx)))
             .on_action(cx.listener(|_, _: &JoinIntoNext, _, cx| {
                 cx.emit(Event::JoinIntoNext);
             }))
@@ -3937,6 +3894,14 @@ mod tests {
     use super::empty_pane_hints;
     use super::tab_drop_side;
     use super::tab_strip_height;
+
+    #[test]
+    fn split_actions_move_by_default_and_reject_clone() {
+        assert_eq!(super::SplitRight::default().mode, super::SplitMode::MovePane);
+        let empty: super::SplitDown = serde_json::from_str(r#"{"mode":"EmptyPane"}"#).unwrap();
+        assert_eq!(empty.mode, super::SplitMode::EmptyPane);
+        assert!(serde_json::from_str::<super::SplitDown>(r#"{"mode":"ClonePane"}"#).is_err());
+    }
 
     #[test]
     fn test_tab_strip_height() {

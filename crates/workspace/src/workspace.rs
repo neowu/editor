@@ -15,6 +15,7 @@ mod mode;
 pub mod notifications;
 pub mod pane;
 pub mod pane_group;
+mod pane_motion;
 pub mod path_list {
     pub use util::path_list::PathList;
     pub use util::path_list::SerializedPathList;
@@ -197,6 +198,7 @@ use util::rel_path::RelPath;
 use uuid::Uuid;
 
 use crate::item::ItemBufferKind;
+use crate::mode::DockMotion;
 use crate::mode::GIT_HISTORY_SIDEBAR_WIDTH;
 use crate::mode::ModeView;
 use crate::mode::TerminalLayout;
@@ -1036,6 +1038,8 @@ pub struct Workspace {
     workspace_actions: Vec<Box<dyn Fn(Div, &Workspace, &mut Window, &mut Context<Self>) -> Div>>,
     zoomed: Option<AnyWeakView>,
     previous_dock_drag_coordinates: Option<Point<Pixels>>,
+    /// Open/close overlay state of each dock (left, bottom, right).
+    dock_motions: [Rc<DockMotion>; 3],
     zoomed_position: Option<DockPosition>,
     maximized_pane: Option<WeakEntity<Pane>>,
     center: PaneGroup,
@@ -1308,6 +1312,7 @@ impl Workspace {
             zoomed_position: None,
             maximized_pane: None,
             previous_dock_drag_coordinates: None,
+            dock_motions: Default::default(),
             center,
             panes: vec![center_pane.clone()],
             panes_by_item: FxHashMap::default(),
@@ -1661,6 +1666,12 @@ impl Workspace {
             return false;
         }
         self.mode = mode;
+        // A mode switch replaces everything rather than changing a local layout.
+        match mode {
+            WorkspaceMode::Editor => self.center.snap_motion(),
+            WorkspaceMode::GitHistory => self.git_history_center.snap_motion(),
+            WorkspaceMode::Terminal => self.terminal_center.snap_motion(),
+        }
         cx.notify();
         true
     }
@@ -3993,8 +4004,7 @@ impl Workspace {
                     SplitMode::EmptyPane => {
                         self.split_pane(pane.clone(), *direction, window, cx);
                     }
-                    // A tab lives in one pane, so splitting moves it rather than cloning.
-                    SplitMode::MovePane | SplitMode::ClonePane => {
+                    SplitMode::MovePane => {
                         self.split_and_move(pane.clone(), *direction, window, cx);
                     }
                 };
@@ -4120,7 +4130,11 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // A lone tab can't leave its pane: an empty pane opens on the other side
+        // instead, which leaves the tab where it was asked to go, still focused.
         if pane.read(cx).items_len() < 2 {
+            self.split_pane(pane.clone(), direction.opposite(), window, cx);
+            window.focus(&pane.focus_handle(cx), cx);
             return;
         }
         let Some(item) = pane.update(cx, |pane, cx| pane.take_active_item(window, cx)) else {

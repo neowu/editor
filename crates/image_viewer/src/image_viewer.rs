@@ -568,28 +568,6 @@ impl Item for ImageView {
         FileIcons::get_icon(&path, cx).map(Icon::from_path)
     }
 
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, _window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        Task::ready(Some(cx.new(|cx| Self {
-            image_item: self.image_item.clone(),
-            project: self.project.clone(),
-            focus_handle: cx.focus_handle(),
-            zoom_level: self.zoom_level,
-            pan_offset: self.pan_offset,
-            last_mouse_position: None,
-            container_bounds: None,
-            image_size: self.image_size,
-            pending_image: None,
-            displayed_image: None,
-        })))
-    }
-
     fn has_deleted_file(&self, cx: &App) -> bool {
         self.image_item.read(cx).file.disk_state().is_deleted()
     }

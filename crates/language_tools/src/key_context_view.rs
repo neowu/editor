@@ -2,7 +2,6 @@ use ed_actions::dev::OpenKeyContextView;
 use gpui::Action;
 use gpui::App;
 use gpui::AppContext as _;
-use gpui::Entity;
 use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;
@@ -12,7 +11,6 @@ use gpui::Keystroke;
 use gpui::MouseButton;
 use gpui::Render;
 use gpui::Subscription;
-use gpui::Task;
 use itertools::Itertools;
 use serde_json::json;
 use ui::Button;
@@ -144,17 +142,6 @@ impl Item for KeyContextView {
 
     fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
         "Keyboard Context".into()
-    }
-
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        Task::ready(Some(cx.new(|cx| KeyContextView::new(window, cx))))
     }
 }
 

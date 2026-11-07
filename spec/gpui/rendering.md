@@ -20,6 +20,21 @@
 
 ## Animations
 
+- `gpui::spring` holds only the shared motion math; there is no generic
+  animated-element layer. Each caller owns its state and frame loop (advance in
+  prepaint, `request_animation_frame` while moving, return early once
+  settled), which keeps per-frame work specific and skippable.
+- `Decay` is friction-style deceleration (exponential decay, no overshoot,
+  like a flung scroll) and is the feel for surfaces moving: pane motion and
+  dock open/close use `motion::GLIDE`. Callers compute `remaining(dt)` once per
+  frame and apply it to every value.
+- `SpringConfig` (exact closed-form steps for any damping ratio, frame-rate
+  independent) is for motion that must keep velocity across retargets: the
+  cursor trail (critically damped, `from_canonical(ω, 1)`).
+- Animation must not cost layout: animate a cheap overlay or paint-only value
+  over the final layout rather than sizes that invalidate cached views (their
+  cache key includes bounds). Dragging is never animated. A dock or pane
+  animation frame costs about one cursor-move frame (~3–5 ms, no shaping).
 - Rotating spinners (`CommonAnimationExt::with_rotate_animation`) schedule
   their own redraws at up to 10 Hz (`Animation::with_max_fps`) instead of every
   vsync. Other updates can still render them sooner; phase follows the clock.

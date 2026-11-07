@@ -175,7 +175,6 @@ enum DisplayItem {
 }
 
 pub struct HighlightsTreeView {
-    workspace_handle: WeakEntity<Workspace>,
     editor: Option<EditorState>,
     list_scroll_handle: UniformListScrollHandle,
     selected_item_ix: Option<usize>,
@@ -224,7 +223,6 @@ impl HighlightsTreeView {
         cx: &mut Context<Self>,
     ) -> Self {
         let mut this = Self {
-            workspace_handle: workspace_handle.clone(),
             list_scroll_handle: UniformListScrollHandle::new(),
             editor: None,
             hovered_item_ix: None,
@@ -815,27 +813,6 @@ impl Item for HighlightsTreeView {
 
     fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
         "Highlights".into()
-    }
-
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        Task::ready(Some(cx.new(|cx| {
-            let mut clone = Self::new(self.workspace_handle.clone(), None, window, cx);
-            clone.show_text_highlights = self.show_text_highlights;
-            clone.show_syntax_tokens = self.show_syntax_tokens;
-            clone.show_semantic_tokens = self.show_semantic_tokens;
-            clone.skip_next_scroll = false;
-            if let Some(editor) = &self.editor {
-                clone.set_editor(editor.editor.clone(), window, cx)
-            }
-            clone
-        })))
     }
 
     fn on_removed(&self, cx: &mut Context<Self>) {

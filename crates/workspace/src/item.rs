@@ -9,7 +9,6 @@ use gpui::AnyElement;
 use gpui::AnyEntity;
 use gpui::AnyView;
 use gpui::App;
-use gpui::AppContext;
 use gpui::Context;
 use gpui::Entity;
 use gpui::EntityId;
@@ -185,16 +184,6 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
 
     fn set_nav_history(&mut self, _: ItemNavHistory, _window: &mut Window, _: &mut Context<Self>) {}
 
-    fn can_split(&self) -> bool {
-        false
-    }
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        _ = (window, cx);
-        unimplemented!("clone_on_split() must be implemented if can_split() returns true")
-    }
     fn is_dirty(&self, _: &App) -> bool {
         false
     }
@@ -350,8 +339,6 @@ pub trait ItemHandle: 'static + Send {
     fn for_each_project_item(&self, _: &App, _: &mut dyn FnMut(EntityId, &dyn project::ProjectItem));
     fn buffer_kind(&self, cx: &App) -> ItemBufferKind;
     fn boxed_clone(&self) -> Box<dyn ItemHandle>;
-    fn can_split(&self, cx: &App) -> bool;
-    fn clone_on_split(&self, window: &mut Window, cx: &mut App) -> Task<Option<Box<dyn ItemHandle>>>;
     fn added_to_pane(
         &self,
         workspace: &mut Workspace,
@@ -494,15 +481,6 @@ impl<T: Item> ItemHandle for Entity<T> {
 
     fn boxed_clone(&self) -> Box<dyn ItemHandle> {
         Box::new(self.clone())
-    }
-
-    fn can_split(&self, cx: &App) -> bool {
-        self.read(cx).can_split()
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut App) -> Task<Option<Box<dyn ItemHandle>>> {
-        let task = self.update(cx, |item, cx| item.clone_on_split(window, cx));
-        cx.background_spawn(async move { task.await.map(|handle| Box::new(handle) as Box<dyn ItemHandle>) })
     }
 
     fn added_to_pane(

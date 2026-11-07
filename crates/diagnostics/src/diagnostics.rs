@@ -104,7 +104,6 @@ pub fn init(cx: &mut App) {
 
 pub(crate) struct ProjectDiagnosticsEditor {
     pub project: Entity<Project>,
-    workspace: WeakEntity<Workspace>,
     focus_handle: FocusHandle,
     editor: Entity<Editor>,
     diagnostics: FxHashMap<BufferId, Vec<DiagnosticEntry<text::Anchor>>>,
@@ -153,12 +152,7 @@ impl ProjectDiagnosticsEditor {
         workspace.register_action(Self::deploy);
     }
 
-    fn new(
-        project_handle: Entity<Project>,
-        workspace: WeakEntity<Workspace>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    fn new(project_handle: Entity<Project>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let project_event_subscription =
             cx.subscribe_in(&project_handle, window, |this, _project, event, window, cx| match event {
                 project::Event::DiskBasedDiagnosticsStarted { .. } => {
@@ -226,7 +220,6 @@ impl ProjectDiagnosticsEditor {
             summary: project.diagnostic_summary(false, cx),
             diagnostics: FxHashMap::default(),
             blocks: FxHashMap::default(),
-            workspace,
             multibuffer: excerpts,
             focus_handle,
             editor,
@@ -316,10 +309,7 @@ impl ProjectDiagnosticsEditor {
 
             workspace.activate_item(&existing, true, !is_active, window, cx);
         } else {
-            let workspace_handle = cx.entity().downgrade();
-
-            let diagnostics =
-                cx.new(|cx| ProjectDiagnosticsEditor::new(workspace.project().clone(), workspace_handle, window, cx));
+            let diagnostics = cx.new(|cx| ProjectDiagnosticsEditor::new(workspace.project().clone(), window, cx));
             workspace.add_item_to_active_pane(Box::new(diagnostics), None, true, window, cx);
         }
     }
@@ -625,19 +615,6 @@ impl Item for ProjectDiagnosticsEditor {
         self.editor.update(cx, |editor, _| {
             editor.set_nav_history(Some(nav_history));
         });
-    }
-
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        Task::ready(Some(
-            cx.new(|cx| ProjectDiagnosticsEditor::new(self.project.clone(), self.workspace.clone(), window, cx)),
-        ))
     }
 
     fn is_dirty(&self, cx: &App) -> bool {

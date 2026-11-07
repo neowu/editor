@@ -53,7 +53,7 @@ impl Workspace {
         let zoomed_pane = self.zoomed_pane(WorkspaceMode::GitHistory, cx);
         let side_card = self.git_history_side_card(cx);
         let panes = match zoomed_pane {
-            Some(zoomed_pane) => zoomed_pane.into_any_element(),
+            Some(zoomed_pane) => self.git_history_center.render_zoomed(&zoomed_pane, cx).into_any_element(),
             None => {
                 let weak_handle = self.weak_handle();
                 let render_cx = PaneRenderContext { active_pane: &pane, workspace: &weak_handle };
@@ -184,9 +184,12 @@ impl Workspace {
             SplitMode::EmptyPane => {
                 self.split_git_history_pane_empty(&pane, direction, window, cx);
             }
-            // A tab lives in one pane, so splitting moves it and needs another tab left behind.
-            SplitMode::MovePane | SplitMode::ClonePane => {
+            SplitMode::MovePane => {
+                // A lone tab stays, with an empty pane on the other side (as in the editor).
                 if pane.read(cx).items_len() < 2 {
+                    let new_pane = self.add_git_history_pane(window, cx);
+                    self.git_history_center.split(&pane, &new_pane, direction.opposite(), cx);
+                    self.notify_mode(WorkspaceMode::GitHistory, cx);
                     return;
                 }
                 let Some(item) = pane.update(cx, |pane, cx| pane.take_active_item(window, cx)) else {

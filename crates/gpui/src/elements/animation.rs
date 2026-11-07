@@ -14,11 +14,6 @@ use crate::ElementId;
 use crate::GlobalElementId;
 use crate::IntoElement;
 use crate::ParentElement;
-use crate::SpringAnimation;
-use crate::SpringConfig;
-use crate::SpringPlayback;
-use crate::SpringState;
-use crate::SpringTarget;
 use crate::Window;
 
 /// An animation that can be applied to an element.
@@ -114,36 +109,6 @@ pub trait AnimationExt {
             animations: animations.into(),
         }
     }
-
-    /// Renders this component or element at the value produced by a spring.
-    ///
-    /// The element ID preserves position and velocity across target changes.
-    /// A newly mounted spring starts at its target unless configured with
-    /// [`SpringAnimation::from`].
-    fn with_spring<T>(
-        self,
-        id: impl Into<ElementId>,
-        animation: SpringAnimation<T>,
-        animator: impl FnOnce(Self, T::Output) -> Self + 'static,
-    ) -> SpringAnimationElement<Self>
-    where
-        Self: Sized,
-        T: SpringTarget,
-        T::Output: 'static,
-    {
-        let SpringAnimation { config, target, epsilon, initial, playback } = animation;
-        let scalar_target = target.target();
-        SpringAnimationElement {
-            id: id.into(),
-            element: Some(self),
-            config,
-            target: scalar_target,
-            epsilon,
-            initial,
-            playback,
-            animator: Some(Box::new(move |this, value| animator(this, target.resolve(value)))),
-        }
-    }
 }
 
 impl<E: IntoElement + 'static> AnimationExt for E {}
@@ -154,45 +119,6 @@ pub struct AnimationElement<E> {
     element: Option<E>,
     animations: SmallVec<[Animation; 1]>,
     animator: Box<dyn Fn(E, usize, f32) -> E + 'static>,
-}
-
-/// A GPUI element driven by a stateful spring.
-pub struct SpringAnimationElement<E> {
-    id: ElementId,
-    element: Option<E>,
-    config: SpringConfig,
-    target: f32,
-    epsilon: f32,
-    initial: Option<f32>,
-    playback: SpringPlayback,
-    animator: Option<Box<dyn FnOnce(E, f32) -> E + 'static>>,
-}
-
-impl<E: ParentElement> ParentElement for SpringAnimationElement<E> {
-    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
-        let Some(element) = &mut self.element else {
-            return;
-        };
-
-        element.extend(elements);
-    }
-}
-
-impl<E> SpringAnimationElement<E> {
-    /// Returns a new [`SpringAnimationElement<E>`] after applying the given function
-    /// to the element being animated.
-    pub fn map_element(mut self, f: impl FnOnce(E) -> E) -> SpringAnimationElement<E> {
-        self.element = self.element.map(f);
-        self
-    }
-}
-
-impl<E: IntoElement + 'static> IntoElement for SpringAnimationElement<E> {
-    type Element = SpringAnimationElement<E>;
-
-    fn into_element(self) -> Self::Element {
-        self
-    }
 }
 
 impl<E: ParentElement> ParentElement for AnimationElement<E> {
@@ -228,116 +154,6 @@ struct AnimationState {
     /// Whether a throttled re-render (see [`Animation::with_max_fps`]) is
     /// already scheduled, so overlapping renders don't stack extra timers.
     delayed_frame_pending: Rc<Cell<bool>>,
-}
-
-struct SpringElementState {
-    spring: SpringState,
-    target: f32,
-    config: SpringConfig,
-    initial: f32,
-    playback: SpringPlayback,
-    updated_at: Instant,
-}
-
-impl<E: IntoElement + 'static> Element for SpringAnimationElement<E> {
-    type RequestLayoutState = AnyElement;
-    type PrepaintState = ();
-
-    fn id(&self) -> Option<ElementId> {
-        Some(self.id.clone())
-    }
-
-    fn request_layout(
-        &mut self,
-        global_id: Option<&GlobalElementId>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> (crate::LayoutId, Self::RequestLayoutState) {
-        window.with_element_state(global_id.unwrap(), |state, window| {
-            let now = Instant::now();
-            let initial = self.initial.unwrap_or(self.target);
-            let mut state = state.unwrap_or(SpringElementState {
-                spring: SpringState { position: initial, velocity: 0.0 },
-                target: self.target,
-                config: self.config,
-                initial,
-                playback: self.playback,
-                updated_at: now,
-            });
-
-            let elapsed = now.duration_since(state.updated_at).as_secs_f32();
-            match state.playback {
-                SpringPlayback::Running => {
-                    state.spring = state.config.step(state.spring, state.target, elapsed);
-                }
-                SpringPlayback::Paused
-                | SpringPlayback::Stopped
-                | SpringPlayback::Completed
-                | SpringPlayback::Cancelled => {}
-            }
-
-            state.config = self.config;
-            state.target = self.target;
-
-            let done = match self.playback {
-                SpringPlayback::Running => {
-                    let done = state.config.is_settled(state.spring, state.target, self.epsilon);
-                    if done {
-                        state.spring = SpringState { position: state.target, velocity: 0.0 };
-                    }
-                    done
-                }
-                SpringPlayback::Paused => true,
-                SpringPlayback::Stopped => {
-                    state.spring.velocity = 0.0;
-                    true
-                }
-                SpringPlayback::Completed => {
-                    state.spring = SpringState { position: state.target, velocity: 0.0 };
-                    true
-                }
-                SpringPlayback::Cancelled => {
-                    state.spring = SpringState { position: state.initial, velocity: 0.0 };
-                    true
-                }
-            };
-            state.playback = self.playback;
-            state.updated_at = now;
-
-            let element = self.element.take().expect("should only be called once");
-            let animator = self.animator.take().expect("should only be called once");
-            let mut element = animator(element, state.spring.position).into_any_element();
-
-            if !done {
-                window.request_animation_frame();
-            }
-
-            ((element.request_layout(window, cx), element), state)
-        })
-    }
-
-    fn prepaint(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _bounds: crate::Bounds<crate::Pixels>,
-        element: &mut Self::RequestLayoutState,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Self::PrepaintState {
-        element.prepaint(window, cx);
-    }
-
-    fn paint(
-        &mut self,
-        _id: Option<&GlobalElementId>,
-        _bounds: crate::Bounds<crate::Pixels>,
-        element: &mut Self::RequestLayoutState,
-        _: &mut Self::PrepaintState,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        element.paint(window, cx);
-    }
 }
 
 impl<E: IntoElement + 'static> Element for AnimationElement<E> {

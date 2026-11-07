@@ -457,34 +457,6 @@ impl ProjectSearch {
         }
     }
 
-    fn clone(&self, cx: &mut Context<Self>) -> Entity<Self> {
-        cx.new(|cx| {
-            let excerpts = self.excerpts.update(cx, |excerpts, cx| cx.new(|cx| excerpts.clone(cx)));
-            let excerpts_subscription = Self::subscribe_to_excerpts(&excerpts, cx);
-            let workspace_subscription = Self::subscribe_to_workspace(&self.workspace, cx);
-
-            Self {
-                project: self.project.clone(),
-                workspace: self.workspace.clone(),
-                excerpts,
-                pending_search: Option::default(),
-                match_ranges: self.match_ranges.clone(),
-                active_query: self.active_query.clone(),
-                last_search_query_text: self.last_search_query_text.clone(),
-                search_id: self.search_id,
-                search_state: if self.pending_search.is_some() { SearchState::Idle } else { self.search_state },
-                phase: if self.phase == SearchPhase::Confirmed { SearchPhase::Confirmed } else { SearchPhase::Idle },
-                reuses_excerpts: false,
-                results_refreshed: true,
-                search_history_cursor: self.search_history_cursor.clone(),
-                search_included_history_cursor: self.search_included_history_cursor.clone(),
-                search_excluded_history_cursor: self.search_excluded_history_cursor.clone(),
-                project_search_turning_into_text_finder: Arc::new(AtomicBool::new(false)),
-                _excerpts_subscription: excerpts_subscription,
-                _workspace_subscription: workspace_subscription,
-            }
-        })
-    }
     fn subscribe_to_excerpts(excerpts: &Entity<MultiBuffer>, cx: &mut Context<Self>) -> Subscription {
         cx.subscribe(excerpts, |this, _, event, cx| {
             if matches!(event, multi_buffer::Event::FileHandleChanged) {
@@ -1142,18 +1114,6 @@ impl Item for ProjectSearchView {
         cx: &mut Context<Self>,
     ) -> Task<anyhow::Result<()>> {
         self.results_editor.update(cx, |editor, cx| editor.reload(project, window, cx))
-    }
-
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        let model = self.entity.update(cx, |model, cx| model.clone(cx));
-        Task::ready(Some(cx.new(|cx| Self::new(self.workspace.clone(), model, window, cx, None))))
     }
 
     fn added_to_workspace(&mut self, workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Self>) {

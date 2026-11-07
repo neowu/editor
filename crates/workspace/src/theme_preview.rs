@@ -1,11 +1,9 @@
 use gpui::App;
 use gpui::AppContext as _;
-use gpui::Entity;
 use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::Hsla;
-use gpui::Task;
 use gpui::actions;
 use strum::IntoEnumIterator;
 use theme::all_theme_colors;
@@ -113,14 +111,6 @@ impl Item for ThemePreview {
     fn tab_content_text(&self, _detail: usize, cx: &App) -> SharedString {
         let name = cx.theme().name.clone();
         format!("{} Preview", name).into()
-    }
-
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, _: &mut Window, cx: &mut Context<ThemePreview>) -> Task<Option<Entity<ThemePreview>>> {
-        Task::ready(Some(cx.new(|cx| ThemePreview::new(cx))))
     }
 }
 

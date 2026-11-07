@@ -101,7 +101,6 @@ actions!(
 pub(crate) struct DeployBranchDiff;
 
 pub struct ProjectDiff {
-    project: Entity<Project>,
     workspace: WeakEntity<Workspace>,
     diff: Entity<DiffMultibuffer>,
     _diff_event_subscription: Subscription,
@@ -211,15 +210,10 @@ impl ProjectDiff {
                 cx,
             )
         });
-        Self::from_diff(diff, project, workspace, cx)
+        Self::from_diff(diff, workspace, cx)
     }
 
-    fn from_diff(
-        diff: Entity<DiffMultibuffer>,
-        project: Entity<Project>,
-        workspace: Entity<Workspace>,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    fn from_diff(diff: Entity<DiffMultibuffer>, workspace: Entity<Workspace>, cx: &mut Context<Self>) -> Self {
         let diff_event_subscription = cx.subscribe(&diff, |_, _, event: &EditorEvent, cx| {
             if event == &(EditorEvent::SelectionsChanged { local: true }) {
                 cx.emit(event.clone())
@@ -228,7 +222,6 @@ impl ProjectDiff {
         let diff_observation = cx.observe(&diff, |_, _, cx| cx.notify());
 
         Self {
-            project,
             workspace: workspace.downgrade(),
             diff,
             _diff_event_subscription: diff_event_subscription,
@@ -374,20 +367,6 @@ impl Item for ProjectDiff {
 
     fn set_nav_history(&mut self, nav_history: ItemNavHistory, _: &mut Window, cx: &mut Context<Self>) {
         self.diff.update(cx, |diff, cx| diff.set_nav_history(nav_history, cx));
-    }
-
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        let Some(workspace) = self.workspace.upgrade() else {
-            return Task::ready(None);
-        };
-        Task::ready(Some(cx.new(|cx| ProjectDiff::new(self.project.clone(), workspace, window, cx))))
     }
 
     fn is_dirty(&self, cx: &App) -> bool {

@@ -1393,34 +1393,6 @@ impl Item for MarkdownPreviewView {
         Some(Box::new(handle.clone()))
     }
 
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        let Some(active_editor) = self.active_editor.as_ref() else {
-            return Task::ready(None);
-        };
-
-        let Some(project) = active_editor.editor.read(cx).project() else {
-            return Task::ready(None);
-        };
-
-        let language_registry = project.read(cx).languages().clone();
-
-        Task::ready(Some(MarkdownPreviewView::new(
-            MarkdownPreviewMode::Default,
-            active_editor.editor.clone(),
-            self.workspace.clone(),
-            language_registry,
-            window,
-            cx,
-        )))
-    }
-
     fn set_nav_history(&mut self, history: ItemNavHistory, _window: &mut Window, _: &mut Context<Self>) {
         self.nav_history = Some(history);
     }

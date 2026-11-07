@@ -14,6 +14,8 @@ use std::time::Instant;
 use gpui::Bounds;
 use gpui::Pixels;
 use gpui::Point;
+use gpui::SpringConfig;
+use gpui::SpringState;
 use gpui::point;
 use gpui::px;
 use rustc_hash::FxHashMap;
@@ -164,10 +166,10 @@ impl CursorGeometry {
     }
 }
 
+/// A critically damped gpui spring holding a corner's offset from its target (rest is 0).
 #[derive(Clone, Copy, Debug, Default)]
 struct DampedSpringAnimation {
-    position: f32,
-    velocity: f32,
+    state: SpringState,
 }
 
 impl DampedSpringAnimation {
@@ -176,36 +178,32 @@ impl DampedSpringAnimation {
             || elapsed_seconds < 0.0
             || !animation_length.is_finite()
             || animation_length <= elapsed_seconds
-            || self.position.abs() < SPRING_RESET_EPSILON
+            || self.state.position.abs() < SPRING_RESET_EPSILON
         {
             self.reset();
             return false;
         }
 
         if elapsed_seconds == 0.0 {
-            return self.position.abs() >= SPRING_ACTIVE_EPSILON;
+            return self.state.position.abs() >= SPRING_ACTIVE_EPSILON;
         }
 
-        let angular_frequency = 4.0 / animation_length;
-        let initial_position = self.position;
-        let combined_velocity = self.position * angular_frequency + self.velocity;
-        let decay = (-angular_frequency * elapsed_seconds).exp();
-        self.position = (initial_position + combined_velocity * elapsed_seconds) * decay;
-        self.velocity = decay
-            * (-initial_position * angular_frequency - combined_velocity * elapsed_seconds * angular_frequency
-                + combined_velocity);
+        // ω = 4 / length settles (to ~e⁻⁴) in roughly `animation_length`.
+        self.state = SpringConfig::from_canonical(4.0 / animation_length, 1.0).step(self.state, 0.0, elapsed_seconds);
 
-        if !self.position.is_finite() || !self.velocity.is_finite() || self.position.abs() < SPRING_RESET_EPSILON {
+        if !self.state.position.is_finite()
+            || !self.state.velocity.is_finite()
+            || self.state.position.abs() < SPRING_RESET_EPSILON
+        {
             self.reset();
             return false;
         }
 
-        self.position.abs() >= SPRING_ACTIVE_EPSILON
+        self.state.position.abs() >= SPRING_ACTIVE_EPSILON
     }
 
     const fn reset(&mut self) {
-        self.position = 0.0;
-        self.velocity = 0.0;
+        self.state = SpringState { position: 0.0, velocity: 0.0 };
     }
 }
 
@@ -282,28 +280,28 @@ impl Corner {
         }
 
         self.target_position = destination;
-        self.horizontal_animation.position = destination.x - self.current_position.x;
-        self.vertical_animation.position = destination.y - self.current_position.y;
+        self.horizontal_animation.state.position = destination.x - self.current_position.x;
+        self.vertical_animation.state.position = destination.y - self.current_position.y;
     }
 
     fn update(&mut self, elapsed_seconds: f32, max_trail_distance: f32) -> bool {
         self.horizontal_animation.update(elapsed_seconds, self.animation_length);
         self.vertical_animation.update(elapsed_seconds, self.animation_length);
-        self.horizontal_animation.position =
-            self.horizontal_animation.position.clamp(-max_trail_distance, max_trail_distance);
-        self.vertical_animation.position =
-            self.vertical_animation.position.clamp(-max_trail_distance, max_trail_distance);
+        self.horizontal_animation.state.position =
+            self.horizontal_animation.state.position.clamp(-max_trail_distance, max_trail_distance);
+        self.vertical_animation.state.position =
+            self.vertical_animation.state.position.clamp(-max_trail_distance, max_trail_distance);
         self.current_position = AnimationPoint {
-            x: self.target_position.x - self.horizontal_animation.position,
-            y: self.target_position.y - self.vertical_animation.position,
+            x: self.target_position.x - self.horizontal_animation.state.position,
+            y: self.target_position.y - self.vertical_animation.state.position,
         };
-        self.horizontal_animation.position.abs() > CORNER_ACTIVE_DISTANCE
-            || self.vertical_animation.position.abs() > CORNER_ACTIVE_DISTANCE
+        self.horizontal_animation.state.position.abs() > CORNER_ACTIVE_DISTANCE
+            || self.vertical_animation.state.position.abs() > CORNER_ACTIVE_DISTANCE
     }
 }
 
 #[derive(Clone)]
-pub(crate) struct CursorAnimationState {
+pub(crate) struct CursorMotionState {
     corners: [Corner; 4],
     target_geometry: Option<CursorGeometry>,
     last_logical_position: Option<LogicalCursorPosition>,
@@ -313,13 +311,13 @@ pub(crate) struct CursorAnimationState {
 }
 
 #[derive(Default)]
-pub(crate) struct CursorAnimationStates {
-    states: FxHashMap<usize, CursorAnimationState>,
+pub(crate) struct CursorMotionStates {
+    states: FxHashMap<usize, CursorMotionState>,
     newest_selection_id: Option<usize>,
-    newest_state: Option<CursorAnimationState>,
+    newest_state: Option<CursorMotionState>,
 }
 
-impl CursorAnimationStates {
+impl CursorMotionStates {
     pub(crate) fn reconcile_newest_selection(&mut self, newest_selection_id: Option<usize>) {
         // Mouse selection begins with a fresh pending selection id. Seed that id from an
         // independent snapshot of the previous newest cursor's geometry and velocity. The
@@ -376,7 +374,7 @@ impl CursorAnimationStates {
     }
 }
 
-impl Default for CursorAnimationState {
+impl Default for CursorMotionState {
     fn default() -> Self {
         const RELATIVE_POSITIONS: [AnimationPoint; 4] = [
             AnimationPoint { x: -0.5, y: -0.5 },
@@ -396,7 +394,7 @@ impl Default for CursorAnimationState {
     }
 }
 
-impl CursorAnimationState {
+impl CursorMotionState {
     pub(crate) fn update(
         &mut self,
         logical_position: LogicalCursorPosition,
@@ -516,10 +514,9 @@ impl CursorAnimationState {
         for (index, corner) in self.corners.iter_mut().enumerate() {
             corner.retarget(geometry, ranks[index]);
         }
-        self.active = self
-            .corners
-            .iter()
-            .any(|corner| corner.horizontal_animation.position != 0.0 || corner.vertical_animation.position != 0.0);
+        self.active = self.corners.iter().any(|corner| {
+            corner.horizontal_animation.state.position != 0.0 || corner.vertical_animation.state.position != 0.0
+        });
     }
 
     fn elapsed_since_last_frame(&self, now: Instant) -> Duration {
@@ -580,4 +577,87 @@ pub(crate) fn animated_corners_overlap_target(target_bounds: Bounds<Pixels>, cor
     let animated_bounds = Bounds::from_corners(point(min_x, min_y), point(max_x, max_y));
 
     animated_bounds.intersects(&target_bounds)
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::size;
+
+    use super::*;
+
+    #[test]
+    fn damped_spring_decays_without_overshoot() {
+        let mut spring = DampedSpringAnimation { state: SpringState { position: 100.0, velocity: 0.0 } };
+        let mut previous = spring.state.position;
+        let mut steps = 0;
+        while spring.update(1.0 / 120.0, ANIMATION_LENGTH_SECONDS) {
+            assert!(spring.state.position > 0.0 && spring.state.position < previous);
+            previous = spring.state.position;
+            steps += 1;
+            assert!(steps < 120, "spring never settled");
+        }
+    }
+
+    #[test]
+    fn damped_spring_resets_on_long_frame_or_tiny_offset() {
+        let mut spring = DampedSpringAnimation { state: SpringState { position: 10.0, velocity: 5.0 } };
+        assert!(!spring.update(1.0, ANIMATION_LENGTH_SECONDS));
+        assert_eq!(spring.state, SpringState::default());
+
+        let mut spring = DampedSpringAnimation { state: SpringState { position: 0.0005, velocity: 0.0 } };
+        assert!(!spring.update(0.01, ANIMATION_LENGTH_SECONDS));
+        assert_eq!(spring.state, SpringState::default());
+
+        let mut spring = DampedSpringAnimation { state: SpringState { position: 5.0, velocity: 0.0 } };
+        assert!(spring.update(0.0, ANIMATION_LENGTH_SECONDS));
+        assert_eq!(spring.state.position, 5.0);
+    }
+
+    fn viewport() -> CursorViewport {
+        CursorViewport::new(
+            point(px(0.), px(0.)),
+            Bounds::new(point(px(0.), px(0.)), size(px(800.), px(600.))),
+            Point::default(),
+            Point::default(),
+            px(20.),
+            px(8.),
+        )
+    }
+
+    fn cursor_at(x: f32, y: f32) -> Bounds<Pixels> {
+        Bounds::new(point(px(x), px(y)), size(px(2.), px(20.)))
+    }
+
+    #[test]
+    fn cursor_animates_to_new_position_and_settles() {
+        let mut state = CursorMotionState::default();
+        let start = Instant::now();
+        let first = LogicalCursorPosition { row: 0, column: 0 };
+        assert!(state.update(first, cursor_at(0., 0.), viewport(), start).is_none());
+
+        let second = LogicalCursorPosition { row: 5, column: 20 };
+        let target = cursor_at(160., 100.);
+        let corners = state.update(second, target, viewport(), start).expect("move should animate");
+        assert!(!animated_corners_overlap_target(target, &corners));
+
+        let mut now = start;
+        let mut frames = 0;
+        while state.update(second, target, viewport(), now).is_some() {
+            now += Duration::from_millis(8);
+            frames += 1;
+            assert!(frames < 60, "cursor animation never settled");
+        }
+        assert!(frames > 1);
+    }
+
+    #[test]
+    fn cursor_snaps_when_layout_changes() {
+        let mut state = CursorMotionState::default();
+        let now = Instant::now();
+        state.update(LogicalCursorPosition { row: 0, column: 0 }, cursor_at(0., 0.), viewport(), now);
+        let mut resized = viewport();
+        resized.line_height = px(24.);
+        let moved = state.update(LogicalCursorPosition { row: 3, column: 3 }, cursor_at(24., 72.), resized, now);
+        assert!(moved.is_none());
+    }
 }

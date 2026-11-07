@@ -576,25 +576,6 @@ impl Item for BufferDiagnosticsEditor {
         true
     }
 
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        Task::ready(Some(cx.new(|cx| {
-            BufferDiagnosticsEditor::new(
-                self.project_path.clone(),
-                self.project.clone(),
-                self.buffer.clone(),
-                window,
-                cx,
-            )
-        })))
-    }
-
     fn deactivated(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.editor.update(cx, |editor, cx| editor.deactivated(window, cx));
     }

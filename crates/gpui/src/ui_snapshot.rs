@@ -78,6 +78,11 @@ impl Window {
         self.invalidator.is_dirty()
     }
 
+    /// Whether something (an animation) asked for the next platform frame.
+    pub fn wants_next_frame(&self) -> bool {
+        !self.next_frame_callbacks.borrow().is_empty()
+    }
+
     /// Draw a new frame now if the window is dirty. The platform presents it on its next frame.
     pub fn draw_if_dirty(&mut self, cx: &mut App) {
         if self.is_dirty() {

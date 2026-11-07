@@ -5,6 +5,7 @@ mod editor;
 mod git_history;
 mod terminal;
 
+pub(crate) use editor::DockMotion;
 pub(crate) use git_history::GIT_HISTORY_SIDEBAR_WIDTH;
 use gpui::AnyElement;
 use gpui::App;

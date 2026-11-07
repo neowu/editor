@@ -174,8 +174,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
     "no split buttons": `+` (new shell in the project's default directory),
     Split Right (`cmd-d`), Split Down (`cmd-shift-d`), then Zoom. A split
     (button, `pane::Split*`) opens
-    a new pane with a shell in the active terminal's working directory;
-    dragging a tab to an edge moves it, as elsewhere.
+    a new pane with a shell in the active terminal's working directory,
+    focused, on the side asked for; only a move split of a pane with another
+    tab left behind moves the tab instead. Dragging a tab to an edge moves it,
+    as elsewhere.
   - `workspace::NewTerminal` opens in terminal mode's active pane while that
     mode is shown, else in the terminal panel. "Open in Terminal"
     (`workspace::OpenTerminal`, from the project panel, outline panel, tab and
@@ -195,8 +197,11 @@ because it hurt readability; an opaque window is also cheaper to composite.
   its tab wherever it is; the pane passed by the caller (or the active pane)
   only decides where new tabs go. "Open to the side" on an open file reveals it
   rather than splitting. Splitting (`pane::Split*`, dragging
-  a tab to an edge) moves the active tab into the new pane, so it needs another
-  tab left behind; nothing is cloned. Dragging a pane's only tab over that
+  a tab to an edge) moves the active tab into the new pane; nothing is cloned,
+  and there is no clone split mode (`SplitMode` is only `MovePane`, the
+  default, and `EmptyPane`). A pane's only tab can't leave it, so splitting it
+  opens an empty pane on the other side instead, leaving the tab, still
+  focused, on the side asked for. Dragging a pane's only tab over that
   same pane offers no split zones (every pane, terminal included), since the
   drop would just move the pane.
 - One back/forward history covers every center and Git History pane. Going back

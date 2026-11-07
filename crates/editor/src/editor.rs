@@ -57,7 +57,7 @@ mod code_actions;
 mod columnar_selection;
 mod completions;
 mod config;
-mod cursor_animation;
+mod cursor_motion;
 mod diagnostics;
 mod input;
 mod markdown_actions;
@@ -349,7 +349,7 @@ pub use completions::CompletionProvider;
 pub(crate) use completions::split_words;
 use convert_case::Case;
 use convert_case::Casing;
-use cursor_animation::CursorAnimationStates;
+use cursor_motion::CursorMotionStates;
 use diagnostics::ActiveDiagnostic;
 pub use diagnostics::DiagnosticRenderer;
 use diagnostics::GlobalDiagnosticRenderer;
@@ -1203,7 +1203,7 @@ pub struct Editor {
     completion_provider: Option<Rc<dyn CompletionProvider>>,
 
     blink_manager: Entity<BlinkManager>,
-    cursor_animations: CursorAnimationStates,
+    cursor_motions: CursorMotionStates,
 
     pub show_local_selections: bool,
     mode: EditorMode,
@@ -2098,7 +2098,7 @@ impl Editor {
 
             project,
             blink_manager: blink_manager.clone(),
-            cursor_animations: CursorAnimationStates::default(),
+            cursor_motions: CursorMotionStates::default(),
             show_local_selections: true,
             show_horizontal_scrollbar: full_mode,
             minimap_visibility: MinimapVisibility::for_mode(&mode),
@@ -7574,7 +7574,7 @@ impl Editor {
     }
 
     fn handle_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.cursor_animations.clear();
+        self.cursor_motions.clear();
         cx.emit(EditorEvent::Focused);
 
         if let Some(descendant) = self.last_focused_descendant.take().and_then(|descendant| descendant.upgrade()) {
@@ -7627,7 +7627,7 @@ impl Editor {
     }
 
     pub fn handle_blur(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.cursor_animations.clear();
+        self.cursor_motions.clear();
         self.blink_manager.update(cx, BlinkManager::disable);
         self.buffer.update(cx, |buffer, cx| buffer.remove_active_selections(cx));
 

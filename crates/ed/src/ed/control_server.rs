@@ -236,8 +236,10 @@ async fn handle_request(
             settle(window, cx).await?;
             Value::Null
         }
-        Command::Screenshot { path } => {
-            settle(window, cx).await?;
+        Command::Screenshot { path, no_settle } => {
+            if !no_settle {
+                settle(window, cx).await?;
+            }
             let image = window.update(cx, |_, window, _| window.capture_image())??;
             image.save(&path).with_context(|| format!("failed to write {}", path.display()))?;
             Value::Null
@@ -313,7 +315,8 @@ fn windows(cx: &AsyncApp) -> Result<Value> {
     Ok(serde_json::to_value(windows)?)
 }
 
-/// Redraw until the window stays clean for a few ticks, so follow-up reads see the result.
+/// Redraw until the window stays clean for a few ticks, so follow-up reads see the
+/// result. A pending animation frame counts as not clean; the platform draws it.
 async fn settle(window: AnyWindowHandle, cx: &mut AsyncApp) -> Result<()> {
     let deadline = Instant::now() + SETTLE_TIMEOUT;
     let mut quiet_ticks = 0;
@@ -321,7 +324,7 @@ async fn settle(window: AnyWindowHandle, cx: &mut AsyncApp) -> Result<()> {
         let dirty = window.update(cx, |_, window, cx| {
             let dirty = window.is_dirty();
             window.draw_if_dirty(cx);
-            dirty
+            dirty || window.wants_next_frame()
         })?;
         quiet_ticks = if dirty { 0 } else { quiet_ticks + 1 };
         cx.background_executor().timer(SETTLE_TICK).await;

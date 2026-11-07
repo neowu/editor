@@ -22,7 +22,6 @@ use gpui::ParentElement;
 use gpui::Render;
 use gpui::Styled;
 use gpui::Subscription;
-use gpui::Task;
 use gpui::WeakEntity;
 use gpui::Window;
 use gpui::actions;
@@ -706,28 +705,6 @@ impl Item for LspLogView {
         } else {
             None
         }
-    }
-
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        Task::ready(Some(cx.new(|cx| {
-            let mut new_view = Self::new(self.project.clone(), self.log_store.clone(), window, cx);
-            if let Some(server_key) = self.current_server_key.clone() {
-                match self.active_entry_kind {
-                    LogKind::Rpc => new_view.show_rpc_trace_for_server(server_key, window, cx),
-                    LogKind::Trace => new_view.show_trace_for_server(server_key, window, cx),
-                    LogKind::Logs => new_view.show_logs_for_server(server_key, window, cx),
-                    LogKind::ServerInfo => new_view.show_server_info(server_key, window, cx),
-                }
-            }
-            new_view
-        })))
     }
 }
 

@@ -27,7 +27,6 @@ use gpui::Render;
 use gpui::ScrollStrategy;
 use gpui::SharedString;
 use gpui::Styled;
-use gpui::Task;
 use gpui::UniformListScrollHandle;
 use gpui::WeakEntity;
 use gpui::Window;
@@ -88,7 +87,6 @@ pub fn init(cx: &App) {
 }
 
 pub struct SyntaxTreeView {
-    workspace_handle: WeakEntity<Workspace>,
     editor: Option<EditorState>,
     list_scroll_handle: UniformListScrollHandle,
     /// The last active editor in the workspace. Note that this is specifically not the
@@ -130,7 +128,6 @@ impl SyntaxTreeView {
         cx: &mut Context<Self>,
     ) -> Self {
         let mut this = Self {
-            workspace_handle: workspace_handle.clone(),
             list_scroll_handle: UniformListScrollHandle::new(),
             editor: None,
             last_active_editor: None,
@@ -485,23 +482,6 @@ impl Item for SyntaxTreeView {
 
     fn tab_content_text(&self, _detail: usize, _cx: &App) -> SharedString {
         "Syntax Tree".into()
-    }
-
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        Task::ready(Some(cx.new(|cx| {
-            let mut clone = Self::new(self.workspace_handle.clone(), None, window, cx);
-            if let Some(editor) = &self.editor {
-                clone.set_editor(editor.editor.clone(), window, cx)
-            }
-            clone
-        })))
     }
 
     fn on_removed(&self, cx: &mut Context<Self>) {

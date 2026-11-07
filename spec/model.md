@@ -184,6 +184,49 @@ downcasts to the item types it cares about, and (re)subscribes to that item.
   "Dock Left/Right/Bottom" menu, or move-panel action.
 - Panels are loaded asynchronously (each panel's `load`) and added when ready; dock layout is restored after all
   of them (`finish_dock_restoration`).
+- Opening or closing a dock is animated visually only: layout jumps to the
+  final state at once and a single overlay quad glides over it (`motion::GLIDE`,
+  decelerating, no overshoot; open: a background curtain wipes off the panel
+  toward the center; close: a panel-coloured ghost shrinks into the window
+  edge). Its state (`DockMotion`: phase, last laid-out extent) lives on the
+  workspace and nothing plays on first paint. Panes keep their cached
+  frames and the terminal is resized once. Switching panels in an open dock
+  and resizing by drag are not animated.
+- Only local layout changes animate. Switching or closing tabs leaves the pane
+  layout alone, and a mode switch swaps the whole view: both are instant (a mode
+  switch snaps the incoming group's motion, so changes made while it was hidden
+  don't play).
+- Pane layout changes (split, close, move/swap, maximize, zoom) animate the same way
+  in every pane group (`pane_motion`, state owned by `PaneGroup`: editor
+  center, Terminal and Git History modes, the terminal panel; the group's
+  `PaneBackdrop` says what shows between its cards): each pane records its
+  laid-out bounds, gets a presented rect that decelerates toward them
+  (`motion::GLIDE`, friction-style exponential decay: fastest at the start, no
+  overshoot, ~95% there in 0.14s), and one
+  overlay paints background where a card hasn't arrived and the card's
+  silhouette where it hangs past its bounds: the tab strip in backdrop and the
+  body below it as a rounded card, since a flat full-rect fill reads as a dark
+  block over the strip. Raised cards also cast a shadow outside themselves
+  (fading as they land, so it doesn't pop off), because neighbouring cards
+  share the card colour and an edgeless ghost moving over them is invisible
+  (e.g. zoom-out). Existing panes slide from their old rect; a
+  new pane grows from 85% about its center; a pane appearing as another
+  disappears (dragging a pane's last tab into a split) travels from the
+  removed pane's rect. New and moved cards are drawn above the rest. A moving
+  card shows its content only where it overlaps its final bounds. The first
+  frame, a group region resize (window resize, dock toggle) and anything
+  while the pointer is down (divider drags) snap.
+- Zoom goes through the same motion: the zoomed pane renders via
+  `PaneGroup::render_zoomed`, recording its zoomed bounds into its group's
+  motion, so zooming in grows the card from its rect (other panes vanish to
+  backdrop) and zooming out shrinks it back (other panes reappear in place
+  beneath it). The region change that comes with a zoom doesn't snap. A
+  zoomed center pane in Editor mode replaces the center group's render; the
+  zoom-out ghost is clipped to the center region, so docks reappear at once.
+  Zooming a dock panel is not animated.
+- Pane motion costs nothing once settled: an unchanged layout with no moving
+  card returns before any decay or overlay work. Dock overlays size from the
+  dock's laid-out extent (docks flex-shrink and clamp), kept while closed.
 
 ## Opening a file
 

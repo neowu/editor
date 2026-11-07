@@ -142,7 +142,12 @@ enum CliCommand {
         dy: f32,
     },
     /// Write the window as a PNG at device resolution.
-    Screenshot { path: PathBuf },
+    Screenshot {
+        path: PathBuf,
+        /// Capture the current frame without waiting for animations to settle.
+        #[arg(long)]
+        no_settle: bool,
+    },
     /// Wait until an element or text appears (or disappears).
     Wait {
         #[command(flatten)]
@@ -301,9 +306,9 @@ fn run(cli: Cli) -> Result<()> {
             let (x, y) = client.resolve_point(&target)?;
             client.request::<Value>(Command::Scroll { x, y, dx, dy })?;
         }
-        CliCommand::Screenshot { path } => {
+        CliCommand::Screenshot { path, no_settle } => {
             let path = path::absolute(&path)?;
-            client.request::<Value>(Command::Screenshot { path: path.clone() })?;
+            client.request::<Value>(Command::Screenshot { path: path.clone(), no_settle })?;
             println!("{}", path.display());
         }
         CliCommand::Wait { target, focused, gone, timeout } => client.wait(&target, focused, gone, timeout)?,

@@ -107,6 +107,10 @@ pub enum Command {
     /// Write the last frame as a PNG at device resolution.
     Screenshot {
         path: PathBuf,
+        /// Capture the current frame instead of waiting for the window to settle,
+        /// e.g. to see an animation mid-flight.
+        #[serde(default)]
+        no_settle: bool,
     },
     /// Wait until the window stops redrawing (or a timeout passes).
     Settle,
@@ -361,5 +365,20 @@ pub fn send(socket: &Path, request: &Request) -> Result<Value> {
     match serde_json::from_str::<Response>(&response)? {
         Response::Ok(value) => Ok(value),
         Response::Error(error) => Err(anyhow::anyhow!(error)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn screenshot_settles_unless_asked_not_to() {
+        let command: Command =
+            serde_json::from_str(r#"{"method":"screenshot","params":{"path":"/tmp/a.png"}}"#).unwrap();
+        assert!(matches!(command, Command::Screenshot { no_settle: false, .. }));
+        let command: Command =
+            serde_json::from_str(r#"{"method":"screenshot","params":{"path":"/tmp/a.png","no_settle":true}}"#).unwrap();
+        assert!(matches!(command, Command::Screenshot { no_settle: true, .. }));
     }
 }

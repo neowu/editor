@@ -73,7 +73,6 @@ use crate::project_diff::ProjectDiff;
 /// the editor (the merge styling is identical for every base ref).
 pub struct BranchDiff {
     diff: Entity<DiffMultibuffer>,
-    project: Entity<Project>,
     workspace: WeakEntity<Workspace>,
     _diff_event_subscription: Subscription,
 }
@@ -266,17 +265,12 @@ impl BranchDiff {
                 cx,
             )
         });
-        Self::from_diff(diff, project, workspace, cx)
+        Self::from_diff(diff, workspace, cx)
     }
 
-    fn from_diff(
-        diff: Entity<DiffMultibuffer>,
-        project: Entity<Project>,
-        workspace: Entity<Workspace>,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    fn from_diff(diff: Entity<DiffMultibuffer>, workspace: Entity<Workspace>, cx: &mut Context<Self>) -> Self {
         let diff_event_subscription = cx.subscribe(&diff, |_, _, event: &EditorEvent, cx| cx.emit(event.clone()));
-        Self { diff, project, workspace: workspace.downgrade(), _diff_event_subscription: diff_event_subscription }
+        Self { diff, workspace: workspace.downgrade(), _diff_event_subscription: diff_event_subscription }
     }
 
     pub(crate) fn diff_base<'a>(&'a self, cx: &'a App) -> &'a DiffBase {
@@ -348,28 +342,6 @@ impl Item for BranchDiff {
 
     fn set_nav_history(&mut self, nav_history: ItemNavHistory, _: &mut Window, cx: &mut Context<Self>) {
         self.diff.update(cx, |diff, cx| diff.set_nav_history(nav_history, cx));
-    }
-
-    fn can_split(&self) -> bool {
-        true
-    }
-
-    fn clone_on_split(&self, window: &mut Window, cx: &mut Context<Self>) -> Task<Option<Entity<Self>>>
-    where
-        Self: Sized,
-    {
-        let Some(workspace) = self.workspace.upgrade() else {
-            return Task::ready(None);
-        };
-        let DiffBase::Merge { base_ref } = self.diff_base(cx).clone() else {
-            return Task::ready(None);
-        };
-        let repo = self.repo(cx);
-        let project = self.project.clone();
-        let branch_diff = self.diff.read(cx).branch_diff().clone();
-        Task::ready(Some(
-            cx.new(|cx| Self::new_with_base_ref(project, workspace, base_ref, repo, Some(branch_diff), window, cx)),
-        ))
     }
 
     fn is_dirty(&self, cx: &App) -> bool {

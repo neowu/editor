@@ -1,6 +1,8 @@
+use std::cell::RefCell;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -31,6 +33,8 @@ use ui::prelude::div;
 use crate::Pane;
 use crate::Workspace;
 use crate::pane_group::element::pane_axis;
+use crate::pane_motion;
+use crate::pane_motion::PaneMotion;
 
 pub const HANDLE_HITBOX_SIZE: f32 = 4.0;
 const HORIZONTAL_MIN_SIZE: f32 = 80.;
@@ -43,6 +47,19 @@ const VERTICAL_MIN_SIZE: f32 = 100.;
 pub struct PaneGroup {
     pub root: Member,
     pub is_center: bool,
+    /// Split/close/move animation state for this group's panes.
+    motion: Rc<RefCell<PaneMotion>>,
+    backdrop: PaneBackdrop,
+}
+
+/// What shows between this group's cards, so the motion overlay can paint it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PaneBackdrop {
+    /// The window background (center, Terminal and Git History modes).
+    #[default]
+    Window,
+    /// A dock panel's background (the terminal panel).
+    Panel,
 }
 
 pub struct PaneRenderResult {
@@ -51,12 +68,21 @@ pub struct PaneRenderResult {
 }
 
 impl PaneGroup {
-    pub const fn with_root(root: Member) -> Self {
-        Self { root, is_center: false }
+    pub fn with_root(root: Member) -> Self {
+        Self { root, is_center: false, motion: Rc::default(), backdrop: PaneBackdrop::Window }
     }
 
-    pub const fn new(pane: Entity<Pane>) -> Self {
-        Self { root: Member::Pane(pane), is_center: false }
+    pub fn new(pane: Entity<Pane>) -> Self {
+        Self::with_root(Member::Pane(pane))
+    }
+
+    /// The next frame snaps instead of animating whatever changed while hidden.
+    pub fn snap_motion(&self) {
+        self.motion.borrow_mut().snap_next();
+    }
+
+    pub const fn set_backdrop(&mut self, backdrop: PaneBackdrop) {
+        self.backdrop = backdrop;
     }
 
     pub const fn set_is_center(&mut self, is_center: bool) {
@@ -218,6 +244,30 @@ impl PaneGroup {
         self.root.mark_positions(self.is_center, cx);
     }
 
+    /// Renders `pane` zoomed in place of the group, through the group's motion so
+    /// zooming in and out animates.
+    pub fn render_zoomed(&self, pane: &Entity<Pane>, cx: &App) -> impl IntoElement {
+        div()
+            .relative()
+            .flex()
+            .flex_1()
+            .size_full()
+            .child(pane.clone())
+            .child(pane_motion::record_bounds(
+                self.motion.clone(),
+                pane.entity_id(),
+                pane.read(cx).tab_strip_height(cx),
+            ))
+            .child(pane_motion::render_overlay(self.motion.clone(), self.backdrop_color(cx), true, cx))
+    }
+
+    fn backdrop_color(&self, cx: &App) -> gpui::Hsla {
+        match self.backdrop {
+            PaneBackdrop::Window => cx.theme().colors().background,
+            PaneBackdrop::Panel => cx.theme().colors().panel_background,
+        }
+    }
+
     pub fn render(
         &self,
         zoomed: Option<&AnyWeakView>,
@@ -226,7 +276,14 @@ impl PaneGroup {
         window: &mut Window,
         cx: &mut App,
     ) -> impl IntoElement {
-        self.root.render(0, zoomed, maximized, render_cx, window, cx).element
+        let backdrop = self.backdrop_color(cx);
+        div()
+            .relative()
+            .flex()
+            .flex_1()
+            .size_full()
+            .child(self.root.render(0, zoomed, maximized, render_cx, &self.motion, window, cx).element)
+            .child(pane_motion::render_overlay(self.motion.clone(), backdrop, false, cx))
     }
 
     pub fn panes(&self) -> Vec<&Entity<Pane>> {
@@ -355,6 +412,7 @@ impl Member {
         zoomed: Option<&AnyWeakView>,
         maximized: Option<&WeakEntity<Pane>>,
         render_cx: &PaneRenderContext,
+        motion: &Rc<RefCell<PaneMotion>>,
         window: &mut Window,
         cx: &mut App,
     ) -> PaneRenderResult {
@@ -385,7 +443,12 @@ impl Member {
                             .shadow_lg()
                             .overflow_hidden()
                     })
-                    .child(AnyView::from(pane.clone()).cached(StyleRefinement::default().v_flex().size_full()));
+                    .child(AnyView::from(pane.clone()).cached(StyleRefinement::default().v_flex().size_full()))
+                    .child(pane_motion::record_bounds(
+                        motion.clone(),
+                        pane.entity_id(),
+                        pane.read(cx).tab_strip_height(cx),
+                    ));
 
                 PaneRenderResult {
                     element: div()
@@ -398,7 +461,7 @@ impl Member {
                     contains_active_pane: is_active,
                 }
             }
-            Member::Axis(axis) => axis.render(basis + 1, zoomed, maximized, render_cx, window, cx),
+            Member::Axis(axis) => axis.render(basis + 1, zoomed, maximized, render_cx, motion, window, cx),
         }
     }
 
@@ -688,6 +751,7 @@ impl PaneAxis {
         zoomed: Option<&AnyWeakView>,
         maximized: Option<&WeakEntity<Pane>>,
         render_cx: &PaneRenderContext,
+        motion: &Rc<RefCell<PaneMotion>>,
         window: &mut Window,
         cx: &mut App,
     ) -> PaneRenderResult {
@@ -696,7 +760,7 @@ impl PaneAxis {
         {
             for member in &self.members {
                 if member.contains_pane(&maximized_pane) {
-                    return member.render(basis, zoomed, Some(maximized), render_cx, window, cx);
+                    return member.render(basis, zoomed, Some(maximized), render_cx, motion, window, cx);
                 }
             }
         }
@@ -721,7 +785,7 @@ impl PaneAxis {
                     Member::Axis(_) => {}
                 }
 
-                let result = member.render((basis + ix) * 10, zoomed, None, render_cx, window, cx);
+                let result = member.render((basis + ix) * 10, zoomed, None, render_cx, motion, window, cx);
                 if result.contains_active_pane {
                     contains_active_pane = true;
                 }
