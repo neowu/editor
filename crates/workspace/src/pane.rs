@@ -3900,7 +3900,7 @@ mod tests {
         assert_eq!(super::SplitRight::default().mode, super::SplitMode::MovePane);
         let empty: super::SplitDown = serde_json::from_str(r#"{"mode":"EmptyPane"}"#).unwrap();
         assert_eq!(empty.mode, super::SplitMode::EmptyPane);
-        assert!(serde_json::from_str::<super::SplitDown>(r#"{"mode":"ClonePane"}"#).is_err());
+        serde_json::from_str::<super::SplitDown>(r#"{"mode":"ClonePane"}"#).unwrap_err();
     }
 
     #[test]
