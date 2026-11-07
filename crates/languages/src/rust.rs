@@ -210,10 +210,20 @@ impl LspAdapter for RustLspAdapter {
         Some("rust-analyzer/flycheck".into())
     }
 
+    async fn initialization_options(
+        self: Arc<Self>,
+        delegate: &Arc<dyn LspAdapterDelegate>,
+        _: &mut AsyncApp,
+    ) -> Result<Option<serde_json::Value>> {
+        let clippy_configs = existing_clippy_configs(delegate.worktree_root_path()).await;
+        Ok(vfs_extra_includes(&clippy_configs))
+    }
+
     fn process_diagnostics(&self, params: &mut lsp::PublishDiagnosticsParams, _: LanguageServerId) {
         static REGEX: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r"(?m)`([^`]+)\n`$").expect("Failed to create REGEX"));
 
+        dedup_diagnostics(&mut params.diagnostics);
         for diagnostic in &mut params.diagnostics {
             for message in diagnostic.related_information.iter_mut().flatten().map(|info| &mut info.message).chain(
                 match &mut diagnostic.message {
@@ -927,6 +937,45 @@ fn package_name_from_pkgid(pkgid: &str) -> Option<&str> {
     Some(package_name)
 }
 
+const CLIPPY_CONFIG_FILE_NAMES: [&str; 2] = ["clippy.toml", ".clippy.toml"];
+
+/// Clippy reports its Cargo lints (e.g. `wildcard_dependencies`) at line 1 of the clippy config.
+/// rust-analyzer drops diagnostics for files outside its VFS, and a virtual workspace root isn't
+/// in it, so those configs must be included explicitly.
+async fn existing_clippy_configs(worktree_root: &Path) -> Vec<PathBuf> {
+    let mut configs = Vec::new();
+    for file_name in CLIPPY_CONFIG_FILE_NAMES {
+        let path = worktree_root.join(file_name);
+        if fs::metadata(&path).await.is_ok_and(|metadata| metadata.is_file()) {
+            configs.push(path);
+        }
+    }
+    configs
+}
+
+fn vfs_extra_includes(paths: &[PathBuf]) -> Option<serde_json::Value> {
+    if paths.is_empty() {
+        return None;
+    }
+    Some(json!({ "vfs": { "extraIncludes": paths } }))
+}
+
+/// Removes exact duplicates, keeping the first of each. Clippy repeats spanless lints once per
+/// crate and target, all at the same place.
+fn dedup_diagnostics(diagnostics: &mut Vec<lsp::Diagnostic>) {
+    let mut kept: Vec<lsp::Diagnostic> = Vec::with_capacity(diagnostics.len());
+    let mut kept_by_range: FxHashMap<lsp::Range, SmallVec<[usize; 1]>> = FxHashMap::default();
+    for diagnostic in diagnostics.drain(..) {
+        let same_range = kept_by_range.entry(diagnostic.range).or_default();
+        if same_range.iter().any(|&ix| kept[ix] == diagnostic) {
+            continue;
+        }
+        same_range.push(kept.len());
+        kept.push(diagnostic);
+    }
+    *diagnostics = kept;
+}
+
 /// Test name filter for the inline module `mod_name` declared in the file at `path`.
 ///
 /// Only the file's own module name is known, not its full path, which is fine since
@@ -946,13 +995,105 @@ fn test_mod_filter(path: &Path, stem: &str, mod_name: &str) -> String {
 #[cfg(test)]
 mod tests {
 
+    use std::fs;
+
+    use serde_json::json;
+
     use super::CargoLibraryProvider;
+    use super::LanguageServerId;
     use super::LibraryProvider;
     use super::LibraryRoot;
+    use super::LspAdapter;
     use super::Path;
     use super::PathBuf;
+    use super::RustLspAdapter;
+    use super::dedup_diagnostics;
+    use super::existing_clippy_configs;
     use super::str;
     use super::test_mod_filter;
+    use super::vfs_extra_includes;
+
+    fn diagnostic(line: u32, message: &str) -> lsp::Diagnostic {
+        lsp::Diagnostic {
+            range: lsp::Range::new(lsp::Position::new(line, 0), lsp::Position::new(line, 0)),
+            severity: Some(lsp::DiagnosticSeverity::WARNING),
+            message: lsp::DiagnosticMessage::String(message.to_owned()),
+            ..lsp::Diagnostic::default()
+        }
+    }
+
+    #[test]
+    fn dedup_diagnostics_keeps_first_of_exact_duplicates() {
+        let mut diagnostics = vec![
+            diagnostic(0, "wildcard dependency for `anyhow`"),
+            diagnostic(0, "wildcard dependency for `smol`"),
+            diagnostic(0, "wildcard dependency for `anyhow`"),
+            diagnostic(1, "wildcard dependency for `anyhow`"),
+            diagnostic(0, "wildcard dependency for `anyhow`"),
+        ];
+        dedup_diagnostics(&mut diagnostics);
+        assert_eq!(
+            diagnostics,
+            vec![
+                diagnostic(0, "wildcard dependency for `anyhow`"),
+                diagnostic(0, "wildcard dependency for `smol`"),
+                diagnostic(1, "wildcard dependency for `anyhow`"),
+            ]
+        );
+    }
+
+    #[test]
+    fn dedup_diagnostics_keeps_diagnostics_differing_in_any_field() {
+        let error = lsp::Diagnostic { severity: Some(lsp::DiagnosticSeverity::ERROR), ..diagnostic(0, "same") };
+        let with_code =
+            lsp::Diagnostic { code: Some(lsp::NumberOrString::String("code".to_owned())), ..diagnostic(0, "same") };
+        let mut diagnostics = vec![diagnostic(0, "same"), error.clone(), with_code.clone()];
+        dedup_diagnostics(&mut diagnostics);
+        assert_eq!(diagnostics, vec![diagnostic(0, "same"), error, with_code]);
+    }
+
+    #[test]
+    fn process_diagnostics_removes_duplicates() {
+        let mut params = lsp::PublishDiagnosticsParams {
+            uri: lsp::Uri::from_file_path("/p/clippy.toml").unwrap(),
+            diagnostics: vec![diagnostic(0, "dup"), diagnostic(0, "dup")],
+            version: None,
+        };
+        RustLspAdapter.process_diagnostics(&mut params, LanguageServerId(0));
+        assert_eq!(params.diagnostics, vec![diagnostic(0, "dup")]);
+    }
+
+    #[test]
+    fn vfs_extra_includes_lists_paths() {
+        assert_eq!(vfs_extra_includes(&[]), None);
+        assert_eq!(
+            vfs_extra_includes(&[PathBuf::from("/p/clippy.toml"), PathBuf::from("/p/.clippy.toml")]),
+            Some(json!({ "vfs": { "extraIncludes": ["/p/clippy.toml", "/p/.clippy.toml"] } }))
+        );
+    }
+
+    #[test]
+    fn existing_clippy_configs_finds_files_at_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        assert_eq!(smol::block_on(existing_clippy_configs(root)), Vec::<PathBuf>::new());
+
+        fs::write(root.join("clippy.toml"), "").unwrap();
+        assert_eq!(smol::block_on(existing_clippy_configs(root)), vec![root.join("clippy.toml")]);
+
+        fs::write(root.join(".clippy.toml"), "").unwrap();
+        assert_eq!(
+            smol::block_on(existing_clippy_configs(root)),
+            vec![root.join("clippy.toml"), root.join(".clippy.toml")]
+        );
+    }
+
+    #[test]
+    fn existing_clippy_configs_ignores_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join("clippy.toml")).unwrap();
+        assert_eq!(smol::block_on(existing_clippy_configs(dir.path())), Vec::<PathBuf>::new());
+    }
 
     fn library_root(abs_path: &str) -> Option<LibraryRoot> {
         CargoLibraryProvider.library_root(Path::new(abs_path))

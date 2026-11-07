@@ -26,6 +26,9 @@ snippet.workspace = true
 task.workspace = true
 util.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [features]
 load-grammars = ["grammars/load-grammars"]
 

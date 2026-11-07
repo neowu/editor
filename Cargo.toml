@@ -316,20 +316,15 @@ format_push_string = "warn"
 wildcard_imports = "warn"
 
 # cargo
+# multiple_crate_versions = "warn" # third party lib may depdends on old ones, maybe in future we should just vendor or bring our own
+negative_feature_names = "warn"
+redundant_feature_names = "warn"
 wildcard_dependencies = "warn"
 
 # old lint rules
-
-# Motivation: We use `vec![a..b]` a lot when dealing with ranges in text, so
-# warning on this rule produces a lot of noise.
-single_range_in_vec_init = "allow"
-
-# in Rust it can be very tedious to reduce argument count without
-# running afoul of the borrow checker.
-too_many_arguments = "allow"
-
-# We often have large enum variants yet we rarely actually bother with splitting them up.
-large_enum_variant = "allow"
+large_enum_variant = "allow"  # We often have large enum variants yet we rarely actually bother with splitting them up.
+single_range_in_vec_init = "allow"  # Motivation: We use `vec![a..b]` a lot when dealing with ranges in text, so warning on this rule produces a lot of noise.
+too_many_arguments = "allow"  # in Rust it can be very tedious to reduce argument count without running afoul of the borrow checker.
 
 [workspace.lints.rust]
 unused_crate_dependencies = "warn"

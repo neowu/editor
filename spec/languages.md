@@ -20,6 +20,15 @@
   (the TOML formatter under `"auto"`), lint diagnostics, completions and schema
   validation; configuration comes from the project's `tombi.toml` /
   `[tool.tombi]`.
+- rust-analyzer's check runs `cargo clippy`. Clippy's Cargo-group lints
+  (`wildcard_dependencies`, etc.) have no span and are reported at line 1 of
+  the clippy config, once per crate and target. rust-analyzer drops
+  diagnostics for files outside its VFS, and a virtual workspace root isn't in
+  it, so the adapter adds the worktree root's `clippy.toml` / `.clippy.toml`
+  (absolute paths) to `vfs.extraIncludes`. Exact duplicate diagnostics in a
+  publish are collapsed to one. These warnings show in the diagnostics pane
+  under the clippy config, not at the offending `Cargo.toml` line. A
+  user-set `vfs.extraIncludes` replaces this list.
 - C/C++ have no built-in language server: clangd support (adapter, semantic
   token rules, inactive regions, switch source/header) is removed.
 - SQL, Dockerfile, JSDoc, Regex and the hidden Zed Keybind Context

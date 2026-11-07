@@ -2298,6 +2298,7 @@ dependencies = [
  "smol",
  "snippet",
  "task",
+ "tempfile",
  "util",
 ]
 
