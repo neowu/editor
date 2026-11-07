@@ -427,8 +427,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
         Some("Workspace"),
         true,
         [
-            KeyBindingSpec::new("ctrl--", "workspace::GoBack"),
-            KeyBindingSpec::new("ctrl-_", "workspace::GoForward"),
             KeyBindingSpec::new("f6", "workspace::FocusNextPart"),
             KeyBindingSpec::new("shift-f6", "workspace::FocusPreviousPart"),
             KeyBindingSpec::new("cmd-f6", "workspace::FocusNextPart"),
@@ -787,7 +785,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("cmd-a", "editor::SelectAll"),
             KeyBindingSpec::new("cmd-k", "terminal::Clear"),
             KeyBindingSpec::new("cmd-n", "workspace::NewTerminal"),
-            KeyBindingSpec::disabled("ctrl-_"),
             KeyBindingSpec::new("cmd-backspace", "terminal::SendKeystroke").with_input(json!("ctrl-u")),
             KeyBindingSpec::new("alt-delete", "terminal::SendText").with_input(json!("\u{001b}d")),
             KeyBindingSpec::new("cmd-delete", "terminal::SendKeystroke").with_input(json!("ctrl-k")),
@@ -1008,5 +1005,18 @@ mod tests {
             .find(|binding| binding.context == Some("Terminal") && binding.keystrokes == "cmd-shift-d")
             .expect("terminal binds cmd-shift-d");
         assert_eq!(split_down.action, Some("pane::SplitDown"));
+    }
+
+    #[test]
+    fn test_nav_history_has_one_binding_per_direction() {
+        let keymap = keymap();
+        for (action, keystrokes) in [("workspace::GoBack", "cmd-["), ("workspace::GoForward", "cmd-]")] {
+            let bound: Vec<_> = keymap
+                .iter()
+                .filter(|binding| binding.action == Some(action))
+                .map(|binding| binding.keystrokes)
+                .collect();
+            assert_eq!(bound, [keystrokes], "{action}");
+        }
     }
 }

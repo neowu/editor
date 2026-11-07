@@ -204,8 +204,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
   if needed; a closed file reopens in the last active center pane. Moving focus
   from one pane to another records where the user was in the pane they left,
   so going back returns there. `workspace::GoBack` / `workspace::GoForward`
-  are workspace actions, so they work wherever focus is in the window (the
-  terminal still keeps `ctrl-_` for itself). The Go Back / Go Forward buttons sit
+  are workspace actions bound only to `cmd-[` / `cmd-]`, so they work wherever
+  focus is in the window. The Go Back / Go Forward buttons sit
   only in the window header (see above), not on tab bars.
   The `tab_bar.show_nav_history_buttons` and `reveal_if_open`
   settings are removed. The terminal panel keeps its own panes and history.
