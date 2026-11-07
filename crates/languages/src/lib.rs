@@ -23,6 +23,7 @@ mod css;
 mod go;
 mod html;
 mod json;
+mod markdown;
 mod npx;
 mod package_json;
 mod python;
@@ -99,7 +100,12 @@ pub fn init(languages: Arc<LanguageRegistry>, fs: Arc<dyn Fs>, cx: &mut App) {
             context: Some(json_context_provider),
             ..Default::default()
         },
-        LanguageInfo { name: "markdown", adapters: vec![], ..Default::default() },
+        LanguageInfo {
+            name: "markdown",
+            adapters: vec![],
+            context: Some(Arc::new(markdown::markdown_task_context())),
+            ..Default::default()
+        },
         LanguageInfo { name: "markdown-inline", adapters: vec![], ..Default::default() },
         LanguageInfo {
             name: "python",

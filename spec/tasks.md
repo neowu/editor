@@ -20,6 +20,13 @@ clients as JSON.
     `cargo run` for a Rust `main` or example;
   - LSP runnables (e.g. rust-analyzer), controlled by `lsp.<server>.enable_lsp_tasks`
     and `tasks.prefer_lsp` per language.
+- Only the buffer's own language contributes tree-sitter runnables; code
+  injected into it (e.g. a markdown code block) does not, since templates
+  target the whole file.
+- Markdown fenced code blocks tagged `sh`/`shell`, `bash`, `zsh` or `fish` get
+  a run icon on the opening fence that runs the block's code with that shell
+  (`<shell> -c`), from the markdown file's folder. The code reaches the shell
+  through the `CODE_BLOCK` env var, so the outer task shell never re-parses it.
 - `languages.<lang>.tasks.enabled = false` hides a language's template-based icons.
 - Clicking the icon (or `editor::SpawnNearestTask`) resolves the template with
   `$ED_*` variables and spawns it in the terminal panel. The icon shows

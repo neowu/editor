@@ -82,7 +82,7 @@ pub(crate) fn runnable_ranges(
         let mat = syntax_matches.peek()?;
 
         let ranges = match runnable_configs[mat.grammar_index] {
-            Some(runnable_config) => {
+            Some(runnable_config) if is_runnable_layer(mat.depth) => {
                 let is_grouped = runnable_config.supports_grouped_runnables
                     && mat.captures.iter().any(|capture| {
                         matches!(
@@ -105,13 +105,20 @@ pub(crate) fn runnable_ranges(
                         .collect()
                 }
             }
-            None => SmallVec::new(),
+            _ => SmallVec::new(),
         };
 
         syntax_matches.advance();
         Some(ranges)
     })
     .flatten()
+}
+
+/// Only the buffer's own language (the root syntax layer) contributes runnables.
+/// Templates target the file (`$ED_FILE`, a test in it), so code injected into
+/// another language, such as a markdown code block, would run the wrong thing.
+const fn is_runnable_layer(depth: usize) -> bool {
+    depth == 0
 }
 
 type RunnableMatchCaptures = SmallVec<[RunnableMatchCapture; 4]>;
@@ -299,4 +306,16 @@ fn runnable_range_from_captures(
         extra_captures,
         buffer_id,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_runnable_layer;
+
+    #[test]
+    fn test_only_root_layer_is_runnable() {
+        assert!(is_runnable_layer(0));
+        assert!(!is_runnable_layer(1));
+        assert!(!is_runnable_layer(2));
+    }
 }

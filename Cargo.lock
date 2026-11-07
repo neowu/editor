@@ -2299,6 +2299,7 @@ dependencies = [
  "snippet",
  "task",
  "tempfile",
+ "tree-sitter",
  "util",
 ]
 
