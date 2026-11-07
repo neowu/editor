@@ -67,11 +67,6 @@ pub fn get_default_system_shell() -> String {
     "/bin/sh".to_string()
 }
 
-/// Get the default system shell, preferring bash on Windows.
-pub fn get_default_system_shell_preferring_bash() -> String {
-    "/bin/sh".to_string()
-}
-
 impl fmt::Display for ShellKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -121,7 +116,8 @@ impl ShellKind {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::ShellKind;
 
     #[test]
     fn test_shell_kind_new() {

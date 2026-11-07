@@ -19,10 +19,15 @@ use gpui::Entity;
 use gpui::Focusable;
 use gpui::Global;
 use gpui::Task;
+use gpui::TaskExt as _;
 use gpui::WeakEntity;
 use project::Project;
 use ui::Window;
-use ui::prelude::*;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::ParentElement;
+use ui::prelude::Styled;
+use ui::prelude::div;
 use util::ResultExt;
 
 use crate::ActivateNextPane;

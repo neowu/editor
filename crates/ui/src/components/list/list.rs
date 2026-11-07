@@ -3,7 +3,18 @@ use smallvec::SmallVec;
 
 use crate::Label;
 use crate::ListHeader;
-use crate::prelude::*;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::DynamicSpacing;
+use crate::prelude::FluentBuilder;
+use crate::prelude::IntoElement;
+use crate::prelude::LabelCommon;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::v_flex;
 
 pub enum EmptyMessage {
     Text(SharedString),

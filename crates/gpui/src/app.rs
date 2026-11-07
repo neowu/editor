@@ -31,10 +31,13 @@ use std::time::Duration;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
+#[allow(clippy::wildcard_imports)]
 pub use async_context::*;
+#[allow(clippy::wildcard_imports)]
 pub use context::*;
 use derive_more::Deref;
 use derive_more::DerefMut;
+#[allow(clippy::wildcard_imports)]
 pub use entity_map::*;
 use futures::Future;
 use futures::FutureExt;
@@ -255,17 +258,6 @@ impl Application {
         self
     }
 
-    /// Sets the windowing mode the app starts in. See [`App::request_windowing`].
-    ///
-    /// Defaults to windowed. On Linux, the default environment is the process's own, and the app
-    /// starts headless if that names no allowed display server. On macOS, headless means the app
-    /// starts without a Dock icon or menu bar ([`ActivationPolicy::Accessory`]). Has no effect on
-    /// other platforms.
-    pub fn with_windowing(self, request: WindowingRequest) -> Self {
-        self.0.borrow().platform.set_initial_windowing(request);
-        self
-    }
-
     /// Start the application. The provided callback will be called once the
     /// app is fully launched.
     ///
@@ -281,30 +273,6 @@ impl Application {
             cx.displays_changed();
             on_finish_launching(cx);
         }));
-    }
-
-    /// Start the application for an embedder that drives the run loop itself.
-    ///
-    /// On ordinary platforms `Platform::run` blocks for the lifetime of the app, and the
-    /// app state is kept alive by [`Application::run`]'s stack frame. Embedded platforms —
-    /// where the run loop belongs to someone else, e.g. GPUI embedded in another application,
-    /// or a GPUI view hosted inside a foreign native application — implement
-    /// `Platform::run` to invoke the launch callback and return immediately. This method
-    /// supports that shape: it returns an [`ApplicationHandle`] that keeps the app alive
-    /// and lets the embedder re-enter it whenever the external run loop yields control.
-    pub fn run_embedded<F>(self, on_finish_launching: F) -> ApplicationHandle
-    where
-        F: 'static + FnOnce(&mut App),
-    {
-        let this = self.0.clone();
-        let platform = self.0.borrow().platform.clone();
-        platform.run(Box::new(move || {
-            let cx = &mut *this.borrow_mut();
-            // Some platforms only connect to their display server in `run`.
-            cx.displays_changed();
-            on_finish_launching(cx);
-        }));
-        ApplicationHandle { app: self.0 }
     }
 
     /// Register a handler to be invoked when the platform instructs the application

@@ -716,13 +716,6 @@ pub struct CompletionListItemDefaults {
     pub data: Option<Value>,
 }
 
-impl CompletionItem {
-    /// Create a CompletionItem with the minimum possible info (label and detail).
-    pub fn new_simple(label: String, detail: String) -> CompletionItem {
-        CompletionItem { label, detail: Some(detail), ..Self::default() }
-    }
-}
-
 /// Additional details for a completion item label.
 ///
 /// @since 3.17.0
@@ -744,7 +737,11 @@ pub struct CompletionItemLabelDetails {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::CompletionItemCapability;
+    use super::CompletionItemKind;
+    use super::CompletionItemTag;
+    use super::TagSupport;
     use crate::tests::test_deserialization;
 
     #[test]

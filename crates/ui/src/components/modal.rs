@@ -17,7 +17,20 @@ use smallvec::SmallVec;
 use theme::ActiveTheme;
 
 use crate::IconButtonShape;
-use crate::prelude::*;
+use crate::prelude::Clickable;
+use crate::prelude::Color;
+use crate::prelude::DynamicSpacing;
+use crate::prelude::Headline;
+use crate::prelude::HeadlineSize;
+use crate::prelude::Icon;
+use crate::prelude::IconButton;
+use crate::prelude::IconName;
+use crate::prelude::IconSize;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::h_flex;
+use crate::prelude::v_flex;
 
 #[derive(IntoElement)]
 pub struct Modal {
@@ -61,11 +74,6 @@ impl Modal {
 
     pub const fn show_dismiss(mut self, show: bool) -> Self {
         self.header.show_dismiss_button = show;
-        self
-    }
-
-    pub const fn show_back(mut self, show: bool) -> Self {
-        self.header.show_back_button = show;
         self
     }
 }
@@ -148,11 +156,6 @@ impl ModalHeader {
 
     pub const fn show_dismiss_button(mut self, show: bool) -> Self {
         self.show_dismiss_button = show;
-        self
-    }
-
-    pub const fn show_back_button(mut self, show: bool) -> Self {
-        self.show_back_button = show;
         self
     }
 }
@@ -307,10 +310,6 @@ impl Default for Section {
 impl Section {
     pub fn new() -> Self {
         Self { contained: false, padded: true, header: None, meta: None, children: SmallVec::new() }
-    }
-
-    pub fn new_contained() -> Self {
-        Self { contained: true, padded: true, header: None, meta: None, children: SmallVec::new() }
     }
 
     pub const fn contained(mut self, contained: bool) -> Self {

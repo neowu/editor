@@ -12,7 +12,17 @@ use ui::LabelSize;
 use ui::SharedString;
 use ui::Tooltip;
 use ui::div;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Context;
+use ui::prelude::Div;
+use ui::prelude::FluentBuilder;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::LabelCommon;
+use ui::prelude::ParentElement;
+use ui::prelude::Styled;
+use ui::prelude::StyledTypography;
+use ui::prelude::v_flex;
 
 use crate::TableView;
 use crate::settings::VerticalAlignment;

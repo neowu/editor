@@ -20,6 +20,7 @@ use editor::blink_manager::BlinkManager;
 use gpui::Action;
 use gpui::AnyElement;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::ClipboardEntry;
 use gpui::DismissEvent;
 use gpui::Entity;
@@ -89,7 +90,30 @@ use ui::ScrollAxes;
 use ui::Scrollbars;
 use ui::Tooltip;
 use ui::WithScrollbar;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::ButtonCommon;
+use ui::prelude::ButtonSize;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Context;
+use ui::prelude::Element;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::ParentElement;
+use ui::prelude::SharedString;
+use ui::prelude::VisibleOnHover;
+use ui::prelude::Window;
+use ui::prelude::h_flex;
+use ui::prelude::px;
+use ui::prelude::v_flex;
 use util::ResultExt;
 use workspace::CloseActiveItem;
 use workspace::DraggedSelection;
@@ -197,6 +221,7 @@ struct HoverTarget {
 
 impl EventEmitter<Event> for TerminalView {}
 impl EventEmitter<ItemEvent> for TerminalView {}
+
 impl EventEmitter<SearchEvent> for TerminalView {}
 
 impl Focusable for TerminalView {
@@ -308,10 +333,6 @@ impl TerminalView {
 
     pub const fn has_bell(&self) -> bool {
         self.has_bell
-    }
-
-    pub fn custom_title(&self) -> Option<&str> {
-        self.custom_title.as_deref()
     }
 
     pub fn set_custom_title(&mut self, label: Option<String>, cx: &mut Context<Self>) {
@@ -643,18 +664,6 @@ impl TerminalView {
 
     pub const fn terminal(&self) -> &Entity<Terminal> {
         &self.terminal
-    }
-
-    pub fn set_block_below_cursor(&mut self, block: BlockProperties, window: &mut Window, cx: &mut Context<Self>) {
-        self.block_below_cursor = Some(Rc::new(block));
-        self.scroll_to_bottom(&ScrollToBottom, window, cx);
-        cx.notify();
-    }
-
-    pub fn clear_block_below_cursor(&mut self, cx: &mut Context<Self>) {
-        self.block_below_cursor = None;
-        self.scroll_top = Pixels::ZERO;
-        cx.notify();
     }
 
     ///Attempt to paste the clipboard into the terminal

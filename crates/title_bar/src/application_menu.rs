@@ -9,7 +9,24 @@ use ui::ContextMenu;
 use ui::PopoverMenu;
 use ui::PopoverMenuHandle;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::App;
+use ui::prelude::Button;
+use ui::prelude::ButtonCommon;
+use ui::prelude::ButtonStyle;
+use ui::prelude::Context;
+use ui::prelude::FluentBuilder;
+use ui::prelude::IconButton;
+use ui::prelude::IconSize;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::LabelSize;
+use ui::prelude::ParentElement;
+use ui::prelude::Render;
+use ui::prelude::SharedString;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::Styled;
+use ui::prelude::Window;
+use ui::prelude::div;
 
 actions!(
     app_menu,

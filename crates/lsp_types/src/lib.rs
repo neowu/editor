@@ -99,87 +99,115 @@ pub mod notification;
 pub mod request;
 
 mod code_action;
+#[allow(clippy::wildcard_imports)]
 pub use code_action::*;
 
 mod code_lens;
+#[allow(clippy::wildcard_imports)]
 pub use code_lens::*;
 
 mod color;
+#[allow(clippy::wildcard_imports)]
 pub use color::*;
 
 mod completion;
+#[allow(clippy::wildcard_imports)]
 pub use completion::*;
 
 mod document_diagnostic;
+#[allow(clippy::wildcard_imports)]
 pub use document_diagnostic::*;
 
 mod document_highlight;
+#[allow(clippy::wildcard_imports)]
 pub use document_highlight::*;
 
 mod document_link;
+#[allow(clippy::wildcard_imports)]
 pub use document_link::*;
 
 mod document_symbols;
+#[allow(clippy::wildcard_imports)]
 pub use document_symbols::*;
 
 mod file_operations;
+#[allow(clippy::wildcard_imports)]
 pub use file_operations::*;
 
 mod folding_range;
+#[allow(clippy::wildcard_imports)]
 pub use folding_range::*;
 
 mod formatting;
+#[allow(clippy::wildcard_imports)]
 pub use formatting::*;
 
 mod hover;
+#[allow(clippy::wildcard_imports)]
 pub use hover::*;
 
 mod inlay_hint;
+#[allow(clippy::wildcard_imports)]
 pub use inlay_hint::*;
 
 mod inline_value;
+#[allow(clippy::wildcard_imports)]
 pub use inline_value::*;
 
 mod moniker;
+#[allow(clippy::wildcard_imports)]
 pub use moniker::*;
 
 mod progress;
+#[allow(clippy::wildcard_imports)]
 pub use progress::*;
 
 mod references;
+#[allow(clippy::wildcard_imports)]
 pub use references::*;
 
 mod rename;
+#[allow(clippy::wildcard_imports)]
 pub use rename::*;
 
 pub mod selection_range;
+#[allow(clippy::wildcard_imports)]
 pub use selection_range::*;
 
 mod semantic_tokens;
+#[allow(clippy::wildcard_imports)]
 pub use semantic_tokens::*;
 
 mod signature_help;
+#[allow(clippy::wildcard_imports)]
 pub use signature_help::*;
 
 mod type_hierarchy;
+#[allow(clippy::wildcard_imports)]
 pub use type_hierarchy::*;
 
 mod linked_editing;
+#[allow(clippy::wildcard_imports)]
 pub use linked_editing::*;
 
 mod window;
+#[allow(clippy::wildcard_imports)]
 pub use window::*;
 
 mod workspace_diagnostic;
+#[allow(clippy::wildcard_imports)]
 pub use workspace_diagnostic::*;
 
 mod workspace_folders;
+#[allow(clippy::wildcard_imports)]
 pub use workspace_folders::*;
 
 mod workspace_symbols;
+#[allow(clippy::wildcard_imports)]
 pub use workspace_symbols::*;
 
 mod trace;
+#[allow(clippy::wildcard_imports)]
 pub use trace::*;
 
 /* ----------------- Auxiliary types ----------------- */
@@ -2788,7 +2816,21 @@ mod tests {
     use serde::Deserialize;
     use serde::Serialize;
 
-    use super::*;
+    use super::ConfigurationItem;
+    use super::DiagnosticMessage;
+    use super::FromStr;
+    use super::InitializeParams;
+    use super::LanguageString;
+    use super::MarkedString;
+    use super::MarkupContent;
+    use super::MarkupKind;
+    use super::NumberOrString;
+    use super::OneOf;
+    use super::ResourceOperationKind;
+    use super::Uri;
+    use super::WatchKind;
+    use super::WorkDoneProgressOptions;
+    use super::WorkspaceEdit;
 
     pub(crate) fn test_serialization<SER>(ms: &SER, expected: &str)
     where

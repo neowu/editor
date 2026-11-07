@@ -12,7 +12,26 @@ use crate::Icon;
 use crate::KeyBinding;
 use crate::KeybindingPosition;
 use crate::Label;
-use crate::prelude::*;
+use crate::prelude::AnyElement;
+use crate::prelude::App;
+use crate::prelude::Clickable;
+use crate::prelude::Disableable;
+use crate::prelude::ElementId;
+use crate::prelude::FixedWidth;
+use crate::prelude::FluentBuilder;
+use crate::prelude::IconName;
+use crate::prelude::IconSize;
+use crate::prelude::IntoElement;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SelectableButton;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::Toggleable;
+use crate::prelude::Window;
+use crate::prelude::h_flex;
 use crate::traits::animation_ext::CommonAnimationExt;
 
 /// An element that creates a button with a label and optional icons.
@@ -94,18 +113,6 @@ impl Button {
         self
     }
 
-    /// Sets the label used when the button is in a selected state.
-    pub fn selected_label<L: Into<SharedString>>(mut self, label: impl Into<Option<L>>) -> Self {
-        self.selected_label = label.into().map(Into::into);
-        self
-    }
-
-    /// Sets the label color used when the button is in a selected state.
-    pub fn selected_label_color(mut self, color: impl Into<Option<Color>>) -> Self {
-        self.selected_label_color = color.into();
-        self
-    }
-
     /// Sets an icon to display at the start (left) of the button label.
     ///
     /// The icon's color will be overridden to `Color::Disabled` when the button is disabled.
@@ -133,15 +140,6 @@ impl Button {
     /// Display the keybinding that triggers the button action.
     pub fn key_binding(mut self, key_binding: impl Into<Option<KeyBinding>>) -> Self {
         self.key_binding = key_binding.into();
-        self
-    }
-
-    /// Sets the position of the keybinding relative to the button label.
-    ///
-    /// This method allows you to specify where the keybinding should be displayed
-    /// in relation to the button's label.
-    pub const fn key_binding_position(mut self, position: KeybindingPosition) -> Self {
-        self.key_binding_position = position;
         self
     }
 
@@ -325,7 +323,10 @@ impl RenderOnce for Button {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::Button;
+    use super::Icon;
+    use super::IconName;
 
     #[test]
     fn start_slot_is_kept_alongside_start_icon() {

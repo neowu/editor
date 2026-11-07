@@ -221,8 +221,6 @@ pub struct ParkedRepository {
     common_dir_abs_path: Arc<Path>,
 }
 
-impl ParkedRepository {}
-
 #[derive(Default)]
 struct SharedDiffs {
     unstaged: Option<Entity<BufferDiff>>,
@@ -842,6 +840,7 @@ pub enum GitStoreEvent {
 
 impl EventEmitter<RepositoryEvent> for Repository {}
 impl EventEmitter<JobsUpdated> for Repository {}
+
 impl EventEmitter<GitStoreEvent> for GitStore {}
 
 pub struct GitJob {
@@ -4783,10 +4782,6 @@ impl RepositorySnapshot {
     /// Returns `false` for both the main worktree and submodules.
     pub fn is_linked_worktree(&self) -> bool {
         self.repository_dir_abs_path != self.common_dir_abs_path
-    }
-
-    pub fn linked_worktrees(&self) -> &[GitWorktree] {
-        &self.linked_worktrees
     }
 
     pub fn status(&self) -> impl Iterator<Item = StatusEntry> + '_ {

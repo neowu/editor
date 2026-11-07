@@ -126,7 +126,7 @@ impl SyntaxTreeView {
     pub fn new(
         workspace_handle: WeakEntity<Workspace>,
         active_item: Option<Box<dyn ItemHandle>>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let mut this = Self {

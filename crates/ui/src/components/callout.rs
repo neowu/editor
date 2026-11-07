@@ -1,6 +1,29 @@
 use gpui::AnyElement;
 
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::FluentBuilder;
+use crate::prelude::Icon;
+use crate::prelude::IconName;
+use crate::prelude::IconSize;
+use crate::prelude::InteractiveElement;
+use crate::prelude::IntoElement;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::ParentElement;
+use crate::prelude::Pixels;
+use crate::prelude::RenderOnce;
+use crate::prelude::Severity;
+use crate::prelude::SharedString;
+use crate::prelude::StatefulInteractiveElement;
+use crate::prelude::Styled;
+use crate::prelude::StyledTypography;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
+use crate::prelude::v_flex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CalloutBorderPosition {

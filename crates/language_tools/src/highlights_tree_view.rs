@@ -53,7 +53,19 @@ use ui::PopoverMenu;
 use ui::PopoverMenuHandle;
 use ui::Tooltip;
 use ui::WithScrollbar;
-use ui::prelude::*;
+use ui::prelude::Color;
+use ui::prelude::FluentBuilder;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconPosition;
+use ui::prelude::IconSize;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::StyledExt;
+use ui::prelude::Toggleable;
+use ui::prelude::h_flex;
+use ui::prelude::v_flex;
 use workspace::Event as WorkspaceEvent;
 use workspace::SplitDirection;
 use workspace::ToolbarItemEvent;
@@ -208,7 +220,7 @@ impl HighlightsTreeView {
     pub fn new(
         workspace_handle: WeakEntity<Workspace>,
         active_item: Option<Box<dyn ItemHandle>>,
-        window: &mut Window,
+        window: &Window,
         cx: &mut Context<Self>,
     ) -> Self {
         let mut this = Self {

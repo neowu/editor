@@ -1250,12 +1250,6 @@ pub struct TreeSitterOptions {
     pub max_bytes_to_query: Option<usize>,
 }
 
-impl TreeSitterOptions {
-    pub const fn max_start_depth(max_start_depth: u32) -> Self {
-        Self { max_start_depth: Some(max_start_depth), max_bytes_to_query: None }
-    }
-}
-
 impl<'a> SyntaxMapMatches<'a> {
     fn new(
         range: Range<usize>,

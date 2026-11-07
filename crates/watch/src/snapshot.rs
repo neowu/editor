@@ -220,7 +220,8 @@ impl<T> Drop for Changed<'_, T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::channel;
 
     #[test]
     fn channel_snapshot_keeps_previous_value() {

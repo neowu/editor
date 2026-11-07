@@ -35,7 +35,13 @@ use workspace::Workspace;
 use workspace::ui::LabelLike;
 use workspace::ui::ListItem;
 use workspace::ui::ListItemSpacing;
-use workspace::ui::prelude::*;
+use workspace::ui::prelude::Color;
+use workspace::ui::prelude::Label;
+use workspace::ui::prelude::LabelCommon;
+use workspace::ui::prelude::LabelSize;
+use workspace::ui::prelude::Toggleable;
+use workspace::ui::prelude::h_flex;
+use workspace::ui::prelude::v_flex;
 
 pub fn init(cx: &mut App) {
     cx.observe_new(|workspace: &mut Workspace, _window, _: &mut Context<Workspace>| {
@@ -50,8 +56,6 @@ pub fn init(cx: &mut App) {
     })
     .detach();
 }
-
-pub type ProjectSymbols = Entity<Picker<ProjectSymbolsDelegate>>;
 
 pub struct ProjectSymbolsDelegate {
     workspace: WeakEntity<Workspace>,

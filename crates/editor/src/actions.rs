@@ -3,7 +3,12 @@ use gpui::Action;
 use gpui::actions;
 use project::project_settings::GoToDiagnosticSeverityFilter;
 
-use super::*;
+use super::Debug;
+use super::Deserialize;
+use super::DisplayRow;
+use super::Editor;
+use super::Entity;
+use super::OpenResultsIn;
 
 /// Selects the next occurrence of the current selection.
 #[derive(PartialEq, Clone, Deserialize, Default, Action)]

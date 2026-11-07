@@ -36,7 +36,10 @@ pub struct LogTraceParams {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::LogTraceParams;
+    use super::SetTraceParams;
+    use super::TraceValue;
     use crate::tests::test_serialization;
 
     #[test]

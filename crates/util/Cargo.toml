@@ -14,14 +14,12 @@ gpui_util.workspace = true
 itertools.workspace = true
 path.workspace = true
 regex = { workspace = true, features = ["unicode-bool", "unicode-gencat"] }
-rust-embed.workspace = true
 rustc-hash.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 unicase.workspace = true
 
 dirs.workspace = true
-futures-lite.workspace = true
 shlex.workspace = true
 smol.workspace = true
 

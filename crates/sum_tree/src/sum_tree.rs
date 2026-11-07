@@ -15,7 +15,6 @@ use heapless::Vec as ArrayVec;
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator as _;
-pub use tree_map::MapSeekTarget;
 pub use tree_map::TreeMap;
 pub use tree_map::TreeSet;
 
@@ -569,10 +568,6 @@ impl<T: Item> SumTree<T> {
 
     pub fn last(&self) -> Option<&T> {
         self.rightmost_leaf().0.items().last()
-    }
-
-    pub fn last_summary(&self) -> Option<&T::Summary> {
-        self.rightmost_leaf().0.child_summaries().last()
     }
 
     pub fn update_last(&mut self, f: impl FnOnce(&mut T), cx: <T::Summary as Summary>::Context<'_>) {

@@ -16,6 +16,17 @@
   `FxHashSet` (or `indexmap::IndexMap<K, V, FxBuildHasher>`) where the fast
   hasher is wanted, `std::collections` types otherwise. No crate-level aliases
   that shadow std names such as `HashMap`.
+- No glob imports (`use foo::*`), including `prelude::*` and `use super::*`
+  in tests; import each name explicitly so it stays searchable. Clippy
+  enforces this (`wildcard_imports` with `warn-on-all-wildcard-imports`), but
+  cannot see names used only as trait methods or macros, so keep to it by
+  hand too. The one exception is a library crate's `pub use module::*`
+  re-export that flattens its public API, marked
+  `#[allow(clippy::wildcard_imports)]`. A binary crate has no external
+  users, so it never re-exports.
+- No dead code. The workspace is self-contained, so a `pub` item that no
+  crate uses is dead even though rustc can't flag it; delete it rather than
+  keep it as API.
 - Prefer explicit code over convenience macros: write an immediately-invoked
   closure (`(|| { ... })()`) or an `async` block directly to scope `?`, rather
   than a `maybe!`-style macro.

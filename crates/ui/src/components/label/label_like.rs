@@ -5,7 +5,21 @@ use gpui::UnderlineStyle;
 use smallvec::SmallVec;
 
 use crate::font;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::AnyElement;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::Div;
+use crate::prelude::FluentBuilder;
+use crate::prelude::IntoElement;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::Styled;
+use crate::prelude::StyledTypography;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::px;
+use crate::prelude::relative;
 
 /// Sets the size of a label
 #[derive(Debug, PartialEq, Clone, Copy, Default)]

@@ -4,7 +4,15 @@ use gpui::Animation;
 use gpui::AnimationExt;
 use gpui::FontWeight;
 
-use crate::prelude::*;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::IntoElement;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::LineHeightStyle;
+use crate::prelude::RenderOnce;
+use crate::prelude::Window;
 
 /// Different types of spinner animations
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -68,14 +76,6 @@ impl SpinnerLabel {
 
     pub fn dots() -> Self {
         Self::with_variant(SpinnerVariant::Dots)
-    }
-
-    pub fn dots_variant() -> Self {
-        Self::with_variant(SpinnerVariant::DotsVariant)
-    }
-
-    pub fn sand() -> Self {
-        Self::with_variant(SpinnerVariant::Sand)
     }
 }
 

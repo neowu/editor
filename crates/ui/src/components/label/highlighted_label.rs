@@ -9,7 +9,15 @@ use crate::LabelCommon;
 use crate::LabelLike;
 use crate::LabelSize;
 use crate::LineHeightStyle;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::IntoElement;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::Window;
 use crate::utils::replace_control_characters_remapping_offsets;
 
 #[derive(IntoElement)]
@@ -57,10 +65,6 @@ impl HighlightedLabel {
 
     pub fn text(&self) -> &str {
         self.label.as_str()
-    }
-
-    pub fn highlight_indices(&self) -> &[usize] {
-        &self.highlight_indices
     }
 
     /// Truncates the label from the start, keeping the end visible.

@@ -52,8 +52,6 @@ mod window;
 pub mod private {
     pub use anyhow;
     pub use inventory;
-    pub use rand;
-    pub use serde;
     pub use serde_json;
 }
 
@@ -66,53 +64,82 @@ mod seal {
 use std::any::Any;
 use std::future::Future;
 
+#[allow(clippy::wildcard_imports)]
 pub use action::*;
 pub use anyhow::Result;
+#[allow(clippy::wildcard_imports)]
 pub use app::*;
 pub(crate) use arena::Arena;
 pub(crate) use arena::ArenaBox;
+#[allow(clippy::wildcard_imports)]
 pub use asset_cache::*;
+#[allow(clippy::wildcard_imports)]
 pub use assets::*;
+#[allow(clippy::wildcard_imports)]
 pub use color::*;
+#[allow(clippy::wildcard_imports)]
 pub use element::*;
+#[allow(clippy::wildcard_imports)]
 pub use elements::*;
+#[allow(clippy::wildcard_imports)]
 pub use executor::*;
+#[allow(clippy::wildcard_imports)]
 pub use frame_stats::*;
+#[allow(clippy::wildcard_imports)]
 pub use geometry::*;
+#[allow(clippy::wildcard_imports)]
 pub use global::*;
 pub use gpui_macros::AppContext;
 pub use gpui_macros::IntoElement;
 pub use gpui_macros::Render;
 pub use gpui_macros::VisualContext;
 pub use gpui_macros::register_action;
+#[allow(clippy::wildcard_imports)]
 pub use gpui_shared_string::*;
+#[allow(clippy::wildcard_imports)]
 pub use input::*;
+#[allow(clippy::wildcard_imports)]
 pub use interactive::*;
 use key_dispatch::DispatchActionListener;
 use key_dispatch::DispatchNodeId;
 use key_dispatch::DispatchTree;
 use key_dispatch::Replay;
+#[allow(clippy::wildcard_imports)]
 pub use keymap::*;
+#[allow(clippy::wildcard_imports)]
 pub use path_builder::*;
+#[allow(clippy::wildcard_imports)]
 pub use platform::*;
+#[allow(clippy::wildcard_imports)]
 pub use refineable::*;
+#[allow(clippy::wildcard_imports)]
 pub use scene::*;
+#[allow(clippy::wildcard_imports)]
 pub use scroll_axis_lock::*;
+#[allow(clippy::wildcard_imports)]
 pub use spring::*;
+#[allow(clippy::wildcard_imports)]
 pub use style::*;
+#[allow(clippy::wildcard_imports)]
 pub use styled::*;
+#[allow(clippy::wildcard_imports)]
 pub use subscription::*;
+#[allow(clippy::wildcard_imports)]
 pub use svg_renderer::*;
 pub(crate) use tab_stop::TabStopMap;
 pub use taffy::AvailableSpace;
 pub use taffy::LayoutId;
 use taffy::TaffyLayoutEngine;
+#[allow(clippy::wildcard_imports)]
 pub use text_system::*;
+#[allow(clippy::wildcard_imports)]
 pub use ui_snapshot::*;
 pub use util::FutureExt;
 pub use util::Timeout;
 pub use util::block_on;
+#[allow(clippy::wildcard_imports)]
 pub use view::*;
+#[allow(clippy::wildcard_imports)]
 pub use window::*;
 
 /// The context trait, allows the different contexts in GPUI to be used

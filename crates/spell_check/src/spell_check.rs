@@ -59,13 +59,6 @@ static SKIP_PATTERNS: LazyLock<Regex> = LazyLock::new(|| {
     .expect("valid skip patterns")
 });
 
-/// Loads the bundled dictionary. It loads lazily on first use anyway; call
-/// this from a background thread to keep that cost off the first check.
-pub fn warm_up() {
-    LazyLock::force(&DICTIONARY);
-    LazyLock::force(&SKIP_PATTERNS);
-}
-
 /// Parses a project word list (see [`PROJECT_WORDS_FILE`]). Words match
 /// case-insensitively.
 pub fn parse_project_words(text: &str) -> FxHashSet<String> {
@@ -247,7 +240,9 @@ fn split_identifier(token: &str, parts: &mut Vec<Range<usize>>) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::FxHashSet;
+    use super::is_correct;
 
     #[test]
     fn load_code_dictionary() {

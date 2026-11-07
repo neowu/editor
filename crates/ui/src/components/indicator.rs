@@ -1,5 +1,13 @@
 use super::AnyIcon;
-use crate::prelude::*;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::IntoElement;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::rems_from_px;
 
 #[derive(Default)]
 enum IndicatorKind {

@@ -12,7 +12,8 @@ use theme::ActiveTheme;
 
 use crate::Color;
 use crate::font;
-use crate::prelude::*;
+use crate::prelude::Pixels;
+use crate::prelude::px;
 use crate::rems_from_px;
 
 /// Extends [`gpui::Styled`] with typography-related styling methods.

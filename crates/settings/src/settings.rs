@@ -8,6 +8,7 @@ mod keymap;
 mod settings_store;
 
 pub mod settings_content {
+    #[allow(clippy::wildcard_imports)]
     pub use ::settings_content::*;
 }
 
@@ -34,6 +35,7 @@ macro_rules! register_setting {
 
 use std::fmt;
 
+#[allow(clippy::wildcard_imports)]
 pub use ::settings_content::*;
 pub use action_sequence::ActionSequence;
 pub use built_in_keymap::keymap as built_in_keymap;

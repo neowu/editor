@@ -10,6 +10,7 @@ use git::repository::delete_branch_flag;
 use git_ui_core::notifications::show_error_toast;
 use gpui::Action;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Context;
 use gpui::DismissEvent;
 use gpui::Entity;
@@ -53,7 +54,32 @@ use ui::PopoverMenu;
 use ui::PopoverMenuHandle;
 use ui::Severity;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::AnyElement;
+use ui::prelude::BorrowAppContext;
+use ui::prelude::Button;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Disableable;
+use ui::prelude::Div;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconPosition;
+use ui::prelude::IconSize;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::Rems;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::Toggleable;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::px;
+use ui::prelude::rems_from_px;
+use ui::prelude::v_flex;
 use ui_input::ErasedEditor;
 use url::Url;
 use util::ResultExt;
@@ -82,15 +108,6 @@ actions!(
         ToggleFilterMenu
     ]
 );
-
-pub fn checkout_branch(
-    workspace: &mut Workspace,
-    _: &ed_actions::git::CheckoutBranch,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) {
-    open(workspace, &ed_actions::git::Branch, window, cx);
-}
 
 pub fn switch(
     workspace: &mut Workspace,
@@ -414,6 +431,7 @@ impl BranchList {
         self.set_branch_filter(branch_filter, window, cx);
     }
 }
+
 impl ModalView for BranchList {}
 impl EventEmitter<DismissEvent> for BranchList {}
 
@@ -1726,7 +1744,9 @@ impl PickerDelegate for BranchListDelegate {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::PickerState;
+    use super::branch_list_placeholder;
 
     #[test]
     fn test_branch_list_placeholder() {

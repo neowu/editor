@@ -336,7 +336,9 @@ fn parse_hex(digits: &str) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::NAMED;
+    use super::decode;
 
     #[test]
     fn names_are_sorted_for_binary_search() {

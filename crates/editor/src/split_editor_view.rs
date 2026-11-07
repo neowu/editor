@@ -3,6 +3,7 @@ use std::cmp;
 use gpui::AbsoluteLength;
 use gpui::AnyElement;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::AvailableSpace;
 use gpui::Bounds;
 use gpui::ContentMask;
@@ -35,7 +36,9 @@ use smallvec::smallvec;
 use text::BufferId;
 use theme::ActiveTheme;
 use ui::h_flex;
-use ui::prelude::*;
+use ui::prelude::DefiniteLength;
+use ui::prelude::InteractiveElement;
+use ui::prelude::RenderOnce;
 use ui::v_flex;
 
 use crate::DisplayRow;

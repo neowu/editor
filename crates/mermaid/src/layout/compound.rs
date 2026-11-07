@@ -1557,7 +1557,17 @@ fn append(route: &mut Vec<f64>, part: &[f64], ox: f64, oy: f64) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::CEdge;
+    use super::CNode;
+    use super::Dir;
+    use super::LayeredOptions;
+    use super::Style;
+    use super::cnode;
+    use super::compound_layout;
+    use super::float;
+    use super::parent_of;
+    use super::route_crossings;
     use crate::Color;
     use crate::Options;
     use crate::Theme;

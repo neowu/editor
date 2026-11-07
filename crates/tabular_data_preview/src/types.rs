@@ -1,9 +1,12 @@
 use std::fmt::Debug;
 
+#[allow(clippy::wildcard_imports)]
 pub use coordinates::*;
 mod coordinates;
+#[allow(clippy::wildcard_imports)]
 pub use table_cell::*;
 mod table_cell;
+#[allow(clippy::wildcard_imports)]
 pub use table_like_content::*;
 mod table_like_content;
 

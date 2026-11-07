@@ -12,6 +12,7 @@ use gpui::AsyncApp;
 use gpui::Entity;
 use gpui::Task;
 use language::LspAdapterDelegate;
+#[allow(clippy::wildcard_imports)]
 pub use language::*;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;

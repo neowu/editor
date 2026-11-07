@@ -3,7 +3,14 @@ use gpui::FocusHandle;
 use gpui::ScrollAnchor;
 use gpui::ScrollHandle;
 
-use crate::prelude::*;
+use crate::prelude::App;
+use crate::prelude::InteractiveElement;
+use crate::prelude::IntoElement;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::div;
 
 /// An element that can be navigated through via keyboard. Intended for use with scrollable views that want to use
 #[derive(IntoElement)]

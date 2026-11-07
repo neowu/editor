@@ -165,10 +165,6 @@ impl SettingsStore {
         setting_value.set_global_value(value);
     }
 
-    pub const fn merged_settings(&self) -> &SettingsContent {
-        &self.merged_settings
-    }
-
     /// Get the value of a setting.
     ///
     /// Panics if the given setting type has not been registered, or if there is no
@@ -200,13 +196,6 @@ impl SettingsStore {
             .set_global_value(Box::new(value))
     }
 
-    /// Replace application-wide preferences without reading or writing a file.
-    pub fn set_settings(&mut self, settings: SettingsContent, cx: &mut App) {
-        self.settings = settings;
-        self.recompute_values();
-        cx.refresh_windows();
-    }
-
     pub const fn settings(&self) -> &SettingsContent {
         &self.settings
     }
@@ -218,11 +207,6 @@ impl SettingsStore {
     /// applied to buffers of the matching language by the `SemanticTokenStylizer`.
     pub fn set_language_semantic_token_rules(&mut self, language: SharedString, rules: SemanticTokenRules) {
         self.language_semantic_token_rules.insert(language, rules);
-    }
-
-    /// Removes language-specific semantic token rules for the given language.
-    pub fn remove_language_semantic_token_rules(&mut self, language: &str) {
-        self.language_semantic_token_rules.remove(language);
     }
 
     /// Returns the language-specific semantic token rules for the given language,

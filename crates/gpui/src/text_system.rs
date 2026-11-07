@@ -32,11 +32,16 @@ use derive_more::Add;
 use derive_more::Deref;
 use derive_more::FromStr;
 use derive_more::Sub;
+#[allow(clippy::wildcard_imports)]
 pub use font_fallbacks::*;
+#[allow(clippy::wildcard_imports)]
 pub use font_features::*;
 use itertools::Itertools;
+#[allow(clippy::wildcard_imports)]
 pub use line::*;
+#[allow(clippy::wildcard_imports)]
 pub use line_layout::*;
+#[allow(clippy::wildcard_imports)]
 pub use line_wrapper::*;
 use parking_lot::Mutex;
 use parking_lot::RwLock;
@@ -114,11 +119,6 @@ impl MissingGlyph {
     /// Returns the unresolved grapheme cluster.
     pub fn grapheme(&self) -> &str {
         &self.grapheme
-    }
-
-    /// Returns the spacing behavior required of a fallback font.
-    pub const fn font_class(&self) -> FallbackFontClass {
-        self.font_class
     }
 }
 

@@ -34,7 +34,11 @@ use gpui::prelude::FluentBuilder;
 use gpui::px;
 use gpui::size;
 
-use crate::prelude::*;
+use crate::prelude::ButtonCommon;
+use crate::prelude::Clickable;
+use crate::prelude::Toggleable;
+use crate::prelude::relative;
+use crate::prelude::rems_from_px;
 
 pub trait PopoverTrigger: IntoElement + Clickable + Toggleable + 'static {}
 

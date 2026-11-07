@@ -12,6 +12,7 @@ use std::sync::atomic::Ordering;
 use fuzzy::StringMatch;
 use fuzzy::StringMatchCandidate;
 use gpui::AnyElement;
+use gpui::AppContext as _;
 use gpui::Entity;
 use gpui::Focusable;
 use gpui::FontWeight;
@@ -54,7 +55,27 @@ use ui::ListItem;
 use ui::ListSubHeader;
 use ui::Popover;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Color;
+use ui::prelude::Context;
+use ui::prelude::Div;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconSize;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::ParentElement;
+use ui::prelude::Pixels;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::Styled;
+use ui::prelude::Toggleable;
+use ui::prelude::Window;
+use ui::prelude::h_flex;
+use ui::prelude::rems;
+use ui::prelude::rems_from_px;
 use util::ResultExt;
 
 use crate::CodeActionProvider;
@@ -69,7 +90,6 @@ use crate::actions::ConfirmCodeAction;
 use crate::actions::ConfirmCompletion;
 use crate::hover_popover::hover_markdown_style;
 use crate::hover_popover::open_markdown_url;
-use crate::scroll::ScrollAmount;
 use crate::split_words;
 use crate::styled_runs_for_code_label;
 
@@ -216,13 +236,6 @@ impl CodeContextMenu {
                 .as_ref()
                 .is_some_and(|markdown| markdown.focus_handle(cx).contains_focused(window, cx)),
             CodeContextMenu::CodeActions(_) => false,
-        }
-    }
-
-    pub fn scroll_aside(&mut self, scroll_amount: ScrollAmount, window: &mut Window, cx: &mut Context<Editor>) {
-        match self {
-            CodeContextMenu::Completions(completions_menu) => completions_menu.scroll_aside(scroll_amount, window, cx),
-            CodeContextMenu::CodeActions(_) => (),
         }
     }
 
@@ -1364,15 +1377,6 @@ impl CompletionsMenu {
                 }
             }
         });
-    }
-
-    pub fn scroll_aside(&mut self, amount: ScrollAmount, window: &mut Window, cx: &mut Context<Editor>) {
-        let mut offset = self.scroll_handle_aside.offset();
-
-        offset.y -= amount.pixels(window.line_height(), self.scroll_handle_aside.bounds().size.height - px(16.)) / 2.0;
-
-        cx.notify();
-        self.scroll_handle_aside.set_offset(offset);
     }
 }
 

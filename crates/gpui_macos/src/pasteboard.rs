@@ -321,9 +321,18 @@ impl UTType {
 
 #[cfg(test)]
 mod tests {
+
     use std::env;
 
-    use super::*;
+    use super::ClipboardEntry;
+    use super::ClipboardItem;
+    use super::ClipboardString;
+    use super::ExternalPaths;
+    use super::Pasteboard;
+    use super::PathBuf;
+    use super::SmallVec;
+    use super::class;
+    use super::msg_send;
 
     #[test]
     fn writes_file_urls_readable_as_external_paths() {

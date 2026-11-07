@@ -15,6 +15,7 @@ use git::status::TrackedStatus;
 use gpui::Anchor;
 use gpui::AnyElement;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::ClipboardItem;
 use gpui::DismissEvent;
 use gpui::Entity;
@@ -36,7 +37,14 @@ use gpui::WeakEntity;
 use gpui::Window;
 use gpui::anchored;
 use gpui::deferred;
-use gpui::prelude::*;
+use gpui::prelude::Context;
+use gpui::prelude::FluentBuilder;
+use gpui::prelude::InteractiveElement;
+use gpui::prelude::IntoElement;
+use gpui::prelude::ParentElement;
+use gpui::prelude::Render;
+use gpui::prelude::StatefulInteractiveElement;
+use gpui::prelude::Styled;
 use gpui::px;
 use gpui::uniform_list;
 use language::LanguageRegistry;
@@ -57,7 +65,24 @@ use ui::Divider;
 use ui::IndentGuideColors;
 use ui::Tooltip;
 use ui::WithScrollbar;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Button;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Div;
+use ui::prelude::ElementId;
+use ui::prelude::Icon;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::Toggleable;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::v_flex;
 use util::ResultExt;
 
 use crate::git_graph;
@@ -1007,7 +1032,25 @@ fn compact_changed_file_directory_chain(mut node: &ChangedFileTreeNode) -> (&Cha
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::ChangedFileEntry;
+    use super::ChangedFileTreeEntry;
+    use super::ChangedFilesViewMode;
+    use super::CommitDiff;
+    use super::CommitFile;
+    use super::CommitFileStatus;
+    use super::FileStatus;
+    use super::FxHashMap;
+    use super::RepoPath;
+    use super::StatusCode;
+    use super::TREE_INDENT;
+    use super::TrackedStatus;
+    use super::ancestor_dirs;
+    use super::build_changed_file_tree_entries;
+    use super::changed_file_row_indent;
+    use super::compute_diff_stats;
+    use super::px;
+    use super::revealed_entry_index;
 
     fn commit_file(path: &str, old_text: Option<&str>, new_text: Option<&str>) -> CommitFile {
         CommitFile {

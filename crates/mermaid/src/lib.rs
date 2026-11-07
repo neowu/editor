@@ -180,7 +180,12 @@ fn exceeds(text: &str, limit: usize) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::Code;
+    use super::Color;
+    use super::Options;
+    use super::Theme;
+    use super::render;
+    use super::text;
 
     #[test]
     fn output_has_no_browser_markup() {

@@ -7,14 +7,17 @@ use gpui::Styled;
 use gpui::Window;
 use gpui::div;
 use gpui::hsla;
-use gpui::prelude::*;
+use gpui::prelude::FluentBuilder;
+use gpui::prelude::IntoElement;
 use gpui::px;
 use theme::ActiveTheme;
 
 use super::ButtonLike;
 use crate::Divider;
 use crate::ElevationIndex;
-use crate::prelude::*;
+use crate::prelude::Button;
+use crate::prelude::IconButton;
+use crate::prelude::h_flex;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum SplitButtonStyle {

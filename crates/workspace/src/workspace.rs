@@ -102,6 +102,7 @@ use gpui::actions;
 use gpui::point;
 use gpui::size;
 use gpui_util::TypeIdHashBuilder;
+#[allow(clippy::wildcard_imports)]
 pub use history_manager::*;
 pub use item::Item;
 pub use item::ItemHandle;
@@ -111,11 +112,13 @@ pub use item::SerializableItemHandle;
 pub use item::WeakItemHandle;
 use itertools::Itertools;
 use language::LanguageRegistry;
+#[allow(clippy::wildcard_imports)]
 pub use modal_layer::*;
 use notifications::DetachAndPromptErr;
 use notifications::Notifications;
 use notifications::dismiss_app_notification;
 use notifications::simple_message_notification::MessageNotification;
+#[allow(clippy::wildcard_imports)]
 pub use pane::*;
 pub use pane_group::HANDLE_HITBOX_SIZE;
 pub use pane_group::Member;
@@ -130,12 +133,10 @@ pub use persistence::ProjectsStore;
 pub use persistence::RecentServer;
 pub use persistence::RecentWorkspace;
 pub use persistence::RemoteServer;
-pub use persistence::WORKSPACE_STATE_DIR;
 pub use persistence::delete_recent_workspace_group;
 pub use persistence::last_session_workspaces;
 pub use persistence::model::DockData;
 pub use persistence::model::DockStructure;
-pub use persistence::model::ItemId;
 use persistence::model::SerializedWorkspace;
 pub use persistence::model::SerializedWorkspaceLocation;
 pub use persistence::model::SessionWorkspace;
@@ -178,7 +179,17 @@ pub use toolbar::ToolbarItemLocation;
 pub use toolbar::ToolbarItemView;
 pub use ui;
 use ui::Window;
-use ui::prelude::*;
+use ui::prelude::Div;
+use ui::prelude::FluentBuilder;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::ParentElement;
+use ui::prelude::Pixels;
+use ui::prelude::SharedString;
+use ui::prelude::Styled;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::px;
 use url::Url;
 use util::ResultExt;
 use util::paths::SanitizedPath;
@@ -1589,28 +1600,10 @@ impl Workspace {
         }
     }
 
-    pub fn set_panel_size_state<T: Panel>(
-        &mut self,
-        size_state: dock::PanelSizeState,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> bool {
-        let Some(panel) = self.panel::<T>(cx) else {
-            return false;
-        };
-
-        let dock = self.dock_at_position(panel.position(window, cx));
-        dock.update(cx, |dock, cx| dock.set_panel_size_state(&panel, size_state, cx))
-    }
-
     fn dock_size(&self, dock: &Dock, window: &Window, cx: &App) -> Option<Pixels> {
         let panel = dock.active_panel()?;
         let size_state = dock.stored_panel_size_state(panel.as_ref()).unwrap_or_default();
         Some(size_state.size.unwrap_or_else(|| panel.default_size(window, cx)))
-    }
-
-    pub const fn is_edited(&self) -> bool {
-        self.window_edited
     }
 
     pub fn add_panel<T: Panel>(&mut self, panel: Entity<T>, window: &mut Window, cx: &mut Context<Self>) {
@@ -1626,12 +1619,6 @@ impl Workspace {
         });
 
         cx.emit(Event::PanelAdded(any_panel));
-    }
-
-    pub fn remove_panel<T: Panel>(&mut self, panel: &Entity<T>, window: &mut Window, cx: &mut Context<Self>) {
-        for dock in [&self.left_dock, &self.bottom_dock, &self.right_dock] {
-            dock.update(cx, |dock, cx| dock.remove_panel(panel, window, cx));
-        }
     }
 
     pub const fn status_bar(&self) -> &Entity<StatusBar> {
@@ -2246,10 +2233,6 @@ impl Workspace {
         rx
     }
 
-    pub fn titlebar_item(&self) -> Option<AnyView> {
-        self.titlebar_item.clone()
-    }
-
     pub fn worktrees<'a>(&self, cx: &'a App) -> impl 'a + Iterator<Item = Entity<Worktree>> {
         self.project.read(cx).worktrees(cx)
     }
@@ -2859,10 +2842,6 @@ impl Workspace {
                 Ok(())
             }))
         }
-    }
-
-    pub fn is_dock_at_position_open(&self, position: DockPosition, cx: &mut Context<Self>) -> bool {
-        self.dock_at_position(position).read(cx).is_open()
     }
 
     /// Whether the dock is open and not covered by another zoomed view.
@@ -3887,10 +3866,6 @@ impl Workspace {
         };
 
         move_active_item(&self.active_pane, &destination, action.focus, true, window, cx);
-    }
-
-    pub fn bounding_box_for_pane(&self, pane: &Entity<Pane>) -> Option<Bounds<Pixels>> {
-        self.center.bounding_box_for_pane(pane)
     }
 
     pub fn find_pane_in_direction(&mut self, direction: SplitDirection, cx: &App) -> Option<Entity<Pane>> {

@@ -16,6 +16,7 @@ use editor::items::entry_git_aware_label_color;
 use file_icons::FileIcons;
 use gpui::AnyElement;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Bounds;
 use gpui::Context;
 use gpui::DispatchPhase;
@@ -60,7 +61,22 @@ use project::Project;
 use project::ProjectPath;
 use project::image_store::ImageItemEvent;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::SharedString;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::TextSize;
+use ui::prelude::h_flex;
+use ui::prelude::relative;
 use util::ResultExt as _;
 use util::paths::PathExt;
 use workspace::Pane;
@@ -75,6 +91,7 @@ use workspace::item::ProjectItem;
 use workspace::item::SerializableItem;
 use workspace::item::TabContentParams;
 
+#[allow(clippy::wildcard_imports)]
 pub use crate::image_info::*;
 
 actions!(

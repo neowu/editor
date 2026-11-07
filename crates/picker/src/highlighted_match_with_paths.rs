@@ -1,5 +1,22 @@
 use ui::HighlightedLabel;
-use ui::prelude::*;
+use ui::prelude::App;
+use ui::prelude::Color;
+use ui::prelude::Div;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::IntoElement;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::ParentElement;
+use ui::prelude::RenderOnce;
+use ui::prelude::SharedString;
+use ui::prelude::Styled;
+use ui::prelude::Window;
+use ui::prelude::h_flex;
+use ui::prelude::v_flex;
 
 #[derive(Clone)]
 pub struct HighlightedMatchWithPaths {

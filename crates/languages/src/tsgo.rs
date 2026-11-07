@@ -157,7 +157,8 @@ impl LspAdapter for TsgoLspAdapter {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::major_version;
 
     #[test]
     fn parses_major_version() {

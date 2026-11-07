@@ -1,6 +1,24 @@
 use std::mem;
 
-use super::*;
+use anyhow::Context as _;
+
+use super::BlockCommentConfig;
+use super::Context;
+use super::Debug;
+use super::DiffOptions;
+use super::Editor;
+use super::IndentSize;
+use super::MultiBufferRow;
+use super::NonZeroU32;
+use super::Point;
+use super::RangeExt;
+use super::RangeInclusive;
+use super::Result;
+use super::ResultExt;
+use super::RewrapBehavior;
+use super::RewrapOptions;
+use super::ToOffset;
+use super::text_diff_with_options;
 
 impl Editor {
     pub fn rewrap(&mut self, options: RewrapOptions, cx: &mut Context<Self>) {

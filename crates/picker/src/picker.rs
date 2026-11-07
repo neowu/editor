@@ -32,7 +32,12 @@ use gpui::actions;
 use gpui::canvas;
 use gpui::div;
 use gpui::list;
-use gpui::prelude::*;
+use gpui::prelude::FluentBuilder;
+use gpui::prelude::InteractiveElement;
+use gpui::prelude::IntoElement;
+use gpui::prelude::ParentElement;
+use gpui::prelude::StatefulInteractiveElement;
+use gpui::prelude::Styled;
 use gpui::uniform_list;
 use head::Head;
 use serde::Deserialize;
@@ -41,7 +46,14 @@ use ui::Divider;
 use ui::DocumentationAside;
 use ui::KeyBinding;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Div;
+use ui::prelude::DynamicSpacing;
+use ui::prelude::Label;
+use ui::prelude::Rems;
+use ui::prelude::SharedString;
+use ui::prelude::h_flex;
+use ui::prelude::px;
 use ui_input::ErasedEditorEvent;
 use workspace::ModalView;
 
@@ -1061,4 +1073,5 @@ impl<D: PickerDelegate> Picker<D> {
 
 impl<D: PickerDelegate> EventEmitter<DismissEvent> for Picker<D> {}
 impl<D: PickerDelegate> ModalView for Picker<D> {}
+
 impl<D: PickerDelegate> ui::FluentBuilder for Picker<D> {}

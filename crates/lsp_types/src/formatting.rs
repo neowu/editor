@@ -122,7 +122,10 @@ pub struct DocumentOnTypeFormattingRegistrationOptions {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::FormattingOptions;
+    use super::FormattingProperty;
+    use super::HashMap;
     use crate::tests::test_serialization;
 
     #[test]

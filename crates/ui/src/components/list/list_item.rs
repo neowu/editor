@@ -10,7 +10,27 @@ use gpui::px;
 use smallvec::SmallVec;
 
 use crate::Disclosure;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::DefiniteLength;
+use crate::prelude::Disableable;
+use crate::prelude::DynamicSpacing;
+use crate::prelude::ElementId;
+use crate::prelude::FluentBuilder;
+use crate::prelude::InteractiveElement;
+use crate::prelude::IntoElement;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::StatefulInteractiveElement;
+use crate::prelude::Styled;
+use crate::prelude::Toggleable;
+use crate::prelude::VisibleOnHover;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
+use crate::prelude::relative;
+use crate::prelude::rems;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Default)]
 pub enum ListItemSpacing {
@@ -116,11 +136,6 @@ impl ListItem {
 
     pub const fn selectable(mut self, has_hover: bool) -> Self {
         self.selectable = has_hover;
-        self
-    }
-
-    pub const fn always_show_disclosure_icon(mut self, show: bool) -> Self {
-        self.always_show_disclosure_icon = show;
         self
     }
 

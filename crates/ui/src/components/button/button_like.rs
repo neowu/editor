@@ -17,7 +17,29 @@ use smallvec::SmallVec;
 
 use crate::DynamicSpacing;
 use crate::ElevationIndex;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Clickable;
+use crate::prelude::Color;
+use crate::prelude::Disableable;
+use crate::prelude::Div;
+use crate::prelude::ElementId;
+use crate::prelude::FixedWidth;
+use crate::prelude::FluentBuilder;
+use crate::prelude::InteractiveElement;
+use crate::prelude::IntoElement;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::StatefulInteractiveElement;
+use crate::prelude::Styled;
+use crate::prelude::StyledExt;
+use crate::prelude::StyledTypography;
+use crate::prelude::Toggleable;
+use crate::prelude::VisibleOnHover;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::rems_from_px;
 
 /// A trait for buttons that can be Selected. Enables setting the [`ButtonStyle`] of a button when it is selected.
 pub trait SelectableButton: Toggleable {
@@ -523,10 +545,6 @@ impl ButtonLike {
 
     pub fn new_rounded_right(id: impl Into<ElementId>) -> Self {
         Self::new(id).rounding(ButtonLikeRounding::RIGHT)
-    }
-
-    pub fn new_rounded_all(id: impl Into<ElementId>) -> Self {
-        Self::new(id).rounding(ButtonLikeRounding::ALL)
     }
 
     pub fn opacity(mut self, opacity: f32) -> Self {

@@ -132,13 +132,6 @@ impl Rope {
         cursor.slice(range.end)
     }
 
-    pub fn slice_rows(&self, range: Range<u32>) -> Rope {
-        // This would be more efficient with a forward advance after the first, but it's fine.
-        let start = self.point_to_offset(Point::new(range.start, 0));
-        let end = self.point_to_offset(Point::new(range.end, 0));
-        self.slice(start..end)
-    }
-
     pub fn push(&mut self, mut text: &str) {
         self.chunks.update_last(
             |last_chunk| {
@@ -1182,14 +1175,6 @@ impl TextSummary {
             longest_row: 0,
             longest_row_chars: 0,
         }
-    }
-
-    pub fn add_newline(&mut self) {
-        self.len += 1;
-        self.len_utf16 += OffsetUtf16(self.len_utf16.0 + 1);
-        self.last_line_chars = 0;
-        self.last_line_len_utf16 = 0;
-        self.lines += Point::new(1, 0);
     }
 }
 

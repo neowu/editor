@@ -105,13 +105,6 @@ impl AvailableLanguages {
         self.0.iter().find(|language| language.id == id)
     }
 
-    pub(super) fn find_name_by_extension(&self, extension: &str) -> Option<LanguageName> {
-        self.0
-            .iter()
-            .find(|language| language.matcher.path_suffixes.iter().any(|suffix| suffix == extension))
-            .map(|language| language.name.clone())
-    }
-
     pub(super) fn find_by_exact_name(&self, name: &str) -> Option<AvailableLanguage> {
         self.0.iter().find(|language| language.name.0.as_ref() == name).cloned()
     }

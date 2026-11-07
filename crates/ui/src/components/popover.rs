@@ -10,7 +10,10 @@ use gpui::Window;
 use gpui::div;
 use smallvec::SmallVec;
 
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::FluentBuilder;
+use crate::prelude::StyledExt;
+use crate::prelude::px;
 use crate::v_flex;
 
 /// Y height added beyond the size of the contents.

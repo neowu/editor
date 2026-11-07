@@ -4,7 +4,9 @@ mod context;
 use std::any::TypeId;
 use std::collections::HashMap;
 
+#[allow(clippy::wildcard_imports)]
 pub use binding::*;
+#[allow(clippy::wildcard_imports)]
 pub use context::*;
 use gpui_util::TypeIdHashBuilder;
 use rustc_hash::FxHashSet;

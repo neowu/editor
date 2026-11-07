@@ -7,6 +7,7 @@ use ed_actions::git::CheckoutBranch;
 use ed_actions::git::Switch;
 use ed_actions::git::ViewStash;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Context;
 use gpui::DismissEvent;
 use gpui::Entity;
@@ -32,7 +33,11 @@ use ui::ToggleButtonGroup;
 use ui::ToggleButtonGroupStyle;
 use ui::ToggleButtonSimple;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::IntoElement;
+use ui::prelude::LabelSize;
+use ui::prelude::StyledExt;
+use ui::prelude::h_flex;
+use ui::prelude::v_flex;
 use workspace::ModalView;
 use workspace::Workspace;
 use workspace::pane;
@@ -445,14 +450,6 @@ impl Render for GitPicker {
             .child(self.render_tab_bar(cx))
             .child(self.render_active_picker(window, cx))
     }
-}
-
-pub fn open_branches(workspace: &mut Workspace, _: &Branch, window: &mut Window, cx: &mut Context<Workspace>) {
-    open_with_tab(workspace, GitPickerTab::Branches, window, cx);
-}
-
-pub fn open_stash(workspace: &mut Workspace, _: &ViewStash, window: &mut Window, cx: &mut Context<Workspace>) {
-    open_with_tab(workspace, GitPickerTab::Stashes, window, cx);
 }
 
 fn open_with_tab(workspace: &mut Workspace, tab: GitPickerTab, window: &mut Window, cx: &mut Context<Workspace>) {

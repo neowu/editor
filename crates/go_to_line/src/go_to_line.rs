@@ -11,6 +11,7 @@ use editor::actions::Tab;
 use editor::scroll::Autoscroll;
 use editor::scroll::ScrollOffset;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::DismissEvent;
 use gpui::Entity;
 use gpui::EventEmitter;
@@ -21,12 +22,22 @@ use gpui::SharedString;
 use gpui::Styled;
 use gpui::Subscription;
 use gpui::div;
-use gpui::prelude::*;
+use gpui::prelude::Context;
+use gpui::prelude::InteractiveElement;
+use gpui::prelude::IntoElement;
+use gpui::prelude::ParentElement;
 use language::Buffer;
 use text::Bias;
 use text::Point;
 use theme::ActiveTheme;
-use ui::prelude::*;
+use ui::prelude::Color;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::StyledExt;
+use ui::prelude::Window;
+use ui::prelude::h_flex;
+use ui::prelude::rems;
+use ui::prelude::v_flex;
 use util::paths::FILE_ROW_COLUMN_DELIMITER;
 use workspace::DismissDecision;
 use workspace::ModalView;
@@ -57,6 +68,7 @@ impl Focusable for GoToLine {
         self.line_editor.focus_handle(cx)
     }
 }
+
 impl EventEmitter<DismissEvent> for GoToLine {}
 
 enum GoToLineRowHighlights {}

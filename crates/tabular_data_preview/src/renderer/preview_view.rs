@@ -1,6 +1,17 @@
 use ui::SpinnerLabel;
 use ui::div;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Context;
+use ui::prelude::FluentBuilder;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::ParentElement;
+use ui::prelude::Render;
+use ui::prelude::Styled;
+use ui::prelude::StyledTypography;
+use ui::prelude::Window;
+use ui::prelude::h_flex;
+use ui::prelude::v_flex;
 
 use super::settings::settings_popover_menu;
 use crate::TableView;

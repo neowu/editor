@@ -1,4 +1,21 @@
-use super::*;
+use super::App;
+use super::Arc;
+use super::BufferId;
+use super::Context;
+use super::Editor;
+use super::EditorStyle;
+use super::MinimapVisibility;
+use super::Pixels;
+use super::Point;
+use super::SmallVec;
+use super::SoftWrap;
+use super::SoftWrapIndent;
+use super::TextStyleRefinement;
+use super::ToggleIndentGuides;
+use super::ToggleSoftWrap;
+use super::Window;
+use super::language_settings;
+use super::smallvec;
 
 impl Editor {
     pub fn style(&mut self, cx: &App) -> &EditorStyle {
@@ -68,23 +85,8 @@ impl Editor {
         }
     }
 
-    pub fn disable_scrollbars_and_minimap(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.show_horizontal_scrollbar = false;
-        self.set_minimap_visibility(MinimapVisibility::Disabled, window, cx);
-    }
-
     pub fn hide_minimap_by_default(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.set_minimap_visibility(self.minimap_visibility.hidden(), window, cx);
-    }
-
-    pub fn set_show_line_numbers(&mut self, show_line_numbers: bool, cx: &mut Context<Self>) {
-        self.show_line_numbers = show_line_numbers;
-        cx.notify();
-    }
-
-    pub fn disable_expand_excerpt_buttons(&mut self, cx: &mut Context<Self>) {
-        self.disable_expand_excerpt_buttons = true;
-        cx.notify();
     }
 
     pub fn set_show_git_diff_gutter(&mut self, show_git_diff_gutter: bool, cx: &mut Context<Self>) {
@@ -100,11 +102,6 @@ impl Editor {
             self.scrollbar_marker_state.pending_refresh = None;
             cx.notify();
         }
-    }
-
-    pub fn set_show_code_actions(&mut self, show_code_actions: bool, cx: &mut Context<Self>) {
-        self.show_code_actions = Some(show_code_actions);
-        cx.notify();
     }
 
     pub fn set_show_runnables(&mut self, show_runnables: bool, cx: &mut Context<Self>) {

@@ -63,7 +63,9 @@ impl DynamicSpacing {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::DynamicSpacing;
+    use super::rems;
 
     #[test]
     fn test_base_px_matches_variant_name() {

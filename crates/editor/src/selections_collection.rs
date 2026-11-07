@@ -507,10 +507,6 @@ impl SelectionsCollection {
         (mutable_collection.selections_changed, result)
     }
 
-    pub const fn next_selection_id(&self) -> usize {
-        self.next_selection_id
-    }
-
     pub const fn line_mode(&self) -> bool {
         self.line_mode
     }

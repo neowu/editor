@@ -6,7 +6,7 @@ use gpui::AnimationExt;
 use gpui::Transformation;
 use gpui::percentage;
 
-use crate::prelude::*;
+use crate::prelude::ElementId;
 use crate::traits::transformable::Transformable;
 
 /// An extension trait for adding common animations to animatable components.
@@ -47,7 +47,10 @@ fn rotate_animation(duration: u64) -> Animation {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::Duration;
+    use super::ROTATE_ANIMATION_MAX_FPS;
+    use super::rotate_animation;
 
     #[test]
     fn rotate_animation_repeats_synced_and_is_throttled() {

@@ -940,7 +940,12 @@ fn parse_dimension(value: &str) -> Option<DefiniteLength> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::MarkdownEvent;
+    use super::MarkdownTag;
+    use super::Token;
+    use super::decode_entities;
+    use super::lex;
     use crate::parser;
 
     #[test]

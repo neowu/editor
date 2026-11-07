@@ -31,7 +31,6 @@ use alacritty_terminal::selection::SelectionRange as AlacSelectionRange;
 use alacritty_terminal::selection::SelectionType as AlacSelectionType;
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::Config;
-use alacritty_terminal::term::Osc52;
 use alacritty_terminal::term::RenderableCursor;
 use alacritty_terminal::term::SEMANTIC_ESCAPE_CHARS;
 use alacritty_terminal::term::Term;
@@ -138,19 +137,6 @@ fn window_size_from_terminal_bounds(bounds: TerminalBounds) -> WindowSize {
         num_cols: bounds.num_columns() as u16,
         cell_width: f32::from(bounds.cell_width()) as u16,
         cell_height: f32::from(bounds.line_height()) as u16,
-    }
-}
-
-pub(super) fn display_only_term_config(
-    scrolling_history: usize,
-    cursor_shape: SettingsCursorShape,
-) -> AlacrittyTermConfig {
-    Config {
-        scrolling_history,
-        default_cursor_style: alacritty_cursor_style(cursor_shape),
-        semantic_escape_chars: format!("{SEMANTIC_ESCAPE_CHARS}─"),
-        osc52: Osc52::Disabled,
-        ..Config::default()
     }
 }
 
@@ -578,8 +564,6 @@ impl Iterator for RenderableCells<'_> {
         self.cells.size_hint()
     }
 }
-
-impl Modes {}
 
 const fn terminal_modes_from_alacritty(mode: TermMode) -> Modes {
     let mut terminal_modes = Modes::empty();

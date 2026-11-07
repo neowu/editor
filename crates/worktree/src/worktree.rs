@@ -773,18 +773,6 @@ impl Worktree {
         }
     }
 
-    pub fn metadata_proto(&self) -> proto::WorktreeMetadata {
-        proto::WorktreeMetadata {
-            id: self.id().to_proto(),
-            root_name: self.root_name().as_unix_str().to_owned(),
-            visible: self.is_visible(),
-            library_name: self.library_name().map(ToString::to_string),
-            abs_path: self.abs_path().to_string_lossy().into_owned(),
-            root_repo_common_dir: self.root_repo_common_dir().map(|p| p.to_string_lossy().into_owned()),
-            root_repo_is_linked_worktree: self.root_repo_is_linked_worktree(),
-        }
-    }
-
     pub fn completed_scan_id(&self) -> usize {
         match self {
             Worktree::Local(worktree) => worktree.snapshot.completed_scan_id,
@@ -828,11 +816,6 @@ impl Worktree {
             Worktree::Local(worktree) => SanitizedPath::cast_arc(worktree.abs_path.clone()),
             Worktree::Remote(worktree) => SanitizedPath::cast_arc(worktree.abs_path.clone()),
         }
-    }
-
-    pub fn root_file(&self, cx: &Context<Self>) -> Option<Arc<File>> {
-        let entry = self.root_entry()?;
-        Some(File::for_entry(entry.clone(), cx.entity()))
     }
 
     pub fn observe_updates<F, Fut>(&mut self, project_id: u64, cx: &Context<Worktree>, callback: F)

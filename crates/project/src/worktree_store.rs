@@ -78,39 +78,9 @@ impl WorktreePaths {
         self.paths.is_empty()
     }
 
-    /// The main worktree paths (for group key / `threads_by_main_paths` index).
-    pub const fn main_worktree_path_list(&self) -> &PathList {
-        &self.main_paths
-    }
-
     /// Iterate the (main_worktree_path, folder_path) pairs in insertion order.
     pub fn ordered_pairs(&self) -> impl Iterator<Item = (&PathBuf, &PathBuf)> {
         self.main_paths.ordered_paths().zip(self.paths.ordered_paths())
-    }
-
-    /// Add a new path pair. If the exact (main, folder) pair already exists,
-    /// this is a no-op. Rebuilds both internal `PathList`s to maintain
-    /// consistent ordering.
-    pub fn add_path(&mut self, main_path: &Path, folder_path: &Path) {
-        let already_exists = self.ordered_pairs().any(|(m, f)| m.as_path() == main_path && f.as_path() == folder_path);
-        if already_exists {
-            return;
-        }
-        let (mut mains, mut folders): (Vec<PathBuf>, Vec<PathBuf>) =
-            self.ordered_pairs().map(|(m, f)| (m.clone(), f.clone())).unzip();
-        mains.push(main_path.to_path_buf());
-        folders.push(folder_path.to_path_buf());
-        self.main_paths = PathList::new(&mains);
-        self.paths = PathList::new(&folders);
-    }
-
-    /// Remove all pairs whose main worktree path matches the given path.
-    /// This removes the corresponding entries from both lists.
-    pub fn remove_main_path(&mut self, main_path: &Path) {
-        let (mains, folders): (Vec<PathBuf>, Vec<PathBuf>) =
-            self.ordered_pairs().filter(|(m, _)| m.as_path() != main_path).map(|(m, f)| (m.clone(), f.clone())).unzip();
-        self.main_paths = PathList::new(&mains);
-        self.paths = PathList::new(&folders);
     }
 }
 

@@ -67,7 +67,10 @@ mod tests {
     use std::fs::Permissions;
     use std::process;
 
-    use super::*;
+    use super::NPX_PACKAGE;
+    use super::OsString;
+    use super::PathBuf;
+    use super::resolve_command;
 
     fn temp_dir(name: &str) -> PathBuf {
         let dir = env::temp_dir().join(format!("biome-{name}-{}", process::id()));

@@ -6,7 +6,27 @@ use smallvec::SmallVec;
 use smallvec::smallvec;
 use theme::ActiveTheme;
 
-use crate::prelude::*;
+use crate::prelude::AnyElement;
+use crate::prelude::App;
+use crate::prelude::Button;
+use crate::prelude::Color;
+use crate::prelude::DefiniteLength;
+use crate::prelude::Div;
+use crate::prelude::ElementId;
+use crate::prelude::FluentBuilder;
+use crate::prelude::Headline;
+use crate::prelude::HeadlineSize;
+use crate::prelude::InteractiveElement;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::StyledExt;
+use crate::prelude::StyledTypography;
+use crate::prelude::Window;
+use crate::prelude::h_flex;
+use crate::prelude::px;
+use crate::prelude::v_flex;
 
 type ActionHandler = Box<dyn FnOnce(Stateful<Div>) -> Stateful<Div>>;
 

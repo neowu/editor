@@ -26,6 +26,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
+#[allow(clippy::wildcard_imports)]
 pub use app_menu::*;
 use async_task::Runnable;
 use futures::channel::oneshot;
@@ -34,7 +35,9 @@ use image::Frame;
 use image::Rgba;
 use image::codecs::gif::GifDecoder;
 use image::codecs::webp::WebPDecoder;
+#[allow(clippy::wildcard_imports)]
 pub use keyboard::*;
+#[allow(clippy::wildcard_imports)]
 pub use keystroke::*;
 use raw_window_handle::HasDisplayHandle;
 use raw_window_handle::HasWindowHandle;
@@ -1128,12 +1131,6 @@ impl PlatformInputHandler {
         })
     }
 
-    pub fn ime_candidate_bounds(&mut self) -> Option<Bounds<Pixels>> {
-        let marked_range = self.marked_text_range();
-        let selection = self.selected_text_range(true)?;
-        Self::compute_ime_candidate_bounds(marked_range, &selection, |range| self.bounds_for_range(range))
-    }
-
     #[allow(unused)]
     pub fn character_index_for_point(&mut self, point: Point<Pixels>) -> Option<usize> {
         self.cx.update(|window, cx| self.handler.character_index_for_point(point, window, cx)).ok().flatten()
@@ -1161,11 +1158,6 @@ impl PlatformInputHandler {
                 !window.has_pending_keystrokes() && self.handler.prefers_ime_for_printable_keys(window, cx)
             })
             .unwrap_or(false)
-    }
-
-    /// See [`InputHandler::text_input_editable_range`].
-    pub fn text_input_editable_range(&mut self) -> Option<Range<usize>> {
-        self.cx.update(|window, cx| self.handler.text_input_editable_range(window, cx)).ok().flatten()
     }
 }
 
@@ -1804,11 +1796,6 @@ impl ClipboardItem {
         Self { entries: vec![ClipboardEntry::String(ClipboardString::new(text).with_json_metadata(metadata))] }
     }
 
-    /// Create a new ClipboardItem::Image with the given image with no associated metadata
-    pub fn new_image(image: &Image) -> Self {
-        Self { entries: vec![ClipboardEntry::Image(image.clone())] }
-    }
-
     /// Concatenates together all the ClipboardString entries in the item.
     /// Returns None if there were no ClipboardString entries.
     pub fn text(&self) -> Option<String> {
@@ -1848,11 +1835,6 @@ impl ClipboardItem {
     /// Get the item's entries
     pub fn entries(&self) -> &[ClipboardEntry] {
         &self.entries
-    }
-
-    /// Get owned versions of the item's entries
-    pub fn into_entries(self) -> impl Iterator<Item = ClipboardEntry> {
-        self.entries.into_iter()
     }
 }
 
@@ -2112,11 +2094,6 @@ impl ClipboardString {
     /// Get the text of the clipboard string
     pub const fn text(&self) -> &String {
         &self.text
-    }
-
-    /// Get the owned text of the clipboard string
-    pub fn into_text(self) -> String {
-        self.text
     }
 
     /// Get the metadata of the clipboard string, formatted as JSON

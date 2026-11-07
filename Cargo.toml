@@ -116,7 +116,6 @@ clap_complete = "4.4"
 console = "0.16"
 convert_case = "0.11.0"
 derive_more = { version = "2.1", features = ["deref", "deref_mut", "from_str"] }
-diffy = "0.4.2"
 dirs = "6.0"
 dispatch2 = { version = "0.3", default-features = false, features = ["std"] }
 emojis = "0.9"
@@ -315,6 +314,9 @@ flat_map_option = "warn"
 format_collect = "warn"
 format_push_string = "warn"
 wildcard_imports = "warn"
+
+# cargo
+wildcard_dependencies = "warn"
 
 # old lint rules
 

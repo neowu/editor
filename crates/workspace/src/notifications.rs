@@ -38,7 +38,34 @@ use settings::Settings;
 use ui::CopyButton;
 use ui::Tooltip;
 use ui::font;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Button;
+use ui::prelude::ButtonCommon;
+use ui::prelude::ButtonSize;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::ElementId;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::Label;
+use ui::prelude::ParentElement;
+use ui::prelude::Refineable;
+use ui::prelude::SharedString;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::Styled;
+use ui::prelude::StyledExt;
+use ui::prelude::TextSize;
+use ui::prelude::Window;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::px;
+use ui::prelude::v_flex;
+use ui::prelude::vh;
 use util::ResultExt;
 
 use crate::SuppressNotification;
@@ -439,7 +466,31 @@ pub mod simple_message_notification {
     use ui::CopyButton;
     use ui::Tooltip;
     use ui::WithScrollbar;
-    use ui::prelude::*;
+    use ui::prelude::App;
+    use ui::prelude::Button;
+    use ui::prelude::ButtonCommon;
+    use ui::prelude::ButtonStyle;
+    use ui::prelude::Clickable;
+    use ui::prelude::Color;
+    use ui::prelude::Context;
+    use ui::prelude::FluentBuilder;
+    use ui::prelude::Icon;
+    use ui::prelude::IconButton;
+    use ui::prelude::IconName;
+    use ui::prelude::IconPosition;
+    use ui::prelude::IconSize;
+    use ui::prelude::InteractiveElement;
+    use ui::prelude::IntoElement;
+    use ui::prelude::Label;
+    use ui::prelude::LabelCommon;
+    use ui::prelude::LabelSize;
+    use ui::prelude::StatefulInteractiveElement;
+    use ui::prelude::StyledExt;
+    use ui::prelude::Window;
+    use ui::prelude::div;
+    use ui::prelude::h_flex;
+    use ui::prelude::v_flex;
+    use ui::prelude::vh;
 
     use super::Notification;
     use super::SuppressEvent;
@@ -683,11 +734,6 @@ pub mod simple_message_notification {
             self
         }
 
-        pub const fn primary_icon_color(mut self, color: Color) -> Self {
-            self.primary_icon_color = Some(color);
-            self
-        }
-
         pub fn primary_on_click<F>(mut self, on_click: F) -> Self
         where
             F: 'static + Fn(&mut Window, &mut Context<Self>),
@@ -713,11 +759,6 @@ pub mod simple_message_notification {
         /// Show `icon` at the end (right) of the secondary action button label.
         pub const fn secondary_end_icon(mut self, icon: IconName) -> Self {
             self.secondary_icon = Some(ActionIcon::end(icon));
-            self
-        }
-
-        pub const fn secondary_icon_color(mut self, color: Color) -> Self {
-            self.secondary_icon_color = Some(color);
             self
         }
 
@@ -747,11 +788,6 @@ pub mod simple_message_notification {
 
         pub fn dismiss(&mut self, cx: &mut Context<Self>) {
             cx.emit(DismissEvent);
-        }
-
-        pub const fn show_close_button(mut self, show: bool) -> Self {
-            self.show_close_button = show;
-            self
         }
 
         /// Determines whether the given notification ID should be suppressible

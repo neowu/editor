@@ -34,7 +34,7 @@ ordered-float.workspace = true
 parking_lot.workspace = true
 path.workspace = true
 project.workspace = true
-rand.workspace = true
+rand = { workspace = true, features = ["thread_rng"] }
 regex.workspace = true
 rope.workspace = true
 rpc.workspace = true

@@ -8,16 +8,21 @@ mod serde_helper;
 mod terminal;
 mod workspace;
 
+#[allow(clippy::wildcard_imports)]
 pub use editor::*;
+#[allow(clippy::wildcard_imports)]
 pub use font::*;
+#[allow(clippy::wildcard_imports)]
 pub use language::*;
+#[allow(clippy::wildcard_imports)]
 pub use project::*;
-use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 pub use serde_helper::serialize_f32_with_two_decimal_places;
 pub use serde_helper::serialize_optional_f32_with_two_decimal_places;
+#[allow(clippy::wildcard_imports)]
 pub use terminal::*;
+#[allow(clippy::wildcard_imports)]
 pub use workspace::*;
 
 /// A non-negative size in pixels.
@@ -58,12 +63,6 @@ pub struct SettingsContent {
 
     /// Configuration of the terminal in ed.
     pub terminal: Option<TerminalSettingsContent>,
-}
-
-impl SettingsContent {
-    pub const fn languages_mut(&mut self) -> &mut FxHashMap<String, LanguageSettingsContent> {
-        &mut self.project.all_languages.languages.0
-    }
 }
 
 pub struct LanguageDefaultsContent {

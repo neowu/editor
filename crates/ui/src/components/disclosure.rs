@@ -5,7 +5,21 @@ use gpui::ClickEvent;
 use gpui::SharedString;
 
 use crate::IconButtonShape;
-use crate::prelude::*;
+use crate::prelude::App;
+use crate::prelude::ButtonCommon;
+use crate::prelude::Clickable;
+use crate::prelude::Color;
+use crate::prelude::Disableable;
+use crate::prelude::ElementId;
+use crate::prelude::FluentBuilder;
+use crate::prelude::IconButton;
+use crate::prelude::IconName;
+use crate::prelude::IconSize;
+use crate::prelude::IntoElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::Toggleable;
+use crate::prelude::VisibleOnHover;
+use crate::prelude::Window;
 
 #[derive(IntoElement)]
 pub struct Disclosure {

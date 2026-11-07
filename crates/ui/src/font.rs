@@ -120,7 +120,15 @@ pub fn clamp_font_size(size: Pixels) -> Pixels {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::BUFFER_FONT_SIZE;
+    use super::MAX_FONT_SIZE;
+    use super::MIN_FONT_SIZE;
+    use super::buffer_font;
+    use super::clamp_font_size;
+    use super::px;
+    use super::shift_by_buffer_zoom;
+    use super::ui_font;
 
     #[test]
     fn test_clamp_font_size() {

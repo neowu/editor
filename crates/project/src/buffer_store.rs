@@ -6,7 +6,6 @@ use std::time::Instant;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use futures::Future;
 use futures::FutureExt as _;
 use futures::channel::oneshot;
 use futures::future::Shared;
@@ -968,19 +967,6 @@ impl BufferStore {
 
     pub(crate) fn is_searchable(&self, id: &BufferId) -> bool {
         !self.non_searchable_buffers.contains(id)
-    }
-
-    pub fn loading_buffers(
-        &self,
-    ) -> impl Iterator<Item = (&ProjectPath, impl Future<Output = Result<Entity<Buffer>>>)> {
-        self.loading_buffers.iter().map(|(path, task)| {
-            let task = task.clone();
-            (path, async move {
-                task.await.map_err(|e| {
-                    if e.error_code() != ErrorCode::Internal { anyhow!(e.error_code()) } else { anyhow!("{e}") }
-                })
-            })
-        })
     }
 
     pub fn buffer_id_for_project_path(&self, project_path: &ProjectPath) -> Option<&BufferId> {

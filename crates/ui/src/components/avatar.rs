@@ -6,7 +6,22 @@ use gpui::IntoElement;
 use gpui::Styled;
 use gpui::img;
 
-use crate::prelude::*;
+use crate::prelude::AbsoluteLength;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::FluentBuilder;
+use crate::prelude::Icon;
+use crate::prelude::IconName;
+use crate::prelude::IconSize;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::StyledImage;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
+use crate::prelude::px;
+use crate::prelude::rems;
 
 /// An element that renders a user avatar with customizable appearance options.
 #[derive(IntoElement)]

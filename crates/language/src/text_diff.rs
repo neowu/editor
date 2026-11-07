@@ -3,8 +3,6 @@ use std::iter;
 use std::ops::Range;
 use std::sync::Arc;
 
-use anyhow::Context;
-use anyhow::anyhow;
 use imara_diff::Algorithm;
 use imara_diff::Diff;
 use imara_diff::InternedInput;
@@ -19,11 +17,6 @@ use crate::LanguageScope;
 
 const MAX_WORD_DIFF_LEN: usize = 512;
 const MAX_WORD_DIFF_LINE_COUNT: usize = 8;
-
-/// Computes a diff between two strings, returning a unified diff string.
-pub fn unified_diff(old_text: &str, new_text: &str) -> String {
-    unified_diff_with_offsets(old_text, new_text, 0, 0)
-}
 
 /// Computes a diff between two strings, returning a unified diff string with
 /// hunk headers adjusted to reflect the given starting line numbers (zero-indexed).
@@ -215,21 +208,6 @@ pub fn word_diff_ranges(
     (old_ranges, new_ranges)
 }
 
-/// Computes character-level diff between two strings.
-///
-/// Usually, you should use `text_diff`, which performs a word-wise diff.
-pub fn char_diff<'a>(old_text: &'a str, new_text: &'a str) -> Vec<(Range<usize>, &'a str)> {
-    let mut input: InternedInput<&str> = InternedInput::default();
-    input.update_before(tokenize_chars(old_text));
-    input.update_after(tokenize_chars(new_text));
-    let mut edits: Vec<(Range<usize>, &str)> = Vec::new();
-    diff_internal(&input, &mut |old_byte_range, new_byte_range, _, _| {
-        let replacement = if new_byte_range.is_empty() { "" } else { &new_text[new_byte_range] };
-        edits.push((old_byte_range, replacement));
-    });
-    edits
-}
-
 pub struct DiffOptions {
     pub language_scope: Option<LanguageScope>,
     pub max_word_diff_len: usize,
@@ -276,18 +254,6 @@ pub fn text_diff_with_options(old_text: &str, new_text: &str, options: DiffOptio
     edits
 }
 
-pub fn apply_diff_patch(base_text: &str, patch: &str) -> Result<String, anyhow::Error> {
-    let patch = diffy::Patch::from_str(patch).context("Failed to parse patch")?;
-    let result = diffy::apply(base_text, &patch);
-    result.map_err(|err| anyhow!(err))
-}
-
-pub fn apply_reversed_diff_patch(base_text: &str, patch: &str) -> Result<String, anyhow::Error> {
-    let patch = diffy::Patch::from_str(patch).context("Failed to parse patch")?;
-    let reversed = patch.reverse();
-    diffy::apply(base_text, &reversed).map_err(|err| anyhow!(err))
-}
-
 fn should_perform_word_diff_within_hunk(
     old_row_range: &Range<u32>,
     old_byte_range: &Range<usize>,
@@ -327,14 +293,6 @@ fn diff_internal(
         new_offset = new_byte_range.end;
         on_change(old_byte_range, new_byte_range, old_tokens, new_tokens);
     }
-}
-
-fn tokenize_chars(text: &str) -> impl Iterator<Item = &str> {
-    let mut chars = text.char_indices().peekable();
-    iter::from_fn(move || {
-        let (start, c) = chars.next()?;
-        Some(&text[start..start + c.len_utf8()])
-    })
 }
 
 fn tokenize(text: &str, language_scope: Option<LanguageScope>) -> impl Iterator<Item = &str> {

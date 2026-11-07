@@ -523,7 +523,8 @@ pub(crate) fn loop_path(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::route_path;
 
     #[test]
     fn route_path_finishes_smooth_and_stepped_corners_at_the_destination() {

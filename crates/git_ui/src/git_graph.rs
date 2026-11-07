@@ -28,6 +28,7 @@ use gpui::Anchor;
 use gpui::AnyElement;
 use gpui::AnyView;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Bounds;
 use gpui::ClickEvent;
 use gpui::ClipboardItem;
@@ -57,7 +58,14 @@ use gpui::actions;
 use gpui::anchored;
 use gpui::deferred;
 use gpui::point;
-use gpui::prelude::*;
+use gpui::prelude::Context;
+use gpui::prelude::FluentBuilder;
+use gpui::prelude::InteractiveElement;
+use gpui::prelude::IntoElement;
+use gpui::prelude::ParentElement;
+use gpui::prelude::Render;
+use gpui::prelude::StatefulInteractiveElement;
+use gpui::prelude::Styled;
 use gpui::px;
 use gpui::relative;
 use indexmap::IndexSet;
@@ -104,7 +112,29 @@ use ui::TableResizeBehavior;
 use ui::TintColor;
 use ui::Tooltip;
 use ui::bind_redistributable_columns;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Button;
+use ui::prelude::ButtonCommon;
+use ui::prelude::ButtonStyle;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Disableable;
+use ui::prelude::DynamicSpacing;
+use ui::prelude::Icon;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconPosition;
+use ui::prelude::IconSize;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::Rems;
+use ui::prelude::TextSize;
+use ui::prelude::Toggleable;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::rems;
+use ui::prelude::v_flex;
 use ui::redistribute_hidden_fractions;
 use ui::redistribute_hidden_widths;
 use ui::render_redistributable_columns_resize_handles;
@@ -2063,13 +2093,6 @@ impl GitGraph {
         self.select_commit_by_sha(oid, cx);
     }
 
-    pub fn set_repo_id(&mut self, repo_id: RepositoryId, cx: &mut Context<Self>) {
-        if repo_id != self.repo_id && self.git_store.read(cx).repositories().contains_key(&repo_id) {
-            self.repo_id = repo_id;
-            self.invalidate_state(cx);
-        }
-    }
-
     pub fn select_commit_by_sha(&mut self, sha: impl TryInto<Oid>, cx: &mut Context<Self>) {
         fn inner(this: &mut GitGraph, oid: Oid, cx: &mut Context<GitGraph>) {
             let Some(selected_repository) = this.get_repository(cx) else {
@@ -3564,9 +3587,28 @@ fn newest_commit_to_select(selected: Option<usize>, has_pending: bool, commit_co
 
 #[cfg(test)]
 mod tests {
+
     use git::repository::Branch;
 
-    use super::*;
+    use super::GitGraph;
+    use super::LogSource;
+    use super::Range;
+    use super::RepoPath;
+    use super::RepositoryId;
+    use super::SharedString;
+    use super::branch_filter_label;
+    use super::case_insensitive_prefix_len;
+    use super::commit_graph_repo;
+    use super::commit_hash_match_range;
+    use super::graph_data_source;
+    use super::graph_repo_to_show;
+    use super::history_reveal_path;
+    use super::is_repository_graph;
+    use super::kept_branch_filter;
+    use super::loaded_index;
+    use super::new_commits_label;
+    use super::newest_commit_to_select;
+    use super::search_match_ranges;
 
     #[test]
     fn test_history_reveal_path() {

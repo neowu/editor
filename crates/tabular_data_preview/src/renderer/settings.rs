@@ -10,7 +10,9 @@ use ui::IconSize;
 use ui::Label;
 use ui::PopoverMenu;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ButtonCommon;
+use ui::prelude::ButtonSize;
+use ui::prelude::IntoElement;
 
 use crate::TableView;
 use crate::settings::FilterSortOrder;

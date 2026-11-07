@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::mem;
 use std::ops::Range;
 use std::ops::Sub;
 
@@ -82,23 +81,6 @@ impl<T: Copy + Ord> Selection<T> {
         self.goal = new_goal;
     }
 
-    pub fn set_tail(&mut self, tail: T, new_goal: SelectionGoal) {
-        if tail.cmp(&self.head()) <= Ordering::Equal {
-            if self.reversed {
-                self.end = self.start;
-                self.reversed = false;
-            }
-            self.start = tail;
-        } else {
-            if !self.reversed {
-                self.start = self.end;
-                self.reversed = true;
-            }
-            self.end = tail;
-        }
-        self.goal = new_goal;
-    }
-
     pub fn set_head_tail(&mut self, head: T, tail: T, new_goal: SelectionGoal) {
         if head < tail {
             self.reversed = true;
@@ -110,14 +92,6 @@ impl<T: Copy + Ord> Selection<T> {
             self.end = head;
         }
         self.goal = new_goal;
-    }
-
-    pub const fn swap_head_tail(&mut self) {
-        if self.reversed {
-            self.reversed = false;
-        } else {
-            mem::swap(&mut self.start, &mut self.end);
-        }
     }
 }
 

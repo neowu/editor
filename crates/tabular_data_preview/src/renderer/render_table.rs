@@ -5,7 +5,11 @@ use ui::ResizableColumnsState;
 use ui::Table;
 use ui::UncheckedTableRow;
 use ui::div;
-use ui::prelude::*;
+use ui::prelude::Context;
+use ui::prelude::FluentBuilder;
+use ui::prelude::IntoElement;
+use ui::prelude::ParentElement;
+use ui::prelude::Styled;
 
 use crate::TableView;
 use crate::types::AnyColumn;

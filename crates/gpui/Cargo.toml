@@ -34,7 +34,6 @@ num_cpus = "1.13"
 parking = "2.0.0"
 parking_lot.workspace = true
 pin-project = "1.1.10"
-rand = { workspace = true, features = ["thread_rng"] }
 raw-window-handle.workspace = true
 refineable.workspace = true
 regex = { workspace = true, default-features = true }

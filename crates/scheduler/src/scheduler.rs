@@ -12,7 +12,9 @@ use std::task::Poll;
 use std::time::Duration;
 
 use async_task::Runnable;
+#[allow(clippy::wildcard_imports)]
 pub use clock::*;
+#[allow(clippy::wildcard_imports)]
 pub use executor::*;
 use futures::channel::oneshot;
 

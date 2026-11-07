@@ -40,21 +40,6 @@ pub fn format_local_timestamp(timestamp: OffsetDateTime, reference: OffsetDateTi
     }
 }
 
-/// Formats the date component of a timestamp
-pub fn format_date(timestamp: OffsetDateTime, reference: OffsetDateTime, enhanced_formatting: bool) -> String {
-    format_absolute_date(timestamp, reference, enhanced_formatting)
-}
-
-/// Formats the time component of a timestamp
-pub fn format_time(timestamp: OffsetDateTime) -> String {
-    format_absolute_time(timestamp)
-}
-
-/// Formats the date component of a timestamp in medium style
-pub fn format_date_medium(timestamp: OffsetDateTime, reference: OffsetDateTime, enhanced_formatting: bool) -> String {
-    format_absolute_date_medium(timestamp, reference, enhanced_formatting)
-}
-
 fn format_absolute_date(
     timestamp: OffsetDateTime,
     reference: OffsetDateTime,
@@ -225,66 +210,6 @@ fn calculate_month_difference(timestamp: OffsetDateTime, reference: OffsetDateTi
         (year_diff - 1) * 12 + month_diff
     } else {
         year_diff * 12 + month_diff
-    }
-}
-
-/// Formats a timestamp, which is either in 12-hour or 24-hour time format.
-/// Note:
-/// This function does not respect the user's date and time preferences.
-/// This should only be used as a fallback mechanism when the OS time formatting fails.
-fn format_timestamp_naive_time(timestamp_local: OffsetDateTime, is_12_hour_time: bool) -> String {
-    let timestamp_local_hour = timestamp_local.hour();
-    let timestamp_local_minute = timestamp_local.minute();
-
-    let (hour, meridiem) = if is_12_hour_time {
-        let meridiem = if timestamp_local_hour >= 12 { "PM" } else { "AM" };
-
-        let hour_12 = match timestamp_local_hour {
-            0 => 12,                              // Midnight
-            13..=23 => timestamp_local_hour - 12, // PM hours
-            _ => timestamp_local_hour,            // AM hours
-        };
-
-        (hour_12, Some(meridiem))
-    } else {
-        (timestamp_local_hour, None)
-    };
-
-    match meridiem {
-        Some(meridiem) => format!("{}:{:02} {}", hour, timestamp_local_minute, meridiem),
-        None => format!("{:02}:{:02}", hour, timestamp_local_minute),
-    }
-}
-
-pub fn format_timestamp_naive(
-    timestamp_local: OffsetDateTime,
-    reference_local: OffsetDateTime,
-    is_12_hour_time: bool,
-) -> String {
-    let formatted_time = format_timestamp_naive_time(timestamp_local, is_12_hour_time);
-    let reference_local_date = reference_local.date();
-    let timestamp_local_date = timestamp_local.date();
-
-    if timestamp_local_date == reference_local_date {
-        format!("Today at {}", formatted_time)
-    } else if reference_local_date.previous_day() == Some(timestamp_local_date) {
-        format!("Yesterday at {}", formatted_time)
-    } else {
-        let formatted_date = match is_12_hour_time {
-            true => format!(
-                "{:02}/{:02}/{}",
-                timestamp_local_date.month() as u32,
-                timestamp_local_date.day(),
-                timestamp_local_date.year()
-            ),
-            false => format!(
-                "{:02}/{:02}/{}",
-                timestamp_local_date.day(),
-                timestamp_local_date.month() as u32,
-                timestamp_local_date.year()
-            ),
-        };
-        format!("{} {}", formatted_date, formatted_time)
     }
 }
 

@@ -659,11 +659,6 @@ impl LinearColorStop {
 }
 
 impl Background {
-    /// Returns the solid color if this is a solid background, None otherwise.
-    pub fn as_solid(&self) -> Option<Hsla> {
-        if self.tag == BackgroundTag::Solid { Some(self.solid) } else { None }
-    }
-
     /// Use specified color space for color interpolation.
     ///
     /// <https://developer.mozilla.org/en-US/docs/Web/CSS/color-interpolation-method>
@@ -705,7 +700,9 @@ impl From<Rgba> for Background {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::hsla;
+    use super::rgba;
 
     #[test]
     fn rgba_alpha() {

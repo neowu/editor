@@ -232,7 +232,9 @@ fn substitute_all_template_variables_in_map(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::TaskContext;
+    use super::TaskTemplate;
 
     #[test]
     fn resolve_task_preserves_multiline_labels_and_escapes_display_newlines() {

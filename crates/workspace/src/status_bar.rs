@@ -10,7 +10,12 @@ use gpui::Render;
 use gpui::Styled;
 use gpui::Subscription;
 use gpui::Window;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Color;
+use ui::prelude::DynamicSpacing;
+use ui::prelude::InteractiveElement;
+use ui::prelude::h_flex;
+use ui::prelude::px;
 
 use crate::ItemHandle;
 use crate::Pane;

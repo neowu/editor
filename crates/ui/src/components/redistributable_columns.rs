@@ -137,14 +137,6 @@ impl RedistributableColumnsState {
         self.committed_widths.cols()
     }
 
-    pub const fn initial_widths(&self) -> &TableRow<DefiniteLength> {
-        &self.initial_widths
-    }
-
-    pub const fn preview_widths(&self) -> &TableRow<DefiniteLength> {
-        &self.preview_widths
-    }
-
     pub const fn resize_behavior(&self) -> &TableRow<TableResizeBehavior> {
         &self.resize_behavior
     }
@@ -162,22 +154,6 @@ impl RedistributableColumnsState {
                 DefiniteLength::Absolute(_) => 0.0,
             })
         }
-    }
-
-    pub fn preview_column_width(&self, column_index: usize, window: &Window) -> Option<Pixels> {
-        let width = self.preview_widths().as_slice().get(column_index)?;
-        match width {
-            DefiniteLength::Fraction(fraction) if self.cached_container_width > px(0.) => {
-                Some(self.cached_container_width * *fraction)
-            }
-            DefiniteLength::Fraction(_) => None,
-            DefiniteLength::Absolute(AbsoluteLength::Pixels(pixels)) => Some(*pixels),
-            DefiniteLength::Absolute(AbsoluteLength::Rems(rems_width)) => Some(rems_width.to_pixels(window.rem_size())),
-        }
-    }
-
-    pub const fn cached_container_width(&self) -> Pixels {
-        self.cached_container_width
     }
 
     pub const fn set_cached_container_width(&mut self, width: Pixels) {

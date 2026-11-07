@@ -5,6 +5,7 @@ use git::commit::ParsedCommitMessage;
 use git::repository::CommitSummary;
 use git_ui_core::notifications::show_error_toast;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Element;
 use gpui::Entity;
 use gpui::MouseButton;
@@ -13,9 +14,14 @@ use gpui::Render;
 use gpui::ScrollHandle;
 use gpui::StatefulInteractiveElement;
 use gpui::Task;
+use gpui::TaskExt as _;
 use gpui::WeakEntity;
 use gpui::Window;
-use gpui::prelude::*;
+use gpui::prelude::Context;
+use gpui::prelude::FluentBuilder;
+use gpui::prelude::InteractiveElement;
+use gpui::prelude::IntoElement;
+use gpui::prelude::Styled;
 use markdown::Markdown;
 use markdown::MarkdownElement;
 use notifications::status_toast::StatusToast;
@@ -28,7 +34,26 @@ use ui::CopyButton;
 use ui::Divider;
 use ui::Tooltip;
 use ui::font;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Button;
+use ui::prelude::ButtonCommon;
+use ui::prelude::ButtonStyle;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Disableable;
+use ui::prelude::Icon;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::LineHeightStyle;
+use ui::prelude::SharedString;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::relative;
+use ui::prelude::rems;
+use ui::prelude::v_flex;
 use ui::tooltip_container;
 use workspace::Workspace;
 
@@ -268,20 +293,6 @@ impl Render for CommitTooltip {
                 )
         })
     }
-}
-
-fn blame_entry_timestamp(blame_entry: &BlameEntry, format: time_format::TimestampFormat) -> String {
-    match blame_entry.author_offset_date_time() {
-        Ok(timestamp) => {
-            let local_offset = UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC);
-            time_format::format_localized_timestamp(timestamp, time::OffsetDateTime::now_utc(), local_offset, format)
-        }
-        Err(_) => "Error parsing date".to_string(),
-    }
-}
-
-pub fn blame_entry_relative_timestamp(blame_entry: &BlameEntry) -> String {
-    blame_entry_timestamp(blame_entry, time_format::TimestampFormat::Relative)
 }
 
 pub(crate) fn shallow_boundary_notice(

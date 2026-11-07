@@ -20,7 +20,10 @@ pub(crate) use terminal::TerminalLayout;
 pub use terminal::TerminalModeDelegate;
 pub(crate) use terminal::is_dragged_terminal;
 pub use terminal::set_terminal_mode_delegate;
-use ui::prelude::*;
+use ui::prelude::Div;
+use ui::prelude::FluentBuilder;
+use ui::prelude::ParentElement;
+use ui::prelude::Styled;
 
 use crate::CARD_GAP;
 use crate::Pane;

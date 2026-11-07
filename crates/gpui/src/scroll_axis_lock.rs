@@ -87,7 +87,17 @@ impl OngoingScroll {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::Axis;
+    use super::Duration;
+    use super::Instant;
+    use super::OngoingScroll;
+    use super::Pixels;
+    use super::Point;
+    use super::SCROLL_EVENT_SEPARATION;
+    use super::TouchPhase;
+    use super::dominant_axis;
+    use super::lock_delta_to_axis;
+    use super::px;
     use crate::point;
 
     fn filtered(scroll: &mut OngoingScroll, delta: Point<Pixels>, phase: TouchPhase, now: Instant) -> Point<Pixels> {

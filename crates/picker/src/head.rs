@@ -1,11 +1,16 @@
 use std::sync::Arc;
 
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Entity;
 use gpui::FocusHandle;
 use gpui::Focusable;
-use gpui::prelude::*;
-use ui::prelude::*;
+use gpui::prelude::Context;
+use gpui::prelude::InteractiveElement;
+use gpui::prelude::IntoElement;
+use gpui::prelude::Render;
+use ui::prelude::Window;
+use ui::prelude::div;
 use ui_input::ErasedEditor;
 use ui_input::ErasedEditorEvent;
 

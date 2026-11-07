@@ -346,7 +346,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::Bounds;
+    use super::BoundsTree;
     use crate::point;
     use crate::size;
 

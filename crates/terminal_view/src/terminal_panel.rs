@@ -9,6 +9,7 @@ use futures::channel::oneshot;
 use futures::future::join_all;
 use gpui::Action;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::AsyncApp;
 use gpui::AsyncWindowContext;
 use gpui::Context;
@@ -37,7 +38,23 @@ use terminal::Terminal;
 use terminal::terminal_settings::TerminalSettings;
 use ui::CommonAnimationExt;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::DynamicSpacing;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::InteractiveElement;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::SharedString;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::v_flex;
 use util::ResultExt;
 use util::defer;
 use workspace::ActivateNextPane;
@@ -661,27 +678,6 @@ impl TerminalPanel {
     /// Returns all panes in the terminal panel.
     pub fn panes(&self) -> Vec<&Entity<Pane>> {
         self.center.panes()
-    }
-
-    /// Returns all non-empty terminal selections from all terminal views in all panes.
-    pub fn terminal_selections(&self, cx: &App) -> Vec<String> {
-        self.center
-            .panes()
-            .iter()
-            .flat_map(|pane| {
-                pane.read(cx).items().filter_map(|item| {
-                    let terminal_view = item.downcast::<crate::TerminalView>()?;
-                    terminal_view
-                        .read(cx)
-                        .terminal()
-                        .read(cx)
-                        .last_content
-                        .selection_text
-                        .clone()
-                        .filter(|text| !text.is_empty())
-                })
-            })
-            .collect()
     }
 
     fn is_enabled(&self, cx: &App) -> bool {

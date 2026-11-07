@@ -14,6 +14,7 @@ use editor::Editor;
 use editor::EditorEvent;
 use gpui::Anchor;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Entity;
 use gpui::Subscription;
 use gpui::Task;
@@ -47,7 +48,30 @@ use ui::Indicator;
 use ui::PopoverMenu;
 use ui::PopoverMenuHandle;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Color;
+use ui::prelude::Context;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::ParentElement;
+use ui::prelude::Render;
+use ui::prelude::SharedString;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::Styled;
+use ui::prelude::Window;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::rems_from_px;
+use ui::prelude::v_flex;
 use util::ResultExt;
 use util::paths::PathExt;
 use util::rel_path::RelPath;
@@ -1181,7 +1205,14 @@ impl Render for LspButton {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::HashMap;
+    use super::LanguageServerId;
+    use super::LanguageServerName;
+    use super::LanguageServers;
+    use super::PathBuf;
+    use super::ServersForPath;
+    use super::WeakEntity;
 
     #[test]
     fn removed_server_keeps_its_worktree() {

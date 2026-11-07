@@ -429,14 +429,6 @@ impl ThemeColors {
         self.text_accent
     }
 
-    pub fn panel_background_for_overlay(&self) -> Hsla {
-        if self.background.a >= 1.0 || self.panel_background.a >= 1.0 {
-            self.background.blend(self.panel_background)
-        } else {
-            self.panel_overlay_background
-        }
-    }
-
     pub fn color(&self, field: ThemeColorField) -> Hsla {
         match field {
             ThemeColorField::Border => self.border,

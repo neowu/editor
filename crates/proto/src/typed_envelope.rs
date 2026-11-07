@@ -118,12 +118,6 @@ impl<T: EnvelopedMessage> AnyTypedEnvelope for TypedEnvelope<T> {
 }
 
 impl PeerId {
-    pub const fn from_u64(peer_id: u64) -> Self {
-        let owner_id = (peer_id >> 32) as u32;
-        let id = peer_id as u32;
-        Self { owner_id, id }
-    }
-
     pub const fn as_u64(self) -> u64 {
         ((self.owner_id as u64) << 32) | (self.id as u64)
     }
@@ -173,11 +167,5 @@ pub struct TypedEnvelope<T> {
 impl<T> TypedEnvelope<T> {
     pub fn original_sender_id(&self) -> Result<PeerId> {
         self.original_sender_id.context("missing original_sender_id")
-    }
-}
-
-impl<T: RequestMessage> TypedEnvelope<T> {
-    pub const fn receipt(&self) -> Receipt<T> {
-        Receipt { sender_id: self.sender_id, message_id: self.message_id, payload_type: PhantomData }
     }
 }

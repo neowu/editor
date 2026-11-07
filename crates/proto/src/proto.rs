@@ -11,9 +11,11 @@ use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
+#[allow(clippy::wildcard_imports)]
 pub use error::*;
 pub use prost::DecodeError;
 pub use prost::Message;
+#[allow(clippy::wildcard_imports)]
 pub use typed_envelope::*;
 
 mod generated {
@@ -21,6 +23,7 @@ mod generated {
     #![allow(clippy::missing_const_for_fn)]
     include!(concat!(env!("OUT_DIR"), "/ed.messages.rs"));
 }
+#[allow(clippy::wildcard_imports)]
 pub use generated::*;
 
 pub const REMOTE_SERVER_PEER_ID: PeerId = PeerId { owner_id: 0, id: 0 };
@@ -740,27 +743,4 @@ pub fn split_repository_update(mut update: UpdateRepository) -> impl Iterator<It
         is_last_update: true,
         ..update
     }])
-}
-
-impl LspQuery {
-    pub const fn query_name_and_write_permissions(&self) -> (&str, bool) {
-        match self.request {
-            Some(lsp_query::Request::GetHover(_)) => ("GetHover", false),
-            Some(lsp_query::Request::GetCodeActions(_)) => ("GetCodeActions", true),
-            Some(lsp_query::Request::GetCodeLens(_)) => ("GetCodeLens", true),
-            Some(lsp_query::Request::GetDocumentDiagnostics(_)) => ("GetDocumentDiagnostics", false),
-            Some(lsp_query::Request::GetDefinition(_)) => ("GetDefinition", false),
-            Some(lsp_query::Request::GetDeclaration(_)) => ("GetDeclaration", false),
-            Some(lsp_query::Request::GetTypeDefinition(_)) => ("GetTypeDefinition", false),
-            Some(lsp_query::Request::GetImplementation(_)) => ("GetImplementation", false),
-            Some(lsp_query::Request::GetReferences(_)) => ("GetReferences", false),
-            Some(lsp_query::Request::GetDocumentColor(_)) => ("GetDocumentColor", false),
-            Some(lsp_query::Request::GetFoldingRanges(_)) => ("GetFoldingRanges", false),
-            Some(lsp_query::Request::GetDocumentSymbols(_)) => ("GetDocumentSymbols", false),
-            Some(lsp_query::Request::GetDocumentLinks(_)) => ("GetDocumentLinks", false),
-            Some(lsp_query::Request::InlayHints(_)) => ("InlayHints", false),
-            Some(lsp_query::Request::SemanticTokens(_)) => ("SemanticTokens", false),
-            None => ("<unknown>", true),
-        }
-    }
 }

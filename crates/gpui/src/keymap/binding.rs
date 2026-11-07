@@ -71,11 +71,6 @@ impl KeyBinding {
         self
     }
 
-    /// Set the metadata for this binding.
-    pub const fn set_meta(&mut self, meta: KeyBindingMetaIndex) {
-        self.meta = Some(meta);
-    }
-
     /// Check if the given keystrokes match this binding.
     pub fn match_keystrokes(&self, typed: &[impl AsKeystroke]) -> Option<bool> {
         if self.keystrokes.len() < typed.len() {
@@ -109,11 +104,6 @@ impl KeyBinding {
     /// Get the metadata for this binding
     pub const fn meta(&self) -> Option<KeyBindingMetaIndex> {
         self.meta
-    }
-
-    /// Get the action input associated with the action for this binding
-    pub fn action_input(&self) -> Option<SharedString> {
-        self.action_input.clone()
     }
 }
 

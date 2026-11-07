@@ -13,7 +13,11 @@ mod styles;
 mod traits;
 pub mod utils;
 
+#[allow(clippy::wildcard_imports)]
 pub use components::*;
+#[allow(clippy::wildcard_imports)]
 pub use prelude::*;
+#[allow(clippy::wildcard_imports)]
 pub use styles::*;
+#[allow(clippy::wildcard_imports)]
 pub use traits::animation_ext::*;

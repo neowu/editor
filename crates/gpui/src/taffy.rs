@@ -663,7 +663,8 @@ impl From<Size<Pixels>> for Size<AvailableSpace> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::AvailableSpace;
 
     #[test]
     fn available_space_min_size() {

@@ -7,7 +7,17 @@ use gpui::Window;
 use theme::Appearance;
 
 use crate::KeyBinding;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::ParentElement;
+use crate::prelude::Pixels;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::StyledTypography;
+use crate::prelude::TextSize;
+use crate::prelude::h_flex;
+use crate::prelude::px;
+use crate::prelude::rems_from_px;
 
 /// Represents a hint for a keybinding, optionally with a prefix and suffix.
 ///
@@ -29,22 +39,6 @@ impl KeybindingHint {
     /// setting all other fields to their default values.
     pub const fn new(keybinding: KeyBinding, background_color: Hsla) -> Self {
         Self { prefix: None, suffix: None, keybinding, size: None, background_color }
-    }
-
-    /// Creates a new `KeybindingHint` with a prefix and keybinding.
-    ///
-    /// This method initializes a new `KeybindingHint` instance with the given prefix and keybinding,
-    /// setting all other fields to their default values.
-    pub fn with_prefix(prefix: impl Into<SharedString>, keybinding: KeyBinding, background_color: Hsla) -> Self {
-        Self { prefix: Some(prefix.into()), suffix: None, keybinding, size: None, background_color }
-    }
-
-    /// Creates a new `KeybindingHint` with a keybinding and suffix.
-    ///
-    /// This method initializes a new `KeybindingHint` instance with the given keybinding and suffix,
-    /// setting all other fields to their default values.
-    pub fn with_suffix(keybinding: KeyBinding, suffix: impl Into<SharedString>, background_color: Hsla) -> Self {
-        Self { prefix: None, suffix: Some(suffix.into()), keybinding, size: None, background_color }
     }
 
     /// Sets the prefix for the keybinding hint.

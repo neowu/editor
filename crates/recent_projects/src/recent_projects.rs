@@ -21,6 +21,7 @@ use fuzzy_nucleo::match_strings;
 use gpui::Action;
 use gpui::AnyElement;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Context;
 use gpui::DismissEvent;
 use gpui::Entity;
@@ -63,7 +64,34 @@ use ui::PopoverMenu;
 use ui::PopoverMenuHandle;
 use ui::TintColor;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Button;
+use ui::prelude::ButtonCommon;
+use ui::prelude::ButtonStyle;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Element;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::ParentElement;
+use ui::prelude::Render;
+use ui::prelude::RenderOnce;
+use ui::prelude::SelectableButton;
+use ui::prelude::SharedString;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::Styled;
+use ui::prelude::Toggleable;
+use ui::prelude::h_flex;
+use ui::prelude::rems;
+use ui::prelude::v_flex;
 use util::ResultExt;
 use util::paths::PathExt;
 use workspace::HistoryManager;
@@ -497,6 +525,7 @@ impl RecentProjectsDelegate {
         }
     }
 }
+
 impl EventEmitter<DismissEvent> for RecentProjectsDelegate {}
 impl PickerDelegate for RecentProjectsDelegate {
     type ListItem = AnyElement;

@@ -130,9 +130,4 @@ impl DisplayCellId {
     pub fn new(row: impl Into<DisplayRow>, col: impl Into<AnyColumn>) -> Self {
         Self { row: row.into(), col: col.into() }
     }
-
-    /// Returns (row, column)
-    pub const fn to_raw(&self) -> (usize, usize) {
-        (self.row.0, self.col.0)
-    }
 }

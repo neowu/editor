@@ -12,6 +12,7 @@ use gpui::Animation;
 use gpui::AnimationExt;
 use gpui::AnyElement;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Context;
 use gpui::Entity;
 use gpui::Hsla;
@@ -41,7 +42,31 @@ use ui::TintColor;
 use ui::WithScrollbar;
 use ui::font;
 use ui::font::UI_FONT_SIZE;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Button;
+use ui::prelude::ButtonStyle;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Div;
+use ui::prelude::ElementId;
+use ui::prelude::FluentBuilder;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::ParentElement;
+use ui::prelude::Pixels;
+use ui::prelude::Refineable;
+use ui::prelude::SelectableButton;
+use ui::prelude::SharedString;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::Styled;
+use ui::prelude::StyledImage;
+use ui::prelude::Toggleable;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::px;
 
 use crate::markdown_preview_style::preview_font_size;
 
@@ -474,7 +499,8 @@ fn render_code_view(contents: &SharedString) -> AnyElement {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::render_to_svg;
 
     #[test]
     fn renders_themed_svg_without_css_functions() {

@@ -49,7 +49,8 @@ fn clamp_size(value: Pixels, min: Pixels, max: Pixels) -> Pixels {
 mod tests {
     use gpui::px;
 
-    use super::*;
+    use super::Shape;
+    use super::clamp_size;
 
     #[test]
     fn clamp_size_limits_to_max() {

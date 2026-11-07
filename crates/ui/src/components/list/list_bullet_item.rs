@@ -3,7 +3,20 @@ use gpui::ParentElement;
 use gpui::SharedString;
 
 use crate::ListItem;
-use crate::prelude::*;
+use crate::prelude::AnyElement;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::FluentBuilder;
+use crate::prelude::Icon;
+use crate::prelude::IconName;
+use crate::prelude::IconSize;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::RenderOnce;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
 
 #[derive(IntoElement)]
 pub struct ListBulletItem {

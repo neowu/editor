@@ -224,18 +224,6 @@ impl Interactivity {
         }));
     }
 
-    /// Bind the given callback to the mouse up event for any button, during the bubble phase.
-    /// The imperative API equivalent to [`Interactivity::on_any_mouse_up`].
-    ///
-    /// See [`Context::listener`](crate::Context::listener) to get access to a view's state from this callback.
-    pub fn on_any_mouse_up(&mut self, listener: impl Fn(&MouseUpEvent, &mut Window, &mut App) + 'static) {
-        self.mouse_up_listeners.push(Box::new(move |event, phase, hitbox, window, cx| {
-            if phase == DispatchPhase::Bubble && hitbox.is_hovered(window) {
-                (listener)(event, window, cx)
-            }
-        }));
-    }
-
     /// Bind the given callback to the mouse down event, on any button, during the capture phase,
     /// when the mouse is outside of the bounds of this element.
     /// The imperative API equivalent to [`InteractiveElement::on_mouse_down_out`].
@@ -3051,7 +3039,6 @@ struct ScrollActiveItem {
 enum ScrollStrategy {
     #[default]
     FirstVisible,
-    Top,
 }
 
 /// A handle to the scrollable aspects of an element.
@@ -3101,25 +3088,6 @@ impl ScrollHandle {
         }
     }
 
-    /// Get the bottom child that's scrolled into view.
-    pub fn bottom_item(&self) -> usize {
-        let state = self.0.borrow();
-        let bottom = state.bounds.bottom() - state.offset.borrow().y;
-
-        match state.child_bounds.binary_search_by(|bounds| {
-            if bottom < bounds.top() {
-                Ordering::Greater
-            } else if bottom > bounds.bottom() {
-                Ordering::Less
-            } else {
-                Ordering::Equal
-            }
-        }) {
-            Ok(ix) => ix,
-            Err(ix) => ix.min(state.child_bounds.len().saturating_sub(1)),
-        }
-    }
-
     /// Return the bounds into which this child is painted
     pub fn bounds(&self) -> Bounds<Pixels> {
         self.0.borrow().bounds
@@ -3134,13 +3102,6 @@ impl ScrollHandle {
     pub fn scroll_to_item(&self, ix: usize) {
         let mut state = self.0.borrow_mut();
         state.active_item = Some(ScrollActiveItem { index: ix, strategy: ScrollStrategy::default() });
-    }
-
-    /// Update the active item for scrolling to in prepaint.
-    /// This scrolls the minimal amount to ensure that the child is the first visible element
-    pub fn scroll_to_top_of_item(&self, ix: usize) {
-        let mut state = self.0.borrow_mut();
-        state.active_item = Some(ScrollActiveItem { index: ix, strategy: ScrollStrategy::Top });
     }
 
     /// Scrolls the minimal amount to either ensure that the child is
@@ -3168,9 +3129,6 @@ impl ScrollHandle {
                                 scroll_offset.y = state.bounds.bottom() - bounds.bottom();
                             }
                         }
-                    }
-                    ScrollStrategy::Top => {
-                        scroll_offset.y = state.bounds.top() - bounds.top();
                     }
                 }
 
@@ -3211,18 +3169,6 @@ impl ScrollHandle {
 
         if let Some(child_bounds) = state.child_bounds.get(ix) {
             (ix, child_bounds.top() + state.offset.borrow().y - state.bounds.top())
-        } else {
-            (ix, px(0.))
-        }
-    }
-
-    /// Get the logical scroll bottom, based on a child index and a pixel offset.
-    pub fn logical_scroll_bottom(&self) -> (usize, Pixels) {
-        let ix = self.bottom_item();
-        let state = self.0.borrow();
-
-        if let Some(child_bounds) = state.child_bounds.get(ix) {
-            (ix, child_bounds.bottom() + state.offset.borrow().y - state.bounds.bottom())
         } else {
             (ix, px(0.))
         }

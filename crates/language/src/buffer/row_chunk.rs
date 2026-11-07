@@ -88,10 +88,6 @@ impl RowChunks {
         chunk_ids.into_iter().map(|id| self.chunk(id))
     }
 
-    pub fn previous_chunk(&self, chunk: RowChunk) -> Option<RowChunk> {
-        if chunk.id == 0 || chunk.id > self.len() { None } else { Some(self.chunk(chunk.id - 1)) }
-    }
-
     fn chunk_row_range(&self, id: RowChunkId) -> Range<BufferRow> {
         let start = u32::try_from(id).unwrap_or(u32::MAX).saturating_mul(self.max_rows_per_chunk).min(self.last_row);
         start..start.saturating_add(self.max_rows_per_chunk).min(self.last_row)

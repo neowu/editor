@@ -997,7 +997,8 @@ fn add_bindings(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::keymap;
 
     #[test]
     fn test_terminal_split_down_binding() {

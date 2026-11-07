@@ -31,7 +31,15 @@ use project::ConflictSet;
 use project::ConflictSetUpdate;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::AnyElement;
+use ui::prelude::Button;
+use ui::prelude::Clickable;
+use ui::prelude::Element;
+use ui::prelude::LabelSize;
+use ui::prelude::Styled;
+use ui::prelude::Window;
+use ui::prelude::h_flex;
 
 pub(crate) struct ConflictAddon {
     buffers: FxHashMap<BufferId, BufferConflicts>,

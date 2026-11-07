@@ -259,7 +259,8 @@ mod tests {
     use std::cell::Cell;
     use std::rc::Rc;
 
-    use super::*;
+    use super::HeadlessPlatform;
+    use super::Platform;
 
     #[test]
     fn run_drains_main_thread_tasks_until_quit() {

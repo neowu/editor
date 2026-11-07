@@ -6,7 +6,23 @@ use gpui::IntoElement;
 use gpui::Stateful;
 use smallvec::SmallVec;
 
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Div;
+use crate::prelude::DynamicSpacing;
+use crate::prelude::ElementId;
+use crate::prelude::FluentBuilder;
+use crate::prelude::InteractiveElement;
+use crate::prelude::ParentElement;
+use crate::prelude::Pixels;
+use crate::prelude::RenderOnce;
+use crate::prelude::StatefulInteractiveElement;
+use crate::prelude::Styled;
+use crate::prelude::Toggleable;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
+use crate::prelude::px;
 
 const START_TAB_SLOT_SIZE: Pixels = px(12.);
 const END_TAB_SLOT_SIZE: Pixels = px(14.);
@@ -246,7 +262,14 @@ fn base_flare(at_start: bool, tab_bg: Hsla, chrome_bg: Hsla) -> Div {
 mod tests {
     use gpui::Length;
 
-    use super::*;
+    use super::FOLDER_TAB_RADIUS;
+    use super::Ordering;
+    use super::Styled;
+    use super::Tab;
+    use super::TabPosition;
+    use super::base_flare;
+    use super::folder_lead;
+    use super::px;
 
     #[test]
     fn test_base_flare() {

@@ -57,10 +57,6 @@ impl CreaseSnapshot {
         CreaseSnapshot { creases: SumTree::new(snapshot) }
     }
 
-    pub fn creases(&self) -> impl Iterator<Item = (CreaseId, &Crease<Anchor>)> {
-        self.creases.iter().map(|item| (item.id, &item.crease))
-    }
-
     /// Returns the first Crease starting on the specified buffer row.
     pub fn query_row<'a>(
         &'a self,

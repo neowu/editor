@@ -5,7 +5,16 @@ use gpui::linear_color_stop;
 use gpui::linear_gradient;
 use gpui::px;
 
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::FluentBuilder;
+use crate::prelude::InteractiveElement;
+use crate::prelude::IntoElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::StatefulInteractiveElement;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::div;
 
 /// A gradient overlay that fades from a solid color to transparent.
 #[derive(IntoElement)]

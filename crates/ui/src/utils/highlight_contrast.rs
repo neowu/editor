@@ -130,7 +130,10 @@ mod tests {
     use gpui::font;
     use gpui::hsla;
 
-    use super::*;
+    use super::Hsla;
+    use super::TextRun;
+    use super::ensure_highlight_contrast;
+    use super::merge_highlight_backgrounds;
 
     fn run(len: usize, color: Hsla) -> TextRun {
         TextRun { len, font: font("Helvetica"), color, background_color: None, underline: None, strikethrough: None }

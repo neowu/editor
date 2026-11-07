@@ -62,15 +62,6 @@ impl Autoscroll {
     pub const fn bottom() -> Self {
         Self::Strategy(AutoscrollStrategy::Bottom, None)
     }
-
-    /// Applies a given auto-scroll strategy to a given anchor instead of a cursor.
-    /// E.G: Autoscroll::center().for_anchor(...) results in the anchor being at the center of the screen.
-    pub const fn for_anchor(self, anchor: Anchor) -> Self {
-        match self {
-            Autoscroll::Next => self,
-            Autoscroll::Strategy(autoscroll_strategy, _) => Self::Strategy(autoscroll_strategy, Some(anchor)),
-        }
-    }
 }
 
 impl Into<SelectionEffects> for Option<Autoscroll> {

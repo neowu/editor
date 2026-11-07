@@ -546,10 +546,6 @@ impl ScrollManager {
         current_x > max
     }
 
-    pub const fn set_forbid_vertical_scroll(&mut self, forbid: bool) {
-        self.forbid_vertical_scroll = forbid;
-    }
-
     pub const fn forbid_vertical_scroll(&self) -> bool {
         self.forbid_vertical_scroll
     }
@@ -558,14 +554,6 @@ impl ScrollManager {
 impl Editor {
     pub const fn has_autoscroll_request(&self) -> bool {
         self.scroll_manager.has_autoscroll_request()
-    }
-
-    pub const fn set_forbid_vertical_scroll(&mut self, forbid: bool) {
-        self.scroll_manager.set_forbid_vertical_scroll(forbid);
-    }
-
-    pub fn scroll_top_display_point(&self, snapshot: &DisplaySnapshot, cx: &App) -> DisplayPoint {
-        self.scroll_manager.scroll_top_display_point(snapshot, cx)
     }
 
     pub const fn vertical_scroll_margin(&self) -> usize {
@@ -789,7 +777,11 @@ impl Editor {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::Instant;
+    use super::SMOOTH_SCROLL_DURATION;
+    use super::SMOOTH_SCROLL_EPSILON;
+    use super::SmoothScroll;
 
     #[test]
     fn smooth_scroll_eases_out_from_the_full_distance_to_nothing() {

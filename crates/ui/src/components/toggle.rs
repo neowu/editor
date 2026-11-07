@@ -9,7 +9,11 @@ use gpui::IntoElement;
 use gpui::Styled;
 use gpui::Window;
 use gpui::div;
-use gpui::prelude::*;
+use gpui::prelude::FluentBuilder;
+use gpui::prelude::InteractiveElement;
+use gpui::prelude::ParentElement;
+use gpui::prelude::RenderOnce;
+use gpui::prelude::StatefulInteractiveElement;
 
 use crate::Color;
 use crate::ElevationIndex;
@@ -17,7 +21,22 @@ use crate::Icon;
 use crate::IconName;
 use crate::KeyBinding;
 use crate::ToggleState;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::ButtonCommon;
+use crate::prelude::ButtonStyle;
+use crate::prelude::Clickable;
+use crate::prelude::DynamicSpacing;
+use crate::prelude::IconButton;
+use crate::prelude::IconSize;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::Pixels;
+use crate::prelude::SharedString;
+use crate::prelude::h_flex;
+use crate::prelude::px;
+use crate::prelude::v_flex;
 use crate::utils::is_light;
 
 // TODO: Checkbox, CheckboxWithLabel, and Switch could all be

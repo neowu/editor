@@ -60,6 +60,7 @@ use buffer_store::BufferStoreEvent;
 pub use buffer_store::ProjectTransaction;
 use clock::ReplicaId;
 pub use environment::ProjectEnvironment;
+#[allow(clippy::wildcard_imports)]
 pub use fs::*;
 use futures::StreamExt;
 use futures::future::try_join_all;
@@ -71,10 +72,8 @@ pub use git_store::git_traversal::ChildEntriesGitIter;
 pub use git_store::git_traversal::GitEntry;
 pub use git_store::git_traversal::GitEntryRef;
 pub use git_store::git_traversal::GitTraversal;
-pub use git_store::is_submodule_git_dir;
 pub use git_store::linked_worktree_short_name;
 pub use git_store::repo_identity_path;
-pub use git_store::worktrees_directory_for_repo;
 use gpui::App;
 use gpui::AppContext;
 use gpui::AsyncApp;
@@ -138,7 +137,6 @@ pub use lsp_store::LspStore;
 pub use lsp_store::LspStoreEvent;
 use lsp_store::OpenLspBufferHandle;
 pub use lsp_store::ProgressToken;
-pub use lsp_store::SERVER_PROGRESS_THROTTLE_TIMEOUT;
 pub use manifest_tree::ManifestProvidersStore;
 pub use manifest_tree::ManifestTree;
 use parking_lot::Mutex;
@@ -469,8 +467,6 @@ pub enum CompletionIntent {
     /// let the user continue composing their action.
     Compose,
 }
-
-impl CompletionIntent {}
 
 /// Describes a visual group for a completion item in the menu.
 /// When the group changes between consecutive completions, the menu inserts a divider.

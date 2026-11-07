@@ -13,7 +13,20 @@ use crate::IconSize;
 use crate::IconWithIndicator;
 use crate::Indicator;
 use crate::SelectableButton;
-use crate::prelude::*;
+use crate::prelude::App;
+use crate::prelude::Clickable;
+use crate::prelude::Color;
+use crate::prelude::Disableable;
+use crate::prelude::ElementId;
+use crate::prelude::FixedWidth;
+use crate::prelude::FluentBuilder;
+use crate::prelude::IntoElement;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Toggleable;
+use crate::prelude::VisibleOnHover;
+use crate::prelude::Window;
 
 /// The shape of an [`IconButton`].
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
@@ -66,16 +79,6 @@ impl IconButton {
         self
     }
 
-    pub const fn active_background(mut self, background: Hsla) -> Self {
-        self.base.active_background = Some(background);
-        self
-    }
-
-    pub const fn hover_background(mut self, background: Hsla) -> Self {
-        self.base.hover_background = Some(background);
-        self
-    }
-
     pub const fn icon_color(mut self, icon_color: Color) -> Self {
         self.icon_color = icon_color;
         self
@@ -99,12 +102,6 @@ impl IconButton {
 
     pub fn on_right_click(mut self, handler: impl Fn(&gpui::ClickEvent, &mut Window, &mut App) + 'static) -> Self {
         self.base = self.base.on_right_click(handler);
-        self
-    }
-
-    /// Sets the icon color used when the button is in a selected state.
-    pub fn selected_icon_color(mut self, color: impl Into<Option<Color>>) -> Self {
-        self.selected_icon_color = color.into();
         self
     }
 

@@ -3,7 +3,18 @@ use gpui::IntoElement;
 use gpui::ParentElement;
 use gpui::Styled;
 
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::FluentBuilder;
+use crate::prelude::Icon;
+use crate::prelude::IconName;
+use crate::prelude::IconSize;
+use crate::prelude::RenderOnce;
+use crate::prelude::Severity;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
 
 /// Banners provide informative and brief messages without interrupting the user.
 /// This component offers four severity levels that can be used depending on the message.
@@ -30,18 +41,6 @@ impl Banner {
     /// Sets the severity of the banner.
     pub const fn severity(mut self, severity: Severity) -> Self {
         self.severity = severity;
-        self
-    }
-
-    /// A slot for actions, such as CTA or dismissal buttons.
-    pub fn action_slot(mut self, element: impl IntoElement) -> Self {
-        self.action_slot = Some(element.into_any_element());
-        self
-    }
-
-    /// Sets whether the banner content should wrap.
-    pub const fn wrap_content(mut self, wrap: bool) -> Self {
-        self.wrap_content = wrap;
         self
     }
 }

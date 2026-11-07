@@ -1091,7 +1091,9 @@ impl<T: 'static + Send> AdaptiveBatcher<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::PathBuf;
+    use super::glob_literal_prefix;
 
     #[test]
     fn glob_literal_prefix_stops_at_first_glob_component() {

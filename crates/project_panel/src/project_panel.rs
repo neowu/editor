@@ -51,6 +51,7 @@ use gpui::Action;
 use gpui::Anchor;
 use gpui::AnyElement;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::AsyncWindowContext;
 use gpui::Bounds;
 use gpui::ClipboardEntry as GpuiClipboardEntry;
@@ -86,6 +87,7 @@ use gpui::Stateful;
 use gpui::Styled;
 use gpui::Subscription;
 use gpui::Task;
+use gpui::TaskExt as _;
 use gpui::UniformListScrollHandle;
 use gpui::WeakEntity;
 use gpui::Window;
@@ -149,7 +151,22 @@ use ui::Scrollbars;
 use ui::StickyCandidate;
 use ui::Tooltip;
 use ui::WithScrollbar;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Color;
+use ui::prelude::Element;
+use ui::prelude::ElementId;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::IntoElement;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::SharedString;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::h_flex;
+use ui::prelude::v_flex;
 use util::ResultExt;
 use util::TryFutureExt;
 use util::markdown::MarkdownInlineCode;
@@ -6565,18 +6582,6 @@ impl Panel for ProjectPanel {
     }
 }
 
-impl ProjectPanel {
-    pub fn select_path_for_test(&mut self, project_path: ProjectPath, cx: &App) {
-        let Some(worktree) = self.project.read(cx).worktree_for_id(project_path.worktree_id, cx) else {
-            return;
-        };
-        let Some(entry) = worktree.read(cx).entry_for_path(project_path.path.as_ref()) else {
-            return;
-        };
-        self.selection = Some(SelectedEntry { worktree_id: project_path.worktree_id, entry_id: entry.id });
-    }
-}
-
 impl Focusable for ProjectPanel {
     fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus_handle.clone()
@@ -6670,7 +6675,25 @@ fn libraries_header_entry() -> GitEntry {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::Anchor;
+    use super::Bounds;
+    use super::DiagnosticSeverity;
+    use super::Entry;
+    use super::EntryKind;
+    use super::GitEntry;
+    use super::GitSummary;
+    use super::ProjectEntryId;
+    use super::RelPath;
+    use super::context_menu_placement;
+    use super::last_entry_in_subtree;
+    use super::libraries_header_entry;
+    use super::par_sort_worktree_entries;
+    use super::point;
+    use super::px;
+    use super::size;
+    use super::sort_worktree_entries;
+    use super::strongest_diagnostic_severity;
 
     #[test]
     fn test_last_entry_in_subtree() {

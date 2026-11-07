@@ -1,9 +1,5 @@
 use std::borrow::Cow;
-use std::process;
 
-use smol::process::Command;
-
-use crate::command;
 use crate::shell::Shell;
 use crate::shell::ShellKind;
 use crate::shell::get_system_shell;
@@ -118,32 +114,6 @@ impl ShellBuilder {
         (self.program, self.args)
     }
 
-    /// Builds a `smol::process::Command` with the given task command and arguments.
-    ///
-    /// Prefer this over manually constructing a command with the output of `Self::build`,
-    /// as this method handles `cmd` weirdness on windows correctly.
-    pub fn build_smol_command(self, task_command: Option<String>, task_args: &[String]) -> Command {
-        Command::from(self.build_std_command(task_command, task_args))
-    }
-
-    /// Builds a `std::process::Command` with the given task command and arguments.
-    ///
-    /// Prefer this over manually constructing a command with the output of `Self::build`,
-    /// as this method handles `cmd` weirdness on windows correctly.
-    pub fn build_std_command(self, mut task_command: Option<String>, task_args: &[String]) -> process::Command {
-        if task_args.is_empty() {
-            task_command =
-                task_command.as_ref().map(|cmd| self.kind.try_quote(cmd).map(Cow::into_owned)).unwrap_or(task_command);
-        }
-        let (program, args) = self.build(task_command, task_args);
-
-        let mut child = command::new_std_command(program);
-
-        child.args(args);
-
-        child
-    }
-
     pub const fn kind(&self) -> ShellKind {
         self.kind
     }
@@ -151,7 +121,9 @@ impl ShellBuilder {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::Shell;
+    use super::ShellBuilder;
 
     fn build_redirected(program: &str, quote: bool) -> Vec<String> {
         let builder = ShellBuilder::new(&Shell::Program(program.into())).non_interactive().redirect_stdin_to_dev_null();

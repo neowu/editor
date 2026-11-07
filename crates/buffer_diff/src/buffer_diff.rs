@@ -435,16 +435,6 @@ impl BufferDiffSnapshot {
         self.hunks_intersecting_range(Anchor::min_max_range_for_buffer(buffer_snapshot.remote_id()), buffer_snapshot)
     }
 
-    pub fn hunks_in_row_range<'a>(
-        &'a self,
-        range: Range<u32>,
-        buffer: &'a text::BufferSnapshot,
-    ) -> impl 'a + Iterator<Item = DiffHunk> {
-        let start = buffer.anchor_before(Point::new(range.start, 0));
-        let end = buffer.anchor_after(Point::new(range.end, 0));
-        self.hunks_intersecting_range(start..end, buffer)
-    }
-
     pub fn range_to_hunk_range(
         &self,
         range: Range<Anchor>,
@@ -634,18 +624,6 @@ impl BufferDiffSnapshot {
         let patch = self.patch_for_buffer_range(point..=point, buffer);
         let edit = patch.edit_for_old_position(point);
         edit.new
-    }
-
-    pub fn base_text_point_to_buffer_range(&self, point: Point, buffer: &text::BufferSnapshot) -> Range<Point> {
-        let patch = self.patch_for_base_text_range(point..=point, buffer);
-        let edit = patch.edit_for_old_position(point);
-        edit.new
-    }
-
-    pub fn buffer_point_to_base_text_point(&self, point: Point, buffer: &text::BufferSnapshot) -> Point {
-        let patch = self.patch_for_buffer_range(point..=point, buffer);
-        let edit = patch.edit_for_old_position(point);
-        if point == edit.old.end { edit.new.end } else { edit.new.start }
     }
 
     pub fn base_text_point_to_buffer_point(&self, point: Point, buffer: &text::BufferSnapshot) -> Point {
@@ -1853,10 +1831,6 @@ impl DiffHunkStatus {
         self.kind == DiffHunkStatusKind::Deleted
     }
 
-    pub fn is_added(&self) -> bool {
-        self.kind == DiffHunkStatusKind::Added
-    }
-
     pub fn is_modified(&self) -> bool {
         self.kind == DiffHunkStatusKind::Modified
     }
@@ -1871,14 +1845,6 @@ impl DiffHunkStatus {
 
     pub const fn deleted(secondary: DiffHunkSecondaryStatus) -> Self {
         Self { kind: DiffHunkStatusKind::Deleted, secondary }
-    }
-
-    pub const fn deleted_none() -> Self {
-        Self { kind: DiffHunkStatusKind::Deleted, secondary: DiffHunkSecondaryStatus::NoSecondaryHunk }
-    }
-
-    pub const fn added_none() -> Self {
-        Self { kind: DiffHunkStatusKind::Added, secondary: DiffHunkSecondaryStatus::NoSecondaryHunk }
     }
 
     pub const fn modified_none() -> Self {

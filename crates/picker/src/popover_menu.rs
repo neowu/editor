@@ -13,7 +13,11 @@ use ui::IntoElement;
 use ui::PopoverMenu;
 use ui::PopoverMenuHandle;
 use ui::PopoverTrigger;
-use ui::prelude::*;
+use ui::prelude::App;
+use ui::prelude::ButtonCommon;
+use ui::prelude::RenderOnce;
+use ui::prelude::Window;
+use ui::prelude::px;
 
 use crate::Picker;
 use crate::PickerDelegate;

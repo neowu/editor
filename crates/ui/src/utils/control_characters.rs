@@ -101,7 +101,9 @@ pub fn replace_control_characters_remapping_offsets(text: &str, offsets: &mut [u
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::replace_control_characters;
+    use super::replace_control_characters_remapping_offsets;
 
     #[test]
     fn replace_control_characters_with_symbols() {

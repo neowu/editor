@@ -10,7 +10,7 @@ pub(crate) mod cpu_usage;
 
 pub(crate) mod mac_only_instance;
 
-mod open_listener;
+pub(crate) mod open_listener;
 
 use std::borrow::Cow;
 use std::collections::VecDeque;
@@ -19,7 +19,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Context as _;
-pub use app_menus::*;
+use app_menus::app_menus;
 use ed_actions::About;
 use ed_actions::OpenBrowser;
 use ed_actions::Quit;
@@ -65,7 +65,6 @@ use language::Capability;
 use language_tools::lsp_button::LspButton;
 use language_tools::lsp_button::{self};
 use language_tools::lsp_log_view::LspLogToolbarItemView;
-pub use open_listener::*;
 use outline_panel::OutlinePanel;
 use project::DirectoryLister;
 use project_panel::ProjectPanel;
@@ -75,7 +74,18 @@ use terminal_view::terminal_panel::TerminalPanel;
 use terminal_view::terminal_panel::{self};
 use theme::ActiveTheme;
 use ui::PopoverMenuHandle;
-use ui::prelude::*;
+use ui::prelude::Button;
+use ui::prelude::ButtonCommon;
+use ui::prelude::ButtonStyle;
+use ui::prelude::Clickable;
+use ui::prelude::FixedWidth;
+use ui::prelude::Headline;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::Render;
+use ui::prelude::Styled;
+use ui::prelude::VisualContext;
+use ui::prelude::v_flex;
 use util::ResultExt;
 use uuid::Uuid;
 use workspace::AppState;

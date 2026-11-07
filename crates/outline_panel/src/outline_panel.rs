@@ -119,7 +119,19 @@ use ui::Scrollbars;
 use ui::Tab;
 use ui::Tooltip;
 use ui::WithScrollbar;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Icon;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::StyledTypography;
+use ui::prelude::Toggleable;
+use ui::prelude::h_flex;
+use ui::prelude::v_flex;
 use ui::utils;
 use ui::utils::ui_text_style;
 use util::RangeExt;
@@ -4663,11 +4675,13 @@ impl GenerationState {
 
 #[cfg(test)]
 mod tests {
+
     use gpui::FontStyle;
     use gpui::FontWeight;
     use gpui::Hsla;
 
-    use super::*;
+    use super::HighlightStyle;
+    use super::color_only_highlights;
 
     #[test]
     fn test_color_only_highlights_drops_weight_and_style() {

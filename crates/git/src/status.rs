@@ -267,10 +267,6 @@ pub struct TrackedSummary {
 impl TrackedSummary {
     pub const UNCHANGED: Self = Self { added: 0, modified: 0, deleted: 0 };
 
-    pub const ADDED: Self = Self { added: 1, modified: 0, deleted: 0 };
-
-    pub const MODIFIED: Self = Self { added: 0, modified: 1, deleted: 0 };
-
     pub const DELETED: Self = Self { added: 0, modified: 0, deleted: 1 };
 }
 

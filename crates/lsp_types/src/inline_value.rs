@@ -187,7 +187,12 @@ pub struct InlineValueWorkspaceClientCapabilities {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::InlineValue;
+    use super::InlineValueEvaluatableExpression;
+    use super::InlineValueText;
+    use super::InlineValueVariableLookup;
+    use super::Range;
     use crate::Position;
     use crate::tests::test_serialization;
 

@@ -95,7 +95,6 @@ use theme::Theme;
 use thiserror::Error;
 use util::ResultExt as _;
 use util::truncate_and_trailoff;
-use vte::ansi::Attr;
 pub use vte::ansi::Color;
 use vte::ansi::Handler;
 pub use vte::ansi::NamedColor;
@@ -118,7 +117,6 @@ use crate::alacritty::clear_saved_screen;
 use crate::alacritty::content_text;
 use crate::alacritty::current_child_signal_mask;
 use crate::alacritty::display_offset;
-use crate::alacritty::display_only_term_config;
 use crate::alacritty::find_from_terminal_point;
 use crate::alacritty::full_content_range;
 use crate::alacritty::last_non_empty_lines;
@@ -260,93 +258,11 @@ pub struct ParsedAnsiText {
     pub background_spans: AnsiSpans,
 }
 
-pub fn parse_ansi_text(input: &[u8]) -> ParsedAnsiText {
-    let mut handler = StyledAnsiTextHandler::default();
-    let mut processor = Processor::<StdSyncHandler>::default();
-    processor.advance(&mut handler, input);
-    handler.finish()
-}
-
 pub fn strip_ansi_text(input: &[u8]) -> String {
     let mut handler = PlainAnsiTextHandler::default();
     let mut processor = Processor::<StdSyncHandler>::default();
     processor.advance(&mut handler, input);
     handler.text
-}
-
-#[derive(Default)]
-struct StyledAnsiTextHandler {
-    text: String,
-    foreground_spans: AnsiSpans,
-    background_spans: AnsiSpans,
-    current_foreground_range_start: usize,
-    current_background_range_start: usize,
-    current_foreground_color: Option<Color>,
-    current_background_color: Option<Color>,
-}
-
-impl StyledAnsiTextHandler {
-    fn finish(mut self) -> ParsedAnsiText {
-        if self.current_foreground_range_start < self.text.len() {
-            self.foreground_spans
-                .push((self.current_foreground_range_start..self.text.len(), self.current_foreground_color));
-        }
-
-        if self.current_background_range_start < self.text.len() {
-            self.background_spans
-                .push((self.current_background_range_start..self.text.len(), self.current_background_color));
-        }
-
-        ParsedAnsiText {
-            text: self.text,
-            foreground_spans: self.foreground_spans,
-            background_spans: self.background_spans,
-        }
-    }
-
-    fn break_foreground_span(&mut self, color: Option<Color>) {
-        self.foreground_spans
-            .push((self.current_foreground_range_start..self.text.len(), self.current_foreground_color));
-        self.current_foreground_color = color;
-        self.current_foreground_range_start = self.text.len();
-    }
-
-    fn break_background_span(&mut self, color: Option<Color>) {
-        self.background_spans
-            .push((self.current_background_range_start..self.text.len(), self.current_background_color));
-        self.current_background_color = color;
-        self.current_background_range_start = self.text.len();
-    }
-}
-
-impl Handler for StyledAnsiTextHandler {
-    fn input(&mut self, c: char) {
-        self.text.push(c);
-    }
-
-    fn linefeed(&mut self) {
-        self.text.push('\n');
-    }
-
-    fn put_tab(&mut self, count: u16) {
-        self.text.extend(iter::repeat_n('\t', count as usize));
-    }
-
-    fn terminal_attribute(&mut self, attr: Attr) {
-        match attr {
-            Attr::Foreground(color) => {
-                self.break_foreground_span(Some(color));
-            }
-            Attr::Background(color) => {
-                self.break_background_span(Some(color));
-            }
-            Attr::Reset => {
-                self.break_foreground_span(None);
-                self.break_background_span(None);
-            }
-            _ => {}
-        }
-    }
 }
 
 #[derive(Default)]
@@ -897,7 +813,6 @@ pub struct TerminalMode(TerminalModeKind);
 
 enum TerminalModeKind {
     Interactive,
-    InteractiveWithCompletion(Sender<Option<ExitStatus>>),
     Task { state: TaskState, completion_tx: Sender<Option<ExitStatus>> },
 }
 
@@ -905,11 +820,6 @@ impl TerminalMode {
     /// Creates a terminal for an interactive shell.
     pub const fn interactive() -> Self {
         Self(TerminalModeKind::Interactive)
-    }
-
-    /// Creates an interactive terminal that reports when its shell exits.
-    pub const fn interactive_with_completion(completion_tx: Sender<Option<ExitStatus>>) -> Self {
-        Self(TerminalModeKind::InteractiveWithCompletion(completion_tx))
     }
 
     /// Creates a running task terminal with an internally paired completion channel.
@@ -928,92 +838,6 @@ pub struct TerminalBuilder {
 }
 
 impl TerminalBuilder {
-    pub fn new_display_only(
-        cursor_shape: SettingsCursorShape,
-        alternate_scroll: AlternateScroll,
-        max_scroll_history_lines: Option<usize>,
-        window_id: u64,
-        background_executor: &BackgroundExecutor,
-    ) -> TerminalBuilder {
-        Self::new_display_only_with_bounds(
-            cursor_shape,
-            alternate_scroll,
-            max_scroll_history_lines,
-            window_id,
-            background_executor,
-            TerminalBounds::default(),
-        )
-    }
-
-    pub fn new_display_only_with_bounds(
-        cursor_shape: SettingsCursorShape,
-        alternate_scroll: AlternateScroll,
-        max_scroll_history_lines: Option<usize>,
-        window_id: u64,
-        background_executor: &BackgroundExecutor,
-        terminal_bounds: TerminalBounds,
-    ) -> TerminalBuilder {
-        let terminal_bounds = normalize_terminal_bounds(terminal_bounds);
-
-        let scrolling_history =
-            max_scroll_history_lines.unwrap_or(DEFAULT_SCROLL_HISTORY_LINES).min(MAX_SCROLL_HISTORY_LINES);
-        let config = display_only_term_config(scrolling_history, cursor_shape);
-
-        let (events_tx, events_rx) = unbounded();
-        let term = new_term(&config, terminal_bounds, events_tx.clone(), alternate_scroll, 0);
-
-        let terminal = Terminal {
-            task: None,
-            terminal_type: TerminalType::DisplayOnly,
-            subprocess: None,
-            completion_tx: None,
-            term,
-            term_config: config,
-            output_processor: None,
-            output_events_tx: Some(events_tx),
-            output_generation: 0,
-            title_override: None,
-            events: VecDeque::with_capacity(10),
-            last_content: Content { terminal_bounds, ..Default::default() },
-            last_mouse: None,
-            mouse_down_position: None,
-            matches: Vec::new(),
-
-            selection_head: None,
-            scroll_px: px(0.),
-            next_link_id: 0,
-            selection_phase: SelectionPhase::Ended,
-            hyperlink_regex_searches: RegexSearches::default(),
-            vi_mode_enabled: false,
-            is_remote_terminal: false,
-            last_mouse_move_time: Instant::now(),
-            last_hyperlink_search_position: None,
-            mouse_down_hyperlink: None,
-            #[cfg(windows)]
-            shell_program: None,
-            template: CopyTemplate {
-                shell: Shell::System,
-                env: FxHashMap::default(),
-                cursor_shape,
-                alternate_scroll,
-                max_scroll_history_lines,
-                path_hyperlink_regexes: Vec::default(),
-                path_hyperlink_timeout: Duration::ZERO,
-                window_id,
-            },
-            child_exited: None,
-            keyboard_input_sent: false,
-            init_command_startup_marker: None,
-            init_command_startup_tx: None,
-            event_loop_task: Task::ready(Ok(())),
-            background_executor: background_executor.clone(),
-            cwd_history: Vec::new(),
-            pending_cwd_boundary: None,
-        };
-
-        TerminalBuilder { terminal, events_rx }
-    }
-
     pub fn new(
         working_directory: Option<PathBuf>,
         mode: TerminalMode,
@@ -1042,7 +866,6 @@ impl TerminalBuilder {
         let fut = async move {
             let (task, completion_tx) = match mode.0 {
                 TerminalModeKind::Interactive => (None, None),
-                TerminalModeKind::InteractiveWithCompletion(completion_tx) => (None, Some(completion_tx)),
                 TerminalModeKind::Task { state, completion_tx } => (Some(state), Some(completion_tx)),
             };
 

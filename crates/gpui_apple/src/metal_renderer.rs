@@ -25,7 +25,6 @@ use gpui::Size;
 use gpui::point;
 use gpui::size;
 use image::RgbaImage;
-use objc2::Message as _;
 use objc2::rc::Retained;
 use objc2::runtime::ProtocolObject;
 use objc2_core_foundation::CGSize;
@@ -199,20 +198,6 @@ impl MetalRenderer {
     pub fn new(instance_buffer_pool: Arc<Mutex<InstanceBufferPool>>, transparent: bool) -> Self {
         let device = Self::create_device();
         let layer = CAMetalLayer::new();
-        Self::configure_layer(&layer, &device, transparent);
-        Self::new_internal(device, Some(layer), !transparent, instance_buffer_pool)
-    }
-
-    /// Creates a renderer for a CAMetalLayer owned by a platform view, such as
-    /// the backing layer UIKit creates for a view whose `layerClass` is
-    /// `CAMetalLayer`. The renderer retains the layer.
-    pub fn from_layer(
-        instance_buffer_pool: Arc<Mutex<InstanceBufferPool>>,
-        layer: &CAMetalLayer,
-        transparent: bool,
-    ) -> Self {
-        let device = Self::create_device();
-        let layer = layer.retain();
         Self::configure_layer(&layer, &device, transparent);
         Self::new_internal(device, Some(layer), !transparent, instance_buffer_pool)
     }

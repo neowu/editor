@@ -19,7 +19,14 @@ use gpui::Window;
 use gpui::px;
 use parking_lot::Mutex;
 use serde::Deserialize;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::App;
+use ui::prelude::Element;
+use ui::prelude::FluentBuilder;
+use ui::prelude::ParentElement;
+use ui::prelude::Styled;
+use ui::prelude::StyledExt;
+use ui::prelude::div;
 
 use crate::Pane;
 use crate::Workspace;
@@ -826,7 +833,8 @@ mod element {
     use parking_lot::Mutex;
     use smallvec::SmallVec;
     use ui::prelude;
-    use ui::prelude::*;
+    use ui::prelude::ActiveTheme;
+    use ui::prelude::ElementId;
     use util::ResultExt;
 
     use super::HANDLE_HITBOX_SIZE;

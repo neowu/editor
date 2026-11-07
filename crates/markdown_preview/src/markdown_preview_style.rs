@@ -24,7 +24,10 @@ use theme::built_in::BUFFER_LINE_HEIGHT;
 use ui::Rems;
 use ui::font;
 use ui::font::UI_FONT_SIZE;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::App;
+use ui::prelude::Pixels;
+use ui::prelude::Refineable;
 
 /// In-memory zoom of the preview font size, independent of UI and buffer zoom.
 struct MarkdownPreviewFontSize(Pixels);

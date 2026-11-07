@@ -1035,16 +1035,6 @@ where
     }
 }
 
-impl<T> Bounds<T>
-where
-    T: Add<T, Output = T> + Sub<T, Output = T> + PartialOrd + Clone + Debug + Default + PartialEq,
-{
-    /// Convert a point to the coordinate space defined by this Bounds
-    pub fn localize(&self, point: &Point<T>) -> Option<Point<T>> {
-        self.contains(point).then(|| point.relative_to(&self.origin))
-    }
-}
-
 /// Checks if the bounds represent an empty area.
 ///
 /// # Returns
@@ -2901,7 +2891,25 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::AbsoluteLength;
+    use super::Anchor;
+    use super::Axis;
+    use super::Bounds;
+    use super::Corners;
+    use super::DefiniteLength;
+    use super::DevicePixels;
+    use super::Edges;
+    use super::Length;
+    use super::Pixels;
+    use super::Point;
+    use super::Rems;
+    use super::ScaledPixels;
+    use super::Size;
+    use super::point;
+    use super::px;
+    use super::rems;
+    use super::size;
 
     #[test]
     fn point_constructor() {

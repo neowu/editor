@@ -7,6 +7,7 @@ use std::fmt;
 use serde::Deserialize;
 use serde::Serialize;
 use smallvec::SmallVec;
+#[allow(clippy::wildcard_imports)]
 pub use system_clock::*;
 
 /// A unique identifier for each distributed node.

@@ -265,7 +265,9 @@ mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
 
-    use super::*;
+    use super::SingleSubscriberSet;
+    use super::SubscriberSet;
+    use super::Subscription;
 
     #[test]
     fn test_immediate_and_pending_insertions() {

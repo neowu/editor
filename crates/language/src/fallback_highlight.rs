@@ -516,6 +516,7 @@ pub(crate) fn highlight_injection(
 
 #[cfg(test)]
 mod tests {
+
     use std::time::Instant;
 
     use gpui::HighlightStyle;
@@ -523,7 +524,18 @@ mod tests {
     use text::BufferId;
     use text::ReplicaId;
 
-    use super::*;
+    use super::CAPTURE_NAMES;
+    use super::FallbackHighlighter;
+    use super::Language;
+    use super::LazyLock;
+    use super::PATCHED_SYNTAX_SET;
+    use super::Point;
+    use super::Range;
+    use super::SYNTAX_SET;
+    use super::SyntaxTheme;
+    use super::TextBufferSnapshot;
+    use super::highlight_injection;
+    use super::set_theme;
 
     fn theme() -> SyntaxTheme {
         SyntaxTheme::new(CAPTURE_NAMES.iter().map(|name| (name.to_string(), HighlightStyle::default())))

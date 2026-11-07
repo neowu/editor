@@ -1,5 +1,4 @@
 use gpui::Pixels;
-use gpui::Window;
 use gpui::px;
 
 use crate::DynamicSpacing;
@@ -32,15 +31,12 @@ pub const TRAFFIC_LIGHT_POSITION: (f32, f32) =
 /// margin. Tahoe's buttons are spaced wider.
 pub const TRAFFIC_LIGHT_PADDING: f32 = TRAFFIC_LIGHT_POSITION.0 + if MACOS_SDK_26_OR_LATER { 69. } else { 62. };
 
-/// Returns the title bar height, which scales with the window's rem size (1.75x) with a
-/// minimum of 34px.
-pub fn platform_title_bar_height(window: &Window) -> Pixels {
-    (1.75 * window.rem_size()).max(px(34.))
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::CARD_GAP_PX;
+    use super::DEFAULT_TAB_ROW_PX;
+    use super::TRAFFIC_LIGHT_POSITION;
+    use super::TRAFFIC_LIGHT_SIZE_PX;
 
     #[test]
     fn test_traffic_lights_on_tab_row_centre_line() {

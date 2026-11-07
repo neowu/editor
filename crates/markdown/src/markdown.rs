@@ -26,13 +26,13 @@ use builder::MarkdownElementBuilder;
 use builder::MarkdownHighlights;
 use builder::MetadataCellStyle;
 pub use element::AnyDiv;
-pub use element::AutoscrollBehavior;
 use element::CheckboxToggleCallback;
 pub use element::MarkdownElement;
 pub use element::MarkdownListState;
 use element::TableState;
 use gpui::AnyElement;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::BorderStyle;
 use gpui::Bounds;
 use gpui::ClipboardItem;
@@ -66,7 +66,6 @@ use gpui::ScrollHandle;
 use gpui::Stateful;
 use gpui::StrikethroughStyle;
 use gpui::StyleRefinement;
-use gpui::StyledImage;
 use gpui::StyledText;
 use gpui::Task;
 use gpui::TextAlign;
@@ -121,8 +120,9 @@ use ui::CopyButton;
 use ui::ScrollAxes;
 use ui::Scrollbars;
 use ui::Tooltip;
-use ui::WithScrollbar;
-use ui::prelude::*;
+use ui::prelude::Context;
+use ui::prelude::SharedString;
+use ui::prelude::Window;
 use ui::utils::ensure_highlight_contrast;
 use ui::utils::merge_highlight_backgrounds;
 use util::ResultExt;
@@ -867,10 +867,6 @@ impl ParsedMarkdown {
         &self.events
     }
 
-    pub const fn root_block_starts(&self) -> &Arc<[usize]> {
-        &self.root_block_starts
-    }
-
     /// The fenced, closed code blocks, in source order.
     pub fn code_blocks(&self) -> impl Iterator<Item = CodeBlock<'_>> {
         self.events.iter().filter_map(|(range, event)| match event {
@@ -1132,7 +1128,11 @@ fn highlight_code_block(block: PendingCodeBlock, code_block_highlights: &mut Cod
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::MarkdownOptions;
+    use super::ParsedMarkdown;
+    use super::parse_markdown_with_options;
+    use super::render_blocks;
 
     fn parse(source: &str) -> ParsedMarkdown {
         let parsed = parse_markdown_with_options(source, MarkdownOptions::default());

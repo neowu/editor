@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::env;
@@ -44,7 +43,6 @@ use smol::io::AsyncBufRead;
 use smol::io::AsyncBufReadExt;
 use smol::io::AsyncReadExt;
 use smol::io::BufReader;
-use sum_tree::MapSeekTarget;
 use text::LineEnding;
 use thiserror::Error;
 use util::ResultExt;
@@ -258,14 +256,6 @@ impl Branch {
     pub fn remote_name(&self) -> Option<&str> {
         self.ref_name.strip_prefix("refs/remotes/").and_then(|stripped| stripped.split("/").next())
     }
-
-    pub fn tracking_status(&self) -> Option<UpstreamTrackingStatus> {
-        self.upstream.as_ref().and_then(|upstream| upstream.tracking.status())
-    }
-
-    pub fn priority_key(&self) -> (bool, Option<i64>) {
-        (self.is_head, self.most_recent_commit.as_ref().map(|commit| commit.commit_timestamp))
-    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -399,10 +389,6 @@ impl Upstream {
         self.ref_name.strip_prefix("refs/remotes/").and_then(|stripped| stripped.split("/").next())
     }
 
-    pub fn stripped_ref_name(&self) -> Option<&str> {
-        self.ref_name.strip_prefix("refs/remotes/")
-    }
-
     pub fn branch_name(&self) -> Option<&str> {
         self.ref_name.strip_prefix("refs/remotes/").and_then(|stripped| stripped.split_once('/').map(|(_, name)| name))
     }
@@ -431,10 +417,6 @@ impl From<UpstreamTrackingStatus> for UpstreamTracking {
 }
 
 impl UpstreamTracking {
-    pub const fn is_gone(&self) -> bool {
-        matches!(self, UpstreamTracking::Gone)
-    }
-
     pub const fn status(&self) -> Option<UpstreamTrackingStatus> {
         match self {
             UpstreamTracking::Gone => None,
@@ -1120,17 +1102,6 @@ pub struct GitCommitter {
 #[derive(Clone, Debug)]
 pub struct GitCommitTemplate {
     pub template: String,
-}
-
-pub async fn get_git_committer(cx: &AsyncApp) -> GitCommitter {
-    let git = GitBinary::new(PathBuf::from("git"), paths::home_dir().clone());
-
-    cx.background_spawn(async move {
-        let name = git.run(&["config", "--global", "user.name"]).await.log_err();
-        let email = git.run(&["config", "--global", "user.email"]).await.log_err();
-        GitCommitter { name, email }
-    })
-    .await
 }
 
 fn parse_remote_urls(stdout: &str) -> FxHashMap<String, String> {
@@ -3100,11 +3071,6 @@ impl RepoPath {
         Ok(Self::from_rel_path(rel_path))
     }
 
-    pub fn from_std_path(path: &Path) -> Result<Self> {
-        let rel_path = RelPath::new(path)?;
-        Ok(Self::from_rel_path(&rel_path))
-    }
-
     pub fn from_proto(proto: &str) -> Result<Self> {
         let rel_path = RelPath::from_unix_str(proto)?.into();
         Ok(Self(rel_path))
@@ -3130,15 +3096,6 @@ impl Deref for RepoPath {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-#[derive(Debug)]
-pub struct RepoPathDescendants<'a>(pub &'a RepoPath);
-
-impl MapSeekTarget<RepoPath> for RepoPathDescendants<'_> {
-    fn cmp_cursor(&self, key: &RepoPath) -> Ordering {
-        if key.starts_with(self.0) { Ordering::Greater } else { self.0.cmp(key) }
     }
 }
 

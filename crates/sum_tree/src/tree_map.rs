@@ -108,17 +108,6 @@ impl<K: Clone + Ord, V: Clone> TreeMap<K, V> {
         removed
     }
 
-    pub fn remove_range(&mut self, start: &impl MapSeekTarget<K>, end: &impl MapSeekTarget<K>) {
-        let start = MapSeekTargetAdaptor(start);
-        let end = MapSeekTargetAdaptor(end);
-        let mut cursor = self.0.cursor::<MapKeyRef<'_, K>>(());
-        let mut new_tree = cursor.slice(&start, Bias::Left);
-        cursor.seek(&end, Bias::Left);
-        new_tree.append(cursor.suffix(), ());
-        drop(cursor);
-        self.0 = new_tree;
-    }
-
     /// Returns the key-value pair with the greatest key less than or equal to the given key.
     pub fn closest(&self, key: &K) -> Option<(&K, &V)> {
         let mut cursor = self.0.cursor::<MapKeyRef<'_, K>>(());
@@ -187,15 +176,6 @@ impl<K: Clone + Ord, V: Clone> TreeMap<K, V> {
     pub fn last(&self) -> Option<(&K, &V)> {
         self.0.last().map(|entry| (&entry.key, &entry.value))
     }
-
-    pub fn insert_tree(&mut self, other: TreeMap<K, V>) {
-        let edits = other
-            .iter()
-            .map(|(key, value)| Edit::Insert(MapEntry { key: key.to_owned(), value: value.to_owned() }))
-            .collect();
-
-        self.0.edit(edits, ());
-    }
 }
 
 impl<K, V> Debug for TreeMap<K, V>
@@ -205,27 +185,6 @@ where
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.iter()).finish()
-    }
-}
-
-#[derive(Debug)]
-struct MapSeekTargetAdaptor<'a, T>(&'a T);
-
-impl<'a, K: Clone + Ord, T: MapSeekTarget<K>> SeekTarget<'a, MapKey<K>, MapKeyRef<'a, K>>
-    for MapSeekTargetAdaptor<'_, T>
-{
-    fn cmp(&self, cursor_location: &MapKeyRef<K>, _: ()) -> Ordering {
-        if let Some(key) = &cursor_location.0 { MapSeekTarget::cmp_cursor(self.0, key) } else { Ordering::Greater }
-    }
-}
-
-pub trait MapSeekTarget<K> {
-    fn cmp_cursor(&self, cursor_location: &K) -> Ordering;
-}
-
-impl<K: Ord> MapSeekTarget<K> for K {
-    fn cmp_cursor(&self, cursor_location: &K) -> Ordering {
-        self.cmp(cursor_location)
     }
 }
 

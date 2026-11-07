@@ -1,9 +1,6 @@
 use std::any::Any;
 use std::cell::Cell;
 use std::collections::BTreeMap;
-use std::fmt;
-use std::fmt::Display;
-use std::fmt::Formatter;
 use std::future::Future;
 use std::mem;
 use std::ops::Range;
@@ -78,6 +75,7 @@ use gpui::AbsoluteLength;
 use gpui::Action;
 use gpui::Anchor;
 use gpui::AnyElement;
+use gpui::AppContext as _;
 use gpui::AsyncWindowContext;
 use gpui::ClickEvent;
 use gpui::ClipboardItem;
@@ -145,7 +143,48 @@ use ui::Tab;
 use ui::Tooltip;
 use ui::WithScrollbar;
 use ui::font;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::App;
+use ui::prelude::BorrowAppContext;
+use ui::prelude::Button;
+use ui::prelude::ButtonCommon;
+use ui::prelude::ButtonSize;
+use ui::prelude::ButtonStyle;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Context;
+use ui::prelude::Disableable;
+use ui::prelude::Div;
+use ui::prelude::ElementId;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Headline;
+use ui::prelude::HeadlineSize;
+use ui::prelude::Icon;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconPosition;
+use ui::prelude::IconSize;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::LabelSize;
+use ui::prelude::ParentElement;
+use ui::prelude::Rems;
+use ui::prelude::Render;
+use ui::prelude::SharedString;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::Styled;
+use ui::prelude::StyledExt;
+use ui::prelude::ToggleState;
+use ui::prelude::Toggleable;
+use ui::prelude::Window;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::px;
+use ui::prelude::relative;
+use ui::prelude::rems;
+use ui::prelude::v_flex;
 use util::ResultExt;
 use util::markdown::MarkdownInlineCode;
 use util::paths;
@@ -965,66 +1004,6 @@ impl GitStatusEntry {
 
     fn parent_dir(&self) -> Option<String> {
         self.repo_path.parent().map(|parent| parent.display().to_string())
-    }
-}
-
-struct TruncatedPatch {
-    header: String,
-    hunks: Vec<String>,
-    hunks_to_keep: usize,
-}
-
-impl TruncatedPatch {
-    fn from_unified_diff(patch_str: &str) -> Option<Self> {
-        let lines: Vec<&str> = patch_str.lines().collect();
-        if lines.len() < 2 {
-            return None;
-        }
-        let header = format!("{}\n{}\n", lines[0], lines[1]);
-        let mut hunks = Vec::new();
-        let mut current_hunk = String::new();
-        for line in &lines[2..] {
-            if line.starts_with("@@") {
-                if !current_hunk.is_empty() {
-                    hunks.push(current_hunk);
-                }
-                current_hunk = format!("{}\n", line);
-            } else if !current_hunk.is_empty() {
-                current_hunk.push_str(line);
-                current_hunk.push('\n');
-            }
-        }
-        if !current_hunk.is_empty() {
-            hunks.push(current_hunk);
-        }
-        if hunks.is_empty() {
-            return None;
-        }
-        let hunks_to_keep = hunks.len();
-        Some(TruncatedPatch { header, hunks, hunks_to_keep })
-    }
-    fn calculate_size(&self) -> usize {
-        let mut size = self.header.len();
-        for (i, hunk) in self.hunks.iter().enumerate() {
-            if i < self.hunks_to_keep {
-                size += hunk.len();
-            }
-        }
-        size
-    }
-}
-
-impl Display for TruncatedPatch {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.header)?;
-        for hunk in self.hunks.iter().take(self.hunks_to_keep) {
-            f.write_str(hunk)?;
-        }
-        let skipped_hunks = self.hunks.len() - self.hunks_to_keep;
-        if skipped_hunks > 0 {
-            writeln!(f, "[...skipped {} hunks...]", skipped_hunks)?;
-        }
-        Ok(())
     }
 }
 
@@ -3269,90 +3248,6 @@ impl GitPanel {
         Some(format!("{} {}", action_text, file_name))
     }
 
-    fn split_patch(patch: &str) -> Vec<String> {
-        let mut result = Vec::new();
-        let mut current_patch = String::new();
-
-        for line in patch.lines() {
-            if line.starts_with("---") && !current_patch.is_empty() {
-                result.push(current_patch.trim_end_matches('\n').into());
-                current_patch = String::new();
-            }
-            current_patch.push_str(line);
-            current_patch.push('\n');
-        }
-
-        if !current_patch.is_empty() {
-            result.push(current_patch.trim_end_matches('\n').into());
-        }
-
-        result
-    }
-    fn truncate_iteratively(patch: &str, max_bytes: usize) -> String {
-        let mut current_size = patch.len();
-        if current_size <= max_bytes {
-            return patch.to_string();
-        }
-        let file_patches = Self::split_patch(patch);
-        let mut file_infos: Vec<TruncatedPatch> =
-            file_patches.iter().filter_map(|patch| TruncatedPatch::from_unified_diff(patch)).collect();
-
-        if file_infos.is_empty() {
-            return patch.to_string();
-        }
-
-        current_size = file_infos.iter().map(|f| f.calculate_size()).sum::<usize>();
-        while current_size > max_bytes {
-            let file_idx = file_infos
-                .iter()
-                .enumerate()
-                .filter(|(_, f)| f.hunks_to_keep > 1)
-                .max_by_key(|(_, f)| f.hunks_to_keep)
-                .map(|(idx, _)| idx);
-            match file_idx {
-                Some(idx) => {
-                    let file = &mut file_infos[idx];
-                    let size_before = file.calculate_size();
-                    file.hunks_to_keep -= 1;
-                    let size_after = file.calculate_size();
-                    let saved = size_before.saturating_sub(size_after);
-                    current_size = current_size.saturating_sub(saved);
-                }
-                None => {
-                    break;
-                }
-            }
-        }
-
-        file_infos.iter().map(|info| info.to_string()).collect::<Vec<_>>().join("\n")
-    }
-
-    pub fn compress_commit_diff(diff_text: &str, max_bytes: usize) -> String {
-        if diff_text.len() <= max_bytes {
-            return diff_text.to_string();
-        }
-
-        let mut compressed = diff_text
-            .lines()
-            .map(|line| {
-                if line.len() > 256 {
-                    format!("{}...[truncated]\n", &line[..line.floor_char_boundary(256)])
-                } else {
-                    format!("{}\n", line)
-                }
-            })
-            .collect::<Vec<_>>()
-            .concat();
-
-        if compressed.len() <= max_bytes {
-            return compressed;
-        }
-
-        compressed = Self::truncate_iteratively(&compressed, max_bytes);
-
-        compressed
-    }
-
     fn get_fetch_options(&self, window: &Window, cx: &Context<Self>) -> Task<Option<FetchOptions>> {
         let repo = self.active_repository.clone();
         let workspace = self.workspace.clone();
@@ -4436,10 +4331,6 @@ impl GitPanel {
             });
             workspace.toggle_status_toast(status_toast, cx)
         });
-    }
-
-    pub fn can_commit(&self) -> bool {
-        (self.has_staged_changes() || self.has_tracked_changes()) && !self.has_unstaged_conflicts()
     }
 
     pub fn can_stage_all(&self) -> bool {
@@ -5999,14 +5890,6 @@ impl GitPanel {
         cx.notify();
     }
 
-    pub const fn signoff_enabled(&self) -> bool {
-        self.signoff_enabled
-    }
-
-    pub const fn skip_hooks_enabled(&self) -> bool {
-        self.skip_hooks_enabled
-    }
-
     fn set_skip_hooks_enabled(&mut self, value: bool, cx: &mut Context<Self>) {
         if self.skip_hooks_enabled != value {
             self.skip_hooks_enabled = value;
@@ -6375,7 +6258,10 @@ fn bulk_revert_prompt(tracked_count: usize, untracked_count: usize) -> Option<(S
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::SelectionTargetKind;
+    use super::bulk_revert_prompt;
+    use super::restore_title;
 
     #[test]
     fn test_restore_title() {

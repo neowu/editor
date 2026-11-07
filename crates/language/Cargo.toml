@@ -10,7 +10,6 @@ path = "src/language.rs"
 anyhow.workspace = true
 async-trait.workspace = true
 clock.workspace = true
-diffy.workspace = true
 encoding_rs.workspace = true
 file_content.workspace = true
 fs.workspace = true

@@ -21,8 +21,6 @@ pub use language_core::BinaryStatus;
 pub use language_core::LanguageName;
 pub use language_core::LanguageQueries;
 pub use language_core::LanguageServerStatusUpdate;
-pub use language_core::QueryFile;
-pub use language_core::QueryFileContents;
 pub use language_core::QueryFiles;
 pub use language_core::ServerHealth;
 use lsp::LanguageServerId;
@@ -182,13 +180,6 @@ impl LanguageRegistry {
         result
     }
 
-    pub fn grammar_names(&self) -> Vec<Arc<str>> {
-        let state = self.state.read();
-        let mut result = state.grammars.keys().cloned().collect::<Vec<_>>();
-        result.sort_unstable_by_key(|grammar_name| grammar_name.to_lowercase());
-        result
-    }
-
     /// Add a pre-loaded language to the registry.
     pub fn add(&self, language: Arc<Language>) {
         let mut state = self.state.write();
@@ -233,10 +224,6 @@ impl LanguageRegistry {
         let language_id = self.state.read().available_languages.find_by_name(name);
         let rx = self.get_or_load_language(language_id);
         async move { rx.await? }
-    }
-
-    pub fn language_name_for_extension(self: &Arc<Self>, extension: &str) -> Option<LanguageName> {
-        self.state.try_read().and_then(|state| state.available_languages.find_name_by_extension(extension))
     }
 
     pub fn language_for_name_or_extension(
@@ -467,10 +454,6 @@ impl LanguageRegistry {
 
     pub fn adapter_for_name(&self, name: &LanguageServerName) -> Option<Arc<CachedLspAdapter>> {
         self.state.read().all_lsp_adapters.get(name).cloned()
-    }
-
-    pub fn update_lsp_binary_status(&self, server_name: LanguageServerName, status: BinaryStatus) {
-        self.lsp_binary_status_tx.send(None, server_name, status);
     }
 
     pub fn update_lsp_binary_status_for_entity(

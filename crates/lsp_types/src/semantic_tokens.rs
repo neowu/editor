@@ -454,7 +454,9 @@ impl From<SemanticTokensPartialResult> for SemanticTokensRangeResult {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::SemanticTokens;
+    use super::SemanticTokensEdit;
     use crate::tests::test_deserialization;
     use crate::tests::test_serialization;
 

@@ -1011,7 +1011,7 @@ impl Request for TypeHierarchySubtypes {
 mod test {
     use serde::de::DeserializeOwned;
 
-    use super::*;
+    use super::Request;
 
     fn fake_call<R>()
     where

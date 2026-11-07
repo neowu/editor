@@ -4,7 +4,6 @@ use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
 use serde::Serializer;
-use strum::IntoEnumIterator;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, strum::EnumIter, strum::EnumString, strum::IntoStaticStr)]
 pub enum QueryFile {
@@ -46,12 +45,6 @@ bitflags::bitflags! {
         const RUNNABLES = 1 << 7;
         const TEXT_OBJECTS = 1 << 9;
         const SPELL_CHECK = 1 << 10;
-    }
-}
-
-impl QueryFiles {
-    pub fn query_files(self) -> impl Iterator<Item = QueryFile> {
-        QueryFile::iter().filter(move |query_file| self.contains((*query_file).into()))
     }
 }
 

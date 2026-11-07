@@ -1,3 +1,4 @@
+use gpui::ParentElement;
 mod decorated_icon;
 mod icon_decoration;
 
@@ -5,6 +6,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+#[allow(clippy::wildcard_imports)]
 pub use decorated_icon::*;
 use gpui::AnimationElement;
 use gpui::Hsla;
@@ -15,11 +17,25 @@ use gpui::Resource;
 use gpui::Transformation;
 use gpui::img;
 use gpui::svg;
+#[allow(clippy::wildcard_imports)]
 pub use icon_decoration::*;
+#[allow(clippy::wildcard_imports)]
 pub use icons::*;
 
 use crate::Indicator;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::DynamicSpacing;
+use crate::prelude::FluentBuilder;
+use crate::prelude::InteractiveElement;
+use crate::prelude::Pixels;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::rems_from_px;
 use crate::traits::transformable::Transformable;
 
 #[derive(IntoElement)]

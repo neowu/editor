@@ -5,7 +5,21 @@ use smallvec::SmallVec;
 use crate::Tab;
 use crate::TabStyle;
 use crate::components::tab::FOLDER_TAB_RADIUS;
-use crate::prelude::*;
+use crate::prelude::App;
+use crate::prelude::DynamicSpacing;
+use crate::prelude::ElementId;
+use crate::prelude::FluentBuilder;
+use crate::prelude::InteractiveElement;
+use crate::prelude::IntoElement;
+use crate::prelude::ParentElement;
+use crate::prelude::Pixels;
+use crate::prelude::RenderOnce;
+use crate::prelude::StatefulInteractiveElement;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
+use crate::prelude::px;
 
 #[derive(IntoElement)]
 pub struct TabBar {
@@ -43,14 +57,6 @@ impl TabBar {
         &mut self.start_children
     }
 
-    pub fn start_child(mut self, start_child: impl IntoElement) -> Self
-    where
-        Self: Sized,
-    {
-        self.start_children_mut().push(start_child.into_element().into_any());
-        self
-    }
-
     pub fn start_children(mut self, start_children: impl IntoIterator<Item = impl IntoElement>) -> Self
     where
         Self: Sized,
@@ -61,14 +67,6 @@ impl TabBar {
 
     pub const fn end_children_mut(&mut self) -> &mut SmallVec<[AnyElement; 2]> {
         &mut self.end_children
-    }
-
-    pub fn end_child(mut self, end_child: impl IntoElement) -> Self
-    where
-        Self: Sized,
-    {
-        self.end_children_mut().push(end_child.into_element().into_any());
-        self
     }
 
     pub fn end_children(mut self, end_children: impl IntoIterator<Item = impl IntoElement>) -> Self
@@ -142,7 +140,11 @@ impl RenderOnce for TabBar {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::FOLDER_TAB_RADIUS;
+    use super::TabStyle;
+    use super::end_inset;
+    use super::px;
 
     #[test]
     fn test_end_inset() {

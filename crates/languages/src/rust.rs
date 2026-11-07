@@ -19,6 +19,7 @@ use gpui::AsyncApp;
 use gpui::Entity;
 use gpui::SharedString;
 use gpui::Task;
+#[allow(clippy::wildcard_imports)]
 pub use language::*;
 use lsp::InitializeParams;
 use lsp::LanguageServerBinary;
@@ -944,7 +945,14 @@ fn test_mod_filter(path: &Path, stem: &str, mod_name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::CargoLibraryProvider;
+    use super::LibraryProvider;
+    use super::LibraryRoot;
+    use super::Path;
+    use super::PathBuf;
+    use super::str;
+    use super::test_mod_filter;
 
     fn library_root(abs_path: &str) -> Option<LibraryRoot> {
         CargoLibraryProvider.library_root(Path::new(abs_path))

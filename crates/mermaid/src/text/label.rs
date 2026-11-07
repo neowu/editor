@@ -790,7 +790,15 @@ fn finish(lines: Vec<Vec<Span>>, widths: Vec<f64>, size: f64, line_height: f64) 
 mod tests {
     use std::slice;
 
-    use super::*;
+    use super::BOLD;
+    use super::ITALIC;
+    use super::Label;
+    use super::SHY;
+    use super::SUB;
+    use super::SUP;
+    use super::UNDERLINE;
+    use super::layout_label;
+    use super::measure;
 
     const JA: &str = "在庫引当の結果を基幹システムへ連携し、出荷指示を倉庫管理システムに送信して完了を確認する";
     const ZWSP: char = '\u{200b}';

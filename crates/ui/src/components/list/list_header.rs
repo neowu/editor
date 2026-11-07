@@ -6,7 +6,26 @@ use gpui::ClickEvent;
 use crate::Disclosure;
 use crate::DockSide;
 use crate::IconButtonShape;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::DefiniteLength;
+use crate::prelude::DynamicSpacing;
+use crate::prelude::FluentBuilder;
+use crate::prelude::InteractiveElement;
+use crate::prelude::IntoElement;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::StatefulInteractiveElement;
+use crate::prelude::Styled;
+use crate::prelude::Toggleable;
+use crate::prelude::VisibleOnHover;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
 
 #[derive(IntoElement)]
 pub struct ListHeader {

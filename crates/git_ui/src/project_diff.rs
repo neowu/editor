@@ -41,7 +41,27 @@ use serde::Deserialize;
 use ui::DiffStat;
 use ui::Divider;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::Button;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Context;
+use ui::prelude::Disableable;
+use ui::prelude::FixedWidth;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::IntoElement;
+use ui::prelude::ParentElement;
+use ui::prelude::SharedString;
+use ui::prelude::Styled;
+use ui::prelude::Window;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::h_group_sm;
+use ui::prelude::rems;
 use workspace::ItemNavHistory;
 use workspace::SerializableItem;
 use workspace::ToolbarItemEvent;
@@ -150,27 +170,6 @@ impl ProjectDiff {
         }
     }
 
-    pub fn deploy_at_project_path(
-        workspace: &mut Workspace,
-        project_path: ProjectPath,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) {
-        let existing = workspace.items_of_type::<Self>(cx).next();
-        let project_diff = if let Some(existing) = existing {
-            workspace.activate_item(&existing, true, true, window, cx);
-            existing
-        } else {
-            let workspace_handle = cx.entity();
-            let project_diff = cx.new(|cx| Self::new(workspace.project().clone(), workspace_handle, window, cx));
-            workspace.add_item_to_active_pane(Box::new(project_diff.clone()), None, true, window, cx);
-            project_diff
-        };
-        project_diff.update(cx, |project_diff, cx| {
-            project_diff.move_to_project_path(&project_path, window, cx);
-        });
-    }
-
     pub fn autoscroll(&self, cx: &mut Context<Self>) {
         self.diff.update(cx, |diff, cx| diff.autoscroll(cx));
     }
@@ -251,10 +250,6 @@ impl ProjectDiff {
 
     pub fn move_to_entry(&mut self, entry: GitStatusEntry, window: &mut Window, cx: &mut Context<Self>) {
         self.diff.update(cx, |diff, cx| diff.move_to_entry(entry, window, cx));
-    }
-
-    pub fn move_to_project_path(&mut self, project_path: &ProjectPath, window: &mut Window, cx: &mut Context<Self>) {
-        self.diff.update(cx, |diff, cx| diff.move_to_project_path(project_path, window, cx));
     }
 
     fn move_to_beginning(&self, window: &mut Window, cx: &mut Context<Self>) {

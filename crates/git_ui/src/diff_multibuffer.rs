@@ -49,7 +49,24 @@ use rustc_hash::FxHashSet;
 use theme::ActiveTheme;
 use ui::CommonAnimationExt as _;
 use ui::KeyBinding;
-use ui::prelude::*;
+use ui::prelude::Button;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Context;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::Label;
+use ui::prelude::ParentElement;
+use ui::prelude::Styled;
+use ui::prelude::TextSize;
+use ui::prelude::Window;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::v_flex;
 use util::ResultExt as _;
 use util::rel_path::RelPath;
 use workspace::CloseActiveItem;
@@ -202,24 +219,6 @@ impl DiffMultibuffer {
         let repo = git_repo.read(cx);
         let path_key = project_diff_path_key(repo, &entry.repo_path, entry.status, cx);
 
-        self.move_to_path(path_key, window, cx)
-    }
-
-    pub(crate) fn move_to_project_path(
-        &mut self,
-        project_path: &ProjectPath,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let Some(git_repo) = self.branch_diff.read(cx).repo() else {
-            return;
-        };
-        let Some(repo_path) = git_repo.read(cx).project_path_to_repo_path(project_path, cx) else {
-            return;
-        };
-        let status =
-            git_repo.read(cx).status_for_path(&repo_path).map(|entry| entry.status).unwrap_or(FileStatus::Untracked);
-        let path_key = project_diff_path_key(git_repo.read(cx), &repo_path, status, cx);
         self.move_to_path(path_key, window, cx)
     }
 

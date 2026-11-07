@@ -1,18 +1,16 @@
 use gpui::Hsla;
 use gpui::IntoElement;
-use gpui::PathBuilder;
 use gpui::Refineable as _;
 use gpui::StyleRefinement;
-use gpui::canvas;
-use gpui::point;
 
-use crate::prelude::*;
-
-#[derive(Clone, Copy, PartialEq)]
-enum DividerStyle {
-    Solid,
-    Dashed,
-}
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Div;
+use crate::prelude::FluentBuilder;
+use crate::prelude::RenderOnce;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::div;
 
 #[derive(Clone, Copy, PartialEq)]
 enum DividerDirection {
@@ -41,7 +39,6 @@ impl DividerColor {
 
 #[derive(IntoElement)]
 pub struct Divider {
-    line_style: DividerStyle,
     direction: DividerDirection,
     color: DividerColor,
     style: StyleRefinement,
@@ -51,7 +48,6 @@ pub struct Divider {
 impl Divider {
     pub fn horizontal() -> Self {
         Self {
-            line_style: DividerStyle::Solid,
             direction: DividerDirection::Horizontal,
             color: DividerColor::default(),
             style: StyleRefinement::default(),
@@ -61,27 +57,6 @@ impl Divider {
 
     pub fn vertical() -> Self {
         Self {
-            line_style: DividerStyle::Solid,
-            direction: DividerDirection::Vertical,
-            color: DividerColor::default(),
-            style: StyleRefinement::default(),
-            inset: false,
-        }
-    }
-
-    pub fn horizontal_dashed() -> Self {
-        Self {
-            line_style: DividerStyle::Dashed,
-            direction: DividerDirection::Horizontal,
-            color: DividerColor::default(),
-            style: StyleRefinement::default(),
-            inset: false,
-        }
-    }
-
-    pub fn vertical_dashed() -> Self {
-        Self {
-            line_style: DividerStyle::Dashed,
             direction: DividerDirection::Vertical,
             color: DividerColor::default(),
             style: StyleRefinement::default(),
@@ -102,36 +77,6 @@ impl Divider {
     pub fn render_solid(self, base: Div, cx: &mut App) -> impl IntoElement {
         base.bg(self.color.hsla(cx))
     }
-
-    pub fn render_dashed(self, base: Div) -> impl IntoElement {
-        base.relative().child(
-            canvas(
-                |_, _, _| {},
-                move |bounds, _, window, cx| {
-                    let mut builder = PathBuilder::stroke(px(1.)).dash_array(&[px(4.), px(2.)]);
-                    let (start, end) = match self.direction {
-                        DividerDirection::Horizontal => {
-                            let x = bounds.origin.x;
-                            let y = bounds.origin.y + px(0.5);
-                            (point(x, y), point(x + bounds.size.width, y))
-                        }
-                        DividerDirection::Vertical => {
-                            let x = bounds.origin.x + px(0.5);
-                            let y = bounds.origin.y;
-                            (point(x, y), point(x, y + bounds.size.height))
-                        }
-                    };
-                    builder.move_to(start);
-                    builder.line_to(end);
-                    if let Ok(line) = builder.build() {
-                        window.paint_path(line, self.color.hsla(cx));
-                    }
-                },
-            )
-            .absolute()
-            .size_full(),
-        )
-    }
 }
 
 impl Styled for Divider {
@@ -151,9 +96,6 @@ impl RenderOnce for Divider {
 
         base.style().refine(&self.style);
 
-        match self.line_style {
-            DividerStyle::Solid => self.render_solid(base, cx).into_any_element(),
-            DividerStyle::Dashed => self.render_dashed(base).into_any_element(),
-        }
+        self.render_solid(base, cx)
     }
 }

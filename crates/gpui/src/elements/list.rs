@@ -540,11 +540,6 @@ impl ListState {
         }
     }
 
-    /// Set a handler that will be called when the list is scrolled.
-    pub fn set_scroll_handler(&self, handler: impl FnMut(&ListScrollEvent, &mut Window, &mut App) + 'static) {
-        self.0.borrow_mut().scroll_handler = Some(Box::new(handler))
-    }
-
     /// Get the current scroll offset, in terms of the list's items.
     pub fn logical_scroll_top(&self) -> ListOffset {
         self.0.borrow().logical_scroll_top()
@@ -592,46 +587,6 @@ impl ListState {
         let item_count = state.items.summary().count;
         state.pending_scroll = None;
         state.logical_scroll_top = Some(ListOffset { item_ix: item_count, offset_in_item: px(0.) });
-    }
-
-    /// Set the follow mode for the list. In `Tail` mode, the list
-    /// will auto-scroll to the end and re-engage after the user
-    /// scrolls back to the bottom. In `Normal` mode, no automatic
-    /// following occurs.
-    pub fn set_follow_mode(&self, mode: FollowMode) {
-        let state = &mut *self.0.borrow_mut();
-
-        match mode {
-            FollowMode::Normal => {
-                state.follow_state = FollowState::Normal;
-            }
-            FollowMode::Tail => {
-                state.follow_state = FollowState::Tail { is_following: true };
-                if matches!(mode, FollowMode::Tail) {
-                    let item_count = state.items.summary().count;
-                    state.logical_scroll_top = Some(ListOffset { item_ix: item_count, offset_in_item: px(0.) });
-                }
-            }
-        }
-    }
-
-    /// Pause tail-following, freezing the list at its current scroll
-    /// position. Unlike [`Self::set_follow_mode`] with [`FollowMode::Normal`],
-    /// this keeps the list in `Tail` mode, so it will resume following
-    /// automatically once the view returns to the bottom. No-op when the list
-    /// isn't currently following.
-    ///
-    /// Useful when something other than the user grows an item (e.g. zooming a
-    /// diagram) and the current position should stay put rather than snapping
-    /// to the end.
-    pub fn pause_following_tail(&self) {
-        self.0.borrow_mut().follow_state.stop_following();
-    }
-
-    /// Returns whether the list is currently actively following the
-    /// tail (snapping to the end on each layout).
-    pub fn is_following_tail(&self) -> bool {
-        matches!(self.0.borrow().follow_state, FollowState::Tail { is_following: true })
     }
 
     /// Scroll the list to the given offset
@@ -723,16 +678,6 @@ impl ListState {
     /// See `scrollbar_drag_started`.
     pub fn scrollbar_drag_ended(&self) {
         self.0.borrow_mut().scrollbar_drag_start_height.take();
-    }
-
-    /// Returns `true` if the scrollbar is currently being dragged.
-    ///
-    /// This is set between [`scrollbar_drag_started`](Self::scrollbar_drag_started)
-    /// and [`scrollbar_drag_ended`](Self::scrollbar_drag_ended) calls. Useful for
-    /// consumers that need to distinguish scrollbar drags from wheel/trackpad scrolls,
-    /// e.g. to suppress auto-scroll behavior during manual positioning.
-    pub fn is_scrollbar_dragging(&self) -> bool {
-        self.0.borrow().scrollbar_drag_start_height.is_some()
     }
 
     /// Set the offset from the scrollbar

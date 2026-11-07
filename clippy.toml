@@ -5,6 +5,7 @@ allow-unwrap-in-tests = true
 allow-dbg-in-tests = true
 allow-unwrap-types = ["std::sync::LockResult"]  # This allows .unwrap() on Mutex lock results without triggering clippy::unwrap_used
 too-many-lines-threshold = 150
+warn-on-all-wildcard-imports = true
 
 disallowed-methods = [
   { path = "std::process::Command::spawn", reason = "Spawning `std::process::Command` can block the current thread for an unknown duration", replacement = "smol::process::Command::spawn" },

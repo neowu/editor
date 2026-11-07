@@ -19,6 +19,7 @@ pub use repository::RemoteCommandOutput;
 use serde::Deserialize;
 use serde::Serialize;
 
+#[allow(clippy::wildcard_imports)]
 pub use crate::remote::*;
 
 pub const DOT_GIT: &str = ".git";

@@ -107,7 +107,6 @@ pub use block_map::BlockPoint;
 use block_map::BlockPointCursor;
 pub use block_map::BlockProperties;
 use block_map::BlockRow;
-pub use block_map::BlockRows;
 use block_map::BlockSnapshot;
 pub use block_map::BlockStyle;
 pub use block_map::CompanionView;
@@ -116,12 +115,12 @@ pub use block_map::CustomBlockId;
 pub use block_map::EditorMargins;
 pub use block_map::RenderBlock;
 pub use block_map::StickyHeaderExcerpt;
+#[allow(clippy::wildcard_imports)]
 pub use crease_map::*;
 pub use fold_map::ChunkRenderer;
 pub use fold_map::ChunkRendererContext;
 pub use fold_map::ChunkRendererId;
 pub use fold_map::Fold;
-pub use fold_map::FoldId;
 pub use fold_map::FoldPlaceholder;
 pub use fold_map::FoldPoint;
 use fold_map::FoldPointCursor;
@@ -691,10 +690,6 @@ impl DisplayMap {
         }
     }
 
-    pub fn crease_snapshot(&self) -> CreaseSnapshot {
-        self.crease_map.snapshot()
-    }
-
     pub fn set_state(&mut self, other: &DisplaySnapshot, cx: &mut Context<Self>) {
         self.fold(
             other
@@ -857,24 +852,6 @@ impl DisplayMap {
 
     pub(crate) const fn folded_buffers(&self) -> &FxHashSet<BufferId> {
         &self.block_map.folded_buffers
-    }
-
-    pub fn insert_creases(
-        &mut self,
-        creases: impl IntoIterator<Item = Crease<Anchor>>,
-        cx: &mut Context<Self>,
-    ) -> Vec<CreaseId> {
-        let snapshot = self.buffer.read(cx).snapshot(cx);
-        self.crease_map.insert(creases, &snapshot)
-    }
-
-    pub fn remove_creases(
-        &mut self,
-        crease_ids: impl IntoIterator<Item = CreaseId>,
-        cx: &mut Context<Self>,
-    ) -> Vec<(CreaseId, Range<Anchor>)> {
-        let snapshot = self.buffer.read(cx).snapshot(cx);
-        self.crease_map.remove(crease_ids, &snapshot)
     }
 
     /// Replaces the LSP folding-range creases for a single buffer.
@@ -1519,16 +1496,6 @@ impl DisplaySnapshot {
         DisplayPoint(block_point)
     }
 
-    /// Converts a buffer offset range into one or more `DisplayPoint` ranges
-    /// that cover only actual buffer text, excluding any inlay hint text that
-    /// falls within the range.
-    pub fn isomorphic_display_point_ranges_for_buffer_range(
-        &self,
-        range: Range<MultiBufferOffset>,
-    ) -> SmallVec<[Range<DisplayPoint>; 1]> {
-        self.display_point_converter().map(range)
-    }
-
     /// Converts a non-empty buffer range into one contiguous display range.
     /// Inlays at either boundary are excluded, while inlays between selected
     /// buffer characters are included.
@@ -1924,10 +1891,6 @@ impl DisplaySnapshot {
         self.block_snapshot.is_block_line(BlockRow(display_row.0))
     }
 
-    pub fn is_folded_buffer_header(&self, display_row: DisplayRow) -> bool {
-        self.block_snapshot.is_folded_buffer_header(BlockRow(display_row.0))
-    }
-
     pub fn soft_wrap_indent(&self, display_row: DisplayRow) -> Option<u32> {
         let wrap_row = self.block_snapshot.to_wrap_point(BlockPoint::new(BlockRow(display_row.0), 0), Bias::Left).row();
         self.wrap_snapshot().soft_wrap_indent(wrap_row)
@@ -1960,12 +1923,6 @@ impl DisplaySnapshot {
 
     pub fn longest_row(&self) -> DisplayRow {
         DisplayRow(self.block_snapshot.longest_row().0)
-    }
-
-    pub fn longest_row_in_range(&self, range: Range<DisplayRow>) -> DisplayRow {
-        let block_range = BlockRow(range.start.0)..BlockRow(range.end.0);
-        let longest_row = self.block_snapshot.longest_row_in_range(block_range);
-        DisplayRow(longest_row.0)
     }
 
     pub fn starts_indent(&self, buffer_row: MultiBufferRow) -> bool {
@@ -2107,10 +2064,6 @@ impl DisplaySnapshot {
 
     pub const fn buffer_header_height(&self) -> u32 {
         self.block_snapshot.buffer_header_height
-    }
-
-    pub const fn excerpt_header_height(&self) -> u32 {
-        self.block_snapshot.excerpt_header_height
     }
 
     pub(crate) fn fully_replaced_tab_rows(&self, row: u32) -> Option<RangeInclusive<u32>> {

@@ -10,7 +10,9 @@ use gpui::Hsla;
 use gpui::SharedString;
 use gpui::WindowBackgroundAppearance;
 
+#[allow(clippy::wildcard_imports)]
 pub use crate::color_space::*;
+#[allow(clippy::wildcard_imports)]
 pub use crate::styles::*;
 
 /// The appearance of the theme.
@@ -132,6 +134,7 @@ pub fn init(cx: &mut App) {
 pub struct GlobalTheme {
     theme: Arc<Theme>,
 }
+
 impl Global for GlobalTheme {}
 
 impl GlobalTheme {

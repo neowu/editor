@@ -28,6 +28,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 use std::time::Instant;
 
+#[allow(clippy::wildcard_imports)]
 pub use anchor::*;
 use anyhow::Context as _;
 use anyhow::Result;
@@ -38,11 +39,14 @@ use locator::Locator;
 use operation_queue::OperationQueue;
 pub use patch::Patch;
 use regex::Regex;
+#[allow(clippy::wildcard_imports)]
 pub use rope::*;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
+#[allow(clippy::wildcard_imports)]
 pub use selection::*;
 use smallvec::SmallVec;
+#[allow(clippy::wildcard_imports)]
 pub use subscription::*;
 pub use sum_tree::Bias;
 use sum_tree::Dimensions;
@@ -144,12 +148,6 @@ pub struct Transaction {
     pub id: TransactionId,
     pub edit_ids: Vec<clock::Lamport>,
     pub start: clock::Global,
-}
-
-impl Transaction {
-    pub fn merge_in(&mut self, other: Transaction) {
-        self.edit_ids.extend(other.edit_ids);
-    }
 }
 
 impl HistoryEntry {
@@ -782,14 +780,6 @@ impl Buffer {
 
     pub fn remote_id(&self) -> BufferId {
         self.remote_id
-    }
-
-    pub fn deferred_ops_len(&self) -> usize {
-        self.deferred_ops.len()
-    }
-
-    pub const fn transaction_group_interval(&self) -> Duration {
-        self.history.group_interval
     }
 
     pub fn edit<R, I, S, T>(&mut self, edits: R) -> Operation
@@ -1768,10 +1758,6 @@ impl BufferSnapshot {
         self.text_for_range(range).flat_map(str::chars)
     }
 
-    pub fn reversed_chars_for_range<T: ToOffset>(&self, range: Range<T>) -> impl Iterator<Item = char> + '_ {
-        self.reversed_chunks_in_range(range).flat_map(|chunk| chunk.chars().rev())
-    }
-
     pub fn contains_str_at<T>(&self, position: T, needle: &str) -> bool
     where
         T: ToOffset,
@@ -1779,28 +1765,6 @@ impl BufferSnapshot {
         let position = position.to_offset(self);
         position == self.clip_offset(position, Bias::Left)
             && self.bytes_in_range(position..self.len()).flatten().copied().take(needle.len()).eq(needle.bytes())
-    }
-
-    pub fn common_prefix_at<T>(&self, position: T, needle: &str) -> Range<T>
-    where
-        T: ToOffset + TextDimension,
-    {
-        let offset = position.to_offset(self);
-        let common_prefix_len = needle
-            .char_indices()
-            .map(|(index, _)| index)
-            .chain([needle.len()])
-            .take_while(|&len| len <= offset)
-            .filter(|&len| {
-                let left = self.chars_for_range(offset - len..offset).flat_map(char::to_lowercase);
-                let right = needle[..len].chars().flat_map(char::to_lowercase);
-                left.eq(right)
-            })
-            .last()
-            .unwrap_or(0);
-        let start_offset = offset - common_prefix_len;
-        let start = self.text_summary_for_range(0..start_offset);
-        start..position
     }
 
     pub fn text(&self) -> String {
@@ -1813,10 +1777,6 @@ impl BufferSnapshot {
 
     pub const fn line_ending(&self) -> LineEnding {
         self.line_ending
-    }
-
-    pub fn deleted_text(&self) -> String {
-        self.deleted_text.to_string()
     }
 
     pub fn text_summary(&self) -> TextSummary {
@@ -2042,15 +2002,6 @@ impl BufferSnapshot {
         A: 'a + IntoIterator<Item = (Anchor, T)>,
     {
         self.summaries_for_anchors_with_payload_impl::<D, A, T, false>(anchors)
-    }
-
-    pub fn summaries_for_anchors_unordered<'a, D, A>(&'a self, anchors: A) -> impl 'a + Iterator<Item = D>
-    where
-        D: 'a + TextDimension,
-        A: 'a + IntoIterator<Item = Anchor>,
-    {
-        self.summaries_for_anchors_with_payload_impl::<D, _, (), true>(anchors.into_iter().map(|anchor| (anchor, ())))
-            .map(|(summary, ())| summary)
     }
 
     fn summaries_for_anchors_with_payload_impl<'a, D, A, T, const ALLOW_BACKWARDS: bool>(
@@ -2855,10 +2806,6 @@ impl Operation {
             _ => None,
         }
     }
-
-    pub const fn is_edit(&self) -> bool {
-        matches!(self, Operation::Edit { .. })
-    }
 }
 
 impl operation_queue::Operation for Operation {
@@ -3091,10 +3038,6 @@ impl LineEnding {
     }
 
     pub fn normalize_arc(text: Arc<str>) -> Arc<str> {
-        if let Cow::Owned(replaced) = LINE_SEPARATORS_REGEX.replace_all(&text, "\n") { replaced.into() } else { text }
-    }
-
-    pub fn normalize_cow(text: Cow<str>) -> Cow<str> {
         if let Cow::Owned(replaced) = LINE_SEPARATORS_REGEX.replace_all(&text, "\n") { replaced.into() } else { text }
     }
 

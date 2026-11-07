@@ -11,7 +11,12 @@ use gpui::Render;
 use gpui::Styled;
 use gpui::Window;
 use ui::h_flex;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::DynamicSpacing;
+use ui::prelude::FluentBuilder;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::div;
 use ui::v_flex;
 
 use crate::ItemHandle;

@@ -4,7 +4,6 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::ops::Deref;
 use std::path::Path;
-use std::path::PathBuf;
 use std::result;
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -329,18 +328,6 @@ impl RelPathBuf {
 
     pub const fn as_rel_path(&self) -> &RelPath {
         RelPath::from_str(self.0.as_str())
-    }
-
-    pub fn set_extension(&mut self, extension: &str) -> bool {
-        if let Some(filename) = self.file_name() {
-            let mut filename = PathBuf::from(filename);
-            filename.set_extension(extension);
-            self.pop();
-            self.push(RelPath::from_str(filename.to_str().unwrap()));
-            true
-        } else {
-            false
-        }
     }
 }
 

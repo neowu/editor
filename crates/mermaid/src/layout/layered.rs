@@ -3105,7 +3105,15 @@ fn position(g: &mut Graph, opt: &LayeredOptions) -> Vec<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::Groups;
+    use super::Kind;
+    use super::LNode;
+    use super::LayeredOptions;
+    use super::layered;
+    use super::layered_with;
+    use super::ledge;
+    use super::lnode;
 
     fn options() -> LayeredOptions {
         LayeredOptions { edge_sep: 16.0, node_sep: 40.0, port_sep: 20.0, rank_sep: 48.0, ..LayeredOptions::default() }

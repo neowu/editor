@@ -22,7 +22,15 @@ use ui::LabelLike;
 use ui::ListItem;
 use ui::ListItemSpacing;
 use ui::Window;
-use ui::prelude::*;
+use ui::prelude::AnyElement;
+use ui::prelude::App;
+use ui::prelude::Color;
+use ui::prelude::Icon;
+use ui::prelude::IconName;
+use ui::prelude::IntoElement;
+use ui::prelude::ParentElement;
+use ui::prelude::SharedString;
+use ui::prelude::Toggleable;
 use util::ResultExt;
 use util::paths::compare_paths;
 use workspace::Workspace;
@@ -59,15 +67,6 @@ impl OpenPathDelegate {
             render_footer: Arc::new(|_, _| None),
             hidden_entries: false,
         }
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub fn with_footer(
-        mut self,
-        footer: Arc<dyn Fn(&mut Window, &mut Context<Picker<Self>>) -> Option<AnyElement> + 'static>,
-    ) -> Self {
-        self.render_footer = footer;
-        self
     }
 
     pub const fn show_hidden(mut self) -> Self {
@@ -753,7 +752,10 @@ fn get_dir_and_suffix(query: String) -> (String, String) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::DirectoryItem;
+    use super::PathBuf;
+    use super::path_candidates;
 
     #[test]
     fn test_path_candidates_lists_directories_first() {

@@ -298,8 +298,6 @@ impl SerializedPane {
     }
 }
 
-pub type ItemId = u64;
-
 /// A tab: its kind, which picks the item type that restores it, and the state
 /// that item type saved.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]

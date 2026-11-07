@@ -66,7 +66,6 @@ use smallvec::SmallVec;
 use theme::ActiveTheme as _;
 
 use crate::scrollbars::ScrollbarAutoHide;
-use crate::scrollbars::ScrollbarVisibility;
 use crate::scrollbars::ShowScrollbar;
 use crate::utils::inner_corner_radius;
 
@@ -357,7 +356,6 @@ enum ReservedSpace {
     None,
     Thumb,
     Track,
-    StableTrack,
 }
 
 impl ReservedSpace {
@@ -366,12 +364,11 @@ impl ReservedSpace {
     }
 
     const fn needs_scroll_track(&self) -> bool {
-        matches!(self, Self::Track | Self::StableTrack)
+        matches!(self, Self::Track)
     }
 
     fn needs_space_reserved(&self, max_offset: Pixels) -> bool {
         match self {
-            Self::StableTrack => true,
             Self::Track => !max_offset.is_zero(),
             _ => false,
         }
@@ -436,10 +433,6 @@ impl Scrollbars {
 
     pub fn always_visible(show_along: ScrollAxes) -> Self {
         Self::new_with_setting(show_along, |_| ShowScrollbar::Always)
-    }
-
-    pub fn for_settings<S: ScrollbarVisibility + Default>() -> Scrollbars {
-        Scrollbars::new_with_setting(ScrollAxes::Both, |cx| S::default().visibility(cx))
     }
 }
 
@@ -523,21 +516,9 @@ impl<ScrollHandle: ScrollableHandle> Scrollbars<ScrollHandle> {
         self
     }
 
-    pub const fn reveal_policy(mut self, reveal_policy: ScrollbarRevealPolicy) -> Self {
-        self.reveal_policy = reveal_policy;
-        self
-    }
-
     pub fn with_track_along(mut self, along: ScrollAxes, background_color: Hsla) -> Self {
         self.visibility = along.apply_to(self.visibility, ReservedSpace::Track);
         self.track_color = Some(background_color);
-        self
-    }
-
-    pub fn with_stable_track_along(mut self, along: ScrollAxes, background_color: Hsla) -> Self {
-        self.visibility = along.apply_to(self.visibility, ReservedSpace::StableTrack);
-        self.track_color = Some(background_color);
-        self.border = true;
         self
     }
 }

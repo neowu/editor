@@ -1,14 +1,112 @@
 use std::any::TypeId;
 use std::cell::RefCell;
 
+use gpui::Div;
 use gpui::Empty;
+use gpui::InteractiveElement;
 use gpui::ListAlignment;
 use gpui::ListSizingBehavior;
 use gpui::ListState;
+use gpui::Refineable;
+use gpui::StatefulInteractiveElement;
+use gpui::StyledImage;
 use gpui::UnderlineStyle;
 use gpui::list;
+use gpui::prelude::FluentBuilder;
+use ui::LabelCommon;
+use ui::WithScrollbar;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Color;
+use ui::prelude::DefiniteLength;
+use ui::prelude::Element;
+use ui::prelude::ElementId;
+use ui::prelude::Icon;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::IntoElement;
+use ui::prelude::Label;
+use ui::prelude::ParentElement;
+use ui::prelude::Styled;
+use ui::prelude::StyledExt;
+use ui::prelude::ToggleState;
+use ui::prelude::VisibleOnHover;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::px;
+use ui::prelude::rems;
 
-use super::*;
+use super::Alignment;
+use super::AnyElement;
+use super::App;
+use super::Arc;
+use super::BlockQuoteKind;
+use super::Bounds;
+use super::Cell;
+use super::Checkbox;
+use super::CodeBlock;
+use super::CodeBlockKind;
+use super::CodeBlockMetadata;
+use super::Context;
+use super::CopyButton;
+use super::CursorStyle;
+use super::DispatchPhase;
+use super::Entity;
+use super::EntityId;
+use super::FocusHandle;
+use super::FontStyle;
+use super::FontWeight;
+use super::FxHashMap;
+use super::GlobalElementId;
+use super::HeadingLevelStyles;
+use super::Hitbox;
+use super::HitboxBehavior;
+use super::Hsla;
+use super::Image;
+use super::ImageSource;
+use super::InputHandler;
+use super::KeyContext;
+use super::Markdown;
+use super::MarkdownElementBuilder;
+use super::MarkdownEvent;
+use super::MarkdownEventIndex;
+use super::MarkdownHighlights;
+use super::MarkdownStyle;
+use super::MarkdownTag;
+use super::MarkdownTagEnd;
+use super::MetadataCellStyle;
+use super::MouseButton;
+use super::MouseDownEvent;
+use super::MouseEvent;
+use super::MouseMoveEvent;
+use super::MouseUpEvent;
+use super::ParsedMarkdown;
+use super::ParsedMetadataBlock;
+use super::Pixels;
+use super::Point;
+use super::Range;
+use super::Rc;
+use super::RenderBlock;
+use super::RenderedMarkdown;
+use super::RenderedText;
+use super::ResultExt;
+use super::ScrollAxes;
+use super::ScrollHandle;
+use super::Scrollbars;
+use super::SelectMode;
+use super::Selection;
+use super::SharedString;
+use super::Stateful;
+use super::StrikethroughStyle;
+use super::StyleRefinement;
+use super::TextAlign;
+use super::TextStyleRefinement;
+use super::Tooltip;
+use super::UTF16Selection;
+use super::Window;
+use super::canvas;
+use super::img;
+use super::point;
+use super::size;
 use crate::parser::HtmlStyle;
 
 type UrlHoverCallback = Rc<dyn Fn(Option<SharedString>, &mut Window, &mut App)>;
@@ -1985,7 +2083,12 @@ impl InputHandler for MarkdownInputHandler {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use gpui::px;
+
+    use super::Arc;
+    use super::MarkdownListState;
+    use super::RenderBlock;
+    use super::SharedString;
 
     fn blocks(hashes: &[u64]) -> Arc<[RenderBlock]> {
         hashes

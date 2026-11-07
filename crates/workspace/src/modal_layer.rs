@@ -1,5 +1,6 @@
 use gpui::AnyView;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::DismissEvent;
 use gpui::Entity;
 use gpui::EventEmitter;
@@ -9,7 +10,19 @@ use gpui::ManagedView;
 use gpui::MouseButton;
 use gpui::Subscription;
 use gpui::WeakFocusHandle;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::Context;
+use ui::prelude::FluentBuilder;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::ParentElement;
+use ui::prelude::Render;
+use ui::prelude::Styled;
+use ui::prelude::Window;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::px;
+use ui::prelude::v_flex;
 
 #[derive(Debug)]
 pub enum DismissDecision {

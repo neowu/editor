@@ -4,7 +4,16 @@ use gpui::Animation;
 use gpui::AnimationExt;
 use gpui::FontWeight;
 
-use crate::prelude::*;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::IntoElement;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::LineHeightStyle;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Window;
 
 #[derive(IntoElement)]
 pub struct LoadingLabel {

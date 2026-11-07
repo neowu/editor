@@ -17,7 +17,6 @@ use lyon::path::builder::WithSvg;
 use lyon::path::traits::SvgPathBuilder;
 use lyon::tessellation::BuffersBuilder;
 pub use lyon::tessellation::FillOptions;
-pub use lyon::tessellation::FillRule;
 use lyon::tessellation::FillTessellator;
 use lyon::tessellation::FillVertex;
 pub use lyon::tessellation::StrokeOptions;
@@ -106,11 +105,6 @@ impl PathBuilder {
         Self::default()
     }
 
-    /// Sets the style of the [`PathBuilder`].
-    pub fn with_style(self, style: PathStyle) -> Self {
-        Self { style, ..self }
-    }
-
     /// Sets the dash array of the [`PathBuilder`].
     ///
     /// [MDN](https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Attribute/stroke-dasharray)
@@ -147,13 +141,6 @@ impl PathBuilder {
         self.raw.quadratic_bezier_to(ctrl.into(), to.into());
     }
 
-    /// Adds a cubic Bézier to the [`Path`] given its two control points
-    /// and its end point.
-    #[inline]
-    pub fn cubic_bezier_to(&mut self, to: Point<Pixels>, control_a: Point<Pixels>, control_b: Point<Pixels>) {
-        self.raw.cubic_bezier_to(control_a.into(), control_b.into(), to.into());
-    }
-
     /// Adds an elliptical arc.
     pub fn arc_to(
         &mut self,
@@ -164,23 +151,6 @@ impl PathBuilder {
         to: Point<Pixels>,
     ) {
         self.raw.arc_to(radii.into(), Angle::degrees(x_rotation.into()), ArcFlags { large_arc, sweep }, to.into());
-    }
-
-    /// Equivalent to `arc_to` in relative coordinates.
-    pub fn relative_arc_to(
-        &mut self,
-        radii: Point<Pixels>,
-        x_rotation: Pixels,
-        large_arc: bool,
-        sweep: bool,
-        to: Point<Pixels>,
-    ) {
-        self.raw.relative_arc_to(
-            radii.into(),
-            Angle::degrees(x_rotation.into()),
-            ArcFlags { large_arc, sweep },
-            to.into(),
-        );
     }
 
     /// Adds a polygon.

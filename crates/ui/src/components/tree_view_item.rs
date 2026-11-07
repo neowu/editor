@@ -6,7 +6,28 @@ use gpui::MouseButton;
 use gpui::MouseDownEvent;
 
 use crate::Disclosure;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::Disableable;
+use crate::prelude::ElementId;
+use crate::prelude::FluentBuilder;
+use crate::prelude::IconName;
+use crate::prelude::InteractiveElement;
+use crate::prelude::IntoElement;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::StatefulInteractiveElement;
+use crate::prelude::Styled;
+use crate::prelude::Toggleable;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
+use crate::prelude::px;
+use crate::prelude::rems_from_px;
 
 #[derive(IntoElement)]
 pub struct TreeViewItem {

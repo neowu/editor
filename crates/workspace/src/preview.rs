@@ -7,7 +7,9 @@ use gpui::Window;
 use gpui::actions;
 use ui::IconName;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::IntoElement;
 
 use crate::ItemHandle;
 use crate::Pane;

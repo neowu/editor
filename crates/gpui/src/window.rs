@@ -160,13 +160,14 @@ use crate::WindowParams;
 use crate::WindowTextSystem;
 use crate::WindowVisibility;
 use crate::point;
-use crate::prelude::*;
+use crate::prelude::IntoElement;
 use crate::px;
 use crate::size;
 use crate::transparent_black;
 
 mod prompts;
 
+#[allow(clippy::wildcard_imports)]
 pub use prompts::*;
 
 use crate::util::atomic_incr_if_not_zero;
@@ -179,10 +180,6 @@ use crate::util::round_to_device_pixel;
 
 /// Default window size used when no explicit size is provided.
 pub const DEFAULT_WINDOW_SIZE: Size<Pixels> = size(px(1536.), px(1095.));
-
-/// A 6:5 aspect ratio minimum window size to be used for functional,
-/// additional-to-main-ed windows, like the settings and rules library windows.
-pub const DEFAULT_ADDITIONAL_WINDOW_SIZE: Size<Pixels> = Size { width: Pixels(900.), height: Pixels(750.) };
 
 /// Represents the two different phases when dispatching events.
 #[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
@@ -832,13 +829,6 @@ impl Hitbox {
         self.id.is_hovered(window)
     }
 
-    /// Checks whether this hitbox would be hovered at `position`, regardless of the current input
-    /// modality or mouse position.
-    pub fn is_hovered_at(&self, position: Point<Pixels>, window: &Window) -> bool {
-        let hit_test = window.rendered_frame.hit_test(position);
-        hit_test.ids.iter().take(hit_test.hover_hitbox_count).any(|id| self.id == *id)
-    }
-
     /// Checks if the hitbox contains the mouse and should handle scroll events. Typically this
     /// should only be used when handling `ScrollWheelEvent`, and otherwise `is_hovered` should be
     /// used. See the documentation of `Hitbox::is_hovered` for details about this distinction.
@@ -1288,11 +1278,6 @@ impl PendingInputTimeoutStatus {
         self.started_at
             .map(|started_at| self.remaining.saturating_sub(cx.background_executor().now() - started_at))
             .unwrap_or(self.remaining)
-    }
-
-    /// Returns whether the timeout is paused.
-    pub const fn is_paused(&self) -> bool {
-        self.paused
     }
 }
 
@@ -5458,11 +5443,6 @@ impl AnyWindowHandle {
     /// Get the ID of this window.
     pub const fn window_id(&self) -> WindowId {
         self.id
-    }
-
-    /// Returns the name of the window's declared root entity type.
-    pub const fn root_entity_type_name(&self) -> &'static str {
-        self.root_entity_type_name
     }
 
     /// Attempt to convert this handle to a window handle with a specific root view type.

@@ -8,7 +8,18 @@ use strum::EnumIter;
 use strum::EnumString;
 use strum::IntoStaticStr;
 
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::FluentBuilder;
+use crate::prelude::InteractiveElement;
+use crate::prelude::ParentElement;
+use crate::prelude::Pixels;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::px;
 
 const ICON_DECORATION_SIZE: Pixels = px(11.);
 
@@ -99,15 +110,6 @@ impl IconDecoration {
     /// Sets the color of the decoration.
     pub const fn color(mut self, color: Hsla) -> Self {
         self.color = color;
-        self
-    }
-
-    /// Sets the color of the decoration's knockout
-    ///
-    /// Match this to the background of the element the icon will be rendered
-    /// on.
-    pub const fn knockout_color(mut self, color: Hsla) -> Self {
-        self.knockout_color = color;
         self
     }
 

@@ -62,11 +62,6 @@ impl Command {
         self
     }
 
-    pub fn env_clear(&mut self) -> &mut Self {
-        self.0.env_clear();
-        self
-    }
-
     pub fn current_dir(&mut self, dir: impl AsRef<Path>) -> &mut Self {
         self.0.current_dir(dir);
         self
@@ -102,9 +97,5 @@ impl Command {
 
     pub async fn status(&mut self) -> io::Result<ExitStatus> {
         self.0.status().await
-    }
-
-    pub fn get_program(&self) -> &OsStr {
-        self.0.get_program()
     }
 }

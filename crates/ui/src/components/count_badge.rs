@@ -1,6 +1,17 @@
 use gpui::FontWeight;
 
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::IntoElement;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::h_flex;
+use crate::prelude::rems_from_px;
 
 /// A small, pill-shaped badge that displays a numeric count.
 ///

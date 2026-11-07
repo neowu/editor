@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use rpc::proto as rpc_proto;
 use rpc::proto as rpc_proto_;
 
@@ -14,7 +12,6 @@ use std::cmp::Reverse;
 use std::cmp::{self};
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use std::fmt::Write as _;
 use std::future::Future;
 use std::iter::Iterator;
 use std::iter::Peekable;
@@ -48,9 +45,7 @@ use gpui::Entity;
 use gpui::EventEmitter;
 use gpui::HighlightStyle;
 use gpui::SharedString;
-use gpui::StyledText;
 use gpui::Task;
-use gpui::TextStyle;
 use language_core::highlight_cache::ChunkHighlightCache;
 use language_core::highlight_cache::ResolvedHighlights;
 pub use lsp::DiagnosticSeverity;
@@ -709,60 +704,11 @@ impl HighlightedText {
         highlighted_text.add_text_from_buffer_range(range, snapshot, syntax_snapshot, override_style, syntax_theme);
         highlighted_text.build()
     }
-
-    pub fn to_styled_text(&self, default_style: &TextStyle) -> StyledText {
-        gpui::StyledText::new(self.text.clone()).with_default_highlights(default_style, self.highlights.iter().cloned())
-    }
-
-    /// Returns the first line without leading whitespace unless highlighted
-    /// and a boolean indicating if there are more lines after
-    pub fn first_line_preview(self) -> (Self, bool) {
-        let newline_ix = self.text.find('\n').unwrap_or(self.text.len());
-        let first_line = &self.text[..newline_ix];
-
-        // Trim leading whitespace, unless an edit starts prior to it.
-        let mut preview_start_ix = first_line.len() - first_line.trim_start().len();
-        if let Some((first_highlight_range, _)) = self.highlights.first() {
-            preview_start_ix = preview_start_ix.min(first_highlight_range.start);
-        }
-
-        let preview_text = &first_line[preview_start_ix..];
-        let preview_highlights = self
-            .highlights
-            .into_iter()
-            .skip_while(|(range, _)| range.end <= preview_start_ix)
-            .take_while(|(range, _)| range.start < newline_ix)
-            .filter_map(|(mut range, highlight)| {
-                range.start = range.start.saturating_sub(preview_start_ix);
-                range.end = range.end.min(newline_ix).saturating_sub(preview_start_ix);
-                if range.is_empty() { None } else { Some((range, highlight)) }
-            });
-
-        let preview = Self { text: SharedString::new(preview_text), highlights: preview_highlights.collect() };
-
-        (preview, self.text.len() > newline_ix)
-    }
 }
 
 impl HighlightedTextBuilder {
     pub fn build(self) -> HighlightedText {
         HighlightedText { text: self.text.into(), highlights: self.highlights }
-    }
-
-    /// Append a displayable value to the text, highlighting its range with
-    /// `style`.
-    pub fn push_styled(&mut self, value: impl Display, style: HighlightStyle) {
-        let start = self.text.len();
-        let _ = write!(&mut self.text, "{value}");
-        let end = self.text.len();
-        if end > start {
-            self.highlights.push((start..end, style));
-        }
-    }
-
-    /// Append a displayable value to the text without any highlighting.
-    pub fn push_plain(&mut self, value: impl Display) {
-        let _ = write!(&mut self.text, "{value}");
     }
 
     pub fn add_text_from_buffer_range<T: ToOffset>(
@@ -5260,13 +5206,6 @@ impl IndentSize {
             IndentKind::Tab => 1,
         }
     }
-
-    pub const fn len_with_expanded_tabs(&self, tab_size: NonZeroU32) -> usize {
-        match self.kind {
-            IndentKind::Space => self.len as usize,
-            IndentKind::Tab => self.len as usize * tab_size.get() as usize,
-        }
-    }
 }
 
 pub(crate) fn contiguous_ranges(values: impl Iterator<Item = u32>, max_len: usize) -> impl Iterator<Item = Range<u32>> {
@@ -5309,10 +5248,6 @@ impl CharClassifier {
 
     pub fn scope_context(self, scope_context: Option<CharScopeContext>) -> Self {
         Self { scope_context, ..self }
-    }
-
-    pub fn ignore_punctuation(self, ignore_punctuation: bool) -> Self {
-        Self { ignore_punctuation, ..self }
     }
 
     pub fn is_whitespace(&self, c: char) -> bool {

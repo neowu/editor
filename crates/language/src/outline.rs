@@ -68,13 +68,6 @@ impl OutlineSearchEntry {
             Self::Ancestor { .. } => None,
         }
     }
-
-    pub fn into_match(self) -> Option<StringMatch> {
-        match self {
-            Self::Match(m) => Some(m),
-            Self::Ancestor { .. } => None,
-        }
-    }
 }
 
 impl<T: ToPoint> OutlineItem<T> {

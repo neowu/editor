@@ -10,7 +10,25 @@ use super::PopoverMenuHandle;
 use crate::ButtonLike;
 use crate::ContextMenu;
 use crate::PopoverMenu;
-use crate::prelude::*;
+use crate::prelude::AnyElement;
+use crate::prelude::App;
+use crate::prelude::Button;
+use crate::prelude::ButtonCommon;
+use crate::prelude::ButtonSize;
+use crate::prelude::ButtonStyle;
+use crate::prelude::Color;
+use crate::prelude::Disableable;
+use crate::prelude::ElementId;
+use crate::prelude::FixedWidth;
+use crate::prelude::FluentBuilder;
+use crate::prelude::Icon;
+use crate::prelude::IconName;
+use crate::prelude::IconSize;
+use crate::prelude::IntoElement;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Window;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DropdownStyle {

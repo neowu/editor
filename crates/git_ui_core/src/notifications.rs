@@ -1,12 +1,17 @@
 use editor::Editor;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Context;
 use gpui::Entity;
 use gpui::SharedString;
 use language::Buffer;
 use notifications::status_toast::StatusToast;
 use proto::RpcError;
-use ui::prelude::*;
+use ui::prelude::Color;
+use ui::prelude::Icon;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::Window;
 use workspace::Workspace;
 
 pub fn open_output(

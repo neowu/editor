@@ -1,9 +1,24 @@
 use gpui::IntoElement;
 use gpui::Window;
-use gpui::prelude::*;
+use gpui::prelude::FluentBuilder;
+use gpui::prelude::ParentElement;
+use gpui::prelude::RenderOnce;
+use gpui::prelude::Styled;
 
 use crate::ButtonLike;
-use crate::prelude::*;
+use crate::prelude::App;
+use crate::prelude::ButtonCommon;
+use crate::prelude::ButtonSize;
+use crate::prelude::Clickable;
+use crate::prelude::Color;
+use crate::prelude::Icon;
+use crate::prelude::IconName;
+use crate::prelude::IconSize;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::SharedString;
+use crate::prelude::h_flex;
 
 /// A button that takes an underline to look like a regular web link.
 /// It also contains an arrow icon to communicate the link takes you out of ed.
@@ -25,11 +40,6 @@ impl ButtonLink {
             label_color: Color::Default,
             no_icon: false,
         }
-    }
-
-    pub const fn no_icon(mut self, no_icon: bool) -> Self {
-        self.no_icon = no_icon;
-        self
     }
 
     pub const fn label_size(mut self, label_size: LabelSize) -> Self {

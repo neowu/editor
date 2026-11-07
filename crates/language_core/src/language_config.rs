@@ -136,8 +136,6 @@ pub struct LanguageConfig {
 }
 
 impl LanguageConfig {
-    pub const FILE_NAME: &str = "config.toml";
-
     #[inline(never)]
     pub fn from_toml(config: &str) -> Result<Self, toml::de::Error> {
         toml::from_str::<Self>(config)
@@ -369,12 +367,6 @@ pub struct BracketPairConfig {
     /// A list of tree-sitter scopes for which a given bracket should not be active.
     /// N-th entry in `[Self::disabled_scopes_by_bracket_ix]` contains a list of disabled scopes for an n-th entry in `[Self::pairs]`
     pub disabled_scopes_by_bracket_ix: Vec<Vec<String>>,
-}
-
-impl BracketPairConfig {
-    pub fn is_closing_brace(&self, c: char) -> bool {
-        self.pairs.iter().any(|pair| pair.end.starts_with(c))
-    }
 }
 
 #[derive(Deserialize)]

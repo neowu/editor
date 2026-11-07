@@ -1,8 +1,54 @@
 use std::any::TypeId;
 
+use gpui::IntoElement;
 use ui::font;
+use ui::prelude::Toggleable;
 
-use super::*;
+use super::ActiveTheme;
+use super::AnyElement;
+use super::App;
+use super::AppContext;
+use super::Arc;
+use super::Autoscroll;
+use super::BufferId;
+use super::ChunkRendererId;
+use super::Context;
+use super::Crease;
+use super::Disclosure;
+use super::DisplayMap;
+use super::DisplayPoint;
+use super::Editor;
+use super::EditorEvent;
+use super::EditorSnapshot;
+use super::Element;
+use super::Entity;
+use super::FoldAtLevel;
+use super::FoldPlaceholder;
+use super::FoldRecursive;
+use super::FoldSelectedRanges;
+use super::FxHashSet;
+use super::GutterDimensions;
+use super::ItemBufferKind;
+use super::MultiBufferOffset;
+use super::MultiBufferRow;
+use super::OffsetRangeExt;
+use super::ParentElement;
+use super::Pixels;
+use super::Point;
+use super::Range;
+use super::RangeExt;
+use super::SelectionExt;
+use super::Styled;
+use super::TextObject;
+use super::ToDisplayPoint;
+use super::ToOffset;
+use super::TreeSitterOptions;
+use super::UnfoldLines;
+use super::UnfoldRecursive;
+use super::Window;
+use super::WorkspaceItem;
+use super::actions;
+use super::div;
 
 impl GutterDimensions {
     /// The width of the space reserved for the fold indicators,
@@ -554,50 +600,12 @@ impl Editor {
         self.display_map.read(cx).folded_buffers()
     }
 
-    pub fn disable_header_for_buffer(&mut self, buffer_id: BufferId, cx: &mut Context<Self>) {
-        self.display_map.update(cx, |display_map, cx| {
-            display_map.disable_header_for_buffer(buffer_id, cx);
-        });
-        cx.notify();
-    }
-
-    /// Removes any folds with the given ranges.
-    pub fn remove_folds_with_type<T: ToOffset + Clone>(
-        &mut self,
-        ranges: &[Range<T>],
-        type_id: TypeId,
-        auto_scroll: bool,
-        cx: &mut Context<Self>,
-    ) {
-        self.remove_folds_with(ranges, auto_scroll, cx, |map, cx| {
-            map.remove_folds_with_type(ranges.iter().cloned(), type_id, cx)
-        });
-        self.folds_did_change(cx);
-        self.inlay_hint_visibility_changed(cx);
-    }
-
     pub fn update_renderer_widths(
         &mut self,
         widths: impl IntoIterator<Item = (ChunkRendererId, Pixels)>,
         cx: &mut Context<Self>,
     ) -> bool {
         self.display_map.update(cx, |map, cx| map.update_fold_widths(widths, cx))
-    }
-
-    pub fn insert_creases(
-        &mut self,
-        creases: impl IntoIterator<Item = Crease<Anchor>>,
-        cx: &mut Context<Self>,
-    ) -> Vec<CreaseId> {
-        self.display_map.update(cx, |map, cx| map.insert_creases(creases, cx))
-    }
-
-    pub fn remove_creases(
-        &mut self,
-        ids: impl IntoIterator<Item = CreaseId>,
-        cx: &mut Context<Self>,
-    ) -> Vec<(CreaseId, Range<Anchor>)> {
-        self.display_map.update(cx, |map, cx| map.remove_creases(ids, cx))
     }
 
     pub(super) fn fold_at_level(&mut self, fold_at: &FoldAtLevel, window: &mut Window, cx: &mut Context<Self>) {
@@ -788,7 +796,9 @@ fn all_buffers_folded(mut buffer_ids: impl Iterator<Item = BufferId>, folded: &F
 mod tests {
     use std::iter;
 
-    use super::*;
+    use super::BufferId;
+    use super::FxHashSet;
+    use super::all_buffers_folded;
 
     #[test]
     fn test_all_buffers_folded() {

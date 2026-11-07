@@ -108,10 +108,10 @@ use clock::Global;
 pub use document_colors::DocumentColors;
 pub use document_links::BufferDocumentLinks;
 pub use document_links::DocumentLinkId;
-pub use document_links::DocumentLinkResolveTask;
 pub use document_links::LspDocumentLink;
 pub use document_links::ResolvedDocumentLink;
 pub use folding_ranges::LspFoldingRange;
+#[allow(clippy::wildcard_imports)]
 pub use fs::*;
 use futures::AsyncWriteExt;
 use futures::Future;
@@ -224,7 +224,8 @@ pub use lsp_store::inlay_hints::CacheInlayHints;
 pub use lsp_store::inlay_hints::CacheInlayHintsTask;
 pub use lsp_store::inlay_hints::InvalidationStrategy;
 use parking_lot::Mutex;
-use rand::prelude::*;
+use rand::prelude::RngExt;
+use rand::prelude::StdRng;
 use rpc::AnyProtoClient;
 use rpc::ErrorCode;
 use rpc::ErrorExt as _;
@@ -12746,8 +12747,6 @@ pub enum CompletionDocumentation {
     /// Both single line and multiple lines of plain text documentation.
     SingleLineAndMultiLinePlainText { single_line: SharedString, plain_text: Option<SharedString> },
 }
-
-impl CompletionDocumentation {}
 
 impl From<lsp::Documentation> for CompletionDocumentation {
     fn from(docs: lsp::Documentation) -> Self {

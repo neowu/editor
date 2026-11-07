@@ -1097,7 +1097,17 @@ fn take_text_document_sync_options(capabilities: &mut lsp::ServerCapabilities) -
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::CapabilityRegistrations;
+    use super::DynamicTextDocumentRegistration;
+    use super::IndexMap;
+    use super::OneOf;
+    use super::RegistrationSource;
+    use super::active_text_document_capability;
+    use super::insert_capability_registration;
+    use super::insert_text_document_registration;
+    use super::remove_capability_registration;
+    use super::remove_text_document_registration;
 
     fn definition_registration(document_selector: Option<lsp::DocumentSelector>) -> DynamicTextDocumentRegistration {
         DynamicTextDocumentRegistration {

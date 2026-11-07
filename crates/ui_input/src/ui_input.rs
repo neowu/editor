@@ -10,6 +10,7 @@ use std::sync::OnceLock;
 
 use gpui::FocusHandle;
 use gpui::Subscription;
+#[allow(clippy::wildcard_imports)]
 pub use input_field::*;
 use ui::AnyElement;
 use ui::App;

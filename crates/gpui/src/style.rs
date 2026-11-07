@@ -586,11 +586,6 @@ impl Hash for HighlightStyle {
 }
 
 impl Style {
-    /// Returns true if the style is visible and the background is opaque.
-    pub fn has_opaque_background(&self) -> bool {
-        self.background.as_ref().is_some_and(|fill| fill.color().is_some_and(|color| !color.is_transparent()))
-    }
-
     /// Get the text style in this element style.
     pub fn text_style(&self) -> Option<&TextStyleRefinement> {
         if self.text.is_some() { Some(&self.text) } else { None }
@@ -944,12 +939,6 @@ pub enum AlignItems {
     /// Stretch to fill the container
     Stretch,
 }
-/// Used to control how child nodes are aligned.
-/// Does not apply to Flexbox, and will be ignored if specified on a flex container
-/// For Grid it controls alignment in the inline axis
-///
-/// [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/justify-items)
-pub type JustifyItems = AlignItems;
 /// Used to control how the specified nodes is aligned.
 /// Overrides the parent Node's `AlignItems` property.
 /// For Flexbox it controls alignment in the cross axis
@@ -957,13 +946,6 @@ pub type JustifyItems = AlignItems;
 ///
 /// [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/align-self)
 pub type AlignSelf = AlignItems;
-/// Used to control how the specified nodes is aligned.
-/// Overrides the parent Node's `JustifyItems` property.
-/// Does not apply to Flexbox, and will be ignored if specified on a flex child
-/// For Grid it controls alignment in the inline axis
-///
-/// [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/justify-self)
-pub type JustifySelf = AlignItems;
 
 /// Sets the distribution of space between and around content items
 /// For Flexbox it controls alignment in the cross axis

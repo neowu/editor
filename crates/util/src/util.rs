@@ -26,7 +26,6 @@ pub mod size;
 pub mod string;
 pub mod time;
 
-use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::cmp::{self};
 use std::ops::Range;
@@ -34,6 +33,7 @@ use std::ops::RangeInclusive;
 use std::sync::LazyLock;
 
 use anyhow::Result;
+#[allow(clippy::wildcard_imports)]
 pub use gpui_util::*;
 use itertools::Either;
 pub use path::PathExt;
@@ -43,7 +43,6 @@ use regex::Regex;
 use unicase::UniCase;
 
 pub use self::shell::get_default_system_shell;
-pub use self::shell::get_default_system_shell_preferring_bash;
 pub use self::shell::get_system_shell;
 
 pub fn truncate(s: &str, max_chars: usize) -> &str {
@@ -105,52 +104,6 @@ pub fn truncate_and_remove_front(s: &str, max_chars: usize) -> String {
         Some(index) if index > 0 => "…".to_string() + &s[index..],
         _ => s.to_string(),
     }
-}
-
-/// Takes only `max_lines` from the string and, if there were more than `max_lines-1`, appends a
-/// a newline and "..." to the string, so that `max_lines` are returned.
-/// Returns string unchanged if its length is smaller than max_lines.
-pub fn truncate_lines_and_trailoff(s: &str, max_lines: usize) -> String {
-    let mut lines = s.lines().take(max_lines).collect::<Vec<_>>();
-    if lines.len() > max_lines - 1 {
-        lines.pop();
-        lines.join("\n") + "\n…"
-    } else {
-        lines.join("\n")
-    }
-}
-
-/// Truncates the string at a character boundary, such that the result is less than `max_bytes` in
-/// length.
-pub fn truncate_to_byte_limit(s: &str, max_bytes: usize) -> &str {
-    if s.len() < max_bytes {
-        return s;
-    }
-
-    for i in (0..max_bytes).rev() {
-        if s.is_char_boundary(i) {
-            return &s[..i];
-        }
-    }
-
-    ""
-}
-
-/// Takes a prefix of complete lines which fit within the byte limit. If the first line is longer
-/// than the limit, truncates at a character boundary.
-pub fn truncate_lines_to_byte_limit(s: &str, max_bytes: usize) -> &str {
-    if s.len() < max_bytes {
-        return s;
-    }
-
-    for i in (0..max_bytes).rev() {
-        if s.is_char_boundary(i) && s.as_bytes()[i] == b'\n' {
-            // Since the i-th character is \n, valid to slice at i + 1.
-            return &s[..i + 1];
-        }
-    }
-
-    truncate_to_byte_limit(s, max_bytes)
 }
 
 /// Extend a sorted vector with a sorted sequence of items, maintaining the vector's sort order and
@@ -391,27 +344,6 @@ pub fn union_json_value_into(source: serde_json::Value, target: &mut serde_json:
     }
 }
 
-pub fn merge_non_null_json_value_into(source: serde_json::Value, target: &mut serde_json::Value) {
-    use serde_json::Value;
-    if let Value::Object(source_object) = source {
-        let target_object = if let Value::Object(target) = target {
-            target
-        } else {
-            *target = Value::Object(serde_json::Map::default());
-            target.as_object_mut().unwrap()
-        };
-        for (key, value) in source_object {
-            if let Some(target) = target_object.get_mut(&key) {
-                merge_non_null_json_value_into(value, target);
-            } else if !value.is_null() {
-                target_object.insert(key, value);
-            }
-        }
-    } else if !source.is_null() {
-        *target = source
-    }
-}
-
 pub fn expanded_and_wrapped_usize_range(
     range: Range<usize>,
     additional_before: usize,
@@ -478,14 +410,6 @@ pub fn wrapped_usize_outward_from(
     })
 }
 
-/// Get an embedded file as a string.
-pub fn asset_str<A: rust_embed::RustEmbed>(path: &str) -> Cow<'static, str> {
-    match A::get(path).expect(path).data {
-        Cow::Borrowed(bytes) => Cow::Borrowed(std::str::from_utf8(bytes).unwrap()),
-        Cow::Owned(bytes) => Cow::Owned(String::from_utf8(bytes).unwrap()),
-    }
-}
-
 pub trait RangeExt<T> {
     fn sorted(&self) -> Self;
     fn to_inclusive(&self) -> RangeInclusive<T>;
@@ -537,16 +461,6 @@ impl<T: Ord + Clone> RangeExt<T> for RangeInclusive<T> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct NumericPrefixWithSuffix<'a>(Option<u64>, &'a str);
 
-impl<'a> NumericPrefixWithSuffix<'a> {
-    pub fn from_numeric_prefixed_str(str: &'a str) -> Self {
-        let i = str.chars().take_while(|c| c.is_ascii_digit()).count();
-        let (prefix, remainder) = str.split_at(i);
-
-        let prefix = prefix.parse().ok();
-        Self(prefix, remainder)
-    }
-}
-
 /// When dealing with equality, we need to consider the case of the strings to achieve strict equality
 /// to handle cases like "a" < "A" instead of "a" == "A".
 impl Ord for NumericPrefixWithSuffix<'_> {
@@ -586,28 +500,6 @@ pub fn word_consists_of_emojis(s: &str) -> bool {
         prev_end = capture.end();
     }
     prev_end == s.len()
-}
-
-/// Similar to `str::split`, but also provides byte-offset ranges of the results. Unlike
-/// `str::split`, this is not generic on pattern types and does not return an `Iterator`.
-pub fn split_str_with_ranges<'s>(s: &'s str, pat: &dyn Fn(char) -> bool) -> Vec<(Range<usize>, &'s str)> {
-    let mut result = Vec::new();
-    let mut start = 0;
-
-    for (i, ch) in s.char_indices() {
-        if pat(ch) {
-            if i > start {
-                result.push((start..i, &s[start..i]));
-            }
-            start = i + ch.len_utf8();
-        }
-    }
-
-    if s.len() > start {
-        result.push((start..s.len(), &s[start..s.len()]));
-    }
-
-    result
 }
 
 pub fn default<D: Default>() -> D {

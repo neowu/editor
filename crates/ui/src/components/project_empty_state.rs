@@ -4,7 +4,25 @@ use gpui::FocusHandle;
 use crate::Divider;
 use crate::DividerColor;
 use crate::KeyBinding;
-use crate::prelude::*;
+use crate::prelude::App;
+use crate::prelude::Button;
+use crate::prelude::Clickable;
+use crate::prelude::Color;
+use crate::prelude::FixedWidth;
+use crate::prelude::FluentBuilder;
+use crate::prelude::InteractiveElement;
+use crate::prelude::IntoElement;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
+use crate::prelude::v_flex;
 
 type ClickHandler = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
 

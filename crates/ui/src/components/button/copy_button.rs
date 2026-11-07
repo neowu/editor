@@ -11,7 +11,15 @@ use gpui::RenderOnce;
 use gpui::Window;
 
 use crate::Tooltip;
-use crate::prelude::*;
+use crate::prelude::ButtonCommon;
+use crate::prelude::Clickable;
+use crate::prelude::Color;
+use crate::prelude::Disableable;
+use crate::prelude::IconButton;
+use crate::prelude::IconName;
+use crate::prelude::IconSize;
+use crate::prelude::SharedString;
+use crate::prelude::VisibleOnHover;
 
 const COPIED_STATE_DURATION: Duration = Duration::from_secs(2);
 
@@ -75,11 +83,6 @@ impl CopyButton {
 
     pub fn visible_on_hover(mut self, visible_on_hover: impl Into<SharedString>) -> Self {
         self.visible_on_hover = Some(visible_on_hover.into());
-        self
-    }
-
-    pub fn custom_on_click(mut self, custom_on_click: impl Fn(&mut Window, &mut App) + 'static) -> Self {
-        self.custom_on_click = Some(Box::new(custom_on_click));
         self
     }
 }

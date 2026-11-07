@@ -8,7 +8,15 @@ use gpui::IntoElement;
 use gpui::Stateful;
 use gpui::canvas;
 use ui::Window;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::FluentBuilder;
+use ui::prelude::InteractiveElement;
+use ui::prelude::ParentElement;
+use ui::prelude::Styled;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::px;
+use ui::prelude::v_flex;
 use ui::utils;
 
 use crate::CARD_GAP;

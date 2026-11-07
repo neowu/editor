@@ -195,14 +195,6 @@ impl Keystroke {
         unparse(&self.modifiers, &self.key)
     }
 
-    /// Returns true if this keystroke left
-    /// the ime system in an incomplete state.
-    pub fn is_ime_in_progress(&self) -> bool {
-        self.key_char.is_none()
-            && (is_printable_key(&self.key) || self.key.is_empty())
-            && !(self.modifiers.platform || self.modifiers.control || self.modifiers.function || self.modifiers.alt)
-    }
-
     /// Returns a new keystroke with the key_char filled.
     /// This is used for dispatch_keystroke where we want users to
     /// be able to simulate typing "space", etc.
@@ -275,24 +267,9 @@ impl KeybindingKeystroke {
         &self.inner.key
     }
 
-    /// Sets the modifiers. On Windows this modifies both `inner.modifiers` and `display_modifiers`.
-    pub const fn set_modifiers(&mut self, modifiers: Modifiers) {
-        self.inner.modifiers = modifiers;
-    }
-
-    /// Sets the key. On Windows this modifies both `inner.key` and `display_key`.
-    pub fn set_key(&mut self, key: String) {
-        self.inner.key = key;
-    }
-
     /// Produces a representation of this key that Parse can understand.
     pub fn unparse(&self) -> String {
         unparse(&self.inner.modifiers, &self.inner.key)
-    }
-
-    /// Removes the key_char
-    pub fn remove_key_char(&mut self) {
-        self.inner.key_char = None;
     }
 }
 
@@ -446,11 +423,6 @@ impl Modifiers {
         Modifiers { platform: true, ..Default::default() }
     }
 
-    /// Returns [`Modifiers`] with just the super key.
-    pub fn super_key() -> Modifiers {
-        Modifiers { platform: true, ..Default::default() }
-    }
-
     /// Returns [`Modifiers`] with just control.
     pub fn control() -> Modifiers {
         Modifiers { control: true, ..Default::default() }
@@ -469,11 +441,6 @@ impl Modifiers {
     /// Returns [`Modifiers`] with just function.
     pub fn function() -> Modifiers {
         Modifiers { function: true, ..Default::default() }
-    }
-
-    /// Returns [`Modifiers`] with command + shift.
-    pub fn command_shift() -> Modifiers {
-        Modifiers { shift: true, platform: true, ..Default::default() }
     }
 
     /// Returns [`Modifiers`] with command + shift.

@@ -1204,24 +1204,6 @@ pub enum ExpandExcerptDirection {
     UpAndDown,
 }
 
-impl ExpandExcerptDirection {
-    pub const fn should_expand_up(&self) -> bool {
-        match self {
-            ExpandExcerptDirection::Up => true,
-            ExpandExcerptDirection::Down => false,
-            ExpandExcerptDirection::UpAndDown => true,
-        }
-    }
-
-    pub const fn should_expand_down(&self) -> bool {
-        match self {
-            ExpandExcerptDirection::Up => false,
-            ExpandExcerptDirection::Down => true,
-            ExpandExcerptDirection::UpAndDown => true,
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct IndentGuide {
     pub buffer_id: BufferId,
@@ -2033,10 +2015,6 @@ impl MultiBuffer {
 
     pub fn for_each_buffer(&self, f: &mut dyn FnMut(&Entity<Buffer>)) {
         self.buffers.values().for_each(|state| f(&state.buffer))
-    }
-
-    pub fn explicit_title(&self) -> Option<&str> {
-        self.title.as_deref()
     }
 
     /// The title used for buffers not backed by a file and with no title of their own.

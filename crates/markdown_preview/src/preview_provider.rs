@@ -1,6 +1,6 @@
 use editor::Editor;
 use gpui::Entity;
-use ui::prelude::*;
+use ui::prelude::App;
 use workspace::ItemHandle;
 use workspace::preview::PreviewProvider;
 

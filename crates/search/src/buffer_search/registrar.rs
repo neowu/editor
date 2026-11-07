@@ -5,7 +5,6 @@ use gpui::Div;
 use gpui::Entity;
 use gpui::InteractiveElement;
 use gpui::Window;
-use gpui::div;
 use workspace::Pane;
 use workspace::Workspace;
 
@@ -17,46 +16,6 @@ pub trait SearchActionsRegistrar {
 }
 
 type SearchBarActionCallback<A> = fn(&mut BufferSearchBar, &A, &mut Window, &mut Context<BufferSearchBar>);
-
-type GetSearchBar<T> = for<'a, 'b> fn(&'a T, &'a mut Window, &mut Context<'b, T>) -> Option<Entity<BufferSearchBar>>;
-
-/// Registers search actions on a div that can be taken out.
-pub struct DivRegistrar<'a, 'b, T: 'static> {
-    div: Option<Div>,
-    cx: &'a mut Context<'b, T>,
-    search_getter: GetSearchBar<T>,
-}
-
-impl<'a, 'b, T: 'static> DivRegistrar<'a, 'b, T> {
-    pub fn new(search_getter: GetSearchBar<T>, cx: &'a mut Context<'b, T>) -> Self {
-        Self { div: Some(div()), cx, search_getter }
-    }
-    pub fn into_div(self) -> Div {
-        // This option is always Some; it's an option in the first place because we want to call methods
-        // on div that require ownership.
-        self.div.unwrap()
-    }
-}
-
-impl<T: 'static> SearchActionsRegistrar for DivRegistrar<'_, '_, T> {
-    fn register_handler<A: Action>(&mut self, callback: impl ActionExecutor<A>) {
-        let getter = self.search_getter;
-        self.div = self.div.take().map(|div| {
-            div.on_action(self.cx.listener(move |this, action, window, cx| {
-                let should_notify = (getter)(this, window, cx)
-                    .map(|search_bar| {
-                        search_bar.update(cx, |search_bar, cx| callback.execute(search_bar, action, window, cx))
-                    })
-                    .unwrap_or(false);
-                if should_notify {
-                    cx.notify();
-                } else {
-                    cx.propagate();
-                }
-            }))
-        });
-    }
-}
 
 pub struct PaneDivRegistrar {
     div: Option<Div>,

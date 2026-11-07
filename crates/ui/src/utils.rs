@@ -15,34 +15,26 @@ mod search_input;
 mod window_drag;
 mod with_rem_size;
 
+#[allow(clippy::wildcard_imports)]
 pub use apca_contrast::*;
+#[allow(clippy::wildcard_imports)]
 pub use color_contrast::*;
+#[allow(clippy::wildcard_imports)]
 pub use constants::*;
+#[allow(clippy::wildcard_imports)]
 pub use control_characters::*;
-pub use corner_solver::CornerSolver;
 pub use corner_solver::inner_corner_radius;
+#[allow(clippy::wildcard_imports)]
 pub use highlight_contrast::*;
+#[allow(clippy::wildcard_imports)]
 pub use search_input::*;
 pub use window_drag::window_drag_area;
+#[allow(clippy::wildcard_imports)]
 pub use with_rem_size::*;
 
 /// Returns true if the current theme is light or vibrant light.
 pub fn is_light(cx: &mut App) -> bool {
     cx.theme().appearance.is_light()
-}
-
-pub fn buffer_text_style(cx: &App) -> gpui::TextStyle {
-    let buffer_font = font::buffer_font();
-    gpui::TextStyle {
-        color: cx.theme().colors().text,
-        font_family: buffer_font.family.clone(),
-        font_features: buffer_font.features.clone(),
-        font_fallbacks: buffer_font.fallbacks.clone(),
-        font_size: gpui::AbsoluteLength::from(font::buffer_font_size(cx)),
-        font_weight: buffer_font.weight,
-        line_height: gpui::relative(1.),
-        ..gpui::TextStyle::default()
-    }
 }
 
 pub fn ui_text_style(cx: &App) -> gpui::TextStyle {
@@ -96,7 +88,8 @@ pub fn format_number_with_commas(value: u128) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::capitalize;
 
     #[test]
     fn capitalize_first_letter() {

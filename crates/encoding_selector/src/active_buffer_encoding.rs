@@ -145,7 +145,8 @@ mod tests {
     use encoding_rs::UTF_16LE;
     use encoding_rs::WINDOWS_1252;
 
-    use super::*;
+    use super::UTF_8;
+    use super::is_non_standard_encoding;
 
     #[test]
     fn test_is_non_standard_encoding() {

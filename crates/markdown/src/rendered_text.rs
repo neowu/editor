@@ -1,6 +1,39 @@
 use std::cmp;
 
-use super::*;
+use ui::prelude::Element;
+use ui::prelude::ElementId;
+use ui::prelude::IntoElement;
+use ui::prelude::px;
+
+use super::AnyElement;
+use super::App;
+use super::Arc;
+use super::Bias;
+use super::BorderStyle;
+use super::Bounds;
+use super::Cell;
+use super::CharClassifier;
+use super::Edges;
+use super::GlobalElementId;
+use super::Hsla;
+use super::Language;
+use super::OffsetUtf16;
+use super::Pixels;
+use super::Point;
+use super::Range;
+use super::Rc;
+use super::ResultExt;
+use super::Rope;
+use super::SharedString;
+use super::SmallVec;
+use super::StyledText;
+use super::TextAlign;
+use super::TextLayout;
+use super::Window;
+use super::WrappedLineLayout;
+use super::point;
+use super::quad;
+use super::size;
 
 /// Wraps a rendered line so its code chips and highlights share the glyphs'
 /// ancestor content masks, and records the clipped bounds for platform text hit testing.

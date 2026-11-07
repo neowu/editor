@@ -1,6 +1,18 @@
 use gpui::Hsla;
 
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::ElementId;
+use crate::prelude::FluentBuilder;
+use crate::prelude::InteractiveElement;
+use crate::prelude::IntoElement;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::px;
+use crate::prelude::relative;
 
 /// A progress bar is a horizontal bar that communicates the status of a process.
 ///
@@ -33,27 +45,9 @@ impl ProgressBar {
         self
     }
 
-    /// Sets the maximum value of the progress bar.
-    pub const fn max_value(mut self, max_value: f32) -> Self {
-        self.max_value = max_value;
-        self
-    }
-
     /// Sets the background color of the progress bar.
     pub const fn bg_color(mut self, color: Hsla) -> Self {
         self.bg_color = color;
-        self
-    }
-
-    /// Sets the foreground color of the progress bar.
-    pub const fn fg_color(mut self, color: Hsla) -> Self {
-        self.fg_color = color;
-        self
-    }
-
-    /// Sets the over limit color of the progress bar.
-    pub const fn over_color(mut self, color: Hsla) -> Self {
-        self.over_color = color;
         self
     }
 }

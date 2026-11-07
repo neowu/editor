@@ -1,12 +1,96 @@
-use super::*;
+use anyhow::Context as _;
+use gpui::TaskExt as _;
+
+use super::Anchor;
+use super::AnchorRangeExt;
+use super::App;
+use super::Arc;
+use super::AutocloseRegion;
+use super::AutoindentMode;
+use super::Autoscroll;
+use super::Backspace;
+use super::Bias;
+use super::BlockCommentConfig;
+use super::Bounds;
+use super::BracketMatch;
+use super::Buffer;
+use super::CharScopeContext;
+use super::CharacterDimensions;
+use super::Context;
+use super::CutToEndOfLine;
+use super::Debug;
+use super::Delete;
+use super::DeleteToBeginningOfLine;
+use super::DeleteToEndOfLine;
+use super::DeleteToNextSubwordEnd;
+use super::DeleteToNextWordEnd;
+use super::DeleteToPreviousSubwordStart;
+use super::DeleteToPreviousWordStart;
+use super::DisplayPoint;
+use super::Editor;
+use super::EditorEvent;
+use super::EditorMode;
+use super::Entity;
+use super::EntityId;
+use super::EntityInputHandler;
+use super::FxHashMap;
+use super::HighlightKey;
+use super::HighlightStyle;
+use super::IndentKind;
+use super::IndentSize;
+use super::InsertSnippet;
+use super::Itertools;
+use super::LanguageScope;
+use super::LinkedEdits;
+use super::MultiBufferOffset;
+use super::MultiBufferOffsetUtf16;
+use super::MultiBufferPoint;
+use super::MultiBufferRow;
+use super::MultiBufferSnapshot;
+use super::Newline;
+use super::NewlineAbove;
+use super::NewlineBelow;
+use super::Not;
+use super::OffsetUtf16;
+use super::Ordering;
+use super::Pixels;
+use super::Point;
+use super::Range;
+use super::Regex;
+use super::Result;
+use super::ResultExt;
+use super::RewrapOptions;
+use super::RowExt;
+use super::ScrollOffset;
+use super::SelectToBeginningOfLine;
+use super::SelectToEndOfLine;
+use super::Selection;
+use super::SelectionEffects;
+use super::SelectionGoal;
+use super::SmallVec;
+use super::Snippet;
+use super::ToDisplayPoint;
+use super::ToOffset;
+use super::ToPoint;
+use super::ToggleBlockComments;
+use super::ToggleComments;
+use super::UTF16Selection;
+use super::UnderlineStyle;
+use super::UnwrapSyntaxNode;
+use super::Window;
+use super::bail;
+use super::cmp;
+use super::jsx_tag_auto_close;
+use super::movement;
+use super::point;
+use super::px;
+use super::refresh_linked_ranges;
+use super::resolve_selections_wrapping_blocks;
+use super::size;
 
 const ORDERED_LIST_MAX_MARKER_LEN: usize = 16;
 
 impl Editor {
-    pub const fn set_input_enabled(&mut self, input_enabled: bool) {
-        self.input_enabled = input_enabled;
-    }
-
     pub const fn set_use_autoclose(&mut self, autoclose: bool) {
         self.use_autoclose = autoclose;
     }

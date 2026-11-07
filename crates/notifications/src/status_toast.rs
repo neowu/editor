@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use ed_actions::toast;
+use gpui::AppContext as _;
 use gpui::DismissEvent;
 use gpui::Entity;
 use gpui::EventEmitter;
@@ -8,7 +9,28 @@ use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::IntoElement;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::App;
+use ui::prelude::Button;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Context;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Icon;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::InteractiveElement;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::ParentElement;
+use ui::prelude::Render;
+use ui::prelude::SharedString;
+use ui::prelude::Styled;
+use ui::prelude::StyledExt;
+use ui::prelude::Window;
+use ui::prelude::h_flex;
 use workspace::ToastAction;
 use workspace::ToastView;
 

@@ -4,6 +4,7 @@ use futures::FutureExt as _;
 use gpui::App;
 use gpui::SharedString;
 use gpui::UpdateGlobal;
+#[allow(clippy::wildcard_imports)]
 pub use language::*;
 use project::Fs;
 use project::library::LibraryProviders;

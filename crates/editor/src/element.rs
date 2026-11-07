@@ -86,7 +86,6 @@ use gpui::size;
 use gpui::solid_background;
 use gpui::transparent_black;
 use gpui::underline_y_offset;
-pub use header::file_status_label_color;
 pub(crate) use header::header_jump_data;
 pub(crate) use header::render_buffer_header;
 use itertools::Itertools;
@@ -120,7 +119,19 @@ use theme::PlayerColor;
 use theme::built_in::BUFFER_LINE_HEIGHT;
 use ui::POPOVER_Y_PADDING;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::AbsoluteLength;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::DefiniteLength;
+use ui::prelude::ElementId;
+use ui::prelude::FixedWidth;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::IconSize;
+use ui::prelude::h_flex;
+use ui::prelude::rems;
+use ui::prelude::v_flex;
 use ui::utils::ensure_highlight_contrast;
 use ui::utils::merge_highlight_backgrounds;
 use unicode_segmentation::UnicodeSegmentation;
@@ -7184,33 +7195,6 @@ impl PointForPosition {
             None
         }
     }
-
-    pub fn intersects_selection(&self, selection: &Selection<DisplayPoint>) -> bool {
-        let Some(valid_point) = self.as_valid() else {
-            return false;
-        };
-        let range = selection.range();
-
-        let candidate_row = valid_point.row();
-        let candidate_col = valid_point.column();
-
-        let start_row = range.start.row();
-        let start_col = range.start.column();
-        let end_row = range.end.row();
-        let end_col = range.end.column();
-
-        if candidate_row < start_row || candidate_row > end_row {
-            false
-        } else if start_row == end_row {
-            candidate_col >= start_col && candidate_col < end_col
-        } else if candidate_row == start_row {
-            candidate_col >= start_col
-        } else if candidate_row == end_row {
-            candidate_col < end_col
-        } else {
-            true
-        }
-    }
 }
 
 impl PositionMap {
@@ -7736,7 +7720,18 @@ fn drawn_buffer_ids(row_infos: &[RowInfo]) -> Vec<BufferId> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::BTreeMap;
+    use super::Bounds;
+    use super::BufferId;
+    use super::DisplayRow;
+    use super::RowInfo;
+    use super::ScrollbarLayoutInformation;
+    use super::drawn_buffer_ids;
+    use super::mark_active_rows;
+    use super::point;
+    use super::px;
+    use super::size;
 
     #[test]
     fn drawn_buffer_ids_are_distinct_in_draw_order() {

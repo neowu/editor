@@ -21,7 +21,9 @@ use ui::ResizableColumnsState;
 use ui::SharedString;
 use ui::TableInteractionState;
 use ui::TableResizeBehavior;
-use ui::prelude::*;
+use ui::prelude::Context;
+use ui::prelude::Pixels;
+use ui::prelude::px;
 
 use crate::settings::TableViewSettings;
 use crate::table_data_engine::DisplayToDataMapping;

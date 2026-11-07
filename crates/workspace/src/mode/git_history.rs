@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Context;
 use gpui::Div;
 use gpui::DragMoveEvent;
@@ -11,7 +12,16 @@ use gpui::Pixels;
 use gpui::WeakEntity;
 use project::Project;
 use ui::Window;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::FluentBuilder;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::ParentElement;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::Styled;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::px;
 use util::ResultExt;
 
 use crate::CARD_GAP;

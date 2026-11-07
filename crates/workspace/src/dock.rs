@@ -1,10 +1,10 @@
-use std::cmp::Ordering;
 use std::sync::Arc;
 
 use anyhow::Context as _;
 use gpui::Action;
 use gpui::AnyView;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Axis;
 use gpui::Context;
 use gpui::Entity;
@@ -36,7 +36,17 @@ use ui::Divider;
 use ui::DividerColor;
 use ui::IconButton;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::FluentBuilder;
+use ui::prelude::IconSize;
+use ui::prelude::InteractiveElement;
+use ui::prelude::Pixels;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::StyledExt;
+use ui::prelude::Toggleable;
+use ui::prelude::h_flex;
 use util::ResultExt as _;
 
 use crate::DraggedDock;
@@ -437,10 +447,6 @@ impl Dock {
         self.panel_entries.iter().position(|entry| entry.panel.persistent_name() == ui_name)
     }
 
-    pub fn panel_for_id(&self, panel_id: EntityId) -> Option<&Arc<dyn PanelHandle>> {
-        self.panel_entries.iter().find(|entry| entry.panel.panel_id() == panel_id).map(|entry| &entry.panel)
-    }
-
     pub fn panels_enabled(&self, cx: &App) -> Vec<bool> {
         self.panel_entries.iter().map(|entry| entry.panel.enabled(cx)).collect()
     }
@@ -669,32 +675,6 @@ impl Dock {
         self.restoration = DockRestoreState::Finished;
     }
 
-    pub fn remove_panel<T: Panel>(&mut self, panel: &Entity<T>, window: &mut Window, cx: &mut Context<Self>) -> bool {
-        if let Some(panel_ix) =
-            self.panel_entries.iter().position(|entry| entry.panel.panel_id() == Entity::entity_id(panel))
-        {
-            if let Some(active_panel_index) = self.active_panel_index.as_mut() {
-                match panel_ix.cmp(active_panel_index) {
-                    Ordering::Less => {
-                        *active_panel_index -= 1;
-                    }
-                    Ordering::Equal => {
-                        self.active_panel_index = None;
-                        self.set_open(false, window, cx);
-                    }
-                    Ordering::Greater => {}
-                }
-            }
-
-            self.panel_entries.remove(panel_ix);
-            cx.notify();
-
-            true
-        } else {
-            false
-        }
-    }
-
     pub fn activate_panel(&mut self, panel_ix: usize, window: &mut Window, cx: &mut Context<Self>) {
         if Some(panel_ix) != self.active_panel_index {
             self.restoration.discard_pending();
@@ -754,21 +734,6 @@ impl Dock {
                 .map(|entry| entry.size_state.size.unwrap_or_else(|| entry.panel.default_size(window, cx)))
         } else {
             None
-        }
-    }
-
-    pub fn set_panel_size_state(
-        &mut self,
-        panel: &dyn PanelHandle,
-        size_state: PanelSizeState,
-        cx: &mut Context<Self>,
-    ) -> bool {
-        if let Some(entry) = self.panel_entries.iter_mut().find(|entry| entry.panel.panel_id() == panel.panel_id()) {
-            entry.size_state = size_state;
-            cx.notify();
-            true
-        } else {
-            false
         }
     }
 

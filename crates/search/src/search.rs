@@ -15,10 +15,15 @@ use gpui::IntoElement;
 use gpui::actions;
 use project::search::SearchQuery;
 pub use project_search::ProjectSearchView;
-pub use search_status_button::SEARCH_ICON;
 use ui::IconButtonShape;
 use ui::Tooltip;
-use ui::prelude::*;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::Context;
+use ui::prelude::FluentBuilder;
+use ui::prelude::IconButton;
+use ui::prelude::IconName;
+use ui::prelude::Toggleable;
 use util::paths::PathMatcher;
 
 use crate::project_search::ProjectSearchBar;

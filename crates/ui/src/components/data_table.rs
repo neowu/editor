@@ -269,11 +269,6 @@ impl ColumnWidthConfig {
         ColumnWidthConfig::Static { widths: StaticColumnWidths::Auto, table_width: None }
     }
 
-    /// Redistributable columns with no fixed table width.
-    pub const fn redistributable(columns_state: Entity<RedistributableColumnsState>) -> Self {
-        ColumnWidthConfig::Redistributable { columns_state, table_width: None }
-    }
-
     /// Auto-width columns, fixed table width.
     pub fn auto_with_table_width(width: impl Into<DefiniteLength>) -> Self {
         ColumnWidthConfig::Static { widths: StaticColumnWidths::Auto, table_width: Some(width.into()) }
@@ -440,12 +435,6 @@ impl Table {
         self
     }
 
-    /// Enables row striping (alternating row colors)
-    pub const fn striped(mut self) -> Self {
-        self.striped = true;
-        self
-    }
-
     /// Hides the border lines between rows
     pub const fn hide_row_borders(mut self) -> Self {
         self.show_row_borders = false;
@@ -490,11 +479,6 @@ impl Table {
         self
     }
 
-    pub const fn no_ui_font(mut self) -> Self {
-        self.use_ui_font = false;
-        self
-    }
-
     /// Pins the first `n` columns so they remain visible during horizontal scrolling.
     ///
     /// Pinned columns are rendered in the same list item as scrollable columns, so row heights
@@ -517,12 +501,6 @@ impl Table {
     /// Use this when you want to handle row hover styling manually via `map_row`.
     pub const fn hide_row_hover(mut self) -> Self {
         self.show_row_hover = false;
-        self
-    }
-
-    /// Provide a callback that is invoked when the table is rendered without any rows
-    pub fn empty_table_callback(mut self, callback: impl Fn(&mut Window, &mut App) -> AnyElement + 'static) -> Self {
-        self.empty_table_callback = Some(Rc::new(callback));
         self
     }
 }
@@ -1174,7 +1152,11 @@ impl RenderOnce for Table {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::Pixels;
+    use super::ResizableColumnsState;
+    use super::TableResizeBehavior;
+    use super::px;
 
     fn widths_px(state: &ResizableColumnsState, rem_size: Pixels) -> Vec<Pixels> {
         state.widths.as_slice().iter().map(|width| width.to_pixels(rem_size)).collect()

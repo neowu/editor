@@ -16,7 +16,19 @@ use crate::LabelSize;
 use crate::StyledExt;
 use crate::font;
 use crate::h_flex;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Context;
+use crate::prelude::Div;
+use crate::prelude::FluentBuilder;
+use crate::prelude::LabelCommon;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::StyledTypography;
+use crate::prelude::Window;
+use crate::prelude::div;
 use crate::v_flex;
 
 pub struct Tooltip {
@@ -145,10 +157,6 @@ impl Tooltip {
 
     pub fn new(title: impl Into<SharedString>) -> Self {
         Self { title: title.into().into(), meta: None, key_binding: None }
-    }
-
-    pub fn new_element(title: impl Fn(&mut Window, &mut App) -> AnyElement + 'static) -> Self {
-        Self { title: Title::Callback(Rc::new(title)), meta: None, key_binding: None }
     }
 
     pub fn element(

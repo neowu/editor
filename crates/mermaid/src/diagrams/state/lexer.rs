@@ -924,7 +924,9 @@ impl<'a> Lexer<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::T;
+    use super::tokenize;
 
     #[test]
     fn emit_id_keeps_ids_and_discards_inline_comments() {

@@ -131,22 +131,6 @@ pub fn serialize_edit_operation(operation: &EditOperation) -> Edit {
     }
 }
 
-/// Serializes an entry in the undo map to be sent over RPC.
-pub fn serialize_undo_map_entry((edit_id, counts): (&clock::Lamport, &[(clock::Lamport, u32)])) -> proto::UndoMapEntry {
-    proto::UndoMapEntry {
-        replica_id: edit_id.replica_id.as_u16() as u32,
-        local_timestamp: edit_id.value,
-        counts: counts
-            .iter()
-            .map(|(undo_id, count)| proto::UndoCount {
-                replica_id: undo_id.replica_id.as_u16() as u32,
-                lamport_timestamp: undo_id.value,
-                count: *count,
-            })
-            .collect(),
-    }
-}
-
 /// Splits the given list of operations into chunks.
 pub fn split_operations(mut operations: Vec<proto::Operation>) -> impl Iterator<Item = Vec<proto::Operation>> {
     const CHUNK_SIZE: usize = 100;
@@ -355,42 +339,6 @@ pub fn deserialize_edit_operation(edit: Edit) -> EditOperation {
         ranges: edit.ranges.into_iter().map(deserialize_range).collect(),
         new_text: edit.new_text.into_iter().map(Arc::from).collect(),
     }
-}
-
-/// Deserializes an entry in the undo map from the RPC representation.
-pub fn deserialize_undo_map_entry(entry: proto::UndoMapEntry) -> (clock::Lamport, Vec<(clock::Lamport, u32)>) {
-    (
-        clock::Lamport { replica_id: ReplicaId::new(entry.replica_id as u16), value: entry.local_timestamp },
-        entry
-            .counts
-            .into_iter()
-            .map(|undo_count| {
-                (
-                    clock::Lamport {
-                        replica_id: ReplicaId::new(undo_count.replica_id as u16),
-                        value: undo_count.lamport_timestamp,
-                    },
-                    undo_count.count,
-                )
-            })
-            .collect(),
-    )
-}
-
-/// Deserializes selections from the RPC representation.
-pub fn deserialize_selections(selections: Vec<proto::Selection>) -> Arc<[Selection<Anchor>]> {
-    selections.into_iter().filter_map(deserialize_selection).collect()
-}
-
-/// Deserializes a [`Selection`] from the RPC representation.
-pub fn deserialize_selection(selection: proto::Selection) -> Option<Selection<Anchor>> {
-    Some(Selection {
-        id: selection.id as usize,
-        start: deserialize_anchor(selection.start?.anchor?)?,
-        end: deserialize_anchor(selection.end?.anchor?)?,
-        reversed: selection.reversed,
-        goal: SelectionGoal::None,
-    })
 }
 
 pub const fn serialize_markup_kind(kind: &lsp::MarkupKind) -> proto::MarkupKind {

@@ -129,7 +129,15 @@ pub fn normalize_path(path: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::Path;
+    use super::PathBuf;
+    use super::join;
+    use super::join_path;
+    use super::join_path_preserving_components;
+    use super::normalize;
+    use super::normalize_path;
+    use super::split;
 
     #[test]
     fn test_join() {

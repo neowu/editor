@@ -4,7 +4,6 @@ use std::sync::Arc;
 use crate::App;
 use crate::Global;
 use crate::Rgba;
-use crate::Window;
 use crate::WindowAppearance;
 use crate::rgb;
 
@@ -38,14 +37,6 @@ impl Default for Colors {
 }
 
 impl Colors {
-    /// Returns the default colors for the given window appearance.
-    pub fn for_appearance(window: &Window) -> Self {
-        match window.appearance() {
-            WindowAppearance::Light | WindowAppearance::VibrantLight => Self::light(),
-            WindowAppearance::Dark | WindowAppearance::VibrantDark => Self::dark(),
-        }
-    }
-
     /// Returns the default dark colors.
     pub fn dark() -> Self {
         Self {

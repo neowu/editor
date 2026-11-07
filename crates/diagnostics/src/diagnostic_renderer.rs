@@ -26,7 +26,17 @@ use text::Point;
 use theme::built_in::BUFFER_LINE_HEIGHT;
 use ui::CopyButton;
 use ui::font;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::AnyElement;
+use ui::prelude::App;
+use ui::prelude::Context;
+use ui::prelude::IntoElement;
+use ui::prelude::ParentElement;
+use ui::prelude::SharedString;
+use ui::prelude::Styled;
+use ui::prelude::Window;
+use ui::prelude::div;
+use ui::prelude::h_flex;
 
 /// A diagnostics view whose current diagnostics a block can look up when
 /// rendering.

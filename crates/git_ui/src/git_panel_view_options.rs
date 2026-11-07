@@ -51,7 +51,10 @@ impl GitPanelViewOptions {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::GitPanelGroupBy;
+    use super::GitPanelSortBy;
+    use super::GitPanelViewOptions;
 
     #[test]
     fn test_default_is_tree_grouped_by_status() {

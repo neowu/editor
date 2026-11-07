@@ -335,7 +335,8 @@ impl Notification for DidDeleteFiles {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+
+    use super::Notification;
 
     fn fake_call<N>()
     where

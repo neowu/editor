@@ -6,7 +6,6 @@ pub mod remote_client;
 pub mod remote_identity;
 mod transport;
 
-pub use remote_client::CommandTemplate;
 pub use remote_client::ConnectionIdentifier;
 pub use remote_client::ConnectionState;
 pub use remote_client::Interactive;

@@ -5,7 +5,9 @@ use gpui::AnimationExt;
 use gpui::Styled;
 use gpui::ease_out_quint;
 
-use crate::prelude::*;
+use crate::prelude::Element;
+use crate::prelude::ElementId;
+use crate::prelude::px;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AnimationDuration {

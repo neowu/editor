@@ -53,7 +53,8 @@ fn npx_arguments(packages: &[&str], bin: &str, arguments: &[&str]) -> Vec<OsStri
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::npx_arguments;
 
     #[test]
     fn runs_bin_from_requested_packages() {

@@ -288,7 +288,16 @@ fn nearest(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+
+    use super::FontProperties;
+    use super::FontStyle;
+    use super::FontWeight;
+    use super::STRETCH_MAPPING;
+    use super::STRETCH_NORMAL;
+    use super::WEIGHT_MAPPING;
+    use super::find_best_match;
+    use super::piecewise_linear_find_index;
+    use super::piecewise_linear_lookup;
 
     fn face(style: FontStyle, weight: f32) -> FontProperties {
         FontProperties { style, weight, stretch: STRETCH_NORMAL }

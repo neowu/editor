@@ -8,7 +8,18 @@ use gpui::TextAlign;
 
 use crate::LabelLike;
 use crate::font;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::Color;
+use crate::prelude::IntoElement;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::LineHeightStyle;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::Window;
 use crate::utils::replace_control_characters;
 
 /// A struct representing a label element in the UI.
@@ -26,13 +37,6 @@ impl Label {
     /// Creates a new [`Label`] with the given text.
     pub fn new(label: impl Into<SharedString>) -> Self {
         Self { base: LabelLike::new(), label: label.into(), render_code_spans: false }
-    }
-
-    /// When enabled, text wrapped in backticks (e.g. `` `code` ``) will be
-    /// rendered in the buffer (monospace) font.
-    pub const fn render_code_spans(mut self) -> Self {
-        self.render_code_spans = true;
-        self
     }
 
     /// Sets the text of the [`Label`].

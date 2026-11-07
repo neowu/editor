@@ -7,7 +7,34 @@ use gpui::relative;
 use crate::ButtonLike;
 use crate::ButtonLikeRounding;
 use crate::TintColor;
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::ButtonCommon;
+use crate::prelude::ButtonSize;
+use crate::prelude::ButtonStyle;
+use crate::prelude::Clickable;
+use crate::prelude::Color;
+use crate::prelude::DefiniteLength;
+use crate::prelude::FixedWidth;
+use crate::prelude::FluentBuilder;
+use crate::prelude::Icon;
+use crate::prelude::IconName;
+use crate::prelude::IconSize;
+use crate::prelude::IntoElement;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::ParentElement;
+use crate::prelude::Rems;
+use crate::prelude::RenderOnce;
+use crate::prelude::SelectableButton;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::Toggleable;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
+use crate::prelude::v_flex;
 
 /// The position of a [`ToggleButton`] within a group of buttons.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -23,10 +50,6 @@ pub struct ToggleButtonPosition {
 }
 
 impl ToggleButtonPosition {
-    pub const HORIZONTAL_FIRST: Self = Self { leftmost: true, ..Self::HORIZONTAL_MIDDLE };
-    pub const HORIZONTAL_MIDDLE: Self = Self { leftmost: false, rightmost: false, topmost: true, bottommost: true };
-    pub const HORIZONTAL_LAST: Self = Self { rightmost: true, ..Self::HORIZONTAL_MIDDLE };
-
     pub(crate) const fn to_rounding(self) -> ButtonLikeRounding {
         ButtonLikeRounding {
             top_left: self.topmost && self.leftmost,
@@ -177,22 +200,6 @@ impl<T: ButtonBuilder, const COLS: usize> ToggleButtonGroup<T, COLS> {
         Self {
             group_name: group_name.into(),
             rows: [buttons],
-            style: ToggleButtonGroupStyle::Transparent,
-            size: ToggleButtonGroupSize::Default,
-            label_size: LabelSize::Small,
-            group_width: None,
-            auto_width: false,
-            selected_index: 0,
-            tab_index: None,
-        }
-    }
-}
-
-impl<T: ButtonBuilder, const COLS: usize> ToggleButtonGroup<T, COLS, 2> {
-    pub fn two_rows(group_name: impl Into<SharedString>, first_row: [T; COLS], second_row: [T; COLS]) -> Self {
-        Self {
-            group_name: group_name.into(),
-            rows: [first_row, second_row],
             style: ToggleButtonGroupStyle::Transparent,
             size: ToggleButtonGroupSize::Default,
             label_size: LabelSize::Small,

@@ -11,6 +11,7 @@ use fuzzy_nucleo::StringMatch;
 use fuzzy_nucleo::StringMatchCandidate;
 use gpui::Action;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Context;
 use gpui::DismissEvent;
 use gpui::Entity;
@@ -29,7 +30,21 @@ use ui::HighlightedLabel;
 use ui::KeyBinding;
 use ui::ListItem;
 use ui::ListItemSpacing;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::AnyElement;
+use ui::prelude::Button;
+use ui::prelude::Clickable;
+use ui::prelude::Element;
+use ui::prelude::FluentBuilder;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::LabelCommon;
+use ui::prelude::SharedString;
+use ui::prelude::Toggleable;
+use ui::prelude::h_flex;
+use ui::prelude::rems;
+use ui::prelude::rems_from_px;
+use ui::prelude::v_flex;
 use util::ResultExt;
 use workspace::ModalView;
 use workspace::Workspace;
@@ -436,7 +451,8 @@ impl Debug for Command {
 mod tests {
     use gpui::NoAction;
 
-    use super::*;
+    use super::Command;
+    use super::sort_commands;
 
     #[test]
     fn sort_commands_orders_by_name() {

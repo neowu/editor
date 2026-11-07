@@ -19,28 +19,6 @@ use crate::Style;
 use crate::StyleRefinement;
 use crate::Styled;
 use crate::Window;
-use crate::relative;
-
-/// Construct a container query element with the given render callback.
-/// The callback receives the size the element was assigned during layout and
-/// returns the contents to display within it.
-///
-/// By default the element fills its parent (equivalent to `.size_full()`);
-/// use the [`Styled`] methods to size it differently. Because the contents
-/// don't exist until after layout, they cannot influence the element's size.
-pub fn container_query<E>(render: impl 'static + FnOnce(Size<Pixels>, &mut Window, &mut App) -> E) -> ContainerQuery
-where
-    E: IntoElement,
-{
-    let mut base_style = StyleRefinement::default();
-    base_style.size.width = Some(relative(1.).into());
-    base_style.size.height = Some(relative(1.).into());
-
-    ContainerQuery {
-        render: Some(Box::new(|size, window, cx| render(size, window, cx).into_any_element())),
-        style: base_style,
-    }
-}
 
 /// A container query element, created with [`container_query`].
 pub struct ContainerQuery {

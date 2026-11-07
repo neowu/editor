@@ -23,7 +23,7 @@ notifications.workspace = true
 picker.workspace = true
 project.workspace = true
 proto.workspace = true
-rand.workspace = true
+rand = { workspace = true, features = ["thread_rng"] }
 remote.workspace = true
 remote_connection.workspace = true
 rustc-hash.workspace = true

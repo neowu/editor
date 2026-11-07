@@ -1,6 +1,43 @@
 use std::slice;
 
-use super::*;
+use super::Anchor;
+use super::App;
+use super::AppContext;
+use super::Arc;
+use super::BlockProperties;
+use super::BufferId;
+use super::Context;
+use super::CustomBlockId;
+use super::Debug;
+use super::DiagnosticEntryRef;
+use super::DiagnosticSeverity;
+use super::Direction;
+use super::Editor;
+use super::EditorSnapshot;
+use super::Entity;
+use super::FxHashSet;
+use super::GoToDiagnostic;
+use super::GoToDiagnosticSeverityFilter;
+use super::GoToPreviousDiagnostic;
+use super::INLINE_DIAGNOSTICS_DEBOUNCE;
+use super::LanguageRegistry;
+use super::LspDataKind;
+use super::MultiBufferOffset;
+use super::MultiBufferSnapshot;
+use super::PULL_DIAGNOSTICS_DEBOUNCE;
+use super::Point;
+use super::Range;
+use super::ResultExt;
+use super::Selection;
+use super::SelectionEffects;
+use super::SharedString;
+use super::Task;
+use super::ToOffset;
+use super::ToPoint;
+use super::ToggleDiagnostics;
+use super::WeakEntity;
+use super::Window;
+use super::mem;
 
 pub trait DiagnosticRenderer {
     fn render_group(

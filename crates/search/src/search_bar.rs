@@ -17,7 +17,23 @@ use ui::IconButton;
 use ui::IconButtonShape;
 use ui::Tooltip;
 use ui::font;
-use ui::prelude::*;
+use ui::prelude::ActiveTheme;
+use ui::prelude::ButtonCommon;
+use ui::prelude::Clickable;
+use ui::prelude::Color;
+use ui::prelude::Disableable;
+use ui::prelude::Div;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon;
+use ui::prelude::ParentElement;
+use ui::prelude::SharedString;
+use ui::prelude::Styled;
+use ui::prelude::Toggleable;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::relative;
+use ui::prelude::rems;
 
 pub(super) enum HistoryNavigationDirection {
     Previous,

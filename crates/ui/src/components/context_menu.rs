@@ -10,6 +10,7 @@ use gpui::Anchor;
 use gpui::AnchoredPositionMode;
 use gpui::AnyElement;
 use gpui::App;
+use gpui::AppContext;
 use gpui::Bounds;
 use gpui::DismissEvent;
 use gpui::Entity;
@@ -28,7 +29,14 @@ use gpui::anchored;
 use gpui::canvas;
 use gpui::deferred;
 use gpui::point;
-use gpui::prelude::*;
+use gpui::prelude::Context;
+use gpui::prelude::FluentBuilder;
+use gpui::prelude::InteractiveElement;
+use gpui::prelude::IntoElement;
+use gpui::prelude::ParentElement;
+use gpui::prelude::Render;
+use gpui::prelude::StatefulInteractiveElement;
+use gpui::prelude::Styled;
 use gpui::px;
 use gpui::relative;
 use menu::SelectChild;
@@ -50,7 +58,31 @@ use crate::ListSeparator;
 use crate::ListSubHeader;
 use crate::Tooltip;
 use crate::font;
-use crate::prelude::*;
+use crate::prelude::Button;
+use crate::prelude::ButtonSize;
+use crate::prelude::Clickable;
+use crate::prelude::Color;
+use crate::prelude::DefiniteLength;
+use crate::prelude::Disableable;
+use crate::prelude::ElementId;
+use crate::prelude::Icon;
+use crate::prelude::IconButton;
+use crate::prelude::IconName;
+use crate::prelude::IconPosition;
+use crate::prelude::IconSize;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::SharedString;
+use crate::prelude::StyledExt;
+use crate::prelude::Toggleable;
+use crate::prelude::VisibleOnHover;
+use crate::prelude::Window;
+use crate::prelude::div;
+use crate::prelude::h_flex;
+use crate::prelude::rems_from_px;
+use crate::prelude::v_flex;
+use crate::prelude::vh;
 use crate::utils::WithRemSize;
 
 const CONTEXT_MENU_MIN_WIDTH: Pixels = px(200.);
@@ -175,25 +207,6 @@ impl ContextMenuEntry {
         self
     }
 
-    pub fn custom_icon_path(mut self, path: impl Into<SharedString>) -> Self {
-        self.custom_icon_path = Some(path.into());
-        self.custom_icon_svg = None; // Clear other icon sources if custom path is set
-        self.icon = None;
-        self
-    }
-
-    pub fn custom_icon_svg(mut self, svg: impl Into<SharedString>) -> Self {
-        self.custom_icon_svg = Some(svg.into());
-        self.custom_icon_path = None; // Clear other icon sources if custom path is set
-        self.icon = None;
-        self
-    }
-
-    pub const fn icon_position(mut self, position: IconPosition) -> Self {
-        self.icon_position = position;
-        self
-    }
-
     pub const fn icon_size(mut self, icon_size: IconSize) -> Self {
         self.icon_size = icon_size;
         self
@@ -216,11 +229,6 @@ impl ContextMenuEntry {
 
     pub fn handler(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
         self.handler = Rc::new(move |_, window, cx| handler(window, cx));
-        self
-    }
-
-    pub fn secondary_handler(mut self, handler: impl Fn(&mut Window, &mut App) + 'static) -> Self {
-        self.secondary_handler = Some(Rc::new(move |_, window, cx| handler(window, cx)));
         self
     }
 

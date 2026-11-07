@@ -1,10 +1,6 @@
-use std::process::ExitStatus;
-
-use anyhow::Result;
 use gpui::AppContext;
 use gpui::AsyncWindowContext;
 use gpui::Context;
-use gpui::Task;
 use task::ResolvedTask;
 use task::SpawnInTerminal;
 use ui::Window;
@@ -101,19 +97,6 @@ impl Workspace {
                 }
             });
             self.scheduled_tasks.push(task);
-        }
-    }
-
-    pub fn spawn_in_terminal(
-        self: &mut Workspace,
-        spawn_in_terminal: SpawnInTerminal,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) -> Task<Option<Result<ExitStatus>>> {
-        if let Some(terminal_provider) = self.terminal_provider.as_ref() {
-            terminal_provider.spawn(spawn_in_terminal, window, cx)
-        } else {
-            Task::ready(None)
         }
     }
 }

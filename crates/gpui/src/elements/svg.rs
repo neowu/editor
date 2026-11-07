@@ -205,24 +205,6 @@ impl Transformation {
         Self { scale: size(1.0, 1.0), translate: point(px(0.0), px(0.0)), rotate }
     }
 
-    /// Update the scaling factor of this transformation.
-    pub const fn with_scaling(mut self, scale: Size<f32>) -> Self {
-        self.scale = scale;
-        self
-    }
-
-    /// Update the translation value of this transformation.
-    pub const fn with_translation(mut self, translate: Point<Pixels>) -> Self {
-        self.translate = translate;
-        self
-    }
-
-    /// Update the rotation angle of this transformation.
-    pub fn with_rotation(mut self, rotate: impl Into<Radians>) -> Self {
-        self.rotate = rotate.into();
-        self
-    }
-
     fn into_matrix(self, center: Point<Pixels>, scale_factor: f32) -> TransformationMatrix {
         //Note: if you read this as a sequence of matrix multiplications, start from the bottom
         TransformationMatrix::unit()

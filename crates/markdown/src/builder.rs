@@ -1,4 +1,54 @@
-use super::*;
+use gpui::InteractiveElement;
+use gpui::ParentElement;
+use gpui::Refineable;
+use gpui::Styled;
+use gpui::prelude::FluentBuilder;
+use ui::prelude::ElementId;
+use ui::prelude::IntoElement;
+use ui::prelude::ToggleState;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::px;
+use ui::prelude::rems;
+
+use super::Alignment;
+use super::AnyDiv;
+use super::AnyElement;
+use super::Arc;
+use super::Bounds;
+use super::Cell;
+use super::Checkbox;
+use super::CheckboxToggleCallback;
+use super::Hsla;
+use super::Language;
+use super::Length;
+use super::Pixels;
+use super::Range;
+use super::Rc;
+use super::RenderedFootnoteRef;
+use super::RenderedImageLink;
+use super::RenderedLine;
+use super::RenderedLineElement;
+use super::RenderedLink;
+use super::RenderedMarkdown;
+use super::RenderedText;
+use super::ResolvedHighlights;
+use super::SharedString;
+use super::SmallVec;
+use super::SourceMapping;
+use super::StyleRefinement;
+use super::StyledText;
+use super::SyntaxTheme;
+use super::TableState;
+use super::TextAlign;
+use super::TextRun;
+use super::TextStyle;
+use super::TextStyleRefinement;
+use super::ensure_highlight_contrast;
+use super::mem;
+use super::merge_highlight_backgrounds;
+use super::rendered_index_for_source_index;
+use super::source_range_for_rendered;
 
 pub(crate) struct MetadataCellStyle {
     pub(crate) row_index: usize,

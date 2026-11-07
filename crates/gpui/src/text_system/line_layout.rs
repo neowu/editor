@@ -341,15 +341,6 @@ impl WrappedLineLayout {
         self._index_for_position(position, line_height, false)
     }
 
-    /// The closest index to a given position in this layout for the given line height.
-    ///
-    /// Closest means the character boundary closest to the given position.
-    ///
-    /// See also [`LineLayout::closest_index_for_x`].
-    pub fn closest_index_for_position(&self, position: Point<Pixels>, line_height: Pixels) -> Result<usize, usize> {
-        self._index_for_position(position, line_height, true)
-    }
-
     fn _index_for_position(&self, position: Point<Pixels>, line_height: Pixels, closest: bool) -> Result<usize, usize> {
         let wrapped_line_ix = (position.y / line_height) as usize;
 
@@ -750,7 +741,16 @@ impl AsCacheKeyRef for CacheKeyRef<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::Arc;
+    use super::AtomicUsize;
+    use super::FontId;
+    use super::FontRun;
+    use super::LineLayout;
+    use super::LineLayoutCache;
+    use super::Ordering;
+    use super::RECENT_LINES_CAPACITY;
+    use super::WrappedLineLayout;
+    use super::px;
     use crate::NoopTextSystem;
 
     fn cache() -> (LineLayoutCache, Arc<AtomicUsize>) {

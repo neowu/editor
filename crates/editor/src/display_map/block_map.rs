@@ -2105,50 +2105,6 @@ impl BlockSnapshot {
         self.transforms.summary().longest_row
     }
 
-    pub fn longest_row_in_range(&self, range: Range<BlockRow>) -> BlockRow {
-        let mut cursor = self.transforms.cursor::<Dimensions<BlockRow, WrapRow>>(());
-        cursor.seek(&range.start, Bias::Right);
-
-        let mut longest_row = range.start;
-        let mut longest_row_chars = 0;
-        if let Some(transform) = cursor.item() {
-            if transform.block.is_none() {
-                let &Dimensions(output_start, input_start, _) = cursor.start();
-                let overshoot = range.start - output_start;
-                let wrap_start_row = input_start + WrapRow(overshoot.0);
-                let wrap_end_row = cmp::min(input_start + WrapRow((range.end - output_start).0), cursor.end().1);
-                let summary = self.wrap_snapshot.text_summary_for_range(wrap_start_row..wrap_end_row);
-                longest_row = BlockRow(range.start.0 + summary.longest_row);
-                longest_row_chars = summary.longest_row_chars;
-            }
-            cursor.next();
-        }
-
-        let cursor_start_row = cursor.start().0;
-        if range.end > cursor_start_row {
-            let summary = cursor.summary::<_, TransformSummary>(&range.end, Bias::Right);
-            if summary.longest_row_chars > longest_row_chars {
-                longest_row = cursor_start_row + summary.longest_row;
-                longest_row_chars = summary.longest_row_chars;
-            }
-
-            if let Some(transform) = cursor.item()
-                && transform.block.is_none()
-            {
-                let &Dimensions(output_start, input_start, _) = cursor.start();
-                let overshoot = range.end - output_start;
-                let wrap_start_row = input_start;
-                let wrap_end_row = input_start + overshoot;
-                let summary = self.wrap_snapshot.text_summary_for_range(wrap_start_row..wrap_end_row);
-                if summary.longest_row_chars > longest_row_chars {
-                    longest_row = output_start + RowDelta(summary.longest_row);
-                }
-            }
-        }
-
-        longest_row
-    }
-
     pub(super) fn line_len(&self, row: BlockRow) -> u32 {
         let (start, _, item) = self.transforms.find::<Dimensions<BlockRow, WrapRow>, _>((), &row, Bias::Right);
         if let Some(transform) = item {
@@ -2165,14 +2121,6 @@ impl BlockSnapshot {
     pub(super) fn is_block_line(&self, row: BlockRow) -> bool {
         let (_, _, item) = self.transforms.find::<BlockRow, _>((), &row, Bias::Right);
         item.is_some_and(|t| t.block.is_some())
-    }
-
-    pub(super) fn is_folded_buffer_header(&self, row: BlockRow) -> bool {
-        let (_, _, item) = self.transforms.find::<BlockRow, _>((), &row, Bias::Right);
-        let Some(transform) = item else {
-            return false;
-        };
-        matches!(transform.block, Some(Block::FoldedBuffer { .. }))
     }
 
     pub(super) fn is_line_replaced(&self, row: MultiBufferRow) -> bool {

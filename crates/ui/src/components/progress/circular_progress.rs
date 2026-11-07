@@ -5,7 +5,14 @@ use gpui::PathBuilder;
 use gpui::canvas;
 use gpui::point;
 
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::App;
+use crate::prelude::IntoElement;
+use crate::prelude::Pixels;
+use crate::prelude::RenderOnce;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::px;
 
 /// A circular progress indicator that displays progress as an arc growing clockwise from the top.
 #[derive(IntoElement)]

@@ -113,7 +113,8 @@ impl Display for Uri {
 mod tests {
     use std::collections::HashMap;
 
-    use super::*;
+    use super::FromStr;
+    use super::Uri;
     use crate::Location;
     use crate::Position;
     use crate::Range;

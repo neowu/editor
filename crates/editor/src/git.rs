@@ -8,9 +8,83 @@ use ::git::status::FileStatus;
 use buffer_diff::BufferDiff;
 use buffer_diff::DiffHunkStatus;
 use buffer_diff::DiffHunkStatusKind;
+use gpui::InteractiveElement;
+use gpui::ParentElement;
+use gpui::Styled;
+use gpui::TaskExt as _;
+use gpui::prelude::FluentBuilder;
 use project::git_store::Repository;
+use ui::Button;
+use ui::h_flex;
+use ui::prelude::Disableable;
 
-use super::*;
+use super::ActiveTheme;
+use super::Anchor;
+use super::AnchorRangeExt;
+use super::AnyElement;
+use super::App;
+use super::AppContext;
+use super::ApplyAllDiffHunks;
+use super::ApplyDiffHunk;
+use super::Arc;
+use super::Autoscroll;
+use super::Bias;
+use super::BlamePreviousRevision;
+use super::BlameRenderer;
+use super::BlameRevision;
+use super::Buffer;
+use super::BufferId;
+use super::ButtonCommon;
+use super::Clickable;
+use super::CollapseAllDiffHunks;
+use super::Context;
+use super::Debug;
+use super::Direction;
+use super::DisplayPoint;
+use super::DisplayRow;
+use super::Editor;
+use super::EditorSnapshot;
+use super::Entity;
+use super::ExpandAllDiffHunks;
+use super::Focusable;
+use super::FutureExt;
+use super::FxHashMap;
+use super::FxHashSet;
+use super::GitBlame;
+use super::GlobalBlameRenderer;
+use super::GoToHunk;
+use super::GoToPreviousHunk;
+use super::IconButton;
+use super::IconButtonShape;
+use super::IconName;
+use super::IconSize;
+use super::IntoElement;
+use super::Itertools;
+use super::MultiBufferDiffHunk;
+use super::MultiBufferOffset;
+use super::MultiBufferRow;
+use super::MultiBufferSnapshot;
+use super::OffsetRangeExt;
+use super::OpenGitBlameCommit;
+use super::Pixels;
+use super::Point;
+use super::Project;
+use super::Range;
+use super::RangeExt;
+use super::Result;
+use super::ResultExt;
+use super::RowInfo;
+use super::SaveOptions;
+use super::SelectionEffects;
+use super::Task;
+use super::ToPoint;
+use super::ToggleAllDiffHunks;
+use super::ToggleSelectedDiffHunks;
+use super::Tooltip;
+use super::WeakEntity;
+use super::Window;
+use super::WorkspaceItem;
+use super::future;
 
 #[derive(Clone)]
 struct ResolvedDiffHunk {
@@ -233,10 +307,6 @@ impl Editor {
 
     pub const fn blame(&self) -> Option<&Entity<GitBlame>> {
         self.blame.as_ref()
-    }
-
-    pub const fn show_git_blame_gutter(&self) -> bool {
-        self.show_git_blame_gutter
     }
 
     pub fn expand_selected_diff_hunks(&mut self, cx: &mut Context<Self>) {
@@ -993,8 +1063,8 @@ pub fn render_diff_hunk_controls(
     is_created_file: bool,
     line_height: Pixels,
     editor: &Entity<Editor>,
-    _window: &mut Window,
-    cx: &mut App,
+    _window: &Window,
+    cx: &App,
 ) -> AnyElement {
     let operations = hunk_range
         .start

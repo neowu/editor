@@ -17,6 +17,7 @@ pub use gpui::SharedString;
 pub use gpui::Styled;
 pub use gpui::Window;
 pub use gpui::div;
+#[allow(clippy::wildcard_imports)]
 pub use gpui::prelude::*;
 pub use gpui::px;
 pub use gpui::relative;
@@ -40,31 +41,26 @@ pub use crate::Label;
 pub use crate::LabelCommon;
 pub use crate::LabelSize;
 pub use crate::LineHeightStyle;
-pub use crate::LoadingLabel;
 pub use crate::SelectableButton;
 pub use crate::animation::AnimationDirection;
-pub use crate::animation::AnimationDuration;
 pub use crate::animation::DefaultAnimations;
 pub use crate::h_flex;
-pub use crate::h_group;
-pub use crate::h_group_lg;
 pub use crate::h_group_sm;
-pub use crate::h_group_xl;
-pub use crate::styles::PlatformStyle;
 pub use crate::styles::Severity;
 pub use crate::styles::StyledTypography;
 pub use crate::styles::TextSize;
 pub use crate::styles::rems_from_px;
 pub use crate::styles::vh;
-pub use crate::styles::vw;
+#[allow(clippy::wildcard_imports)]
 pub use crate::traits::clickable::*;
+#[allow(clippy::wildcard_imports)]
 pub use crate::traits::disableable::*;
+#[allow(clippy::wildcard_imports)]
 pub use crate::traits::fixed::*;
+#[allow(clippy::wildcard_imports)]
 pub use crate::traits::styled_ext::*;
+#[allow(clippy::wildcard_imports)]
 pub use crate::traits::toggleable::*;
+#[allow(clippy::wildcard_imports)]
 pub use crate::traits::visible_on_hover::*;
 pub use crate::v_flex;
-pub use crate::v_group;
-pub use crate::v_group_lg;
-pub use crate::v_group_sm;
-pub use crate::v_group_xl;

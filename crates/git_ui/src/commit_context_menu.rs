@@ -10,7 +10,10 @@ use gpui::actions;
 use project::git_store::Repository;
 use ui::ContextMenu;
 use ui::ContextMenuEntry;
-use ui::prelude::*;
+use ui::prelude::App;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Rems;
+use ui::prelude::rems;
 use util::ResultExt as _;
 use workspace::Workspace;
 

@@ -13,7 +13,22 @@ use gpui::MouseButton;
 use gpui::Subscription;
 use gpui::Task;
 use ui::animation::DefaultAnimations;
-use ui::prelude::*;
+use ui::prelude::AnimationDirection;
+use ui::prelude::App;
+use ui::prelude::Context;
+use ui::prelude::ElementId;
+use ui::prelude::InteractiveElement;
+use ui::prelude::IntoElement;
+use ui::prelude::ParentElement;
+use ui::prelude::Render;
+use ui::prelude::SharedString;
+use ui::prelude::StatefulInteractiveElement;
+use ui::prelude::Styled;
+use ui::prelude::Window;
+use ui::prelude::div;
+use ui::prelude::h_flex;
+use ui::prelude::px;
+use ui::prelude::v_flex;
 
 use crate::Workspace;
 
@@ -154,14 +169,6 @@ impl ToastLayer {
     pub fn hide_toast(&mut self, cx: &mut Context<Self>) {
         self.active_toast.take();
         cx.notify();
-    }
-
-    pub fn active_toast<V>(&self) -> Option<Entity<V>>
-    where
-        V: 'static,
-    {
-        let active_toast = self.active_toast.as_ref()?;
-        active_toast.toast.view().downcast::<V>().ok()
     }
 
     fn pause_dismiss_timer(&mut self) {

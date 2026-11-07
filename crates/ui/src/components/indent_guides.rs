@@ -19,7 +19,15 @@ use gpui::point;
 use gpui::size;
 use smallvec::SmallVec;
 
-use crate::prelude::*;
+use crate::prelude::ActiveTheme;
+use crate::prelude::Context;
+use crate::prelude::Element;
+use crate::prelude::ElementId;
+use crate::prelude::IntoElement;
+use crate::prelude::Pixels;
+use crate::prelude::Render;
+use crate::prelude::Window;
+use crate::prelude::px;
 
 /// Represents the colors used for different states of indent guides.
 #[derive(Debug, Clone)]

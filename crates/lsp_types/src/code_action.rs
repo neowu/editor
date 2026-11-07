@@ -371,7 +371,10 @@ pub struct CodeActionOptions {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::CodeAction;
+    use super::CodeActionKind;
+    use super::CodeActionOrCommand;
+    use super::Command;
     use crate::tests::test_serialization;
 
     #[test]

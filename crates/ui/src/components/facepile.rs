@@ -2,7 +2,15 @@ use gpui::AnyElement;
 use gpui::StyleRefinement;
 use smallvec::SmallVec;
 
-use crate::prelude::*;
+use crate::prelude::App;
+use crate::prelude::Div;
+use crate::prelude::FluentBuilder;
+use crate::prelude::IntoElement;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::Styled;
+use crate::prelude::Window;
+use crate::prelude::div;
 
 /// An element that displays a collection of (usually) faces stacked
 /// horizontally, with the left-most face on top, visually descending
@@ -57,12 +65,3 @@ impl RenderOnce for Facepile {
         )
     }
 }
-
-pub const EXAMPLE_FACES: [&str; 6] = [
-    "https://avatars.githubusercontent.com/u/326587?s=60&v=4",
-    "https://avatars.githubusercontent.com/u/2280405?s=60&v=4",
-    "https://avatars.githubusercontent.com/u/1789?s=60&v=4",
-    "https://avatars.githubusercontent.com/u/67129314?s=60&v=4",
-    "https://avatars.githubusercontent.com/u/482957?s=60&v=4",
-    "https://avatars.githubusercontent.com/u/1714999?s=60&v=4",
-];

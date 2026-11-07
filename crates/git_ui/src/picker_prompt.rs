@@ -6,6 +6,7 @@ use futures::channel::oneshot;
 use fuzzy::StringMatch;
 use fuzzy::StringMatchCandidate;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::Context;
 use gpui::DismissEvent;
 use gpui::Entity;
@@ -27,7 +28,9 @@ use picker::PickerDelegate;
 use ui::HighlightedLabel;
 use ui::ListItem;
 use ui::ListItemSpacing;
-use ui::prelude::*;
+use ui::prelude::FluentBuilder;
+use ui::prelude::Toggleable;
+use ui::prelude::v_flex;
 use util::ResultExt;
 use workspace::ModalView;
 use workspace::Workspace;
@@ -73,6 +76,7 @@ impl PickerPrompt {
         Self { picker, _subscription }
     }
 }
+
 impl ModalView for PickerPrompt {}
 impl EventEmitter<DismissEvent> for PickerPrompt {}
 

@@ -54,7 +54,9 @@ use gpui::SharedString;
 use gpui::Task;
 use gpui_util::ResultExt;
 use gpui_util::TryFutureExt;
+#[allow(clippy::wildcard_imports)]
 pub use lsp_types::request::*;
+#[allow(clippy::wildcard_imports)]
 pub use lsp_types::*;
 use notification::DidChangeWorkspaceFolders;
 use parking_lot::Mutex;
@@ -385,10 +387,6 @@ pub struct ResponseError {
 impl ResponseError {
     pub fn new(code: ResponseErrorCode, message: impl Into<String>) -> Self {
         Self { code, message: message.into(), data: None }
-    }
-
-    pub fn server_cancelled() -> Self {
-        Self::new(ResponseErrorCode::ServerCancelled, "server cancelled the request")
     }
 
     pub fn method_not_found(method: &str) -> Self {
@@ -1199,21 +1197,6 @@ impl LanguageServer {
         let id = self.next_id.fetch_add(1, SeqCst);
         self.io_handlers.lock().insert(id, Box::new(f));
         Subscription::Io { id, io_handlers: Some(Arc::downgrade(&self.io_handlers)) }
-    }
-
-    /// Removes a request handler registers via [`Self::on_request`].
-    pub fn remove_request_handler<T: request::Request>(&self) {
-        self.notification_handlers.lock().remove(T::METHOD);
-    }
-
-    /// Removes a notification handler registers via [`Self::on_notification`].
-    pub fn remove_notification_handler<T: notification::Notification>(&self) {
-        self.notification_handlers.lock().remove(T::METHOD);
-    }
-
-    /// Checks if a notification handler has been registered via [`Self::on_notification`].
-    pub fn has_notification_handler<T: notification::Notification>(&self) -> bool {
-        self.notification_handlers.lock().contains_key(T::METHOD)
     }
 
     #[must_use]

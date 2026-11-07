@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use gpui::Action;
 use gpui::AnyElement;
 use gpui::App;
@@ -7,34 +5,33 @@ use gpui::FocusHandle;
 use gpui::Global;
 use gpui::IntoElement;
 use gpui::KeybindingKeystroke;
-use gpui::Keystroke;
 use gpui::Modifiers;
 use gpui::Window;
 use gpui::relative;
-use itertools::Itertools;
 
 use crate::Icon;
 use crate::IconName;
 use crate::IconSize;
 use crate::PlatformStyle;
 use crate::h_flex;
-use crate::prelude::*;
+use crate::prelude::AbsoluteLength;
+use crate::prelude::Color;
+use crate::prelude::DynamicSpacing;
+use crate::prelude::FluentBuilder;
+use crate::prelude::Label;
+use crate::prelude::LabelCommon;
+use crate::prelude::LabelSize;
+use crate::prelude::ParentElement;
+use crate::prelude::RenderOnce;
+use crate::prelude::SharedString;
+use crate::prelude::Styled;
+use crate::prelude::TextSize;
+use crate::prelude::div;
 use crate::utils::capitalize;
 
 #[derive(Debug)]
 enum Source {
-    Action {
-        action: Box<dyn Action>,
-        focus_handle: Option<FocusHandle>,
-    },
-    Keystrokes {
-        /// A keybinding consists of a set of keystrokes,
-        /// where each keystroke is a key and a set of modifier keys.
-        /// More than one keystroke produces a chord.
-        ///
-        /// This should always contain at least one keystroke.
-        keystrokes: Rc<[KeybindingKeystroke]>,
-    },
+    Action { action: Box<dyn Action>, focus_handle: Option<FocusHandle> },
 }
 
 impl Clone for Source {
@@ -43,7 +40,6 @@ impl Clone for Source {
             Source::Action { action, focus_handle } => {
                 Source::Action { action: action.boxed_clone(), focus_handle: focus_handle.clone() }
             }
-            Source::Keystrokes { keystrokes } => Source::Keystrokes { keystrokes: keystrokes.clone() },
         }
     }
 }
@@ -54,8 +50,6 @@ pub struct KeyBinding {
     size: Option<AbsoluteLength>,
     style: KeyBindingStyle,
     color: Option<Color>,
-    /// The [`PlatformStyle`] to use when displaying this keybinding.
-    platform_style: PlatformStyle,
     /// Indicates whether the keybinding is currently disabled.
     disabled: bool,
 }
@@ -71,6 +65,7 @@ pub enum KeyBindingStyle {
 }
 
 struct KeyBindingVisibility(bool);
+
 impl Global for KeyBindingVisibility {}
 
 impl Default for KeyBindingVisibility {
@@ -90,21 +85,6 @@ impl KeyBinding {
     pub fn for_action_in(action: &dyn Action, focus: &FocusHandle, cx: &App) -> Self {
         Self::new(action, Some(focus.clone()), cx)
     }
-    pub fn has_binding(&self, window: &Window) -> bool {
-        match &self.source {
-            Source::Action { action, focus_handle: Some(focus) } => window
-                .highest_precedence_binding_for_action_in(action.as_ref(), focus)
-                .or_else(|| window.highest_precedence_binding_for_action(action.as_ref()))
-                .is_some(),
-            _ => false,
-        }
-    }
-
-    /// Sets the application-wide visibility of keybindings.
-    pub fn set_default_visibility(cx: &mut App, visible: bool) {
-        cx.set_global(KeyBindingVisibility(visible));
-        cx.refresh_windows();
-    }
 
     /// Returns whether keybindings are visible application-wide.
     pub fn default_visibility(cx: &mut App) -> bool {
@@ -117,26 +97,8 @@ impl KeyBinding {
             size: None,
             style: KeyBindingStyle::Default,
             color: None,
-            platform_style: PlatformStyle::platform(),
             disabled: false,
         }
-    }
-
-    pub const fn from_keystrokes(keystrokes: Rc<[KeybindingKeystroke]>) -> Self {
-        Self {
-            source: Source::Keystrokes { keystrokes },
-            size: None,
-            style: KeyBindingStyle::Default,
-            color: None,
-            platform_style: PlatformStyle::platform(),
-            disabled: false,
-        }
-    }
-
-    /// Sets the [`PlatformStyle`] for this [`KeyBinding`].
-    pub const fn platform_style(mut self, platform_style: PlatformStyle) -> Self {
-        self.platform_style = platform_style;
-        self
     }
 
     /// Sets the size for this [`KeyBinding`].
@@ -162,38 +124,6 @@ impl KeyBinding {
     pub const fn disabled(mut self, disabled: bool) -> Self {
         self.disabled = disabled;
         self
-    }
-
-    /// Resolves this keybinding's keystrokes the same way rendering does
-    /// (matching the visible accelerator). Returns `None` when there is no
-    /// binding.
-    fn resolve_keystrokes(&self, window: &Window, cx: &App) -> Option<Vec<KeybindingKeystroke>> {
-        let keystrokes = match &self.source {
-            Source::Action { action, focus_handle } => {
-                let binding = focus_handle
-                    .clone()
-                    .or_else(|| window.focused(cx))
-                    .and_then(|focus| window.highest_precedence_binding_for_action_in(action.as_ref(), &focus))
-                    .or_else(|| window.highest_precedence_binding_for_action(action.as_ref()))?;
-                binding.keystrokes().to_vec()
-            }
-            Source::Keystrokes { keystrokes } => keystrokes.to_vec(),
-        };
-        (!keystrokes.is_empty()).then_some(keystrokes)
-    }
-
-    /// Resolves this keybinding to a human-readable shortcut string in the same
-    /// platform format shown to sighted users (e.g. `"Ctrl-S"`, `"Command-S"`,
-    /// or `"Ctrl-K Ctrl-S"` for a chord), matching the visible accelerator. This
-    /// is the format AccessKit's `keyboard_shortcut` property expects. Returns
-    /// `None` when there is no binding.
-    pub fn keyboard_shortcut_text(&self, window: &Window, cx: &App) -> Option<SharedString> {
-        let keystrokes = self.resolve_keystrokes(window, cx)?;
-        let text = keystrokes
-            .iter()
-            .map(|keystroke| keystroke_text(keystroke.modifiers(), keystroke.key(), self.platform_style))
-            .join(" ");
-        Some(text.into())
     }
 }
 
@@ -259,19 +189,9 @@ impl RenderOnce for KeyBinding {
                 .and_then(|focus| window.highest_precedence_binding_for_action_in(action.as_ref(), &focus))
                 .or_else(|| window.highest_precedence_binding_for_action(action.as_ref()))
                 .map(|binding| render_keybinding(binding.keystrokes())),
-            Source::Keystrokes { keystrokes } => Some(render_keybinding(keystrokes.as_ref())),
         }
         .unwrap_or_else(|| gpui::Empty.into_any_element())
     }
-}
-
-pub fn render_keybinding_keystroke(
-    keystroke: &KeybindingKeystroke,
-    color: Option<Color>,
-    size: impl Into<Option<AbsoluteLength>>,
-    platform_style: PlatformStyle,
-) -> Vec<AnyElement> {
-    render_keybinding_keystroke_with_style(keystroke, color, size, platform_style, KeyBindingStyle::Default)
 }
 
 fn render_keybinding_keystroke_with_style(
@@ -316,16 +236,6 @@ fn icon_for_key(key: &str, platform_style: PlatformStyle) -> Option<IconName> {
         "alt" if platform_style == PlatformStyle::Mac => Some(IconName::Option),
         _ => None,
     }
-}
-
-pub fn render_modifiers(
-    modifiers: &Modifiers,
-    platform_style: PlatformStyle,
-    color: Option<Color>,
-    size: Option<AbsoluteLength>,
-    trailing_separator: bool,
-) -> impl Iterator<Item = AnyElement> {
-    render_modifiers_with_style(modifiers, platform_style, color, size, trailing_separator, KeyBindingStyle::Default)
 }
 
 fn render_modifiers_with_style(
@@ -471,22 +381,6 @@ impl KeyIcon {
         self.size = size.into();
         self
     }
-}
-
-/// Returns a textual representation of the key binding for the given [`Action`].
-pub fn text_for_action(action: &dyn Action, window: &Window, cx: &App) -> Option<String> {
-    let key_binding = window.highest_precedence_binding_for_action(action)?;
-    Some(text_for_keybinding_keystrokes(key_binding.keystrokes(), cx))
-}
-
-pub fn text_for_keystrokes(keystrokes: &[Keystroke], _cx: &App) -> String {
-    let platform_style = PlatformStyle::platform();
-    keystrokes.iter().map(|keystroke| keystroke_text(&keystroke.modifiers, &keystroke.key, platform_style)).join(" ")
-}
-
-pub fn text_for_keybinding_keystrokes(keystrokes: &[KeybindingKeystroke], _cx: &App) -> String {
-    let platform_style = PlatformStyle::platform();
-    keystrokes.iter().map(|keystroke| keystroke_text(keystroke.modifiers(), keystroke.key(), platform_style)).join(" ")
 }
 
 pub fn text_for_keystroke(modifiers: &Modifiers, key: &str, _cx: &App) -> String {
