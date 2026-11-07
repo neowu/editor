@@ -122,6 +122,13 @@ because it hurt readability; an opaque window is also cheaper to composite.
   `ui::utils`, and the traffic light position is derived from it and the tab
   row height: (16, 19), far enough from the left edge to clear the window's
   rounded corner (at (9, 9) they looked jammed into it).
+- Only the red close button of the traffic lights is shown; minimize and zoom
+  are hidden (also in fullscreen) so the header starts right after it, its
+  first text as far from the button as the button is from the window's left
+  edge (16px) for visual balance. They
+  stay reachable through `cmd-m`, `ctrl-cmd-f` and a titlebar
+  double click. This applies to every window with a custom traffic light
+  position.
 - The header strip, the traffic light room and the empty tab bar space of every
   pane in the top row (columns of side-by-side splits, the first row of
   stacked ones) act as a titlebar: dragging moves the window and a double click

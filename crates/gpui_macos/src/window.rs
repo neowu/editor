@@ -806,32 +806,24 @@ impl MacWindowState {
                     return;
                 };
 
-                let close_frame = buttons.close.frame();
-                let minimize_frame = buttons.minimize.frame();
-                let button_width = Pixels::from(close_frame.size.width);
-                let button_height = Pixels::from(close_frame.size.height);
-                let button_padding =
-                    Pixels::from(minimize_frame.origin.x - close_frame.origin.x - close_frame.size.width);
+                let button_height = Pixels::from(buttons.close.frame().size.height);
                 let container_height = button_height + traffic_light_position.y + traffic_light_position.y;
 
                 let mut titlebar_frame = titlebar_container.frame();
                 titlebar_frame.size.height = container_height.to_f64();
                 titlebar_frame.origin.y = (window_height - container_height).to_f64();
 
-                let minimize_x = traffic_light_position.x + button_width + button_padding;
-                let zoom_x = minimize_x + button_width + button_padding;
-
                 titlebar_container.setFrame(titlebar_frame);
                 buttons
                     .close
                     .setFrameOrigin(NSPoint::new(traffic_light_position.x.to_f64(), traffic_light_position.y.to_f64()));
-                buttons.minimize.setFrameOrigin(NSPoint::new(minimize_x.to_f64(), traffic_light_position.y.to_f64()));
-                buttons.zoom.setFrameOrigin(NSPoint::new(zoom_x.to_f64(), traffic_light_position.y.to_f64()));
+                // Only the close button is shown; minimize and zoom stay reachable
+                // through their key bindings and a titlebar double click.
+                buttons.minimize.setHidden(true);
+                buttons.zoom.setHidden(true);
 
                 titlebar_container.updateTrackingAreas();
                 buttons.close.updateTrackingAreas();
-                buttons.minimize.updateTrackingAreas();
-                buttons.zoom.updateTrackingAreas();
             }
         }
     }
