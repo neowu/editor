@@ -1,12 +1,12 @@
 - no support for hard click touchpad (lookup), add or put right click menu
 
-- add webkit tab to render html? still need markdown html preview? or just use webkit to open html, then how to open remote html? 
-
 - remove settingContent entirely? just hard code into code
 
+# UI
 - add workspace scoped UI settings, like title or border color, do i really need this? to distinguish project
 
-- add complete rust / clippy lint
+# code style 
+- add complete clippy lint
 
 - review async crates, replace smol with tokio? (as smol dev seems to be stopped)
 
@@ -28,3 +28,5 @@
 
 # picker
 - unify command palette and file picker and tab switcher? so i can use cmd+T on terminal mode
+
+- support run http script (shell script is supported) in markdown? or just something like httpie or curl is good enough

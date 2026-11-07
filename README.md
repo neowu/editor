@@ -1,4 +1,4 @@
-# install lsp manualy, or it will be run by npx/uvx
+# install lsp manually, or it will be run by npx/uvx
 
 ```sh
 # json, css, html
