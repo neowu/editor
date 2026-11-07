@@ -2,22 +2,16 @@
 name = "gpui"
 version = "0.2.2"
 edition.workspace = true
-description = "ed's GPU-accelerated UI framework"
-readme = "README.md"
-homepage = "https://gpui.rs"
 repository = "https://github.com/zed-industries/zed"
-keywords = ["desktop", "gui", "immediate"]
-categories = ["gui"]
 
 [lib]
 path = "src/gpui.rs"
 
 [dependencies]
 anyhow.workspace = true
+async-channel = { workspace = true, features = ["std"] }
 async-task.workspace = true
 bitflags.workspace = true
-
-rustc-hash.workspace = true
 derive_more = { workspace = true, features = ["add", "add_assign", "mul", "mul_assign", "not"] }
 etagere.workspace = true
 futures.workspace = true
@@ -38,6 +32,7 @@ raw-window-handle.workspace = true
 refineable.workspace = true
 regex = { workspace = true, default-features = true }
 resvg.workspace = true
+rustc-hash.workspace = true
 scheduler.workspace = true
 seahash = "4.1"
 serde = { workspace = true, features = ["derive"] }
@@ -63,8 +58,6 @@ ttf-parser = "0.25"
 usvg.workspace = true
 uuid = { workspace = true, features = ["v4"] }
 waker-fn = "1.2.0"
-
-async-channel = { workspace = true, features = ["std"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 log.workspace = true
