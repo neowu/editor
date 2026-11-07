@@ -1744,10 +1744,9 @@ impl Buffer {
         } else {
             return;
         };
-        if parse_stays_deferred(self.parse_deferred, !self.autoindent_requests.is_empty()) {
+        if self.parse_deferred {
             return;
         }
-        self.parse_deferred = false;
 
         let text = self.text_snapshot();
         let parsed_version = self.version();
@@ -2583,8 +2582,9 @@ impl Buffer {
 
         self.start_transaction();
         self.pending_autoindent.take();
-        let autoindent_request =
-            autoindent_mode.and_then(|mode| self.language.as_ref().map(|_| (self.snapshot(), mode)));
+        let autoindent_request = autoindent_mode
+            .filter(|_| autoindents_edits(self.language.is_some(), self.parse_deferred))
+            .map(|mode| (self.snapshot(), mode));
 
         let edit_operation = self.text.edit(edits.iter().cloned());
         let edit_id = edit_operation.timestamp();
@@ -4772,10 +4772,11 @@ pub struct WordsQuery<'a> {
     pub range: Range<usize>,
 }
 
-/// Whether a buffer with deferred parsing keeps skipping its parse. Autoindent
-/// needs a syntax tree, so a pending autoindent request ends the deferral.
-const fn parse_stays_deferred(parse_deferred: bool, has_autoindent_requests: bool) -> bool {
-    parse_deferred && !has_autoindent_requests
+/// Whether an edit requesting autoindent gets it. Autoindent compares the
+/// syntax before and after the edit, and a deferred buffer has no tree for the
+/// pre-edit state, so its edits skip autoindent rather than force a parse.
+const fn autoindents_edits(has_language: bool, parse_deferred: bool) -> bool {
+    has_language && !parse_deferred
 }
 
 /// Whether a buffer empties itself when its file changes on disk: a clean
@@ -5368,13 +5369,14 @@ mod file_deletion_tests {
 
 #[cfg(test)]
 mod parse_deferral_tests {
-    use super::parse_stays_deferred;
+    use super::autoindents_edits;
 
     #[test]
-    fn test_parse_stays_deferred() {
-        assert!(parse_stays_deferred(true, false));
-        assert!(!parse_stays_deferred(true, true));
-        assert!(!parse_stays_deferred(false, false));
-        assert!(!parse_stays_deferred(false, true));
+    fn test_autoindents_edits() {
+        assert!(autoindents_edits(true, false));
+        // No pre-edit syntax tree to compare against.
+        assert!(!autoindents_edits(true, true));
+        assert!(!autoindents_edits(false, false));
+        assert!(!autoindents_edits(false, true));
     }
 }

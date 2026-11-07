@@ -44,11 +44,13 @@
 - Buffers loaded from disk or from a remote host defer tree-sitter parsing:
   most bulk loads (project search, multi-file diffs) are never displayed, and
   a syntax tree costs many times the file's size. Parsing starts, and then
-  stays on, when an editor draws any of the buffer's rows, when an edit needs
-  autoindent, or when a feature reads the tree off-screen (outline items
-  without LSP symbols, a remote task context). Until then the buffer reports
-  its file's language and resolves scopes from it. Diff base texts are not
-  deferred this way (see `git.md`).
+  stays on, when an editor draws any of the buffer's rows, or when a feature
+  reads the tree off-screen (outline items without LSP symbols, a remote task
+  context). Off-screen readers wait for that parse to finish before reading.
+  Until then the buffer reports its file's language and resolves scopes from
+  it. Edits to a still-deferred buffer skip autoindent: it needs the pre-edit
+  syntax tree, and a blocking parse to get one isn't worth it for buffers
+  nobody looks at. Diff base texts are not deferred this way (see `git.md`).
 - Fallback highlighting: any buffer whose language has no tree-sitter grammar
   (including plain text) is highlighted with the Sublime/TextMate syntaxes
   bundled by `two-face` (syntect, Oniguruma regex). The syntax is picked by

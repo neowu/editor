@@ -50,11 +50,18 @@ impl Editor {
                     .unwrap_or_default()
             })
         } else {
-            // Outlines come from the syntax tree; the panel refetches on `Reparsed`.
-            buffer.update(cx, |buffer, cx| buffer.ensure_parsed(cx));
-            let buffer_snapshot = buffer.read(cx).snapshot();
+            // Outlines come from the syntax tree, which a deferred buffer may still
+            // be building; one-shot callers (symbol navigation) don't retry.
+            let parsed = buffer.update(cx, |buffer, cx| {
+                buffer.ensure_parsed(cx);
+                buffer.parsing_idle()
+            });
             let syntax = cx.theme().syntax().clone();
-            cx.background_executor().spawn(async move { buffer_snapshot.outline(Some(&syntax)).items })
+            cx.spawn(async move |_, cx| {
+                parsed.await;
+                let buffer_snapshot = buffer.read_with(cx, |buffer, _| buffer.snapshot());
+                cx.background_executor().spawn(async move { buffer_snapshot.outline(Some(&syntax)).items }).await
+            })
         }
     }
 
