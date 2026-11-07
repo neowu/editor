@@ -26,13 +26,5 @@ snippet.workspace = true
 task.workspace = true
 util.workspace = true
 
-[dev-dependencies]
-grammars = { workspace = true, features = ["load-grammars"] }
-tempfile.workspace = true
-tree-sitter.workspace = true
-
-[features]
-load-grammars = ["grammars/load-grammars"]
-
 [lints]
 workspace = true

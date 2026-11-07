@@ -160,17 +160,26 @@ mod tests {
     use std::fs;
     use std::io::ErrorKind;
     use std::os::unix;
+    use std::path::PathBuf;
 
     use crate::Error;
     use crate::delete_with_info;
     use crate::move_no_replace;
     use crate::restore;
 
+    /// Fresh canonical scratch dir, unique per test name; tests remove it on success.
+    pub(crate) fn test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("trash-test-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir.canonicalize().unwrap()
+    }
+
     #[test]
     fn move_no_replace_refuses_existing_destination() {
-        let dir = tempfile::tempdir().unwrap();
-        let src = dir.path().join("src");
-        let dst = dir.path().join("dst");
+        let dir = test_dir("move_no_replace_refuses");
+        let src = dir.join("src");
+        let dst = dir.join("dst");
         fs::write(&src, "new").unwrap();
         fs::write(&dst, "old").unwrap();
 
@@ -179,28 +188,29 @@ mod tests {
         assert_eq!(error.kind(), ErrorKind::AlreadyExists);
         assert_eq!(fs::read_to_string(&dst).unwrap(), "old");
         assert_eq!(fs::read_to_string(&src).unwrap(), "new");
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
     fn move_no_replace_moves_directories_and_symlinks() {
-        let dir = tempfile::tempdir().unwrap();
-        let src = dir.path().join("src");
+        let dir = test_dir("move_no_replace_moves");
+        let src = dir.join("src");
         fs::create_dir(&src).unwrap();
         fs::write(src.join("file"), "content").unwrap();
         unix::fs::symlink("missing", src.join("link")).unwrap();
-        let dst = dir.path().join("dst");
+        let dst = dir.join("dst");
 
         move_no_replace(&src, &dst).unwrap();
         assert!(!src.exists());
         assert_eq!(fs::read_to_string(dst.join("file")).unwrap(), "content");
         assert_eq!(fs::read_link(dst.join("link")).unwrap().to_str(), Some("missing"));
+        fs::remove_dir_all(dir).unwrap();
     }
 
     // Uses the real system trash.
     #[test]
     fn trash_and_restore_roundtrip() {
-        let tempdir = tempfile::tempdir().unwrap();
-        let dir = tempdir.path().canonicalize().unwrap();
+        let dir = test_dir("trash_and_restore_roundtrip");
         let file = dir.join("trash-roundtrip.txt");
         fs::write(&file, "content").unwrap();
         let folder = dir.join("trash-roundtrip-dir");
@@ -228,5 +238,6 @@ mod tests {
         restore(file_item.clone()).unwrap();
         assert_eq!(fs::read_to_string(&file).unwrap(), "content");
         assert!(matches!(restore(file_item), Err(Error::NoLongerInTrash { .. })));
+        fs::remove_dir_all(dir).unwrap();
     }
 }

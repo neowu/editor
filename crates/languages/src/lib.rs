@@ -37,7 +37,6 @@ pub(crate) use package_json::PackageJson;
 pub(crate) use package_json::PackageJsonData;
 
 pub fn init(languages: Arc<LanguageRegistry>, fs: Arc<dyn Fs>, cx: &mut App) {
-    #[cfg(feature = "load-grammars")]
     languages.register_native_grammars(grammars::native_grammars());
 
     let bash_lsp_adapter = Arc::new(bash::BashLspAdapter);
@@ -205,7 +204,7 @@ fn register_language(
     semantic_token_rules: Option<SemanticTokenRules>,
     cx: &mut App,
 ) {
-    let config = load_config(name);
+    let config = grammars::load_config(name);
     if let Some(rules) = &semantic_token_rules {
         SettingsStore::update_global(cx, |store, _| {
             store.set_language_semantic_token_rules(config.name.0.clone(), rules.clone());
@@ -235,9 +234,4 @@ fn register_language(
             .boxed()
         }),
     );
-}
-
-fn load_config(name: &str) -> LanguageConfig {
-    let grammars_loaded = cfg!(feature = "load-grammars");
-    grammars::load_config_for_feature(name, grammars_loaded)
 }

@@ -275,6 +275,7 @@ mod tests {
     use super::file_in_trash;
     use super::parse_mount_points;
     use super::topdir_containing;
+    use crate::tests::test_dir;
 
     #[test]
     fn encodes_uri_paths() {
@@ -304,10 +305,12 @@ mod tests {
 
     #[test]
     fn canonicalizes_missing_paths_through_existing_parents() {
-        let dir = tempfile::tempdir().unwrap();
-        let canonical_dir = dir.path().canonicalize().unwrap();
-        let link = dir.path().join("link");
-        std_os_unix_fs::symlink(&canonical_dir, &link).unwrap();
-        assert_eq!(canonicalize_path_or_parents(&link.join("a/b")).unwrap(), canonical_dir.join("a/b"));
+        let dir = test_dir("canonicalizes_missing_paths");
+        let target = dir.join("target");
+        std::fs::create_dir(&target).unwrap();
+        let link = dir.join("link");
+        std_os_unix_fs::symlink(&target, &link).unwrap();
+        assert_eq!(canonicalize_path_or_parents(&link.join("a/b")).unwrap(), target.join("a/b"));
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

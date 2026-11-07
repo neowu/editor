@@ -39,6 +39,10 @@ another target in the same package must remain available.
 Default and all-feature workspace checks must have no unused-dependency warnings.
 Keep the workspace lint enabled; exceptions for dependencies shared between a
 library and its binary are confined to the affected target.
+No crate has `[dev-dependencies]`: unit tests use only what the crate's own
+code depends on (std scratch dirs instead of `tempfile`), and a test lives in
+the crate that owns the dependency it exercises (e.g. markdown runnable queries
+are tested in `grammars`, which owns tree-sitter).
 Cargo-shear is not used in this fork; manifests carry no cargo-shear metadata.
 Avoid duplicate major versions in `Cargo.lock` (e.g. only `bitflags` 2.x and
 one `png`); prefer bumping the dependent over accepting a second copy.

@@ -29,10 +29,6 @@ smallvec.workspace = true
 strum.workspace = true
 uuid.workspace = true
 
-# The macOS test-only window implementation depends on test-only APIs from both
-# GPUI and the extracted renderer. A dependency does not inherit this crate's
-# `cfg(test)`, so dev-dependencies enable those APIs only for test builds.
-
 [features]
 runtime_shaders = ["gpui_apple/runtime_shaders"]
 

@@ -1074,8 +1074,8 @@ mod tests {
 
     #[test]
     fn existing_clippy_configs_finds_files_at_root() {
-        let dir = tempfile::tempdir().unwrap();
-        let root = dir.path();
+        let dir = test_dir("clippy_finds_files");
+        let root = dir.as_path();
         assert_eq!(smol::block_on(existing_clippy_configs(root)), Vec::<PathBuf>::new());
 
         fs::write(root.join("clippy.toml"), "").unwrap();
@@ -1086,13 +1086,23 @@ mod tests {
             smol::block_on(existing_clippy_configs(root)),
             vec![root.join("clippy.toml"), root.join(".clippy.toml")]
         );
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
     fn existing_clippy_configs_ignores_directories() {
-        let dir = tempfile::tempdir().unwrap();
-        fs::create_dir(dir.path().join("clippy.toml")).unwrap();
-        assert_eq!(smol::block_on(existing_clippy_configs(dir.path())), Vec::<PathBuf>::new());
+        let dir = test_dir("clippy_ignores_dirs");
+        fs::create_dir(dir.join("clippy.toml")).unwrap();
+        assert_eq!(smol::block_on(existing_clippy_configs(&dir)), Vec::<PathBuf>::new());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// Fresh scratch dir, unique per test name; tests remove it on success.
+    fn test_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("languages-test-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
     }
 
     fn library_root(abs_path: &str) -> Option<LibraryRoot> {

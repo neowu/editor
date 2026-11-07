@@ -2298,8 +2298,6 @@ dependencies = [
  "smol",
  "snippet",
  "task",
- "tempfile",
- "tree-sitter",
  "util",
 ]
 
@@ -4839,7 +4837,6 @@ dependencies = [
  "libc",
  "log",
  "objc2-foundation",
- "tempfile",
  "thiserror",
  "urlencoding",
 ]

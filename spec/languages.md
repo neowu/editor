@@ -4,7 +4,9 @@
   CSS, Go, HTML (with injected JS/CSS), JavaScript, JSON/JSONC, Markdown,
   Python, Rust, TSX, TypeScript, YAML. They drive highlighting plus
   structure-aware features (auto-indent, brackets, outline, text objects,
-  runnables, string/comment scopes).
+  runnables, string/comment scopes). They are always compiled in: `grammars`
+  has no feature gate, and every bundled `config.toml` that names a grammar
+  must name one of these.
 - Markdown uses the upstream `tree-sitter-md` crate from crates.io (no fork).
   Outlines use LSP document symbols by default
   (`document_symbols: "on"`), but Markdown overrides this to tree-sitter
