@@ -235,15 +235,6 @@ pub struct CloseAllItems {
     pub close_pinned: bool,
 }
 
-/// Closes all items that have no unsaved changes.
-#[derive(Clone, PartialEq, Debug, Deserialize, Default, Action)]
-#[action(namespace = pane)]
-#[serde(deny_unknown_fields)]
-pub struct CloseCleanItems {
-    #[serde(default)]
-    pub close_pinned: bool,
-}
-
 /// Closes all items to the right of the current item.
 #[derive(Clone, PartialEq, Debug, Deserialize, Default, Action)]
 #[action(namespace = pane)]
@@ -1527,24 +1518,6 @@ impl Pane {
         })
     }
 
-    pub fn close_clean_items(
-        &mut self,
-        action: &CloseCleanItems,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<()>> {
-        if self.items.is_empty() {
-            return Task::ready(Ok(()));
-        }
-
-        let clean_item_ids = self.clean_item_ids(cx);
-        let pinned_item_ids = self.pinned_item_ids();
-
-        self.close_items(window, cx, SaveIntent::Close, &move |item_id| {
-            clean_item_ids.contains(&item_id) && (action.close_pinned || !pinned_item_ids.contains(&item_id))
-        })
-    }
-
     pub fn close_items_to_the_left_by_id(
         &mut self,
         item_id: Option<EntityId>,
@@ -2519,7 +2492,6 @@ impl Pane {
         let has_multibuffer_items = self.items.iter().any(|item| item.buffer_kind(cx) == ItemBufferKind::Multibuffer);
         let has_items_to_left = ix > 0;
         let has_items_to_right = ix < total_items - 1;
-        let has_clean_items = self.items.iter().any(|item| !item.is_dirty(cx));
         let is_pinned = self.is_tab_pinned(ix);
         let read_only_tabs = self.read_only_tabs;
 
@@ -2539,7 +2511,6 @@ impl Pane {
                 let close_multibuffers_action = CloseMultibufferItems { save_intent: None, close_pinned: false };
                 let close_items_to_the_left_action = CloseItemsToTheLeft { close_pinned: false };
                 let close_items_to_the_right_action = CloseItemsToTheRight { close_pinned: false };
-                let close_clean_items_action = CloseCleanItems { close_pinned: false };
                 let close_all_items_action = CloseAllItems { save_intent: None, close_pinned: false };
                 if let Some(pane) = pane.upgrade() {
                     menu = menu
@@ -2602,17 +2573,6 @@ impl Pane {
                                 })),
                         ))
                         .separator()
-                        .extend((!read_only_tabs).then(|| {
-                            ContextMenuItem::Entry(
-                                ContextMenuEntry::new("Close Clean")
-                                    .action(Box::new(close_clean_items_action.clone()))
-                                    .disabled(!has_clean_items)
-                                    .handler(window.handler_for(&pane, move |pane, window, cx| {
-                                        pane.close_clean_items(&close_clean_items_action, window, cx)
-                                            .detach_and_log_err(cx)
-                                    })),
-                            )
-                        }))
                         .entry(
                             "Close All",
                             Some(Box::new(close_all_items_action.clone())),
@@ -3184,18 +3144,6 @@ impl Pane {
             .collect()
     }
 
-    fn clean_item_ids(&self, cx: &Context<Pane>) -> Vec<EntityId> {
-        self.items()
-            .filter_map(|item| {
-                if !item.is_dirty(cx) {
-                    return Some(item.item_id());
-                }
-
-                None
-            })
-            .collect()
-    }
-
     fn to_the_side_item_ids(&self, item_id: EntityId, side: Side) -> Vec<EntityId> {
         match side {
             Side::Left => {
@@ -3437,9 +3385,6 @@ impl Render for Pane {
             }))
             .on_action(cx.listener(|pane: &mut Self, action: &CloseOtherItems, window, cx| {
                 pane.close_other_items(action, None, window, cx).detach_and_log_err(cx);
-            }))
-            .on_action(cx.listener(|pane: &mut Self, action: &CloseCleanItems, window, cx| {
-                pane.close_clean_items(action, window, cx).detach_and_log_err(cx)
             }))
             .on_action(cx.listener(|pane: &mut Self, action: &CloseItemsToTheLeft, window, cx| {
                 pane.close_items_to_the_left_by_id(None, action, window, cx).detach_and_log_err(cx)
