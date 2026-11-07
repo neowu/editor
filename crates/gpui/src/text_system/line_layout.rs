@@ -423,8 +423,8 @@ pub(crate) struct LineLayoutCache {
 }
 
 /// How many unwrapped lines [`LineLayoutCache`] keeps after they leave both
-/// frames, so scrolling back doesn't reshape them. A line holds ~32 bytes per
-/// glyph, so this is a few MB for typical code.
+/// frames, so scrolling back doesn't reshape them. A count, not a byte budget:
+/// a line holds ~32 bytes per glyph, a few MB for typical code.
 const RECENT_LINES_CAPACITY: NonZeroUsize = NonZeroUsize::new(4096).unwrap();
 
 struct LineLayoutCacheState {
@@ -433,7 +433,8 @@ struct LineLayoutCacheState {
     /// Lines used before the previous frame, least recently used evicted first.
     /// Only a fallback behind the frame maps, whose `used_lines` order
     /// cached views rely on. Wrapped lines aren't kept: their unwrapped line
-    /// lands here, and recomputing wrap boundaries doesn't call the shaper.
+    /// lands here when they retire, and recomputing wrap boundaries doesn't
+    /// call the shaper.
     recent_lines: LruCache<Arc<CacheKey>, Arc<LineLayout>, FxBuildHasher>,
 }
 
@@ -524,6 +525,33 @@ impl LineLayoutCache {
     pub fn finish_frame(&self) {
         let _font_generation = self.clear_if_font_generation_changed();
         let LineLayoutCacheState { previous_frame, current_frame, recent_lines } = &mut *self.state.borrow_mut();
+        // Wrapped hits never touch the unwrapped line, so it may have aged out of
+        // the LRU while the wrapped layout stayed hot. Put it back on retirement.
+        for (key, layout) in previous_frame.wrapped_lines.drain() {
+            let unwrapped_key = &CacheKeyRef {
+                text: &key.text,
+                font_size: key.font_size,
+                runs: &key.runs,
+                wrap_width: None,
+                force_width: None,
+                max_lines: None,
+            } as &dyn AsCacheKeyRef;
+            if current_frame.lines.contains_key(unwrapped_key)
+                || previous_frame.lines.contains_key(unwrapped_key)
+                || recent_lines.get(unwrapped_key).is_some()
+            {
+                continue;
+            }
+            let unwrapped_key = Arc::new(CacheKey {
+                text: key.text.clone(),
+                font_size: key.font_size,
+                runs: key.runs.clone(),
+                wrap_width: None,
+                force_width: None,
+                max_lines: None,
+            });
+            recent_lines.put(unwrapped_key, layout.unwrapped_layout.clone());
+        }
         for (key, layout) in previous_frame.lines.drain() {
             recent_lines.put(key, layout);
         }
@@ -547,8 +575,8 @@ impl LineLayoutCache {
         SharedString: From<Text>,
     {
         let _font_generation = self.clear_if_font_generation_changed();
-        let key =
-            &CacheKeyRef { text: text.as_ref(), font_size, runs, wrap_width, force_width: None } as &dyn AsCacheKeyRef;
+        let key = &CacheKeyRef { text: text.as_ref(), font_size, runs, wrap_width, force_width: None, max_lines }
+            as &dyn AsCacheKeyRef;
 
         {
             let LineLayoutCacheState { previous_frame, current_frame, .. } = &mut *self.state.borrow_mut();
@@ -571,7 +599,14 @@ impl LineLayoutCache {
             SmallVec::new()
         };
         let layout = Arc::new(WrappedLineLayout { unwrapped_layout, wrap_boundaries, wrap_width });
-        let key = Arc::new(CacheKey { text, font_size, runs: SmallVec::from(runs), wrap_width, force_width: None });
+        let key = Arc::new(CacheKey {
+            text,
+            font_size,
+            runs: SmallVec::from(runs),
+            wrap_width,
+            force_width: None,
+            max_lines,
+        });
 
         let current_frame = &mut self.state.borrow_mut().current_frame;
         current_frame.wrapped_lines.insert(key.clone(), layout.clone());
@@ -591,8 +626,8 @@ impl LineLayoutCache {
         SharedString: From<Text>,
     {
         let _font_generation = self.clear_if_font_generation_changed();
-        let key =
-            &CacheKeyRef { text: text.as_ref(), font_size, runs, wrap_width: None, force_width } as &dyn AsCacheKeyRef;
+        let key = &CacheKeyRef { text: text.as_ref(), font_size, runs, wrap_width: None, force_width, max_lines: None }
+            as &dyn AsCacheKeyRef;
 
         let LineLayoutCacheState { previous_frame, current_frame, recent_lines } = &mut *self.state.borrow_mut();
         if let Some(layout) = current_frame.lines.get(key) {
@@ -612,7 +647,14 @@ impl LineLayoutCache {
             apply_force_width_to_layout(&mut layout, force_width);
         }
 
-        let key = Arc::new(CacheKey { text, font_size, runs: SmallVec::from(runs), wrap_width: None, force_width });
+        let key = Arc::new(CacheKey {
+            text,
+            font_size,
+            runs: SmallVec::from(runs),
+            wrap_width: None,
+            force_width,
+            max_lines: None,
+        });
         let layout = Arc::new(layout);
         current_frame.lines.insert(key.clone(), layout.clone());
         current_frame.used_lines.push(key);
@@ -678,6 +720,7 @@ struct CacheKey {
     runs: SmallVec<[FontRun; 1]>,
     wrap_width: Option<Pixels>,
     force_width: Option<Pixels>,
+    max_lines: Option<usize>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
@@ -687,6 +730,7 @@ struct CacheKeyRef<'a> {
     runs: &'a [FontRun],
     wrap_width: Option<Pixels>,
     force_width: Option<Pixels>,
+    max_lines: Option<usize>,
 }
 
 impl PartialEq for dyn AsCacheKeyRef + '_ {
@@ -711,6 +755,7 @@ impl AsCacheKeyRef for CacheKey {
             runs: self.runs.as_slice(),
             wrap_width: self.wrap_width,
             force_width: self.force_width,
+            max_lines: self.max_lines,
         }
     }
 }
@@ -763,12 +808,16 @@ mod tests {
     }
 
     fn wrapped_layout(cache: &LineLayoutCache, text: &'static str) -> Arc<WrappedLineLayout> {
+        clamped_layout(cache, text, None)
+    }
+
+    fn clamped_layout(cache: &LineLayoutCache, text: &'static str, max_lines: Option<usize>) -> Arc<WrappedLineLayout> {
         cache.layout_wrapped_line(
             text,
             px(16.),
             &[FontRun { len: text.len(), font_id: FontId(0) }],
             Some(px(50.)),
-            None,
+            max_lines,
         )
     }
 
@@ -865,6 +914,40 @@ mod tests {
         let again = wrapped_layout(&cache, "hello world");
         assert!(!Arc::ptr_eq(&first, &again));
         assert!(Arc::ptr_eq(&first.unwrapped_layout, &again.unwrapped_layout));
+        assert_eq!(cache.shaped_line_count(), 1);
+    }
+
+    #[test]
+    fn retired_wrapped_line_keeps_unwrapped_line_recent() {
+        let (cache, _) = cache();
+        let hot = wrapped_layout(&cache, "hot wrapped line");
+        let churn: Vec<String> = (0..=RECENT_LINES_CAPACITY.get()).map(|ix| format!("line {ix}")).collect();
+        for text in &churn {
+            wrapped_layout(&cache, "hot wrapped line");
+            cache.layout_line(text.as_str(), px(16.), &[FontRun { len: text.len(), font_id: FontId(0) }], None);
+            cache.finish_frame();
+        }
+        for _ in 0..3 {
+            cache.finish_frame();
+        }
+        let shaped = cache.shaped_line_count();
+
+        let again = wrapped_layout(&cache, "hot wrapped line");
+        assert!(Arc::ptr_eq(&hot.unwrapped_layout, &again.unwrapped_layout));
+        assert_eq!(cache.shaped_line_count(), shaped);
+    }
+
+    #[test]
+    fn layout_wrapped_line_keys_on_max_lines() {
+        let (cache, _) = cache();
+        let unclamped = clamped_layout(&cache, "a b c d e f g h", None);
+        let clamped = clamped_layout(&cache, "a b c d e f g h", Some(1));
+        assert!(!Arc::ptr_eq(&unclamped, &clamped));
+        assert!(Arc::ptr_eq(&unclamped.unwrapped_layout, &clamped.unwrapped_layout));
+
+        cache.finish_frame();
+        assert!(Arc::ptr_eq(&clamped, &clamped_layout(&cache, "a b c d e f g h", Some(1))));
+        assert!(Arc::ptr_eq(&unclamped, &clamped_layout(&cache, "a b c d e f g h", None)));
         assert_eq!(cache.shaped_line_count(), 1);
     }
 
