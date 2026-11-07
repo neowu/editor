@@ -2,9 +2,13 @@
 
 this is Zed fork and trim down everything i don't need
 
+always value performance / efficiency / simplicity over strictly correctness / defensive design, let me know if there is any trade off to make
+
 # code style
 
-- follow `spec/code_style.md`
+- Keep comments minimal and focused on intent or non-obvious behaviour
+- Prefer straightforward code over unnecessary encapsulation and abstraction
+- Format Rust code with `cargo +nightly fmt --all`
 
 # spec
 
