@@ -2332,6 +2332,7 @@ impl Pane {
         let has_file_icon = icon.is_some();
 
         let capability = item.capability(cx);
+        let can_toggle_read_only = item.read_only_toggle_buffer(cx).is_some();
         let tab = Tab::new(ix)
             .style(self.tab_style)
             .position(if is_first_item {
@@ -2434,7 +2435,7 @@ impl Pane {
                     .gap_1()
                     .children(if let Some(icon) = icon {
                         Some(icon.into_any_element())
-                    } else if !capability.editable() {
+                    } else if can_toggle_read_only && !capability.editable() {
                         Some(read_only_toggle(capability == Capability::Read).into_any_element())
                     } else {
                         None
@@ -2456,7 +2457,7 @@ impl Pane {
                         }
                         None => this,
                     })
-                    .when(!capability.editable() && has_file_icon, |this| {
+                    .when(can_toggle_read_only && !capability.editable() && has_file_icon, |this| {
                         this.child(read_only_toggle(capability == Capability::Read))
                     }),
             );
@@ -2583,7 +2584,7 @@ impl Pane {
                         })
                     };
 
-                    if capability != Capability::ReadOnly && !read_only_tabs {
+                    if can_toggle_read_only && capability != Capability::ReadOnly && !read_only_tabs {
                         let read_only_label =
                             if capability.editable() { "Make Tab Read-Only" } else { "Make Tab Editable" };
                         menu = menu.separator().entry(
