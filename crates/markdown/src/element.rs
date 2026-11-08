@@ -1198,11 +1198,8 @@ impl RenderPass<'_> {
             MarkdownTag::Item => self.start_item(index, range, window),
             MarkdownTag::Emphasis => builder
                 .push_text_style(TextStyleRefinement { font_style: Some(FontStyle::Italic), ..Default::default() }),
-            MarkdownTag::Strong => builder.push_text_style(TextStyleRefinement {
-                font_weight: Some(FontWeight::BOLD),
-                color: Some(cx.theme().colors().text),
-                ..Default::default()
-            }),
+            MarkdownTag::Strong => builder
+                .push_text_style(TextStyleRefinement { font_weight: Some(FontWeight::BOLD), ..Default::default() }),
             MarkdownTag::Strikethrough => builder.push_text_style(TextStyleRefinement {
                 strikethrough: Some(StrikethroughStyle { thickness: px(1.), color: None }),
                 ..Default::default()
