@@ -643,6 +643,7 @@ impl ListState {
         let state = &*self.0.borrow();
 
         let bounds = state.last_layout_bounds.unwrap_or_default();
+        let padding = state.last_padding.unwrap_or_default();
         let scroll_top = state.logical_scroll_top();
         if ix < scroll_top.item_ix {
             return None;
@@ -658,7 +659,10 @@ impl ListState {
             let &Dimensions(Count(count), Height(top), _) = cursor.start();
             if count == ix {
                 let top = bounds.top() + top - scroll_top;
-                return Some(Bounds::from_corners(point(bounds.left(), top), point(bounds.right(), top + size.height)));
+                return Some(Bounds::from_corners(
+                    point(bounds.left() + padding.left, top),
+                    point(bounds.right() - padding.right, top + size.height),
+                ));
             }
         }
         None
@@ -1093,23 +1097,24 @@ impl StateInner {
         window: &mut Window,
         cx: &mut App,
     ) -> Result<LayoutItemsResponse, ListOffset> {
+        let item_width = item_width(bounds.size.width, &padding);
         window.transact(|window| {
             match self.measuring_behavior {
                 ListMeasuringBehavior::Measure(has_measured) if !has_measured => {
-                    self.layout_all_items(bounds.size.width, render_item, window, cx);
+                    self.layout_all_items(item_width, render_item, window, cx);
                 }
                 _ => {}
             }
 
             let mut layout_response =
-                self.layout_items(Some(bounds.size.width), bounds.size.height, &padding, render_item, window, cx);
+                self.layout_items(Some(item_width), bounds.size.height, &padding, render_item, window, cx);
 
             // Avoid honoring autoscroll requests from elements other than our children.
             window.take_autoscroll();
 
             // Only paint the visible items, if there is actually any space for them (taking padding into account)
             if bounds.size.height > padding.top + padding.bottom {
-                let mut item_origin = bounds.origin + Point::new(px(0.), padding.top);
+                let mut item_origin = bounds.origin + Point::new(padding.left, padding.top);
                 item_origin.y -= layout_response.scroll_top.offset_in_item;
                 for item in &mut layout_response.item_layouts {
                     window.with_content_mask(Some(ContentMask { bounds }), |window| {
@@ -1138,8 +1143,7 @@ impl StateInner {
                                     };
                                     let size = prev_item.size().unwrap_or_else(|| {
                                         let mut element = render_item(cursor.start().0, window, cx);
-                                        let item_available_size =
-                                            size(bounds.size.width.into(), AvailableSpace::MinContent);
+                                        let item_available_size = size(item_width.into(), AvailableSpace::MinContent);
                                         element.layout_as_root(item_available_size, window, cx)
                                     });
                                     item_ix = cursor.start().0;
@@ -1163,8 +1167,7 @@ impl StateInner {
 
                                 let size = item.size().unwrap_or_else(|| {
                                     let mut item = render_item(cursor.start().0, window, cx);
-                                    let item_available_size =
-                                        size(bounds.size.width.into(), AvailableSpace::MinContent);
+                                    let item_available_size = size(item_width.into(), AvailableSpace::MinContent);
                                     item.layout_as_root(item_available_size, window, cx)
                                 });
                                 height -= size.height;
@@ -1276,9 +1279,8 @@ impl Element for List {
                         // we might just use the overdraw value as the available height to layout enough items.
                         state.overdraw
                     };
-                    let padding = style
-                        .padding
-                        .to_pixels(state.last_layout_bounds.unwrap_or_default().size.into(), window.rem_size());
+                    let padding =
+                        content_insets(&style, state.last_layout_bounds.unwrap_or_default().size, window.rem_size());
 
                     let layout_response =
                         state.layout_items(None, available_height, &padding, &mut self.render_item, window, cx);
@@ -1325,8 +1327,14 @@ impl Element for List {
 
         let hitbox = window.insert_hitbox(bounds, HitboxBehavior::Normal);
 
-        // If the width of the list has changed, invalidate all cached item heights
-        if state.last_layout_bounds.is_none_or(|last_bounds| last_bounds.size.width != bounds.size.width) {
+        let padding = content_insets(&style, bounds.size, window.rem_size());
+
+        // If the width available to items has changed, invalidate all cached item heights
+        let last_item_width = state
+            .last_layout_bounds
+            .zip(state.last_padding)
+            .map(|(last_bounds, last_padding)| item_width(last_bounds.size.width, &last_padding));
+        if last_item_width.is_none_or(|width| width != item_width(bounds.size.width, &padding)) {
             let new_items = SumTree::from_iter(
                 state
                     .items
@@ -1339,7 +1347,6 @@ impl Element for List {
             state.measuring_behavior.reset();
         }
 
-        let padding = style.padding.to_pixels(bounds.size.into(), window.rem_size());
         let layout = match state.prepaint_items(bounds, padding, true, &mut self.render_item, window, cx) {
             Ok(layout) => layout,
             Err(autoscroll_request) => {
@@ -1388,6 +1395,22 @@ impl Element for List {
             }
         });
     }
+}
+
+/// Items are laid out inside the list's padding and border.
+fn content_insets(style: &Style, size: Size<Pixels>, rem_size: Pixels) -> Edges<Pixels> {
+    let padding = style.padding.to_pixels(size.into(), rem_size);
+    let border = style.border_widths.to_pixels(rem_size);
+    Edges {
+        top: padding.top + border.top,
+        right: padding.right + border.right,
+        bottom: padding.bottom + border.bottom,
+        left: padding.left + border.left,
+    }
+}
+
+fn item_width(list_width: Pixels, insets: &Edges<Pixels>) -> Pixels {
+    list_width - insets.left - insets.right
 }
 
 impl IntoElement for List {
@@ -1473,5 +1496,39 @@ impl sum_tree::SeekTarget<'_, ListItemSummary, ListItemSummary> for Count {
 impl sum_tree::SeekTarget<'_, ListItemSummary, ListItemSummary> for Height {
     fn cmp(&self, other: &ListItemSummary, _: ()) -> Ordering {
         self.0.partial_cmp(&other.height).unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::content_insets;
+    use super::item_width;
+    use crate::Edges;
+    use crate::Style;
+    use crate::px;
+    use crate::size;
+
+    #[test]
+    fn test_content_insets_add_padding_and_border() {
+        let style = Style {
+            padding: Edges { top: px(1.).into(), right: px(2.).into(), bottom: px(3.).into(), left: px(4.).into() },
+            border_widths: Edges {
+                top: px(10.).into(),
+                right: px(20.).into(),
+                bottom: px(30.).into(),
+                left: px(40.).into(),
+            },
+            ..Style::default()
+        };
+        assert_eq!(
+            content_insets(&style, size(px(100.), px(100.)), px(16.)),
+            Edges { top: px(11.), right: px(22.), bottom: px(33.), left: px(44.) }
+        );
+    }
+
+    #[test]
+    fn test_item_width_excludes_horizontal_insets() {
+        let insets = Edges { top: px(5.), right: px(30.), bottom: px(5.), left: px(10.) };
+        assert_eq!(item_width(px(100.), &insets), px(60.));
     }
 }
