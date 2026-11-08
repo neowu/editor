@@ -110,9 +110,8 @@
   as a project file.
 - Library sources are read-only:
   - Buffers open with `Capability::ReadOnly`, including buffers a remote host
-    pushes to the client (e.g. a go-to-definition target). It can't be
-    toggled: the tab's lock is shown disabled ("Locked Tab"), and
-    "Make Tab Editable" and "Toggle Read Only" do nothing.
+    pushes to the client (e.g. a go-to-definition target); the tab shows the
+    lock icon.
   - `Project` refuses to create, rename, move into or out of, trash or delete
     library entries. Copying out of a library is allowed.
   - The context menu shows only non-mutating actions, plus "Remove Library" on

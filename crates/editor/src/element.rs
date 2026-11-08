@@ -700,7 +700,6 @@ impl EditorElement {
         register_action(editor, window, Editor::open_active_item_in_terminal);
         register_action(editor, window, Editor::spawn_nearest_task);
         register_action(editor, window, Editor::open_selections_in_multibuffer);
-        register_action(editor, window, Editor::toggle_read_only);
         register_action(editor, window, Editor::reload_file);
 
         if !editor.read(cx).read_only(cx) {

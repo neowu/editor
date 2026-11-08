@@ -351,8 +351,6 @@ actions!(
         /// Toggles maximizing the active editor pane within the center area,
         /// hiding other split panes but leaving docks/panels unaffected.
         ToggleEditorZoom,
-        /// Toggles read-only mode for the active item (if supported by that item).
-        ToggleReadOnlyFile,
         /// Zooms in on the active pane.
         ZoomIn,
         /// Zooms out of the active pane.
@@ -5045,12 +5043,6 @@ impl Workspace {
                     }
                 }
                 cx.propagate();
-            }))
-            .on_action(cx.listener(|workspace, _: &ToggleReadOnlyFile, window, cx| {
-                let pane = workspace.active_pane().clone();
-                if let Some(item) = pane.read(cx).active_item() {
-                    item.toggle_read_only(window, cx);
-                }
             }))
             .on_action(cx.listener(|workspace, _: &FocusCenterPane, window, cx| {
                 workspace.focus_center_pane(window, cx);

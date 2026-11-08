@@ -3814,6 +3814,7 @@ impl ProjectPanel {
                 canonical_path: parent_entry.canonical_path.clone(),
                 char_bag: parent_entry.char_bag,
                 is_fifo: parent_entry.is_fifo,
+                is_writable: true,
             },
             git_summary,
         }
@@ -6668,6 +6669,7 @@ fn libraries_header_entry() -> GitEntry {
             size: 0,
             char_bag: CharBag::default(),
             is_fifo: false,
+            is_writable: false,
         },
         git_summary: GitSummary::default(),
     }

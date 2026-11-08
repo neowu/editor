@@ -394,10 +394,12 @@ pub(crate) fn render_buffer_header(
                             path_header
                                 .child(
                                     ButtonLike::new("filename-button")
-                                        .child({
+                                        .child(if buffer.capability.editable() {
                                             let path = Path::new(filename.as_str());
                                             let icon = FileIcons::get_icon(path, cx).unwrap_or_default();
                                             Icon::from_path(icon).color(Color::Muted)
+                                        } else {
+                                            Icon::new(IconName::FileLock).color(Color::Muted)
                                         })
                                         .child(
                                             Label::new(filename)
@@ -431,9 +433,6 @@ pub(crate) fn render_buffer_header(
                                             Color::Custom(colors.text_muted)
                                         },
                                     ))
-                                })
-                                .when(!buffer.capability.editable(), |el| {
-                                    el.child(Icon::new(IconName::FileLock).color(Color::Muted))
                                 })
                         }))
                         .child(

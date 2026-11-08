@@ -135,8 +135,6 @@ use crate::unified_diff_with_offsets;
 pub enum Capability {
     /// The buffer is a mutable replica.
     ReadWrite,
-    /// The buffer is a mutable replica, but toggled to be only readable.
-    Read,
     /// The buffer is a read-only replica.
     ReadOnly,
 }
@@ -1430,7 +1428,10 @@ impl Buffer {
     pub fn set_capability(&mut self, capability: Capability, cx: &mut Context<Self>) {
         if self.capability != capability {
             self.capability = capability;
-            cx.emit(BufferEvent::CapabilityChanged)
+            // Multibuffers resnapshot on this, so their per-excerpt edit filter sees the new capability.
+            self.non_text_state_update_count += 1;
+            cx.emit(BufferEvent::CapabilityChanged);
+            cx.notify();
         }
     }
 

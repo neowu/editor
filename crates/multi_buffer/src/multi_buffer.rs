@@ -1888,7 +1888,9 @@ impl MultiBuffer {
             BufferEvent::Reparsed => Event::Reparsed(buffer_id),
             BufferEvent::DiagnosticsUpdated => Event::DiagnosticsUpdated,
             BufferEvent::CapabilityChanged => {
-                self.capability = buffer.read(cx).capability();
+                if self.singleton {
+                    self.capability = buffer.read(cx).capability();
+                }
                 Event::CapabilityChanged
             }
             BufferEvent::Operation { .. } | BufferEvent::ReloadNeeded => return,

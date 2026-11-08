@@ -156,7 +156,7 @@ blobs with no language server, so they are not mixed into editor panes.
   (back/forward is the window header's, shared with Editor mode); there is no New… menu, since files and terminals belong
   to Editor mode. Zoom shows only that pane, without the commit sidebar
   (as zooming hides docks, other panes and the status bar in Editor mode). Every history tab is read-only, so the tab context menu
-  leaves out "Close Multibuffers" and "Make Tab Read-Only". History tabs and
+  leaves out "Close Multibuffers". History tabs and
   splits are not restored after a restart, but survive switching modes.
 - The graph and commit views open in the active history pane (the last
   focused one); reopening a graph or commit that is already open activates or

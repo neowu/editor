@@ -3263,6 +3263,8 @@ pub struct Entry {
     pub size: u64,
     pub char_bag: CharBag,
     pub is_fifo: bool,
+    /// Local only (not synced over proto); a permission change makes the entry `Updated`.
+    pub is_writable: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -3403,6 +3405,7 @@ impl Entry {
             is_external: false,
             char_bag,
             is_fifo: metadata.is_fifo,
+            is_writable: metadata.is_writable,
         }
     }
 
@@ -5719,6 +5722,7 @@ impl TryFrom<(&CharBag, &PathMatcher, proto::Entry)> for Entry {
             is_external: entry.is_external,
             char_bag,
             is_fifo: entry.is_fifo,
+            is_writable: true,
         })
     }
 }

@@ -322,10 +322,6 @@ impl Item for Editor {
         self.capability(cx)
     }
 
-    fn read_only_toggle_buffer(&self, cx: &App) -> Option<Entity<Buffer>> {
-        self.buffer.read(cx).as_singleton()
-    }
-
     fn has_deleted_file(&self, cx: &App) -> bool {
         self.buffer().read(cx).read(cx).has_deleted_file()
     }

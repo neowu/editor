@@ -535,7 +535,6 @@ mod search_options_tests {
         let options = |replacement: bool| SearchOptions { replacement, ..SearchOptions::default() };
 
         assert!(options(true).for_capability(Capability::ReadWrite).replacement);
-        assert!(!options(true).for_capability(Capability::Read).replacement);
         assert!(!options(true).for_capability(Capability::ReadOnly).replacement);
         assert!(!options(false).for_capability(Capability::ReadWrite).replacement);
     }

@@ -503,8 +503,8 @@ impl LocalBufferStore {
         }
 
         let events = buffer.update(cx, |buffer, cx| {
-            let file = buffer.file()?;
-            let old_file = File::from_dyn(Some(file))?;
+            let file = buffer.file()?.clone();
+            let old_file = File::from_dyn(Some(&file))?;
             if old_file.worktree != *worktree {
                 return None;
             }
@@ -513,6 +513,10 @@ impl LocalBufferStore {
                 .entry_id
                 .and_then(|entry_id| snapshot.entry_for_id(entry_id))
                 .or_else(|| snapshot.entry_for_path(old_file.path.as_ref()));
+
+            if let Some(entry) = snapshot_entry {
+                buffer.set_capability(local_file_capability(old_file, entry.is_writable, cx), cx);
+            }
 
             let new_file = if let Some(entry) = snapshot_entry {
                 File {
@@ -621,8 +625,6 @@ impl LocalBufferStore {
             let path = path.clone();
             let buffer = match load_file.await {
                 Ok(loaded) => {
-                    let is_writable = loaded.is_writable;
-                    let capability = if is_writable { Capability::ReadWrite } else { Capability::Read };
                     let reservation = cx.reserve_entity::<Buffer>();
                     let buffer_id = BufferId::from(reservation.entity_id().as_non_zero_u64());
                     let text_buffer = cx
@@ -631,6 +633,7 @@ impl LocalBufferStore {
                         })
                         .await;
                     cx.insert_entity(reservation, |cx| {
+                        let capability = local_file_capability(&loaded.file, loaded.is_writable, cx);
                         let mut buffer = Buffer::build(text_buffer, Some(loaded.file), capability, cx);
                         // Bulk loads (project search, multi-file diffs) mostly never get
                         // displayed; editors start the parse for the buffers they draw.
@@ -666,20 +669,6 @@ impl LocalBufferStore {
                 if let Some(file) = File::from_dyn(buffer.read(cx).file()) {
                     let project_path = ProjectPath { worktree_id: file.worktree_id(cx), path: file.path.clone() };
                     let entry_id = file.entry_id;
-
-                    // Check if the file should be read-only based on settings
-                    let settings = WorktreeSettings::get_global(cx);
-                    let is_read_only = if project_path.path.is_empty() {
-                        settings.is_std_path_read_only(&file.full_path(cx))
-                    } else {
-                        settings.is_path_read_only(&project_path.path)
-                    };
-                    if is_read_only {
-                        buffer.update(cx, |buffer, cx| {
-                            buffer.set_capability(Capability::Read, cx);
-                        });
-                    }
-
                     this.path_to_buffer_id.insert(project_path, buffer_id);
                     let this = this.as_local_mut().unwrap();
                     if let Some(entry_id) = entry_id {
@@ -852,7 +841,6 @@ impl BufferStore {
                                 this.loading_buffers.remove(&project_path);
 
                                 let buffer = load_result.map_err(Arc::new)?;
-                                // `ReadOnly` rather than `Read`, so it can't be toggled editable.
                                 if is_library {
                                     buffer.update(cx, |buffer, cx| buffer.set_capability(Capability::ReadOnly, cx));
                                 }
@@ -1556,5 +1544,36 @@ fn apply_initial_line_ending(buffer: &mut Buffer, cx: &mut Context<Buffer>) {
     };
     if buffer.line_ending() != desired {
         buffer.set_line_ending(desired, cx);
+    }
+}
+
+/// A local worktree file is read-only when it lacks write permission, is a library source, or
+/// matches the `read_only_files` setting. Re-derived whenever its worktree entry changes.
+fn local_file_capability(file: &File, is_writable: bool, cx: &App) -> Capability {
+    let settings = WorktreeSettings::get_global(cx);
+    let settings_read_only = if file.path.is_empty() {
+        settings.is_std_path_read_only(&file.full_path(cx))
+    } else {
+        settings.is_path_read_only(&file.path)
+    };
+    file_capability(is_writable, file.worktree.read(cx).library_name().is_some(), settings_read_only)
+}
+
+const fn file_capability(is_writable: bool, is_library: bool, settings_read_only: bool) -> Capability {
+    if is_writable && !is_library && !settings_read_only { Capability::ReadWrite } else { Capability::ReadOnly }
+}
+
+#[cfg(test)]
+mod file_capability_tests {
+    use language::Capability;
+
+    use super::file_capability;
+
+    #[test]
+    fn test_file_capability() {
+        assert_eq!(file_capability(true, false, false), Capability::ReadWrite);
+        assert_eq!(file_capability(false, false, false), Capability::ReadOnly);
+        assert_eq!(file_capability(true, true, false), Capability::ReadOnly);
+        assert_eq!(file_capability(true, false, true), Capability::ReadOnly);
     }
 }

@@ -58,7 +58,6 @@ use gpui::prelude::RenderOnce;
 use gpui::prelude::StatefulInteractiveElement;
 use gpui::prelude::Styled;
 use itertools::Itertools;
-use language::Capability;
 use parking_lot::Mutex;
 use project::DirectoryLister;
 use project::Project;
@@ -90,7 +89,6 @@ use ui::prelude::ButtonStyle;
 use ui::prelude::Clickable;
 use ui::prelude::Color;
 use ui::prelude::DefiniteLength;
-use ui::prelude::Disableable;
 use ui::prelude::DynamicSpacing;
 use ui::prelude::ElementId;
 use ui::prelude::FixedWidth;
@@ -2297,7 +2295,10 @@ impl Pane {
             cx,
         );
 
-        let icon = item.tab_icon(window, cx).map(|icon| icon.size(IconSize::Small).color(Color::Muted));
+        let capability = item.capability(cx);
+        // The lock takes the leading icon slot, so read-only looks the same on every tab kind.
+        let icon = if capability.editable() { item.tab_icon(window, cx) } else { Some(Icon::new(IconName::FileLock)) }
+            .map(|icon| icon.size(IconSize::Small).color(Color::Muted));
 
         let indicator = render_item_indicator(item.boxed_clone(), cx);
         let tab_tooltip_content = item.tab_tooltip_content(cx);
@@ -2308,31 +2309,6 @@ impl Pane {
         let is_permanent = item.is_permanent(cx);
         let position_relative_to_active_item = ix.cmp(&self.active_item_index);
 
-        let read_only_toggle = |toggleable: bool| {
-            IconButton::new("toggle_read_only", IconName::FileLock)
-                .size(ButtonSize::None)
-                .shape(IconButtonShape::Square)
-                .icon_color(Color::Muted)
-                .icon_size(IconSize::Small)
-                .disabled(!toggleable)
-                .tooltip(move |_, cx| {
-                    if toggleable {
-                        Tooltip::with_meta("Unlock Tab", None, "This will make this tab editable", cx)
-                    } else {
-                        Tooltip::with_meta("Locked Tab", None, "This tab is read-only", cx)
-                    }
-                })
-                .on_click(cx.listener(move |pane, _, window, cx| {
-                    if let Some(item) = pane.item_for_index(ix) {
-                        item.toggle_read_only(window, cx);
-                    }
-                }))
-        };
-
-        let has_file_icon = icon.is_some();
-
-        let capability = item.capability(cx);
-        let can_toggle_read_only = item.read_only_toggle_buffer(cx).is_some();
         let tab = Tab::new(ix)
             .style(self.tab_style)
             .position(if is_first_item {
@@ -2429,38 +2405,24 @@ impl Pane {
                 };
                 this.end_slot(end_slot)
             })
-            .child(
-                h_flex()
-                    .id(("pane-tab-content", ix))
-                    .gap_1()
-                    .children(if let Some(icon) = icon {
-                        Some(icon.into_any_element())
-                    } else if can_toggle_read_only && !capability.editable() {
-                        Some(read_only_toggle(capability == Capability::Read).into_any_element())
-                    } else {
-                        None
-                    })
-                    .child(label)
-                    .map(|this| match tab_tooltip_content {
-                        Some(TabTooltipContent::Text(text)) => {
-                            if capability.editable() {
-                                this.tooltip(Tooltip::text(text))
-                            } else {
-                                this.tooltip(move |_, cx| {
-                                    let text = text.clone();
-                                    Tooltip::with_meta(text, None, "Read-Only Tab", cx)
-                                })
-                            }
+            .child(h_flex().id(("pane-tab-content", ix)).gap_1().children(icon).child(label).map(|this| {
+                match tab_tooltip_content {
+                    Some(TabTooltipContent::Text(text)) => {
+                        if capability.editable() {
+                            this.tooltip(Tooltip::text(text))
+                        } else {
+                            this.tooltip(move |_, cx| {
+                                let text = text.clone();
+                                Tooltip::with_meta(text, None, "Read-Only Tab", cx)
+                            })
                         }
-                        Some(TabTooltipContent::Custom(element_fn)) => {
-                            this.tooltip(move |window, cx| element_fn(window, cx))
-                        }
-                        None => this,
-                    })
-                    .when(can_toggle_read_only && !capability.editable() && has_file_icon, |this| {
-                        this.child(read_only_toggle(capability == Capability::Read))
-                    }),
-            );
+                    }
+                    Some(TabTooltipContent::Custom(element_fn)) => {
+                        this.tooltip(move |window, cx| element_fn(window, cx))
+                    }
+                    None => this,
+                }
+            }));
 
         let single_entry_to_resolve = (self.items[ix].buffer_kind(cx) == ItemBufferKind::Singleton)
             .then(|| self.items[ix].project_entry_ids(cx).first().copied())
@@ -2583,20 +2545,6 @@ impl Pane {
                             }
                         })
                     };
-
-                    if can_toggle_read_only && capability != Capability::ReadOnly && !read_only_tabs {
-                        let read_only_label =
-                            if capability.editable() { "Make Tab Read-Only" } else { "Make Tab Editable" };
-                        menu = menu.separator().entry(
-                            read_only_label,
-                            None,
-                            window.handler_for(&pane, move |pane, window, cx| {
-                                if let Some(item) = pane.item_for_index(ix) {
-                                    item.toggle_read_only(window, cx);
-                                }
-                            }),
-                        );
-                    }
 
                     if let Some(entry) = single_entry_to_resolve {
                         let project_path =

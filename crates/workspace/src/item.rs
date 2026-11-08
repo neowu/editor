@@ -23,7 +23,6 @@ use gpui::Task;
 use gpui::TaskExt;
 use gpui::WeakEntity;
 use gpui::Window;
-use language::Buffer;
 use language::Capability;
 pub use language::HighlightedText;
 use project::Project;
@@ -192,11 +191,6 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
         Capability::ReadWrite
     }
 
-    /// The buffer whose capability the tab's read-only toggle flips, if this item supports it.
-    fn read_only_toggle_buffer(&self, _: &App) -> Option<Entity<Buffer>> {
-        None
-    }
-
     fn has_deleted_file(&self, _: &App) -> bool {
         false
     }
@@ -358,8 +352,6 @@ pub trait ItemHandle: 'static + Send {
     fn to_any_view(&self) -> AnyView;
     fn is_dirty(&self, cx: &App) -> bool;
     fn capability(&self, cx: &App) -> Capability;
-    fn read_only_toggle_buffer(&self, cx: &App) -> Option<Entity<Buffer>>;
-    fn toggle_read_only(&self, window: &mut Window, cx: &mut App);
     fn has_deleted_file(&self, cx: &App) -> bool;
     fn has_conflict(&self, cx: &App) -> bool;
     fn can_save(&self, cx: &App) -> bool;
@@ -636,18 +628,6 @@ impl<T: Item> ItemHandle for Entity<T> {
         self.read(cx).capability(cx)
     }
 
-    fn read_only_toggle_buffer(&self, cx: &App) -> Option<Entity<Buffer>> {
-        self.read(cx).read_only_toggle_buffer(cx)
-    }
-
-    fn toggle_read_only(&self, window: &mut Window, cx: &mut App) {
-        let Some(buffer) = self.read_only_toggle_buffer(cx) else {
-            return;
-        };
-        buffer.update(cx, |buffer, cx| buffer.set_capability(toggled_capability(buffer.capability()), cx));
-        window.refresh();
-    }
-
     fn has_deleted_file(&self, cx: &App) -> bool {
         self.read(cx).has_deleted_file(cx)
     }
@@ -823,22 +803,11 @@ pub trait ProjectItem: Item {
     }
 }
 
-/// `ReadOnly` is a hard lock (e.g. a file without write permission) and never toggles.
-const fn toggled_capability(capability: Capability) -> Capability {
-    match capability {
-        Capability::ReadWrite => Capability::Read,
-        Capability::Read => Capability::ReadWrite,
-        Capability::ReadOnly => Capability::ReadOnly,
-    }
-}
-
 #[cfg(test)]
 mod tab_content_params_tests {
-    use language::Capability;
     use ui::Color;
 
     use super::TabContentParams;
-    use super::toggled_capability;
 
     #[test]
     fn test_icon_color() {
@@ -851,12 +820,5 @@ mod tab_content_params_tests {
         assert_eq!(params(true, true).icon_color(), Color::Muted);
         assert_eq!(params(false, false).icon_color(), Color::Muted);
         assert_eq!(params(false, true).icon_color(), Color::Muted);
-    }
-
-    #[test]
-    fn toggled_capability_flips_soft_read_only_only() {
-        assert_eq!(toggled_capability(Capability::ReadWrite), Capability::Read);
-        assert_eq!(toggled_capability(Capability::Read), Capability::ReadWrite);
-        assert_eq!(toggled_capability(Capability::ReadOnly), Capability::ReadOnly);
     }
 }

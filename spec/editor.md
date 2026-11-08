@@ -176,9 +176,20 @@
   rather than disabled since they can never apply there. Buffer search offers no
   replace (no toggle, row, or `ToggleReplace`/replace-deploy) on any search
   item that is not editable.
-- The tab lock icon and "Make Tab Read-Only/Editable" appear only on items
-  that can toggle (an editor over a single buffer, via
-  `Item::read_only_toggle_buffer`), not on every non-editable item.
+- Read-only is a property of the file, never a user toggle. A worktree
+  buffer is `Capability::ReadOnly` when the file isn't writable, matches the
+  `read_only_files` setting, or is a library source; this is re-derived on
+  every worktree entry change, so `chmod` takes effect live (entries carry
+  `is_writable`, local only). Git revisions and commit views are read-only too.
+  There is no "Make Tab Read-Only/Editable" menu entry, no
+  `workspace::ToggleReadOnlyFile` action, and no soft-read-only (`Read`)
+  `Capability`.
+- A read-only item shows a plain lock icon in place of its leading (file)
+  icon, the same on every tab kind and on multibuffer excerpt headers;
+  trailing slots stay for things the user can act on.
+- Multibuffers filter edits per excerpt by each buffer's capability; a
+  capability change counts as a non-text state update, so multibuffers
+  resnapshot and stop editing that buffer immediately.
 - Diagnostics have one per-editor switch, `editor::ToggleDiagnostics`, which turns underlines,
   inline messages, problem navigation and LSP pulls on or off together. Inline
   messages always show while diagnostics are on: there is no
