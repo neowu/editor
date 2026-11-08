@@ -185,7 +185,7 @@ mod tests {
         assert!((state.position - 0.05).abs() < 1e-4, "{state:?}");
         assert!((spring.canonical().1 - 1.0).abs() < 1e-4);
 
-        assert!(motion::NAVIGATION < motion::BASE);
+        const { assert!(motion::NAVIGATION < motion::BASE) };
         assert!((motion::GLIDE.step(1.0, 0.0, motion::BASE) - 0.05).abs() < 1e-4);
     }
 
