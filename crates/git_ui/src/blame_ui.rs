@@ -41,6 +41,7 @@ use workspace::Workspace;
 use workspace::notifications::NotifyTaskExt as _;
 
 use crate::commit_tooltip::CommitTooltip;
+use crate::commit_tooltip::blamed_repo_path;
 use crate::commit_view::CommitView;
 use crate::commit_view::GitBlob;
 use crate::commit_view::build_buffer;
@@ -123,12 +124,11 @@ impl BlameRenderer for GitBlameRenderer {
                             let repository = repository.clone();
                             let workspace = workspace.clone();
                             move |_, window, cx| {
-                                CommitView::open(
+                                CommitView::open_revealing(
                                     blame_entry.sha.to_string(),
                                     repository.downgrade(),
                                     workspace.clone(),
-                                    None,
-                                    None,
+                                    blamed_repo_path(&blame_entry),
                                     window,
                                     cx,
                                 )
@@ -162,7 +162,15 @@ impl BlameRenderer for GitBlameRenderer {
         window: &mut Window,
         cx: &mut App,
     ) {
-        CommitView::open(blame_entry.sha.to_string(), repository.downgrade(), workspace, None, None, window, cx)
+        let reveal_file = blamed_repo_path(&blame_entry);
+        CommitView::open_revealing(
+            blame_entry.sha.to_string(),
+            repository.downgrade(),
+            workspace,
+            reveal_file,
+            window,
+            cx,
+        )
     }
 
     fn open_blame_revision(

@@ -3,6 +3,7 @@ use editor::hover_markdown_style;
 use git::blame::BlameEntry;
 use git::commit::ParsedCommitMessage;
 use git::repository::CommitSummary;
+use git::repository::RepoPath;
 use git_ui_core::notifications::show_error_toast;
 use gpui::App;
 use gpui::AppContext as _;
@@ -115,6 +116,13 @@ pub struct CommitTooltip {
     markdown: Entity<Markdown>,
     repository: Entity<Repository>,
     workspace: WeakEntity<Workspace>,
+    /// The file the commit view scrolls to when opened from this tooltip.
+    reveal_file: Option<RepoPath>,
+}
+
+/// The repository-relative file a blame entry belongs to, if its path is valid.
+pub(crate) fn blamed_repo_path(blame: &BlameEntry) -> Option<RepoPath> {
+    RepoPath::new(&blame.filename).ok()
 }
 
 impl CommitTooltip {
@@ -131,7 +139,7 @@ impl CommitTooltip {
             .and_then(|t| OffsetDateTime::from_unix_timestamp(t).ok())
             .unwrap_or(OffsetDateTime::now_utc());
 
-        Self::new(
+        let mut tooltip = Self::new(
             CommitDetails {
                 sha: blame.sha.to_string().into(),
                 commit_time,
@@ -144,7 +152,9 @@ impl CommitTooltip {
             repository,
             workspace,
             cx,
-        )
+        );
+        tooltip.reveal_file = blamed_repo_path(blame);
+        tooltip
     }
 
     pub fn new(
@@ -161,7 +171,7 @@ impl CommitTooltip {
                 cx,
             )
         });
-        Self { commit, repository, workspace, scroll_handle: ScrollHandle::new(), markdown }
+        Self { commit, repository, workspace, scroll_handle: ScrollHandle::new(), markdown, reveal_file: None }
     }
 }
 
@@ -204,6 +214,7 @@ impl Render for CommitTooltip {
         let message_max_height = window.line_height() * 12 + (ui_font_size / 0.4);
         let repo = self.repository.clone();
         let workspace = self.workspace.clone();
+        let reveal_file = self.reveal_file.clone();
         let commit_summary = CommitSummary {
             sha: self.commit.sha.clone(),
             subject: self.commit.message.as_ref().map_or(SharedString::default(), |message| {
@@ -274,12 +285,11 @@ impl Render for CommitTooltip {
                                                         .color(Color::Muted),
                                                 )
                                                 .on_click(move |_, window, cx| {
-                                                    CommitView::open(
+                                                    CommitView::open_revealing(
                                                         commit_summary.sha.to_string(),
                                                         repo.downgrade(),
                                                         workspace.clone(),
-                                                        None,
-                                                        None,
+                                                        reveal_file.clone(),
                                                         window,
                                                         cx,
                                                     );
@@ -410,4 +420,39 @@ pub(crate) fn fetch_unshallow(
             }
         })?
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use git::Oid;
+    use git::blame::BlameEntry;
+    use git::repository::RepoPath;
+
+    use super::blamed_repo_path;
+
+    fn blame_entry(filename: &str) -> BlameEntry {
+        BlameEntry {
+            sha: Oid::from_bytes(&[0; 20]).unwrap(),
+            range: 0..1,
+            original_line_number: 1,
+            author: None,
+            author_mail: None,
+            author_time: None,
+            author_tz: None,
+            committer_name: None,
+            committer_email: None,
+            committer_time: None,
+            committer_tz: None,
+            summary: None,
+            previous: None,
+            filename: filename.to_string(),
+            boundary: false,
+        }
+    }
+
+    #[test]
+    fn test_blamed_repo_path() {
+        assert_eq!(blamed_repo_path(&blame_entry("src/main.rs")), Some(RepoPath::new("src/main.rs").unwrap()));
+        assert_eq!(blamed_repo_path(&blame_entry("/abs/main.rs")), None);
+    }
 }

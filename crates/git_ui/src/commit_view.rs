@@ -332,6 +332,21 @@ impl CommitView {
         Self::open_with_options(commit_sha, repo, workspace, stash, file_filter, false, None, None, window, cx)
     }
 
+    /// Opens the commit view scrolled to `reveal_file` when given, at the top otherwise.
+    pub fn open_revealing(
+        commit_sha: String,
+        repo: WeakEntity<Repository>,
+        workspace: WeakEntity<Workspace>,
+        reveal_file: Option<RepoPath>,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        match reveal_file {
+            Some(repo_path) => Self::open_at_file(commit_sha, repo, workspace, repo_path, None, window, cx),
+            None => Self::open(commit_sha, repo, workspace, None, None, window, cx),
+        }
+    }
+
     /// Opens the commit view and scrolls to `repo_path` as soon as its diff is
     /// built. `commit_diff` is the commit's already loaded diff, if any.
     pub fn open_at_file(
