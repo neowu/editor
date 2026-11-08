@@ -51,6 +51,7 @@ use language::LanguageRegistry;
 use language::line_diff;
 use markdown::Markdown;
 use markdown::MarkdownElement;
+use markdown::MarkdownStyle;
 use project::git_store::CommitDataState;
 use project::git_store::CommitDiff;
 use project::git_store::CommitFile;
@@ -440,7 +441,7 @@ impl CommitDetailsPanel {
             return gpui::Empty.into_any_element();
         };
 
-        let message_style = editor::hover_markdown_style(window, cx);
+        let message_style = commit_message_style(editor::hover_markdown_style(window, cx));
         let line_height = message_style.base_text_style.line_height_in_pixels(window.rem_size());
         let collapsed = self.message_collapsed;
 
@@ -727,6 +728,11 @@ pub(crate) fn render_ref_chip(
         })
         .tooltip(move |_window, cx| Tooltip::simple(tooltip_text.clone(), cx))
         .into_any_element()
+}
+
+/// Commit bodies are hard-wrapped, so single newlines must stay line breaks.
+fn commit_message_style(base: MarkdownStyle) -> MarkdownStyle {
+    MarkdownStyle { soft_break_as_hard_break: true, ..base }
 }
 
 fn compute_diff_stats(diff: &CommitDiff) -> (usize, usize) {
@@ -1041,6 +1047,7 @@ mod tests {
     use super::CommitFileStatus;
     use super::FileStatus;
     use super::FxHashMap;
+    use super::MarkdownStyle;
     use super::RepoPath;
     use super::StatusCode;
     use super::TREE_INDENT;
@@ -1048,6 +1055,7 @@ mod tests {
     use super::ancestor_dirs;
     use super::build_changed_file_tree_entries;
     use super::changed_file_row_indent;
+    use super::commit_message_style;
     use super::compute_diff_stats;
     use super::px;
     use super::revealed_entry_index;
@@ -1162,5 +1170,10 @@ mod tests {
     fn test_changed_file_row_indent() {
         assert_eq!(changed_file_row_indent(0), px(0.));
         assert_eq!(changed_file_row_indent(2), px(2. * TREE_INDENT));
+    }
+
+    #[test]
+    fn test_commit_message_style_keeps_line_breaks() {
+        assert!(commit_message_style(MarkdownStyle::default()).soft_break_as_hard_break);
     }
 }
