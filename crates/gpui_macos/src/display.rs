@@ -12,7 +12,6 @@ use gpui::refresh_interval_from_hz;
 use gpui::size;
 use objc2::class;
 use objc2::msg_send;
-use objc2::sel;
 use objc2_core_foundation::CFRetained;
 use objc2_core_foundation::CFUUID;
 use objc2_core_graphics::CGDirectDisplayID;
@@ -176,13 +175,11 @@ impl PlatformDisplay for MacDisplay {
         // display mode's rate is 0 on built-in panels.
         let screen_hertz = unsafe {
             let screen = self.get_nsscreen();
-            let supports_maximum: bool =
-                if screen == nil { false } else { msg_send![screen, respondsToSelector: sel!(maximumFramesPerSecond)] };
-            if supports_maximum {
+            if screen == nil {
+                0.0
+            } else {
                 let frames_per_second: isize = msg_send![screen, maximumFramesPerSecond];
                 frames_per_second as f64
-            } else {
-                0.0
             }
         };
         refresh_interval_from_hz(screen_hertz).or_else(|| {

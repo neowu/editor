@@ -1,7 +1,8 @@
 use std::env;
 fn main() {
     assert_eq!(env::var("CARGO_CFG_TARGET_OS").as_deref(), Ok("macos"), "This editor only supports macOS.");
-    println!("cargo:rustc-env=MACOSX_DEPLOYMENT_TARGET=15.3");
+    // Sets the minimum macOS of the linked binary; keep in sync with Info.plist and the gpui_apple shader build.
+    println!("cargo:rustc-env=MACOSX_DEPLOYMENT_TARGET=27.2");
 
     // Seems to be required to enable Swift concurrency
     println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");

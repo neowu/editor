@@ -3,8 +3,11 @@
 ## Decision
 
 macOS is the only supported editor host. Both Apple Silicon and Intel
-Macs remain supported. Only the latest macOS is targeted; the minimum is 15.3
-and code does not gate on OS version at runtime. The headless
+Macs remain supported. Only the latest macOS is targeted; the minimum is 27.2
+and code does not gate on OS version at runtime. The minimum lives in source:
+`crates/ed/build.rs` (`MACOSX_DEPLOYMENT_TARGET` for the binary), `Info.plist`
+(`LSMinimumSystemVersion`), and the Metal shader build in `gpui_apple/build.rs`. `gpui_apple` builds only for
+macOS; iOS is not supported. The headless
 remote server supports macOS and Linux.
 
 SSH remotes support only macOS and Linux, using Unix paths and shells. Windows

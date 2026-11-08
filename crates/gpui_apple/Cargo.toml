@@ -6,7 +6,7 @@ edition.workspace = true
 [lib]
 path = "src/gpui_apple.rs"
 
-[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+[target.'cfg(target_os = "macos")'.dependencies]
 anyhow.workspace = true
 async-task.workspace = true
 block2.workspace = true
@@ -51,7 +51,7 @@ objc2-quartz-core = { workspace = true, features = ["CAMetalDisplayLink", "objc2
 parking_lot.workspace = true
 smallvec.workspace = true
 
-[target.'cfg(any(target_os = "macos", target_os = "ios"))'.build-dependencies]
+[target.'cfg(target_os = "macos")'.build-dependencies]
 cbindgen.workspace = true
 
 [features]

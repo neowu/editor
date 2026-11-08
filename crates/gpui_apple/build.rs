@@ -120,23 +120,6 @@ mod apple_build {
         use std::process::Command;
         use std::process::{self};
 
-        // Build scripts run on the host, so the target platform must come from
-        // Cargo's environment rather than `cfg!`. The target environment, not the
-        // target name, identifies simulators: `x86_64-apple-ios` has no `-sim` suffix.
-        let target_os = env::var("CARGO_CFG_TARGET_OS").expect("Cargo sets CARGO_CFG_TARGET_OS for build scripts");
-        let target_env = env::var("CARGO_CFG_TARGET_ENV").expect("Cargo sets CARGO_CFG_TARGET_ENV for build scripts");
-        let (sdk, minimum_version_argument) = match (target_os.as_str(), target_env.as_str()) {
-            ("macos", _) => ("macosx", "-mmacosx-version-min=15.3"),
-            ("ios", "sim") => ("iphonesimulator", "-mios-simulator-version-min=15.0"),
-            ("ios", "") => ("iphoneos", "-mios-version-min=15.0"),
-            _ => {
-                println!(
-                    "cargo::error=unsupported Metal shader target: target_os={target_os}, target_env={target_env}"
-                );
-                process::exit(1);
-            }
-        };
-
         let shader_path = "./src/shaders.metal";
         let air_output_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("shaders.air");
         let metallib_output_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join("shaders.metallib");
@@ -150,7 +133,7 @@ mod apple_build {
         fs::copy(shader_path, &staged_shader_path).unwrap();
 
         let output = Command::new("xcrun")
-            .args(["-sdk", sdk, "metal", "-gline-tables-only", minimum_version_argument, "-MO", "-c"])
+            .args(["-sdk", "macosx", "metal", "-gline-tables-only", "-mmacosx-version-min=27.2", "-MO", "-c"])
             .arg(&staged_shader_path)
             .args(["-include", header_path.to_str().unwrap(), "-o"])
             .arg(&air_output_path)
@@ -163,7 +146,7 @@ mod apple_build {
         }
 
         let output = Command::new("xcrun")
-            .args(["-sdk", sdk, "metallib"])
+            .args(["-sdk", "macosx", "metallib"])
             .arg(&air_output_path)
             .arg("-o")
             .arg(metallib_output_path)

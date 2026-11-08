@@ -1,6 +1,9 @@
+[build]
+warnings = "deny"
+
 [target.'cfg(all())']
 # v0 mangling scheme provides more detailed backtraces around closures
-rustflags = ["-C", "symbol-mangling-version=v0", "--cfg", "tokio_unstable"]
+rustflags = ["-C", "symbol-mangling-version=v0"]
 
 # rustc emits async unwind tables (epilogue CFI) by default, which macOS
 # compact unwind can't encode, so every function gets a DWARF FDE and the
@@ -9,9 +12,3 @@ rustflags = ["-C", "symbol-mangling-version=v0", "--cfg", "tokio_unstable"]
 # encodable), so panics and backtraces keep working.
 [target.'cfg(target_os = "macos")']
 rustflags = ["-C", "force-unwind-tables=no"]
-
-[alias]
-xtask = "run --package xtask --"
-
-[env]
-MACOSX_DEPLOYMENT_TARGET = "15.3"
