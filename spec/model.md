@@ -202,7 +202,7 @@ downcasts to the item types it cares about, and (re)subscribes to that item.
   `PaneBackdrop` says what shows between its cards): each pane records its
   laid-out bounds, gets a presented rect that decelerates toward them
   (`motion::GLIDE`, friction-style exponential decay: fastest at the start, no
-  overshoot, ~95% there in 0.14s), and one
+  overshoot, ~95% there in `motion::BASE`), and one
   overlay paints background where a card hasn't arrived and the card's
   silhouette where it hangs past its bounds: the tab strip in backdrop and the
   body below it as a rounded card, since a flat full-rect fill reads as a dark

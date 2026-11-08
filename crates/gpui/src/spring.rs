@@ -1,8 +1,12 @@
-//! Shared motion math: friction-style `Decay` for surfaces, and a closed-form
-//! spring for motion that must keep velocity across retargets (the cursor trail).
-//! Callers own their state and frame loop.
+//! Shared motion math and global timing (`motion`): friction-style `Decay` for
+//! surfaces, and a closed-form spring for motion that must keep velocity across
+//! retargets (the cursor trail). Callers own their state and frame loop.
 
 const CRITICAL_DAMPING_TOLERANCE: f32 = 1e-4;
+/// ln(20): a decay is ~95% there after this many time constants.
+const DECAY_TIME_CONSTANTS_TO_95: f32 = 2.995_732_3;
+/// ω·t at which a critically damped spring released at rest is ~95% there.
+const CRITICAL_OMEGA_T_TO_95: f32 = 4.743_864_4;
 
 /// The physical parameters of a damped harmonic oscillator.
 ///
@@ -26,6 +30,11 @@ impl SpringConfig {
             damping: 2.0 * damping_ratio * natural_frequency,
             mass: 1.0,
         }
+    }
+
+    /// A critically damped spring released at rest that covers ~95% of its distance in `settle_time` seconds.
+    pub const fn critically_damped(settle_time: f32) -> Self {
+        Self::from_canonical(CRITICAL_OMEGA_T_TO_95 / settle_time, 1.0)
     }
 
     /// Returns the natural angular frequency and damping ratio $(\omega_0, \zeta)$.
@@ -113,6 +122,11 @@ impl Decay {
         Self { time_constant }
     }
 
+    /// A decay that covers ~95% of its distance in `settle_time` seconds.
+    pub const fn settling_in(settle_time: f32) -> Self {
+        Self::new(settle_time / DECAY_TIME_CONSTANTS_TO_95)
+    }
+
     /// Fraction of the remaining distance still left after `delta_time` seconds.
     /// Compute once per frame and apply to every value sharing this decay.
     pub fn remaining(&self, delta_time: f32) -> f32 {
@@ -124,13 +138,20 @@ impl Decay {
     }
 }
 
-/// Shared presets, so UI motion uses a few consistent feels.
+/// Global motion tuning, like a theme for timing. Durations are seconds for a
+/// motion to cover ~95% of its distance; every animation derives from `BASE`
+/// through a ratio, so retuning `BASE` rescales all of them together.
 pub mod motion {
     use super::Decay;
 
-    /// Surfaces moving or arriving, decelerating like friction: ~95% there in
-    /// 0.14s, a 1000px move fully settled in ~0.35s.
-    pub const GLIDE: Decay = Decay::new(0.045);
+    /// Surfaces moving or arriving: panes and docks.
+    pub const BASE: f32 = 0.12;
+    /// Navigation that follows each keystroke (cursor trail, smooth scroll) is
+    /// faster than surfaces, so it never feels like waiting on input.
+    pub const NAVIGATION: f32 = 0.75 * BASE;
+
+    /// Surfaces decelerate like friction, no overshoot.
+    pub const GLIDE: Decay = Decay::settling_in(BASE);
 }
 
 /// The instantaneous position and velocity of a spring.
@@ -151,6 +172,21 @@ mod tests {
         let (frequency, damping) = SpringConfig::from_canonical(12.0, 0.8).canonical();
         assert!((frequency - 12.0).abs() < 1e-4);
         assert!((damping - 0.8).abs() < 1e-4);
+    }
+
+    #[test]
+    fn settle_time_constructors_cover_95_percent_in_settle_time() {
+        let settle_time = 0.1;
+        let decay = Decay::settling_in(settle_time);
+        assert!((decay.step(1.0, 0.0, settle_time) - 0.05).abs() < 1e-4);
+
+        let spring = SpringConfig::critically_damped(settle_time);
+        let state = spring.step(SpringState { position: 1.0, velocity: 0.0 }, 0.0, settle_time);
+        assert!((state.position - 0.05).abs() < 1e-4, "{state:?}");
+        assert!((spring.canonical().1 - 1.0).abs() < 1e-4);
+
+        assert!(motion::NAVIGATION < motion::BASE);
+        assert!((motion::GLIDE.step(1.0, 0.0, motion::BASE) - 0.05).abs() < 1e-4);
     }
 
     #[test]

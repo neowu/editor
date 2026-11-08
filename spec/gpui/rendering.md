@@ -24,13 +24,20 @@
   animated-element layer. Each caller owns its state and frame loop (advance in
   prepaint, `request_animation_frame` while moving, return early once
   settled), which keeps per-frame work specific and skippable.
+- Motion timing is global, like a theme: `gpui::motion::BASE` (seconds to
+  cover ~95% of the distance, 0.12s) is the one knob; every animation derives
+  its duration from it by a ratio. Surfaces (panes, docks) use `BASE`;
+  navigation that follows each keystroke (cursor trail, smooth scroll) uses
+  `NAVIGATION` = 0.75 × `BASE`, faster so input never feels like it waits.
+  Curves stay per use; `Decay::settling_in` and `SpringConfig::critically_damped`
+  convert a settle time into each curve's parameter.
 - `Decay` is friction-style deceleration (exponential decay, no overshoot,
   like a flung scroll) and is the feel for surfaces moving: pane motion and
   dock open/close use `motion::GLIDE`. Callers compute `remaining(dt)` once per
   frame and apply it to every value.
 - `SpringConfig` (exact closed-form steps for any damping ratio, frame-rate
   independent) is for motion that must keep velocity across retargets: the
-  cursor trail (critically damped, `from_canonical(ω, 1)`).
+  cursor trail (critically damped, `critically_damped(settle_time)`).
 - Animation must not cost layout: animate a cheap overlay or paint-only value
   over the final layout rather than sizes that invalidate cached views (their
   cache key includes bounds). Dragging is never animated. A dock or pane

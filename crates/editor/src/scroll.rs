@@ -45,7 +45,8 @@ use crate::display_map::ToDisplayPoint;
 use crate::hover_popover::hide_hover;
 
 const SCROLLBAR_SHOW_INTERVAL: Duration = Duration::from_secs(1);
-const SMOOTH_SCROLL_DURATION: Duration = Duration::from_millis(120);
+/// Ease-out cubic is ~95% there at 63% of its duration; scale so it matches `motion::NAVIGATION`.
+const SMOOTH_SCROLL_DURATION: Duration = Duration::from_micros((gpui::motion::NAVIGATION / 0.6316 * 1e6) as u64);
 /// Jumps of at most this many rows (e.g. the cursor stepping past the viewport edge) snap.
 const SMOOTH_SCROLL_MIN_JUMP_ROWS: ScrollOffset = 1.;
 /// Longer jumps skip ahead and only animate the last this-many screens.
@@ -778,6 +779,7 @@ impl Editor {
 #[cfg(test)]
 mod tests {
 
+    use super::Duration;
     use super::Instant;
     use super::SMOOTH_SCROLL_DURATION;
     use super::SMOOTH_SCROLL_EPSILON;
@@ -794,6 +796,15 @@ mod tests {
         assert!(20. > quarter && quarter > half && half > 0.);
         assert!(half < 10., "expected an ease out, got {half} left halfway");
         assert_eq!(smooth_scroll.remaining(started_at + SMOOTH_SCROLL_DURATION), None);
+    }
+
+    #[test]
+    fn smooth_scroll_is_95_percent_there_at_the_navigation_settle_time() {
+        let started_at = Instant::now();
+        let smooth_scroll = SmoothScroll { delta: 100., started_at };
+        let at = started_at + Duration::from_secs_f32(gpui::motion::NAVIGATION);
+        let remaining = smooth_scroll.remaining(at).unwrap();
+        assert!((remaining - 5.).abs() < 0.1, "{remaining} rows left");
     }
 
     #[test]

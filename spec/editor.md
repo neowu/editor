@@ -102,16 +102,17 @@
   `shows_project_file_actions`.
 - Smooth scrolling is always on, with no setting. Jumps (page/half-page
   scrolls and autoscroll to the cursor: search, go-to-definition, `G`) move
-  the scroll anchor at once; only drawing trails it, easing out over 120ms.
+  the scroll anchor at once; only drawing trails it, easing out (cubic) to ~95% in `motion::NAVIGATION`.
   Everything except painting (selections, events, saved position, LSP
   ranges) sees the destination immediately. Jumps of one row snap, so typing
   or stepping past the viewport edge never lags; jumps longer than a screen
   skip ahead and animate only the last screen. A new jump mid-animation starts
   from the drawn position. Both sides of a split diff animate together. Mouse
   and trackpad scrolling are not animated.
-- Cursor animation (neovide-style trail) runs 1.5× faster than the
-  vscode-neovide-cursor timings it is adapted from (~83ms for a long move).
-  Each corner axis is a critically damped `gpui::SpringConfig` (ω = 4 / length);
+- Cursor animation (neovide-style trail) keeps the vscode-neovide-cursor
+  timing proportions, scaled so a long move is ~95% there in
+  `motion::NAVIGATION` (90ms). Each corner axis is a critically damped
+  `gpui::SpringConfig` (`critically_damped(length)`);
   the trail logic (per-corner lengths, snapping) stays in `cursor_motion`.
 - No mouse-wheel zoom: Cmd/Ctrl+scroll scrolls like a plain scroll and never
   changes the buffer font size (removed with its `mouse_wheel_zoom` setting).

@@ -16,12 +16,11 @@ use gpui::Pixels;
 use gpui::Point;
 use gpui::SpringConfig;
 use gpui::SpringState;
+use gpui::motion;
 use gpui::point;
 use gpui::px;
 use rustc_hash::FxHashMap;
 
-/// Speed-up over the vscode-neovide-cursor timings.
-const ANIMATION_SPEED: f32 = 1.5;
 const MAX_FRAME_DURATION: Duration = Duration::from_millis(33);
 const SPRING_RESET_EPSILON: f32 = 0.001;
 const SPRING_ACTIVE_EPSILON: f32 = 0.01;
@@ -29,12 +28,14 @@ const CORNER_ACTIVE_DISTANCE: f32 = 0.5;
 const GEOMETRY_EPSILON: f32 = 0.01;
 const SHORT_MOVE_THRESHOLD: f32 = 8.0;
 const LEADING_SNAP_THRESHOLD: f32 = 0.5;
-const SNAP_ANIMATION_LENGTH_SECONDS: f32 = 0.02 / ANIMATION_SPEED;
-const ANIMATION_RESET_THRESHOLD_SECONDS: f32 = 0.075 / ANIMATION_SPEED;
 const MAX_TRAIL_DISTANCE_FACTOR: f32 = 100.0;
 const RANK_TRAIL_FACTORS: [f32; 4] = [1.0, 0.9, 0.5, 0.3];
-const ANIMATION_LENGTH_SECONDS: f32 = 0.125 / ANIMATION_SPEED;
-const SHORT_ANIMATION_LENGTH_SECONDS: f32 = 0.05 / ANIMATION_SPEED;
+// Lengths are ~95% settle times scaled from the global navigation timing, in
+// the same proportions as the vscode-neovide-cursor timings (0.125s long move).
+const ANIMATION_LENGTH_SECONDS: f32 = motion::NAVIGATION;
+const SHORT_ANIMATION_LENGTH_SECONDS: f32 = 0.4 * ANIMATION_LENGTH_SECONDS;
+const SNAP_ANIMATION_LENGTH_SECONDS: f32 = 0.16 * ANIMATION_LENGTH_SECONDS;
+const ANIMATION_RESET_THRESHOLD_SECONDS: f32 = 0.6 * ANIMATION_LENGTH_SECONDS;
 const TRAIL_SIZE: f32 = 1.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -188,8 +189,7 @@ impl DampedSpringAnimation {
             return self.state.position.abs() >= SPRING_ACTIVE_EPSILON;
         }
 
-        // ω = 4 / length settles (to ~e⁻⁴) in roughly `animation_length`.
-        self.state = SpringConfig::from_canonical(4.0 / animation_length, 1.0).step(self.state, 0.0, elapsed_seconds);
+        self.state = SpringConfig::critically_damped(animation_length).step(self.state, 0.0, elapsed_seconds);
 
         if !self.state.position.is_finite()
             || !self.state.velocity.is_finite()
@@ -596,6 +596,17 @@ mod tests {
             steps += 1;
             assert!(steps < 120, "spring never settled");
         }
+    }
+
+    #[test]
+    fn long_move_is_95_percent_there_at_the_navigation_settle_time() {
+        let mut spring = DampedSpringAnimation { state: SpringState { position: 100.0, velocity: 0.0 } };
+        let frame = ANIMATION_LENGTH_SECONDS / 10.0;
+        for _ in 0..10 {
+            assert!(spring.update(frame, ANIMATION_LENGTH_SECONDS));
+        }
+        assert!((spring.state.position - 5.0).abs() < 0.1, "{:?}", spring.state);
+        assert_eq!(ANIMATION_LENGTH_SECONDS, motion::NAVIGATION);
     }
 
     #[test]
