@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use settings::ScanSymlinksSetting;
 use settings::Settings;
 use util::paths::PathMatcher;
@@ -15,7 +13,6 @@ pub struct WorktreeSettings {
     pub scan_symlinks: ScanSymlinksSetting,
     pub file_scan_depth: Option<u32>,
     pub hidden_files: PathMatcher,
-    pub read_only_files: PathMatcher,
 }
 
 settings::register_setting!(WorktreeSettings);
@@ -32,14 +29,6 @@ impl WorktreeSettings {
     pub fn is_path_hidden(&self, path: &RelPath) -> bool {
         path.ancestors().any(|ancestor| self.hidden_files.is_match(ancestor))
     }
-
-    pub fn is_path_read_only(&self, path: &RelPath) -> bool {
-        self.read_only_files.is_match(path)
-    }
-
-    pub fn is_std_path_read_only(&self, path: &Path) -> bool {
-        self.read_only_files.is_match_std_path(path)
-    }
 }
 
 impl Settings for WorktreeSettings {
@@ -48,7 +37,6 @@ impl Settings for WorktreeSettings {
         let file_scan_exclusions = worktree.file_scan_exclusions.unwrap();
         let file_scan_inclusions = worktree.file_scan_inclusions.unwrap();
         let hidden_files = worktree.hidden_files.unwrap();
-        let read_only_files = worktree.read_only_files.unwrap_or_default();
         let scan_symlinks = worktree.scan_symlinks.unwrap();
         let (file_scan_inclusions, parent_dir_scan_inclusions) = file_scan_inclusion_matchers(file_scan_inclusions);
 
@@ -57,7 +45,6 @@ impl Settings for WorktreeSettings {
             parent_dir_scan_inclusions,
             file_scan_inclusions,
             hidden_files: valid_path_matchers(hidden_files, "hidden_files"),
-            read_only_files: valid_path_matchers(read_only_files, "read_only_files"),
             scan_symlinks,
             file_scan_depth: worktree.file_scan_depth.filter(|depth| *depth > 0),
         }

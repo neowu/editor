@@ -54,7 +54,6 @@ use worktree::PathChange;
 use worktree::ProjectEntryId;
 use worktree::Worktree;
 use worktree::WorktreeId;
-use worktree::WorktreeSettings;
 
 use crate::ProjectPath;
 use crate::lsp_store::OpenLspBufferHandle;
@@ -104,6 +103,7 @@ struct RemoteBufferStore {
     loading_remote_buffers_by_id: FxHashMap<BufferId, Entity<Buffer>>,
     remote_buffer_listeners: FxHashMap<BufferId, Vec<oneshot::Sender<anyhow::Result<Entity<Buffer>>>>>,
     worktree_store: Entity<WorktreeStore>,
+    _subscription: Subscription,
 }
 
 struct LocalBufferStore {
@@ -197,12 +197,15 @@ impl RemoteBufferStore {
                             .read(cx)
                             .worktree_for_id(worktree_id, cx)
                             .with_context(|| format!("no worktree found for id {}", file.worktree_id))?;
+                        let file = File::from_proto(file, worktree, cx)?;
                         // Buffers the host opens itself (e.g. a go-to-definition target)
                         // arrive here without passing through `open_buffer`.
-                        if worktree.read(cx).library_name().is_some() {
-                            capability = Capability::ReadOnly;
+                        if capability.editable() {
+                            let is_writable =
+                                file.worktree.read(cx).entry_for_path(&file.path).is_none_or(|entry| entry.is_writable);
+                            capability = worktree_file_capability(&file, is_writable, cx);
                         }
-                        buffer_file = Some(Arc::new(File::from_proto(file, worktree, cx)?) as Arc<dyn language::File>);
+                        buffer_file = Some(Arc::new(file) as Arc<dyn language::File>);
                     }
                     anyhow::Ok(buffer_file)
                 })();
@@ -515,7 +518,7 @@ impl LocalBufferStore {
                 .or_else(|| snapshot.entry_for_path(old_file.path.as_ref()));
 
             if let Some(entry) = snapshot_entry {
-                buffer.set_capability(local_file_capability(old_file, entry.is_writable, cx), cx);
+                buffer.set_capability(worktree_file_capability(old_file, entry.is_writable, cx), cx);
             }
 
             let new_file = if let Some(entry) = snapshot_entry {
@@ -633,7 +636,7 @@ impl LocalBufferStore {
                         })
                         .await;
                     cx.insert_entity(reservation, |cx| {
-                        let capability = local_file_capability(&loaded.file, loaded.is_writable, cx);
+                        let capability = worktree_file_capability(&loaded.file, loaded.is_writable, cx);
                         let mut buffer = Buffer::build(text_buffer, Some(loaded.file), capability, cx);
                         // Bulk loads (project search, multi-file diffs) mostly never get
                         // displayed; editors start the parse for the buffers they draw.
@@ -770,7 +773,7 @@ impl BufferStore {
         worktree_store: Entity<WorktreeStore>,
         upstream_client: AnyProtoClient,
         remote_id: u64,
-        _cx: &mut Context<Self>,
+        cx: &mut Context<Self>,
     ) -> Self {
         Self {
             state: BufferStoreState::Remote(RemoteBufferStore {
@@ -779,6 +782,16 @@ impl BufferStore {
                 project_id: remote_id,
                 upstream_client,
                 worktree_store: worktree_store.clone(),
+                _subscription: cx.subscribe(&worktree_store, |_, _, event, cx| {
+                    if let WorktreeStoreEvent::WorktreeAdded(worktree) = event {
+                        cx.subscribe(worktree, |this, worktree, event, cx| {
+                            if let worktree::Event::UpdatedEntries(changes) = event {
+                                this.remote_worktree_entries_changed(&worktree, changes, cx);
+                            }
+                        })
+                        .detach();
+                    }
+                }),
             }),
             downstream_client: None,
             opened_buffers: FxHashMap::default(),
@@ -963,6 +976,35 @@ impl BufferStore {
 
     pub fn get_by_path(&self, path: &ProjectPath) -> Option<Entity<Buffer>> {
         self.path_to_buffer_id.get(path).and_then(|buffer_id| self.get(*buffer_id))
+    }
+
+    /// The host re-derives a buffer's capability on its own entry changes, but that isn't synced
+    /// with the buffer, so remote buffers re-derive it from the synced entries the same way.
+    fn remote_worktree_entries_changed(
+        &self,
+        worktree: &Entity<Worktree>,
+        changes: &[(Arc<RelPath>, ProjectEntryId, PathChange)],
+        cx: &mut Context<Self>,
+    ) {
+        let updates = {
+            let worktree = worktree.read(cx);
+            let worktree_id = worktree.id();
+            changes
+                .iter()
+                .filter_map(|(path, entry_id, _)| {
+                    let buffer_id = self.path_to_buffer_id.get(&ProjectPath { worktree_id, path: path.clone() })?;
+                    let buffer = self.get(*buffer_id)?;
+                    Some((buffer, worktree.entry_for_id(*entry_id)?.is_writable))
+                })
+                .collect::<Vec<_>>()
+        };
+        for (buffer, is_writable) in updates {
+            buffer.update(cx, |buffer, cx| {
+                let Some(file) = File::from_dyn(buffer.file()) else { return };
+                let capability = worktree_file_capability(file, is_writable, cx);
+                buffer.set_capability(capability, cx);
+            });
+        }
     }
 
     pub fn get(&self, buffer_id: BufferId) -> Option<Entity<Buffer>> {
@@ -1547,20 +1589,14 @@ fn apply_initial_line_ending(buffer: &mut Buffer, cx: &mut Context<Buffer>) {
     }
 }
 
-/// A local worktree file is read-only when it lacks write permission, is a library source, or
-/// matches the `read_only_files` setting. Re-derived whenever its worktree entry changes.
-fn local_file_capability(file: &File, is_writable: bool, cx: &App) -> Capability {
-    let settings = WorktreeSettings::get_global(cx);
-    let settings_read_only = if file.path.is_empty() {
-        settings.is_std_path_read_only(&file.full_path(cx))
-    } else {
-        settings.is_path_read_only(&file.path)
-    };
-    file_capability(is_writable, file.worktree.read(cx).library_name().is_some(), settings_read_only)
+/// A worktree file is read-only when it lacks write permission or is a library source.
+/// Re-derived whenever its worktree entry changes, local or remote.
+fn worktree_file_capability(file: &File, is_writable: bool, cx: &App) -> Capability {
+    file_capability(is_writable, file.worktree.read(cx).library_name().is_some())
 }
 
-const fn file_capability(is_writable: bool, is_library: bool, settings_read_only: bool) -> Capability {
-    if is_writable && !is_library && !settings_read_only { Capability::ReadWrite } else { Capability::ReadOnly }
+const fn file_capability(is_writable: bool, is_library: bool) -> Capability {
+    if is_writable && !is_library { Capability::ReadWrite } else { Capability::ReadOnly }
 }
 
 #[cfg(test)]
@@ -1571,9 +1607,9 @@ mod file_capability_tests {
 
     #[test]
     fn test_file_capability() {
-        assert_eq!(file_capability(true, false, false), Capability::ReadWrite);
-        assert_eq!(file_capability(false, false, false), Capability::ReadOnly);
-        assert_eq!(file_capability(true, true, false), Capability::ReadOnly);
-        assert_eq!(file_capability(true, false, true), Capability::ReadOnly);
+        assert_eq!(file_capability(true, false), Capability::ReadWrite);
+        assert_eq!(file_capability(false, false), Capability::ReadOnly);
+        assert_eq!(file_capability(true, true), Capability::ReadOnly);
+        assert_eq!(file_capability(false, true), Capability::ReadOnly);
     }
 }

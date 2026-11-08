@@ -3263,7 +3263,7 @@ pub struct Entry {
     pub size: u64,
     pub char_bag: CharBag,
     pub is_fifo: bool,
-    /// Local only (not synced over proto); a permission change makes the entry `Updated`.
+    /// A permission change makes the entry `Updated`, so remote clients get it too.
     pub is_writable: bool,
 }
 
@@ -5691,6 +5691,7 @@ impl<'a> From<&'a Entry> for proto::Entry {
             size: Some(entry.size),
             canonical_path: entry.canonical_path.as_ref().map(|path| path.to_string_lossy().into_owned()),
             is_unloaded: entry.kind == EntryKind::UnloadedDir,
+            is_read_only: !entry.is_writable,
         }
     }
 }
@@ -5722,7 +5723,7 @@ impl TryFrom<(&CharBag, &PathMatcher, proto::Entry)> for Entry {
             is_external: entry.is_external,
             char_bag,
             is_fifo: entry.is_fifo,
-            is_writable: true,
+            is_writable: !entry.is_read_only,
         })
     }
 }
@@ -5966,4 +5967,23 @@ fn push_normalized(rope: &mut Rope, text: &str, scratch: &mut String) {
     }
     scratch.push_str(&text[start..]);
     rope.push(scratch);
+}
+
+#[cfg(test)]
+mod entry_proto_tests {
+    use fuzzy::CharBag;
+    use rpc::proto;
+    use util::paths::PathMatcher;
+
+    use super::Entry;
+
+    #[test]
+    fn test_entry_writability_round_trips_through_proto() {
+        for is_read_only in [false, true] {
+            let proto_entry = proto::Entry { path: "a.txt".into(), is_read_only, ..Default::default() };
+            let entry = Entry::try_from((&CharBag::default(), &PathMatcher::default(), proto_entry)).unwrap();
+            assert_eq!(entry.is_writable, !is_read_only);
+            assert_eq!(proto::Entry::from(&entry).is_read_only, is_read_only);
+        }
+    }
 }

@@ -177,10 +177,13 @@
   replace (no toggle, row, or `ToggleReplace`/replace-deploy) on any search
   item that is not editable.
 - Read-only is a property of the file, never a user toggle. A worktree
-  buffer is `Capability::ReadOnly` when the file isn't writable, matches the
-  `read_only_files` setting, or is a library source; this is re-derived on
+  buffer is `Capability::ReadOnly` when the file isn't writable or is a
+  library source (there is no `read_only_files` setting); this is re-derived on
   every worktree entry change, so `chmod` takes effect live (entries carry
-  `is_writable`, local only). Git revisions and commit views are read-only too.
+  `is_writable`). Remote projects behave the same: writability is synced on
+  `proto::Entry` (`is_read_only`), and the client re-derives the capability of
+  its remote buffers from the synced entries rather than syncing buffer
+  capability itself. Git revisions and commit views are read-only too.
   There is no "Make Tab Read-Only/Editable" menu entry, no
   `workspace::ToggleReadOnlyFile` action, and no soft-read-only (`Read`)
   `Capability`.

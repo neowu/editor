@@ -147,7 +147,6 @@ use language::Buffer;
 use language::BufferRow;
 use language::BufferSnapshot;
 use language::CachedLspAdapter;
-use language::Capability;
 use language::CodeLabel;
 use language::CodeLabelExt;
 use language::Diagnostic;
@@ -8174,8 +8173,8 @@ impl LspStore {
         cx.spawn(async move |lsp_store, cx| {
             let abs_path = abs_path.to_file_path().map_err(|()| anyhow!("can't convert URI to path"))?;
             let worktree = find_worktree_for_lsp_path(&lsp_store, &abs_path, cx).await?;
-            let (worktree, relative_path, source_ws) = if let Some((worktree, relative_path)) = worktree {
-                (worktree, relative_path, None)
+            let (worktree, relative_path) = if let Some((worktree, relative_path)) = worktree {
+                (worktree, relative_path)
             } else {
                 let worktree = lsp_store
                     .update(cx, |lsp_store, cx| {
@@ -8185,44 +8184,25 @@ impl LspStore {
                     })?
                     .await?;
                 let worktree_root = worktree.read_with(cx, |worktree, _| worktree.abs_path());
-                let source_ws = if worktree.read_with(cx, |worktree, _| worktree.is_local()) {
+                if worktree.read_with(cx, |worktree, _| worktree.is_local()) {
                     lsp_store
                         .update(cx, |lsp_store, cx| {
                             if let Some(local) = lsp_store.as_local_mut() {
                                 local.register_language_server_for_invisible_worktree(&worktree, language_server_id, cx)
                             }
-                            match lsp_store.language_server_statuses.get(&language_server_id) {
-                                Some(status) => status.worktree,
-                                None => None,
-                            }
                         })
-                        .ok()
-                        .flatten()
-                        .zip(Some(worktree_root.clone()))
-                } else {
-                    None
-                };
+                        .ok();
+                }
                 let relative_path = RelPath::new(abs_path.strip_prefix(worktree_root)?)?.into_arc();
-                (worktree, relative_path, source_ws)
+                (worktree, relative_path)
             };
             let project_path =
                 ProjectPath { worktree_id: worktree.read_with(cx, |worktree, _| worktree.id()), path: relative_path };
-            let buffer = lsp_store
+            lsp_store
                 .update(cx, |lsp_store, cx| {
                     lsp_store.buffer_store().update(cx, |buffer_store, cx| buffer_store.open_buffer(project_path, cx))
                 })?
-                .await?;
-            // we want to adhere to the read-only settings of the worktree we came from in case we opened an invisible one
-            if let Some((_, worktree_root)) = source_ws {
-                buffer.update(cx, |buffer, cx| {
-                    let settings = WorktreeSettings::get_global(cx);
-                    let is_read_only = settings.is_std_path_read_only(&worktree_root);
-                    if is_read_only {
-                        buffer.set_capability(Capability::ReadOnly, cx);
-                    }
-                });
-            }
-            Ok(buffer)
+                .await
         })
     }
 

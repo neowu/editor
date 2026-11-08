@@ -147,7 +147,6 @@ fn project_settings() -> ProjectSettingsContent {
             scan_symlinks: Some(ScanSymlinksSetting::Expanded),
             file_scan_depth: Some(5),
             hidden_files: Some(vec!["**/.*".into()]),
-            read_only_files: Some(vec![]),
         },
         lsp: LspSettingsMap(
             [(

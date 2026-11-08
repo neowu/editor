@@ -164,32 +164,6 @@ pub struct WorktreeSettingsContent {
     /// Inherited patterns are inserted at `"..."`, and duplicates keep their first
     /// occurrence.
     pub hidden_files: Option<Vec<String>>,
-
-    /// Treat files matching these glob patterns as read-only when opened. You can
-    /// view but not edit them, which is useful for build outputs, external
-    /// dependencies, or generated files.
-    ///
-    /// Default:
-    ///
-    /// ```json
-    /// {
-    ///   "read_only_files": []
-    /// }
-    /// ```
-    ///
-    /// Use `"..."` to add patterns without repeating ed's defaults. In project
-    /// settings, it extends the user or parent configuration value. Omit
-    /// `"..."` to replace the inherited list.
-    ///
-    /// ```json
-    /// {
-    ///   "read_only_files": ["**/build/**", "..."]
-    /// }
-    /// ```
-    ///
-    /// Inherited patterns are inserted at `"..."`, and duplicates keep their first
-    /// occurrence.
-    pub read_only_files: Option<Vec<String>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]

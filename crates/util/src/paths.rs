@@ -529,18 +529,6 @@ impl PathMatcher {
 
         self.glob.is_match(format!("{other_path}/"))
     }
-
-    pub fn is_match_std_path<P: AsRef<Path>>(&self, other: P) -> bool {
-        let other = other.as_ref();
-        if self
-            .sources
-            .iter()
-            .any(|(_, source, _)| other.starts_with(source.as_std_path()) || other.ends_with(source.as_std_path()))
-        {
-            return true;
-        }
-        self.glob.is_match(other)
-    }
 }
 
 impl Default for PathMatcher {

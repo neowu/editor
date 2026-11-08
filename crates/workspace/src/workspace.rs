@@ -2724,9 +2724,6 @@ impl Workspace {
             if !worktree.read(cx).is_visible() {
                 return None;
             }
-            if WorktreeSettings::get_global(cx).is_path_read_only(&path.path) {
-                return None;
-            }
             abs_path
         })
     }
