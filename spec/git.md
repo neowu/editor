@@ -234,6 +234,10 @@ blobs with no language server, so they are not mixed into editor panes.
   ready, so it scrolls to the clicked file without waiting for the rest of the
   commit. The scroll puts the file's header at the top and is anchored inside
   that file, so files inserted above it while loading don't move it out of view.
+- Opening a commit from blame (gutter click, the blame tooltip's SHA button,
+  "Open Git Blame Commit") scrolls to the blamed file the same way.
+- The commit message keeps its line breaks (soft breaks render as hard
+  breaks), since commit bodies are hard-wrapped.
 - While one of the commit's revision tabs, or a preview of one, is active,
   clicking a changed file opens that file's revision instead (like "Open Revision" on its excerpt, so it
   follows the preview-tab settings and lands on the first hunk). The click

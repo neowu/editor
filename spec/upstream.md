@@ -72,6 +72,11 @@ from upstream in layout as well as in behaviour.
 - 2026-11-05 fixes from that range: ported #66474, #65744, #66472, #66540,
   #66195 (only the `BasicContextProvider` worktree-root part; the rest is
   `tasks_ui`) and #66459.
+- 2026-11-08 pass over `dcf3f98c9a..b5cd310b3b`: ported #66650, #66608,
+  #63940, #64056 (insets summed inline, without #66614) and #65237 (only
+  routing blame through the fork's existing `open_at_file`; upstream's
+  `CommitViewOptions` refactor not taken). The next full review still
+  starts at `02d47bf64f`; new commits start at `b5cd310b3b`.
 
 ### Pending
 
@@ -92,6 +97,11 @@ Fork-relevant commits from `504a7f2c..dcf3f98c9a` not yet decided:
   hierarchy name/detail gap), #66384 (worktree picker matches branch names),
   #66330 and #66137 (JetBrains keymap fixes).
 - Features: #66450 (setting to hide the edit prediction status bar button).
+
+Fork-relevant commits from `dcf3f98c9a..b5cd310b3b` not yet decided:
+
+- UI: #66615 (submenu stays open on keypress while hovering its trigger;
+  follow-up to the pending #66461).
 
 ### Declined
 
@@ -155,6 +165,13 @@ upstream change depends on them or the need changes.
   release. Re-evaluate if it relands.
 - #66294 (unreferenced `notification_store` bits): the fork already removed
   `notification_store` entirely.
+- From `dcf3f98c9a..b5cd310b3b`: #66482 (git panel "Compare Against Base"
+  branch mode; ~2.5k lines on top of the pending submenu work) and #66533
+  (git date format and per-view date style settings) as features not
+  wanted; #66614 (`Along for Edges`, changes `apply_along` to `Fn`) as churn;
+  #66599 (gpui example only); #66594 (WSL/Windows-remote path style);
+  #66569, #58112 (extensions), #66588 (Windows), #64664, #66345, #63998
+  (agent/ACP), #66524 (crates.io tooling), #66617 (CI).
 
 ### Things to do on the next pass
 

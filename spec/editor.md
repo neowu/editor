@@ -176,6 +176,9 @@
   rather than disabled since they can never apply there. Buffer search offers no
   replace (no toggle, row, or `ToggleReplace`/replace-deploy) on any search
   item that is not editable.
+- The tab lock icon and "Make Tab Read-Only/Editable" appear only on items
+  that can toggle (an editor over a single buffer, via
+  `Item::read_only_toggle_buffer`), not on every non-editable item.
 - Diagnostics have one per-editor switch, `editor::ToggleDiagnostics`, which turns underlines,
   inline messages, problem navigation and LSP pulls on or off together. Inline
   messages always show while diagnostics are on: there is no
