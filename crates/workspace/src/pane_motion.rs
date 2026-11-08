@@ -28,6 +28,7 @@ use gpui::MouseUpEvent;
 use gpui::Pixels;
 use gpui::Styled;
 use gpui::canvas;
+use gpui::deferred;
 use gpui::fill;
 use gpui::hsla;
 use gpui::motion;
@@ -326,6 +327,9 @@ pub(crate) fn record_bounds(motion: Rc<RefCell<PaneMotion>>, id: EntityId, strip
 /// Paints `motion`'s overlay after the group's panes (which record their bounds
 /// during prepaint), keeping frames coming while anything moves. `backdrop` is
 /// what shows between the group's cards; `zoomed` says one pane is shown zoomed.
+/// Deferred so it escapes ancestor clipping and paints over neighbours: an
+/// unzooming pane shrinks from the whole area, over docks and the sidebar, back
+/// into a group that may be clipped to the center column.
 pub(crate) fn render_overlay(
     motion: Rc<RefCell<PaneMotion>>,
     backdrop: Hsla,
@@ -333,56 +337,58 @@ pub(crate) fn render_overlay(
     cx: &App,
 ) -> impl IntoElement {
     let card = cx.theme().colors().editor_background;
-    canvas(
-        move |region, window, _| {
-            let mut state = motion.borrow_mut();
-            let overlay = if state.update(region, zoomed, Instant::now()) {
-                window.request_animation_frame();
-                state.overlay()
-            } else {
-                PaneOverlay::default()
-            };
-            (overlay, motion.clone())
-        },
-        move |_, (overlay, motion), window, _| {
-            for bounds in overlay.covers {
-                window.paint_quad(fill(bounds, backdrop));
-            }
-            let radii = Corners::all(CARD_RADIUS);
-            for ghost in overlay.ghosts {
-                let shadow = [BoxShadow::new(px(0.), SHADOW_OFFSET_Y, hsla(0., 0., 0., SHADOW_ALPHA * ghost.lift))
-                    .blur_radius(SHADOW_BLUR)];
-                for piece in ghost.shadow {
-                    window.with_content_mask(Some(ContentMask { bounds: piece }), |window| {
-                        window.paint_drop_shadows(ghost.body, radii, &shadow);
-                    });
+    deferred(
+        canvas(
+            move |region, window, _| {
+                let mut state = motion.borrow_mut();
+                let overlay = if state.update(region, zoomed, Instant::now()) {
+                    window.request_animation_frame();
+                    state.overlay()
+                } else {
+                    PaneOverlay::default()
+                };
+                (overlay, motion.clone())
+            },
+            move |_, (overlay, motion), window, _| {
+                for bounds in overlay.covers {
+                    window.paint_quad(fill(bounds, backdrop));
                 }
-                for piece in ghost.pieces {
-                    window.with_content_mask(Some(ContentMask { bounds: piece }), |window| {
-                        window.paint_quad(fill(ghost.presented, backdrop));
-                        window.paint_quad(fill(ghost.body, card).corner_radii(radii));
-                    });
-                }
-            }
-            window.on_mouse_event({
-                let motion = motion.clone();
-                move |event: &MouseDownEvent, phase, _, _| {
-                    if phase == DispatchPhase::Capture && event.button == MouseButton::Left {
-                        motion.borrow_mut().pointer_pressed = true;
+                let radii = Corners::all(CARD_RADIUS);
+                for ghost in overlay.ghosts {
+                    let shadow = [BoxShadow::new(px(0.), SHADOW_OFFSET_Y, hsla(0., 0., 0., SHADOW_ALPHA * ghost.lift))
+                        .blur_radius(SHADOW_BLUR)];
+                    for piece in ghost.shadow {
+                        window.with_content_mask(Some(ContentMask { bounds: piece }), |window| {
+                            window.paint_drop_shadows(ghost.body, radii, &shadow);
+                        });
+                    }
+                    for piece in ghost.pieces {
+                        window.with_content_mask(Some(ContentMask { bounds: piece }), |window| {
+                            window.paint_quad(fill(ghost.presented, backdrop));
+                            window.paint_quad(fill(ghost.body, card).corner_radii(radii));
+                        });
                     }
                 }
-            });
-            window.on_mouse_event(move |event: &MouseUpEvent, phase, _, _| {
-                if phase == DispatchPhase::Capture && event.button == MouseButton::Left {
-                    motion.borrow_mut().pointer_pressed = false;
-                }
-            });
-        },
+                window.on_mouse_event({
+                    let motion = motion.clone();
+                    move |event: &MouseDownEvent, phase, _, _| {
+                        if phase == DispatchPhase::Capture && event.button == MouseButton::Left {
+                            motion.borrow_mut().pointer_pressed = true;
+                        }
+                    }
+                });
+                window.on_mouse_event(move |event: &MouseUpEvent, phase, _, _| {
+                    if phase == DispatchPhase::Capture && event.button == MouseButton::Left {
+                        motion.borrow_mut().pointer_pressed = false;
+                    }
+                });
+            },
+        )
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full(),
     )
-    .absolute()
-    .top_0()
-    .left_0()
-    .size_full()
 }
 
 #[cfg(test)]

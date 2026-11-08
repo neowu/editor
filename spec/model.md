@@ -216,6 +216,9 @@ downcasts to the item types it cares about, and (re)subscribes to that item.
   card shows its content only where it overlaps its final bounds. The first
   frame, a group region resize (window resize, dock toggle) and anything
   while the pointer is down (divider drags) snap.
+- The pane overlay is `deferred`: it paints above neighbours and escapes
+  ancestor clipping, so an unzooming pane visibly shrinks from the zoomed area
+  (over docks) back into the clipped center column.
 - Zoom goes through the same motion: the zoomed pane renders via
   `PaneGroup::render_zoomed`, recording its zoomed bounds into its group's
   motion, so zooming in grows the card from its rect (other panes vanish to
