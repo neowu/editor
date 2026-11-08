@@ -451,7 +451,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("cmd-b", "workspace::CycleLeftDock"),
             KeyBindingSpec::new("cmd-r", "workspace::CycleRightDock"),
             KeyBindingSpec::new("cmd-j", "terminal_panel::ToggleShell"),
-            KeyBindingSpec::new("alt-cmd-y", "workspace::ToggleAllDocks"),
             KeyBindingSpec::new("ctrl-alt-0", "workspace::ResetActiveDockSize"),
             KeyBindingSpec::new("ctrl-alt--", "workspace::DecreaseActiveDockSize").with_input(json!({"px": 0})),
             KeyBindingSpec::new("ctrl-alt-=", "workspace::IncreaseActiveDockSize").with_input(json!({"px": 0})),

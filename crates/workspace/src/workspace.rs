@@ -295,8 +295,6 @@ actions!(
         CloseActiveDock,
         /// Closes all docks.
         CloseAllDocks,
-        /// Toggles all docks.
-        ToggleAllDocks,
         /// Closes the current window.
         CloseWindow,
         /// Closes the current project.
@@ -1097,7 +1095,6 @@ pub struct Workspace {
     /// The `.ed/workspace.json` contents last written, to skip identical writes.
     last_serialized_state: Option<String>,
     scheduled_tasks: Vec<Task<()>>,
-    last_open_dock_positions: Vec<DockPosition>,
     removing: bool,
     _panels_task: Option<Task<Result<()>>>,
     active_worktree_creation: ActiveWorktreeCreation,
@@ -1365,7 +1362,6 @@ impl Workspace {
             last_serialized_state: None,
 
             scheduled_tasks: Vec::new(),
-            last_open_dock_positions: Vec::new(),
             removing: false,
             active_worktree_creation: ActiveWorktreeCreation::default(),
             deferred_save_items: Vec::new(),
@@ -2865,10 +2861,6 @@ impl Workspace {
 
         let was_visible = self.is_dock_visible(dock_side, cx);
 
-        if was_visible {
-            self.save_open_dock_positions(cx);
-        }
-
         let dock = self.dock_at_position(dock_side);
         dock.update(cx, |dock, cx| {
             dock.set_open(!was_visible, window, cx);
@@ -2939,9 +2931,8 @@ impl Workspace {
             .find(|&dock| dock.read(cx).is_open() && dock.focus_handle(cx).contains_focused(window, cx))
     }
 
-    fn close_active_dock(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    fn close_active_dock(&self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         if let Some(dock) = self.active_dock(window, cx).cloned() {
-            self.save_open_dock_positions(cx);
             dock.update(cx, |dock, cx| {
                 dock.set_open(false, window, cx);
             });
@@ -2954,66 +2945,10 @@ impl Workspace {
         if !self.mode.has_docks() {
             return;
         }
-        self.save_open_dock_positions(cx);
         for dock in self.all_docks() {
             dock.update(cx, |dock, cx| {
                 dock.set_open(false, window, cx);
             });
-        }
-
-        cx.focus_self(window);
-        cx.notify();
-        self.serialize_workspace(window, cx);
-    }
-
-    fn get_open_dock_positions(&self, cx: &Context<Self>) -> Vec<DockPosition> {
-        self.all_docks()
-            .into_iter()
-            .filter_map(|dock| {
-                let dock_ref = dock.read(cx);
-                if dock_ref.is_open() { Some(dock_ref.position()) } else { None }
-            })
-            .collect()
-    }
-
-    /// Saves the positions of currently open docks.
-    ///
-    /// Updates `last_open_dock_positions` with positions of all currently open
-    /// docks, to later be restored by the 'Toggle All Docks' action.
-    fn save_open_dock_positions(&mut self, cx: &Context<Self>) {
-        let open_dock_positions = self.get_open_dock_positions(cx);
-        if !open_dock_positions.is_empty() {
-            self.last_open_dock_positions = open_dock_positions;
-        }
-    }
-
-    /// Toggles all docks between open and closed states.
-    ///
-    /// If any docks are open, closes all and remembers their positions. If all
-    /// docks are closed, restores the last remembered dock configuration.
-    fn toggle_all_docks(&mut self, _: &ToggleAllDocks, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.mode.has_docks() {
-            return;
-        }
-        let open_dock_positions = self.get_open_dock_positions(cx);
-
-        if !open_dock_positions.is_empty() {
-            self.close_all_docks(window, cx);
-        } else if !self.last_open_dock_positions.is_empty() {
-            self.restore_last_open_docks(window, cx);
-        }
-    }
-
-    /// Reopens docks from the most recently remembered configuration.
-    ///
-    /// Opens all docks whose positions are stored in `last_open_dock_positions`
-    /// and clears the stored positions.
-    fn restore_last_open_docks(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let positions_to_open = mem::take(&mut self.last_open_dock_positions);
-
-        for position in positions_to_open {
-            let dock = self.dock_at_position(position);
-            dock.update(cx, |dock, cx| dock.set_open(true, window, cx));
         }
 
         cx.focus_self(window);
@@ -4896,7 +4831,6 @@ impl Workspace {
             .on_action(cx.listener(|workspace: &mut Workspace, _: &CloseAllDocks, window, cx| {
                 workspace.close_all_docks(window, cx);
             }))
-            .on_action(cx.listener(Self::toggle_all_docks))
             .on_action(cx.listener(|workspace: &mut Workspace, _: &ClearAllNotifications, _, cx| {
                 workspace.clear_all_notifications(cx);
             }))

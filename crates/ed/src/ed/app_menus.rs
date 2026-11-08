@@ -20,7 +20,6 @@ pub fn app_menus(_cx: &mut App) -> Vec<Menu> {
         MenuItem::action("Cycle Left Dock", workspace::CycleLeftDock),
         MenuItem::action("Cycle Right Dock", workspace::CycleRightDock),
         MenuItem::action("Toggle Bottom Dock", workspace::ToggleBottomDock),
-        MenuItem::action("Toggle All Docks", workspace::ToggleAllDocks),
         MenuItem::submenu(Menu {
             name: "Editor Layout".into(),
             disabled: false,
