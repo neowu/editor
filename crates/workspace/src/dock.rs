@@ -30,7 +30,6 @@ use gpui::div;
 use gpui::px;
 use serde::Deserialize;
 use serde::Serialize;
-use settings::SettingsStore;
 use ui::CountBadge;
 use ui::Divider;
 use ui::DividerColor;
@@ -325,12 +324,11 @@ pub struct PanelSizeState {
 struct PanelEntry {
     panel: Arc<dyn PanelHandle>,
     size_state: PanelSizeState,
-    _subscriptions: [Subscription; 3],
+    _subscriptions: [Subscription; 2],
 }
 
 pub struct PanelButtons {
     dock: Entity<Dock>,
-    _settings_subscription: Subscription,
 }
 
 /// Keeps a resized panel at least as large as the resize handle and the panel's minimum.
@@ -524,26 +522,6 @@ impl Dock {
     ) -> usize {
         let subscriptions = [
             cx.observe(&panel, |_, _, cx| cx.notify()),
-            {
-                let panel = panel.clone();
-                let mut last_default_size = panel.read(cx).default_size(window, cx);
-
-                cx.observe_global_in::<SettingsStore>(window, move |this, window, cx| {
-                    let default_size = panel.read(cx).default_size(window, cx);
-                    if default_size == last_default_size {
-                        return;
-                    }
-                    last_default_size = default_size;
-
-                    let panel_id = Entity::entity_id(&panel);
-                    if let Some(entry) = this.panel_entries.iter_mut().find(|entry| entry.panel.panel_id() == panel_id)
-                    {
-                        entry.size_state.size = None;
-                        entry.panel.size_state_changed(window, cx);
-                        cx.notify();
-                    }
-                })
-            },
             cx.subscribe_in(&panel, window, move |this, panel, event, window, cx| match event {
                 PanelEvent::ZoomIn => {
                     this.set_panel_zoomed(&panel.to_any(), true, window, cx);
@@ -914,8 +892,7 @@ impl Render for Dock {
 impl PanelButtons {
     pub fn new(dock: Entity<Dock>, cx: &mut Context<Self>) -> Self {
         cx.observe(&dock, |_, _, cx| cx.notify()).detach();
-        let settings_subscription = cx.observe_global::<SettingsStore>(|_, cx| cx.notify());
-        Self { dock, _settings_subscription: settings_subscription }
+        Self { dock }
     }
 }
 

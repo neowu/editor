@@ -28,7 +28,6 @@ use rustc_hash::FxHashMap;
 pub(crate) use server_tree::LanguageServerTree;
 pub(crate) use server_tree::LanguageServerTreeNode;
 pub(crate) use server_tree::LaunchDisposition;
-use settings::SettingsStore;
 use settings::WorktreeId;
 use util::rel_path::RelPath;
 use worktree::Event as WorktreeEvent;
@@ -76,23 +75,14 @@ impl WorktreeRoots {
 pub struct ManifestTree {
     root_points: FxHashMap<WorktreeId, Entity<WorktreeRoots>>,
     worktree_store: Entity<WorktreeStore>,
-    _subscriptions: [Subscription; 2],
+    _subscriptions: [Subscription; 1],
 }
 
 impl ManifestTree {
     pub fn new(worktree_store: Entity<WorktreeStore>, cx: &mut App) -> Entity<Self> {
         cx.new(|cx| Self {
             root_points: FxHashMap::default(),
-            _subscriptions: [
-                cx.subscribe(&worktree_store, Self::on_worktree_store_event),
-                cx.observe_global::<SettingsStore>(|this, cx| {
-                    for roots in this.root_points.values_mut() {
-                        roots.update(cx, |worktree_roots, _| {
-                            worktree_roots.roots = RootPathTrie::new();
-                        })
-                    }
-                }),
-            ],
+            _subscriptions: [cx.subscribe(&worktree_store, Self::on_worktree_store_event)],
             worktree_store,
         })
     }

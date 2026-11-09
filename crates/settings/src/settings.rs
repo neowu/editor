@@ -1,48 +1,14 @@
 use std::fmt::Display;
-mod action_sequence;
 mod built_in_keymap;
-mod built_in_semantic_token_rules;
 mod keymap;
-mod settings_store;
-
-pub mod settings_content {
-    #[allow(clippy::wildcard_imports)]
-    pub use ::settings_content::*;
-}
-
-#[doc(hidden)]
-pub mod private {
-    pub use inventory;
-
-    pub use crate::settings_store::RegisteredSetting;
-    pub use crate::settings_store::setting_value;
-}
-
-/// Registers a [`Settings`] type with every [`SettingsStore`] created afterwards.
-#[macro_export]
-macro_rules! register_setting {
-    ($type:ty) => {
-        $crate::private::inventory::submit! {
-            $crate::private::RegisteredSetting {
-                id: || ::std::any::TypeId::of::<$type>(),
-                setting_value: $crate::private::setting_value::<$type>,
-            }
-        }
-    };
-}
 
 use std::fmt;
 
 #[allow(clippy::wildcard_imports)]
 pub use ::settings_content::*;
-pub use action_sequence::ActionSequence;
 pub use built_in_keymap::keymap as built_in_keymap;
-use gpui::App;
 pub use keymap::KeyBindingSpec;
 pub use keymap::built_in_key_bindings;
-pub use settings_store::DefaultSemanticTokenRules;
-pub use settings_store::Settings;
-pub use settings_store::SettingsStore;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash, PartialOrd, Ord, serde::Serialize)]
 pub struct WorktreeId(usize);
@@ -75,9 +41,4 @@ impl fmt::Display for WorktreeId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.0, f)
     }
-}
-
-pub fn init(cx: &mut App) {
-    let settings = SettingsStore::new(cx);
-    cx.set_global(settings);
 }

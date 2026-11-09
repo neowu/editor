@@ -55,7 +55,6 @@ use gpui::UpdateGlobal as _;
 use language::LanguageRegistry;
 use recent_projects::open_remote_project;
 use rustc_hash::FxHashMap;
-use settings::SettingsStore;
 use theme::ActiveTheme;
 use util::ResultExt;
 use workspace::AppState;
@@ -229,7 +228,6 @@ fn main() {
         menu::init();
         ed_actions::init();
 
-        settings::init(cx);
         initialize_keymap(cx);
 
         <dyn Fs>::set_global(fs.clone(), cx);
@@ -237,7 +235,6 @@ fn main() {
         OpenListener::set_global(cx, open_listener.clone());
 
         let languages = Arc::new(LanguageRegistry::new(cx.background_executor().clone()));
-        ui::on_new_scrollbars::<SettingsStore>(cx);
 
         languages::init(languages.clone(), fs.clone(), cx);
 
@@ -290,15 +287,6 @@ fn main() {
         svg_preview::init(cx);
         json_schema_store::init(cx);
 
-        cx.observe_global::<SettingsStore>({
-            move |cx| {
-                for &mut window in &mut cx.windows() {
-                    let background_appearance = cx.theme().window_background_appearance();
-                    window.update(cx, |_, window, _| window.set_background_appearance(background_appearance)).ok();
-                }
-            }
-        })
-        .detach();
         app_state.languages.set_theme(cx.theme().clone());
 
         initialize_workspace(app_state.clone(), cx);

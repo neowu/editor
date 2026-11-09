@@ -3037,7 +3037,6 @@ dependencies = [
  "project",
  "rustc-hash",
  "search",
- "settings",
  "smallvec",
  "theme",
  "ui",
@@ -3722,7 +3721,6 @@ dependencies = [
  "remote",
  "rpc",
  "serde_json",
- "settings",
  "shellexpand",
  "smol",
  "sysinfo",
@@ -4026,10 +4024,7 @@ dependencies = [
 name = "settings"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "gpui",
- "gpui_util",
- "inventory",
  "rustc-hash",
  "serde",
  "serde_json",

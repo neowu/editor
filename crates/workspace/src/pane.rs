@@ -67,7 +67,6 @@ use project::WorktreeId;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use serde::Deserialize;
-use settings::SettingsStore;
 use theme::ThemeColors;
 use ui::ContextMenu;
 use ui::ContextMenuEntry;
@@ -612,7 +611,6 @@ impl Pane {
             cx.on_focus(&focus_handle, window, Pane::focus_in),
             cx.on_focus_in(&focus_handle, window, Pane::focus_in),
             cx.on_focus_out(&focus_handle, window, Pane::focus_out),
-            cx.observe_global_in::<SettingsStore>(window, Self::settings_changed),
         ];
 
         Self {
@@ -730,10 +728,6 @@ impl Pane {
 
     fn focus_out(&mut self, _event: FocusOutEvent, _window: &mut Window, cx: &mut Context<Self>) {
         self.was_focused = false;
-        cx.notify();
-    }
-
-    fn settings_changed(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         cx.notify();
     }
 

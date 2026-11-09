@@ -995,6 +995,19 @@ pub(crate) fn settings() -> LanguageSettings {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn semantic_token_rules_keep_personal_overrides_first() {
+        let rules = super::semantic_token_rules().rules;
+        let first_style = |token_type: &str| {
+            rules.iter().find(|rule| rule.token_type.as_deref() == Some(token_type)).map(|rule| rule.style.clone())
+        };
+        assert_eq!(first_style("enumMember"), Some(vec!["type".to_string()]));
+        assert_eq!(first_style("namespace"), Some(vec!["variable".to_string()]));
+        assert_eq!(
+            first_style("struct"),
+            Some(vec!["type.struct.definition".to_string(), "type.definition".to_string()])
+        );
+    }
 
     use std::fs;
 

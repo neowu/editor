@@ -242,7 +242,6 @@ pub use semantic_tokens::SemanticTokenStylizer;
 pub use semantic_tokens::TokenType;
 use serde::Serialize;
 use serde_json::Value;
-use settings::SettingsStore;
 use sha2::Digest;
 use sha2::Sha256;
 use snippet::Snippet;
@@ -4080,7 +4079,6 @@ impl LspStore {
     ) -> Self {
         cx.subscribe(&buffer_store, Self::on_buffer_store_event).detach();
         cx.subscribe(&worktree_store, Self::on_worktree_store_event).detach();
-        cx.observe_global::<SettingsStore>(Self::on_settings_changed).detach();
         let binary_status_task = subscribe_to_binary_statuses(&languages, cx);
 
         let _maintain_workspace_config = {
@@ -5155,14 +5153,6 @@ impl LspStore {
                 )
                 .await
         })
-    }
-
-    fn on_settings_changed(&mut self, cx: &mut Context<Self>) {
-        self.request_workspace_config_refresh();
-
-        self.semantic_token_config.clear_stylizers();
-
-        cx.notify();
     }
 
     fn refresh_server_tree(&mut self, cx: &mut Context<Self>) {

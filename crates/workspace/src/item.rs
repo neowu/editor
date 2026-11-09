@@ -28,7 +28,6 @@ pub use language::HighlightedText;
 use project::Project;
 use project::ProjectEntryId;
 use project::ProjectPath;
-pub use settings::Settings;
 use smallvec::SmallVec;
 use ui::Color;
 use ui::Icon;

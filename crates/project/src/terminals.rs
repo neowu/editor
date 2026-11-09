@@ -17,7 +17,6 @@ use remote::Interactive;
 use remote::RemoteClient;
 use rpc::proto;
 use rustc_hash::FxHashMap;
-use settings::Settings;
 use task::Shell;
 use task::ShellBuilder;
 use task::SpawnInTerminal;
@@ -93,7 +92,7 @@ impl Project {
             self.active_project_directory(cx)
         };
 
-        let settings = TerminalSettings::get_global(cx).clone();
+        let settings = TerminalSettings::get().clone();
         let venv = self.project_venv(path.as_deref(), &settings, cx);
 
         // The terminal keeps the task as requested so a rerun wraps it in the shell afresh.
@@ -214,7 +213,7 @@ impl Project {
         let path = cwd.map(|p| Arc::from(&*p));
         let is_via_remote = !force_local && self.remote_client.is_some();
 
-        let settings = TerminalSettings::get_global(cx).clone();
+        let settings = TerminalSettings::get().clone();
         let venv = self.project_venv(path.as_deref(), &settings, cx);
         let local_path = if is_via_remote { None } else { path.clone() };
 

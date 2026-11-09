@@ -84,7 +84,6 @@ use pty_info::PtyProcessInfo;
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
-use settings::Settings;
 use task::Shell;
 use task::SpawnInTerminal;
 use terminal_settings::AlternateScroll;
@@ -1371,7 +1370,7 @@ impl Terminal {
                 if let Some(txt) = selection_text(term) {
                     cx.write_to_clipboard(ClipboardItem::new_string(txt));
                     if !keep_selection.unwrap_or_else(|| {
-                        let settings = TerminalSettings::get_global(cx);
+                        let settings = TerminalSettings::get();
                         settings.keep_selection_on_copy
                     }) {
                         self.events.push_back(InternalEvent::SetSelection(None));
@@ -2120,13 +2119,13 @@ impl Terminal {
         Some(scroll_lines.clamp(-3, 3))
     }
 
-    pub fn mouse_down(&mut self, e: &MouseDownEvent, cx: &mut Context<Self>) {
+    pub fn mouse_down(&mut self, e: &MouseDownEvent) {
         let position = e.position - self.last_content.terminal_bounds.bounds.origin;
         let point = grid_point(position, self.last_content.terminal_bounds, self.last_content.display_offset);
 
         if e.button == MouseButton::Left
             && e.modifiers.secondary()
-            && (TerminalSettings::get_global(cx).open_links_in_mouse_mode || !self.mouse_mode(e.modifiers.shift))
+            && (TerminalSettings::get().open_links_in_mouse_mode || !self.mouse_mode(e.modifiers.shift))
         {
             self.mouse_down_hyperlink = self.find_hyperlink_at_point(point);
 
@@ -2180,7 +2179,7 @@ impl Terminal {
     }
 
     pub fn mouse_up(&mut self, e: &MouseUpEvent, cx: &Context<Self>) {
-        let setting = TerminalSettings::get_global(cx);
+        let setting = TerminalSettings::get();
 
         let position = e.position - self.last_content.terminal_bounds.bounds.origin;
         if let Some(mouse_down_hyperlink) = self.mouse_down_hyperlink.take() {

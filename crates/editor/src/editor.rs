@@ -590,7 +590,6 @@ use selections_collection::SelectionsCollection;
 use serde::Deserialize;
 use serde::Serialize;
 pub use settings::OpenResultsIn;
-use settings::SettingsStore;
 use smallvec::SmallVec;
 use smallvec::smallvec;
 use snippet::Snippet;
@@ -1881,7 +1880,7 @@ impl Editor {
         let selections = SelectionsCollection::new();
 
         let blink_manager = cx.new(|cx| {
-            let mut blink_manager = BlinkManager::new(CURSOR_BLINK_INTERVAL, |_| true, cx);
+            let mut blink_manager = BlinkManager::new(CURSOR_BLINK_INTERVAL, true);
             if is_minimap {
                 blink_manager.disable(cx);
             }
@@ -2184,7 +2183,6 @@ impl Editor {
                         cx.subscribe_in(&multi_buffer, window, Self::on_buffer_event),
                         cx.observe_in(&display_map, window, Self::on_display_map_changed),
                         cx.observe(&blink_manager, |_, _, cx| cx.notify()),
-                        cx.observe_global_in::<SettingsStore>(window, Self::settings_changed),
                         observe_buffer_font_size_adjustment(cx, |_, cx| cx.notify()),
                     ]
                 }
@@ -7185,30 +7183,6 @@ impl Editor {
             }
             acc
         })
-    }
-
-    fn settings_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let new_language_settings = self.fetch_applicable_language_settings(cx);
-        let language_settings_changed = new_language_settings != self.applicable_language_settings;
-        self.applicable_language_settings = new_language_settings;
-
-        self.refresh_runnables(None, window, cx);
-
-        if self.mode.is_full() {
-            if language_settings_changed {
-                self.clear_disabled_lsp_folding_ranges(window, cx);
-                self.refresh_document_symbols(None, cx);
-            }
-
-            self.refresh_inlay_hints(InlayHintRefreshReason::SettingsChange(INLAY_HINTS), cx);
-
-            if language_settings_changed {
-                self.invalidate_semantic_tokens(None);
-                self.refresh_semantic_tokens(None, false, cx);
-            }
-        }
-
-        cx.notify();
     }
 
     pub const fn set_searchable(&mut self, searchable: bool) {

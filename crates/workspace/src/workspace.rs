@@ -164,7 +164,6 @@ use rpc::proto::{self};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use serde::Deserialize;
-use settings::Settings;
 use status_bar::StatusBar;
 pub use status_bar::StatusItemView;
 pub use status_bar::status_item_color;
@@ -1813,12 +1812,12 @@ impl Workspace {
             .is_some_and(|buffer| buffer.read(cx).file().is_some_and(|file| file.disk_state().is_deleted()))
             && project
                 .worktree_for_id(path.worktree_id, cx)
-                .is_some_and(|worktree| Workspace::history_path_is_removed(worktree.read(cx), &path.path, cx))
+                .is_some_and(|worktree| Workspace::history_path_is_removed(worktree.read(cx), &path.path))
     }
 
     /// Whether `path` is gone from the worktree, as opposed to excluded or inside a directory that isn't loaded.
-    fn history_path_is_removed(worktree: &Worktree, path: &RelPath, cx: &App) -> bool {
-        let settings = WorktreeSettings::get_global(cx);
+    fn history_path_is_removed(worktree: &Worktree, path: &RelPath) -> bool {
+        let settings = WorktreeSettings::get();
         worktree.entry_for_path(path).is_none()
             && !settings.is_path_excluded(path)
             && !path
@@ -1844,7 +1843,7 @@ impl Workspace {
             .filter(|(path, entry_id, change)| {
                 *change == PathChange::Removed
                     && worktree.entry_for_id(*entry_id).is_none()
-                    && Workspace::history_path_is_removed(worktree, path, cx)
+                    && Workspace::history_path_is_removed(worktree, path)
             })
             .map(|(path, _, _)| path.clone())
             .collect::<FxHashSet<_>>();
@@ -4666,11 +4665,6 @@ impl Workspace {
         let active_item_is_read_only = self.active_item(cx).is_some_and(|item| !item.capability(cx).editable());
 
         self.add_workspace_actions_listeners(div, window, cx)
-            .on_action(cx.listener(|_workspace, action_sequence: &settings::ActionSequence, window, cx| {
-                for action in &action_sequence.0 {
-                    window.dispatch_action(action.boxed_clone(), cx);
-                }
-            }))
             .on_action(
                 cx.listener(|workspace, _: &GoBack, window, cx| workspace.go_back(window, cx).detach_and_log_err(cx)),
             )

@@ -446,8 +446,6 @@ pub fn execute_run(
         .detach();
 
     let run = move |cx: &mut App| {
-        settings::init(cx);
-
         HeadlessProject::init(cx);
 
         log::info!("gpui app started, initializing server");

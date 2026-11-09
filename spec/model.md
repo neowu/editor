@@ -16,7 +16,7 @@ Read the code for details; this only records the shape and the rules.
   - `cx.subscribe(&e, ..)` / `subscribe_in` (with `Window`): typed events,
     declared by `impl EventEmitter<E> for T` and sent with `cx.emit`. Means
     "this specific thing happened".
-  - `observe_global::<SettingsStore>` reacts to settings changes;
+  - `observe_global::<G>` reacts to a global changing;
     `observe_release` / `on_release` to an entity being dropped.
 - A `Subscription` lives as long as it is stored (usually a
   `_subscriptions: Vec<Subscription>` field) or until the subscriber is

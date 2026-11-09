@@ -30,7 +30,6 @@ use gpui::actions;
 use itertools::Itertools;
 use project::Project;
 use rustc_hash::FxHashMap;
-use settings::Settings;
 use task::RevealStrategy;
 use task::SpawnInTerminal;
 use task::TaskId;
@@ -1027,8 +1026,8 @@ impl Panel for TerminalPanel {
         DockPosition::Bottom
     }
 
-    fn default_size(&self, _: &Window, cx: &App) -> Pixels {
-        TerminalSettings::get_global(cx).default_height
+    fn default_size(&self, _: &Window, _: &App) -> Pixels {
+        TerminalSettings::get().default_height
     }
 
     fn is_zoomed(&self, _window: &Window, cx: &App) -> bool {
@@ -1068,7 +1067,7 @@ impl Panel for TerminalPanel {
     }
 
     fn icon(&self, _window: &Window, cx: &App) -> Option<IconName> {
-        if (self.is_enabled(cx) || !self.has_no_terminals(cx)) && TerminalSettings::get_global(cx).button {
+        if (self.is_enabled(cx) || !self.has_no_terminals(cx)) && TerminalSettings::get().button {
             Some(IconName::TerminalAlt)
         } else {
             None

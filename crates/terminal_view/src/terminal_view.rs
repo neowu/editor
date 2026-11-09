@@ -49,8 +49,6 @@ use project::ProjectEntryId;
 use project::search::SearchQuery;
 use serde::Deserialize;
 use settings::SeedQuerySetting;
-use settings::Settings;
-use settings::SettingsStore;
 use settings::TerminalBlink;
 use settings::WorkingDirectory;
 use task::SpawnInTerminal;
@@ -248,24 +246,15 @@ impl TerminalView {
         let focus_out = cx.on_focus_out(&focus_handle, window, |terminal_view, _event, window, cx| {
             terminal_view.focus_out(window, cx);
         });
-        let cursor_shape = TerminalSettings::get_global(cx).cursor_shape;
+        let cursor_shape = TerminalSettings::get().cursor_shape;
 
         let scroll_handle = TerminalScrollHandle::new(terminal.read(cx));
 
-        let blink_manager = cx.new(|cx| {
-            BlinkManager::new(
-                CURSOR_BLINK_INTERVAL,
-                |cx| !matches!(TerminalSettings::get_global(cx).blinking, TerminalBlink::Off),
-                cx,
-            )
+        let blink_manager = cx.new(|_| {
+            BlinkManager::new(CURSOR_BLINK_INTERVAL, !matches!(TerminalSettings::get().blinking, TerminalBlink::Off))
         });
 
-        let subscriptions = vec![
-            focus_in,
-            focus_out,
-            cx.observe(&blink_manager, |_, _, cx| cx.notify()),
-            cx.observe_global::<SettingsStore>(Self::settings_changed),
-        ];
+        let subscriptions = vec![focus_in, focus_out, cx.observe(&blink_manager, |_, _, cx| cx.notify())];
 
         Self {
             terminal,
@@ -450,33 +439,10 @@ impl TerminalView {
         self.context_menu = Some((context_menu, position, subscription));
     }
 
-    fn settings_changed(&mut self, cx: &mut Context<Self>) {
-        let settings = TerminalSettings::get_global(cx);
-        let should_blink = match settings.blinking {
-            TerminalBlink::Off => false,
-            TerminalBlink::On => true,
-            TerminalBlink::TerminalControlled => self.blinking_terminal_enabled,
-        };
-        let new_cursor_shape = settings.cursor_shape;
-        let old_cursor_shape = self.cursor_shape;
-        if old_cursor_shape != new_cursor_shape {
-            self.cursor_shape = new_cursor_shape;
-            self.terminal.update(cx, |term, _| {
-                term.set_cursor_shape(self.cursor_shape);
-            });
-        }
-
-        self.blink_manager.update(cx, if should_blink { BlinkManager::enable } else { BlinkManager::disable });
-        cx.notify();
-    }
-
     fn show_character_palette(&mut self, _: &ShowCharacterPalette, window: &mut Window, cx: &mut Context<Self>) {
         if self.terminal.read(cx).last_content.mode.contains(Modes::ALT_SCREEN) {
-            self.terminal.update(cx, |term, cx| {
-                term.try_keystroke(
-                    &Keystroke::parse("ctrl-cmd-space").unwrap(),
-                    TerminalSettings::get_global(cx).option_as_meta,
-                )
+            self.terminal.update(cx, |term, _| {
+                term.try_keystroke(&Keystroke::parse("ctrl-cmd-space").unwrap(), TerminalSettings::get().option_as_meta)
             });
         } else {
             window.show_character_palette();
@@ -530,9 +496,8 @@ impl TerminalView {
                 return;
             }
         }
-        self.terminal.update(cx, |term, cx| {
-            term.scroll_wheel(event, TerminalSettings::get_global(cx).scroll_multiplier.max(0.01))
-        });
+        self.terminal
+            .update(cx, |term, _| term.scroll_wheel(event, TerminalSettings::get().scroll_multiplier.max(0.01)));
     }
 
     fn is_alt_screen(&self, cx: &App) -> bool {
@@ -649,7 +614,7 @@ impl TerminalView {
         }
 
         // When focused, check blinking settings and blink manager state
-        match TerminalSettings::get_global(cx).blinking {
+        match TerminalSettings::get().blinking {
             TerminalBlink::Off => true,
             TerminalBlink::TerminalControlled => {
                 !self.blinking_terminal_enabled || self.blink_manager.read(cx).visible()
@@ -908,7 +873,7 @@ fn subscribe_for_terminal_events(
                     terminal_view.blinking_terminal_enabled = *blinking;
 
                     // If in terminal-controlled mode and focused, update blink manager
-                    if matches!(TerminalSettings::get_global(cx).blinking, TerminalBlink::TerminalControlled)
+                    if matches!(TerminalSettings::get().blinking, TerminalBlink::TerminalControlled)
                         && terminal_view.focus_handle.is_focused(window)
                     {
                         terminal_view.blink_manager.update(cx, |manager, cx| {
@@ -989,8 +954,8 @@ impl TerminalView {
     /// updates the cursor locally without sending data to the shell, so there's no
     /// shell output to automatically trigger a re-render.
     fn process_keystroke(&self, keystroke: &Keystroke, cx: &mut Context<Self>) -> bool {
-        let (handled, vi_mode_enabled) = self.terminal.update(cx, |term, cx| {
-            (term.try_keystroke(keystroke, TerminalSettings::get_global(cx).option_as_meta), term.vi_mode_enabled())
+        let (handled, vi_mode_enabled) = self.terminal.update(cx, |term, _| {
+            (term.try_keystroke(keystroke, TerminalSettings::get().option_as_meta), term.vi_mode_enabled())
         });
 
         if handled && vi_mode_enabled {
@@ -1022,7 +987,7 @@ impl TerminalView {
             terminal.focus_in();
         });
 
-        let should_blink = match TerminalSettings::get_global(cx).blinking {
+        let should_blink = match TerminalSettings::get().blinking {
             TerminalBlink::Off => false,
             TerminalBlink::On => true,
             TerminalBlink::TerminalControlled => self.blinking_terminal_enabled,
@@ -1564,7 +1529,7 @@ impl SearchableItem for TerminalView {
 /// open in the remote user's home directory by default.
 pub fn default_working_directory(workspace: &Workspace, cx: &App) -> Option<PathBuf> {
     let is_remote = workspace.project().read(cx).is_remote();
-    let directory = match &TerminalSettings::get_global(cx).working_directory {
+    let directory = match &TerminalSettings::get().working_directory {
         WorkingDirectory::CurrentFileDirectory => {
             workspace.project().read(cx).active_entry_directory(cx).or_else(|| current_project_directory(workspace, cx))
         }

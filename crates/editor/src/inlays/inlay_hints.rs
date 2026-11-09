@@ -1,6 +1,5 @@
 use std::collections::hash_map;
 use std::mem;
-use std::ops::ControlFlow;
 use std::ops::Range;
 use std::time::Duration;
 
@@ -57,7 +56,6 @@ use crate::hover_links::TriggerPoint;
 use crate::hover_links::show_link_definition;
 use crate::hover_popover::InlayHover;
 use crate::hover_popover::{self};
-use crate::inlays::InlaySplice;
 
 #[derive(Debug)]
 pub(crate) struct HoveredInlayHintCommand {
@@ -199,35 +197,6 @@ impl LspInlayHintData {
         }
     }
 
-    /// Checks inlay hint settings for enabled hint kinds.
-    /// Removes visible hints whose kind got disabled; re-enabling a kind forces new LSP queries.
-    fn update_settings(
-        &mut self,
-        new_hint_settings: InlayHintSettings,
-        visible_hints: impl IntoIterator<Item = Inlay>,
-    ) -> ControlFlow<(), Option<InlaySplice>> {
-        self.invalidate_debounce = debounce_value(new_hint_settings.edit_debounce_ms);
-        self.append_debounce = debounce_value(new_hint_settings.scroll_debounce_ms);
-        let new_allowed_hint_kinds = new_hint_settings.enabled_inlay_hint_kinds();
-        if new_allowed_hint_kinds == self.allowed_hint_kinds {
-            return ControlFlow::Break(());
-        }
-        self.allowed_hint_kinds = new_allowed_hint_kinds;
-        ControlFlow::Continue(
-            Some(InlaySplice {
-                to_remove: visible_hints
-                    .into_iter()
-                    .filter_map(|inlay| {
-                        let inlay_kind = self.added_hints.get(&inlay.id).copied()?;
-                        if !self.allowed_hint_kinds.contains(&inlay_kind) { Some(inlay.id) } else { None }
-                    })
-                    .collect(),
-                to_insert: Vec::new(),
-            })
-            .filter(|splice| !splice.is_empty()),
-        )
-    }
-
     fn pending_refreshes(&self, buffer_ids: &FxHashSet<BufferId>) -> Vec<Shared<oneshot::Receiver<()>>> {
         self.hint_refresh_tasks
             .iter()
@@ -241,7 +210,6 @@ impl LspInlayHintData {
 
 #[derive(Debug, Clone)]
 pub enum InlayHintRefreshReason {
-    SettingsChange(InlayHintSettings),
     NewLinesShown,
     BufferEdited(BufferId),
     ServerRemoved,
@@ -602,7 +570,7 @@ impl Editor {
         };
 
         let debounce = match &reason {
-            InlayHintRefreshReason::SettingsChange(_) | InlayHintRefreshReason::BuffersRemoved(_) => None,
+            InlayHintRefreshReason::BuffersRemoved(_) => None,
             _may_need_lsp_call => self.inlay_hints.as_ref().and_then(|inlay_hints| {
                 if invalidate_cache.should_invalidate() {
                     inlay_hints.invalidate_debounce
@@ -617,8 +585,7 @@ impl Editor {
 
         let mut invalidate_hints_for_buffers = FxHashSet::default();
         let ignore_previous_fetches = match reason {
-            InlayHintRefreshReason::SettingsChange(_)
-            | InlayHintRefreshReason::ServerRemoved
+            InlayHintRefreshReason::ServerRemoved
             | InlayHintRefreshReason::LanguageServerRegistered
             | InlayHintRefreshReason::RefreshRequested { .. } => true,
             InlayHintRefreshReason::NewLinesShown | InlayHintRefreshReason::BuffersRemoved(_) => false,
@@ -939,21 +906,9 @@ impl Editor {
         reason: &InlayHintRefreshReason,
         cx: &mut Context<'_, Editor>,
     ) -> Option<InvalidationStrategy> {
-        let inlay_hints = self.inlay_hints.as_mut()?;
+        self.inlay_hints.as_ref()?;
 
         let invalidate_cache = match reason {
-            InlayHintRefreshReason::SettingsChange(new_settings) => {
-                let visible_inlay_hints = Self::visible_inlay_hints(self.display_map.read(cx)).collect::<Vec<_>>();
-                match inlay_hints.update_settings(*new_settings, visible_inlay_hints) {
-                    ControlFlow::Break(()) => return None,
-                    ControlFlow::Continue(splice) => {
-                        if let Some(InlaySplice { to_remove, to_insert }) = splice {
-                            self.splice_inlays(&to_remove, to_insert, cx);
-                        }
-                        InvalidationStrategy::None
-                    }
-                }
-            }
             InlayHintRefreshReason::BuffersRemoved(buffers_removed) => {
                 let to_remove = self
                     .display_map

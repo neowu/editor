@@ -14,21 +14,19 @@ use gpui::AppContext;
 use gpui::AsyncApp;
 use gpui::Context;
 use gpui::Entity;
-use gpui::ReadGlobal as _;
 use gpui::SharedString;
 use gpui::Task;
 use language::Buffer;
 use language::LanguageName;
+use language::language_settings::AllLanguageSettings;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
 use rpc::TypedEnvelope;
 use rpc::proto;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use settings::DefaultSemanticTokenRules;
 use settings::SemanticTokenRule;
 use settings::SemanticTokenRules;
-use settings::SettingsStore;
 use smol::future::yield_now;
 use text::Anchor;
 use text::Bias;
@@ -50,7 +48,7 @@ use crate::lsp_store::document_selector_context_for_language;
 use crate::lsp_store::document_selector_matches;
 use crate::lsp_store::missing_servers_to_query;
 
-type StylizerKey = (LanguageServerId, Option<LanguageName>);
+type StylizerKey = (LanguageServerId, LanguageName);
 
 pub(super) struct SemanticTokenConfig {
     stylizers: FxHashMap<StylizerKey, (lsp::SemanticTokensLegend, SemanticTokenStylizer)>,
@@ -63,15 +61,6 @@ impl SemanticTokenConfig {
 
     pub(super) fn remove_server_data(&mut self, server_id: LanguageServerId) {
         self.stylizers.retain(|&(id, _), _| id != server_id);
-    }
-
-    /// Clears all cached stylizers.
-    ///
-    /// This is called when settings change to ensure that any modifications to
-    /// language-specific semantic token rules
-    /// are picked up. Stylizers are recreated lazily on next use.
-    pub(super) fn clear_stylizers(&mut self) {
-        self.stylizers.clear();
     }
 }
 
@@ -396,15 +385,15 @@ impl LspStore {
         language: Option<&LanguageName>,
         cx: &mut App,
     ) -> Option<&SemanticTokenStylizer> {
-        let key = (server_id, language.cloned());
+        let language = language?;
+        let language_rules = AllLanguageSettings::get_global(cx).semantic_token_rules(language)?;
+        let key = (server_id, language.clone());
         let legend = self.semantic_tokens_legend(server_id, language)?;
         let up_to_date =
             self.semantic_token_config.stylizers.get(&key).is_some_and(|(cached_legend, _)| cached_legend == legend);
         if !up_to_date {
             let legend = legend.clone();
-            let language_rules = language
-                .and_then(|language| SettingsStore::global(cx).language_semantic_token_rules(language.as_ref()));
-            let stylizer = SemanticTokenStylizer::new(server_id, &legend, language_rules, cx);
+            let stylizer = SemanticTokenStylizer::new(server_id, &legend, language_rules);
             self.semantic_token_config.stylizers.insert(key.clone(), (legend, stylizer));
         }
         self.semantic_token_config.stylizers.get(&key).map(|(_, stylizer)| stylizer)
@@ -413,10 +402,9 @@ impl LspStore {
     fn semantic_tokens_legend(
         &self,
         server_id: LanguageServerId,
-        language: Option<&LanguageName>,
+        language: &LanguageName,
     ) -> Option<&lsp::SemanticTokensLegend> {
         if let Some(local) = self.as_local()
-            && let Some(language) = language
             && let Some(LanguageServerState::Running { adapter, .. }) = local.language_servers.get(&server_id)
         {
             let context = document_selector_context_for_language(language, adapter);
@@ -443,7 +431,7 @@ impl LspStore {
         }
 
         if let Some(initial_capabilities) = self.lsp_server_initial_capabilities.get(&server_id) {
-            let context = self.remote_document_selector_context(server_id, language);
+            let context = self.remote_document_selector_context(server_id, Some(language));
             if let Some(registrations) = self
                 .lsp_server_text_document_registrations
                 .get(&server_id)
@@ -516,8 +504,7 @@ impl SemanticTokenStylizer {
     pub fn new(
         server_id: LanguageServerId,
         legend: &lsp::SemanticTokensLegend,
-        language_rules: Option<&SemanticTokenRules>,
-        cx: &App,
+        language_rules: &SemanticTokenRules,
     ) -> Self {
         let token_types: FxHashMap<TokenType, SharedString> = legend
             .token_types
@@ -532,22 +519,14 @@ impl SemanticTokenStylizer {
             .map(|(i, modifier)| (SharedString::from(modifier.as_str().to_string()), 1 << i))
             .collect();
 
-        let default_rules = cx.global::<DefaultSemanticTokenRules>();
-
         let rules_by_token_type = token_types
             .iter()
             .map(|(index, token_type_name)| {
                 let filter = |rule: &&SemanticTokenRule| {
                     rule.token_type.as_ref().is_none_or(|rule_token_type| rule_token_type == token_type_name.as_ref())
                 };
-                let matching_rules: Vec<SemanticTokenRule> = language_rules
-                    .into_iter()
-                    .flat_map(|lr| &lr.rules)
-                    .chain(default_rules.0.rules.iter())
-                    .rev()
-                    .filter(filter)
-                    .cloned()
-                    .collect();
+                let matching_rules: Vec<SemanticTokenRule> =
+                    language_rules.rules.iter().rev().filter(filter).cloned().collect();
                 (*index, matching_rules)
             })
             .collect();
@@ -764,5 +743,31 @@ impl Iterator for SemanticTokensIter<'_> {
             token_type: token.token_type,
             token_modifiers: token.token_modifiers,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stylizer_uses_only_language_rules_with_earlier_rules_first() {
+        let legend = lsp::SemanticTokensLegend {
+            token_types: vec!["function".into(), "struct".into()],
+            token_modifiers: Vec::new(),
+        };
+        let rule = |token_type: &str, style: &str| SemanticTokenRule {
+            token_type: Some(token_type.into()),
+            style: vec![style.into()],
+            ..Default::default()
+        };
+        let rules = SemanticTokenRules { rules: vec![rule("function", "first"), rule("function", "second")] };
+        let stylizer = SemanticTokenStylizer::new(LanguageServerId(0), &legend, &rules);
+
+        let styles = |token_type| {
+            stylizer.rules_for_token(token_type).unwrap().iter().map(|rule| rule.style[0].clone()).collect::<Vec<_>>()
+        };
+        assert_eq!(styles(TokenType(0)), vec!["second", "first"]);
+        assert!(styles(TokenType(1)).is_empty());
     }
 }

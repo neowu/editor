@@ -1425,23 +1425,6 @@ impl GitGraph {
             false,
             if matches!(log_source, LogSource::Path(_)) { TABLE_COLUMN_COUNT } else { TABLE_COLUMN_COUNT + 1 },
         );
-        let mut row_height = Self::row_height(window, cx);
-
-        cx.observe_global_in::<settings::SettingsStore>(window, move |this, window, cx| {
-            let new_row_height = Self::row_height(window, cx);
-            if new_row_height != row_height {
-                // The `uniform_list` powering the table caches the item size
-                // from its last layout; invalidate it so it re-measures with
-                // the new row height on the next frame.
-                this.table_interaction_state.update(cx, |state, _cx| {
-                    state.scroll_handle.0.borrow_mut().last_item_size = None;
-                });
-                row_height = new_row_height;
-                cx.notify();
-            }
-        })
-        .detach();
-
         let commit_details = cx.new(|_| CommitDetailsPanel::new(Some(languages)));
         cx.subscribe_in(&commit_details, window, Self::handle_commit_details_event).detach();
 

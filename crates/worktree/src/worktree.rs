@@ -106,8 +106,6 @@ use rpc::proto::split_worktree_update;
 use rpc::proto::{self};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use settings::Settings;
-use settings::SettingsStore;
 pub use settings::WorktreeId;
 use smallvec::SmallVec;
 use smallvec::smallvec;
@@ -562,17 +560,7 @@ impl Worktree {
             snapshot.root_repo_common_dir = root_repo_common_dir;
             snapshot.root_repo_is_linked_worktree = root_repo_is_linked_worktree;
 
-            let settings = WorktreeSettings::get_global(cx).clone();
-            cx.observe_global::<SettingsStore>(move |this, cx| {
-                if let Self::Local(this) = this {
-                    let settings = WorktreeSettings::get_global(cx).clone();
-                    if this.settings != settings {
-                        this.settings = settings;
-                        this.restart_background_scanners(cx);
-                    }
-                }
-            })
-            .detach();
+            let settings = WorktreeSettings::get().clone();
 
             if let Some(metadata) = metadata {
                 let mut entry = Entry::new(
@@ -640,7 +628,7 @@ impl Worktree {
             let (background_updates_tx, mut background_updates_rx) = mpsc::unbounded::<proto::UpdateWorktree>();
             let (mut snapshot_updated_tx, mut snapshot_updated_rx) = watch::channel(());
 
-            let settings = WorktreeSettings::get_global(cx).clone();
+            let settings = WorktreeSettings::get().clone();
             let worktree = RemoteWorktree {
                 client,
                 project_id,

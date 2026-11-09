@@ -1,7 +1,5 @@
 - no support for hard click touchpad (lookup), add or put right click menu
 
-- remove settingContent entirely? just hard code into code
-
 # UI
 - add workspace scoped UI settings, like title or border color, do i really need this? to distinguish project
 
@@ -19,6 +17,7 @@
 
 # lsp
 - display "not installed", e.g. for terraform
+- add semantic token rules for typescript?
 
 # git
 - smart pull (like stash then pull)

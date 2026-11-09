@@ -22,7 +22,6 @@ menu.workspace = true
 project.workspace = true
 rustc-hash.workspace = true
 search.workspace = true
-settings.workspace = true
 smallvec.workspace = true
 theme.workspace = true
 ui.workspace = true

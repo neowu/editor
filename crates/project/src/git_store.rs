@@ -148,8 +148,6 @@ use rpc::proto::git_reset;
 use rpc::proto::split_repository_update;
 use rpc::proto::{self};
 use rustc_hash::FxHashMap;
-use settings::Settings;
-use settings::SettingsStore;
 use settings::WorktreeId;
 use smallvec::SmallVec;
 use smol::future::yield_now;
@@ -946,10 +944,6 @@ impl GitStore {
             cx.subscribe(&worktree_store, Self::on_worktree_store_event),
             cx.subscribe(&buffer_store, Self::on_buffer_store_event),
         ];
-
-        _subscriptions.push(cx.observe_global::<SettingsStore>(|this, cx| {
-            this.activate_parked_repositories_where_parking_disabled(cx);
-        }));
 
         GitStore {
             state,
@@ -2242,7 +2236,7 @@ impl GitStore {
     }
 
     fn should_park_repository(&self, repository: &ParkedRepository, worktree: &Entity<Worktree>, cx: &App) -> bool {
-        if !Self::parking_enabled(cx) {
+        if !Self::parking_enabled() {
             return false;
         }
         let worktree = worktree.read(cx);
@@ -2266,8 +2260,8 @@ impl GitStore {
             })
     }
 
-    fn parking_enabled(cx: &App) -> bool {
-        WorktreeSettings::get_global(cx).file_scan_depth.is_some()
+    fn parking_enabled() -> bool {
+        WorktreeSettings::get().file_scan_depth.is_some()
     }
 
     fn take_parked_at(&mut self, work_directory_abs_path: &Path) -> HashSet<WorktreeId> {
@@ -2298,13 +2292,6 @@ impl GitStore {
         for parked in to_activate {
             self.register_local_repository(parked, cx);
         }
-    }
-
-    fn activate_parked_repositories_where_parking_disabled(&mut self, cx: &mut Context<Self>) {
-        if self.parked_repositories.is_empty() || Self::parking_enabled(cx) {
-            return;
-        }
-        self.activate_parked_repositories(|_| true, cx);
     }
 
     fn register_local_repository(&mut self, repository: ParkedRepository, cx: &mut Context<Self>) {

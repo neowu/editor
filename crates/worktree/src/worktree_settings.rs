@@ -1,5 +1,6 @@
+use std::sync::LazyLock;
+
 use settings::ScanSymlinksSetting;
-use settings::Settings;
 use util::paths::PathMatcher;
 use util::rel_path::RelPath;
 
@@ -15,9 +16,12 @@ pub struct WorktreeSettings {
     pub hidden_files: PathMatcher,
 }
 
-settings::register_setting!(WorktreeSettings);
-
 impl WorktreeSettings {
+    pub fn get() -> &'static Self {
+        static SETTINGS: LazyLock<WorktreeSettings> = LazyLock::new(WorktreeSettings::built_in);
+        &SETTINGS
+    }
+
     pub fn is_path_excluded(&self, path: &RelPath) -> bool {
         path.ancestors().any(|ancestor| self.file_scan_exclusions.is_match(ancestor))
     }
@@ -31,7 +35,7 @@ impl WorktreeSettings {
     }
 }
 
-impl Settings for WorktreeSettings {
+impl WorktreeSettings {
     fn built_in() -> Self {
         let file_scan_exclusions = vec![
             "**/.git".into(),
@@ -147,5 +151,11 @@ mod tests {
         assert!(!settings.is_path_hidden(&RelPath::new_test("a/b")));
         assert_eq!(settings.scan_symlinks, ScanSymlinksSetting::Expanded);
         assert_eq!(settings.file_scan_depth, Some(5));
+    }
+
+    #[test]
+    fn get_returns_cached_built_in() {
+        assert!(*WorktreeSettings::get() == WorktreeSettings::built_in());
+        assert!(std::ptr::eq(WorktreeSettings::get(), WorktreeSettings::get()));
     }
 }

@@ -623,15 +623,6 @@ struct TrackColors {
     has_border: bool,
 }
 
-pub fn on_new_scrollbars<T: gpui::Global>(cx: &mut App) {
-    cx.observe_new::<ScrollbarState>(|_, window, cx| {
-        if let Some(window) = window {
-            cx.observe_global_in::<T>(window, ScrollbarState::settings_changed).detach();
-        }
-    })
-    .detach();
-}
-
 /// This is used to ensure notifies within the state do not notify the parent
 /// unintentionally.
 struct ScrollbarStateWrapper<T: ScrollableHandle>(Entity<ScrollbarState<T>>);
@@ -643,7 +634,6 @@ struct ScrollbarState<T: ScrollableHandle = ScrollHandle> {
     manually_added: bool,
     scroll_handle: T,
     show_behavior: ShowBehavior,
-    get_visibility: fn(&App) -> ShowScrollbar,
     visibility: Point<ReservedSpace>,
     track_color: Option<TrackColors>,
     track_corner_radii: Corners<Pixels>,
@@ -677,7 +667,6 @@ impl<T: ScrollableHandle> ScrollbarState<T> {
             track_color: config.track_color.map(|color| TrackColors { background: color, has_border: config.border }),
             track_corner_radii,
             show_behavior,
-            get_visibility: config.get_visibility,
             style: config.style.unwrap_or_default(),
             reveal_policy: config.reveal_policy,
             show_state: VisibilityState::from_behavior(show_behavior),
@@ -685,10 +674,6 @@ impl<T: ScrollableHandle> ScrollbarState<T> {
             last_prepaint_state: None,
             _auto_hide_task: None,
         }
-    }
-
-    fn settings_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.set_show_behavior(ShowBehavior::from_setting((self.get_visibility)(cx), cx), window, cx);
     }
 
     /// Schedules a scrollbar auto hide if no auto hide is currently in progress yet.
@@ -715,15 +700,6 @@ impl<T: ScrollableHandle> ScrollbarState<T> {
         self.set_visibility(visibility, cx);
         self._auto_hide_task.take();
         self.schedule_auto_hide(window, cx);
-    }
-
-    fn set_show_behavior(&mut self, behavior: ShowBehavior, window: &Window, cx: &mut Context<Self>) {
-        if self.show_behavior != behavior {
-            self.show_behavior = behavior;
-            self.set_visibility(VisibilityState::from_behavior(behavior), cx);
-            self.schedule_auto_hide(window, cx);
-            cx.notify();
-        }
     }
 
     fn set_visibility(&mut self, visibility: VisibilityState, cx: &mut Context<Self>) {

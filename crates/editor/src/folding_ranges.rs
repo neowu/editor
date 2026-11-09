@@ -47,33 +47,4 @@ impl Editor {
             })
         });
     }
-
-    /// Removes LSP folding creases for buffers whose `lsp_folding_ranges`
-    /// setting has been turned off, and triggers a refresh so newly-enabled
-    /// buffers get their ranges fetched.
-    pub(super) fn clear_disabled_lsp_folding_ranges(&mut self, window: &Window, cx: &mut Context<Self>) {
-        if !self.use_document_folding_ranges {
-            return;
-        }
-
-        let buffers_to_clear = self
-            .buffer
-            .read(cx)
-            .all_buffers()
-            .into_iter()
-            .filter(|_| !DOCUMENT_FOLDING_RANGES.enabled())
-            .map(|buffer| buffer.read(cx).remote_id())
-            .collect::<Vec<_>>();
-
-        if !buffers_to_clear.is_empty() {
-            self.display_map.update(cx, |display_map, cx| {
-                for buffer_id in buffers_to_clear {
-                    display_map.clear_lsp_folding_ranges(buffer_id, cx);
-                }
-            });
-            cx.notify();
-        }
-
-        self.refresh_folding_ranges(None, window, cx);
-    }
 }

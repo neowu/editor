@@ -14,6 +14,7 @@ use gpui::UnderlineStyle;
 use itertools::Itertools;
 use language::LanguageName;
 use language::LanguageRegistry;
+use language::language_settings::AllLanguageSettings;
 use lsp::LanguageServerId;
 use project::LspStore;
 use project::lsp_store::BufferSemanticToken;
@@ -108,8 +109,13 @@ impl Editor {
             .filter(|buffer| self.is_lsp_relevant(buffer.read(cx).file(), cx))
             .chain(buffer_id.and_then(|buffer_id| self.buffer.read(cx).buffer(buffer_id)))
             .filter_map(|editor_buffer| {
-                let editor_buffer_id = editor_buffer.read(cx).remote_id();
-                if self.registered_buffers.contains_key(&editor_buffer_id) {
+                let buffer = editor_buffer.read(cx);
+                let editor_buffer_id = buffer.remote_id();
+                // Tokens are only styled for languages with rules, so don't ask servers for the rest.
+                let has_rules = buffer.language().is_some_and(|language| {
+                    AllLanguageSettings::get_global(cx).semantic_token_rules(&language.name()).is_some()
+                });
+                if has_rules && self.registered_buffers.contains_key(&editor_buffer_id) {
                     Some((editor_buffer_id, editor_buffer))
                 } else {
                     None

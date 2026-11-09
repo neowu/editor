@@ -28,6 +28,7 @@ pub use settings::LanguageServerFormatterSpecifier;
 pub use settings::LineEndingSetting;
 pub use settings::LspInsertMode;
 pub use settings::RewrapBehavior;
+use settings::SemanticTokenRules;
 pub use settings::ShowWhitespaceSetting;
 pub use settings::SoftWrap;
 pub use settings::SoftWrapIndent;
@@ -83,6 +84,8 @@ pub struct AllLanguageSettings {
     languages: FxHashMap<LanguageName, Arc<LanguageSettings>>,
     /// Extra file globs per language name, checked before path suffixes.
     pub file_types: FxHashMap<Arc<str>, (GlobSet, Vec<String>)>,
+    /// Semantic token rules applied above the defaults for each language.
+    semantic_token_rules: FxHashMap<LanguageName, SemanticTokenRules>,
 }
 
 impl Global for AllLanguageSettings {}
@@ -93,6 +96,7 @@ impl Default for AllLanguageSettings {
             fallback: Arc::new(LanguageSettings::fallback()),
             languages: FxHashMap::default(),
             file_types: FxHashMap::default(),
+            semantic_token_rules: FxHashMap::default(),
         }
     }
 }
@@ -261,11 +265,26 @@ impl AllLanguageSettings {
 
     /// Registers a language's settings, plus file globs that select the language
     /// before path suffixes do.
-    pub fn register(name: LanguageName, settings: LanguageSettings, file_types: &[&str], cx: &mut App) {
-        cx.default_global::<Self>().insert(name, settings, file_types);
+    pub fn register(
+        name: LanguageName,
+        settings: LanguageSettings,
+        file_types: &[&str],
+        semantic_token_rules: Option<SemanticTokenRules>,
+        cx: &mut App,
+    ) {
+        cx.default_global::<Self>().insert(name, settings, file_types, semantic_token_rules);
     }
 
-    fn insert(&mut self, name: LanguageName, settings: LanguageSettings, file_types: &[&str]) {
+    fn insert(
+        &mut self,
+        name: LanguageName,
+        settings: LanguageSettings,
+        file_types: &[&str],
+        semantic_token_rules: Option<SemanticTokenRules>,
+    ) {
+        if let Some(rules) = semantic_token_rules {
+            self.semantic_token_rules.insert(name.clone(), rules);
+        }
         if !file_types.is_empty() {
             let mut builder = GlobSetBuilder::new();
             for pattern in file_types {
@@ -275,6 +294,10 @@ impl AllLanguageSettings {
             self.file_types.insert(name.0.as_ref().into(), (globs, file_types.iter().map(|s| s.to_string()).collect()));
         }
         self.languages.insert(name, Arc::new(settings));
+    }
+
+    pub fn semantic_token_rules(&self, language_name: &LanguageName) -> Option<&SemanticTokenRules> {
+        self.semantic_token_rules.get(language_name)
     }
 
     /// Returns the [`LanguageSettings`] for the language with the specified name.
@@ -315,7 +338,7 @@ mod tests {
     fn test_language_falls_back_for_missing_or_unregistered_language() {
         let mut all = AllLanguageSettings::default();
         let rust = LanguageSettings { tab_size: NonZeroU32::new(2).unwrap(), ..LanguageSettings::fallback() };
-        all.insert(LanguageName::new_static("Rust"), rust.clone(), &[]);
+        all.insert(LanguageName::new_static("Rust"), rust.clone(), &[], None);
 
         assert_eq!(*all.language(Some(&LanguageName::new_static("Rust"))), rust);
         assert_eq!(*all.language(Some(&LanguageName::new_static("Go"))), LanguageSettings::fallback());
@@ -325,14 +348,26 @@ mod tests {
     #[test]
     fn test_insert_records_file_types_only_when_given() {
         let mut all = AllLanguageSettings::default();
-        all.insert(LanguageName::new_static("JSONC"), LanguageSettings::fallback(), &["tsconfig*.json"]);
-        all.insert(LanguageName::new_static("JSON"), LanguageSettings::fallback(), &[]);
+        all.insert(LanguageName::new_static("JSONC"), LanguageSettings::fallback(), &["tsconfig*.json"], None);
+        all.insert(LanguageName::new_static("JSON"), LanguageSettings::fallback(), &[], None);
 
         let (globs, patterns) = &all.file_types["JSONC"];
         assert!(globs.is_match("tsconfig.base.json"));
         assert!(!globs.is_match("package.json"));
         assert_eq!(patterns, &vec!["tsconfig*.json".to_string()]);
         assert!(!all.file_types.contains_key("JSON"));
+    }
+
+    #[test]
+    fn test_insert_records_semantic_token_rules_only_when_given() {
+        let mut all = AllLanguageSettings::default();
+        let rust = LanguageName::new_static("Rust");
+        let go = LanguageName::new_static("Go");
+        all.insert(rust.clone(), LanguageSettings::fallback(), &[], Some(SemanticTokenRules::default()));
+        all.insert(go.clone(), LanguageSettings::fallback(), &[], None);
+
+        assert_eq!(all.semantic_token_rules(&rust), Some(&SemanticTokenRules::default()));
+        assert_eq!(all.semantic_token_rules(&go), None);
     }
 
     #[test]

@@ -55,7 +55,6 @@ use gpui::relative;
 use gpui::size;
 use itertools::Itertools;
 use language::CursorShape as EditorCursorShape;
-use settings::Settings;
 use terminal::Cell;
 use terminal::Color;
 use terminal::Content;
@@ -887,7 +886,7 @@ impl TerminalElement {
                     if scroll_top > Pixels::ZERO {
                         adjusted_event.position.y += scroll_top;
                     }
-                    terminal.mouse_down(&adjusted_event, cx);
+                    terminal.mouse_down(&adjusted_event);
                     cx.notify();
                 })
             }
@@ -957,7 +956,7 @@ impl TerminalElement {
                     }
                     window.focus(&focus, cx);
                     terminal.update(cx, |terminal, cx| {
-                        terminal.mouse_down(event, cx);
+                        terminal.mouse_down(event);
                         cx.notify();
                     });
                 }
@@ -1034,7 +1033,7 @@ impl Element for TerminalElement {
 
             let buffer_font_size = font::buffer_font_size(cx);
 
-            let terminal_settings = TerminalSettings::get_global(cx);
+            let terminal_settings = TerminalSettings::get();
             let minimum_contrast = terminal_settings.minimum_contrast;
 
             let font_family = font::buffer_font().family.clone();

@@ -1,8 +1,6 @@
 use std::time::Duration;
 
 use gpui::Context;
-use settings::SettingsStore;
-use ui::App;
 
 pub struct BlinkManager {
     blink_interval: Duration,
@@ -14,14 +12,11 @@ pub struct BlinkManager {
     /// Whether the blinking is currently enabled.
     enabled: bool,
     /// Whether the blinking is enabled in the settings.
-    blink_enabled_in_settings: fn(&App) -> bool,
+    blink_enabled_in_settings: bool,
 }
 
 impl BlinkManager {
-    pub fn new(blink_interval: Duration, blink_enabled_in_settings: fn(&App) -> bool, cx: &mut Context<Self>) -> Self {
-        // Make sure we blink the cursors if the setting is re-enabled
-        cx.observe_global::<SettingsStore>(move |this, cx| this.blink_cursors(this.blink_epoch, cx)).detach();
-
+    pub const fn new(blink_interval: Duration, blink_enabled_in_settings: bool) -> Self {
         Self {
             blink_interval,
             blink_epoch: 0,
@@ -57,7 +52,7 @@ impl BlinkManager {
     }
 
     fn blink_cursors(&mut self, epoch: usize, cx: &mut Context<Self>) {
-        if (self.blink_enabled_in_settings)(cx) {
+        if self.blink_enabled_in_settings {
             if epoch == self.blink_epoch && self.enabled && !self.blinking_paused {
                 self.visible = !self.visible;
                 cx.notify();

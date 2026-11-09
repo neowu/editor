@@ -57,7 +57,6 @@ use rpc::TypedEnvelope;
 use rpc::proto::REMOTE_SERVER_PEER_ID;
 use rpc::proto::REMOTE_SERVER_PROJECT_ID;
 use rpc::proto::{self};
-use settings::Settings as _;
 use terminal::terminal_settings::TerminalSettings;
 use util::ResultExt;
 use util::paths;
@@ -98,7 +97,6 @@ struct SearchBufferBatch {
 
 impl HeadlessProject {
     pub fn init(cx: &mut App) {
-        settings::init(cx);
         log_store::init(true, cx);
     }
 
@@ -828,9 +826,9 @@ impl HeadlessProject {
     async fn handle_get_terminal_shell(
         _this: Entity<Self>,
         _: TypedEnvelope<proto::GetTerminalShell>,
-        cx: AsyncApp,
+        _: AsyncApp,
     ) -> Result<proto::GetTerminalShellResponse> {
-        let shell = cx.update(|cx| TerminalSettings::get_global(cx).shell.clone());
+        let shell = TerminalSettings::get().shell.clone();
         log::debug!("handle_get_terminal_shell: resolved remote terminal shell setting: {shell:?}");
 
         Ok(proto::GetTerminalShellResponse { shell: Some(task::shell_to_proto(shell)) })

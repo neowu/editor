@@ -103,7 +103,6 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use search::BufferSearchBar;
 use search::ProjectSearchView;
-use settings::SettingsStore;
 use theme::SyntaxTheme;
 use ui::ContextMenu;
 use ui::FluentBuilder;
@@ -1043,32 +1042,6 @@ impl OutlinePanel {
                 cx.notify();
             });
 
-            let mut document_symbols_by_buffer = FxHashMap::default();
-            let settings_subscription =
-                cx.observe_global_in::<SettingsStore>(window, move |outline_panel, window, cx| {
-                    let new_document_symbols = outline_panel
-                        .buffers
-                        .keys()
-                        .filter_map(|buffer_id| {
-                            let buffer = outline_panel.project.read(cx).buffer_for_id(*buffer_id, cx)?;
-                            let buffer = buffer.read(cx);
-                            let doc_symbols = LanguageSettings::for_buffer(buffer, cx).document_symbols;
-                            Some((*buffer_id, doc_symbols))
-                        })
-                        .collect();
-                    if new_document_symbols != document_symbols_by_buffer {
-                        document_symbols_by_buffer = new_document_symbols;
-                        outline_panel.outline_fetch_tasks.clear();
-                        for buffer in outline_panel.buffers.values_mut() {
-                            buffer.invalidate_outlines();
-                        }
-                        if matches!(outline_panel.selected_entry(), Some(PanelEntry::Outline(_))) {
-                            outline_panel.selected_entry.invalidate();
-                        }
-                        outline_panel.update_contents(Some(UPDATE_DEBOUNCE), window, cx);
-                    }
-                });
-
             let scroll_handle = UniformListScrollHandle::new();
 
             let mut outline_panel = Self {
@@ -1101,7 +1074,6 @@ impl OutlinePanel {
                 buffers: FxHashMap::default(),
                 cached_entries: Vec::new(),
                 _subscriptions: vec![
-                    settings_subscription,
                     icons_subscription,
                     focus_subscription,
                     workspace_subscription,

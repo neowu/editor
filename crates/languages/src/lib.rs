@@ -3,7 +3,6 @@ use std::sync::Arc;
 use futures::FutureExt as _;
 use gpui::App;
 use gpui::SharedString;
-use gpui::UpdateGlobal;
 use language::language_settings::AllLanguageSettings;
 use language::language_settings::LanguageSettings;
 #[allow(clippy::wildcard_imports)]
@@ -14,7 +13,6 @@ use python::PyprojectTomlManifestProvider;
 use rust::CargoLibraryProvider;
 use rust::CargoManifestProvider;
 use settings::SemanticTokenRules;
-use settings::SettingsStore;
 
 use crate::json::JsonTaskProvider;
 
@@ -257,7 +255,7 @@ pub fn init(languages: Arc<LanguageRegistry>, fs: Arc<dyn Fs>, cx: &mut App) {
         );
     }
 
-    AllLanguageSettings::register(PLAIN_TEXT.name(), plain_text::settings(), &[], cx);
+    AllLanguageSettings::register(PLAIN_TEXT.name(), plain_text::settings(), &[], None, cx);
 
     let manifest_providers: [Arc<dyn ManifestProvider>; 2] =
         [Arc::from(CargoManifestProvider), Arc::from(PyprojectTomlManifestProvider)];
@@ -290,12 +288,7 @@ fn register_language(
     cx: &mut App,
 ) {
     let config = grammars::load_config(name);
-    AllLanguageSettings::register(config.name.clone(), settings, file_types, cx);
-    if let Some(rules) = &semantic_token_rules {
-        SettingsStore::update_global(cx, |store, _| {
-            store.set_language_semantic_token_rules(config.name.0.clone(), rules.clone());
-        });
-    }
+    AllLanguageSettings::register(config.name.clone(), settings, file_types, semantic_token_rules, cx);
     for adapter in adapters {
         languages.register_lsp_adapter(config.name.clone(), adapter);
     }

@@ -80,7 +80,11 @@ migrator, or Vim/Helix mode.
 - There is one settings layer and no merging anywhere, so settings types have
   no merge trait or derive macros (`settings_macros` is removed). Lists and maps
   are plain values; there is no `"..."` splicing or extend-only list type.
-  Typed settings register with `settings::register_setting!(Type)`.
+  The `settings` crate has no store or registry: each remaining settings type
+  (`WorktreeSettings`, `TerminalSettings`) exposes `Type::get()`, a lazily
+  built `&'static` value. Settings never change at runtime, so nothing
+  observes settings changes (no `SettingsStore` global, no `settings_changed`
+  handlers).
 - User, global, server, and `.ed/settings.json` files are not loaded, watched,
   created, or rewritten. There are no settings profiles or project overrides.
   Changing persistent preferences requires editing the built-in settings and
@@ -134,11 +138,14 @@ migrator, or Vim/Helix mode.
 - Fonts and font sizes are not settings; see "Fonts" in `ui-layout.md`. There
   are no theme settings: buffer line height (1.618) and unnecessary-code fade
   (0.3) are constants in `theme::built_in`.
-- Semantic token fallback mappings are constructed in Rust. Language rules take
-  precedence over fallback mappings; the former personal rules (`enumMember` →
-  `type`, `namespace` → `variable`) are the first fallback mappings, as no
-  language rules cover those token types. Rule order and theme-style fallback order are preserved. There is no
-  bundled semantic-token settings JSON or default-rules viewer.
+- Semantic token rules are per language only, with no fallback rules: each
+  language's `semantic_token_rules.json` (Rust, Go, Python) is complete and is
+  registered with the language's settings in `AllLanguageSettings`. A language
+  without rules gets no semantic highlighting (tree-sitter only), and editors
+  don't request semantic tokens for it. Earlier rules take precedence; style names are tried in
+  order. The personal Rust rules (`enumMember` → `type`, `namespace` →
+  `variable`) sit before the generic mappings in the Rust file. There is no
+  default-rules viewer.
 - Settings-file actions, shortcuts, menu entries, and welcome/error links are
   removed, along with the project/server settings commands and profile selector.
   The default-settings view is removed too.
@@ -148,7 +155,7 @@ migrator, or Vim/Helix mode.
 - EditorConfig and file modelines (vim/emacs `vim:`/`-*-` comments) are not
   supported, so language settings come only from code. There is no
   project-local settings layer or worktree-settings sync with remote peers.
-  Settings lookups are global only (`Settings::get_global`); there is no
+  Settings lookups are global only (`Type::get()`); there is no
   per-file/worktree location argument, and the remote terminal-shell request
   carries no worktree id.
 - The built-in keymap retains contexts and binding order. Only the US/ABC QWERTY

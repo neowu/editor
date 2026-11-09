@@ -35,7 +35,6 @@ use proto::status_update::Status;
 use proto::update_language_server::Variant;
 use rpc::proto;
 use rustc_hash::FxHashSet;
-use settings::SettingsStore;
 use sysinfo::Pid;
 use sysinfo::ProcessRefreshKind;
 use sysinfo::RefreshKind;
@@ -744,12 +743,6 @@ impl LspButton {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let settings_subscription = cx.observe_global_in::<SettingsStore>(window, move |lsp_button, window, cx| {
-            if lsp_button.lsp_menu.is_none() {
-                lsp_button.refresh_lsp_menu(true, window, cx);
-            }
-        });
-
         let lsp_store = workspace.project().read(cx).lsp_store();
         let mut language_servers = LanguageServers::default();
         for (_, status) in lsp_store.read(cx).language_server_statuses() {
@@ -776,7 +769,7 @@ impl LspButton {
             popover_menu_handle,
             lsp_menu: None,
             lsp_menu_refresh: Task::ready(()),
-            _subscriptions: vec![settings_subscription, lsp_store_subscription],
+            _subscriptions: vec![lsp_store_subscription],
         };
         if !lsp_button.server_state.read(cx).language_servers.binary_statuses.is_empty() {
             lsp_button.refresh_lsp_menu(true, window, cx);

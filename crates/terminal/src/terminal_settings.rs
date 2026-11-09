@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use gpui::Pixels;
 use gpui::px;
 use rustc_hash::FxHashMap;
@@ -32,9 +34,12 @@ pub struct TerminalSettings {
     pub path_hyperlink_timeout_ms: u64,
 }
 
-settings::register_setting!(TerminalSettings);
+impl TerminalSettings {
+    pub fn get() -> &'static Self {
+        static SETTINGS: LazyLock<TerminalSettings> = LazyLock::new(TerminalSettings::built_in);
+        &SETTINGS
+    }
 
-impl settings::Settings for TerminalSettings {
     fn built_in() -> Self {
         TerminalSettings {
             shell: Shell::System,
@@ -97,8 +102,6 @@ pub enum CursorShape {
 
 #[cfg(test)]
 mod tests {
-    use settings::Settings;
-
     use super::*;
 
     #[test]
@@ -111,5 +114,12 @@ mod tests {
         assert_eq!(&captures["line"], "12");
         let common = regex::Regex::new(&settings.path_hyperlink_regexes[1]).unwrap();
         assert_eq!(&common.captures("src/main.rs:10:5.").unwrap()["path"], "src/main.rs:10:5");
+    }
+
+    #[test]
+    fn get_returns_cached_built_in() {
+        let settings = TerminalSettings::get();
+        assert_eq!(settings.path_hyperlink_regexes, TerminalSettings::built_in().path_hyperlink_regexes);
+        assert!(std::ptr::eq(settings, TerminalSettings::get()));
     }
 }
