@@ -36,7 +36,10 @@
 - On a misspelled word, code actions offer up to 5 suggestions and
   "Add … to spellcheck.txt", which inserts the word in case-insensitive
   sorted position (comments stay put), skips words already listed, and
-  saves the file (creating it if needed).
+  saves the file (creating it if needed). Suggestions also apply in editors
+  without a workspace (e.g. the commit message); "Add …" needs a project file.
+  The commit editor's Enter→newline binding yields to an open code action or
+  completion menu.
 
 ## Dictionaries
 

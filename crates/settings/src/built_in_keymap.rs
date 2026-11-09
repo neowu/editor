@@ -674,10 +674,15 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
     );
     add_bindings(
         &mut keymap,
+        Some("CommitEditor > Editor && !showing_code_actions && !showing_completions"),
+        true,
+        [KeyBindingSpec::new("enter", "editor::Newline")],
+    );
+    add_bindings(
+        &mut keymap,
         Some("CommitEditor > Editor"),
         true,
         [
-            KeyBindingSpec::new("enter", "editor::Newline"),
             KeyBindingSpec::new("cmd-enter", "git::Commit"),
             KeyBindingSpec::new("cmd-shift-enter", "git::Amend"),
             KeyBindingSpec::new("tab", "git_panel::FocusChanges"),
@@ -707,10 +712,15 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
     );
     add_bindings(
         &mut keymap,
+        Some("GitCommit > Editor && mode == auto_height && !showing_code_actions && !showing_completions"),
+        true,
+        [KeyBindingSpec::new("enter", "editor::Newline")],
+    );
+    add_bindings(
+        &mut keymap,
         Some("GitCommit > Editor && mode == auto_height"),
         true,
         [
-            KeyBindingSpec::new("enter", "editor::Newline"),
             KeyBindingSpec::new("escape", "menu::Cancel"),
             KeyBindingSpec::new("cmd-enter", "git::Commit"),
             KeyBindingSpec::new("cmd-shift-enter", "git::Amend"),
@@ -1016,6 +1026,21 @@ mod tests {
                 .map(|binding| binding.keystrokes)
                 .collect();
             assert_eq!(bound, [keystrokes], "{action}");
+        }
+    }
+
+    #[test]
+    fn test_commit_editor_enter_yields_to_menus() {
+        let keymap = keymap();
+        let newlines: Vec<_> = keymap
+            .iter()
+            .filter(|binding| binding.keystrokes == "enter" && binding.action == Some("editor::Newline"))
+            .filter_map(|binding| binding.context)
+            .filter(|context| context.starts_with("CommitEditor") || context.starts_with("GitCommit"))
+            .collect();
+        assert_eq!(newlines.len(), 2);
+        for context in newlines {
+            assert!(context.ends_with("&& !showing_code_actions && !showing_completions"), "{context}");
         }
     }
 }

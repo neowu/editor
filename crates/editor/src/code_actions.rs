@@ -211,10 +211,13 @@ impl Editor {
         let title = action.label();
         let runnable_task_key = self.runnable_task_key_for_source(&actions_menu.deployed_from, window, cx);
         let buffer = actions_menu.buffer;
-        let workspace = self.workspace()?;
+        // Editors outside a workspace (e.g. the commit message) can still apply
+        // in-buffer actions such as spell check suggestions.
+        let workspace = self.workspace();
 
         match action {
             CodeActionsItem::Task(_, resolved_task) => {
+                let workspace = workspace?;
                 if let Some((buffer_id, buffer_row)) = runnable_task_key {
                     self.set_runnable_task_status(buffer_id, buffer_row, RunnableTaskStatus::Running, cx);
                 }
@@ -247,9 +250,12 @@ impl Editor {
             }
             CodeActionsItem::CodeAction { action, provider } => {
                 let apply_code_action = provider.apply_code_action(buffer, action, true, window, cx);
-                let workspace = workspace.downgrade();
+                let workspace = workspace.map(|workspace| workspace.downgrade());
                 Some(cx.spawn_in(window, async move |editor, cx| {
                     let project_transaction = apply_code_action.await?;
+                    let Some(workspace) = workspace else {
+                        return Ok(());
+                    };
                     Self::open_project_transaction(&editor, workspace, project_transaction, title, cx).await
                 }))
             }
