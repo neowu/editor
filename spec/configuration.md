@@ -2,9 +2,10 @@
 
 ## Decision
 
-Settings are constructed entirely in Rust as one complete `SettingsContent`
-object shared by every project. There is no default-settings JSON or separate
-user/default settings layer. Language settings are not part of it: each
+Settings are hardcoded in Rust: each remaining `Settings` type (worktree,
+terminal) builds its own value in `Settings::built_in()`, shared by every
+project. There is no `SettingsContent`/`*SettingsContent` intermediate, no
+default-settings JSON, and no separate user/default settings layer. Language settings are not part of it: each
 language's complete settings are hardcoded next to its language support (see
 "Language settings" in `languages.md`). Keymaps and snippets are
 also constructed in Rust, including the personal bindings and snippets.
@@ -93,7 +94,9 @@ migrator, or Vim/Helix mode.
     always shown; there are no title bar settings;
   - terminal: no title breadcrumbs, no count badge, no bell sound (the tab
     still marks the bell), does not open on startup, always docked at the
-    bottom (no `dock` or `default_width` setting);
+    bottom (no `dock` or `default_width` setting); always uses the buffer
+    font family, fallbacks and size with normal weight and ligatures off (no
+    terminal font settings);
   - git panel: no file icons, no count badge, does not open on startup;
     there are no git panel settings (see `git.md`);
   - git: there are no `git` settings (see `git.md`);

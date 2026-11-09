@@ -3,29 +3,6 @@ use std::slice;
 use serde::Deserialize;
 use serde::Serialize;
 
-/// The state of the modifier keys at some point in time
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ModifiersContent {
-    /// The control key
-    #[serde(default)]
-    pub control: bool,
-    /// The alt key
-    /// Sometimes also known as the 'meta' key
-    #[serde(default)]
-    pub alt: bool,
-    /// The shift key
-    #[serde(default)]
-    pub shift: bool,
-    /// The command key, on macos
-    /// the windows key, on windows
-    /// the super key, on linux
-    #[serde(default)]
-    pub platform: bool,
-    /// The function key
-    #[serde(default)]
-    pub function: bool,
-}
-
 /// Controls the soft-wrapping behavior in the editor.
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames)]
 #[serde(rename_all = "snake_case")]

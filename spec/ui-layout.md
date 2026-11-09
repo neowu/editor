@@ -11,7 +11,7 @@ because it hurt readability; an opaque window is also cheaper to composite.
 ## Theme
 
 - The theme is constant: Nord (dark), a fully resolved Rust struct in
-  `theme::built_in` (like `settings::built_in`). Every colour is spelled out,
+  `theme::built_in`. Every colour is spelled out,
   including the floating-card chrome, so there is no theme JSON, no
   light/dark default palette, no refinement or fallback derivation, and no
   `theme_settings` crate. To change colours, edit `theme::built_in` and rebuild.

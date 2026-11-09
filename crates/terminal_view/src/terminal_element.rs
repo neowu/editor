@@ -1037,23 +1037,12 @@ impl Element for TerminalElement {
             let terminal_settings = TerminalSettings::get_global(cx);
             let minimum_contrast = terminal_settings.minimum_contrast;
 
-            let font_family = terminal_settings
-                .font_family
-                .as_ref()
-                .map_or_else(|| font::buffer_font().family.clone(), |font_family| font_family.0.clone().into());
-
-            let font_fallbacks =
-                terminal_settings.font_fallbacks.as_ref().or(font::buffer_font().fallbacks.as_ref()).cloned();
-
-            let font_features =
-                terminal_settings.font_features.as_ref().unwrap_or(&FontFeatures::disable_ligatures()).clone();
-
-            let font_weight = terminal_settings.font_weight.unwrap_or_default();
-
+            let font_family = font::buffer_font().family.clone();
+            let font_fallbacks = font::buffer_font().fallbacks.clone();
+            let font_features = FontFeatures::disable_ligatures();
+            let font_weight = FontWeight::NORMAL;
             let line_height = terminal_settings.line_height.value();
-
-            let font_size =
-                terminal_settings.font_size.map_or(buffer_font_size, |size| font::adjusted_font_size(size, cx));
+            let font_size = buffer_font_size;
 
             let theme = cx.theme().clone();
 

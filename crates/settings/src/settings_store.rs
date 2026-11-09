@@ -19,15 +19,11 @@ use rustc_hash::FxHashMap;
 
 use crate::SemanticTokenRules;
 use crate::built_in_semantic_token_rules;
-use crate::settings_content::SettingsContent;
 
 /// A typed view of the built-in settings.
 pub trait Settings: 'static + Send + Sync + Sized {
-    /// Read the value from the merged built-in settings.
-    ///
-    /// This function *should* panic if default values are missing,
-    /// and the built-in constructor must supply all required values.
-    fn from_settings(content: &SettingsContent) -> Self;
+    /// The hardcoded value of this setting.
+    fn built_in() -> Self;
 
     #[track_caller]
     fn register(cx: &mut App)
@@ -83,10 +79,9 @@ pub fn setting_value<T: Settings>() -> Box<dyn AnySettingValue> {
 
 inventory::collect!(RegisteredSetting);
 
-/// One complete application-wide configuration with no file-based settings layers.
+/// Hardcoded application-wide settings, built once per registered type.
 pub struct SettingsStore {
     setting_values: HashMap<TypeId, Box<dyn AnySettingValue>, TypeIdHashBuilder>,
-    settings: SettingsContent,
     language_semantic_token_rules: FxHashMap<SharedString, SemanticTokenRules>,
 }
 
@@ -105,18 +100,17 @@ struct SettingValue<T> {
 #[doc(hidden)]
 pub trait AnySettingValue: 'static + Send + Sync {
     fn setting_type_name(&self) -> &'static str;
-    fn value_from_settings(&self, s: &SettingsContent) -> Box<dyn Any>;
+    fn built_in_value(&self) -> Box<dyn Any>;
     fn global_value(&self) -> &dyn Any;
     fn set_global_value(&mut self, value: Box<dyn Any>);
 }
 
 impl SettingsStore {
-    pub fn new(cx: &mut App, settings: SettingsContent) -> Self {
+    pub fn new(cx: &mut App) -> Self {
         if !cx.has_global::<DefaultSemanticTokenRules>() {
             cx.set_global(DefaultSemanticTokenRules(built_in_semantic_token_rules::rules()));
         }
-        let mut this =
-            Self { setting_values: HashMap::default(), settings, language_semantic_token_rules: FxHashMap::default() };
+        let mut this = Self { setting_values: HashMap::default(), language_semantic_token_rules: FxHashMap::default() };
         this.load_settings_types();
         this
     }
@@ -150,7 +144,7 @@ impl SettingsStore {
         }
 
         let setting_value = entry.or_insert((registered_setting.setting_value)());
-        let value = setting_value.value_from_settings(&self.settings);
+        let value = setting_value.built_in_value();
         setting_value.set_global_value(value);
     }
 
@@ -185,10 +179,6 @@ impl SettingsStore {
             .set_global_value(Box::new(value))
     }
 
-    pub const fn settings(&self) -> &SettingsContent {
-        &self.settings
-    }
-
     /// Sets language-specific semantic token rules.
     ///
     /// These rules are registered by built-in language modules.
@@ -207,13 +197,13 @@ impl SettingsStore {
 
 impl Debug for SettingsStore {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SettingsStore").field("settings", &self.settings).finish_non_exhaustive()
+        f.debug_struct("SettingsStore").finish_non_exhaustive()
     }
 }
 
 impl<T: Settings> AnySettingValue for SettingValue<T> {
-    fn value_from_settings(&self, s: &SettingsContent) -> Box<dyn Any> {
-        Box::new(T::from_settings(s))
+    fn built_in_value(&self) -> Box<dyn Any> {
+        Box::new(T::built_in())
     }
 
     fn setting_type_name(&self) -> &'static str {

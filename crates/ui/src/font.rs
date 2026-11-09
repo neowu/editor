@@ -99,15 +99,6 @@ pub fn observe_buffer_font_size_adjustment<V: 'static>(
     cx.observe_global::<BufferFontSize>(f)
 }
 
-/// Shifts `size` by the current buffer zoom, so other fixed sizes zoom along with the buffer.
-pub fn adjusted_font_size(size: Pixels, cx: &App) -> Pixels {
-    shift_by_buffer_zoom(size, buffer_font_size(cx))
-}
-
-fn shift_by_buffer_zoom(size: Pixels, buffer_font_size: Pixels) -> Pixels {
-    clamp_font_size(size + (buffer_font_size - BUFFER_FONT_SIZE))
-}
-
 /// Sets the window's rem size from the UI font size and returns the UI font.
 pub fn setup_ui_font(window: &mut Window, cx: &App) -> Font {
     window.set_rem_size(ui_font_size(cx));
@@ -121,13 +112,11 @@ pub fn clamp_font_size(size: Pixels) -> Pixels {
 #[cfg(test)]
 mod tests {
 
-    use super::BUFFER_FONT_SIZE;
     use super::MAX_FONT_SIZE;
     use super::MIN_FONT_SIZE;
     use super::buffer_font;
     use super::clamp_font_size;
     use super::px;
-    use super::shift_by_buffer_zoom;
     use super::ui_font;
 
     #[test]
@@ -135,13 +124,6 @@ mod tests {
         assert_eq!(clamp_font_size(px(1.0)), MIN_FONT_SIZE);
         assert_eq!(clamp_font_size(px(15.0)), px(15.0));
         assert_eq!(clamp_font_size(px(500.0)), MAX_FONT_SIZE);
-    }
-
-    #[test]
-    fn test_shift_by_buffer_zoom() {
-        assert_eq!(shift_by_buffer_zoom(px(12.0), BUFFER_FONT_SIZE), px(12.0));
-        assert_eq!(shift_by_buffer_zoom(px(12.0), BUFFER_FONT_SIZE + px(3.0)), px(15.0));
-        assert_eq!(shift_by_buffer_zoom(px(12.0), BUFFER_FONT_SIZE - px(10.0)), MIN_FONT_SIZE);
     }
 
     #[test]

@@ -1,9 +1,7 @@
 use std::fmt::Display;
 mod action_sequence;
-mod built_in;
 mod built_in_keymap;
 mod built_in_semantic_token_rules;
-mod content_into_gpui;
 mod keymap;
 mod settings_store;
 
@@ -39,7 +37,6 @@ use std::fmt;
 pub use ::settings_content::*;
 pub use action_sequence::ActionSequence;
 pub use built_in_keymap::keymap as built_in_keymap;
-pub use content_into_gpui::IntoGpui;
 use gpui::App;
 pub use keymap::KeyBindingSpec;
 pub use keymap::built_in_key_bindings;
@@ -81,6 +78,6 @@ impl fmt::Display for WorktreeId {
 }
 
 pub fn init(cx: &mut App) {
-    let settings = SettingsStore::new(cx, built_in::settings());
+    let settings = SettingsStore::new(cx);
     cx.set_global(settings);
 }

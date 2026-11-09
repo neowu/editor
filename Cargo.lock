@@ -4040,13 +4040,8 @@ dependencies = [
 name = "settings_content"
 version = "0.1.0"
 dependencies = [
- "derive_more",
  "gpui",
- "indexmap",
- "log",
- "rustc-hash",
  "serde",
- "serde_json",
  "strum",
 ]
 

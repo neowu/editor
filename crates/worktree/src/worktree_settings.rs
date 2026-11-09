@@ -32,21 +32,28 @@ impl WorktreeSettings {
 }
 
 impl Settings for WorktreeSettings {
-    fn from_settings(content: &settings::SettingsContent) -> Self {
-        let worktree = content.project.worktree.clone();
-        let file_scan_exclusions = worktree.file_scan_exclusions.unwrap();
-        let file_scan_inclusions = worktree.file_scan_inclusions.unwrap();
-        let hidden_files = worktree.hidden_files.unwrap();
-        let scan_symlinks = worktree.scan_symlinks.unwrap();
-        let (file_scan_inclusions, parent_dir_scan_inclusions) = file_scan_inclusion_matchers(file_scan_inclusions);
-
+    fn built_in() -> Self {
+        let file_scan_exclusions = vec![
+            "**/.git".into(),
+            "**/.svn".into(),
+            "**/.hg".into(),
+            "**/.jj".into(),
+            "**/.sl".into(),
+            "**/.repo".into(),
+            "**/CVS".into(),
+            "**/.DS_Store".into(),
+            "**/Thumbs.db".into(),
+            "**/.classpath".into(),
+            "**/.settings".into(),
+        ];
+        let (file_scan_inclusions, parent_dir_scan_inclusions) = file_scan_inclusion_matchers(vec![".env*".into()]);
         Self {
             file_scan_exclusions: valid_path_matchers(file_scan_exclusions, "file_scan_exclusions"),
             parent_dir_scan_inclusions,
             file_scan_inclusions,
-            hidden_files: valid_path_matchers(hidden_files, "hidden_files"),
-            scan_symlinks,
-            file_scan_depth: worktree.file_scan_depth.filter(|depth| *depth > 0),
+            hidden_files: valid_path_matchers(vec!["**/.*".into()], "hidden_files"),
+            scan_symlinks: ScanSymlinksSetting::Expanded,
+            file_scan_depth: Some(5),
         }
     }
 }
@@ -122,4 +129,23 @@ fn inclusion_parent_patterns(pattern: &str) -> Vec<String> {
     parents.sort();
     parents.dedup();
     parents
+}
+
+#[cfg(test)]
+mod tests {
+    use util::rel_path::RelPath;
+
+    use super::*;
+
+    #[test]
+    fn built_in_worktree_settings() {
+        let settings = WorktreeSettings::built_in();
+        assert!(settings.is_path_excluded(&RelPath::new_test("src/.git/HEAD")));
+        assert!(!settings.is_path_excluded(&RelPath::new_test("src/main.rs")));
+        assert!(settings.is_path_always_included(&RelPath::new_test(".env.local"), false));
+        assert!(settings.is_path_hidden(&RelPath::new_test("a/.cache/b")));
+        assert!(!settings.is_path_hidden(&RelPath::new_test("a/b")));
+        assert_eq!(settings.scan_symlinks, ScanSymlinksSetting::Expanded);
+        assert_eq!(settings.file_scan_depth, Some(5));
+    }
 }

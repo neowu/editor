@@ -1,14 +1,9 @@
-use gpui::FontFallbacks;
-use gpui::FontFeatures;
-use gpui::FontWeight;
 use gpui::Pixels;
+use gpui::px;
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 pub use settings::AlternateScroll;
-use settings::FontFamilyName;
-use settings::IntoGpui;
-use settings::PathHyperlinkRegex;
 use settings::TerminalBlink;
 use settings::TerminalLineHeight;
 use settings::WorkingDirectory;
@@ -18,11 +13,6 @@ use task::Shell;
 pub struct TerminalSettings {
     pub shell: Shell,
     pub working_directory: WorkingDirectory,
-    pub font_size: Option<Pixels>, // todo(settings_refactor) can be non-optional...
-    pub font_family: Option<FontFamilyName>,
-    pub font_fallbacks: Option<FontFallbacks>,
-    pub font_features: Option<FontFeatures>,
-    pub font_weight: Option<FontWeight>,
     pub line_height: TerminalLineHeight,
     pub env: FxHashMap<String, String>,
     pub cursor_shape: CursorShape,
@@ -44,55 +34,49 @@ pub struct TerminalSettings {
 
 settings::register_setting!(TerminalSettings);
 
-fn settings_shell_to_task_shell(shell: settings::Shell) -> Shell {
-    match shell {
-        settings::Shell::System => Shell::System,
-        settings::Shell::Program(program) => Shell::Program(program),
-        settings::Shell::WithArguments { program, args, title_override } => {
-            Shell::WithArguments { program, args, title_override }
-        }
-    }
-}
-
 impl settings::Settings for TerminalSettings {
-    fn from_settings(content: &settings::SettingsContent) -> Self {
-        let user_content = content.terminal.clone().unwrap();
-        let project_content = user_content.project.clone();
+    fn built_in() -> Self {
         TerminalSettings {
-            shell: settings_shell_to_task_shell(project_content.shell.unwrap()),
-            working_directory: project_content.working_directory.unwrap(),
-            font_size: user_content.font_size.map(|s| s.into_gpui()),
-            font_family: user_content.font_family,
-            font_fallbacks: user_content.font_fallbacks.map(|fallbacks| {
-                FontFallbacks::from_fonts(fallbacks.into_iter().map(|family| family.0.to_string()).collect())
-            }),
-            font_features: user_content.font_features.map(|f| f.into_gpui()),
-            font_weight: user_content.font_weight.map(|w| w.into_gpui()),
-            line_height: user_content.line_height.unwrap(),
-            env: project_content.env.unwrap(),
-            cursor_shape: user_content.cursor_shape.unwrap().into(),
-            blinking: user_content.blinking.unwrap(),
-            alternate_scroll: user_content.alternate_scroll.unwrap(),
-            option_as_meta: user_content.option_as_meta.unwrap(),
-            copy_on_select: user_content.copy_on_select.unwrap(),
-            keep_selection_on_copy: user_content.keep_selection_on_copy.unwrap(),
-            open_links_in_mouse_mode: user_content.open_links_in_mouse_mode.unwrap(),
-            button: user_content.button.unwrap(),
-            default_height: user_content.default_height.unwrap().into_gpui(),
-            detect_venv: project_content.detect_venv.unwrap(),
-            scroll_multiplier: user_content.scroll_multiplier.unwrap(),
-            max_scroll_history_lines: user_content.max_scroll_history_lines,
-            minimum_contrast: user_content.minimum_contrast.unwrap(),
-            path_hyperlink_regexes: project_content
-                .path_hyperlink_regexes
-                .unwrap()
-                .into_iter()
-                .map(|regex| match regex {
-                    PathHyperlinkRegex::SingleLine(regex) => regex,
-                    PathHyperlinkRegex::MultiLine(regex) => regex.join("\n"),
-                })
-                .collect(),
-            path_hyperlink_timeout_ms: project_content.path_hyperlink_timeout_ms.unwrap(),
+            shell: Shell::System,
+            working_directory: WorkingDirectory::CurrentProjectDirectory,
+            line_height: TerminalLineHeight::Standard,
+            env: FxHashMap::default(),
+            cursor_shape: CursorShape::Bar,
+            blinking: TerminalBlink::On,
+            alternate_scroll: AlternateScroll::On,
+            option_as_meta: true,
+            copy_on_select: true,
+            keep_selection_on_copy: true,
+            open_links_in_mouse_mode: true,
+            button: true,
+            default_height: px(320.0),
+            detect_venv: true,
+            max_scroll_history_lines: Some(10000),
+            scroll_multiplier: 1.0,
+            minimum_contrast: 45.0,
+            path_hyperlink_regexes: vec![
+                "File \"(?<path>[^\"]+)\", line (?<line>[0-9]+)".into(),
+                [
+                    "(?x)",
+                    "(?<path>",
+                    "    (",
+                    "        # multi-char path: first char (not opening delimiter, space, or box drawing char)",
+                    "        [^({\\[<\"'`\\ \\u2500-\\u257F]",
+                    "        # middle chars: non-space, and colon/paren only if not followed by digit/paren/space",
+                    "        ([^\\ :(]|[:(][^0-9()\\ ])*",
+                    "        # last char: not closing delimiter or colon",
+                    "        [^()}\\]>\"'`.,;:\\ ]",
+                    "    |",
+                    "        # single-char path: not delimiter, punctuation, space, or box drawing char",
+                    "        [^(){}\\[\\]<>\"'`.,;:\\ \\u2500-\\u257F]",
+                    "    )",
+                    "    # optional line/column suffix (included in path for PathWithPosition::parse_str)",
+                    "    (:+[0-9]+(:[0-9]+)?|:?\\([0-9]+([,:]?[0-9]+)?\\))?",
+                    ")",
+                ]
+                .join("\n"),
+            ],
+            path_hyperlink_timeout_ms: 1,
         }
     }
 }
@@ -111,13 +95,21 @@ pub enum CursorShape {
     Hollow,
 }
 
-impl From<settings::CursorShapeContent> for CursorShape {
-    fn from(value: settings::CursorShapeContent) -> Self {
-        match value {
-            settings::CursorShapeContent::Block => CursorShape::Block,
-            settings::CursorShapeContent::Underline => CursorShape::Underline,
-            settings::CursorShapeContent::Bar => CursorShape::Bar,
-            settings::CursorShapeContent::Hollow => CursorShape::Hollow,
-        }
+#[cfg(test)]
+mod tests {
+    use settings::Settings;
+
+    use super::*;
+
+    #[test]
+    fn built_in_path_hyperlink_regexes_compile() {
+        let settings = TerminalSettings::built_in();
+        assert_eq!(settings.path_hyperlink_regexes.len(), 2);
+        let python = regex::Regex::new(&settings.path_hyperlink_regexes[0]).unwrap();
+        let captures = python.captures("File \"a/b.py\", line 12").unwrap();
+        assert_eq!(&captures["path"], "a/b.py");
+        assert_eq!(&captures["line"], "12");
+        let common = regex::Regex::new(&settings.path_hyperlink_regexes[1]).unwrap();
+        assert_eq!(&common.captures("src/main.rs:10:5.").unwrap()["path"], "src/main.rs:10:5");
     }
 }
