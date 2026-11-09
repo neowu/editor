@@ -13,13 +13,13 @@ use gpui::Context;
 use gpui::Entity;
 use gpui::Task;
 use language::Buffer;
+use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
 use lsp::request::CodeLensResolve;
 use rpc::TypedEnvelope;
 use rpc::proto;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use settings::Settings as _;
 use util::ResultExt as _;
 
 use crate::CodeAction;
@@ -32,7 +32,6 @@ use crate::lsp_store::RunningFetch;
 use crate::lsp_store::missing_servers_to_query;
 use crate::lsp_store::next_lsp_fetch_id;
 use crate::lsp_store::upstream_lsp_query_server_filter;
-use crate::project_settings::ProjectSettings;
 
 /// Opaque per-action identifier issued by [`LspStore`] at fetch time.
 ///
@@ -259,7 +258,7 @@ impl LspStore {
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
                 return Task::ready(Ok(None));
             }
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let request_task = upstream_client.request_lsp(
                 project_id,
                 upstream_lsp_query_server_filter(for_servers.as_ref()),
@@ -391,7 +390,7 @@ impl LspStore {
         let Some(server) = self.language_server_for_id(server_id) else {
             return Task::ready(None).shared();
         };
-        let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+        let request_timeout = LSP_REQUEST_TIMEOUT;
 
         let task = cx
             .spawn({

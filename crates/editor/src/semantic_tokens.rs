@@ -20,15 +20,12 @@ use project::lsp_store::BufferSemanticToken;
 use project::lsp_store::BufferSemanticTokens;
 use project::lsp_store::SemanticTokenStylizer;
 use project::lsp_store::TokenType;
-use project::project_settings::ProjectSettings;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use settings::SemanticTokenColorOverride;
 use settings::SemanticTokenFontStyle;
 use settings::SemanticTokenFontWeight;
 use settings::SemanticTokenRule;
-use settings::SemanticTokenRules;
-use settings::Settings as _;
 use text::BufferId;
 use theme::SyntaxTheme;
 use ui::ActiveTheme as _;
@@ -38,31 +35,17 @@ use crate::display_map::HighlightStyleInterner;
 use crate::display_map::SemanticTokenHighlight;
 
 pub(super) struct SemanticTokenState {
-    rules: SemanticTokenRules,
     update_task: Task<()>,
     fetched_for_buffers: FxHashMap<BufferId, clock::Global>,
 }
 
 impl SemanticTokenState {
-    pub(super) fn new(cx: &App) -> Self {
-        Self {
-            rules: ProjectSettings::get_global(cx).global_lsp_settings.semantic_token_rules.clone(),
-            update_task: Task::ready(()),
-            fetched_for_buffers: FxHashMap::default(),
-        }
+    pub(super) fn new() -> Self {
+        Self { update_task: Task::ready(()), fetched_for_buffers: FxHashMap::default() }
     }
 
     pub(super) fn invalidate_buffer(&mut self, buffer_id: &BufferId) {
         self.fetched_for_buffers.remove(buffer_id);
-    }
-
-    pub(super) fn update_rules(&mut self, new_rules: SemanticTokenRules) -> bool {
-        if new_rules != self.rules {
-            self.rules = new_rules;
-            true
-        } else {
-            false
-        }
     }
 }
 

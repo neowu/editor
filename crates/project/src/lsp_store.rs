@@ -195,7 +195,6 @@ use language::row_chunk::RowChunk;
 use lsp::AdapterServerCapabilities;
 use lsp::CodeActionKind;
 use lsp::CompletionContext;
-use lsp::DEFAULT_LSP_REQUEST_TIMEOUT;
 use lsp::DiagnosticServerCapabilities;
 use lsp::DiagnosticSeverity;
 use lsp::DiagnosticTag;
@@ -206,6 +205,7 @@ use lsp::FileOperationPatternKind;
 use lsp::FileOperationRegistrationOptions;
 use lsp::FileRename;
 use lsp::FileSystemWatcher;
+use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServer;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerId;
@@ -242,7 +242,6 @@ pub use semantic_tokens::SemanticTokenStylizer;
 pub use semantic_tokens::TokenType;
 use serde::Serialize;
 use serde_json::Value;
-use settings::Settings;
 use settings::SettingsStore;
 use sha2::Digest;
 use sha2::Sha256;
@@ -338,7 +337,6 @@ use crate::manifest_tree::LanguageServerTreeNode;
 use crate::manifest_tree::LaunchDisposition;
 use crate::manifest_tree::ManifestQueryDelegate;
 use crate::manifest_tree::ManifestTree;
-use crate::project_settings::ProjectSettings;
 use crate::worktree_store::WorktreeStore;
 use crate::worktree_store::WorktreeStoreEvent;
 
@@ -349,6 +347,8 @@ const WORKSPACE_DIAGNOSTICS_REPULL_DELAY: Duration = Duration::from_secs(2);
 const CROSS_BUFFER_DIAGNOSTICS_PULL_DELAY: Duration = Duration::from_millis(100);
 const DOCUMENT_DIAGNOSTICS_RETRIGGER_LIMIT: usize = 3;
 const DOCUMENT_DIAGNOSTICS_RETRIGGER_DELAY: Duration = Duration::from_millis(100);
+/// Buffers with a longer line skip language server features entirely.
+const MAX_LSP_BUFFER_LINE_LENGTH: u32 = 20_000;
 static NEXT_PROMPT_REQUEST_ID: AtomicUsize = AtomicUsize::new(0);
 
 /// Refresh messages carry a monotonic id for backwards compatibility only: older peers
@@ -648,8 +648,7 @@ impl LocalLspStore {
                         lsp::DidChangeConfigurationParams { settings: workspace_config };
                     let language_server = cx
                         .update(|cx| {
-                            let request_timeout =
-                                ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+                            let request_timeout = LSP_REQUEST_TIMEOUT;
 
                             language_server.initialize(
                                 initialization_params,
@@ -1386,7 +1385,7 @@ impl LocalLspStore {
         let (adapters_and_servers, settings, request_timeout) = lsp_store.update(cx, |lsp_store, cx| {
             buffer.handle.update(cx, |buffer, cx| {
                 let adapters_and_servers =
-                    if LocalLspStore::language_server_line_length_limit_exceeded(buffer, cx).is_some() {
+                    if LocalLspStore::language_server_line_length_limit_exceeded(buffer).is_some() {
                         Vec::new()
                     } else {
                         lsp_store
@@ -1397,7 +1396,7 @@ impl LocalLspStore {
                             .collect::<Vec<_>>()
                     };
                 let settings = LanguageSettings::for_buffer(buffer, cx);
-                let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+                let request_timeout = LSP_REQUEST_TIMEOUT;
                 (adapters_and_servers, settings, request_timeout)
             })
         })?;
@@ -2052,8 +2051,7 @@ impl LocalLspStore {
         let uri = file_path_to_lsp_url(abs_path)?;
         let text_document = lsp::TextDocumentIdentifier::new(uri);
 
-        let request_timeout =
-            cx.update(|app| ProjectSettings::get_global(app).global_lsp_settings.get_request_timeout());
+        let request_timeout = LSP_REQUEST_TIMEOUT;
         let lsp_edits = {
             let mut lsp_ranges = Vec::new();
             this.update(cx, |_this, cx| {
@@ -2178,8 +2176,7 @@ impl LocalLspStore {
                 None => (false, false),
             })?;
 
-        let request_timeout =
-            cx.update(|app| ProjectSettings::get_global(app).global_lsp_settings.get_request_timeout());
+        let request_timeout = LSP_REQUEST_TIMEOUT;
 
         let lsp_edits = if formatting_supported {
             let response = language_server
@@ -2583,10 +2580,9 @@ impl LocalLspStore {
             .or_insert_with(|| UnifiedLanguageServer { id: language_server_id, project_roots: FxHashSet::default() });
     }
 
-    fn language_server_line_length_limit_exceeded(buffer: &Buffer, cx: &App) -> Option<(u32, u32)> {
-        let maximum_line_length = ProjectSettings::get_global(cx).global_lsp_settings.max_buffer_line_length;
+    fn language_server_line_length_limit_exceeded(buffer: &Buffer) -> Option<(u32, u32)> {
         let longest_line_length = buffer.text_snapshot().text_summary().longest_row_chars;
-        (longest_line_length > maximum_line_length).then_some((longest_line_length, maximum_line_length))
+        (longest_line_length > MAX_LSP_BUFFER_LINE_LENGTH).then_some((longest_line_length, MAX_LSP_BUFFER_LINE_LENGTH))
     }
 
     fn register_buffer_with_language_servers(
@@ -2608,7 +2604,7 @@ impl LocalLspStore {
 
         let abs_path = file.abs_path(cx);
         if let Some((longest_line_length, maximum_line_length)) =
-            Self::language_server_line_length_limit_exceeded(buffer, cx)
+            Self::language_server_line_length_limit_exceeded(buffer)
         {
             log::debug!(
                 "not registering {} with language servers because its longest line has {} characters, exceeding the configured limit of {}",
@@ -2906,8 +2902,7 @@ impl LocalLspStore {
         project_transaction: &mut ProjectTransaction,
         cx: &mut AsyncApp,
     ) -> anyhow::Result<()> {
-        let request_timeout =
-            cx.update(|app| ProjectSettings::get_global(app).global_lsp_settings.get_request_timeout());
+        let request_timeout = LSP_REQUEST_TIMEOUT;
         let server_id = language_server.server_id();
         let can_resolve_actions = lsp_store.update(cx, |lsp_store, cx| {
             lsp_store.text_document_capability_matches_for_server(
@@ -4139,7 +4134,7 @@ impl LspStore {
             lsp_server_capabilities: FxHashMap::default(),
             lsp_server_initial_capabilities: FxHashMap::default(),
             lsp_server_text_document_registrations: FxHashMap::default(),
-            semantic_token_config: SemanticTokenConfig::new(cx),
+            semantic_token_config: SemanticTokenConfig::new(),
             lsp_data: FxHashMap::default(),
             buffer_reload_tasks: FxHashMap::default(),
             next_hint_id: Arc::default(),
@@ -4202,7 +4197,7 @@ impl LspStore {
             lsp_server_capabilities: FxHashMap::default(),
             lsp_server_initial_capabilities: FxHashMap::default(),
             lsp_server_text_document_registrations: FxHashMap::default(),
-            semantic_token_config: SemanticTokenConfig::new(cx),
+            semantic_token_config: SemanticTokenConfig::new(),
             next_hint_id: Arc::default(),
             lsp_data: FxHashMap::default(),
             buffer_reload_tasks: FxHashMap::default(),
@@ -5099,7 +5094,7 @@ impl LspStore {
         };
 
         let status = request.status();
-        let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+        let request_timeout = LSP_REQUEST_TIMEOUT;
 
         cx.spawn(async move |this, cx| {
             let lsp_request = language_server.request::<R::LspRequest>(lsp_params, request_timeout);
@@ -5165,11 +5160,6 @@ impl LspStore {
     fn on_settings_changed(&mut self, cx: &mut Context<Self>) {
         self.request_workspace_config_refresh();
 
-        let new_semantic_token_rules = ProjectSettings::get_global(cx).global_lsp_settings.semantic_token_rules.clone();
-        self.semantic_token_config.update_rules(new_semantic_token_rules);
-        // Always clear cached stylizers so that changes to language-specific
-        // language-specific semantic token rules are
-        // picked up. Stylizers are recreated lazily, so this is cheap.
         self.semantic_token_config.clear_stylizers();
 
         cx.notify();
@@ -5333,7 +5323,7 @@ impl LspStore {
         } else if self.mode.is_local() {
             let can_resolve = self.can_resolve_lsp_action_for_buffer(&buffer_handle, &action, cx);
             let Some((_, lang_server, request_timeout)) = buffer_handle.update(cx, |buffer, cx| {
-                let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+                let request_timeout = LSP_REQUEST_TIMEOUT;
                 self.language_server_for_local_buffer(buffer, action.server_id, cx)
                     .map(|(adapter, server)| (adapter.clone(), server.clone(), request_timeout))
             }) else {
@@ -5376,8 +5366,7 @@ impl LspStore {
                     return Ok(ProjectTransaction::default());
                 }
 
-                let request_timeout =
-                    cx.update(|app| ProjectSettings::get_global(app).global_lsp_settings.get_request_timeout());
+                let request_timeout = LSP_REQUEST_TIMEOUT;
 
                 this.update(cx, |this, _| {
                     this.as_local_mut()
@@ -5447,7 +5436,7 @@ impl LspStore {
             if !available_commands.contains(&command) {
                 return Task::ready(Err(anyhow!("command {command} is not advertised by the language server")));
             }
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             cx.background_spawn(async move {
                 server
                     .request::<ExecuteCommand>(
@@ -5493,7 +5482,7 @@ impl LspStore {
             }) else {
                 return Task::ready(Ok(action));
             };
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             cx.background_spawn(async move {
                 LocalLspStore::try_resolve_code_action(&lang_server, &mut action, true, request_timeout)
                     .await
@@ -5791,7 +5780,7 @@ impl LspStore {
                 return Task::ready(Ok(None));
             }
 
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
 
             let request_task = upstream_client.request_lsp(
                 project_id,
@@ -5839,7 +5828,7 @@ impl LspStore {
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
                 return Task::ready(Ok(None));
             }
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let request_task = upstream_client.request_lsp(
                 project_id,
                 None,
@@ -5888,7 +5877,7 @@ impl LspStore {
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
                 return Task::ready(Ok(None));
             }
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let request_task = upstream_client.request_lsp(
                 project_id,
                 None,
@@ -5943,7 +5932,7 @@ impl LspStore {
                 return Task::ready(Ok(None));
             }
 
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let request_task = upstream_client.request_lsp(
                 project_id,
                 None,
@@ -5998,7 +5987,7 @@ impl LspStore {
                 return Task::ready(Ok(None));
             }
 
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let request_task = upstream_client.request_lsp(
                 project_id,
                 None,
@@ -6052,7 +6041,7 @@ impl LspStore {
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
                 return Task::ready(Ok(None));
             }
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let request_task = upstream_client.request_lsp(
                 project_id,
                 None,
@@ -6263,8 +6252,7 @@ impl LspStore {
             .collect::<FxHashSet<_>>();
 
         cx.spawn(async move |lsp_store, cx| {
-            let request_timeout =
-                cx.update(|app| ProjectSettings::get_global(app).global_lsp_settings.get_request_timeout());
+            let request_timeout = LSP_REQUEST_TIMEOUT;
 
             let mut did_resolve = false;
             if let Some((client, project_id)) = client {
@@ -6614,7 +6602,7 @@ impl LspStore {
                 Ok(Some(transaction))
             })
         } else {
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
 
             let Some(server_id) = completions.borrow()[completion_index].source.server_id() else {
                 return Task::ready(Ok(None));
@@ -6727,7 +6715,7 @@ impl LspStore {
             if !self.is_capable_for_proto_request(&buffer, &request, cx) {
                 return Task::ready(Ok(None));
             }
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let request_task = client.request_lsp(
                 upstream_project_id,
                 None,
@@ -7011,7 +6999,7 @@ impl LspStore {
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
                 return Task::ready(Ok(FxHashMap::default()));
             }
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let request_task = upstream_client.request_lsp(
                 project_id,
                 upstream_lsp_query_server_filter(for_servers.as_ref()),
@@ -7214,7 +7202,7 @@ impl LspStore {
             if !self.is_capable_for_proto_request(buffer, &request, cx) {
                 return Task::ready(None);
             }
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let request_task = client.request_lsp(
                 upstream_project_id,
                 None,
@@ -7290,7 +7278,7 @@ impl LspStore {
 
             let mut requests = Vec::new();
             let mut requested_servers = BTreeSet::new();
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
 
             for (seed, state) in &local.language_server_ids {
                 let Some(worktree_handle) = self.worktree_store.read(cx).worktree_for_id(seed.worktree_id, cx) else {
@@ -9122,7 +9110,7 @@ impl LspStore {
                     if !filter.should_send_will_rename(&old_uri, is_dir) {
                         continue;
                     }
-                    let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+                    let request_timeout = LSP_REQUEST_TIMEOUT;
 
                     let apply_edit = cx.spawn({
                         let old_uri = old_uri.clone();
@@ -9412,7 +9400,7 @@ impl LspStore {
                 );
                 let server = this.language_server_for_id(id).with_context(|| format!("No language server {id}"))?;
 
-                let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+                let request_timeout = LSP_REQUEST_TIMEOUT;
 
                 anyhow::Ok(cx.background_spawn(async move {
                     if can_resolve {
@@ -10565,7 +10553,7 @@ impl LspStore {
                     Some(language) => language,
                     None => continue,
                 };
-                if LocalLspStore::language_server_line_length_limit_exceeded(buffer, cx).is_some() {
+                if LocalLspStore::language_server_line_length_limit_exceeded(buffer).is_some() {
                     continue;
                 }
 
@@ -11916,15 +11904,7 @@ fn lsp_workspace_diagnostics_refresh(
     let (mut refresh_tx, mut refresh_rx) = mpsc::channel::<Option<oneshot::Sender<bool>>>(8);
     refresh_tx.try_send(None).ok();
 
-    let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
-
-    // Clamp timeout duration at a minimum of [`DEFAULT_LSP_REQUEST_TIMEOUT`] to mitigate useless loops from re-trying connections with smaller timeouts from project settings.
-    // This allows users to increase the duration if need be
-    let timeout = if request_timeout != Duration::ZERO {
-        request_timeout.max(DEFAULT_LSP_REQUEST_TIMEOUT)
-    } else {
-        request_timeout
-    };
+    let timeout = LSP_REQUEST_TIMEOUT;
 
     let workspace_query_language_server = cx.spawn(async move |lsp_store, cx| {
         let mut attempts = 0;

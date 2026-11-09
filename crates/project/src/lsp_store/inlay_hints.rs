@@ -19,13 +19,13 @@ use language::Buffer;
 use language::proto::serialize_version;
 use language::row_chunk::RowChunk;
 use language::row_chunk::RowChunks;
+use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
 use lsp::request::InlayHintResolveRequest;
 use rpc::TypedEnvelope;
 use rpc::proto;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use settings::Settings as _;
 use text::Anchor;
 use text::BufferId;
 use text::BufferSnapshot;
@@ -39,7 +39,6 @@ use crate::LspStore;
 use crate::LspStoreEvent;
 use crate::ResolveState;
 use crate::lsp_command::InlayHints;
-use crate::project_settings::ProjectSettings;
 
 pub type CacheInlayHints = FxHashMap<LanguageServerId, Vec<(InlayId, InlayHint)>>;
 pub type CacheInlayHintsTask = Shared<Task<Result<CacheInlayHints, Arc<anyhow::Error>>>>;
@@ -318,7 +317,7 @@ impl LspStore {
                 return Task::ready(Ok(hint));
             };
             let buffer_snapshot = buffer.read(cx).snapshot();
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let origin_position = hint.position;
             cx.background_spawn(async move {
                 let resolve_task = lang_server.request::<InlayHintResolveRequest>(

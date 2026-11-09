@@ -1,78 +1,4 @@
-use std::time::Duration;
-
-use lsp::DEFAULT_LSP_REQUEST_TIMEOUT_SECS;
 use serde::Deserialize;
-use serde::Serialize;
-use settings::SemanticTokenRules;
-use settings::Settings;
-
-#[derive(Debug, Clone)]
-pub struct ProjectSettings {
-    /// Common language server settings.
-    pub global_lsp_settings: GlobalLspSettings,
-}
-
-settings::register_setting!(ProjectSettings);
-
-/// Common language server settings.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default)]
-pub struct GlobalLspSettings {
-    /// Whether to show the LSP servers button in the status bar.
-    ///
-    /// Default: `true`
-    pub button: bool,
-    /// The maximum amount of time to wait for responses from language servers, in seconds.
-    /// A value of `0` will result in no timeout being applied (causing all LSP responses to wait
-    /// indefinitely until completed).
-    /// This should not be used outside of serialization/de-serialization in favor of get_request_timeout.
-    ///
-    /// Default: `120`
-    pub request_timeout: u64,
-    /// The maximum line length a buffer may contain before language server features are disabled for the entire buffer.
-    ///
-    /// Default: `20000`
-    pub max_buffer_line_length: u32,
-    pub notifications: LspNotificationSettings,
-
-    /// Rules for highlighting semantic tokens.
-    pub semantic_token_rules: SemanticTokenRules,
-}
-
-impl Default for GlobalLspSettings {
-    fn default() -> Self {
-        Self {
-            button: true,
-            request_timeout: DEFAULT_LSP_REQUEST_TIMEOUT_SECS,
-            max_buffer_line_length: 20_000,
-            notifications: LspNotificationSettings::default(),
-            semantic_token_rules: SemanticTokenRules::default(),
-        }
-    }
-}
-
-impl GlobalLspSettings {
-    /// Returns the timeout duration for LSP-related interactions, or Duration::ZERO if no timeout should be applied.
-    /// Zero durations are treated as no timeout by language servers, so code using this in an async context can
-    /// simply call unwrap_or_default.
-    pub const fn get_request_timeout(&self) -> Duration {
-        Duration::from_secs(self.request_timeout)
-    }
-}
-
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, Debug)]
-#[serde(tag = "source", rename_all = "snake_case")]
-pub struct LspNotificationSettings {
-    /// Timeout in milliseconds for dismissing language server notifications.
-    /// Zero disables automatic dismissal.
-    pub dismiss_timeout_ms: Option<u64>,
-}
-
-impl Default for LspNotificationSettings {
-    fn default() -> Self {
-        Self { dismiss_timeout_ms: Some(5000) }
-    }
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum DiagnosticSeverity {
@@ -162,36 +88,6 @@ impl GoToDiagnosticSeverityFilter {
         match self {
             Self::Only(target) => *target == severity,
             Self::Range { min, max } => severity >= *min && severity <= *max,
-        }
-    }
-}
-
-impl Settings for ProjectSettings {
-    fn from_settings(content: &settings::SettingsContent) -> Self {
-        Self {
-            global_lsp_settings: GlobalLspSettings {
-                button: content.global_lsp_settings.as_ref().unwrap().button.unwrap(),
-                request_timeout: content.global_lsp_settings.as_ref().unwrap().request_timeout.unwrap(),
-                max_buffer_line_length: content.global_lsp_settings.as_ref().unwrap().max_buffer_line_length.unwrap(),
-                notifications: LspNotificationSettings {
-                    dismiss_timeout_ms: content
-                        .global_lsp_settings
-                        .as_ref()
-                        .unwrap()
-                        .notifications
-                        .as_ref()
-                        .unwrap()
-                        .dismiss_timeout_ms,
-                },
-                semantic_token_rules: content
-                    .global_lsp_settings
-                    .as_ref()
-                    .unwrap()
-                    .semantic_token_rules
-                    .as_ref()
-                    .unwrap()
-                    .clone(),
-            },
         }
     }
 }

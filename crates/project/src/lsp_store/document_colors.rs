@@ -19,13 +19,13 @@ use language::PointUtf16;
 use language::point_to_lsp;
 use language::proto::deserialize_lsp_edit;
 use language::proto::serialize_lsp_edit;
+use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
 use lsp::request::ColorPresentationRequest;
 use rpc::TypedEnvelope;
 use rpc::proto;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use settings::Settings as _;
 use text::BufferId;
 use util::ResultExt as _;
 use worktree::File;
@@ -41,7 +41,6 @@ use crate::lsp_store::RunningFetch;
 use crate::lsp_store::missing_servers_to_query;
 use crate::lsp_store::next_lsp_fetch_id;
 use crate::lsp_store::upstream_lsp_query_server_filter;
-use crate::project_settings::ProjectSettings;
 
 #[derive(Debug, Default, Clone)]
 pub struct DocumentColors {
@@ -273,7 +272,7 @@ impl LspStore {
                 return Task::ready(Ok(color));
             };
 
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             cx.background_spawn(async move {
                 let resolve_task = lang_server.request::<ColorPresentationRequest>(
                     lsp::ColorPresentationParams {
@@ -315,7 +314,7 @@ impl LspStore {
                 return Task::ready(Ok(None));
             }
 
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let request_task = client.request_lsp(
                 project_id,
                 upstream_lsp_query_server_filter(for_servers.as_ref()),

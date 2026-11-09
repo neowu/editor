@@ -75,14 +75,8 @@ use util::command::Stdio;
 const JSON_RPC_VERSION: &str = "2.0";
 const CONTENT_LEN_HEADER: &str = "Content-Length: ";
 
-/// The default amount of time to wait while initializing or fetching LSP servers, in seconds.
-///
-/// Should not be used (in favor of DEFAULT_LSP_REQUEST_TIMEOUT) and is exported solely for use inside ProjectSettings defaults.
-pub const DEFAULT_LSP_REQUEST_TIMEOUT_SECS: u64 = 120;
-/// A timeout representing the value of [DEFAULT_LSP_REQUEST_TIMEOUT_SECS].
-///
-/// Should **only be used** in tests and as a fallback when a corresponding config value cannot be obtained!
-pub const DEFAULT_LSP_REQUEST_TIMEOUT: Duration = Duration::from_secs(DEFAULT_LSP_REQUEST_TIMEOUT_SECS);
+/// How long to wait for responses from language servers.
+pub const LSP_REQUEST_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// The shutdown timeout for LSP servers.
 const SERVER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
@@ -1335,7 +1329,6 @@ impl LanguageServer {
     }
 
     /// Get the individual configuration settings for the running language server.
-    /// Does not include globally applied settings (which are stored in ProjectSettings::GlobalLspSettings).
     pub fn configuration(&self) -> &Value {
         &self.configuration.settings
     }

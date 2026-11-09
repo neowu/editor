@@ -31,12 +31,10 @@ use project::LspStore;
 use project::LspStoreEvent;
 use project::Worktree;
 use project::lsp_store::log_store::GlobalLogStore;
-use project::project_settings::ProjectSettings;
 use proto::status_update::Status;
 use proto::update_language_server::Variant;
 use rpc::proto;
 use rustc_hash::FxHashSet;
-use settings::Settings as _;
 use settings::SettingsStore;
 use sysinfo::Pid;
 use sysinfo::ProcessRefreshKind;
@@ -747,12 +745,8 @@ impl LspButton {
         cx: &mut Context<Self>,
     ) -> Self {
         let settings_subscription = cx.observe_global_in::<SettingsStore>(window, move |lsp_button, window, cx| {
-            if ProjectSettings::get_global(cx).global_lsp_settings.button {
-                if lsp_button.lsp_menu.is_none() {
-                    lsp_button.refresh_lsp_menu(true, window, cx);
-                }
-            } else if lsp_button.lsp_menu.take().is_some() {
-                cx.notify();
+            if lsp_button.lsp_menu.is_none() {
+                lsp_button.refresh_lsp_menu(true, window, cx);
             }
         });
 
@@ -1071,72 +1065,65 @@ impl StatusItemView for LspButton {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if ProjectSettings::get_global(cx).global_lsp_settings.button {
-            if let Some(editor) = active_pane_item.and_then(|item| item.downcast::<Editor>()) {
-                if Some(&editor)
-                    != self
-                        .server_state
+        if let Some(editor) = active_pane_item.and_then(|item| item.downcast::<Editor>()) {
+            if Some(&editor)
+                != self
+                    .server_state
+                    .read(cx)
+                    .active_editor
+                    .as_ref()
+                    .and_then(|active_editor| active_editor.editor.upgrade())
+                    .as_ref()
+            {
+                let editor_buffers = FxHashSet::from_iter(
+                    editor
                         .read(cx)
-                        .active_editor
-                        .as_ref()
-                        .and_then(|active_editor| active_editor.editor.upgrade())
-                        .as_ref()
-                {
-                    let editor_buffers = FxHashSet::from_iter(
-                        editor
-                            .read(cx)
-                            .buffer()
-                            .read(cx)
-                            .snapshot(cx)
-                            .excerpts()
-                            .map(|excerpt| excerpt.context.start.buffer_id),
-                    );
-                    let _editor_subscription =
-                        cx.subscribe_in(&editor, window, |lsp_button, _, e: &EditorEvent, window, cx| match e {
-                            EditorEvent::BufferRangesUpdated { buffer, .. } => {
-                                let updated = lsp_button.server_state.update(cx, |state, cx| {
-                                    if let Some(active_editor) = state.active_editor.as_mut() {
-                                        let buffer_id = buffer.read(cx).remote_id();
-                                        active_editor.editor_buffers.insert(buffer_id)
-                                    } else {
-                                        false
-                                    }
-                                });
-                                if updated {
-                                    lsp_button.refresh_lsp_menu(false, window, cx);
+                        .buffer()
+                        .read(cx)
+                        .snapshot(cx)
+                        .excerpts()
+                        .map(|excerpt| excerpt.context.start.buffer_id),
+                );
+                let _editor_subscription =
+                    cx.subscribe_in(&editor, window, |lsp_button, _, e: &EditorEvent, window, cx| match e {
+                        EditorEvent::BufferRangesUpdated { buffer, .. } => {
+                            let updated = lsp_button.server_state.update(cx, |state, cx| {
+                                if let Some(active_editor) = state.active_editor.as_mut() {
+                                    let buffer_id = buffer.read(cx).remote_id();
+                                    active_editor.editor_buffers.insert(buffer_id)
+                                } else {
+                                    false
                                 }
+                            });
+                            if updated {
+                                lsp_button.refresh_lsp_menu(false, window, cx);
                             }
-                            EditorEvent::BuffersRemoved { removed_buffer_ids } => {
-                                let removed = lsp_button.server_state.update(cx, |state, _| {
-                                    let mut removed = false;
-                                    if let Some(active_editor) = state.active_editor.as_mut() {
-                                        for id in removed_buffer_ids {
-                                            active_editor.editor_buffers.retain(|buffer_id| {
-                                                let retain = buffer_id != id;
-                                                removed |= !retain;
-                                                retain
-                                            });
-                                        }
+                        }
+                        EditorEvent::BuffersRemoved { removed_buffer_ids } => {
+                            let removed = lsp_button.server_state.update(cx, |state, _| {
+                                let mut removed = false;
+                                if let Some(active_editor) = state.active_editor.as_mut() {
+                                    for id in removed_buffer_ids {
+                                        active_editor.editor_buffers.retain(|buffer_id| {
+                                            let retain = buffer_id != id;
+                                            removed |= !retain;
+                                            retain
+                                        });
                                     }
-                                    removed
-                                });
-                                if removed {
-                                    lsp_button.refresh_lsp_menu(false, window, cx);
                                 }
+                                removed
+                            });
+                            if removed {
+                                lsp_button.refresh_lsp_menu(false, window, cx);
                             }
-                            _ => {}
-                        });
-                    self.server_state.update(cx, |state, _| {
-                        state.active_editor =
-                            Some(ActiveEditor { editor: editor.downgrade(), _editor_subscription, editor_buffers });
+                        }
+                        _ => {}
                     });
-                    self.refresh_lsp_menu(true, window, cx);
-                }
-            } else if self.server_state.read(cx).active_editor.is_some() {
                 self.server_state.update(cx, |state, _| {
-                    state.active_editor = None;
+                    state.active_editor =
+                        Some(ActiveEditor { editor: editor.downgrade(), _editor_subscription, editor_buffers });
                 });
-                self.refresh_lsp_menu(false, window, cx);
+                self.refresh_lsp_menu(true, window, cx);
             }
         } else if self.server_state.read(cx).active_editor.is_some() {
             self.server_state.update(cx, |state, _| {

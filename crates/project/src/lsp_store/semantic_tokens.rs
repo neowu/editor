@@ -19,6 +19,7 @@ use gpui::SharedString;
 use gpui::Task;
 use language::Buffer;
 use language::LanguageName;
+use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
 use rpc::TypedEnvelope;
 use rpc::proto;
@@ -27,7 +28,6 @@ use rustc_hash::FxHashSet;
 use settings::DefaultSemanticTokenRules;
 use settings::SemanticTokenRule;
 use settings::SemanticTokenRules;
-use settings::Settings as _;
 use settings::SettingsStore;
 use smol::future::yield_now;
 use text::Anchor;
@@ -49,35 +49,20 @@ use crate::lsp_store::LanguageServerState;
 use crate::lsp_store::document_selector_context_for_language;
 use crate::lsp_store::document_selector_matches;
 use crate::lsp_store::missing_servers_to_query;
-use crate::project_settings::ProjectSettings;
 
 type StylizerKey = (LanguageServerId, Option<LanguageName>);
 
 pub(super) struct SemanticTokenConfig {
     stylizers: FxHashMap<StylizerKey, (lsp::SemanticTokensLegend, SemanticTokenStylizer)>,
-    rules: SemanticTokenRules,
 }
 
 impl SemanticTokenConfig {
-    pub(super) fn new(cx: &App) -> Self {
-        Self {
-            stylizers: FxHashMap::default(),
-            rules: ProjectSettings::get_global(cx).global_lsp_settings.semantic_token_rules.clone(),
-        }
+    pub(super) fn new() -> Self {
+        Self { stylizers: FxHashMap::default() }
     }
 
     pub(super) fn remove_server_data(&mut self, server_id: LanguageServerId) {
         self.stylizers.retain(|&(id, _), _| id != server_id);
-    }
-
-    pub(super) fn update_rules(&mut self, new_rules: SemanticTokenRules) -> bool {
-        if new_rules != self.rules {
-            self.rules = new_rules;
-            self.stylizers.clear();
-            true
-        } else {
-            false
-        }
     }
 
     /// Clears all cached stylizers.
@@ -261,7 +246,7 @@ impl LspStore {
                 return Task::ready(None);
             }
 
-            let request_timeout = ProjectSettings::get_global(cx).global_lsp_settings.get_request_timeout();
+            let request_timeout = LSP_REQUEST_TIMEOUT;
             let request_task = client.request_lsp(
                 upstream_project_id,
                 None,
@@ -547,7 +532,6 @@ impl SemanticTokenStylizer {
             .map(|(i, modifier)| (SharedString::from(modifier.as_str().to_string()), 1 << i))
             .collect();
 
-        let global_rules = &ProjectSettings::get_global(cx).global_lsp_settings.semantic_token_rules;
         let default_rules = cx.global::<DefaultSemanticTokenRules>();
 
         let rules_by_token_type = token_types
@@ -556,10 +540,9 @@ impl SemanticTokenStylizer {
                 let filter = |rule: &&SemanticTokenRule| {
                     rule.token_type.as_ref().is_none_or(|rule_token_type| rule_token_type == token_type_name.as_ref())
                 };
-                let matching_rules: Vec<SemanticTokenRule> = global_rules
-                    .rules
-                    .iter()
-                    .chain(language_rules.into_iter().flat_map(|lr| &lr.rules))
+                let matching_rules: Vec<SemanticTokenRule> = language_rules
+                    .into_iter()
+                    .flat_map(|lr| &lr.rules)
                     .chain(default_rules.0.rules.iter())
                     .rev()
                     .filter(filter)

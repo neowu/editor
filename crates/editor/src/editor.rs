@@ -577,7 +577,6 @@ use project::lsp_store::LspFormatTarget;
 use project::lsp_store::OpenLspBufferHandle;
 use project::project_settings::DiagnosticSeverity;
 use project::project_settings::GoToDiagnosticSeverityFilter;
-use project::project_settings::ProjectSettings;
 use rand::seq::SliceRandom;
 use regex::Regex;
 use rustc_hash::FxHashMap;
@@ -591,7 +590,6 @@ use selections_collection::SelectionsCollection;
 use serde::Deserialize;
 use serde::Serialize;
 pub use settings::OpenResultsIn;
-use settings::Settings;
 use settings::SettingsStore;
 use smallvec::SmallVec;
 use smallvec::smallvec;
@@ -2225,7 +2223,7 @@ impl Editor {
             on_local_selections_changed: None,
             suppress_selection_callback: false,
             applicable_language_settings: FxHashMap::default(),
-            semantic_token_state: SemanticTokenState::new(cx),
+            semantic_token_state: SemanticTokenState::new(),
             number_deleted_lines: false,
             refresh_matching_bracket_highlights_task: Task::ready(()),
             refresh_document_symbols_tasks: FxHashMap::default(),
@@ -7204,10 +7202,7 @@ impl Editor {
 
             self.refresh_inlay_hints(InlayHintRefreshReason::SettingsChange(INLAY_HINTS), cx);
 
-            let new_semantic_token_rules =
-                ProjectSettings::get_global(cx).global_lsp_settings.semantic_token_rules.clone();
-            let semantic_token_rules_changed = self.semantic_token_state.update_rules(new_semantic_token_rules);
-            if language_settings_changed || semantic_token_rules_changed {
+            if language_settings_changed {
                 self.invalidate_semantic_tokens(None);
                 self.refresh_semantic_tokens(None, false, cx);
             }

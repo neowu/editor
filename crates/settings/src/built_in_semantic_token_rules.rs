@@ -1,11 +1,13 @@
 use settings_content::SemanticTokenRule;
 use settings_content::SemanticTokenRules;
 
-/// Fallback mappings, applied below personal and language-specific rules.
+/// Fallback mappings, applied below language-specific rules.
 /// Earlier rules take precedence; style names are tried in order.
 pub(crate) fn rules() -> SemanticTokenRules {
     SemanticTokenRules {
         rules: vec![
+            rule("enumMember", &[], &["type"]),
+            rule("namespace", &[], &["variable"]),
             rule("namespace", &[], &["namespace", "module", "type"]),
             rule("class", &["declaration"], &["type.class.definition", "type.definition"]),
             rule("class", &["definition"], &["type.class.definition", "type.definition"]),
@@ -59,5 +61,20 @@ fn rule(token_type: &str, modifiers: &[&str], styles: &[&str]) -> SemanticTokenR
         token_modifiers: modifiers.iter().map(|modifier| (*modifier).into()).collect(),
         style: styles.iter().map(|style| (*style).into()).collect(),
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn personal_rules_take_precedence() {
+        let rules = rules().rules;
+        let first_style = |token_type: &str| {
+            rules.iter().find(|rule| rule.token_type.as_deref() == Some(token_type)).map(|rule| rule.style.clone())
+        };
+        assert_eq!(first_style("enumMember"), Some(vec!["type".to_string()]));
+        assert_eq!(first_style("namespace"), Some(vec!["variable".to_string()]));
     }
 }

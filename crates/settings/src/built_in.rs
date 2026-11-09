@@ -2,15 +2,11 @@ use rustc_hash::FxHashMap;
 use settings_content::AlternateScroll;
 use settings_content::CursorShapeContent;
 use settings_content::FontWeightContent;
-use settings_content::GlobalLspSettingsContent;
-use settings_content::LspNotificationSettingsContent;
 use settings_content::PathHyperlinkRegex;
 use settings_content::PixelSetting;
 use settings_content::ProjectSettingsContent;
 use settings_content::ProjectTerminalSettingsContent;
 use settings_content::ScanSymlinksSetting;
-use settings_content::SemanticTokenRule;
-use settings_content::SemanticTokenRules;
 use settings_content::SettingsContent;
 use settings_content::Shell;
 use settings_content::TerminalBlink;
@@ -21,30 +17,7 @@ use settings_content::WorktreeSettingsContent;
 
 /// The complete application settings. Edit this constructor to change persistent preferences.
 pub fn settings() -> SettingsContent {
-    SettingsContent {
-        project: project_settings(),
-        global_lsp_settings: Some(GlobalLspSettingsContent {
-            button: Some(true),
-            request_timeout: Some(120),
-            max_buffer_line_length: Some(20000),
-            notifications: Some(LspNotificationSettingsContent { dismiss_timeout_ms: Some(5000) }),
-            semantic_token_rules: Some(SemanticTokenRules {
-                rules: vec![
-                    SemanticTokenRule {
-                        token_type: Some("enumMember".into()),
-                        style: vec!["type".into()],
-                        ..Default::default()
-                    },
-                    SemanticTokenRule {
-                        token_type: Some("namespace".into()),
-                        style: vec!["variable".into()],
-                        ..Default::default()
-                    },
-                ],
-            }),
-        }),
-        terminal: terminal_settings(),
-    }
+    SettingsContent { project: project_settings(), terminal: terminal_settings() }
 }
 
 fn terminal_settings() -> Option<TerminalSettingsContent> {

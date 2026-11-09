@@ -133,37 +133,6 @@ pub struct WorktreeSettingsContent {
     pub hidden_files: Option<Vec<String>>,
 }
 
-/// Common language server settings.
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GlobalLspSettingsContent {
-    /// Whether to show the LSP servers button in the status bar.
-    ///
-    /// Default: `true`
-    pub button: Option<bool>,
-    /// The maximum amount of time to wait for responses from language servers, in seconds.
-    /// A value of `0` will result in no timeout being applied (causing all LSP responses to wait indefinitely until completed).
-    ///
-    /// Default: `120`
-    pub request_timeout: Option<u64>,
-    /// The maximum line length a buffer may contain before language server features are disabled for the entire buffer.
-    ///
-    /// Default: `20000`
-    pub max_buffer_line_length: Option<u32>,
-    /// Settings for language server notifications
-    pub notifications: Option<LspNotificationSettingsContent>,
-    /// Rules for rendering LSP semantic tokens.
-    pub semantic_token_rules: Option<SemanticTokenRules>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LspNotificationSettingsContent {
-    /// Timeout in milliseconds for automatically dismissing language server notifications.
-    /// Set to 0 to disable auto-dismiss.
-    ///
-    /// Default: 5000
-    pub dismiss_timeout_ms: Option<u64>,
-}
-
 /// Custom rules for rendering LSP semantic tokens.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(transparent)]

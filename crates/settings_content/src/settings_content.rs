@@ -58,9 +58,6 @@ pub struct SettingsContent {
     #[serde(flatten)]
     pub project: ProjectSettingsContent,
 
-    /// Common language server settings.
-    pub global_lsp_settings: Option<GlobalLspSettingsContent>,
-
     /// Configuration of the terminal in ed.
     pub terminal: Option<TerminalSettingsContent>,
 }

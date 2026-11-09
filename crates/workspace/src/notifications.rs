@@ -33,8 +33,6 @@ use markdown::Markdown;
 use markdown::MarkdownElement;
 use markdown::MarkdownStyle;
 use parking_lot::Mutex;
-use project::project_settings::ProjectSettings;
-use settings::Settings;
 use ui::CopyButton;
 use ui::Tooltip;
 use ui::font;
@@ -67,6 +65,9 @@ use ui::prelude::px;
 use ui::prelude::v_flex;
 use ui::prelude::vh;
 use util::ResultExt;
+
+/// Language server prompts without actions auto-dismiss after this delay.
+const LSP_PROMPT_DISMISS_TIMEOUT: Duration = Duration::from_secs(5);
 
 use crate::SuppressNotification;
 use crate::Toast;
@@ -149,15 +150,11 @@ impl Workspace {
                 let is_prompt_without_actions =
                     prompt.read(cx).request.as_ref().is_some_and(|request| request.actions.is_empty());
 
-                let dismiss_timeout_ms =
-                    ProjectSettings::get_global(cx).global_lsp_settings.notifications.dismiss_timeout_ms;
-
-                if is_prompt_without_actions && let Some(dismiss_duration_ms) = dismiss_timeout_ms.filter(|&ms| ms > 0)
-                {
+                if is_prompt_without_actions {
                     let task = cx.spawn({
                         let id = id.clone();
                         async move |this, cx| {
-                            cx.background_executor().timer(Duration::from_millis(dismiss_duration_ms)).await;
+                            cx.background_executor().timer(LSP_PROMPT_DISMISS_TIMEOUT).await;
                             let _ = this.update(cx, |workspace, cx| {
                                 workspace.dismiss_notification(&id, cx);
                             });

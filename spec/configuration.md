@@ -119,6 +119,10 @@ migrator, or Vim/Helix mode.
   - workspace: a panel's focus toggle never closes the panel; the window title
     is fixed to `<project names> — <active file name>` (no title template, so
     no settings or Git branch subscriptions drive title updates);
+  - language servers: there are no global LSP settings; requests time out
+    after 120s (`lsp::LSP_REQUEST_TIMEOUT`), buffers with a line over 20000
+    characters skip language servers, prompts without actions auto-dismiss
+    after 5s, and the status bar LSP button is always shown;
   - no accessible mode.
 - Markdown preview preferences are hardcoded too: UI font family and size for
   text, buffer font family for code, semibold (600) headings, content centered
@@ -127,9 +131,10 @@ migrator, or Vim/Helix mode.
 - Fonts and font sizes are not settings; see "Fonts" in `ui-layout.md`. There
   are no theme settings: buffer line height (1.618) and unnecessary-code fade
   (0.3) are constants in `theme::built_in`.
-- Semantic token fallback mappings are constructed in Rust. Personal rules take
-  precedence over language/extension rules, which take precedence over fallback
-  mappings. Rule order and theme-style fallback order are preserved. There is no
+- Semantic token fallback mappings are constructed in Rust. Language rules take
+  precedence over fallback mappings; the former personal rules (`enumMember` →
+  `type`, `namespace` → `variable`) are the first fallback mappings, as no
+  language rules cover those token types. Rule order and theme-style fallback order are preserved. There is no
   bundled semantic-token settings JSON or default-rules viewer.
 - Settings-file actions, shortcuts, menu entries, and welcome/error links are
   removed, along with the project/server settings commands and profile selector.
