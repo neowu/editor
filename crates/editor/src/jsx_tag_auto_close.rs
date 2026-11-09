@@ -10,7 +10,6 @@ use gpui::Window;
 use language::BufferSnapshot;
 use language::JsxTagAutoCloseConfig;
 use language::Node;
-use language::language_settings::LanguageSettings;
 use multi_buffer::BufferOffset;
 use multi_buffer::MultiBuffer;
 use multi_buffer::ToOffset;
@@ -303,12 +302,7 @@ pub(crate) fn refresh_enabled_in_any_buffer(
             let buffer = buffer.read(cx);
             let snapshot = buffer.snapshot();
             for language in snapshot.syntax_layers_languages() {
-                if language.config().jsx_tag_auto_close.is_none() {
-                    continue;
-                }
-                let should_auto_close =
-                    LanguageSettings::resolve(Some(buffer), Some(&language.name()), cx).jsx_tag_auto_close;
-                if should_auto_close {
+                if language.config().jsx_tag_auto_close.is_some() {
                     found_enabled = true;
                 }
             }
@@ -378,11 +372,6 @@ pub(crate) fn handle_from(
             let Some(config) = language.config().jsx_tag_auto_close.as_ref() else {
                 continue;
             };
-
-            let language_settings = snapshot.settings_at(edit.new.end, cx);
-            if !language_settings.jsx_tag_auto_close {
-                continue;
-            }
 
             edit_contexts
                 .entry((snapshot.remote_id(), language.id()))

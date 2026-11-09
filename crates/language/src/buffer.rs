@@ -52,7 +52,6 @@ pub use lsp::DiagnosticSeverity;
 use lsp::LanguageServerId;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
-use settings::SettingsStore;
 use settings::WorktreeId;
 use smallvec::SmallVec;
 use sum_tree::TreeMap;
@@ -109,6 +108,7 @@ use crate::diagnostic_set::DiagnosticEntry;
 use crate::diagnostic_set::DiagnosticEntryRef;
 use crate::diagnostic_set::DiagnosticGroup;
 pub use crate::diagnostic_set::DiagnosticSet;
+use crate::language_settings::AUTO_INDENT;
 use crate::language_settings::AutoIndentMode;
 use crate::language_settings::LanguageSettings;
 use crate::outline::OutlineItem;
@@ -192,7 +192,6 @@ pub struct Buffer {
     change_bits: Vec<rc::Weak<Cell<bool>>>,
     _subscriptions: Vec<gpui::Subscription>,
     resolved_settings: Option<Arc<LanguageSettings>>,
-    _settings_observer: Option<gpui::Subscription>,
     tree_sitter_data: Arc<TreeSitterData>,
     fallback_highlighter: Option<Arc<FallbackHighlighter>>,
     fallback_syntax_override: Option<&'static str>,
@@ -1100,9 +1099,6 @@ impl Buffer {
             change_bits: Vec::default(),
             _subscriptions: Vec::new(),
             resolved_settings: None,
-            _settings_observer: Some(cx.observe_global::<SettingsStore>(|this, cx| {
-                this.refresh_resolved_settings(cx);
-            })),
             encoding: encoding_rs::UTF_8,
             has_bom: false,
             reload_with_encoding_txns: FxHashMap::default(),
@@ -1113,7 +1109,6 @@ impl Buffer {
     }
 
     fn compute_resolved_settings(&self, cx: &App) -> Option<Arc<LanguageSettings>> {
-        cx.try_global::<SettingsStore>()?;
         Some(LanguageSettings::resolve_uncached(self, None, cx))
     }
 
@@ -2592,26 +2587,11 @@ impl Buffer {
 
         if let Some((before_edit, mode)) = autoindent_request {
             let mut delta = 0isize;
-            let mut previous_setting = None;
             let entries: Vec<_> = edits
                 .into_iter()
                 .enumerate()
                 .zip(&edit_operation.as_edit().unwrap().new_text)
-                .filter(|((_, (range, _)), _)| {
-                    let language = before_edit.language_at(range.start);
-                    let language_id = language.map(|l| l.id());
-                    if let Some((cached_language_id, apply_syntax_indent)) = previous_setting
-                        && cached_language_id == language_id
-                    {
-                        apply_syntax_indent
-                    } else {
-                        let auto_indent_mode =
-                            LanguageSettings::resolve(None, language.map(|l| l.name()).as_ref(), cx).auto_indent;
-                        let apply_syntax_indent = auto_indent_mode == AutoIndentMode::SyntaxAware;
-                        previous_setting = Some((language_id, apply_syntax_indent));
-                        apply_syntax_indent
-                    }
-                })
+                .filter(|_| AUTO_INDENT == AutoIndentMode::SyntaxAware)
                 .map(|((ix, (range, _)), new_text)| {
                     let new_text_length = new_text.len();
                     let old_start = range.start.to_point(&before_edit);

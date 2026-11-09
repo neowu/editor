@@ -573,7 +573,7 @@ pub struct ThemeStyles {
     pub system: SystemColors,
     /// An array of colors used for theme elements that iterate through a series of colors.
     ///
-    /// Example: Player colors, rainbow brackets and indent guides, etc.
+    /// Example: Player colors and indent guides, etc.
     pub accents: AccentColors,
 
     pub colors: ThemeColors,

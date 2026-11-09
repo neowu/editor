@@ -19,7 +19,6 @@ brackets = [
     { start = "/*", end = " */", close = true, newline = false, surround = true, not_in = ["string", "comment"] },
 ]
 word_characters = ["#", "$"]
-tab_size = 2
 
 [overrides.string]
 prefer_label_for_snippet = true

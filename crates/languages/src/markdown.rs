@@ -1,3 +1,13 @@
+use std::num::NonZeroU32;
+
+use language::language_settings::DocumentSymbols;
+use language::language_settings::FormatOnSave;
+use language::language_settings::Formatter;
+use language::language_settings::FormatterList;
+use language::language_settings::LanguageSettings;
+use language::language_settings::RewrapBehavior;
+use language::language_settings::SoftWrap;
+use language::language_settings::WordsCompletionMode;
 use project::ContextProviderWithTasks;
 use rustc_hash::FxHashMap;
 use task::TaskTemplate;
@@ -29,6 +39,28 @@ fn shell_block_template(tag: &str, shell: &str) -> TaskTemplate {
         env: FxHashMap::from_iter([(CODE_BLOCK_ENV.to_owned(), VariableName::Custom("code".into()).template_value())]),
         cwd: Some(VariableName::Dirname.template_value()),
         tags: vec![tag.to_owned()],
+    }
+}
+
+/// Settings for Markdown and Markdown-Inline.
+pub(crate) fn settings() -> LanguageSettings {
+    LanguageSettings {
+        tab_size: NonZeroU32::new(2).unwrap(),
+        hard_tabs: false,
+        soft_wrap: SoftWrap::EditorWidth,
+        preferred_line_length: 300,
+        wrap_guides: vec![120],
+        format_on_save: FormatOnSave::On,
+        formatter: FormatterList::Single(Formatter::Auto),
+        code_actions_on_format: FxHashMap::default(),
+        remove_trailing_whitespace_on_save: false,
+        ensure_final_newline_on_save: true,
+        // No markdown language server; outline and breadcrumbs come from tree-sitter.
+        document_symbols: DocumentSymbols::Off,
+        allow_rewrap: RewrapBehavior::Anywhere,
+        use_on_type_format: false,
+        auto_indent_on_paste: false,
+        word_completions: WordsCompletionMode::Disabled,
     }
 }
 

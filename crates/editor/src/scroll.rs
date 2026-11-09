@@ -22,10 +22,7 @@ use gpui::TouchPhase;
 use gpui::Window;
 use gpui::point;
 use language::Bias;
-use language::language_settings::AllLanguageSettings;
-use language::language_settings::SoftWrap;
 pub use scroll_amount::ScrollAmount;
-use settings::Settings;
 use ui::scrollbars::ScrollbarAutoHide;
 use util::ResultExt;
 
@@ -698,23 +695,9 @@ impl Editor {
         let Some(visible_line_count) = self.visible_line_count() else {
             return;
         };
-        let Some(mut visible_column_count) = self.visible_column_count() else {
+        let Some(visible_column_count) = self.visible_column_count() else {
             return;
         };
-
-        // If the user has a preferred line length, and has the editor
-        // configured to wrap at the preferred line length, or bounded to it,
-        // use that value over the visible column count. This was mostly done so
-        // that tests could actually be written for vim's `z l`, `z h`, `z
-        // shift-l` and `z shift-h` commands, as there wasn't a good way to
-        // configure the editor to only display a certain number of columns. If
-        // that ever happens, this could probably be removed.
-        let settings = AllLanguageSettings::get_global(cx);
-        if matches!(settings.defaults.soft_wrap, SoftWrap::Bounded)
-            && (settings.defaults.preferred_line_length as f64) < visible_column_count
-        {
-            visible_column_count = settings.defaults.preferred_line_length as f64;
-        }
 
         // If the scroll position is currently at the left edge of the document
         // (x == 0.0) and the intent is to scroll right, the gutter's margin

@@ -4,8 +4,9 @@
 
 Settings are constructed entirely in Rust as one complete `SettingsContent`
 object shared by every project. There is no default-settings JSON or separate
-user/default settings layer. Language metadata supplies language conventions;
-explicit per-language values in code take precedence. Keymaps and snippets are
+user/default settings layer. Language settings are not part of it: each
+language's complete settings are hardcoded next to its language support (see
+"Language settings" in `languages.md`). Keymaps and snippets are
 also constructed in Rust, including the personal bindings and snippets.
 Changing persistent settings, shortcuts, or snippets requires editing code and
 rebuilding. There is no settings UI, keymap editor, snippet UI, settings/keymap
@@ -75,19 +76,16 @@ migrator, or Vim/Helix mode.
   values and remain `None` when missing. Settings JSON error recovery and
   field-path diagnostics are removed. Bundled semantic-token rules use ordinary
   Serde errors; callers identify the source file when reporting failures.
-- There is one settings layer, so settings types have no merge trait or derive
-  macros (`settings_macros` is removed). The only merge is per language:
-  language defaults, then language metadata (tab size, hard tabs, soft wrap,
-  auto-indent on paste), then the built-in per-language overrides, each overlaid
-  field by field (nested groups such as `completions` too). Lists and maps are
-  plain values that replace; there is no `"..."` splicing or extend-only list
-  type. Typed settings register with `settings::register_setting!(Type)`.
+- There is one settings layer and no merging anywhere, so settings types have
+  no merge trait or derive macros (`settings_macros` is removed). Lists and maps
+  are plain values; there is no `"..."` splicing or extend-only list type.
+  Typed settings register with `settings::register_setting!(Type)`.
 - User, global, server, and `.ed/settings.json` files are not loaded, watched,
   created, or rewritten. There are no settings profiles or project overrides.
   Changing persistent preferences requires editing the built-in settings and
   rebuilding. Existing settings controls affect only the running session.
 - Built-in preferences preserve the applicable values from the personal Zed
-  configuration, including language overrides and Rust language-server options.
+  configuration, including per-language values and Rust language-server options.
   Entries for removed features are omitted. Preferences that never varied are
   removed as settings and hardcoded:
   - title bar: no expanded menu bar, no open-on-hover menus; the project
@@ -140,7 +138,7 @@ migrator, or Vim/Helix mode.
   no keymap watcher, file editor/viewer action, base-keymap selection, or keymap
   JSON schema. Task files are not supported (see `tasks.md`).
 - EditorConfig and file modelines (vim/emacs `vim:`/`-*-` comments) are not
-  supported, so language settings come only from built-in settings. There is no
+  supported, so language settings come only from code. There is no
   project-local settings layer or worktree-settings sync with remote peers.
   Settings lookups are global only (`Settings::get_global`); there is no
   per-file/worktree location argument, and the remote terminal-shell request

@@ -27,7 +27,7 @@ use language::File as _;
 use language::Language;
 use language::LineEnding;
 use language::Operation;
-use language::language_settings::AllLanguageSettings;
+use language::language_settings::LINE_ENDING;
 use language::language_settings::LineEndingSetting;
 use language::proto as language_proto;
 use language::proto::deserialize_line_ending;
@@ -44,7 +44,6 @@ use rpc::proto::PeerId;
 use rpc::proto::{self};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use settings::Settings;
 use text::BufferId;
 use text::ReplicaId;
 use util::ResultExt as _;
@@ -1577,9 +1576,7 @@ fn apply_initial_line_ending(buffer: &mut Buffer, cx: &mut Context<Buffer>) {
     if buffer.max_point().row > 0 {
         return;
     }
-    let language = buffer.language().map(|l| l.name());
-    let settings = AllLanguageSettings::get_global(cx).language(language.as_ref());
-    let desired = match settings.line_ending {
+    let desired = match LINE_ENDING {
         LineEndingSetting::Detect => return,
         LineEndingSetting::PreferLf | LineEndingSetting::EnforceLf => LineEnding::Unix,
         LineEndingSetting::PreferCrlf | LineEndingSetting::EnforceCrlf => LineEnding::Windows,

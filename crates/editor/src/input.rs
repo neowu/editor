@@ -1,5 +1,6 @@
 use anyhow::Context as _;
 use gpui::TaskExt as _;
+use language::language_settings::AUTO_INDENT;
 
 use super::Anchor;
 use super::AnchorRangeExt;
@@ -140,7 +141,6 @@ impl Editor {
                 // bracket of any of this language's bracket pairs.
                 let mut bracket_pair = None;
                 let mut is_bracket_pair_start = false;
-                let mut is_bracket_pair_end = false;
                 if !text.is_empty() {
                     let mut bracket_pair_matching_end = None;
                     // `text` can be empty when a user is using IME (e.g. Chinese Wubi Simplified)
@@ -174,14 +174,12 @@ impl Editor {
                         && bracket_pair.is_none()
                     {
                         bracket_pair = Some(end);
-                        is_bracket_pair_end = true;
                     }
                 }
 
                 if let Some(bracket_pair) = bracket_pair {
-                    let snapshot_settings = snapshot.language_settings_at(selection.start, cx);
-                    let autoclose = self.use_autoclose && snapshot_settings.use_autoclose;
-                    let auto_surround = self.use_auto_surround && snapshot_settings.use_auto_surround;
+                    let autoclose = self.use_autoclose;
+                    let auto_surround = self.use_auto_surround;
                     if selection.is_empty() {
                         if is_bracket_pair_start {
                             // If the inserted text is a suffix of an opening bracket and the
@@ -274,20 +272,6 @@ impl Editor {
                                 new_selections.push((selection.map(|_| anchor), region.pair.end.len()));
                                 continue;
                             }
-                        }
-
-                        let always_treat_brackets_as_autoclosed =
-                            snapshot.language_settings_at(selection.start, cx).always_treat_brackets_as_autoclosed;
-                        if always_treat_brackets_as_autoclosed
-                            && is_bracket_pair_end
-                            && snapshot.contains_str_at(selection.end, text.as_ref())
-                        {
-                            // Otherwise, when `always_treat_brackets_as_autoclosed` is set to `true
-                            // and the inserted text is a closing bracket and the selection is followed
-                            // by the closing bracket then move the selection past the closing bracket.
-                            let anchor = snapshot.anchor_after(selection.end);
-                            new_selections.push((selection.map(|_| anchor), text.len()));
-                            continue;
                         }
                     }
                     // If an opening bracket is 1 character long and is typed while
@@ -523,7 +507,6 @@ impl Editor {
                             let mut delimiter = None;
 
                             if selection_is_empty
-                                && multi_buffer.language_settings(cx).extend_comment_on_newline
                                 && let Some(comment_delimiter) =
                                     comment_delimiter_for_newline(&start_point, &buffer, language)
                             {
@@ -533,7 +516,6 @@ impl Editor {
                                     *extra_line_additional_indent = None;
                                 }
                             } else if selection_is_empty
-                                && multi_buffer.language_settings(cx).extend_comment_on_newline
                                 && let Some(doc_delimiter) = documentation_delimiter_for_newline(
                                     &start_point,
                                     &buffer,
@@ -543,7 +525,6 @@ impl Editor {
                             {
                                 delimiter = Some(doc_delimiter);
                             } else if selection_is_empty
-                                && multi_buffer.language_settings(cx).extend_list_on_newline
                                 && let Some(list_delimiter) =
                                     list_delimiter_for_newline(&start_point, &buffer, language, &mut newline_config)
                             {
@@ -582,7 +563,7 @@ impl Editor {
                                 extra_line_additional_indent,
                                 prevent_auto_indent,
                             } => {
-                                let auto_indent_mode = buffer.language_settings_at(start, cx).auto_indent;
+                                let auto_indent_mode = AUTO_INDENT;
                                 let preserve_indent = auto_indent_mode != language::AutoIndentMode::None;
                                 let apply_syntax_indent = auto_indent_mode == language::AutoIndentMode::SyntaxAware;
                                 let capacity_for_delimiter = delimiter.as_deref().map(str::len).unwrap_or_default();
@@ -1740,32 +1721,6 @@ impl Editor {
                             selection.end = range.end;
 
                             return selection;
-                        }
-                    }
-                }
-
-                let always_treat_brackets_as_autoclosed =
-                    buffer.language_settings_at(selection.start, cx).always_treat_brackets_as_autoclosed;
-
-                if !always_treat_brackets_as_autoclosed {
-                    return selection;
-                }
-
-                if let Some(scope) = buffer.language_scope_at(selection.start) {
-                    for (pair, enabled) in scope.brackets() {
-                        if !enabled || !pair.close {
-                            continue;
-                        }
-
-                        if buffer.contains_str_at(selection.start, &pair.end) {
-                            let pair_start_len = pair.start.len();
-                            if buffer.contains_str_at(selection.start.saturating_sub_usize(pair_start_len), &pair.start)
-                            {
-                                selection.start -= pair_start_len;
-                                selection.end += pair.end.len();
-
-                                return selection;
-                            }
                         }
                     }
                 }

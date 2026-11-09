@@ -1,4 +1,3 @@
-use std::num::NonZeroU32;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -13,22 +12,6 @@ use serde::Serializer;
 use serde::de;
 
 use crate::LanguageName;
-
-/// Controls the soft-wrapping behavior in the editor.
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum SoftWrap {
-    /// Prefer a single line generally, unless an overly long line is encountered.
-    None,
-    /// Deprecated: use None instead. Left to avoid breaking existing users' configs.
-    /// Prefer a single line generally, unless an overly long line is encountered.
-    PreferLine,
-    /// Soft wrap lines that exceed the editor width.
-    EditorWidth,
-    /// Soft wrap line at the preferred line length or the editor width (whichever is smaller).
-    #[serde(alias = "preferred_line_length")]
-    Bounded,
-}
 
 /// Top-level configuration for a language, typically loaded from a `config.toml`
 /// shipped alongside the grammar.
@@ -49,9 +32,6 @@ pub struct LanguageConfig {
     /// If set to true, auto indentation uses last non empty line to determine
     /// the indentation level for a new line.
     pub auto_indent_using_last_non_empty_line: bool,
-    // Whether indentation of pasted content should be adjusted based on the context.
-    #[serde(default)]
-    pub auto_indent_on_paste: Option<bool>,
     /// A regex that is used to determine whether the indentation level should be
     /// increased in the following line.
     #[serde(default, deserialize_with = "deserialize_regex")]
@@ -107,16 +87,6 @@ pub struct LanguageConfig {
     /// or a whole-word search in buffer search.
     #[serde(default)]
     pub word_characters: FxHashSet<char>,
-    /// Whether to indent lines using tab characters, as opposed to multiple
-    /// spaces.
-    #[serde(default)]
-    pub hard_tabs: Option<bool>,
-    /// How many columns a tab should occupy.
-    #[serde(default)]
-    pub tab_size: Option<NonZeroU32>,
-    /// How to soft-wrap long lines of text.
-    #[serde(default)]
-    pub soft_wrap: Option<SoftWrap>,
     /// When set, selections can be wrapped using prefix/suffix pairs on both sides.
     #[serde(default)]
     pub wrap_characters: Option<WrapCharactersConfig>,
@@ -156,7 +126,6 @@ impl Default for LanguageConfig {
             matcher: Arc::default(),
             brackets: Default::default(),
             auto_indent_using_last_non_empty_line: true,
-            auto_indent_on_paste: None,
             increase_indent_pattern: Default::default(),
             decrease_indent_pattern: Default::default(),
             decrease_indent_patterns: Default::default(),
@@ -171,9 +140,6 @@ impl Default for LanguageConfig {
             overrides: Default::default(),
             word_characters: Default::default(),
             collapsed_placeholder: Default::default(),
-            hard_tabs: None,
-            tab_size: None,
-            soft_wrap: None,
             wrap_characters: None,
             hidden: false,
             jsx_tag_auto_close: None,

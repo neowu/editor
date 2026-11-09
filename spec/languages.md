@@ -1,5 +1,32 @@
 # Languages
 
+- Language settings: each language's complete `LanguageSettings` is a
+  function in its own module in `crates/languages/src` (e.g. `rust::settings()`;
+  Diff, Env, Git Commit and Plain Text have small modules of their own),
+  registered with the language. There is no global default to override and no
+  merging, so a language's settings are read in one place. Languages that share
+  settings call the same function (JSON/JSONC, TypeScript/TSX/JavaScript,
+  Markdown/Markdown-Inline, Go Mod/Go Work). Buffers without a
+  registered language use `LanguageSettings::fallback()` (in `language`).
+  - Per-language fields are only those a language may need to differ in: tab
+    size, hard tabs, soft wrap, preferred line length, wrap guides, format on
+    save, formatter, code actions on format, trailing whitespace / final
+    newline on save, document symbols source, rewrap scope, on-type
+    formatting, auto-indent on paste, and word completions.
+  - Everything else is an editor-wide constant in `language::language_settings`
+    (soft-wrap indent, indent guides, line ending, LSP folding ranges, visible
+    whitespace, inlay hints, auto-indent mode, LSP completion options) or always on with no setting: comment/list continuation,
+    list indent on tab, autoclose and auto-surround, linked edits, completions
+    on input and their documentation, word diff, language tasks (LSP tasks
+    preferred), and language servers.
+  - JSX tag auto-close applies to languages whose `config.toml` has a
+    `[jsx_tag_auto_close]` section (JavaScript, TSX); there is no setting.
+  - Extra file globs that select a language before path suffixes (`tsconfig*.json`
+    → JSONC, `.env.*` → Env, agent rule files → Markdown) are registered with the
+    language's settings. `config.toml` carries no settings (tab size, hard tabs,
+    soft wrap, auto-indent on paste).
+  - There are no per-language task variables, so the Rust run/target-dir and
+    Python test-runner overrides are gone.
 - Tree-sitter grammars are only bundled for languages edited seriously: Bash,
   CSS, Go, HTML (with injected JS/CSS), JavaScript, JSON/JSONC, Markdown,
   Python, Rust, TSX, TypeScript, YAML. They drive highlighting plus
@@ -13,7 +40,7 @@
   (`"off"`) because there is no Markdown language server; headings make up the
   outline. LSP symbols are fetched per buffer, so in a multibuffer refreshing one
   file never cancels another file's pending fetch.
-- C, C++, Diff, Git Commit, Go Mod, Go Work and TOML are still registered
+- Diff, Git Commit, Go Mod, Go Work and TOML are still registered
   languages (file matching, comments, brackets, gopls for Go Mod/Work, tombi
   for TOML, Diff's keep-trailing-whitespace settings, the Git Commit editor)
   but have no grammar, so they get rough highlighting only and none of the
@@ -29,10 +56,10 @@
   it, so the adapter adds the worktree root's `clippy.toml` / `.clippy.toml`
   (absolute paths) to `vfs.extraIncludes`. Exact duplicate diagnostics in a
   publish are collapsed to one. These warnings show in the diagnostics pane
-  under the clippy config, not at the offending `Cargo.toml` line. A
-  user-set `vfs.extraIncludes` replaces this list.
-- C/C++ have no built-in language server: clangd support (adapter, semantic
-  token rules, inactive regions, switch source/header) is removed.
+  under the clippy config, not at the offending `Cargo.toml` line.
+- C and C++ are not registered languages (no clangd, comments, brackets or
+  per-language settings): their files open as Plain Text and are highlighted
+  by the fallback below.
 - SQL, Dockerfile, JSDoc, Regex and the hidden Zed Keybind Context
   languages are removed. Their files open as Plain Text and are still
   highlighted by the fallback below.
@@ -82,8 +109,7 @@
     is on, and stay unhighlighted otherwise.
   - LSP semantic tokens layer on top as usual.
 - HTML uses `vscode-html-language-server` (from `vscode-langservers-extracted`),
-  started with `--stdio` and `provideFormatter: true`; `lsp.vscode-html-language-server.settings`
-  is passed through as workspace configuration.
+  started with `--stdio` and `provideFormatter: true`.
 - Jupyter notebooks and integrated REPL execution are removed, including kernel
   management, remote kernel launching, execution controls, settings, and shortcuts.
 - Python source editing remains supported. `.ipynb` files open as ordinary text.
@@ -96,7 +122,7 @@
   - There is no toolchain/virtual-environment discovery, selector, status bar
     item or persisted toolchain. The only environment ed knows is `.venv` at
     the worktree root; ty finds it on its own.
-  - Built-in Python tasks (run file/module/selection, pytest/unittest) run
+  - Built-in Python tasks (run file/module/selection, pytest) run
     through `uv run python …` from the worktree root.
   - `terminal.detect_venv` (bool, default true): terminals and tasks opened in a
     worktree with a `.venv` get `VIRTUAL_ENV` set and `.venv/bin` prepended to
@@ -127,8 +153,6 @@
   first use. A missing server is reported through the existing failed-server
   status ("Failed to run …" in the activity indicator, "Error" in the LSP menu)
   naming the server and the binary it looked for on `PATH`.
-- `lsp.<server>.fetch` and `lsp.<server>.binary.ignore_system_version` are removed;
-  `binary.arguments` and `binary.env` still apply to whichever binary is used.
 - JavaScript, TypeScript and TSX run two servers, `tsgo` and `biome`. vtsls,
   typescript-language-server and ESLint are removed.
   - `tsgo` is the TypeScript 7 native language server (`tsc --lsp --stdio`).
@@ -146,8 +170,12 @@
   diagnostics and code actions (`source.fixAll.biome`,
   `source.organizeImports.biome`). It resolves like the Biome formatter, from the
   worktree root. Formatting stays on the Biome CLI (below).
-- `lsp.tsgo.settings` / `lsp.biome.settings` are passed through as workspace
-  configuration.
+- There are no `lsp.<server>` settings. Each adapter hardcodes its server's
+  binary arguments, initialization options and workspace configuration
+  (rust-analyzer: nightly rustfmt, clippy check, all cargo features). A
+  settings change never restarts a server, since nothing that settings control
+  feeds into a server's identity. yaml/json don't resolve relative schema paths
+  against the worktree.
 - Server binary statuses no longer include checking-for-update or downloading.
 - No Vue.js support: no grammar, language server, `tsserver/request` bridge,
   default settings or `.vue` file icon. `.vue` files open as Plain Text.
@@ -163,8 +191,7 @@
   every adapter registered for the language runs, in registration order (the
   first is the primary server). The `languages.<lang>.language_servers` setting
   (`"!name"` / `"..."` syntax) is removed, as are "available" adapters that only
-  start when named in settings. `enable_language_server: false` still turns all
-  servers off for a language.
+  start when named in settings. There is no `enable_language_server` setting.
 - No direnv integration (`load_direnv` removed). A project's environment is the
   login shell's environment captured after `cd` into the worktree, so shell
   hooks (direnv, mise, asdf) still apply if configured in the user's shell.

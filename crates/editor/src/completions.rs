@@ -3,6 +3,7 @@ use std::mem;
 use std::sync::atomic::AtomicBool;
 
 use anyhow::Context as _;
+use language::language_settings::COMPLETIONS;
 use text::ToOffset as _;
 
 use super::Anchor;
@@ -393,11 +394,8 @@ impl Editor {
         let menu_is_open = matches!(self.context_menu.borrow().as_ref(), Some(CodeContextMenu::Completions(_)));
 
         let language = buffer_snapshot.language_at(buffer_position).map(|language| language.name());
-        let language_settings = multibuffer_snapshot.language_settings_at(multibuffer_position, cx);
-        let completion_settings = language_settings.completions.clone();
-
-        let show_completions_on_input =
-            self.show_completions_on_input_override.unwrap_or(language_settings.show_completions_on_input);
+        let word_completions = multibuffer_snapshot.language_settings_at(multibuffer_position, cx).word_completions;
+        let show_completions_on_input = self.show_completions_on_input_override.unwrap_or(true);
         if !menu_is_open && trigger.is_some() && !show_completions_on_input {
             return;
         }
@@ -470,8 +468,7 @@ impl Editor {
                 (buffer_position..buffer_position, None)
             };
 
-        let show_completion_documentation =
-            buffer_snapshot.settings_at(buffer_position, cx).show_completion_documentation;
+        let show_completion_documentation = true;
 
         // The document can be large, so stay in reasonable bounds when searching for words,
         // otherwise completion pop-up might be slow to appear.
@@ -518,9 +515,9 @@ impl Editor {
             true
         } else {
             load_provider_completions
-                && completion_settings.words != WordsCompletionMode::Disabled
+                && word_completions != WordsCompletionMode::Disabled
                 && (ignore_word_threshold || {
-                    let words_min_length = completion_settings.words_min_length;
+                    let words_min_length = COMPLETIONS.words_min_length;
                     // check whether word has at least `words_min_length` characters
                     let query_chars = query.iter().flat_map(|q| q.chars());
                     query_chars.take(words_min_length).count() == words_min_length
@@ -600,7 +597,7 @@ impl Editor {
                         Some(options) => options.merge(&response.display_options),
                     }
                 }
-                if completion_settings.words == WordsCompletionMode::Fallback {
+                if word_completions == WordsCompletionMode::Fallback {
                     words = Task::ready(BTreeMap::default());
                 }
             }

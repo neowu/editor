@@ -8,17 +8,13 @@
   "}" @close)
 
 (("\"" @open
-  "\"" @close)
-  (#set! rainbow.exclude))
+  "\"" @close))
 
 (("`" @open
-  "`" @close)
-  (#set! rainbow.exclude))
+  "`" @close))
 
 (("'" @open
-  "'" @close)
-  (#set! rainbow.exclude))
+  "'" @close))
 
 (((fenced_code_block_delimiter) @open
-  (fenced_code_block_delimiter) @close)
-  (#set! rainbow.exclude))
+  (fenced_code_block_delimiter) @close))

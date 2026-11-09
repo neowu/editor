@@ -18,8 +18,8 @@ clients as JSON.
   - tree-sitter `runnables.scm` tags matched against the task templates the
     buffer's language provides (`ContextProvider::associated_tasks`), e.g.
     `cargo run` for a Rust `main` or example;
-  - LSP runnables (e.g. rust-analyzer), controlled by `lsp.<server>.enable_lsp_tasks`
-    and `tasks.prefer_lsp` per language.
+  - LSP runnables (e.g. rust-analyzer), always requested; when any come back,
+    they replace the language's tree-sitter runnable tasks.
 - Only the buffer's own language contributes tree-sitter runnables; code
   injected into it (e.g. a markdown code block) does not, since templates
   target the whole file.

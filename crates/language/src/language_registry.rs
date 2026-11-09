@@ -27,8 +27,6 @@ use lsp::LanguageServerId;
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
-use settings::AllLanguageSettingsContent;
-use settings::LanguageSettingsContent;
 use smallvec::SmallVec;
 use text::Rope;
 use theme::Theme;
@@ -59,7 +57,6 @@ pub struct LanguageRegistry {
 struct LanguageRegistryState {
     next_language_server_id: usize,
     languages: Vec<Arc<Language>>,
-    language_settings: AllLanguageSettingsContent,
     available_languages: AvailableLanguages,
     grammars: FxHashMap<Arc<str>, tree_sitter::Language>,
     lsp_adapters: FxHashMap<LanguageName, Vec<Arc<CachedLspAdapter>>>,
@@ -110,7 +107,6 @@ impl LanguageRegistry {
                 languages: Vec::new(),
                 available_languages: AvailableLanguages::default(),
                 grammars: FxHashMap::default(),
-                language_settings: AllLanguageSettingsContent::default(),
                 loading_languages: FxHashMap::default(),
                 lsp_adapters: FxHashMap::default(),
                 all_lsp_adapters: FxHashMap::default(),
@@ -166,10 +162,6 @@ impl LanguageRegistry {
         grammars: impl IntoIterator<Item = (impl Into<Arc<str>>, impl Into<tree_sitter::Language>)>,
     ) {
         self.state.write().grammars.extend(grammars.into_iter().map(|(name, grammar)| (name.into(), grammar.into())));
-    }
-
-    pub fn language_settings(&self) -> AllLanguageSettingsContent {
-        self.state.read().language_settings.clone()
     }
 
     pub fn language_names(&self) -> Vec<LanguageName> {
@@ -485,16 +477,6 @@ impl LanguageRegistryState {
         if let Some(theme) = self.theme.as_ref() {
             language.set_theme(theme.syntax());
         }
-        self.language_settings.languages.0.insert(
-            language.name().0.to_string(),
-            LanguageSettingsContent {
-                tab_size: language.config.tab_size,
-                hard_tabs: language.config.hard_tabs,
-                soft_wrap: language.config.soft_wrap.map(crate::to_settings_soft_wrap),
-                auto_indent_on_paste: language.config.auto_indent_on_paste,
-                ..Default::default()
-            },
-        );
         self.languages.push(language);
         self.version += 1;
         self.subscription.send(()).ok();

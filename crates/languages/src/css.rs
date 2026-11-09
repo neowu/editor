@@ -1,3 +1,4 @@
+use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -5,12 +6,19 @@ use async_trait::async_trait;
 use gpui::AsyncApp;
 use language::LspAdapter;
 use language::LspAdapterDelegate;
+use language::language_settings::DocumentSymbols;
+use language::language_settings::FormatOnSave;
+use language::language_settings::Formatter;
+use language::language_settings::FormatterList;
+use language::language_settings::LanguageSettings;
+use language::language_settings::RewrapBehavior;
+use language::language_settings::SoftWrap;
+use language::language_settings::WordsCompletionMode;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
 use lsp::Uri;
-use project::lsp_store::language_server_settings;
+use rustc_hash::FxHashMap;
 use serde_json::json;
-use util::merge_json_value_into;
 
 use crate::npx;
 
@@ -45,9 +53,9 @@ impl LspAdapter for CssLspAdapter {
         self: Arc<Self>,
         _: &Arc<dyn LspAdapterDelegate>,
         _: Option<Uri>,
-        cx: &mut AsyncApp,
+        _: &mut AsyncApp,
     ) -> Result<serde_json::Value> {
-        let mut default_config = json!({
+        Ok(json!({
             "css": {
                 "lint": {}
             },
@@ -57,15 +65,27 @@ impl LspAdapter for CssLspAdapter {
             "scss": {
                 "lint": {}
             }
-        });
+        }))
+    }
+}
 
-        let project_options =
-            cx.update(|cx| language_server_settings(&self.name(), cx).and_then(|s| s.settings.clone()));
-
-        if let Some(override_options) = project_options {
-            merge_json_value_into(override_options, &mut default_config);
-        }
-
-        Ok(default_config)
+/// Settings for CSS.
+pub(crate) fn settings() -> LanguageSettings {
+    LanguageSettings {
+        tab_size: NonZeroU32::new(4).unwrap(),
+        hard_tabs: false,
+        soft_wrap: SoftWrap::None,
+        preferred_line_length: 120,
+        wrap_guides: vec![120],
+        format_on_save: FormatOnSave::On,
+        formatter: FormatterList::Single(Formatter::Auto),
+        code_actions_on_format: FxHashMap::default(),
+        remove_trailing_whitespace_on_save: true,
+        ensure_final_newline_on_save: true,
+        document_symbols: DocumentSymbols::On,
+        allow_rewrap: RewrapBehavior::InComments,
+        use_on_type_format: true,
+        auto_indent_on_paste: true,
+        word_completions: WordsCompletionMode::Fallback,
     }
 }

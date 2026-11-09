@@ -1,5 +1,4 @@
 pub mod built_in;
-mod color_space;
 mod styles;
 
 use std::sync::Arc;
@@ -10,8 +9,6 @@ use gpui::Hsla;
 use gpui::SharedString;
 use gpui::WindowBackgroundAppearance;
 
-#[allow(clippy::wildcard_imports)]
-pub use crate::color_space::*;
 #[allow(clippy::wildcard_imports)]
 pub use crate::styles::*;
 

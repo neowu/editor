@@ -10,7 +10,6 @@ use language::LanguageRegistry;
 use language::language_settings::AllLanguageSettings;
 use project::LspStore;
 use project::lsp_store::json_language_server_ext;
-use settings::Settings as _;
 
 const SCHEMA_URI_PREFIX: &str = "ed://schemas/";
 

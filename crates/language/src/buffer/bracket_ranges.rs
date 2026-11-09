@@ -30,7 +30,6 @@ pub struct BracketMatch {
     pub close_range: Range<usize>,
     pub newline_only: bool,
     pub syntax_layer_depth: usize,
-    pub color_index: Option<usize>,
 }
 
 impl BracketMatch {
@@ -40,12 +39,11 @@ impl BracketMatch {
 }
 
 /// A single bracket pair candidate produced by a brackets query, before
-/// bogus tree-sitter matches are repaired and color indices are assigned.
+/// bogus tree-sitter matches are repaired.
 #[derive(Clone, Debug)]
 struct BracketMatchCandidate {
     bracket_match: BracketMatch,
     pattern: BracketPatternKey,
-    rainbow_exclude: bool,
 }
 
 impl BracketMatchCandidate {
@@ -87,23 +85,14 @@ type BracketDelimiterPair = (BracketDelimiter, BracketDelimiter);
 impl BufferSnapshot {
     /// Finds all [`super::row_chunk::RowChunks`] applicable to the given range, then returns all bracket pairs that intersect with those chunks.
     /// Hence, may return more bracket pairs than the range contains.
-    ///
-    /// Will omit known chunks.
     /// The resulting bracket match collections are not ordered.
-    pub fn fetch_bracket_ranges(
-        &self,
-        range: Range<usize>,
-        known_chunks: Option<&FxHashSet<Range<BufferRow>>>,
-    ) -> FxHashMap<Range<BufferRow>, Vec<BracketMatch>> {
+    fn fetch_bracket_ranges(&self, range: Range<usize>) -> FxHashMap<Range<BufferRow>, Vec<BracketMatch>> {
         let mut all_bracket_matches = FxHashMap::default();
         if self.language.as_ref().is_none_or(|language| language.grammar().is_none()) {
             return all_bracket_matches;
         }
 
         for chunk in self.tree_sitter_data.chunks.applicable_chunks(&[range.to_point(self)]) {
-            if known_chunks.is_some_and(|chunks| chunks.contains(&chunk.row_range())) {
-                continue;
-            }
             if let Some(cached_brackets) = self.tree_sitter_data.brackets_by_chunks.lock().get(&chunk.id) {
                 all_bracket_matches.insert(chunk.row_range(), cached_brackets.clone());
                 continue;
@@ -124,11 +113,11 @@ impl BufferSnapshot {
         chunk_brackets.recover_error_node_delimiters();
         chunk_brackets.repair_bogus_patterns();
         chunk_brackets.deduplicate_overlapping_patterns();
-        chunk_brackets.into_colorized_matches()
+        chunk_brackets.into_sorted_matches()
     }
 
     pub fn all_bracket_ranges(&self, range: Range<usize>) -> impl Iterator<Item = BracketMatch> {
-        self.fetch_bracket_ranges(range.clone(), None).into_values().flatten().filter(move |bracket_match| {
+        self.fetch_bracket_ranges(range.clone()).into_values().flatten().filter(move |bracket_match| {
             let bracket_range = bracket_match.open_range.start..bracket_match.close_range.end;
             bracket_range.overlaps(&range)
         })
@@ -297,10 +286,8 @@ impl<'a> ChunkBrackets<'a> {
                         close_range,
                         syntax_layer_depth,
                         newline_only: pattern.newline_only,
-                        color_index: None,
                     },
                     pattern: pattern_key,
-                    rainbow_exclude: pattern.rainbow_exclude,
                 };
 
                 if !self.error_layers.is_empty() {
@@ -583,10 +570,8 @@ impl<'a> ChunkBrackets<'a> {
                             close_range: close.start..close.end,
                             newline_only: pattern.newline_only,
                             syntax_layer_depth,
-                            color_index: None,
                         },
                         pattern: close.pattern,
-                        rainbow_exclude: pattern.rainbow_exclude,
                     });
                 }
             }
@@ -648,10 +633,8 @@ impl<'a> ChunkBrackets<'a> {
                         .copied()
                         .or_else(|| self.syntax_layer_depths_by_delimiter.get(&close).copied())
                         .unwrap_or(0),
-                    color_index: None,
                 },
                 pattern: open.pattern,
-                rainbow_exclude: pattern.rainbow_exclude,
             });
         }
 
@@ -677,51 +660,10 @@ impl<'a> ChunkBrackets<'a> {
         });
     }
 
-    /// Assigns nesting-depth color indices and returns the matches sorted by open range.
-    fn into_colorized_matches(self) -> Vec<BracketMatch> {
-        let mut opens = Vec::new();
-        let mut color_pairs = Vec::new();
-        let mut all_brackets = self
-            .candidates
-            .into_iter()
-            .enumerate()
-            .map(|(index, candidate)| {
-                let bracket_match = candidate.bracket_match;
-                // Certain languages have "brackets" that are not brackets, e.g. tags. and such
-                // bracket will match the entire tag with all text inside.
-                // For now, avoid highlighting any pair that has more than single char in each bracket.
-                // We need to  colorize `<Element/>` bracket pairs, so cannot make this check stricter.
-                let should_color = !candidate.rainbow_exclude
-                    && (bracket_match.open_range.len() == 1 || bracket_match.close_range.len() == 1);
-                if should_color {
-                    opens.push(bracket_match.open_range.clone());
-                    color_pairs.push((bracket_match.open_range.clone(), bracket_match.close_range.clone(), index));
-                }
-                bracket_match
-            })
-            .collect::<Vec<_>>();
-
-        opens.sort_unstable_by_key(|r| (r.start, r.end));
-        opens.dedup_by(|a, b| a.start == b.start && a.end == b.end);
-        color_pairs.sort_by_key(|(_, close, _)| close.end);
-
-        let mut open_stack = Vec::new();
-        let mut open_index = 0;
-        for (open, close, index) in color_pairs {
-            while open_index < opens.len() && opens[open_index].start < close.start {
-                open_stack.push(opens[open_index].clone());
-                open_index += 1;
-            }
-
-            if open_stack.last() == Some(&open) {
-                let depth_index = open_stack.len() - 1;
-                all_brackets[index].color_index = Some(depth_index);
-                open_stack.pop();
-            }
-        }
-
+    /// Returns the matches sorted by open range.
+    fn into_sorted_matches(self) -> Vec<BracketMatch> {
+        let mut all_brackets = self.candidates.into_iter().map(|candidate| candidate.bracket_match).collect::<Vec<_>>();
         all_brackets.sort_by_key(|bracket_match| (bracket_match.open_range.start, bracket_match.open_range.end));
-
         all_brackets
     }
 }

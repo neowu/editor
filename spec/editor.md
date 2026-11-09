@@ -2,6 +2,9 @@
 
 ## Behaviour
 
+- There is no bracket colorization (rainbow brackets). Bracket queries are
+  used only for matching, autoclose and navigation; `brackets.scm` has no
+  `rainbow.exclude` markers.
 - Occurrence highlights — LSP document highlights (read/write symbol
   occurrences) and selected-text occurrence highlights — only run in
   single-file editors. Multibuffers (project search, find references, etc.)
@@ -134,8 +137,7 @@
   provides lenses: there is no `code_lens` setting or `editor::ToggleCodeLens`
   action.
 - Inlay hints and LSP semantic highlights are always on whenever a language
-  server provides them; stop the server (or set `enable_language_server: false`)
-  to get rid of them. Semantic tokens always layer on top of tree-sitter
+  server provides them; stop the server to get rid of them. Semantic tokens always layer on top of tree-sitter
   highlighting, never replace it. There is no `semantic_tokens` setting, no
   `inlay_hints.enabled` / `inlay_hints.toggle_on_modifiers_press`, no
   `editor::ToggleInlayHints` / `editor::ToggleSemanticHighlights` action or

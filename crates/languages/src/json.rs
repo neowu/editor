@@ -1,3 +1,4 @@
+use std::num::NonZeroU32;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -14,10 +15,17 @@ use language::LanguageRegistry;
 use language::LocalFile as _;
 use language::LspAdapter;
 use language::LspAdapterDelegate;
+use language::language_settings::DocumentSymbols;
+use language::language_settings::FormatOnSave;
+use language::language_settings::Formatter;
+use language::language_settings::FormatterList;
+use language::language_settings::LanguageSettings;
+use language::language_settings::RewrapBehavior;
+use language::language_settings::SoftWrap;
+use language::language_settings::WordsCompletionMode;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
 use lsp::Uri;
-use project::lsp_store::language_server_settings;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 use serde_json::json;
@@ -25,7 +33,6 @@ use task::TaskTemplate;
 use task::TaskTemplates;
 use task::VariableName;
 use util::rel_path::RelPath;
-use util::union_json_value_into;
 
 use crate::PackageJsonData;
 use crate::npx;
@@ -151,11 +158,11 @@ impl LspAdapter for JsonLspAdapter {
 
     async fn workspace_configuration(
         self: Arc<Self>,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<dyn LspAdapterDelegate>,
         _: Option<Uri>,
         cx: &mut AsyncApp,
     ) -> Result<Value> {
-        let mut config = cx.update(|cx| {
+        Ok(cx.update(|cx| {
             let schemas = json_schema_store::all_schema_file_associations(&self.languages, cx);
 
             // This can be viewed via `dev: open language server logs` -> `json-language-server` ->
@@ -171,17 +178,7 @@ impl LspAdapter for JsonLspAdapter {
                     "schemas": schemas
                 }
             })
-        });
-
-        let project_options = cx.update(|cx| {
-            language_server_settings(&self.name(), cx).and_then(|s| worktree_root(delegate, s.settings.clone()))
-        });
-
-        if let Some(override_options) = project_options {
-            union_json_value_into(override_options, &mut config);
-        }
-
-        Ok(config)
+        }))
     }
 
     fn language_ids(&self) -> FxHashMap<LanguageName, String> {
@@ -209,33 +206,23 @@ fn unquote_filter_texts(items: &mut [lsp::CompletionItem]) {
     }
 }
 
-fn worktree_root(delegate: &Arc<dyn LspAdapterDelegate>, settings: Option<Value>) -> Option<Value> {
-    let Some(Value::Object(mut settings_map)) = settings else {
-        return settings;
-    };
-
-    let Some(Value::Object(json_config)) = settings_map.get_mut("json") else {
-        return Some(Value::Object(settings_map));
-    };
-
-    let Some(Value::Array(schemas)) = json_config.get_mut("schemas") else {
-        return Some(Value::Object(settings_map));
-    };
-
-    for schema in schemas.iter_mut() {
-        let Value::Object(schema_map) = schema else {
-            continue;
-        };
-        let Some(Value::String(url)) = schema_map.get_mut("url") else {
-            continue;
-        };
-
-        if !url.starts_with(".") && !url.starts_with("~") {
-            continue;
-        }
-
-        *url = delegate.resolve_relative_path(url.clone().into()).to_string_lossy().into_owned();
+/// Settings for JSON and JSONC.
+pub(crate) fn settings() -> LanguageSettings {
+    LanguageSettings {
+        tab_size: NonZeroU32::new(2).unwrap(),
+        hard_tabs: false,
+        soft_wrap: SoftWrap::None,
+        preferred_line_length: 120,
+        wrap_guides: vec![120],
+        format_on_save: FormatOnSave::On,
+        formatter: FormatterList::Single(Formatter::Auto),
+        code_actions_on_format: FxHashMap::default(),
+        remove_trailing_whitespace_on_save: true,
+        ensure_final_newline_on_save: true,
+        document_symbols: DocumentSymbols::On,
+        allow_rewrap: RewrapBehavior::InComments,
+        use_on_type_format: true,
+        auto_indent_on_paste: true,
+        word_completions: WordsCompletionMode::Fallback,
     }
-
-    Some(Value::Object(settings_map))
 }

@@ -1,28 +1,33 @@
-//! Provides `language`-related settings.
+//! Per-language settings and the editor-wide language constants.
+//!
+//! Each language's settings are hardcoded next to its language support (in the
+//! `languages` crate) and registered with [`AllLanguageSettings::register`]. There is
+//! no merging: a language's [`LanguageSettings`] is used as is.
 
 use std::num::NonZeroU32;
 use std::sync::Arc;
+use std::sync::LazyLock;
 
 use globset::Glob;
 use globset::GlobSet;
 use globset::GlobSetBuilder;
 use gpui::App;
-use gpui::SharedString;
+use gpui::Global;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 pub use settings::AutoIndentMode;
-pub use settings::CompletionSettingsContent;
 use settings::DocumentFoldingRanges;
-use settings::DocumentSymbols;
+pub use settings::DocumentSymbols;
 pub use settings::FormatOnSave;
 pub use settings::Formatter;
 pub use settings::FormatterList;
+use settings::IndentGuideBackgroundColoring;
+use settings::IndentGuideColoring;
 pub use settings::InlayHintKind;
-pub use settings::LanguageSettingsContent;
+pub use settings::LanguageServerFormatterSpecifier;
 pub use settings::LineEndingSetting;
 pub use settings::LspInsertMode;
 pub use settings::RewrapBehavior;
-use settings::Settings;
 pub use settings::ShowWhitespaceSetting;
 pub use settings::SoftWrap;
 pub use settings::SoftWrapIndent;
@@ -33,202 +38,130 @@ use crate::Buffer;
 use crate::BufferSnapshot;
 use crate::LanguageName;
 
+/// How to indent soft-wrapped continuation lines.
+pub const SOFT_WRAP_INDENT: SoftWrapIndent = SoftWrapIndent::Same;
+pub const INDENT_GUIDES: IndentGuideSettings = IndentGuideSettings {
+    enabled: true,
+    line_width: 1,
+    active_line_width: 1,
+    coloring: IndentGuideColoring::IndentAware,
+    background_coloring: IndentGuideBackgroundColoring::Disabled,
+};
+/// How line endings are initialized for new files and normalized during format and save.
+pub const LINE_ENDING: LineEndingSetting = LineEndingSetting::EnforceLf;
+/// Whether folding ranges from language servers replace tree-sitter and indent-based folding.
+pub const DOCUMENT_FOLDING_RANGES: DocumentFoldingRanges = DocumentFoldingRanges::Off;
+pub const SHOW_WHITESPACES: ShowWhitespaceSetting = ShowWhitespaceSetting::Selection;
+pub const WHITESPACE_SPACE: &str = "•";
+pub const WHITESPACE_TAB: &str = "→";
+pub const INLAY_HINTS: InlayHintSettings = InlayHintSettings {
+    show_type_hints: true,
+    show_parameter_hints: true,
+    show_other_hints: true,
+    show_background: false,
+    edit_debounce_ms: 700,
+    scroll_debounce_ms: 50,
+};
+pub const AUTO_INDENT: AutoIndentMode = AutoIndentMode::SyntaxAware;
+pub const COMPLETIONS: CompletionSettings = CompletionSettings {
+    words_min_length: 3,
+    lsp: true,
+    lsp_fetch_timeout_ms: 0,
+    lsp_insert_mode: LspInsertMode::ReplaceSuffix,
+};
+
 /// Returns the settings for all languages.
 pub fn all_language_settings(cx: &App) -> &AllLanguageSettings {
     AllLanguageSettings::get_global(cx)
 }
 
-/// The settings for all languages.
+/// The settings registered for each language.
 #[derive(Debug, Clone)]
 pub struct AllLanguageSettings {
-    /// The default language settings.
-    pub defaults: Arc<LanguageSettings>,
+    /// Settings for buffers without a language or with an unregistered one.
+    pub fallback: Arc<LanguageSettings>,
     languages: FxHashMap<LanguageName, Arc<LanguageSettings>>,
+    /// Extra file globs per language name, checked before path suffixes.
     pub file_types: FxHashMap<Arc<str>, (GlobSet, Vec<String>)>,
 }
 
-settings::register_setting!(AllLanguageSettings);
+impl Global for AllLanguageSettings {}
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct WhitespaceMap {
-    pub space: SharedString,
-    pub tab: SharedString,
+impl Default for AllLanguageSettings {
+    fn default() -> Self {
+        Self {
+            fallback: Arc::new(LanguageSettings::fallback()),
+            languages: FxHashMap::default(),
+            file_types: FxHashMap::default(),
+        }
+    }
 }
 
-/// The settings for a particular language.
+static FALLBACK: LazyLock<AllLanguageSettings> = LazyLock::new(AllLanguageSettings::default);
+
+/// The settings for a particular language. Settings that never vary by language are
+/// the constants in this module.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LanguageSettings {
     /// How many columns a tab should occupy.
     pub tab_size: NonZeroU32,
-    /// Whether to indent lines using tab characters, as opposed to multiple
-    /// spaces.
+    /// Whether to indent lines using tab characters, as opposed to multiple spaces.
     pub hard_tabs: bool,
-    /// How to soft-wrap long lines of text.
-    pub soft_wrap: settings::SoftWrap,
-    /// How to indent soft-wrapped continuation lines.
-    pub soft_wrap_indent: settings::SoftWrapIndent,
-    /// The column at which to soft-wrap lines, for buffers where soft-wrap
-    /// is enabled.
+    pub soft_wrap: SoftWrap,
+    /// The column at which to soft-wrap lines, for buffers where soft-wrap is enabled.
     pub preferred_line_length: u32,
-    /// Whether to show wrap guides (vertical rulers) in the editor.
-    /// Setting this to true will show a guide at the 'preferred_line_length' value
-    /// if softwrap is set to 'preferred_line_length', and will show any
-    /// additional guides as specified by the 'wrap_guides' setting.
-    pub show_wrap_guides: bool,
-    /// Character counts at which to show wrap guides (vertical rulers) in the editor.
+    /// Columns at which to show wrap guides (vertical rulers).
     pub wrap_guides: Vec<usize>,
-    /// Indent guide related settings.
-    pub indent_guides: IndentGuideSettings,
-    /// Whether or not to perform a buffer format before saving.
     pub format_on_save: FormatOnSave,
-    /// Whether or not to remove any trailing whitespace from lines of a buffer
-    /// before saving it.
-    pub remove_trailing_whitespace_on_save: bool,
-    /// Whether or not to ensure there's a single newline at the end of a buffer
-    /// when saving it.
-    pub ensure_final_newline_on_save: bool,
-    /// How line endings are initialized for new files and normalized during
-    /// format and save.
-    pub line_ending: LineEndingSetting,
-    /// How to perform a buffer format.
-    pub formatter: settings::FormatterList,
-    /// Whether to automatically close JSX tags.
-    pub jsx_tag_auto_close: bool,
-    /// Whether to use language servers to provide code intelligence.
-    pub enable_language_server: bool,
-    /// Controls whether folding ranges from language servers are used instead of
-    /// tree-sitter and indent-based folding.
-    pub document_folding_ranges: DocumentFoldingRanges,
-    /// Controls the source of document symbols used for outlines and breadcrumbs.
-    pub document_symbols: DocumentSymbols,
-    /// Controls where the `editor::Rewrap` action is allowed for this language.
-    pub allow_rewrap: RewrapBehavior,
-    pub show_whitespaces: settings::ShowWhitespaceSetting,
-    /// Visible characters used to render whitespace when show_whitespaces is enabled.
-    pub whitespace_map: WhitespaceMap,
-    /// Whether to start a new line with a comment when a previous line is a comment as well.
-    pub extend_comment_on_newline: bool,
-    /// Whether to continue markdown lists when pressing enter.
-    pub extend_list_on_newline: bool,
-    /// Whether to indent list items when pressing tab after a list marker.
-    pub indent_list_on_tab: bool,
-    /// Inlay hint related settings.
-    pub inlay_hints: InlayHintSettings,
-    /// Whether to automatically close brackets.
-    pub use_autoclose: bool,
-    /// Whether to automatically surround text with brackets.
-    pub use_auto_surround: bool,
-    /// Whether to use additional LSP queries to format (and amend) the code after
-    /// every "trigger" symbol input, defined by LSP server capabilities.
-    pub use_on_type_format: bool,
-    /// Controls automatic indentation behavior when typing.
-    pub auto_indent: AutoIndentMode,
-    /// Whether indentation of pasted content should be adjusted based on the context.
-    pub auto_indent_on_paste: bool,
-    /// Controls how the editor handles the autoclosed characters.
-    pub always_treat_brackets_as_autoclosed: bool,
-    /// Which code actions to run on save
+    pub formatter: FormatterList,
+    /// Which code actions to run on format.
     pub code_actions_on_format: FxHashMap<String, bool>,
-    /// Whether to perform linked edits
-    pub linked_edits: bool,
-    /// Task configuration for this language.
-    pub tasks: LanguageTaskSettings,
-    /// Whether to pop the completions menu while typing in an editor without
-    /// explicitly requesting it.
-    pub show_completions_on_input: bool,
-    /// Whether to display inline and alongside documentation for items in the
-    /// completions menu.
-    pub show_completion_documentation: bool,
-    /// Completion settings for this language.
-    pub completions: CompletionSettings,
-    /// Whether to enable word diff highlighting in the editor.
-    ///
-    /// When enabled, changed words within modified lines are highlighted
-    /// to show exactly what changed.
-    ///
-    /// Default: `true`
-    pub word_diff_enabled: bool,
-    /// Whether to use tree-sitter bracket queries to detect and colorize the brackets in the editor.
-    pub colorize_brackets: bool,
+    pub remove_trailing_whitespace_on_save: bool,
+    pub ensure_final_newline_on_save: bool,
+    /// The source of document symbols used for outlines and breadcrumbs.
+    pub document_symbols: DocumentSymbols,
+    /// Where the `editor::Rewrap` action is allowed.
+    pub allow_rewrap: RewrapBehavior,
+    /// Whether to format on LSP on-type-format trigger characters.
+    pub use_on_type_format: bool,
+    /// Whether indentation of pasted content is adjusted to the context.
+    pub auto_indent_on_paste: bool,
+    /// How buffer words are offered as completions.
+    pub word_completions: WordsCompletionMode,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct CompletionSettings {
-    /// Controls how words are completed.
-    /// For large documents, not all words may be fetched for completion.
-    ///
-    /// Default: `fallback`
-    pub words: WordsCompletionMode,
-    /// How many characters has to be in the completions query to automatically show the words-based completions.
-    /// Before that value, it's still possible to trigger the words-based completion manually with the corresponding editor command.
-    ///
-    /// Default: 3
+    /// How many characters the query needs before word completions show automatically.
     pub words_min_length: usize,
-    /// Whether to fetch LSP completions or not.
-    ///
-    /// Default: true
+    /// Whether to fetch LSP completions.
     pub lsp: bool,
-    /// When fetching LSP completions, determines how long to wait for a response of a particular server.
-    /// When set to 0, waits indefinitely.
-    ///
-    /// Default: 0
+    /// How long to wait for each language server's completions; 0 waits indefinitely.
     pub lsp_fetch_timeout_ms: u64,
-    /// Controls how LSP completions are inserted.
-    ///
-    /// Default: "replace_suffix"
     pub lsp_insert_mode: LspInsertMode,
 }
 
-/// The settings for indent guides.
 #[derive(Debug, Clone, PartialEq)]
 pub struct IndentGuideSettings {
-    /// Whether to display indent guides in the editor.
-    ///
-    /// Default: true
     pub enabled: bool,
-    /// The width of the indent guides in pixels, between 1 and 10.
-    ///
-    /// Default: 1
+    /// Width of the indent guides in pixels, between 1 and 10.
     pub line_width: u32,
-    /// The width of the active indent guide in pixels, between 1 and 10.
-    ///
-    /// Default: 1
+    /// Width of the active indent guide in pixels, between 1 and 10.
     pub active_line_width: u32,
-    /// Determines how indent guides are colored.
-    ///
-    /// Default: Fixed
-    pub coloring: settings::IndentGuideColoring,
-    /// Determines how indent guide backgrounds are colored.
-    ///
-    /// Default: Disabled
-    pub background_coloring: settings::IndentGuideBackgroundColoring,
+    pub coloring: IndentGuideColoring,
+    pub background_coloring: IndentGuideBackgroundColoring,
 }
 
 impl IndentGuideSettings {
     /// Returns the clamped line width in pixels for an indent guide based on
     /// whether it is active, or `None` when line coloring is disabled.
     pub fn visible_line_width(&self, active: bool) -> Option<u32> {
-        if self.coloring == settings::IndentGuideColoring::Disabled {
+        if self.coloring == IndentGuideColoring::Disabled {
             return None;
         }
         let width = if active { self.active_line_width } else { self.line_width };
         Some(width.clamp(1, 10))
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct LanguageTaskSettings {
-    /// Extra task variables to set for a particular language.
-    pub variables: FxHashMap<String, String>,
-    pub enabled: bool,
-    /// Use LSP tasks over built-in language tasks.
-    /// If no LSP tasks are returned due to error/timeout or regular execution,
-    /// Built-in language tasks will be used instead.
-    ///
-    /// Other ed tasks will still be shown:
-    /// * ed task from either of the task config file
-    /// * ed task from history (e.g. one-off task was spawned before)
-    pub prefer_lsp: bool,
 }
 
 impl LanguageSettings {
@@ -282,39 +215,25 @@ impl LanguageSettings {
     }
 }
 
-// The settings for inlay hints.
+/// The settings for inlay hints.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct InlayHintSettings {
     /// Whether type hints should be shown.
-    ///
-    /// Default: true
     pub show_type_hints: bool,
     /// Whether parameter hints should be shown.
-    ///
-    /// Default: true
     pub show_parameter_hints: bool,
     /// Whether other hints should be shown.
-    ///
-    /// Default: true
     pub show_other_hints: bool,
     /// Whether to show a background for inlay hints.
     ///
     /// If set to `true`, the background will use the `hint.background` color
     /// from the current theme.
-    ///
-    /// Default: false
     pub show_background: bool,
     /// Whether or not to debounce inlay hints updates after buffer edits.
-    ///
-    /// Set to 0 to disable debouncing.
-    ///
-    /// Default: 700
+    /// 0 disables debouncing.
     pub edit_debounce_ms: u64,
     /// Whether or not to debounce inlay hints updates after buffer scrolls.
-    ///
-    /// Set to 0 to disable debouncing.
-    ///
-    /// Default: 50
+    /// 0 disables debouncing.
     pub scroll_debounce_ms: u64,
 }
 
@@ -336,137 +255,90 @@ impl InlayHintSettings {
 }
 
 impl AllLanguageSettings {
+    pub fn get_global(cx: &App) -> &Self {
+        cx.try_global::<Self>().unwrap_or(&FALLBACK)
+    }
+
+    /// Registers a language's settings, plus file globs that select the language
+    /// before path suffixes do.
+    pub fn register(name: LanguageName, settings: LanguageSettings, file_types: &[&str], cx: &mut App) {
+        cx.default_global::<Self>().insert(name, settings, file_types);
+    }
+
+    fn insert(&mut self, name: LanguageName, settings: LanguageSettings, file_types: &[&str]) {
+        if !file_types.is_empty() {
+            let mut builder = GlobSetBuilder::new();
+            for pattern in file_types {
+                builder.add(Glob::new(pattern).expect("valid built-in file type glob"));
+            }
+            let globs = builder.build().expect("valid built-in file type globs");
+            self.file_types.insert(name.0.as_ref().into(), (globs, file_types.iter().map(|s| s.to_string()).collect()));
+        }
+        self.languages.insert(name, Arc::new(settings));
+    }
+
     /// Returns the [`LanguageSettings`] for the language with the specified name.
     pub fn language(&self, language_name: Option<&LanguageName>) -> Arc<LanguageSettings> {
-        let settings = language_name.and_then(|name| self.languages.get(name)).unwrap_or(&self.defaults);
-
+        let settings = language_name.and_then(|name| self.languages.get(name)).unwrap_or(&self.fallback);
         Arc::clone(settings)
     }
 }
 
-impl settings::Settings for AllLanguageSettings {
-    fn from_settings(content: &settings::SettingsContent) -> Self {
-        let all_languages = &content.project.all_languages;
-
-        fn load_from_content(settings: LanguageSettingsContent) -> LanguageSettings {
-            let inlay_hints = settings.inlay_hints.unwrap();
-            let completions = settings.completions.unwrap();
-            let indent_guides = settings.indent_guides.unwrap();
-            let tasks = settings.tasks.unwrap();
-            let whitespace_map = settings.whitespace_map.unwrap();
-
-            LanguageSettings {
-                tab_size: settings.tab_size.unwrap(),
-                hard_tabs: settings.hard_tabs.unwrap(),
-                soft_wrap: settings.soft_wrap.unwrap(),
-                soft_wrap_indent: settings.soft_wrap_indent.unwrap(),
-                preferred_line_length: settings.preferred_line_length.unwrap(),
-                show_wrap_guides: settings.show_wrap_guides.unwrap(),
-                wrap_guides: settings.wrap_guides.unwrap(),
-                indent_guides: IndentGuideSettings {
-                    enabled: indent_guides.enabled.unwrap(),
-                    line_width: indent_guides.line_width.unwrap(),
-                    active_line_width: indent_guides.active_line_width.unwrap(),
-                    coloring: indent_guides.coloring.unwrap(),
-                    background_coloring: indent_guides.background_coloring.unwrap(),
-                },
-                format_on_save: settings.format_on_save.unwrap(),
-                remove_trailing_whitespace_on_save: settings.remove_trailing_whitespace_on_save.unwrap(),
-                ensure_final_newline_on_save: settings.ensure_final_newline_on_save.unwrap(),
-                line_ending: settings.line_ending.unwrap(),
-                formatter: settings.formatter.unwrap(),
-                jsx_tag_auto_close: settings.jsx_tag_auto_close.unwrap().enabled.unwrap(),
-                enable_language_server: settings.enable_language_server.unwrap(),
-                document_folding_ranges: settings.document_folding_ranges.unwrap(),
-                document_symbols: settings.document_symbols.unwrap(),
-                allow_rewrap: settings.allow_rewrap.unwrap(),
-
-                show_whitespaces: settings.show_whitespaces.unwrap(),
-                whitespace_map: WhitespaceMap {
-                    space: SharedString::new(whitespace_map.space.unwrap().to_string()),
-                    tab: SharedString::new(whitespace_map.tab.unwrap().to_string()),
-                },
-                extend_comment_on_newline: settings.extend_comment_on_newline.unwrap(),
-                extend_list_on_newline: settings.extend_list_on_newline.unwrap(),
-                indent_list_on_tab: settings.indent_list_on_tab.unwrap(),
-                inlay_hints: InlayHintSettings {
-                    show_type_hints: inlay_hints.show_type_hints.unwrap(),
-                    show_parameter_hints: inlay_hints.show_parameter_hints.unwrap(),
-                    show_other_hints: inlay_hints.show_other_hints.unwrap(),
-                    show_background: inlay_hints.show_background.unwrap(),
-                    edit_debounce_ms: inlay_hints.edit_debounce_ms.unwrap(),
-                    scroll_debounce_ms: inlay_hints.scroll_debounce_ms.unwrap(),
-                },
-                use_autoclose: settings.use_autoclose.unwrap(),
-                use_auto_surround: settings.use_auto_surround.unwrap(),
-                use_on_type_format: settings.use_on_type_format.unwrap(),
-                auto_indent: settings.auto_indent.unwrap(),
-                auto_indent_on_paste: settings.auto_indent_on_paste.unwrap(),
-                always_treat_brackets_as_autoclosed: settings.always_treat_brackets_as_autoclosed.unwrap(),
-                code_actions_on_format: settings.code_actions_on_format.unwrap(),
-                linked_edits: settings.linked_edits.unwrap(),
-                tasks: LanguageTaskSettings {
-                    variables: tasks.variables.unwrap_or_default(),
-                    enabled: tasks.enabled.unwrap(),
-                    prefer_lsp: tasks.prefer_lsp.unwrap(),
-                },
-                show_completions_on_input: settings.show_completions_on_input.unwrap(),
-                show_completion_documentation: settings.show_completion_documentation.unwrap(),
-                colorize_brackets: settings.colorize_brackets.unwrap(),
-                completions: CompletionSettings {
-                    words: completions.words.unwrap(),
-                    words_min_length: completions.words_min_length.unwrap() as usize,
-                    lsp: completions.lsp.unwrap(),
-                    lsp_fetch_timeout_ms: completions.lsp_fetch_timeout_ms.unwrap(),
-                    lsp_insert_mode: completions.lsp_insert_mode.unwrap(),
-                },
-                word_diff_enabled: settings.word_diff_enabled.unwrap(),
-            }
+impl LanguageSettings {
+    /// Settings for buffers without a language or with an unregistered one.
+    pub fn fallback() -> Self {
+        Self {
+            tab_size: NonZeroU32::new(4).unwrap(),
+            hard_tabs: false,
+            soft_wrap: SoftWrap::None,
+            preferred_line_length: 120,
+            wrap_guides: vec![120],
+            format_on_save: FormatOnSave::On,
+            formatter: FormatterList::Single(Formatter::Auto),
+            code_actions_on_format: FxHashMap::default(),
+            remove_trailing_whitespace_on_save: true,
+            ensure_final_newline_on_save: true,
+            document_symbols: DocumentSymbols::On,
+            allow_rewrap: RewrapBehavior::InComments,
+            use_on_type_format: true,
+            auto_indent_on_paste: true,
+            word_completions: WordsCompletionMode::Fallback,
         }
-
-        let default_language_settings = Arc::new(load_from_content(all_languages.defaults.clone()));
-
-        let mut languages = FxHashMap::default();
-        for (language_name, settings) in &all_languages.languages.0 {
-            let mut language_settings = all_languages.defaults.clone();
-            language_settings.merge_from(settings);
-            languages
-                .insert(LanguageName(language_name.clone().into()), Arc::new(load_from_content(language_settings)));
-        }
-
-        let mut file_types: FxHashMap<Arc<str>, (GlobSet, Vec<String>)> = FxHashMap::default();
-
-        for (language, patterns) in all_languages.file_types.iter().flatten() {
-            let mut builder = GlobSetBuilder::new();
-
-            for pattern in patterns {
-                match Glob::new(pattern) {
-                    Ok(glob) => {
-                        builder.add(glob);
-                    }
-                    Err(error) => {
-                        log::error!(
-                            "Failed to parse a `file_types` pattern for {language}. Skipping this pattern:\n\n{error}"
-                        );
-                    }
-                }
-            }
-
-            let matcher = builder.build().unwrap_or_else(|error| {
-                log::error!(
-                    "Failed to compile `file_types` patterns for {language}. Using an empty matcher:\n\n{error}"
-                );
-                GlobSet::empty()
-            });
-            file_types.insert(language.clone(), (matcher, patterns.clone()));
-        }
-
-        Self { defaults: default_language_settings, languages, file_types }
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct JsxTagAutoCloseSettings {
-    /// Enables or disables auto-closing of JSX tags.
-    pub enabled: bool,
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_language_falls_back_for_missing_or_unregistered_language() {
+        let mut all = AllLanguageSettings::default();
+        let rust = LanguageSettings { tab_size: NonZeroU32::new(2).unwrap(), ..LanguageSettings::fallback() };
+        all.insert(LanguageName::new_static("Rust"), rust.clone(), &[]);
+
+        assert_eq!(*all.language(Some(&LanguageName::new_static("Rust"))), rust);
+        assert_eq!(*all.language(Some(&LanguageName::new_static("Go"))), LanguageSettings::fallback());
+        assert_eq!(*all.language(None), LanguageSettings::fallback());
+    }
+
+    #[test]
+    fn test_insert_records_file_types_only_when_given() {
+        let mut all = AllLanguageSettings::default();
+        all.insert(LanguageName::new_static("JSONC"), LanguageSettings::fallback(), &["tsconfig*.json"]);
+        all.insert(LanguageName::new_static("JSON"), LanguageSettings::fallback(), &[]);
+
+        let (globs, patterns) = &all.file_types["JSONC"];
+        assert!(globs.is_match("tsconfig.base.json"));
+        assert!(!globs.is_match("package.json"));
+        assert_eq!(patterns, &vec!["tsconfig*.json".to_string()]);
+        assert!(!all.file_types.contains_key("JSON"));
+    }
+
+    #[test]
+    fn test_indent_guide_visible_line_width() {
+        assert_eq!(INDENT_GUIDES.visible_line_width(false), Some(1));
+        let disabled = IndentGuideSettings { coloring: IndentGuideColoring::Disabled, ..INDENT_GUIDES };
+        assert_eq!(disabled.visible_line_width(true), None);
+    }
 }

@@ -36,7 +36,6 @@ pub use language_config::LanguageConfigOverride;
 pub use language_config::LanguageMatcher;
 pub use language_config::OrderedListConfig;
 pub use language_config::Override;
-pub use language_config::SoftWrap;
 pub use language_config::TaskListConfig;
 pub use language_config::WrapCharactersConfig;
 pub use language_config::deserialize_regex;

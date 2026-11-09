@@ -18,7 +18,6 @@ brackets = [
     { start = "/*", end = " */", close = true, newline = false, surround = true, not_in = ["string", "comment"] },
 ]
 word_characters = ["#", "$"]
-tab_size = 2
 
 [jsx_tag_auto_close]
 open_tag_node_name = "jsx_opening_element"

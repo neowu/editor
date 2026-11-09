@@ -4,6 +4,7 @@ use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io::ErrorKind;
+use std::num::NonZeroU32;
 use std::ops::Range;
 use std::path::Path;
 use std::path::PathBuf;
@@ -19,17 +20,22 @@ use gpui::AsyncApp;
 use gpui::Entity;
 use gpui::SharedString;
 use gpui::Task;
+use language::language_settings::DocumentSymbols;
+use language::language_settings::FormatOnSave;
+use language::language_settings::FormatterList;
+use language::language_settings::LanguageSettings;
+use language::language_settings::RewrapBehavior;
+use language::language_settings::SoftWrap;
+use language::language_settings::WordsCompletionMode;
 #[allow(clippy::wildcard_imports)]
 pub use language::*;
 use lsp::InitializeParams;
 use lsp::LanguageServerBinary;
 use project::lsp_store::rust_analyzer_ext::CARGO_DIAGNOSTICS_SOURCE_NAME;
-use project::project_settings::ProjectSettings;
 use regex::Regex;
 use rustc_hash::FxHashMap;
 use serde_json::json;
 use settings::SemanticTokenRules;
-use settings::Settings as _;
 use smallvec::SmallVec;
 use smol::fs::{self};
 use task::TaskTemplate;
@@ -41,8 +47,6 @@ use util::command::Stdio;
 use util::command::new_command;
 use util::merge_json_value_into;
 use util::rel_path::RelPath;
-
-use crate::language_settings::LanguageSettings;
 
 pub(crate) fn semantic_token_rules() -> SemanticTokenRules {
     let content = grammars::get_file("rust/semantic_token_rules.json").expect("missing rust/semantic_token_rules.json");
@@ -216,7 +220,7 @@ impl LspAdapter for RustLspAdapter {
         _: &mut AsyncApp,
     ) -> Result<Option<serde_json::Value>> {
         let clippy_configs = existing_clippy_configs(delegate.worktree_root_path()).await;
-        Ok(vfs_extra_includes(&clippy_configs))
+        Ok(Some(initialization_options(&clippy_configs)))
     }
 
     fn process_diagnostics(&self, params: &mut lsp::PublishDiagnosticsParams, _: LanguageServerId) {
@@ -472,10 +476,7 @@ impl LspAdapter for RustLspAdapter {
         ))
     }
 
-    fn prepare_initialize_params(&self, mut original: InitializeParams, cx: &App) -> Result<InitializeParams> {
-        let enable_lsp_tasks =
-            ProjectSettings::get_global(cx).lsp.get(&SERVER_NAME).is_some_and(|s| s.enable_lsp_tasks);
-
+    fn prepare_initialize_params(&self, mut original: InitializeParams, _: &App) -> Result<InitializeParams> {
         // `rust-analyzer.runSingle` is deliberately not advertised, so the server sends no
         // "Run" / "Run Test" code lenses: gutter runnables already cover them.
         let commands = [
@@ -485,14 +486,12 @@ impl LspAdapter for RustLspAdapter {
             "rust-analyzer.rename",
         ];
 
-        let mut experimental = json!({
+        let experimental = json!({
             "commands": {
                 "commands": commands,
-            }
+            },
+            "runnables": { "kinds": ["cargo", "shell"] },
         });
-        if enable_lsp_tasks {
-            experimental["runnables"] = json!({ "kinds": ["cargo", "shell"] });
-        }
 
         if let Some(original_experimental) = &mut original.capabilities.experimental {
             merge_json_value_into(experimental, original_experimental);
@@ -595,20 +594,8 @@ impl ContextProvider for RustContextProvider {
         })
     }
 
-    fn associated_tasks(&self, buffer: Option<Entity<Buffer>>, cx: &App) -> Task<Option<TaskTemplates>> {
-        const DEFAULT_RUN_NAME_STR: &str = "RUST_DEFAULT_PACKAGE_RUN";
-        const CUSTOM_TARGET_DIR: &str = "RUST_TARGET_DIR";
-
-        let language = LanguageName::new_static("Rust");
-        let settings = LanguageSettings::resolve(buffer.map(|b| b.read(cx)), Some(&language), cx);
-        let package_to_run = settings.tasks.variables.get(DEFAULT_RUN_NAME_STR).cloned();
-        let custom_target_dir = settings.tasks.variables.get(CUSTOM_TARGET_DIR).cloned();
-        let run_task_args = if let Some(package_to_run) = package_to_run {
-            vec!["run".into(), "-p".into(), package_to_run]
-        } else {
-            vec!["run".into()]
-        };
-        let mut task_templates = vec![
+    fn associated_tasks(&self, _: Option<Entity<Buffer>>, _: &App) -> Task<Option<TaskTemplates>> {
+        let task_templates = vec![
             TaskTemplate {
                 label: format!("Check (package: {})", RUST_PACKAGE_TASK_VARIABLE.template_value(),),
                 command: "cargo".into(),
@@ -713,7 +700,7 @@ impl ContextProvider for RustContextProvider {
             TaskTemplate {
                 label: "Run".into(),
                 command: "cargo".into(),
-                args: run_task_args,
+                args: vec!["run".into()],
                 cwd: Some(RUST_MANIFEST_DIRNAME_TASK_VARIABLE.template_value()),
                 ..TaskTemplate::default()
             },
@@ -725,19 +712,6 @@ impl ContextProvider for RustContextProvider {
                 ..TaskTemplate::default()
             },
         ];
-
-        if let Some(custom_target_dir) = custom_target_dir {
-            task_templates = task_templates
-                .into_iter()
-                .map(|mut task_template| {
-                    let mut args = task_template.args.split_off(1);
-                    task_template.args.append(&mut vec!["--target-dir".to_string(), custom_target_dir.clone()]);
-                    task_template.args.append(&mut args);
-
-                    task_template
-                })
-                .collect();
-        }
 
         Task::ready(Some(TaskTemplates(task_templates)))
     }
@@ -953,11 +927,17 @@ async fn existing_clippy_configs(worktree_root: &Path) -> Vec<PathBuf> {
     configs
 }
 
-fn vfs_extra_includes(paths: &[PathBuf]) -> Option<serde_json::Value> {
-    if paths.is_empty() {
-        return None;
+/// rust-analyzer options, plus the clippy configs at `paths` as `vfs.extraIncludes`.
+fn initialization_options(paths: &[PathBuf]) -> serde_json::Value {
+    let mut options = json!({
+        "rustfmt": { "extraArgs": ["+nightly"] },
+        "check": { "command": "clippy" },
+        "cargo": { "features": "all" },
+    });
+    if !paths.is_empty() {
+        options["vfs"] = json!({ "extraIncludes": paths });
     }
-    Some(json!({ "vfs": { "extraIncludes": paths } }))
+    options
 }
 
 /// Removes exact duplicates, keeping the first of each. Clippy repeats spanless lints once per
@@ -992,6 +972,27 @@ fn test_mod_filter(path: &Path, stem: &str, mod_name: &str) -> String {
     }
 }
 
+/// Settings for Rust.
+pub(crate) fn settings() -> LanguageSettings {
+    LanguageSettings {
+        tab_size: NonZeroU32::new(4).unwrap(),
+        hard_tabs: false,
+        soft_wrap: SoftWrap::None,
+        preferred_line_length: 120,
+        wrap_guides: vec![120],
+        format_on_save: FormatOnSave::On,
+        formatter: FormatterList::Single(language::language_settings::Formatter::Auto),
+        code_actions_on_format: FxHashMap::default(),
+        remove_trailing_whitespace_on_save: true,
+        ensure_final_newline_on_save: true,
+        document_symbols: DocumentSymbols::On,
+        allow_rewrap: RewrapBehavior::InComments,
+        use_on_type_format: true,
+        auto_indent_on_paste: true,
+        word_completions: WordsCompletionMode::Fallback,
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1009,9 +1010,9 @@ mod tests {
     use super::RustLspAdapter;
     use super::dedup_diagnostics;
     use super::existing_clippy_configs;
+    use super::initialization_options;
     use super::str;
     use super::test_mod_filter;
-    use super::vfs_extra_includes;
 
     fn diagnostic(line: u32, message: &str) -> lsp::Diagnostic {
         lsp::Diagnostic {
@@ -1064,11 +1065,19 @@ mod tests {
     }
 
     #[test]
-    fn vfs_extra_includes_lists_paths() {
-        assert_eq!(vfs_extra_includes(&[]), None);
+    fn initialization_options_adds_clippy_configs() {
+        let base = json!({
+            "rustfmt": { "extraArgs": ["+nightly"] },
+            "check": { "command": "clippy" },
+            "cargo": { "features": "all" },
+        });
+        assert_eq!(initialization_options(&[]), base);
+
+        let mut expected = base;
+        expected["vfs"] = json!({ "extraIncludes": ["/p/clippy.toml", "/p/.clippy.toml"] });
         assert_eq!(
-            vfs_extra_includes(&[PathBuf::from("/p/clippy.toml"), PathBuf::from("/p/.clippy.toml")]),
-            Some(json!({ "vfs": { "extraIncludes": ["/p/clippy.toml", "/p/.clippy.toml"] } }))
+            initialization_options(&[PathBuf::from("/p/clippy.toml"), PathBuf::from("/p/.clippy.toml")]),
+            expected
         );
     }
 

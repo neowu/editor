@@ -8,5 +8,4 @@
   "}" @close)
 
 (((string_start) @open
-  (string_end) @close)
-  (#set! rainbow.exclude))
+  (string_end) @close))

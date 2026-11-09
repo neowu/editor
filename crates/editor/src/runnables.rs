@@ -26,10 +26,8 @@ use multi_buffer::ToPoint as _;
 use project::Location;
 use project::Project;
 use project::TaskSourceKind;
-use project::project_settings::ProjectSettings;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use settings::Settings as _;
 use smallvec::SmallVec;
 use task::ResolvedTask;
 use task::RunnableTag;
@@ -177,7 +175,6 @@ impl Editor {
 
         let project = self.project().map(Entity::downgrade);
         let lsp_task_sources = self.lsp_task_sources(true, true, cx);
-        let multi_buffer = self.buffer.downgrade();
         self.runnables.runnables_update_task = cx.spawn_in(window, async move |editor, cx| {
             cx.background_executor().timer(UPDATE_DEBOUNCE).await;
             let Some(project) = project.and_then(|p| p.upgrade()) else {
@@ -258,15 +255,10 @@ impl Editor {
                 return;
             };
 
-            let Ok(prefer_lsp) = multi_buffer.update(cx, |buffer, cx| buffer.language_settings(cx).tasks.prefer_lsp)
-            else {
-                return;
-            };
-
             let rows = Self::runnable_rows(
                 project,
                 multi_buffer_snapshot,
-                prefer_lsp && !lsp_tasks_by_rows.is_empty(),
+                !lsp_tasks_by_rows.is_empty(),
                 new_rows,
                 cx.clone(),
             )
@@ -479,21 +471,15 @@ impl Editor {
             self.buffer().read(cx).all_buffers()
         };
 
-        let lsp_settings = &ProjectSettings::get_global(cx).lsp;
-
         buffers
             .into_iter()
             .filter_map(|buffer| {
                 let lsp_tasks_source = buffer.read(cx).language()?.context_provider()?.lsp_task_source()?;
-                if lsp_settings.get(&lsp_tasks_source).is_none_or(|s| s.enable_lsp_tasks) {
-                    let buffer_id = buffer.read(cx).remote_id();
-                    if skip_cached && self.runnables.has_cached(buffer_id, &buffer.read(cx).version()) {
-                        None
-                    } else {
-                        Some((lsp_tasks_source, buffer_id))
-                    }
-                } else {
+                let buffer_id = buffer.read(cx).remote_id();
+                if skip_cached && self.runnables.has_cached(buffer_id, &buffer.read(cx).version()) {
                     None
+                } else {
+                    Some((lsp_tasks_source, buffer_id))
                 }
             })
             .fold(FxHashMap::default(), |mut acc, (lsp_task_source, buffer_id)| {

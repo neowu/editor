@@ -1,4 +1,4 @@
-use language::language_settings::LanguageSettings;
+use language::language_settings::DOCUMENT_FOLDING_RANGES;
 use text::BufferId;
 use ui::Context;
 use ui::Window;
@@ -21,11 +21,8 @@ impl Editor {
             return;
         };
 
-        let buffers_to_query = self
-            .lsp_data_buffers(for_buffer, cx)
-            .into_iter()
-            .filter(|buffer| LanguageSettings::for_buffer(buffer.read(cx), cx).document_folding_ranges.enabled())
-            .collect();
+        let buffers_to_query =
+            self.lsp_data_buffers(for_buffer, cx).into_iter().filter(|_| DOCUMENT_FOLDING_RANGES.enabled()).collect();
         self.spawn_lsp_data_tasks(LspDataKind::FoldingRanges, for_buffer, buffers_to_query, cx, |buffer, cx| {
             let project = project.clone();
             let buffer_id = buffer.read(cx).remote_id();
@@ -64,10 +61,7 @@ impl Editor {
             .read(cx)
             .all_buffers()
             .into_iter()
-            .filter(|buffer| {
-                let buffer = buffer.read(cx);
-                !LanguageSettings::for_buffer(buffer, cx).document_folding_ranges.enabled()
-            })
+            .filter(|_| !DOCUMENT_FOLDING_RANGES.enabled())
             .map(|buffer| buffer.read(cx).remote_id())
             .collect::<Vec<_>>();
 

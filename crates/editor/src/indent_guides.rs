@@ -7,7 +7,7 @@ use gpui::AppContext as _;
 use gpui::Context;
 use gpui::Task;
 use gpui::Window;
-use language::language_settings::LanguageSettings;
+use language::language_settings::INDENT_GUIDES;
 use multi_buffer::IndentGuide;
 use multi_buffer::MultiBufferRow;
 use multi_buffer::ToPoint;
@@ -45,13 +45,7 @@ impl Editor {
         snapshot: &DisplaySnapshot,
         cx: &mut Context<Editor>,
     ) -> Option<Vec<IndentGuide>> {
-        let show_indent_guides = self.should_show_indent_guides().unwrap_or_else(|| {
-            if let Some(buffer) = self.buffer().read(cx).as_singleton() {
-                LanguageSettings::for_buffer(buffer.read(cx), cx).indent_guides.enabled
-            } else {
-                true
-            }
-        });
+        let show_indent_guides = self.should_show_indent_guides().unwrap_or(INDENT_GUIDES.enabled);
 
         if !show_indent_guides {
             return None;

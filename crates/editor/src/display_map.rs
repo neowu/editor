@@ -169,7 +169,6 @@ use rustc_hash::FxBuildHasher;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use serde::Deserialize;
-use settings::Settings;
 use smallvec::SmallVec;
 use sum_tree::Bias;
 use sum_tree::TreeMap;
@@ -213,9 +212,6 @@ impl NavigationOverlayKey {
 /// Note the order is important as it determines the priority of the highlights, lower means higher priority
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum HighlightKey {
-    // Note we want semantic tokens > colorized brackets
-    // to allow language server highlights to work over brackets.
-    ColorizeBracket(usize),
     SemanticToken(u32),
     // below is sorted lexicographically, as there is no relevant ordering for these aside from coming after the above
     BufferSearchHighlights,
@@ -1175,7 +1171,7 @@ impl DisplayMap {
         if let Some(buffer) = buffer.read(cx).as_singleton().map(|buffer| buffer.read(cx)) {
             LanguageSettings::for_buffer(buffer, cx).tab_size
         } else {
-            AllLanguageSettings::get_global(cx).defaults.tab_size
+            AllLanguageSettings::get_global(cx).fallback.tab_size
         }
     }
 

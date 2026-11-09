@@ -1,31 +1,13 @@
 use std::time::Duration;
 
 use lsp::DEFAULT_LSP_REQUEST_TIMEOUT_SECS;
-use lsp::LanguageServerName;
-use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
-pub use settings::BinarySettings;
-pub use settings::LspSettings;
 use settings::SemanticTokenRules;
 use settings::Settings;
 
 #[derive(Debug, Clone)]
 pub struct ProjectSettings {
-    /// Configuration for language servers.
-    ///
-    /// The following settings can be overridden for specific language servers:
-    /// - initialization_options
-    ///
-    /// To override settings for a language, add an entry for that language server's
-    /// name to the lsp value.
-    /// Default: null
-    // todo(settings-follow-up)
-    // We should change to use a non content type (settings::LspSettings is a content type)
-    // Note: Will either require merging with defaults, which also requires deciding where the defaults come from,
-    //       or case by case deciding which fields are optional and which are actually required.
-    pub lsp: FxHashMap<LanguageServerName, settings::LspSettings>,
-
     /// Common language server settings.
     pub global_lsp_settings: GlobalLspSettings,
 }
@@ -186,10 +168,7 @@ impl GoToDiagnosticSeverityFilter {
 
 impl Settings for ProjectSettings {
     fn from_settings(content: &settings::SettingsContent) -> Self {
-        let project = &content.project.clone();
-
         Self {
-            lsp: project.lsp.clone().into_iter().map(|(key, value)| (LanguageServerName(key.into()), value)).collect(),
             global_lsp_settings: GlobalLspSettings {
                 button: content.global_lsp_settings.as_ref().unwrap().button.unwrap(),
                 request_timeout: content.global_lsp_settings.as_ref().unwrap().request_timeout.unwrap(),

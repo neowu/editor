@@ -95,12 +95,12 @@ use language::TransactionId;
 use language::TreeSitterOptions;
 use language::Unclipped;
 use language::language_settings::AllLanguageSettings;
+use language::language_settings::INDENT_GUIDES;
 use language::language_settings::LanguageSettings;
 use rope::DimensionPair;
 use rustc_hash::FxBuildHasher;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use settings::Settings;
 use smallvec::SmallVec;
 use sum_tree::Bias;
 use sum_tree::Cursor;
@@ -2011,7 +2011,7 @@ impl MultiBuffer {
         if let Some((buffer, offset)) = self.point_to_buffer_offset(point, cx) {
             LanguageSettings::for_buffer_at(buffer.read(cx), offset, cx)
         } else {
-            AllLanguageSettings::get_global(cx).defaults.clone()
+            AllLanguageSettings::get_global(cx).fallback.clone()
         }
     }
 
@@ -3814,33 +3814,6 @@ impl MultiBufferSnapshot {
         }
     }
 
-    pub fn indent_and_comment_for_line(&self, row: MultiBufferRow, cx: &App) -> String {
-        let mut indent = self.indent_size_for_line(row).chars().collect::<String>();
-
-        if self.language_settings(cx).extend_comment_on_newline
-            && let Some(language_scope) = self.language_scope_at(Point::new(row.0, 0))
-        {
-            let documentation_delimiter = language_scope
-                .documentation_comment()
-                .filter(|_| language_scope.override_name() == Some("comment"))
-                .map(|comment| &comment.prefix);
-            for delimiter in language_scope.line_comment_prefixes().iter().chain(documentation_delimiter) {
-                if *self
-                    .chars_at(Point::new(row.0, indent.len() as u32))
-                    .take(delimiter.chars().count())
-                    .collect::<String>()
-                    .as_str()
-                    == **delimiter
-                {
-                    indent.push_str(delimiter);
-                    break;
-                }
-            }
-        }
-
-        indent
-    }
-
     pub fn is_line_whitespace_upto<T>(&self, position: T) -> bool
     where
         T: ToOffset,
@@ -5208,10 +5181,7 @@ impl MultiBufferSnapshot {
         let start_row = MultiBufferRow(range.start.row);
         let end_row = MultiBufferRow(range.end.row);
 
-        let mut row_indents = self.line_indents(start_row, |buffer| {
-            let settings = LanguageSettings::for_buffer_snapshot(buffer, None, cx);
-            settings.indent_guides.enabled || ignore_disabled_for_language
-        });
+        let mut row_indents = self.line_indents(start_row, |_| INDENT_GUIDES.enabled || ignore_disabled_for_language);
 
         let mut result = Vec::new();
         let mut indent_stack = SmallVec::<[IndentGuide; 8]>::new();
@@ -5286,7 +5256,7 @@ impl MultiBufferSnapshot {
                             end_row: last_row,
                             depth: next_depth,
                             tab_size,
-                            settings: settings.indent_guides.clone(),
+                            settings: INDENT_GUIDES,
                         });
                     }
                 }
@@ -5314,19 +5284,11 @@ impl MultiBufferSnapshot {
         self.point_to_buffer_offset(offset).and_then(|(buffer, offset)| buffer.language_at(offset))
     }
 
-    fn language_settings(&self, cx: &App) -> Arc<LanguageSettings> {
-        self.excerpts
-            .first()
-            .map(|excerpt| excerpt.buffer_snapshot(self))
-            .map(|buffer| LanguageSettings::for_buffer_snapshot(buffer, None, cx))
-            .unwrap_or_else(move || self.language_settings_at(MultiBufferOffset::ZERO, cx))
-    }
-
     pub fn language_settings_at<T: ToOffset>(&self, point: T, cx: &App) -> Arc<LanguageSettings> {
         if let Some((buffer, offset)) = self.point_to_buffer_offset(point) {
             buffer.settings_at(offset, cx)
         } else {
-            AllLanguageSettings::get_global(cx).defaults.clone()
+            AllLanguageSettings::get_global(cx).fallback.clone()
         }
     }
 

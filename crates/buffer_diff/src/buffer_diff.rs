@@ -20,9 +20,7 @@ use imara_diff::sources::lines;
 use language::Capability;
 use language::DiffOptions;
 use language::Language;
-use language::LanguageName;
 use language::LanguageRegistry;
-use language::language_settings::LanguageSettings;
 use language::word_diff_ranges;
 use rope::Rope;
 use sum_tree::SumTree;
@@ -926,18 +924,6 @@ impl BufferDiffSnapshot {
     }
 }
 
-fn build_diff_options(
-    language: Option<LanguageName>,
-    language_scope: Option<language::LanguageScope>,
-    cx: &App,
-) -> Option<DiffOptions> {
-    LanguageSettings::resolve(None, language.as_ref(), cx).word_diff_enabled.then_some(DiffOptions {
-        language_scope,
-        max_word_diff_line_count: MAX_WORD_DIFF_LINE_COUNT,
-        ..Default::default()
-    })
-}
-
 fn compute_hunks(
     diff_base: Option<(Arc<str>, Rope)>,
     buffer: &text::BufferSnapshot,
@@ -1518,7 +1504,11 @@ impl BufferDiff {
         let base_text = base_text.map(text::LineEnding::normalize_arc);
 
         let language = base_text_snapshot.language();
-        let diff_options = build_diff_options(language.map(|l| l.name()), language.map(|l| l.default_scope()), cx);
+        let diff_options = Some(DiffOptions {
+            language_scope: language.map(|l| l.default_scope()),
+            max_word_diff_line_count: MAX_WORD_DIFF_LINE_COUNT,
+            ..Default::default()
+        });
         let buffer_snapshot = buffer.clone();
         let base_text_snapshot = base_text_snapshot.clone();
         let base_text_exists = base_text.is_some();

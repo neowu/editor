@@ -8,55 +8,46 @@
   "}" @close)
 
 (("\"" @open
-  "\"" @close)
-  (#set! rainbow.exclude))
+  "\"" @close))
 
 (("`" @open
-  "`" @close)
-  (#set! rainbow.exclude))
+  "`" @close))
 
 (("do" @open
   "done" @close)
-  (#set! newline.only)
-  (#set! rainbow.exclude))
+  (#set! newline.only))
 
 ((case_statement
   ("in" @open
     "esac" @close))
-  (#set! newline.only)
-  (#set! rainbow.exclude))
+  (#set! newline.only))
 
 ((if_statement
   (elif_clause
     "then" @open)
   (else_clause
     "else" @close))
-  (#set! newline.only)
-  (#set! rainbow.exclude))
+  (#set! newline.only))
 
 ((if_statement
   (else_clause
     "else" @open)
   "fi" @close)
-  (#set! newline.only)
-  (#set! rainbow.exclude))
+  (#set! newline.only))
 
 ((if_statement
   "then" @open
   (elif_clause
     "elif" @close))
-  (#set! newline.only)
-  (#set! rainbow.exclude))
+  (#set! newline.only))
 
 ((if_statement
   "then" @open
   (else_clause
     "else" @close))
-  (#set! newline.only)
-  (#set! rainbow.exclude))
+  (#set! newline.only))
 
 ((if_statement
   ("then" @open
     "fi" @close))
-  (#set! newline.only)
-  (#set! rainbow.exclude))
+  (#set! newline.only))

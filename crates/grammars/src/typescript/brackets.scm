@@ -11,13 +11,10 @@
   ">" @close)
 
 (("\"" @open
-  "\"" @close)
-  (#set! rainbow.exclude))
+  "\"" @close))
 
 (("'" @open
-  "'" @close)
-  (#set! rainbow.exclude))
+  "'" @close))
 
 (("`" @open
-  "`" @close)
-  (#set! rainbow.exclude))
+  "`" @close))

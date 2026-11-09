@@ -78,14 +78,6 @@ impl HoveredInlayHintCommand {
     }
 }
 
-pub fn inlay_hint_settings(
-    location: Anchor,
-    snapshot: &MultiBufferSnapshot,
-    cx: &Context<Editor>,
-) -> InlayHintSettings {
-    snapshot.language_settings_at(location, cx).inlay_hints
-}
-
 #[derive(Debug)]
 pub struct LspInlayHintData {
     allowed_hint_kinds: FxHashSet<Option<InlayHintKind>>,

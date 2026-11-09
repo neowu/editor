@@ -8,31 +8,24 @@
   "}" @close)
 
 (("<" @open
-  ">" @close)
-  (#set! rainbow.exclude))
+  ">" @close))
 
 (("<" @open
-  "/>" @close)
-  (#set! rainbow.exclude))
+  "/>" @close))
 
 (("</" @open
-  ">" @close)
-  (#set! rainbow.exclude))
+  ">" @close))
 
 (("\"" @open
-  "\"" @close)
-  (#set! rainbow.exclude))
+  "\"" @close))
 
 (("'" @open
-  "'" @close)
-  (#set! rainbow.exclude))
+  "'" @close))
 
 (("`" @open
-  "`" @close)
-  (#set! rainbow.exclude))
+  "`" @close))
 
 ((jsx_element
   (jsx_opening_element) @open
   (jsx_closing_element) @close)
-  (#set! newline.only)
-  (#set! rainbow.exclude))
+  (#set! newline.only))

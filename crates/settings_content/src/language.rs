@@ -1,14 +1,7 @@
-use std::collections::hash_map::Iter;
-use std::num::NonZeroU32;
 use std::slice;
-use std::sync::Arc;
 
-use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
-
-use crate::DocumentFoldingRanges;
-use crate::DocumentSymbols;
 
 /// The state of the modifier keys at some point in time
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,107 +24,6 @@ pub struct ModifiersContent {
     /// The function key
     #[serde(default)]
     pub function: bool,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct AllLanguageSettingsContent {
-    /// The default language settings.
-    #[serde(flatten)]
-    pub defaults: LanguageSettingsContent,
-    /// The settings for individual languages.
-    #[serde(default)]
-    pub languages: LanguageToSettingsMap,
-    /// Settings for associating file extensions and filenames
-    /// with languages.
-    pub file_types: Option<FileTypeMap>,
-}
-
-impl LanguageSettingsContent {
-    /// Overlays every value set in `other` onto `self`. Nested setting groups
-    /// are overlaid field by field, so `other` may set only part of a group.
-    pub fn merge_from(&mut self, other: &LanguageSettingsContent) {
-        overlay(&mut self.tab_size, &other.tab_size);
-        overlay(&mut self.hard_tabs, &other.hard_tabs);
-        overlay(&mut self.soft_wrap, &other.soft_wrap);
-        overlay(&mut self.soft_wrap_indent, &other.soft_wrap_indent);
-        overlay(&mut self.preferred_line_length, &other.preferred_line_length);
-        overlay(&mut self.show_wrap_guides, &other.show_wrap_guides);
-        overlay(&mut self.wrap_guides, &other.wrap_guides);
-        overlay_group(&mut self.indent_guides, &other.indent_guides, |this, other| {
-            overlay(&mut this.enabled, &other.enabled);
-            overlay(&mut this.line_width, &other.line_width);
-            overlay(&mut this.active_line_width, &other.active_line_width);
-            overlay(&mut this.coloring, &other.coloring);
-            overlay(&mut this.background_coloring, &other.background_coloring);
-        });
-        overlay(&mut self.format_on_save, &other.format_on_save);
-        overlay(&mut self.remove_trailing_whitespace_on_save, &other.remove_trailing_whitespace_on_save);
-        overlay(&mut self.ensure_final_newline_on_save, &other.ensure_final_newline_on_save);
-        overlay(&mut self.line_ending, &other.line_ending);
-        overlay(&mut self.formatter, &other.formatter);
-        overlay(&mut self.jsx_tag_auto_close, &other.jsx_tag_auto_close);
-        overlay(&mut self.enable_language_server, &other.enable_language_server);
-        overlay(&mut self.document_folding_ranges, &other.document_folding_ranges);
-        overlay(&mut self.document_symbols, &other.document_symbols);
-        overlay(&mut self.allow_rewrap, &other.allow_rewrap);
-        overlay(&mut self.show_whitespaces, &other.show_whitespaces);
-        overlay_group(&mut self.whitespace_map, &other.whitespace_map, |this, other| {
-            overlay(&mut this.space, &other.space);
-            overlay(&mut this.tab, &other.tab);
-        });
-        overlay(&mut self.extend_comment_on_newline, &other.extend_comment_on_newline);
-        overlay(&mut self.extend_list_on_newline, &other.extend_list_on_newline);
-        overlay(&mut self.indent_list_on_tab, &other.indent_list_on_tab);
-        overlay_group(&mut self.inlay_hints, &other.inlay_hints, |this, other| {
-            overlay(&mut this.show_type_hints, &other.show_type_hints);
-            overlay(&mut this.show_parameter_hints, &other.show_parameter_hints);
-            overlay(&mut this.show_other_hints, &other.show_other_hints);
-            overlay(&mut this.show_background, &other.show_background);
-            overlay(&mut this.edit_debounce_ms, &other.edit_debounce_ms);
-            overlay(&mut this.scroll_debounce_ms, &other.scroll_debounce_ms);
-        });
-        overlay(&mut self.use_autoclose, &other.use_autoclose);
-        overlay(&mut self.use_auto_surround, &other.use_auto_surround);
-        overlay(&mut self.always_treat_brackets_as_autoclosed, &other.always_treat_brackets_as_autoclosed);
-        overlay(&mut self.use_on_type_format, &other.use_on_type_format);
-        overlay(&mut self.code_actions_on_format, &other.code_actions_on_format);
-        overlay(&mut self.linked_edits, &other.linked_edits);
-        overlay(&mut self.auto_indent, &other.auto_indent);
-        overlay(&mut self.auto_indent_on_paste, &other.auto_indent_on_paste);
-        overlay_group(&mut self.tasks, &other.tasks, |this, other| {
-            overlay(&mut this.variables, &other.variables);
-            overlay(&mut this.enabled, &other.enabled);
-            overlay(&mut this.prefer_lsp, &other.prefer_lsp);
-        });
-        overlay(&mut self.show_completions_on_input, &other.show_completions_on_input);
-        overlay(&mut self.show_completion_documentation, &other.show_completion_documentation);
-        overlay_group(&mut self.completions, &other.completions, |this, other| {
-            overlay(&mut this.words, &other.words);
-            overlay(&mut this.words_min_length, &other.words_min_length);
-            overlay(&mut this.lsp, &other.lsp);
-            overlay(&mut this.lsp_fetch_timeout_ms, &other.lsp_fetch_timeout_ms);
-            overlay(&mut this.lsp_insert_mode, &other.lsp_insert_mode);
-        });
-        overlay(&mut self.word_diff_enabled, &other.word_diff_enabled);
-        overlay(&mut self.colorize_brackets, &other.colorize_brackets);
-    }
-}
-
-fn overlay<T: Clone>(target: &mut Option<T>, value: &Option<T>) {
-    if value.is_some() {
-        target.clone_from(value);
-    }
-}
-
-fn overlay_group<T: Clone>(target: &mut Option<T>, value: &Option<T>, merge: impl FnOnce(&mut T, &T)) {
-    let Some(value) = value else {
-        return;
-    };
-    if let Some(target) = target.as_mut() {
-        merge(target, value);
-    } else {
-        *target = Some(value.clone());
-    }
 }
 
 /// Controls the soft-wrapping behavior in the editor.
@@ -190,196 +82,6 @@ pub enum SoftWrapIndent {
     ExtraTwo,
 }
 
-/// The settings for a particular language.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct LanguageSettingsContent {
-    /// How many columns a tab should occupy.
-    ///
-    /// Default: 4
-    pub tab_size: Option<NonZeroU32>,
-    /// Whether to indent lines using tab characters, as opposed to multiple
-    /// spaces.
-    ///
-    /// Default: false
-    pub hard_tabs: Option<bool>,
-    /// How to soft-wrap long lines of text.
-    ///
-    /// Default: none
-    pub soft_wrap: Option<SoftWrap>,
-    /// How to indent soft-wrapped continuation lines.
-    ///
-    /// Default: same
-    pub soft_wrap_indent: Option<SoftWrapIndent>,
-    /// The column at which to soft-wrap lines, for buffers where soft-wrap
-    /// is enabled.
-    ///
-    /// Default: 80
-    pub preferred_line_length: Option<u32>,
-    /// Whether to show wrap guides in the editor. Setting this to true will
-    /// show a guide at the 'preferred_line_length' value if softwrap is set to
-    /// 'preferred_line_length', and will show any additional guides as specified
-    /// by the 'wrap_guides' setting.
-    ///
-    /// Default: true
-    pub show_wrap_guides: Option<bool>,
-    /// Character counts at which to show wrap guides in the editor.
-    ///
-    /// Default: []
-    pub wrap_guides: Option<Vec<usize>>,
-    /// Indent guide related settings.
-    pub indent_guides: Option<IndentGuideSettingsContent>,
-    /// Whether or not to perform a buffer format before saving.
-    ///
-    /// Default: off
-    pub format_on_save: Option<FormatOnSave>,
-    /// Whether or not to remove any trailing whitespace from lines of a buffer
-    /// before saving it.
-    ///
-    /// Default: true
-    pub remove_trailing_whitespace_on_save: Option<bool>,
-    /// Whether or not to ensure there's a single newline at the end of a buffer
-    /// when saving it.
-    ///
-    /// Default: true
-    pub ensure_final_newline_on_save: Option<bool>,
-    /// How line endings should be handled for new files and during format and
-    /// save operations.
-    ///
-    /// - `detect`: Detect existing line endings and otherwise use the platform
-    ///   default (`lf` on Unix, `crlf` on Windows).
-    /// - `prefer_lf`: Prefer LF for new files and files with no existing line
-    ///   ending.
-    /// - `prefer_crlf`: Prefer CRLF for new files and files with no existing
-    ///   line ending.
-    /// - `enforce_lf`: Enforce LF during format and save.
-    /// - `enforce_crlf`: Enforce CRLF during format and save.
-    ///
-    /// Default: enforce_lf
-    pub line_ending: Option<LineEndingSetting>,
-    /// How to perform a buffer format.
-    ///
-    /// Default: auto
-    pub formatter: Option<FormatterList>,
-    /// Whether to automatically close JSX tags.
-    pub jsx_tag_auto_close: Option<JsxTagAutoCloseSettingsContent>,
-    /// Whether to use language servers to provide code intelligence.
-    ///
-    /// Default: true
-    pub enable_language_server: Option<bool>,
-    /// Controls whether folding ranges from language servers are used instead of
-    /// tree-sitter and indent-based folding.
-    ///
-    /// Options:
-    /// - "off": Use tree-sitter and indent-based folding (default).
-    /// - "on": Use LSP folding wherever possible, falling back to tree-sitter and indent-based folding when no results were returned by the server.
-    ///
-    /// Default: "off"
-    pub document_folding_ranges: Option<DocumentFoldingRanges>,
-    /// Controls the source of document symbols used for outlines and breadcrumbs.
-    ///
-    /// Options:
-    /// - "off": Use tree-sitter queries to compute document symbols (default).
-    /// - "on": Use the language server's `textDocument/documentSymbol` LSP response. When enabled, tree-sitter is not used for document symbols.
-    ///
-    /// Default: "off"
-    pub document_symbols: Option<DocumentSymbols>,
-    /// Controls where the `editor::Rewrap` action is allowed for this language.
-    ///
-    /// Default: "in_comments"
-    pub allow_rewrap: Option<RewrapBehavior>,
-    pub show_whitespaces: Option<ShowWhitespaceSetting>,
-    /// Visible characters used to render whitespace when show_whitespaces is enabled.
-    ///
-    /// Default: "•" for spaces, "→" for tabs.
-    pub whitespace_map: Option<WhitespaceMapContent>,
-    /// Whether to start a new line with a comment when a previous line is a comment as well.
-    ///
-    /// Default: true
-    pub extend_comment_on_newline: Option<bool>,
-    /// Whether to continue markdown lists when pressing enter.
-    ///
-    /// Default: true
-    pub extend_list_on_newline: Option<bool>,
-    /// Whether to indent list items when pressing tab after a list marker.
-    ///
-    /// Default: true
-    pub indent_list_on_tab: Option<bool>,
-    /// Inlay hint related settings.
-    pub inlay_hints: Option<InlayHintSettingsContent>,
-    /// Whether to automatically type closing characters for you. For example,
-    /// when you type '(', ed will automatically add a closing ')' at the correct position.
-    ///
-    /// Default: true
-    pub use_autoclose: Option<bool>,
-    /// Whether to automatically surround text with characters for you. For example,
-    /// when you select text and type '(', ed will automatically surround text with ().
-    ///
-    /// Default: true
-    pub use_auto_surround: Option<bool>,
-    /// Controls how the editor handles the autoclosed characters.
-    /// When set to `false`(default), skipping over and auto-removing of the closing characters
-    /// happen only for auto-inserted characters.
-    /// Otherwise(when `true`), the closing characters are always skipped over and auto-removed
-    /// no matter how they were inserted.
-    ///
-    /// Default: false
-    pub always_treat_brackets_as_autoclosed: Option<bool>,
-    /// Whether to use additional LSP queries to format (and amend) the code after
-    /// every "trigger" symbol input, defined by LSP server capabilities.
-    ///
-    /// Default: true
-    pub use_on_type_format: Option<bool>,
-    /// Which code actions to run on save before the formatter.
-    /// These are not run if formatting is off.
-    ///
-    /// Default: {} (or {"source.organizeImports": true} for Go).
-    pub code_actions_on_format: Option<FxHashMap<String, bool>>,
-    /// Whether to perform linked edits of associated ranges, if the language server supports it.
-    /// For example, when editing opening <html> tag, the contents of the closing </html> tag will be edited as well.
-    ///
-    /// Default: true
-    pub linked_edits: Option<bool>,
-    /// Controls automatic indentation behavior when typing.
-    ///
-    /// - "syntax_aware": Adjusts indentation based on syntax context (default)
-    /// - "preserve_indent": Preserves current line's indentation on new lines
-    /// - "none": No automatic indentation
-    ///
-    /// Default: syntax_aware
-    pub auto_indent: Option<AutoIndentMode>,
-    /// Whether indentation of pasted content should be adjusted based on the context.
-    ///
-    /// Default: true
-    pub auto_indent_on_paste: Option<bool>,
-    /// Task configuration for this language.
-    ///
-    /// Default: {}
-    pub tasks: Option<LanguageTaskSettingsContent>,
-    /// Whether to pop the completions menu while typing in an editor without
-    /// explicitly requesting it.
-    ///
-    /// Default: true
-    pub show_completions_on_input: Option<bool>,
-    /// Whether to display inline and alongside documentation for items in the
-    /// completions menu.
-    ///
-    /// Default: true
-    pub show_completion_documentation: Option<bool>,
-    /// Controls how completions are processed for this language.
-    pub completions: Option<CompletionSettingsContent>,
-    /// Whether to enable word diff highlighting in the editor.
-    ///
-    /// When enabled, changed words within modified lines are highlighted
-    /// to show exactly what changed.
-    ///
-    /// Default: true
-    pub word_diff_enabled: Option<bool>,
-    /// Whether to use tree-sitter bracket queries to detect and colorize the brackets in the editor.
-    ///
-    /// Default: false
-    pub colorize_brackets: Option<bool>,
-}
-
 /// Controls how whitespace should be displayedin the editor.
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames)]
 #[serde(rename_all = "snake_case")]
@@ -401,12 +103,6 @@ pub enum ShowWhitespaceSetting {
     Trailing,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
-pub struct WhitespaceMapContent {
-    pub space: Option<char>,
-    pub tab: Option<char>,
-}
-
 /// The behavior of `editor::Rewrap`.
 #[derive(Debug, PartialEq, Clone, Copy, Default, Serialize, Deserialize, strum::VariantArray, strum::VariantNames)]
 #[serde(rename_all = "snake_case")]
@@ -418,48 +114,6 @@ pub enum RewrapBehavior {
     InSelections,
     /// Allow rewrapping anywhere.
     Anywhere,
-}
-
-#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct JsxTagAutoCloseSettingsContent {
-    /// Enables or disables auto-closing of JSX tags.
-    pub enabled: Option<bool>,
-}
-
-/// The settings for inlay hints.
-#[derive(Clone, Default, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct InlayHintSettingsContent {
-    /// Whether type hints should be shown.
-    ///
-    /// Default: true
-    pub show_type_hints: Option<bool>,
-    /// Whether parameter hints should be shown.
-    ///
-    /// Default: true
-    pub show_parameter_hints: Option<bool>,
-    /// Whether other hints should be shown.
-    ///
-    /// Default: true
-    pub show_other_hints: Option<bool>,
-    /// Whether to show a background for inlay hints.
-    ///
-    /// If set to `true`, the background will use the `hint.background` color
-    /// from the current theme.
-    ///
-    /// Default: false
-    pub show_background: Option<bool>,
-    /// Whether or not to debounce inlay hints updates after buffer edits.
-    ///
-    /// Set to 0 to disable debouncing.
-    ///
-    /// Default: 700
-    pub edit_debounce_ms: Option<u64>,
-    /// Whether or not to debounce inlay hints updates after buffer scrolls.
-    ///
-    /// Set to 0 to disable debouncing.
-    ///
-    /// Default: 50
-    pub scroll_debounce_ms: Option<u64>,
 }
 
 /// The kind of an inlay hint.
@@ -491,35 +145,6 @@ impl InlayHintKind {
             InlayHintKind::Parameter => "parameter",
         }
     }
-}
-
-/// Controls how completions are processed for this language.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
-#[serde(rename_all = "snake_case")]
-pub struct CompletionSettingsContent {
-    /// Controls how words are completed.
-    /// For large documents, not all words may be fetched for completion.
-    ///
-    /// Default: `fallback`
-    pub words: Option<WordsCompletionMode>,
-    /// How many characters has to be in the completions query to automatically show the words-based completions.
-    /// Before that value, it's still possible to trigger the words-based completion manually with the corresponding editor command.
-    ///
-    /// Default: 3
-    pub words_min_length: Option<u32>,
-    /// Whether to fetch LSP completions or not.
-    ///
-    /// Default: true
-    pub lsp: Option<bool>,
-    /// When fetching LSP completions, determines how long to wait for a response of a particular server.
-    /// When set to 0, waits indefinitely.
-    ///
-    /// Default: 0
-    pub lsp_fetch_timeout_ms: Option<u64>,
-    /// Controls how LSP completions are inserted.
-    ///
-    /// Default: "replace_suffix"
-    pub lsp_insert_mode: Option<LspInsertMode>,
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames)]
@@ -701,60 +326,6 @@ enum CurrentLanguageServerContent {
 struct LanguageServerSpecifierContent {
     /// The name of the language server to format with
     name: Option<String>,
-}
-
-/// The settings for indent guides.
-#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct IndentGuideSettingsContent {
-    /// Whether to display indent guides in the editor.
-    ///
-    /// Default: true
-    pub enabled: Option<bool>,
-    /// The width of the indent guides in pixels, between 1 and 10.
-    ///
-    /// Default: 1
-    pub line_width: Option<u32>,
-    /// The width of the active indent guide in pixels, between 1 and 10.
-    ///
-    /// Default: 1
-    pub active_line_width: Option<u32>,
-    /// Determines how indent guides are colored.
-    ///
-    /// Default: Fixed
-    pub coloring: Option<IndentGuideColoring>,
-    /// Determines how indent guide backgrounds are colored.
-    ///
-    /// Default: Disabled
-    pub background_coloring: Option<IndentGuideBackgroundColoring>,
-}
-
-/// The task settings for a particular language.
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Serialize)]
-pub struct LanguageTaskSettingsContent {
-    /// Extra task variables to set for a particular language.
-    pub variables: Option<FxHashMap<String, String>>,
-    pub enabled: Option<bool>,
-    /// Use LSP tasks over built-in language tasks.
-    /// If no LSP tasks are returned due to error/timeout or regular execution,
-    /// Built-in language tasks will be used instead.
-    pub prefer_lsp: Option<bool>,
-}
-
-/// Map from language name to settings.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct LanguageToSettingsMap(pub FxHashMap<String, LanguageSettingsContent>);
-
-/// Map from language name to file patterns.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-pub struct FileTypeMap(pub FxHashMap<Arc<str>, Vec<String>>);
-
-impl<'a> IntoIterator for &'a FileTypeMap {
-    type Item = (&'a Arc<str>, &'a Vec<String>);
-    type IntoIter = Iter<'a, Arc<str>, Vec<String>>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
-    }
 }
 
 /// Determines how indent guides are colored.

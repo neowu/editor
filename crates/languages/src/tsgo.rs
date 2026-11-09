@@ -11,12 +11,9 @@ use language::LspAdapter;
 use language::LspAdapterDelegate;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
-use lsp::Uri;
 use project::Fs;
-use project::lsp_store::language_server_settings;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
-use serde_json::json;
 
 use crate::npx;
 
@@ -133,17 +130,6 @@ impl LspAdapter for TsgoLspAdapter {
             item.filter_text.as_deref(),
             vec![(0..label_len, highlight_id)],
         ))
-    }
-
-    async fn workspace_configuration(
-        self: Arc<Self>,
-        _: &Arc<dyn LspAdapterDelegate>,
-        _: Option<Uri>,
-        cx: &mut AsyncApp,
-    ) -> Result<Value> {
-        let settings =
-            cx.update(|cx| language_server_settings(&Self::SERVER_NAME, cx).and_then(|s| s.settings.clone()));
-        Ok(settings.unwrap_or_else(|| json!({})))
     }
 
     fn language_ids(&self) -> FxHashMap<LanguageName, String> {

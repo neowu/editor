@@ -12,7 +12,6 @@ use language::Buffer;
 use language::ContextLocation;
 use language::ContextProvider;
 use language::Language;
-use language::language_settings::LanguageSettings;
 use lsp::LanguageServerId;
 use rustc_hash::FxHashMap;
 use task::TaskTemplate;
@@ -43,15 +42,13 @@ impl TaskSourceKind {
     }
 }
 
-/// Returns the task templates the buffer's language provides, if tasks are enabled for it.
+/// Returns the task templates the buffer's language provides.
 pub fn language_task_templates(
     buffer: Option<Entity<Buffer>>,
     language: Arc<Language>,
     cx: &App,
 ) -> Task<Vec<(TaskSourceKind, TaskTemplate)>> {
-    let enabled =
-        LanguageSettings::resolve(buffer.as_ref().map(|b| b.read(cx)), Some(&language.name()), cx).tasks.enabled;
-    let Some(provider) = language.context_provider().filter(|_| enabled) else {
+    let Some(provider) = language.context_provider() else {
         return Task::ready(Vec::new());
     };
     let kind = TaskSourceKind::Language { name: language.name().into() };

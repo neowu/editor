@@ -175,8 +175,10 @@ use language::ToOffset;
 use language::ToPointUtf16;
 use language::Transaction;
 use language::Unclipped;
+use language::language_settings::COMPLETIONS;
 use language::language_settings::FormatOnSave;
 use language::language_settings::Formatter;
+use language::language_settings::LINE_ENDING;
 use language::language_settings::LanguageSettings;
 use language::language_settings::LineEndingSetting;
 use language::lsp_to_symbol_kind;
@@ -254,7 +256,6 @@ use text::ToPoint as _;
 use util::ConnectionResult;
 use util::ResultExt as _;
 use util::defer;
-use util::merge_json_value_into;
 use util::paths::SanitizedPath;
 use util::post_inc;
 use util::rel_path::RelPath;
@@ -337,8 +338,6 @@ use crate::manifest_tree::LanguageServerTreeNode;
 use crate::manifest_tree::LaunchDisposition;
 use crate::manifest_tree::ManifestQueryDelegate;
 use crate::manifest_tree::ManifestTree;
-use crate::project_settings::BinarySettings;
-use crate::project_settings::LspSettings;
 use crate::project_settings::ProjectSettings;
 use crate::worktree_store::WorktreeStore;
 use crate::worktree_store::WorktreeStoreEvent;
@@ -439,21 +438,10 @@ struct UnifiedLanguageServer {
     project_roots: FxHashSet<Arc<RelPath>>,
 }
 
-/// Settings that affect language server identity.
-///
-/// Dynamic settings (`LspSettings::settings`) are excluded because they can be
-/// updated via `workspace/didChangeConfiguration` without restarting the server.
-#[derive(Clone, Debug, Hash, PartialEq, Eq)]
-struct LanguageServerSeedSettings {
-    binary: Option<BinarySettings>,
-    initialization_options: Option<serde_json::Value>,
-}
-
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct LanguageServerSeed {
     worktree_id: WorktreeId,
     name: LanguageServerName,
-    settings: LanguageServerSeedSettings,
 }
 
 #[derive(Debug)]
@@ -554,14 +542,8 @@ impl LocalLspStore {
         start_mode: LanguageServerStartMode,
         cx: &App,
     ) -> Option<LanguageServerId> {
-        let key = LanguageServerSeed {
-            worktree_id: worktree_handle.read(cx).id(),
-            name: disposition.server_name.clone(),
-            settings: LanguageServerSeedSettings {
-                binary: disposition.settings.binary.clone(),
-                initialization_options: disposition.settings.initialization_options.clone(),
-            },
-        };
+        let key =
+            LanguageServerSeed { worktree_id: worktree_handle.read(cx).id(), name: disposition.server_name.clone() };
         if start_mode == LanguageServerStartMode::Explicit {
             self.language_server_start_overrides.insert(key.name.clone(), true);
         }
@@ -578,15 +560,8 @@ impl LocalLspStore {
                 .into_iter()
                 .find(|adapter| adapter.name() == disposition.server_name)
                 .expect("To find LSP adapter");
-            let new_language_server_id = self.start_language_server(
-                worktree_handle,
-                delegate,
-                adapter,
-                disposition.settings.clone(),
-                key.clone(),
-                language_name.clone(),
-                cx,
-            );
+            let new_language_server_id =
+                self.start_language_server(worktree_handle, delegate, adapter, key.clone(), language_name.clone(), cx);
             if let Some(state) = self.language_server_ids.get_mut(&key) {
                 state.project_roots.insert(disposition.path.path.clone());
             }
@@ -603,7 +578,6 @@ impl LocalLspStore {
         worktree_handle: &Entity<Worktree>,
         delegate: Arc<LocalLspAdapterDelegate>,
         adapter: Arc<CachedLspAdapter>,
-        settings: Arc<LspSettings>,
         key: LanguageServerSeed,
         language_name: LanguageName,
         cx: &App,
@@ -611,7 +585,6 @@ impl LocalLspStore {
         let worktree = worktree_handle.read(cx);
 
         let worktree_abs_path = worktree.abs_path();
-        let override_options = settings.initialization_options.clone();
 
         let stderr_capture = Arc::new(Mutex::new(Some(String::new())));
 
@@ -621,7 +594,7 @@ impl LocalLspStore {
             adapter.name.0
         );
 
-        let binary = self.get_language_server_binary(adapter.clone(), settings, delegate.clone(), cx);
+        let binary = self.get_language_server_binary(adapter.clone(), delegate.clone(), cx);
         let pending_workspace_folders = Arc::<Mutex<BTreeSet<Uri>>>::default();
 
         let pending_server = cx.spawn({
@@ -660,16 +633,8 @@ impl LocalLspStore {
                     let workspace_config =
                         Self::workspace_configuration_for_adapter(adapter.adapter.clone(), &delegate, None, cx).await?;
 
-                    let mut initialization_options =
+                    let initialization_options =
                         Self::initialization_options_for_adapter(adapter.adapter.clone(), &delegate, cx).await?;
-
-                    match (&mut initialization_options, override_options) {
-                        (Some(initialization_options), Some(override_options)) => {
-                            merge_json_value_into(override_options, initialization_options);
-                        }
-                        (None, override_options) => initialization_options = override_options,
-                        _ => {}
-                    }
 
                     let initialization_params = cx.update(|cx| {
                         let mut params = language_server.default_initialize_params();
@@ -763,12 +728,10 @@ impl LocalLspStore {
     fn get_language_server_binary(
         &self,
         adapter: Arc<CachedLspAdapter>,
-        settings: Arc<LspSettings>,
         delegate: Arc<dyn LspAdapterDelegate>,
         cx: &App,
     ) -> Task<Result<LanguageServerBinary>> {
         cx.spawn(async move |cx| {
-            let binary_settings = settings.binary.clone().unwrap_or_default();
             let mut binary = adapter.find_binary(&delegate, cx).await?;
             log::info!(
                 "found user-installed language server for {}. path: {:?}, arguments: {:?}",
@@ -779,12 +742,6 @@ impl LocalLspStore {
 
             let mut shell_env = delegate.shell_env().await;
             shell_env.extend(binary.env.take().unwrap_or_default());
-            if let Some(arguments) = binary_settings.arguments {
-                binary.arguments = arguments.into_iter().map(Into::into).collect();
-            }
-            if let Some(env) = binary_settings.env {
-                shell_env.extend(env);
-            }
             binary.env = Some(shell_env);
             Ok(binary)
         })
@@ -1483,7 +1440,7 @@ impl LocalLspStore {
             })?;
         }
 
-        let line_ending_policy = match settings.line_ending {
+        let line_ending_policy = match LINE_ENDING {
             LineEndingSetting::Detect => None,
             LineEndingSetting::PreferLf => Some((LineEnding::Unix, true)),
             LineEndingSetting::PreferCrlf => Some((LineEnding::Windows, true)),
@@ -5283,14 +5240,7 @@ impl LspStore {
                         let server_id = node.server_id_or_init(|disposition| {
                             let path = &disposition.path;
                             let workspace_folder = workspace_folder_uri(worktree.read(cx), &path.path);
-                            let key = LanguageServerSeed {
-                                worktree_id,
-                                name: disposition.server_name.clone(),
-                                settings: LanguageServerSeedSettings {
-                                    binary: disposition.settings.binary.clone(),
-                                    initialization_options: disposition.settings.initialization_options.clone(),
-                                },
-                            };
+                            let key = LanguageServerSeed { worktree_id, name: disposition.server_name.clone() };
                             if local.can_start_language_server(&key.name) {
                                 local.language_server_ids.remove(&key);
                             }
@@ -5693,12 +5643,7 @@ impl LspStore {
                 })
             })
             .or_else(|| self.upstream_client().is_some().then_some(LanguageServerToQuery::FirstCapable))
-            .filter(|_| {
-                (|| {
-                    buffer.read(cx).language_at(position)?;
-                    Some(LanguageSettings::for_buffer_at(buffer.read(cx), position, cx).linked_edits)
-                })() == Some(true)
-            })
+            .filter(|_| buffer.read(cx).language_at(position).is_some())
         else {
             return Task::ready(Ok(Vec::new()));
         };
@@ -6210,10 +6155,6 @@ impl LspStore {
         } else if let Some(local) = self.as_local() {
             let snapshot = buffer.read(cx).snapshot();
             let language = snapshot.language().cloned();
-            let completion_settings = LanguageSettings::for_buffer(buffer.read(cx), cx).completions.clone();
-            if !completion_settings.lsp {
-                return Task::ready(Ok(Vec::new()));
-            }
 
             let request = GetCompletions { position, context: context.clone(), server_id: None };
             let server_ids: Vec<_> = buffer.update(cx, |buffer, cx| {
@@ -6227,7 +6168,7 @@ impl LspStore {
             });
 
             let buffer = buffer.clone();
-            let lsp_timeout = completion_settings.lsp_fetch_timeout_ms;
+            let lsp_timeout = COMPLETIONS.lsp_fetch_timeout_ms;
             let lsp_timeout = if lsp_timeout > 0 { Some(Duration::from_millis(lsp_timeout)) } else { None };
             cx.spawn(async move |this,  cx| {
                 let mut tasks = Vec::with_capacity(server_ids.len());
@@ -6260,7 +6201,7 @@ impl LspStore {
                                 response = lsp_request => anyhow::Ok(Some(response?)),
                                 timeout_happened = timeout => {
                                     if timeout_happened {
-                                        log::warn!("Fetching completions from server {server_id} timed out, timeout ms: {}", completion_settings.lsp_fetch_timeout_ms);
+                                        log::warn!("Fetching completions from server {server_id} timed out, timeout ms: {}", COMPLETIONS.lsp_fetch_timeout_ms);
                                         Ok(None)
                                     } else {
                                         let completions = lsp_request.await?;
@@ -12820,10 +12761,6 @@ impl LspAdapter for SshLspAdapter {
     fn code_action_kinds(&self) -> Option<Vec<CodeActionKind>> {
         self.code_action_kinds.clone()
     }
-}
-
-pub fn language_server_settings<'a>(language: &LanguageServerName, cx: &'a App) -> Option<&'a LspSettings> {
-    ProjectSettings::get_global(cx).lsp.get(language)
 }
 
 pub struct LocalLspAdapterDelegate {

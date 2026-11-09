@@ -85,7 +85,6 @@ pub use language_core::OverrideConfig;
 pub use language_core::OverrideEntry;
 pub use language_core::RunnableCapture;
 pub use language_core::RunnableConfig;
-pub use language_core::SoftWrap;
 pub use language_core::Symbol;
 pub use language_core::SymbolKind;
 pub use language_core::TaskListConfig;
@@ -165,15 +164,6 @@ use util::rel_path::RelPath;
 pub use crate::language_settings::AutoIndentMode;
 pub use crate::language_settings::IndentGuideSettings;
 
-pub(crate) const fn to_settings_soft_wrap(value: language_core::SoftWrap) -> settings::SoftWrap {
-    match value {
-        language_core::SoftWrap::None => settings::SoftWrap::None,
-        language_core::SoftWrap::PreferLine => settings::SoftWrap::PreferLine,
-        language_core::SoftWrap::EditorWidth => settings::SoftWrap::EditorWidth,
-        language_core::SoftWrap::Bounded => settings::SoftWrap::Bounded,
-    }
-}
-
 static QUERY_CURSORS: Mutex<Vec<QueryCursor>> = Mutex::new(vec![]);
 static PARSERS: Mutex<Vec<Parser>> = Mutex::new(vec![]);
 
@@ -207,7 +197,6 @@ pub static PLAIN_TEXT: LazyLock<Arc<Language>> = LazyLock::new(|| {
     Arc::new(Language::new(
         LanguageConfig {
             name: "Plain Text".into(),
-            soft_wrap: Some(SoftWrap::EditorWidth),
             autoclose_before: ")]}".into(),
             matcher: (LanguageMatcher {
                 path_suffixes: vec![SharedString::new_static("txt")],

@@ -92,7 +92,10 @@ use itertools::Itertools;
 use language::Diagnostic;
 use language::IndentGuideSettings;
 use language::LanguageAwareStyling;
+use language::language_settings::SHOW_WHITESPACES;
 use language::language_settings::ShowWhitespaceSetting;
+use language::language_settings::WHITESPACE_SPACE;
+use language::language_settings::WHITESPACE_TAB;
 use minimap::MinimapLayout;
 pub(crate) use minimap::MinimapRowCache;
 use multi_buffer::Anchor;
@@ -4265,7 +4268,7 @@ impl EditorElement {
         window: &mut Window,
         cx: &mut App,
     ) {
-        let whitespace_setting = self.editor.read(cx).buffer.read(cx).language_settings(cx).show_whitespaces;
+        let whitespace_setting = SHOW_WHITESPACES;
 
         for (ix, line_with_invisibles) in layout.position_map.line_layouts.iter().enumerate() {
             let row = DisplayRow(layout.visible_display_row_range.start.0 + ix as u32);
@@ -6599,9 +6602,7 @@ impl Element for EditorElement {
                     });
 
                     let invisible_symbol_font_size = font_size / 2.;
-                    let whitespace_map = &self.editor.read(cx).buffer.read(cx).language_settings(cx).whitespace_map;
-
-                    let tab_char = whitespace_map.tab.clone();
+                    let tab_char = SharedString::new_static(WHITESPACE_TAB);
                     let tab_len = tab_char.len();
                     let tab_invisible = window.text_system().shape_line(
                         tab_char,
@@ -6615,7 +6616,7 @@ impl Element for EditorElement {
                         None,
                     );
 
-                    let space_char = whitespace_map.space.clone();
+                    let space_char = SharedString::new_static(WHITESPACE_SPACE);
                     let space_len = space_char.len();
                     let space_invisible = window.text_system().shape_line(
                         space_char,

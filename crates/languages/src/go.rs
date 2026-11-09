@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::ffi::OsString;
+use std::num::NonZeroU32;
 use std::ops::Range;
 use std::str;
 use std::sync::Arc;
@@ -12,21 +13,26 @@ use gpui::AsyncApp;
 use gpui::Entity;
 use gpui::Task;
 use language::LspAdapterDelegate;
+use language::language_settings::DocumentSymbols;
+use language::language_settings::FormatOnSave;
+use language::language_settings::Formatter;
+use language::language_settings::FormatterList;
+use language::language_settings::LanguageSettings;
+use language::language_settings::RewrapBehavior;
+use language::language_settings::SoftWrap;
+use language::language_settings::WordsCompletionMode;
 #[allow(clippy::wildcard_imports)]
 pub use language::*;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
-use project::lsp_store::language_server_settings;
 use regex::Regex;
 use rustc_hash::FxHashMap;
-use serde_json::Value;
 use serde_json::json;
 use settings::SemanticTokenRules;
 use task::TaskTemplate;
 use task::TaskTemplates;
 use task::TaskVariables;
 use task::VariableName;
-use util::merge_json_value_into;
 
 pub(crate) fn semantic_token_rules() -> SemanticTokenRules {
     let content = grammars::get_file("go/semantic_token_rules.json").expect("missing go/semantic_token_rules.json");
@@ -66,9 +72,9 @@ impl LspAdapter for GoLspAdapter {
     async fn initialization_options(
         self: Arc<Self>,
         _: &Arc<dyn LspAdapterDelegate>,
-        cx: &mut AsyncApp,
+        _: &mut AsyncApp,
     ) -> Result<Option<serde_json::Value>> {
-        let mut default_config = json!({
+        Ok(Some(json!({
             "usePlaceholders": false,
             "hints": {
                 "assignVariableTypes": true,
@@ -80,27 +86,7 @@ impl LspAdapter for GoLspAdapter {
                 "rangeVariableTypes": true
             },
             "semanticTokens": true
-        });
-
-        let project_initialization_options =
-            cx.update(|cx| language_server_settings(&self.name(), cx).and_then(|s| s.initialization_options.clone()));
-
-        if let Some(override_options) = project_initialization_options {
-            merge_json_value_into(override_options, &mut default_config);
-        }
-
-        Ok(Some(default_config))
-    }
-
-    async fn workspace_configuration(
-        self: Arc<Self>,
-        _: &Arc<dyn LspAdapterDelegate>,
-        _: Option<lsp::Uri>,
-        cx: &mut AsyncApp,
-    ) -> Result<Value> {
-        Ok(cx
-            .update(|cx| language_server_settings(&self.name(), cx).and_then(|settings| settings.settings.clone()))
-            .unwrap_or_default())
+        })))
     }
 
     async fn label_for_completion(
@@ -593,4 +579,46 @@ fn extract_subtest_name(input: &str) -> Option<String> {
             .replace_all(&processed, |caps: &regex::Captures| format!("\\{}", &caps[0]))
             .to_string(),
     )
+}
+
+/// Settings for Go.
+pub(crate) fn settings() -> LanguageSettings {
+    LanguageSettings {
+        tab_size: NonZeroU32::new(4).unwrap(),
+        hard_tabs: true,
+        soft_wrap: SoftWrap::None,
+        preferred_line_length: 120,
+        wrap_guides: vec![120],
+        format_on_save: FormatOnSave::On,
+        formatter: FormatterList::Single(Formatter::Auto),
+        code_actions_on_format: [("source.organizeImports".into(), true)].into_iter().collect(),
+        remove_trailing_whitespace_on_save: true,
+        ensure_final_newline_on_save: true,
+        document_symbols: DocumentSymbols::On,
+        allow_rewrap: RewrapBehavior::InComments,
+        use_on_type_format: true,
+        auto_indent_on_paste: true,
+        word_completions: WordsCompletionMode::Fallback,
+    }
+}
+
+/// Settings for Go Mod and Go Work.
+pub(crate) fn mod_settings() -> LanguageSettings {
+    LanguageSettings {
+        tab_size: NonZeroU32::new(4).unwrap(),
+        hard_tabs: true,
+        soft_wrap: SoftWrap::None,
+        preferred_line_length: 120,
+        wrap_guides: vec![120],
+        format_on_save: FormatOnSave::On,
+        formatter: FormatterList::Single(Formatter::Auto),
+        code_actions_on_format: FxHashMap::default(),
+        remove_trailing_whitespace_on_save: true,
+        ensure_final_newline_on_save: true,
+        document_symbols: DocumentSymbols::On,
+        allow_rewrap: RewrapBehavior::InComments,
+        use_on_type_format: true,
+        auto_indent_on_paste: true,
+        word_completions: WordsCompletionMode::Fallback,
+    }
 }

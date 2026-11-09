@@ -8,7 +8,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::str;
 
-use anyhow::Result;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::BorrowAppContext;
@@ -20,7 +19,6 @@ use rustc_hash::FxHashMap;
 
 use crate::SemanticTokenRules;
 use crate::built_in_semantic_token_rules;
-use crate::settings_content::LanguageDefaultsContent;
 use crate::settings_content::SettingsContent;
 
 /// A typed view of the built-in settings.
@@ -85,14 +83,11 @@ pub fn setting_value<T: Settings>() -> Box<dyn AnySettingValue> {
 
 inventory::collect!(RegisteredSetting);
 
-/// One complete application-wide configuration, with language conventions filled
-/// in from registered language metadata and no file-based settings layers.
+/// One complete application-wide configuration with no file-based settings layers.
 pub struct SettingsStore {
     setting_values: HashMap<TypeId, Box<dyn AnySettingValue>, TypeIdHashBuilder>,
     settings: SettingsContent,
-    language_defaults: Option<crate::AllLanguageSettingsContent>,
     language_semantic_token_rules: FxHashMap<SharedString, SemanticTokenRules>,
-    merged_settings: SettingsContent,
 }
 
 impl Global for SettingsStore {}
@@ -120,14 +115,8 @@ impl SettingsStore {
         if !cx.has_global::<DefaultSemanticTokenRules>() {
             cx.set_global(DefaultSemanticTokenRules(built_in_semantic_token_rules::rules()));
         }
-        let merged_settings = settings.clone();
-        let mut this = Self {
-            setting_values: HashMap::default(),
-            settings,
-            language_defaults: None,
-            language_semantic_token_rules: FxHashMap::default(),
-            merged_settings,
-        };
+        let mut this =
+            Self { setting_values: HashMap::default(), settings, language_semantic_token_rules: FxHashMap::default() };
         this.load_settings_types();
         this
     }
@@ -161,7 +150,7 @@ impl SettingsStore {
         }
 
         let setting_value = entry.or_insert((registered_setting.setting_value)());
-        let value = setting_value.value_from_settings(&self.merged_settings);
+        let value = setting_value.value_from_settings(&self.settings);
         setting_value.set_global_value(value);
     }
 
@@ -213,30 +202,6 @@ impl SettingsStore {
     /// if any have been registered.
     pub fn language_semantic_token_rules(&self, language: &str) -> Option<&SemanticTokenRules> {
         self.language_semantic_token_rules.get(language)
-    }
-
-    pub fn set_language_defaults(&mut self, content: LanguageDefaultsContent, _cx: &mut App) -> Result<()> {
-        self.language_defaults = Some(content.all_languages);
-        self.recompute_values();
-        Ok(())
-    }
-
-    fn recompute_values(&mut self) {
-        self.merged_settings = self.settings.clone();
-        if let Some(metadata) = &self.language_defaults {
-            let languages = &mut self.merged_settings.project.all_languages.languages.0;
-            for (name, defaults) in &metadata.languages.0 {
-                let mut language = defaults.clone();
-                if let Some(configured) = languages.get(name) {
-                    language.merge_from(configured);
-                }
-                languages.insert(name.clone(), language);
-            }
-        }
-        for setting_value in self.setting_values.values_mut() {
-            let value = setting_value.value_from_settings(&self.merged_settings);
-            setting_value.set_global_value(value);
-        }
     }
 }
 

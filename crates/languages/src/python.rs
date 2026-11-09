@@ -1,10 +1,9 @@
 use std::borrow::Cow;
 use std::fmt::Write;
 use std::iter;
+use std::num::NonZeroU32;
 use std::path::PathBuf;
-use std::result;
 use std::str;
-use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -17,19 +16,25 @@ use gpui::Task;
 use language::Buffer;
 use language::ContextLocation;
 use language::ContextProvider;
-use language::LanguageName;
 use language::LspAdapter;
 use language::LspAdapterDelegate;
 use language::ManifestName;
 use language::ManifestProvider;
 use language::ManifestQuery;
 use language::Symbol;
+use language::language_settings::DocumentSymbols;
+use language::language_settings::FormatOnSave;
+use language::language_settings::Formatter;
+use language::language_settings::FormatterList;
+use language::language_settings::LanguageServerFormatterSpecifier;
 use language::language_settings::LanguageSettings;
+use language::language_settings::RewrapBehavior;
+use language::language_settings::SoftWrap;
+use language::language_settings::WordsCompletionMode;
 use lsp::CompletionItemKind;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
 use lsp::Uri;
-use project::lsp_store::language_server_settings;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 use serde_json::json;
@@ -106,23 +111,6 @@ impl ManifestProvider for PyprojectTomlManifestProvider {
         }
 
         outermost_workspace_root.or(innermost_pyproject)
-    }
-}
-
-enum TestRunner {
-    Unittest,
-    Pytest,
-}
-
-impl FromStr for TestRunner {
-    type Err = ();
-
-    fn from_str(s: &str) -> result::Result<Self, Self::Err> {
-        match s {
-            "unittest" => Ok(Self::Unittest),
-            "pytest" => Ok(Self::Pytest),
-            _ => Err(()),
-        }
     }
 }
 
@@ -221,12 +209,9 @@ impl LspAdapter for TyLspAdapter {
         self: Arc<Self>,
         _: &Arc<dyn LspAdapterDelegate>,
         _: Option<Uri>,
-        cx: &mut AsyncApp,
+        _: &mut AsyncApp,
     ) -> Result<Value> {
-        let settings = cx
-            .update(|cx| language_server_settings(&self.name(), cx).and_then(|s| s.settings.clone()))
-            .unwrap_or_else(|| json!({}));
-        Ok(json!({ "ty": settings }))
+        Ok(json!({ "ty": {} }))
     }
 
     async fn check_if_user_installed(
@@ -281,21 +266,17 @@ impl ContextProvider for PythonContextProvider {
     fn build_context(
         &self,
         variables: &task::TaskVariables,
-        location: ContextLocation<'_>,
+        _: ContextLocation<'_>,
         _: Option<FxHashMap<String, String>>,
-        cx: &mut gpui::App,
+        _: &mut gpui::App,
     ) -> Task<Result<task::TaskVariables>> {
-        let test_target = match selected_test_runner(Some(&location.file_location.buffer), cx) {
-            TestRunner::Unittest => self.build_unittest_target(variables),
-            TestRunner::Pytest => self.build_pytest_target(variables),
-        };
+        let test_target = self.build_pytest_target(variables);
         let module_target = self.build_module_target(variables);
 
         Task::ready(Ok(task::TaskVariables::from_iter(test_target.into_iter().chain([module_target]))))
     }
 
-    fn associated_tasks(&self, buffer: Option<Entity<Buffer>>, cx: &App) -> Task<Option<TaskTemplates>> {
-        let test_runner = selected_test_runner(buffer.as_ref(), cx);
+    fn associated_tasks(&self, _: Option<Entity<Buffer>>, _: &App) -> Task<Option<TaskTemplates>> {
         let file = VariableName::File.template_value_with_whitespace();
         let test_target = PYTHON_TEST_TARGET_TASK_VARIABLE.template_value_with_whitespace();
 
@@ -314,10 +295,8 @@ impl ContextProvider for PythonContextProvider {
             },
         ];
 
-        let (runner, target_tags) = match test_runner {
-            TestRunner::Unittest => ("unittest", ["python-unittest-class", "python-unittest-method"]),
-            TestRunner::Pytest => ("pytest", ["python-pytest-class", "python-pytest-method"]),
-        };
+        let runner = "pytest";
+        let target_tags = ["python-pytest-class", "python-pytest-method"];
         tasks.extend([
             // Run tests for an entire file
             uv_python_task(
@@ -338,39 +317,7 @@ impl ContextProvider for PythonContextProvider {
     }
 }
 
-fn selected_test_runner(location: Option<&Entity<Buffer>>, cx: &App) -> TestRunner {
-    const TEST_RUNNER_VARIABLE: &str = "TEST_RUNNER";
-    let language = LanguageName::new_static("Python");
-    let settings = LanguageSettings::resolve(location.map(|b| b.read(cx)), Some(&language), cx);
-    settings
-        .tasks
-        .variables
-        .get(TEST_RUNNER_VARIABLE)
-        .and_then(|val| TestRunner::from_str(val).ok())
-        .unwrap_or(TestRunner::Pytest)
-}
-
 impl PythonContextProvider {
-    fn build_unittest_target(&self, variables: &task::TaskVariables) -> Option<(VariableName, String)> {
-        let python_module_name = python_module_name_from_relative_path(variables.get(&VariableName::RelativeFile)?)?;
-
-        let unittest_class_name = variables.get(&VariableName::Custom(Cow::Borrowed("_unittest_class_name")));
-
-        let unittest_method_name = variables.get(&VariableName::Custom(Cow::Borrowed("_unittest_method_name")));
-
-        let unittest_target_str = match (unittest_class_name, unittest_method_name) {
-            (Some(class_name), Some(method_name)) => {
-                format!("{python_module_name}.{class_name}.{method_name}")
-            }
-            (Some(class_name), None) => format!("{python_module_name}.{class_name}"),
-            (None, None) => python_module_name,
-            // should never happen, a TestCase class is the unit of testing
-            (None, Some(_)) => return None,
-        };
-
-        Some((PYTHON_TEST_TARGET_TASK_VARIABLE.clone(), unittest_target_str))
-    }
-
     fn build_pytest_target(&self, variables: &task::TaskVariables) -> Option<(VariableName, String)> {
         let file_path = variables.get(&VariableName::RelativeFile)?;
 
@@ -408,4 +355,27 @@ fn python_module_name_from_relative_path(relative_path: &str) -> Option<String> 
     let rel_path = RelPath::new(relative_path.as_ref()).ok()?;
     let path_with_dots = rel_path.display().replace('/', ".");
     Some(path_with_dots.strip_suffix(".py").map(ToOwned::to_owned).unwrap_or(path_with_dots))
+}
+
+/// Settings for Python.
+pub(crate) fn settings() -> LanguageSettings {
+    LanguageSettings {
+        tab_size: NonZeroU32::new(4).unwrap(),
+        hard_tabs: false,
+        soft_wrap: SoftWrap::None,
+        preferred_line_length: 120,
+        wrap_guides: vec![120],
+        format_on_save: FormatOnSave::On,
+        formatter: FormatterList::Single(Formatter::LanguageServer(LanguageServerFormatterSpecifier::Specific {
+            name: "ruff".into(),
+        })),
+        code_actions_on_format: [("source.organizeImports.ruff".into(), true)].into_iter().collect(),
+        remove_trailing_whitespace_on_save: true,
+        ensure_final_newline_on_save: true,
+        document_symbols: DocumentSymbols::On,
+        allow_rewrap: RewrapBehavior::InComments,
+        use_on_type_format: true,
+        auto_indent_on_paste: true,
+        word_completions: WordsCompletionMode::Fallback,
+    }
 }

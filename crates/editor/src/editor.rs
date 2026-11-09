@@ -19,7 +19,6 @@ use crate::actions::AlignSelections;
 use crate::mouse_context_menu::MenuPosition;
 pub mod actions;
 pub mod blink_manager;
-mod bracket_colorization;
 pub mod code_context_menus;
 mod code_lens;
 pub mod display_map;
@@ -512,7 +511,8 @@ use language::TextObject;
 use language::TransactionId;
 use language::TreeSitterOptions;
 use language::WordsQuery;
-use language::language_settings::AllLanguageSettings;
+use language::language_settings::COMPLETIONS;
+use language::language_settings::INLAY_HINTS;
 use language::language_settings::LanguageSettings;
 use language::language_settings::LspInsertMode;
 use language::language_settings::RewrapBehavior;
@@ -608,7 +608,6 @@ use text::FromAnchor;
 use text::OffsetUtf16;
 use text::Rope;
 use text::ToOffset as _;
-use theme::AccentColors;
 use theme::ActiveTheme;
 use theme::PlayerColor;
 use theme::StatusColors;
@@ -659,7 +658,6 @@ use crate::code_context_menus::CompletionsMenuSource;
 use crate::hover_links::find_url;
 use crate::hover_links::find_url_from_range;
 use crate::inlays::inlay_hints::LspInlayHintData;
-use crate::inlays::inlay_hints::inlay_hint_settings;
 use crate::runnables::ResolvedTasks;
 use crate::runnables::RunnableData;
 use crate::runnables::RunnableTaskStatus;
@@ -894,7 +892,7 @@ impl Default for EditorStyle {
 }
 
 pub fn make_inlay_hints_style(cx: &App) -> HighlightStyle {
-    let show_background = AllLanguageSettings::get_global(cx).defaults.inlay_hints.show_background;
+    let show_background = INLAY_HINTS.show_background;
 
     let mut style = cx.theme().syntax().style_for_name("hint").unwrap_or_default();
 
@@ -1354,21 +1352,13 @@ pub struct Editor {
     on_local_selections_changed: Option<Box<dyn Fn(Point, &mut Window, &mut Context<Self>) + 'static>>,
     suppress_selection_callback: bool,
     applicable_language_settings: FxHashMap<Option<LanguageName>, Arc<LanguageSettings>>,
-    accent_data: Option<AccentData>,
-    bracket_fetched_tree_sitter_chunks: FxHashMap<Range<text::Anchor>, FxHashSet<Range<BufferRow>>>,
     semantic_token_state: SemanticTokenState,
     pub(crate) refresh_matching_bracket_highlights_task: Task<()>,
     /// One fetch per buffer, so refreshing one buffer never cancels another's.
     refresh_document_symbols_tasks: FxHashMap<BufferId, Shared<Task<()>>>,
     lsp_document_links: LspDocumentLinks,
     lsp_document_symbols: FxHashMap<BufferId, Vec<OutlineItem<text::Anchor>>>,
-    pub(crate) colorize_brackets_task: Task<()>,
     spell_check: Option<spell_check::SpellCheckState>,
-}
-
-#[derive(Debug, PartialEq)]
-struct AccentData {
-    colors: AccentColors,
 }
 
 const fn debounce_value(debounce_ms: u64) -> Option<Duration> {
@@ -2038,9 +2028,6 @@ impl Editor {
             }));
         }
 
-        let buffer_snapshot = multi_buffer.read(cx).snapshot(cx);
-
-        let inlay_hint_settings = inlay_hint_settings(selections.newest_anchor().head(), &buffer_snapshot, cx);
         let focus_handle = cx.focus_handle();
         if !is_minimap {
             cx.on_focus(&focus_handle, window, Self::handle_focus).detach();
@@ -2239,14 +2226,11 @@ impl Editor {
             suppress_selection_callback: false,
             applicable_language_settings: FxHashMap::default(),
             semantic_token_state: SemanticTokenState::new(cx),
-            accent_data: None,
-            bracket_fetched_tree_sitter_chunks: FxHashMap::default(),
             number_deleted_lines: false,
             refresh_matching_bracket_highlights_task: Task::ready(()),
             refresh_document_symbols_tasks: FxHashMap::default(),
             lsp_document_links: LspDocumentLinks::default(),
             lsp_document_symbols: FxHashMap::default(),
-            colorize_brackets_task: Task::ready(()),
             spell_check,
         };
 
@@ -2261,7 +2245,6 @@ impl Editor {
         }
 
         editor.applicable_language_settings = editor.fetch_applicable_language_settings(cx);
-        editor.accent_data = editor.fetch_accent_data(cx);
 
         editor._subscriptions.extend(project_subscriptions);
 
@@ -2315,7 +2298,7 @@ impl Editor {
             editor.minimap = editor.create_minimap(window, cx);
             editor.colors = Some(LspColorData::new());
             editor.use_document_folding_ranges = true;
-            editor.inlay_hints = Some(LspInlayHintData::new(inlay_hint_settings));
+            editor.inlay_hints = Some(LspInlayHintData::new(INLAY_HINTS));
 
             if let Some(buffer) = multi_buffer.read(cx).as_singleton() {
                 editor.register_buffer(buffer.read(cx).remote_id(), cx);
@@ -3769,18 +3752,16 @@ impl Editor {
                         }
                     }
 
-                    if let Some(pair) = bracket_pair {
-                        let snapshot_settings = snapshot.language_settings_at(selection_head, cx);
-                        let autoclose_enabled = self.use_autoclose && snapshot_settings.use_autoclose;
-                        if autoclose_enabled {
-                            let start = snapshot.anchor_after(selection_head);
-                            let end = snapshot.anchor_after(selection_head);
-                            self.autoclose_regions.push(AutocloseRegion {
-                                selection_id: selection.id,
-                                range: start..end,
-                                pair,
-                            });
-                        }
+                    if let Some(pair) = bracket_pair
+                        && self.use_autoclose
+                    {
+                        let start = snapshot.anchor_after(selection_head);
+                        let end = snapshot.anchor_after(selection_head);
+                        self.autoclose_regions.push(AutocloseRegion {
+                            selection_id: selection.id,
+                            range: start..end,
+                            pair,
+                        });
                     }
                 }
             }
@@ -3993,9 +3974,7 @@ impl Editor {
             // If cursor is after a list prefix, make selection non-empty to trigger line indent
             if selection.is_empty() {
                 let cursor = selection.head();
-                let settings = buffer.language_settings_at(cursor, cx);
-                if settings.indent_list_on_tab
-                    && let Some(language) = snapshot.language_scope_at(Point::new(cursor.row, 0))
+                if let Some(language) = snapshot.language_scope_at(Point::new(cursor.row, 0))
                     && input::is_list_prefix_row(MultiBufferRow(cursor.row), &snapshot, &language)
                 {
                     row_delta = Self::indent_selection(buffer, &snapshot, selection, &mut edits, row_delta, cx);
@@ -7089,8 +7068,6 @@ impl Editor {
                 self.refresh_inlay_hints(InlayHintRefreshReason::NewLinesShown, cx);
                 self.inlay_hint_visibility_changed(cx);
                 self.refresh_runnables(None, window, cx);
-                self.bracket_fetched_tree_sitter_chunks.retain(|range, _| range.start.buffer_id != buffer_id);
-                self.colorize_brackets(false, cx);
                 self.refresh_spell_check(cx);
                 self.refresh_selected_text_highlights(&self.display_snapshot(cx), true, window, cx);
                 self.semantic_token_state.invalidate_buffer(&buffer_id);
@@ -7134,7 +7111,6 @@ impl Editor {
             multi_buffer::Event::Reparsed(buffer_id) => {
                 self.refresh_runnables(Some(*buffer_id), window, cx);
                 self.refresh_selected_text_highlights(&self.display_snapshot(cx), true, window, cx);
-                self.colorize_brackets(true, cx);
                 self.refresh_spell_check(cx);
                 jsx_tag_auto_close::refresh_enabled_in_any_buffer(self, multibuffer, cx);
 
@@ -7198,23 +7174,6 @@ impl Editor {
         cx.notify();
     }
 
-    fn fetch_accent_data(&self, cx: &App) -> Option<AccentData> {
-        if !self.mode.is_full() {
-            return None;
-        }
-
-        let theme = cx.theme();
-        let accent_colors = theme.accents().clone();
-        let editor_background = theme.colors().editor_background;
-        let auto_accent_colors = AccentColors(crate::bracket_colorization::bracket_colorization_accents(
-            &accent_colors.0,
-            theme.appearance,
-            editor_background,
-        ));
-
-        Some(AccentData { colors: auto_accent_colors })
-    }
-
     fn fetch_applicable_language_settings(&self, cx: &App) -> FxHashMap<Option<LanguageName>, Arc<LanguageSettings>> {
         if !self.mode.is_full() {
             return FxHashMap::default();
@@ -7235,30 +7194,15 @@ impl Editor {
         let language_settings_changed = new_language_settings != self.applicable_language_settings;
         self.applicable_language_settings = new_language_settings;
 
-        let new_accents = self.fetch_accent_data(cx);
-        let accents_changed = new_accents != self.accent_data;
-        self.accent_data = new_accents;
-
         self.refresh_runnables(None, window, cx);
 
         if self.mode.is_full() {
-            if language_settings_changed || accents_changed {
-                self.colorize_brackets(true, cx);
-            }
-
             if language_settings_changed {
                 self.clear_disabled_lsp_folding_ranges(window, cx);
                 self.refresh_document_symbols(None, cx);
             }
 
-            self.refresh_inlay_hints(
-                InlayHintRefreshReason::SettingsChange(inlay_hint_settings(
-                    self.selections.newest_anchor().head(),
-                    &self.buffer.read(cx).snapshot(cx),
-                    cx,
-                )),
-                cx,
-            );
+            self.refresh_inlay_hints(InlayHintRefreshReason::SettingsChange(INLAY_HINTS), cx);
 
             let new_semantic_token_rules =
                 ProjectSettings::get_global(cx).global_lsp_settings.semantic_token_rules.clone();
@@ -7973,7 +7917,6 @@ impl Editor {
 
     fn do_update_data_on_scroll(&mut self, window: &mut Window, cx: &mut Context<'_, Self>) {
         self.register_visible_buffers(cx);
-        self.colorize_brackets(false, cx);
         self.refresh_spell_check(cx);
         self.refresh_inlay_hints(InlayHintRefreshReason::NewLinesShown, cx);
 
@@ -8027,7 +7970,7 @@ fn process_completion_for_edit(
                 CompletionIntent::CompleteWithInsert => false,
                 CompletionIntent::CompleteWithReplace => true,
                 CompletionIntent::Complete | CompletionIntent::Compose => {
-                    let insert_mode = LanguageSettings::for_buffer(buffer, cx).completions.lsp_insert_mode;
+                    let insert_mode = COMPLETIONS.lsp_insert_mode;
                     match insert_mode {
                         LspInsertMode::Insert => false,
                         LspInsertMode::Replace => true,

@@ -15,24 +15,18 @@ use std::sync::Weak;
 
 use gpui::App;
 use gpui::Entity;
-use indexmap::IndexMap;
 use language::CachedLspAdapter;
 use language::LanguageName;
 use language::LanguageRegistry;
 use language::ManifestDelegate;
 use language::ManifestName;
-use language::language_settings::AllLanguageSettings;
 use lsp::LanguageServerName;
-use rustc_hash::FxBuildHasher;
-use settings::Settings;
 use settings::WorktreeId;
 use util::rel_path::RelPath;
 
 use super::ManifestTree;
 use crate::LanguageServerId;
 use crate::ProjectPath;
-use crate::lsp_store;
-use crate::project_settings::LspSettings;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ServersForWorktree {
@@ -59,7 +53,6 @@ pub(crate) struct LaunchDisposition {
     pub(crate) server_name: LanguageServerName,
     /// Path to the root directory of a subproject.
     pub(crate) path: ProjectPath,
-    pub(crate) settings: Arc<LspSettings>,
 }
 
 impl LanguageServerTreeNode {
@@ -102,11 +95,8 @@ pub struct InnerTreeNode {
 }
 
 impl InnerTreeNode {
-    fn new(server_name: LanguageServerName, path: ProjectPath, settings: LspSettings) -> Self {
-        InnerTreeNode {
-            id: OnceLock::default(),
-            disposition: Arc::new(LaunchDisposition { server_name, path, settings: settings.into() }),
-        }
+    fn new(server_name: LanguageServerName, path: ProjectPath) -> Self {
+        InnerTreeNode { id: OnceLock::default(), disposition: Arc::new(LaunchDisposition { server_name, path }) }
     }
 
     pub(crate) fn id(&self) -> Option<LanguageServerId> {
@@ -129,7 +119,7 @@ impl LanguageServerTree {
         cx: &mut App,
     ) -> impl Iterator<Item = LanguageServerId> + 'a {
         let manifest_location = self.manifest_location_for_path(&path, manifest_name, delegate, cx);
-        let adapters = self.adapters_for_language(&language_name, cx);
+        let adapters = self.languages.lsp_adapters(&language_name);
         self.get_with_adapters(manifest_location, adapters)
     }
 
@@ -143,7 +133,7 @@ impl LanguageServerTree {
         cx: &'a mut App,
     ) -> impl Iterator<Item = LanguageServerTreeNode> + 'a {
         let manifest_location = self.manifest_location_for_path(&path, manifest_name, delegate, cx);
-        let adapters = self.adapters_for_language(&language_name, cx);
+        let adapters = self.languages.lsp_adapters(&language_name);
         self.init_with_adapters(manifest_location, language_name, adapters)
     }
 
@@ -151,9 +141,9 @@ impl LanguageServerTree {
         &mut self,
         root_path: ProjectPath,
         language_name: LanguageName,
-        adapters: IndexMap<LanguageServerName, (LspSettings, Arc<CachedLspAdapter>), FxBuildHasher>,
+        adapters: Vec<Arc<CachedLspAdapter>>,
     ) -> impl Iterator<Item = LanguageServerTreeNode> + '_ {
-        adapters.into_iter().map(move |(_, (settings, adapter))| {
+        adapters.into_iter().map(move |adapter| {
             let root_path = root_path.clone();
             let inner_node = self
                 .instances
@@ -163,7 +153,7 @@ impl LanguageServerTree {
                 .entry(root_path.path.clone())
                 .or_default()
                 .entry(adapter.name());
-            let new_node = || Arc::new(InnerTreeNode::new(adapter.name(), root_path.clone(), settings));
+            let new_node = || Arc::new(InnerTreeNode::new(adapter.name(), root_path.clone()));
             let (node, languages) = match inner_node {
                 Entry::Occupied(mut entry) => {
                     if entry.get().0.id.get().is_none() {
@@ -181,9 +171,9 @@ impl LanguageServerTree {
     fn get_with_adapters(
         &self,
         root_path: ProjectPath,
-        adapters: IndexMap<LanguageServerName, (LspSettings, Arc<CachedLspAdapter>), FxBuildHasher>,
+        adapters: Vec<Arc<CachedLspAdapter>>,
     ) -> impl Iterator<Item = LanguageServerId> + '_ {
-        adapters.into_iter().filter_map(move |(_, (_, adapter))| {
+        adapters.into_iter().filter_map(move |adapter| {
             let root_path = root_path.clone();
             let inner_node =
                 self.instances.get(&root_path.worktree_id)?.roots.get(&root_path.path)?.get(&adapter.name())?;
@@ -201,26 +191,6 @@ impl LanguageServerTree {
         // Find out what the root location of our subproject is.
         // That's where we'll look for language settings (that include a set of language servers).
         self.manifest_tree.update(cx, |this, cx| this.root_for_path_or_worktree_root(path, manifest_name, delegate, cx))
-    }
-
-    fn adapters_for_language(
-        &self,
-        language_name: &LanguageName,
-        cx: &App,
-    ) -> IndexMap<LanguageServerName, (LspSettings, Arc<CachedLspAdapter>), FxBuildHasher> {
-        let settings = AllLanguageSettings::get_global(cx).language(Some(language_name));
-        if !settings.enable_language_server {
-            return IndexMap::default();
-        }
-        self.languages
-            .lsp_adapters(language_name)
-            .into_iter()
-            .map(|adapter| {
-                let adapter_settings =
-                    lsp_store::language_server_settings(&adapter.name, cx).cloned().unwrap_or_default();
-                (adapter.name(), (adapter_settings, adapter))
-            })
-            .collect()
     }
 
     /// Server Tree is built up incrementally via queries for distinct paths of the worktree.
@@ -306,7 +276,7 @@ impl ServerTreeRebase {
         cx: &'a mut App,
     ) -> impl Iterator<Item = LanguageServerTreeNode> + 'a {
         let manifest = self.new_tree.manifest_location_for_path(&path, manifest_name, &delegate, cx);
-        let adapters = self.new_tree.adapters_for_language(&language_name, cx);
+        let adapters = self.new_tree.languages.lsp_adapters(&language_name);
 
         self.new_tree.init_with_adapters(manifest, language_name, adapters).filter_map(|node| {
             // Inspect result of the query and initialize it ourselves before
@@ -323,14 +293,6 @@ impl ServerTreeRebase {
                 .get(&disposition.path.worktree_id)
                 .and_then(|worktree_nodes| worktree_nodes.roots.get(&disposition.path.path))
                 .and_then(|roots| roots.get(&disposition.server_name))
-                .filter(|(old_node, _)| {
-                    // Only compare settings that require server restart.
-                    // Dynamic settings (settings.settings) can be updated via DidChangeConfiguration
-                    // without restarting the server.
-                    disposition.settings.binary == old_node.disposition.settings.binary
-                        && disposition.settings.initialization_options
-                            == old_node.disposition.settings.initialization_options
-                })
             else {
                 return Some(node);
             };

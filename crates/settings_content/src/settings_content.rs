@@ -65,10 +65,6 @@ pub struct SettingsContent {
     pub terminal: Option<TerminalSettingsContent>,
 }
 
-pub struct LanguageDefaultsContent {
-    pub all_languages: AllLanguageSettingsContent,
-}
-
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq, Eq, strum::VariantArray, strum::VariantNames)]
 #[serde(rename_all = "snake_case")]
 pub enum DockPosition {

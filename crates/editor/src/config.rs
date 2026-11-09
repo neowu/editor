@@ -1,3 +1,6 @@
+use language::language_settings::INDENT_GUIDES;
+use language::language_settings::SOFT_WRAP_INDENT;
+
 use super::App;
 use super::Arc;
 use super::BufferId;
@@ -116,22 +119,20 @@ impl Editor {
             return wrap_guides;
         }
 
-        let settings = self.buffer.read(cx).language_settings(cx);
-        if settings.show_wrap_guides {
-            match self.soft_wrap_mode(cx) {
-                SoftWrap::Bounded(soft_wrap) => {
-                    wrap_guides.push((soft_wrap as usize, true));
-                }
-                SoftWrap::GitDiff | SoftWrap::None | SoftWrap::EditorWidth => {}
+        match self.soft_wrap_mode(cx) {
+            SoftWrap::Bounded(soft_wrap) => {
+                wrap_guides.push((soft_wrap as usize, true));
             }
-            wrap_guides.extend(settings.wrap_guides.iter().map(|guide| (*guide, false)))
+            SoftWrap::GitDiff | SoftWrap::None | SoftWrap::EditorWidth => {}
         }
+        let settings = self.buffer.read(cx).language_settings(cx);
+        wrap_guides.extend(settings.wrap_guides.iter().map(|guide| (*guide, false)));
 
         wrap_guides
     }
 
-    pub(super) fn soft_wrap_indent(&self, cx: &App) -> SoftWrapIndent {
-        self.buffer.read(cx).language_settings(cx).soft_wrap_indent
+    pub(super) const fn soft_wrap_indent(&self) -> SoftWrapIndent {
+        SOFT_WRAP_INDENT
     }
 
     pub fn soft_wrap_mode(&self, cx: &App) -> SoftWrap {
@@ -147,7 +148,7 @@ impl Editor {
     // Called by the element. This method is not designed to be called outside of the editor
     // element's layout code because it does not notify when rewrapping is computed synchronously.
     pub(super) fn set_wrap_width(&mut self, width: Option<Pixels>, cx: &mut Context<Self>) -> bool {
-        let indent = self.soft_wrap_indent(cx);
+        let indent = self.soft_wrap_indent();
         let changed = if self.is_empty(cx) {
             self.placeholder_display_map.as_ref().is_some_and(|display_map| {
                 display_map.update(cx, |map, cx| {
@@ -184,9 +185,7 @@ impl Editor {
     }
 
     pub(super) fn toggle_indent_guides(&mut self, _: &ToggleIndentGuides, _: &mut Window, cx: &mut Context<Self>) {
-        let currently_enabled = self
-            .should_show_indent_guides()
-            .unwrap_or_else(|| self.buffer.read(cx).language_settings(cx).indent_guides.enabled);
+        let currently_enabled = self.should_show_indent_guides().unwrap_or(INDENT_GUIDES.enabled);
         self.show_indent_guides = Some(!currently_enabled);
         cx.notify();
     }

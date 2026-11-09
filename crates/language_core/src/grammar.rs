@@ -211,7 +211,6 @@ pub struct BracketsConfig {
 #[derive(Clone, Debug, Default)]
 pub struct BracketsPatternConfig {
     pub newline_only: bool,
-    pub rainbow_exclude: bool,
 }
 
 enum Capture<'a> {
@@ -475,9 +474,6 @@ impl Grammar {
                         let setting_key = setting.key.as_ref();
                         if setting_key == "newline.only" {
                             config.newline_only = true
-                        }
-                        if setting_key == "rainbow.exclude" {
-                            config.rainbow_exclude = true
                         }
                     }
                     config
