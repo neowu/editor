@@ -36,7 +36,6 @@ gpui_shared_string = { path = "crates/gpui_shared_string" }
 gpui_util = { path = "crates/gpui_util" }
 icons = { path = "crates/icons" }
 image_viewer = { path = "crates/image_viewer" }
-json_schema_store = { path = "crates/json_schema_store" }
 language = { path = "crates/language" }
 language_core = { path = "crates/language_core" }
 language_selector = { path = "crates/language_selector" }
@@ -356,7 +355,6 @@ ed_actions = { codegen-units = 1 }
 file_content = { codegen-units = 1 }
 file_icons = { codegen-units = 1 }
 image_viewer = { codegen-units = 1 }
-json_schema_store = { codegen-units = 1 }
 menu = { codegen-units = 1 }
 notifications = { codegen-units = 1 }
 paths = { codegen-units = 1 }

@@ -9,7 +9,6 @@ async-trait.workspace = true
 futures.workspace = true
 gpui.workspace = true
 itertools.workspace = true
-json_schema_store.workspace = true
 language.workspace = true
 language_core.workspace = true
 log.workspace = true

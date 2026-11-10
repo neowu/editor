@@ -157,8 +157,10 @@
 - The status-bar LSP menu keeps a stopped server listed as "Stopped" under the
   worktree it last ran in, so "Restart Server" and "Restart All Servers" stay
   reachable after stopping one or all servers.
-- JSON language-server schema-content requests resolve the last supplied URI;
-  an empty URI list returns an error.
+- JSON schemas are not bundled. json-language-server downloads the SchemaStore
+  schemas for `tsconfig*.json` and `package.json` itself on each start (no
+  schema completion/validation offline); JSONC files get an inline
+  trailing-comma schema. The `vscode/content` schema request is not handled.
 - There is no managed Node.js runtime and no `node` settings (`node.path`,
   `node.npm_path` are removed). Node-based tooling uses `node`/`npx` from the
   shell `PATH`, locally and on remote servers.

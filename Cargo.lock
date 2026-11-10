@@ -842,7 +842,6 @@ dependencies = [
  "gpui",
  "gpui_macos",
  "image_viewer",
- "json_schema_store",
  "language",
  "language_selector",
  "language_tools",
@@ -2086,17 +2085,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "json_schema_store"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "gpui",
- "language",
- "project",
- "serde_json",
-]
-
-[[package]]
 name = "kqueue"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2241,7 +2229,6 @@ dependencies = [
  "futures",
  "gpui",
  "itertools 0.15.0",
- "json_schema_store",
  "language",
  "language_core",
  "log",
@@ -3702,7 +3689,6 @@ dependencies = [
  "futures",
  "gpui",
  "image",
- "json_schema_store",
  "language",
  "languages",
  "libc",

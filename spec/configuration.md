@@ -194,8 +194,8 @@ migrator, or Vim/Helix mode.
   deserializing `{}` give the same action. Built-in data that is never omitted
   (settings, task templates, language `config.toml`) states every such field
   explicitly instead of relying on serde defaults. The JSON language server
-  only gets the bundled `tsconfig.json`/`package.json` schemas and a
-  trailing-comma schema for JSONC files; there are no settings, keymap, or
+  only gets the SchemaStore `tsconfig.json`/`package.json` schema URLs and a
+  trailing-comma schema for JSONC files (see `languages.md`); there are no settings, keymap, or
   per-action schemas, and no language-server configuration schema probing.
 - The upstream documentation website preprocessor is removed; this fork does not
   build the upstream mdBook site.

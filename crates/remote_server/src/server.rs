@@ -451,8 +451,6 @@ pub fn execute_run(
         log::info!("gpui app started, initializing server");
         let session = start_server(listeners, log_rx, cx);
 
-        json_schema_store::init(cx);
-
         let project = cx.new(|cx| {
             let fs = RealFs::new(cx.background_executor().clone());
             let languages = Arc::new(LanguageRegistry::new(cx.background_executor().clone()));

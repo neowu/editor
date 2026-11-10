@@ -284,7 +284,6 @@ fn main() {
         markdown_preview::init(cx);
         tabular_data_preview::init(cx);
         svg_preview::init(cx);
-        json_schema_store::init(cx);
 
         app_state.languages.set_theme(cx.theme());
 

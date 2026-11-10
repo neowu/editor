@@ -19,7 +19,6 @@ fs.workspace = true
 futures.workspace = true
 gpui.workspace = true
 image.workspace = true
-json_schema_store.workspace = true
 language.workspace = true
 languages.workspace = true
 log.workspace = true

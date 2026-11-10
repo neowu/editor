@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::Entity;
+use gpui::SharedString;
 use gpui::Task;
 use language::Buffer;
 use language::ContextProvider;
@@ -15,6 +16,7 @@ use language::LanguageRegistry;
 use language::LocalFile as _;
 use language::LspAdapter;
 use language::LspAdapterDelegate;
+use language::language_settings::AllLanguageSettings;
 use language::language_settings::DocumentSymbols;
 use language::language_settings::FormatOnSave;
 use language::language_settings::Formatter;
@@ -164,7 +166,7 @@ impl LspAdapter for JsonLspAdapter {
         cx: &mut AsyncApp,
     ) -> Result<Value> {
         Ok(cx.update(|cx| {
-            let schemas = json_schema_store::all_schema_file_associations(&self.languages, cx);
+            let schemas = schema_associations(&jsonc_globs(&self.languages, cx));
 
             // This can be viewed via `dev: open language server logs` -> `json-language-server` ->
             // `Server Info`
@@ -191,6 +193,41 @@ impl LspAdapter for JsonLspAdapter {
     async fn process_completions(&self, items: &mut [lsp::CompletionItem]) {
         unquote_filter_texts(items);
     }
+}
+
+/// Globs matching every JSONC file: the language's path suffixes plus `file_types` overrides.
+fn jsonc_globs(languages: &Arc<LanguageRegistry>, cx: &App) -> Vec<SharedString> {
+    let extension_globs = languages
+        .available_language_for_name("JSONC")
+        .map(|language| language.matcher().path_suffixes.clone())
+        .into_iter()
+        .flatten()
+        // Path suffixes can be entire file names or just their extensions.
+        .flat_map(|path_suffix| [format!("*.{path_suffix}").into(), path_suffix]);
+    let override_globs = AllLanguageSettings::get_global(cx)
+        .file_types
+        .get("JSONC")
+        .into_iter()
+        .flat_map(|(_, glob_strings)| glob_strings.iter().map(SharedString::from));
+    extension_globs.chain(override_globs).collect()
+}
+
+/// The server downloads the SchemaStore schemas itself; the JSONC schema is inline.
+fn schema_associations(jsonc_globs: &[SharedString]) -> Value {
+    json!([
+        {
+            "fileMatch": ["tsconfig*.json"],
+            "url": "https://json.schemastore.org/tsconfig.json"
+        },
+        {
+            "fileMatch": ["package.json"],
+            "url": "https://json.schemastore.org/package.json"
+        },
+        {
+            "fileMatch": jsonc_globs,
+            "schema": { "allowTrailingCommas": true }
+        },
+    ])
 }
 
 /// json-language-server quotes `filterText` (`"status_bar"`), or the label of items
@@ -246,4 +283,22 @@ pub(crate) fn languages(registry: Arc<LanguageRegistry>, biome: Arc<dyn LspAdapt
             ..LanguageDef::new("jsonc", settings())
         },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn schema_associations_use_schemastore_and_inline_jsonc() {
+        let schemas = schema_associations(&["*.jsonc".into(), "jsonc".into()]);
+        assert_eq!(
+            schemas,
+            json!([
+                { "fileMatch": ["tsconfig*.json"], "url": "https://json.schemastore.org/tsconfig.json" },
+                { "fileMatch": ["package.json"], "url": "https://json.schemastore.org/package.json" },
+                { "fileMatch": ["*.jsonc", "jsonc"], "schema": { "allowTrailingCommas": true } },
+            ])
+        );
+    }
 }
