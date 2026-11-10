@@ -2357,6 +2357,30 @@ impl Workspace {
         state.task.clone().unwrap()
     }
 
+    /// Saves every dirty item that already has a file, without prompting for
+    /// a path for untitled ones. Resolves to false if a save was cancelled.
+    pub fn save_dirty_files(&self, window: &Window, cx: &Context<Self>) -> Task<Result<bool>> {
+        let dirty_items = self
+            .panes
+            .iter()
+            .flat_map(|pane| {
+                pane.read(cx)
+                    .items()
+                    .filter(|item| item.is_dirty(cx) && item.can_save(cx))
+                    .map(|item| (pane.clone(), item.boxed_clone()))
+            })
+            .collect::<Vec<_>>();
+        let project = self.project.clone();
+        cx.spawn_in(window, async move |_, cx| {
+            for (pane, item) in dirty_items {
+                if !Pane::save_item(project.clone(), pane, &*item, SaveIntent::SaveAll, cx).await? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        })
+    }
+
     fn save_all_internal(
         &self,
         mut save_intent: SaveIntent,

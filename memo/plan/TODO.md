@@ -19,9 +19,6 @@
 - display "not installed", e.g. for terraform
 - add semantic token rules for typescript?
 
-# git
-- smart pull (like stash then pull)
-
 # mermaid
 - pick the diagrams will use
 

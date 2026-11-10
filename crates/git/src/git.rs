@@ -103,10 +103,12 @@ actions!(
         PushTo,
         /// Force pushes commits to the remote repository.
         ForcePush,
-        /// Pulls changes from the remote repository.
+        /// Pulls with rebase, carrying uncommitted changes across via autostash.
         Pull,
-        /// Pulls changes from the remote repository with rebase.
-        PullRebase,
+        /// Continues a rebase that stopped on conflicts.
+        RebaseContinue,
+        /// Aborts a rebase that stopped on conflicts, restoring the state before it.
+        RebaseAbort,
         /// Fetches changes from the remote repository.
         Fetch,
         /// Fetches changes from a specific remote.

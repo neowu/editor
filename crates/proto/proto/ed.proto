@@ -359,7 +359,8 @@ message Envelope {
     RefreshDocumentHighlights refresh_document_highlights = 493;
     GetTerminalShell get_terminal_shell = 494;
     GetTerminalShellResponse get_terminal_shell_response = 495;
-    RescanWorktrees rescan_worktrees = 496; // current max
+    RescanWorktrees rescan_worktrees = 496;
+    Rebase rebase = 497; // current max
   }
 
   reserved 317, 318; // Removed credential prompts.

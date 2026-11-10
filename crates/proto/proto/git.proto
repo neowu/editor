@@ -127,6 +127,7 @@ message UpdateRepository {
   optional string repository_dir_abs_path = 19;
   optional string common_dir_abs_path = 20;
   optional string branch_list_error = 21;
+  bool rebase_in_progress = 22;
 }
 
 message RemoveRepository {
@@ -464,8 +465,13 @@ message Pull {
   uint64 repository_id = 3;
   string remote_name = 4;
   optional string branch_name = 5;
-  reserved 6;
-  bool rebase = 7;
+  reserved 6, 7;
+}
+
+message Rebase {
+  uint64 project_id = 1;
+  uint64 repository_id = 2;
+  bool abort = 3;
 }
 
 message RemoteMessageResponse {

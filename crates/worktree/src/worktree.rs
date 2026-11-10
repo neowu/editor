@@ -4045,9 +4045,9 @@ impl BackgroundScanner {
                     }) || (path_in_git_dir.starts_with(LOGS_DIR)
                         && path_in_git_dir != Path::new(LOGS_REF_STASH))
                         || (path_in_git_dir.starts_with(INFO_DIR) && path_in_git_dir != Path::new(REPO_EXCLUDE))
-                        || skipped_dirs_in_dot_git
-                            .iter()
-                            .any(|skipped_git_subdir| path_in_git_dir.starts_with(skipped_git_subdir))
+                        || skipped_dirs_in_dot_git.iter().any(|skipped_git_subdir| {
+                            path_in_git_dir.starts_with(skipped_git_subdir) && !is_rebase_state_dir(&path_in_git_dir)
+                        })
                         || path_in_git_dir.extension().is_some_and(|ext| ext == "lock")
                         || (path_in_git_dir.components().count() == 1
                             && path_in_git_dir.extension().is_some_and(|ext| ext == "new" || ext == "tmp"));
@@ -5973,5 +5973,26 @@ mod entry_proto_tests {
             assert_eq!(entry.is_writable, !is_read_only);
             assert_eq!(proto::Entry::from(&entry).is_read_only, is_read_only);
         }
+    }
+}
+
+/// The rebase state directory itself appearing or disappearing starts or ends
+/// a rebase, unlike the bookkeeping written inside it.
+fn is_rebase_state_dir(path_in_git_dir: &Path) -> bool {
+    path_in_git_dir == Path::new(REBASE_MERGE_DIR) || path_in_git_dir == Path::new(REBASE_APPLY_DIR)
+}
+
+#[cfg(test)]
+mod rebase_state_dir_tests {
+    use std::path::Path;
+
+    use super::is_rebase_state_dir;
+
+    #[test]
+    fn test_is_rebase_state_dir() {
+        assert!(is_rebase_state_dir(Path::new("rebase-merge")));
+        assert!(is_rebase_state_dir(Path::new("rebase-apply")));
+        assert!(!is_rebase_state_dir(Path::new("rebase-merge/done")));
+        assert!(!is_rebase_state_dir(Path::new("objects")));
     }
 }

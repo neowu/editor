@@ -3327,6 +3327,7 @@ dependencies = [
  "snippet",
  "sum_tree",
  "task",
+ "tempfile",
  "terminal",
  "text",
  "usvg",

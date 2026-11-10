@@ -56,5 +56,8 @@ watch.workspace = true
 which.workspace = true
 worktree.workspace = true
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [lints]
 workspace = true

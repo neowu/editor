@@ -95,6 +95,7 @@ use git::repository::InitialGraphCommitData;
 use git::repository::LogOrder;
 use git::repository::LogSource;
 use git::repository::PushOptions;
+use git::repository::RebaseAction;
 use git::repository::Remote;
 use git::repository::RemoteCommandOutput;
 use git::repository::RepoPath;
@@ -623,6 +624,8 @@ pub struct RepositoryId(pub u64);
 pub struct MergeDetails {
     pub merge_heads_by_conflicted_path: TreeMap<RepoPath, Vec<Option<SharedString>>>,
     pub message: Option<SharedString>,
+    /// A rebase is stopped on conflicts, waiting to be continued or aborted.
+    pub rebase_in_progress: bool,
 }
 
 #[derive(Clone)]
@@ -981,6 +984,7 @@ impl GitStore {
         client.add_entity_request_handler(Self::handle_git_init);
         client.add_entity_request_handler(Self::handle_push);
         client.add_entity_request_handler(Self::handle_pull);
+        client.add_entity_request_handler(Self::handle_rebase);
         client.add_entity_request_handler(Self::handle_fetch);
         client.add_entity_request_handler(Self::handle_stage);
         client.add_entity_request_handler(Self::handle_unstage);
@@ -2791,13 +2795,27 @@ impl GitStore {
 
         let branch_name = envelope.payload.branch_name.map(|name| name.into());
         let remote_name = envelope.payload.remote_name.into();
-        let rebase = envelope.payload.rebase;
 
         let remote_message = repository_handle
-            .update(&mut cx, |repository_handle, cx| repository_handle.pull(branch_name, remote_name, rebase, cx))
+            .update(&mut cx, |repository_handle, cx| repository_handle.pull(branch_name, remote_name, cx))
             .await??;
 
         Ok(proto::RemoteMessageResponse { stdout: remote_message.stdout, stderr: remote_message.stderr })
+    }
+
+    async fn handle_rebase(
+        this: Entity<Self>,
+        envelope: TypedEnvelope<proto::Rebase>,
+        mut cx: AsyncApp,
+    ) -> Result<proto::RemoteMessageResponse> {
+        let repository_id = RepositoryId::from_proto(envelope.payload.repository_id);
+        let repository_handle = Self::repository_for_request(&this, repository_id, &cx)?;
+        let action = if envelope.payload.abort { RebaseAction::Abort } else { RebaseAction::Continue };
+
+        let output =
+            repository_handle.update(&mut cx, |repository_handle, _| repository_handle.rebase(action)).await??;
+
+        Ok(proto::RemoteMessageResponse { stdout: output.stdout, stderr: output.stderr })
     }
 
     async fn handle_stage(
@@ -4644,6 +4662,7 @@ impl RepositorySnapshot {
                 .map(|(repo_path, _)| repo_path.as_unix_str().to_owned())
                 .collect(),
             merge_message: self.merge.message.as_ref().map(|msg| msg.to_string()),
+            rebase_in_progress: self.merge.rebase_in_progress,
             project_id,
             id: self.id.to_proto(),
             abs_path: self.work_directory_abs_path.to_string_lossy().into_owned(),
@@ -4713,6 +4732,7 @@ impl RepositorySnapshot {
                 .map(|(path, _)| path.as_unix_str().to_owned())
                 .collect(),
             merge_message: self.merge.message.as_ref().map(|msg| msg.to_string()),
+            rebase_in_progress: self.merge.rebase_in_progress,
             project_id,
             id: self.id.to_proto(),
             abs_path: self.work_directory_abs_path.to_string_lossy().into_owned(),
@@ -4837,8 +4857,19 @@ pub fn proto_to_stash(entry: &proto::StashEntry) -> Result<StashEntry> {
     })
 }
 
+/// Git keeps its rebase state directory exactly as long as the rebase lasts;
+/// `REBASE_HEAD` can outlive it.
+fn rebase_in_progress(repository_dir: &Path) -> bool {
+    repository_dir.join(git::REBASE_MERGE_DIR).exists() || repository_dir.join(git::REBASE_APPLY_DIR).exists()
+}
+
 impl MergeDetails {
-    async fn update(&mut self, backend: &Arc<dyn GitRepository>, current_conflicted_paths: Vec<RepoPath>) -> bool {
+    async fn update(
+        &mut self,
+        backend: &Arc<dyn GitRepository>,
+        repository_dir: &Path,
+        current_conflicted_paths: Vec<RepoPath>,
+    ) -> bool {
         log::debug!("load merge details");
         self.message = backend.merge_message().await.map(SharedString::from);
         let heads = backend
@@ -4856,7 +4887,9 @@ impl MergeDetails {
             .map(|opt| opt.map(SharedString::from))
             .collect::<Vec<_>>();
 
-        let mut conflicts_changed = false;
+        let rebase_in_progress = rebase_in_progress(repository_dir);
+        let mut conflicts_changed = self.rebase_in_progress != rebase_in_progress;
+        self.rebase_in_progress = rebase_in_progress;
 
         // Record the merge state for newly conflicted paths
         for path in &current_conflicted_paths {
@@ -6817,15 +6850,11 @@ impl Repository {
         &mut self,
         branch: Option<SharedString>,
         remote: SharedString,
-        rebase: bool,
         _cx: &mut App,
     ) -> oneshot::Receiver<Result<RemoteCommandOutput>> {
         let id = self.id;
 
-        let mut status = "git pull".to_string();
-        if rebase {
-            status.push_str(" --rebase");
-        }
+        let mut status = "git pull --rebase --autostash".to_string();
         util::write_str!(status, " {}", remote);
         if let Some(b) = &branch {
             util::write_str!(status, " {}", b);
@@ -6835,13 +6864,7 @@ impl Repository {
             match git_repo {
                 RepositoryState::Local(LocalRepositoryState { backend, environment, .. }) => {
                     backend
-                        .pull(
-                            branch.as_ref().map(|b| b.to_string()),
-                            remote.to_string(),
-                            rebase,
-                            environment.clone(),
-                            cx,
-                        )
+                        .pull(branch.as_ref().map(|b| b.to_string()), remote.to_string(), environment.clone(), cx)
                         .await
                 }
                 RepositoryState::Remote(RemoteRepositoryState { project_id, client }) => {
@@ -6849,9 +6872,30 @@ impl Repository {
                         .request(proto::Pull {
                             project_id: project_id.0,
                             repository_id: id.to_proto(),
-                            rebase,
                             branch_name: branch.as_ref().map(|b| b.to_string()),
                             remote_name: remote.to_string(),
+                        })
+                        .await?;
+
+                    Ok(RemoteCommandOutput { stdout: response.stdout, stderr: response.stderr })
+                }
+            }
+        })
+    }
+
+    pub fn rebase(&mut self, action: RebaseAction) -> oneshot::Receiver<Result<RemoteCommandOutput>> {
+        let id = self.id;
+        self.send_job(Some(format!("git rebase {}", action.flag()).into()), move |git_repo, _| async move {
+            match git_repo {
+                RepositoryState::Local(LocalRepositoryState { backend, environment, .. }) => {
+                    backend.rebase(action, environment.clone()).await
+                }
+                RepositoryState::Remote(RemoteRepositoryState { project_id, client }) => {
+                    let response = client
+                        .request(proto::Rebase {
+                            project_id: project_id.0,
+                            repository_id: id.to_proto(),
+                            abort: action == RebaseAction::Abort,
                         })
                         .await?;
 
@@ -7589,7 +7633,9 @@ impl Repository {
                 .into_iter()
                 .filter_map(|path| Some((RepoPath::from_proto(&path).ok()?, vec![]))),
         );
-        let conflicts_changed = self.snapshot.merge.merge_heads_by_conflicted_path != new_merge_heads;
+        let conflicts_changed = self.snapshot.merge.merge_heads_by_conflicted_path != new_merge_heads
+            || self.snapshot.merge.rebase_in_progress != update.rebase_in_progress;
+        self.snapshot.merge.rebase_in_progress = update.rebase_in_progress;
         self.snapshot.merge.merge_heads_by_conflicted_path = new_merge_heads;
         self.snapshot.merge.message = update.merge_message.map(SharedString::from);
         let new_stash_entries =
@@ -8677,8 +8723,9 @@ async fn compute_snapshot(
         .background_spawn({
             let backend = backend.clone();
             let mut merge_details = snapshot.merge.clone();
+            let repository_dir = snapshot.repository_dir_abs_path.clone();
             async move {
-                let conflicts_changed = merge_details.update(&backend, conflicted_paths).await;
+                let conflicts_changed = merge_details.update(&backend, &repository_dir, conflicted_paths).await;
                 (merge_details, conflicts_changed)
             }
         })
@@ -8828,6 +8875,25 @@ fn innermost_containing<Id, P: AsRef<Path>>(path: &Path, candidates: impl Iterat
         .filter(|(_, candidate)| path.starts_with(candidate.as_ref()))
         .max_by_key(|(_, candidate)| candidate.as_ref().as_os_str().len())
         .map(|(id, _)| id)
+}
+
+#[cfg(test)]
+mod rebase_in_progress_tests {
+    use super::rebase_in_progress;
+
+    #[test]
+    fn test_rebase_in_progress() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(!rebase_in_progress(dir.path()));
+        // A stale REBASE_HEAD alone doesn't count.
+        std::fs::write(dir.path().join("REBASE_HEAD"), "abc").unwrap();
+        assert!(!rebase_in_progress(dir.path()));
+        std::fs::create_dir(dir.path().join("rebase-merge")).unwrap();
+        assert!(rebase_in_progress(dir.path()));
+        std::fs::remove_dir(dir.path().join("rebase-merge")).unwrap();
+        std::fs::create_dir(dir.path().join("rebase-apply")).unwrap();
+        assert!(rebase_in_progress(dir.path()));
+    }
 }
 
 #[cfg(test)]

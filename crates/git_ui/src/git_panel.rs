@@ -59,6 +59,7 @@ use git::repository::FetchOptions;
 use git::repository::GitCommitTemplate;
 use git::repository::LogSource;
 use git::repository::PushOptions;
+use git::repository::RebaseAction;
 use git::repository::Remote;
 use git::repository::RemoteCommandOutput;
 use git::repository::RepoPath;
@@ -386,6 +387,7 @@ fn git_panel_context_menu(
     has_unstaged_changes: bool,
     has_new_changes: bool,
     has_stash_items: bool,
+    can_stash: bool,
     group_by: GitPanelGroupBy,
     include_copy_paths: bool,
     focus_handle: FocusHandle,
@@ -399,16 +401,28 @@ fn git_panel_context_menu(
             .action_disabled_when(!has_staged_changes, "Unstage All", UnstageAll.boxed_clone())
             .action_disabled_when(!has_staged_tracked_changes, "Restore All Changes", RestoreTrackedFiles.boxed_clone())
             .separator()
-            .action_disabled_when(!(has_new_changes || has_tracked_changes), "Stash All", StashAll.boxed_clone())
+            .action_disabled_when(
+                !(can_stash && (has_new_changes || has_tracked_changes)),
+                "Stash All",
+                StashAll.boxed_clone(),
+            )
             // Offer the stash variant that matches how the list is currently grouped,
             // so the menu mirrors the sections the user can actually see.
             .when(group_by == GitPanelGroupBy::Status, |context_menu| {
-                context_menu.action_disabled_when(!has_tracked_changes, "Stash Tracked", StashTracked.boxed_clone())
+                context_menu.action_disabled_when(
+                    !(can_stash && has_tracked_changes),
+                    "Stash Tracked",
+                    StashTracked.boxed_clone(),
+                )
             })
             .when(group_by == GitPanelGroupBy::Staging, |context_menu| {
-                context_menu.action_disabled_when(!has_staged_changes, "Stash Staged", StashStaged.boxed_clone())
+                context_menu.action_disabled_when(
+                    !(can_stash && has_staged_changes),
+                    "Stash Staged",
+                    StashStaged.boxed_clone(),
+                )
             })
-            .action_disabled_when(!has_stash_items, "Stash Pop", StashPop.boxed_clone())
+            .action_disabled_when(!(can_stash && has_stash_items), "Stash Pop", StashPop.boxed_clone())
             .action("View Stash", ViewStash.boxed_clone())
             .when(include_copy_paths, |context_menu| {
                 context_menu
@@ -528,6 +542,7 @@ fn git_panel_view_options_menu(focus_handle: FocusHandle, window: &mut Window, c
 pub(crate) enum RemoteOperationKind {
     Fetch,
     Pull,
+    Rebase,
     Push,
 }
 
@@ -2769,6 +2784,9 @@ impl GitPanel {
         let Some(active_repository) = self.active_repository.clone() else {
             return;
         };
+        if self.rebase_in_progress(cx) {
+            return;
+        }
 
         cx.spawn({
             async move |this, cx| {
@@ -2790,6 +2808,9 @@ impl GitPanel {
         let Some(active_repository) = self.active_repository.clone() else {
             return;
         };
+        if self.rebase_in_progress(cx) {
+            return;
+        }
 
         cx.spawn({
             async move |this, cx| {
@@ -2820,7 +2841,7 @@ impl GitPanel {
     }
 
     fn prompt_for_stash_message(&self, kind: StashKind, window: &Window, cx: &mut Context<Self>) {
-        if self.active_repository.is_none() {
+        if self.active_repository.is_none() || self.rebase_in_progress(cx) {
             return;
         }
         // `git::StashAll` is also registered on the workspace, which dispatches it while
@@ -3075,6 +3096,9 @@ impl GitPanel {
         let Some(active_repository) = self.active_repository.clone() else {
             return;
         };
+        if self.rebase_in_progress(cx) {
+            return;
+        }
         let error_spawn = |message, window: &mut Window, cx: &mut App| {
             let prompt = window.prompt(PromptLevel::Warning, message, None, &["OK"], cx);
             cx.spawn(async move |_| {
@@ -3147,6 +3171,9 @@ impl GitPanel {
         let Some(repo) = self.active_repository.clone() else {
             return;
         };
+        if self.rebase_in_progress(cx) {
+            return;
+        }
 
         let confirmation = self.check_for_pushed_commits(window, cx);
         let prior_head = self.load_commit_details("HEAD".to_string(), cx);
@@ -3410,7 +3437,7 @@ impl GitPanel {
         .detach();
     }
 
-    pub(crate) fn pull(&mut self, rebase: bool, window: &Window, cx: &mut Context<Self>) {
+    pub(crate) fn pull(&mut self, window: &Window, cx: &mut Context<Self>) {
         if !self.can_push_and_pull(cx) {
             return;
         }
@@ -3442,9 +3469,16 @@ impl GitPanel {
                 }
             };
 
+            // Autostash rewrites files on disk, which would leave dirty buffers
+            // in conflict with them.
+            let saved = this.update_in(cx, |this, window, cx| this.save_dirty_files(window, cx))??;
+            if !saved.await? {
+                return Ok(());
+            }
+
             let branch_name = branch.upstream.is_none().then(|| branch.name().to_owned().into());
 
-            let pull = repo.update(cx, |repo, cx| repo.pull(branch_name, remote.name.clone(), rebase, cx));
+            let pull = repo.update(cx, |repo, cx| repo.pull(branch_name, remote.name.clone(), cx));
 
             let remote_message = pull.await?;
 
@@ -3567,7 +3601,51 @@ impl GitPanel {
     }
 
     fn can_push_and_pull(&self, cx: &App) -> bool {
-        !self.project.read(cx).is_read_only(cx)
+        !self.project.read(cx).is_read_only(cx) && !self.rebase_in_progress(cx)
+    }
+
+    /// A rebase is stopped on conflicts: only resolving, continuing or
+    /// aborting applies until it ends.
+    fn rebase_in_progress(&self, cx: &App) -> bool {
+        self.active_repository.as_ref().is_some_and(|repo| repo.read(cx).merge.rebase_in_progress)
+    }
+
+    fn save_dirty_files(&self, window: &Window, cx: &mut Context<Self>) -> anyhow::Result<Task<anyhow::Result<bool>>> {
+        self.workspace.update(cx, |workspace, cx| workspace.save_dirty_files(window, cx))
+    }
+
+    pub(crate) fn rebase(&mut self, action: RebaseAction, window: &Window, cx: &mut Context<Self>) {
+        let Some(repo) = self.active_repository.clone() else {
+            return;
+        };
+        if !self.rebase_in_progress(cx) || (action == RebaseAction::Continue && self.has_unstaged_conflicts()) {
+            return;
+        }
+        if !self.start_remote_operation(RemoteOperationKind::Rebase, cx) {
+            return;
+        }
+
+        cx.spawn_in(window, async move |this, cx| {
+            let _clear_pending_remote_operation = cx.on_drop(&this, |this, cx| {
+                this.clear_remote_operation(cx);
+            });
+
+            // Both ways out rewrite files on disk.
+            let saved = this.update_in(cx, |this, window, cx| this.save_dirty_files(window, cx))??;
+            if !saved.await? {
+                return Ok(());
+            }
+
+            let output = repo.update(cx, |repo, _| repo.rebase(action)).await?;
+            this.update(cx, |this, cx| match output {
+                Ok(output) => this.show_remote_output(RemoteAction::Rebase(action), output, cx),
+                Err(e) => this.show_error_toast(action.name(), e, cx),
+            })
+            .ok();
+
+            anyhow::Ok(())
+        })
+        .detach_and_log_err(cx);
     }
 
     fn start_remote_operation(&mut self, kind: RemoteOperationKind, cx: &mut Context<Self>) -> bool {
@@ -4455,7 +4533,9 @@ impl GitPanel {
     }
 
     pub fn configure_commit_button(&self, cx: &mut Context<Self>) -> (bool, &'static str) {
-        if self.has_unstaged_conflicts() {
+        if self.rebase_in_progress(cx) {
+            (false, "Rebase in progress: continue or abort it first")
+        } else if self.has_unstaged_conflicts() {
             (false, "You must resolve conflicts before committing")
         } else if !self.has_staged_changes() && !self.has_tracked_changes() && !self.amend_pending {
             (false, "No changes to commit")
@@ -4523,6 +4603,7 @@ impl GitPanel {
         let has_unstaged_changes = self.has_unstaged_changes();
         let has_new_changes = self.new_count > 0;
         let has_stash_items = !self.stash_entries.entries.is_empty();
+        let can_stash = !self.rebase_in_progress(cx);
         let group_by = GitPanelViewOptions::get(cx).group_by;
 
         let focus_handle = self.focus_handle.clone();
@@ -4539,6 +4620,7 @@ impl GitPanel {
                     has_unstaged_changes,
                     has_new_changes,
                     has_stash_items,
+                    can_stash,
                     group_by,
                     false,
                     focus_handle.clone(),
@@ -4653,6 +4735,59 @@ impl GitPanel {
         )
     }
 
+    /// Takes the remote button's place while a rebase is stopped on conflicts.
+    fn render_rebase_row(&self, cx: &Context<Self>) -> Option<AnyElement> {
+        if !self.rebase_in_progress(cx) {
+            return None;
+        }
+        let busy = self.pending_remote_operation.is_some();
+        let unresolved = self.has_unstaged_conflicts();
+        Some(
+            h_flex()
+                .w_full()
+                .px_2()
+                .py_1p5()
+                .gap_1()
+                .justify_between()
+                .child(
+                    div()
+                        .id("rebase-in-progress")
+                        .child(Label::new("Rebase in progress").size(LabelSize::Small).color(Color::Warning))
+                        .tooltip(Tooltip::text(
+                            "Changes that were uncommitted before the pull come back when the rebase ends",
+                        )),
+                )
+                .child(
+                    h_flex()
+                        .gap_1()
+                        .child(
+                            Button::new("rebase-abort", "Abort")
+                                .label_size(LabelSize::Small)
+                                .disabled(busy)
+                                .tooltip(Tooltip::text("git rebase --abort"))
+                                .on_click(
+                                    cx.listener(|this, _, window, cx| this.rebase(RebaseAction::Abort, window, cx)),
+                                ),
+                        )
+                        .child(
+                            Button::new("rebase-continue", "Continue")
+                                .style(ButtonStyle::Filled)
+                                .label_size(LabelSize::Small)
+                                .disabled(busy || unresolved)
+                                .tooltip(Tooltip::text(if unresolved {
+                                    "Stage the resolved conflicts first"
+                                } else {
+                                    "git rebase --continue"
+                                }))
+                                .on_click(
+                                    cx.listener(|this, _, window, cx| this.rebase(RebaseAction::Continue, window, cx)),
+                                ),
+                        ),
+                )
+                .into_any_element(),
+        )
+    }
+
     pub fn render_footer(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         self.active_repository.as_ref()?;
         let panel_editor_style = git_commit_editor_style(git_commit_font_size(cx), cx);
@@ -4700,10 +4835,11 @@ impl GitPanel {
             .when(self.commit_editor_expanded, |this| this.flex_1().min_h_0())
             // The repository and branch are named by the window header right
             // above, so this row only holds the remote actions.
-            .children(
-                self.render_remote_button(cx)
-                    .map(|remote_button| h_flex().w_full().px_2().py_1p5().justify_end().child(remote_button)),
-            )
+            .children(self.render_rebase_row(cx).or_else(|| {
+                self.render_remote_button(cx).map(|remote_button| {
+                    h_flex().w_full().px_2().py_1p5().justify_end().child(remote_button).into_any_element()
+                })
+            }))
             .child(
                 panel_editor_container(window, cx)
                     .id("commit-editor-container")
@@ -4888,6 +5024,7 @@ impl GitPanel {
                     this.child(
                         IconButton::new("undo", IconName::Undo)
                             .icon_size(IconSize::Small)
+                            .disabled(self.rebase_in_progress(cx))
                             .tooltip(move |_window, cx| {
                                 Tooltip::with_meta(
                                     "Uncommit",
@@ -5462,6 +5599,7 @@ impl GitPanel {
             has_unstaged_changes,
             has_new_changes,
             has_stash_items,
+            !self.rebase_in_progress(cx),
             GitPanelViewOptions::get(cx).group_by,
             include_copy_paths,
             self.focus_handle.clone(),

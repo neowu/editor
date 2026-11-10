@@ -576,6 +576,29 @@ pub struct Remote {
     pub name: SharedString,
 }
 
+/// How to leave a rebase that stopped on conflicts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RebaseAction {
+    Continue,
+    Abort,
+}
+
+impl RebaseAction {
+    pub const fn flag(self) -> &'static str {
+        match self {
+            RebaseAction::Continue => "--continue",
+            RebaseAction::Abort => "--abort",
+        }
+    }
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            RebaseAction::Continue => "rebase continue",
+            RebaseAction::Abort => "rebase abort",
+        }
+    }
+}
+
 pub enum ResetMode {
     /// Reset the branch pointer, leave index and worktree unchanged (this will make it look like things that were
     /// committed are now staged).
@@ -882,11 +905,16 @@ pub trait GitRepository: Send + Sync {
         &self,
         branch_name: Option<String>,
         upstream_name: String,
-        rebase: bool,
         env: Arc<FxHashMap<String, String>>,
         // This method takes an AsyncApp to ensure it's invoked on the main thread,
         // otherwise git-credentials-manager won't work.
         cx: AsyncApp,
+    ) -> BoxFuture<'_, Result<RemoteCommandOutput>>;
+
+    fn rebase(
+        &self,
+        action: RebaseAction,
+        env: Arc<FxHashMap<String, String>>,
     ) -> BoxFuture<'_, Result<RemoteCommandOutput>>;
 
     fn fetch(
@@ -2349,7 +2377,6 @@ impl GitRepository for RealGitRepository {
         &self,
         branch_name: Option<String>,
         remote_name: String,
-        rebase: bool,
         env: Arc<FxHashMap<String, String>>,
         _cx: AsyncApp,
     ) -> BoxFuture<'_, Result<RemoteCommandOutput>> {
@@ -2357,14 +2384,27 @@ impl GitRepository for RealGitRepository {
         let git_binary_path = self.git_binary_path.clone();
         async move {
             let git = GitBinary::new(git_binary_path, working_directory);
-            let mut command = git.build_command(&["pull"]);
+            let mut command = git.build_command(PULL_ARGS);
             command.envs(env.iter());
-
-            if rebase {
-                command.arg("--rebase");
-            }
-
             command.arg(remote_name).args(branch_name).stdout(Stdio::piped()).stderr(Stdio::piped());
+
+            run_git_command(git, env, command).await
+        }
+        .boxed()
+    }
+
+    fn rebase(
+        &self,
+        action: RebaseAction,
+        env: Arc<FxHashMap<String, String>>,
+    ) -> BoxFuture<'_, Result<RemoteCommandOutput>> {
+        let working_directory = self.command_directory();
+        let git_binary_path = self.git_binary_path.clone();
+        async move {
+            let git = GitBinary::new(git_binary_path, working_directory);
+            let mut command = git.build_command(&["rebase", action.flag()]);
+            // `--continue` would otherwise open an editor for the commit message.
+            command.envs(env.iter()).env("GIT_EDITOR", "true").stdout(Stdio::piped()).stderr(Stdio::piped());
 
             run_git_command(git, env, command).await
         }
@@ -3006,6 +3046,10 @@ struct GitBinaryCommandError {
     status: ExitStatus,
 }
 
+/// Always rebase, and let git stash and reapply uncommitted changes itself so
+/// a mid-rebase stop keeps track of them.
+const PULL_ARGS: &[&str] = &["pull", "--rebase", "--autostash"];
+
 async fn run_git_command(
     git: GitBinary,
     env: Arc<FxHashMap<String, String>>,
@@ -3189,6 +3233,8 @@ mod tests {
     use std::path::PathBuf;
 
     use super::GitBinary;
+    use super::PULL_ARGS;
+    use super::RebaseAction;
 
     fn command_args(args: &[&str]) -> Vec<String> {
         let git = GitBinary::new(PathBuf::from("git"), PathBuf::from("/repo"));
@@ -3205,5 +3251,19 @@ mod tests {
         let args = command_args(&["diff", "HEAD"]);
         assert!(!args.iter().any(|arg| arg == "--no-ext-diff"));
         assert_eq!(args[args.len() - 2..], ["diff", "HEAD"]);
+    }
+
+    #[test]
+    fn test_rebase_action() {
+        assert_eq!(RebaseAction::Continue.flag(), "--continue");
+        assert_eq!(RebaseAction::Abort.flag(), "--abort");
+        assert_eq!(RebaseAction::Continue.name(), "rebase continue");
+        assert_eq!(RebaseAction::Abort.name(), "rebase abort");
+    }
+
+    #[test]
+    fn test_pull_rebases_with_autostash() {
+        let args = command_args(PULL_ARGS);
+        assert_eq!(args[args.len() - 3..], ["pull", "--rebase", "--autostash"]);
     }
 }

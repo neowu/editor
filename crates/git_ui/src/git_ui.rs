@@ -16,6 +16,7 @@ pub mod clone;
 use git::Oid;
 use git::repository::Branch;
 use git::repository::CommitDetails;
+use git::repository::RebaseAction;
 use git::repository::Upstream;
 use git::repository::UpstreamTracking;
 use git::repository::UpstreamTrackingStatus;
@@ -252,16 +253,21 @@ pub fn init(cx: &mut App) {
                 return;
             };
             panel.update(cx, |panel, cx| {
-                panel.pull(false, window, cx);
+                panel.pull(window, cx);
             });
         });
-        workspace.register_action(|workspace, _: &git::PullRebase, window, cx| {
+
+        workspace.register_action(|workspace, _: &git::RebaseContinue, window, cx| {
             let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
                 return;
             };
-            panel.update(cx, |panel, cx| {
-                panel.pull(true, window, cx);
-            });
+            panel.update(cx, |panel, cx| panel.rebase(RebaseAction::Continue, window, cx));
+        });
+        workspace.register_action(|workspace, _: &git::RebaseAbort, window, cx| {
+            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+                return;
+            };
+            panel.update(cx, |panel, cx| panel.rebase(RebaseAction::Abort, window, cx));
         });
 
         workspace.register_action(|workspace, action: &git::StashAll, window, cx| {
@@ -1011,7 +1017,9 @@ mod remote_button {
             move |_, window, cx| {
                 window.dispatch_action(Box::new(git::Pull), cx);
             },
-            move |_window, cx| git_action_tooltip("Pull", &git::Pull, "git pull", keybinding_target.clone(), cx),
+            move |_window, cx| {
+                git_action_tooltip("Pull", &git::Pull, "git pull --rebase --autostash", keybinding_target.clone(), cx)
+            },
         )
     }
 
@@ -1080,6 +1088,7 @@ mod remote_button {
             RemoteOperationKind::Fetch => "Fetch in Progress…",
             RemoteOperationKind::Pull => "Pull in Progress…",
             RemoteOperationKind::Push => "Push in Progress…",
+            RemoteOperationKind::Rebase => "Rebase in Progress…",
         }
     }
 
@@ -1117,7 +1126,6 @@ mod remote_button {
                         .action("Fetch", git::Fetch.boxed_clone())
                         .action("Fetch From", git::FetchFrom.boxed_clone())
                         .action("Pull", git::Pull.boxed_clone())
-                        .action("Pull (Rebase)", git::PullRebase.boxed_clone())
                         .separator()
                         .action("Push", git::Push.boxed_clone())
                         .action("Push To", git::PushTo.boxed_clone())

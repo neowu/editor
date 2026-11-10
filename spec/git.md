@@ -85,6 +85,29 @@ repository's `$PATH`; if none is found, the repository is not opened.
 - The panel never names the repository or branch: the window header right
   above does. The row above the commit card only holds the remote button
   (Fetch / Push / Pull / Publish), and is left out without one.
+- There is one Pull: `git pull --rebase --autostash`. No merge pull, so local
+  commits never produce merge commits, and uncommitted changes don't block
+  the pull.
+  - Dirty buffers that have a file are saved first (autostash rewrites files
+    on disk); cancelling a save cancels the pull. Untitled buffers are left
+    alone.
+  - Git owns the stash, so a rebase that stops on conflicts keeps the
+    uncommitted changes until `rebase --continue` / `--abort` reapplies them.
+    The stop is reported as an error with git's own hint.
+  - While a rebase is stopped on conflicts (git's `rebase-merge` /
+    `rebase-apply` state directory exists; `REBASE_HEAD` can go stale) the remote
+    button row shows "Rebase in progress" with Abort and Continue
+    (`git::RebaseAbort` / `git::RebaseContinue`) instead. Continue is disabled
+    until every conflict is staged; both save dirty buffers first.
+  - Actions that don't apply mid-rebase are disabled rather than left to
+    fail or confuse: commit / amend, uncommit, fetch / pull / push and the
+    stash entries. Staging, restoring and resolving stay available. Branch
+    switching is not gated.
+  - When the reapplied changes conflict with what was pulled, the pull still
+    succeeds: the toast says the changes are still in the stash, to be dropped
+    after resolving.
+  - Trade-off: staged changes come back unstaged, and local merge commits are
+    linearised.
 
 - The panel shows only changes: no tab bar, no "Changes" title and no History
   tab. Commit history lives in Git History mode only.
