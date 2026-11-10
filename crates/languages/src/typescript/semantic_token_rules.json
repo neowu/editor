@@ -1,0 +1,14 @@
+[
+  {
+    "token_type": "class",
+    "style": ["type"]
+  },
+  {
+    "token_type": "enum",
+    "style": ["enum", "type"]
+  },
+  {
+    "token_type": "enumMember",
+    "style": ["type"]
+  }
+]

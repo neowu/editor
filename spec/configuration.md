@@ -140,7 +140,11 @@ migrator, or Vim/Helix mode.
   (0.3) are constants in `theme::built_in`.
 - Semantic token rules are per language only, with no fallback rules: each
   language's `semantic_token_rules.json` (Rust, Go, Python) is complete and is
-  registered with the language's settings in `AllLanguageSettings`. A language
+  registered with the language's settings in `AllLanguageSettings`. TypeScript,
+  TSX and JavaScript share one deliberately partial file: only `class`, `enum`
+  and `enumMember` are mapped, since those are the tokens where tsgo beats
+  tree-sitter (identifiers in value position) and the built-in theme has a
+  distinct colour; token types without a rule produce no highlight. A language
   without rules gets no semantic highlighting (tree-sitter only), and editors
   don't request semantic tokens for it. Earlier rules take precedence; style names are tried in
   order. The personal Rust rules (`enumMember` → `type`, `namespace` →

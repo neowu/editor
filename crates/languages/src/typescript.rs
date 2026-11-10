@@ -28,6 +28,7 @@ use language::language_settings::SoftWrap;
 use language::language_settings::WordsCompletionMode;
 use project::Fs;
 use rustc_hash::FxHashMap;
+use settings::SemanticTokenRules;
 use smol::lock::RwLock;
 use task::TaskTemplate;
 use task::TaskTemplates;
@@ -508,7 +509,15 @@ pub(crate) fn grammars() -> [(&'static str, tree_sitter::Language); 3] {
     ]
 }
 
+/// Shared by TypeScript, TSX and JavaScript. Covers only the tokens where tsgo beats
+/// tree-sitter and the theme has a distinct colour; the rest stay tree-sitter only.
+fn semantic_token_rules() -> SemanticTokenRules {
+    serde_json::from_str(include_str!("typescript/semantic_token_rules.json"))
+        .expect("failed to parse typescript semantic_token_rules.json")
+}
+
 pub(crate) fn languages(fs: Arc<dyn Fs>, biome: Arc<dyn LspAdapter>) -> Vec<LanguageDef> {
+    let rules = semantic_token_rules();
     let tsgo: Arc<dyn LspAdapter> = Arc::new(TsgoLspAdapter::new(fs.clone()));
     let context: Arc<dyn ContextProvider> = Arc::new(TypeScriptContextProvider::new(fs));
     grammars()
@@ -517,7 +526,27 @@ pub(crate) fn languages(fs: Arc<dyn Fs>, biome: Arc<dyn LspAdapter>) -> Vec<Lang
             grammar: Some(grammar),
             adapters: vec![tsgo.clone(), biome.clone()],
             context: Some(context.clone()),
+            semantic_token_rules: Some(rules.clone()),
             ..LanguageDef::new(dir, settings())
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn semantic_token_rules_cover_only_what_beats_tree_sitter() {
+        let rules = super::semantic_token_rules().rules;
+        let style = |token_type: &str| {
+            rules.iter().find(|rule| rule.token_type.as_deref() == Some(token_type)).map(|rule| rule.style.clone())
+        };
+        assert_eq!(style("class"), Some(vec!["type".to_string()]));
+        assert_eq!(style("enum"), Some(vec!["enum".to_string(), "type".to_string()]));
+        assert_eq!(style("enumMember"), Some(vec!["type".to_string()]));
+        // Same colour as tree-sitter in the built-in theme, so left without rules.
+        for token_type in ["variable", "parameter", "property", "function", "method", "namespace"] {
+            assert_eq!(style(token_type), None, "{token_type}");
+        }
+        assert!(rules.iter().all(|rule| rule.token_type.is_some() && rule.token_modifiers.is_empty()));
+    }
 }
