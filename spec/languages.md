@@ -175,7 +175,10 @@
   server and labelled "Not Installed", with "View Message" naming the binary
   it looked for on `PATH`; the activity indicator and the LSP button's
   indicator dot show nothing. Restarting the server after installing it starts
-  it. Any other startup problem (spawn or initialize failure, tsgo finding
+  it. A server is tied to its worktree when a buffer registers with it, before
+  it runs, and the LSP button records that even before its menu exists;
+  otherwise a server that never starts would have no menu entry. Any other
+  startup problem (spawn or initialize failure, tsgo finding
   TypeScript < 7) is still a failure ("Failed to run …", "Error").
 - JavaScript, TypeScript and TSX run two servers, `tsgo` and `biome`. vtsls,
   typescript-language-server and ESLint are removed.

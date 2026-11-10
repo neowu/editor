@@ -649,6 +649,25 @@ impl LanguageServers {
         self.binary_statuses.is_empty() && self.health_statuses.is_empty()
     }
 
+    /// Ties a server to the buffer's worktree, which is where the menu lists it. Servers that
+    /// never start (not installed, failed) are only known by this.
+    fn register_for_buffer(
+        &mut self,
+        buffer_abs_path: PathBuf,
+        worktree: Option<WeakEntity<Worktree>>,
+        server_id: LanguageServerId,
+        name: Option<LanguageServerName>,
+    ) {
+        let entry = self
+            .servers_per_buffer_abs_path
+            .entry(buffer_abs_path)
+            .or_insert_with(|| ServersForPath { servers: HashMap::default(), worktree: None });
+        entry.servers.insert(server_id, name);
+        if worktree.is_some() {
+            entry.worktree = worktree;
+        }
+    }
+
     /// Drop all id-keyed state for a server that has been removed (stopped or
     /// reaching end-of-life via restart). `binary_statuses` is intentionally
     /// preserved — it is keyed by name and shared across restart cycles to
@@ -787,9 +806,6 @@ impl LspButton {
     }
 
     fn on_lsp_store_event(&mut self, e: &LspStoreEvent, window: &Window, cx: &mut Context<Self>) {
-        if self.lsp_menu.is_none() {
-            return;
-        };
         let mut updated = false;
 
         // TODO `LspStore` is global and reports status from all language servers, even from the other windows.
@@ -865,15 +881,12 @@ impl LspButton {
                     }) else {
                         return;
                     };
-                    let entry = state
-                        .language_servers
-                        .servers_per_buffer_abs_path
-                        .entry(PathBuf::from(&update.buffer_abs_path))
-                        .or_insert_with(|| ServersForPath { servers: HashMap::default(), worktree: worktree.clone() });
-                    entry.servers.insert(*language_server_id, name.clone());
-                    if worktree.is_some() {
-                        entry.worktree = worktree;
-                    }
+                    state.language_servers.register_for_buffer(
+                        PathBuf::from(&update.buffer_abs_path),
+                        worktree,
+                        *language_server_id,
+                        name.clone(),
+                    );
                 });
                 updated = true;
             }
@@ -1225,6 +1238,27 @@ mod tests {
         let binary_status = &language_servers.binary_statuses[&name];
         assert_eq!(binary_status.status, status);
         assert_eq!(binary_status.message.as_deref(), Some("not found"));
+    }
+
+    #[test]
+    fn registered_server_is_tied_to_the_buffer_worktree() {
+        let name = LanguageServerName::new_static("terraform-ls");
+        let path = PathBuf::from("/proj/main.tf");
+        let mut language_servers = LanguageServers::default();
+
+        language_servers.register_for_buffer(
+            path.clone(),
+            Some(WeakEntity::new_invalid()),
+            LanguageServerId(1),
+            Some(name.clone()),
+        );
+        // A later registration without a worktree keeps the known one.
+        language_servers.register_for_buffer(path.clone(), None, LanguageServerId(2), None);
+
+        let servers_for_path = &language_servers.servers_per_buffer_abs_path[&path];
+        assert!(servers_for_path.worktree.is_some());
+        assert_eq!(servers_for_path.servers[&LanguageServerId(1)], Some(name));
+        assert_eq!(servers_for_path.servers[&LanguageServerId(2)], None);
     }
 
     #[test]

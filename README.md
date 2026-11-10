@@ -11,4 +11,7 @@ npm install -D @biomejs/biome
 # python
 uv tool install ruff
 uv tool install ty
+
+# terraform
+sudo apt install terraform-ls
 ```

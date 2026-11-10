@@ -2691,6 +2691,15 @@ impl LocalLspStore {
                 if let LanguageServerState::Running { server, adapter, .. } = server_state {
                     Some((server.clone(), adapter.clone()))
                 } else {
+                    // A server that never starts (not installed, failed) is still listed for the buffer.
+                    cx.emit(LspStoreEvent::LanguageServerUpdate {
+                        language_server_id: server_id,
+                        name: server_node.name(),
+                        message: Variant::RegisteredForBuffer(proto::RegisteredForBuffer {
+                            buffer_abs_path: abs_path.to_string_lossy().into_owned(),
+                            buffer_id: buffer_id.to_proto(),
+                        }),
+                    });
                     None
                 }
             })

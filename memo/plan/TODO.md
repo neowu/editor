@@ -16,7 +16,6 @@
 # support to open in restricted mode? like not starting LSP?
 
 # lsp
-- display "not installed", e.g. for terraform
 - add semantic token rules for typescript?
 
 # mermaid
