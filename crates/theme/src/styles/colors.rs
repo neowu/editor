@@ -5,12 +5,12 @@ use gpui::WindowBackgroundAppearance;
 use strum::AsRefStr;
 use strum::EnumIter;
 use strum::IntoEnumIterator;
+use syntax_theme::SyntaxTheme;
 
 use crate::AccentColors;
 use crate::ActiveTheme;
 use crate::CursorColors;
 use crate::StatusColors;
-use crate::SyntaxTheme;
 use crate::SystemColors;
 
 #[derive(Clone, Debug, PartialEq)]

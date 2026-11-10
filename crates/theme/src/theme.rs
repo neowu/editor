@@ -5,6 +5,7 @@ use gpui::App;
 use gpui::Hsla;
 use gpui::SharedString;
 use gpui::WindowBackgroundAppearance;
+pub use syntax_theme::SyntaxTheme;
 
 #[allow(clippy::wildcard_imports)]
 pub use crate::styles::*;

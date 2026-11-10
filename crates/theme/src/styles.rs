@@ -2,18 +2,12 @@ mod accents;
 mod colors;
 mod cursor;
 mod status;
-mod syntax;
 mod system;
 
-#[allow(clippy::wildcard_imports)]
-pub use accents::*;
-#[allow(clippy::wildcard_imports)]
-pub use colors::*;
-#[allow(clippy::wildcard_imports)]
-pub use cursor::*;
-#[allow(clippy::wildcard_imports)]
-pub use status::*;
-#[allow(clippy::wildcard_imports)]
-pub use syntax::*;
-#[allow(clippy::wildcard_imports)]
-pub use system::*;
+pub use accents::AccentColors;
+pub use colors::ThemeColors;
+pub use colors::ThemeStyles;
+pub use colors::all_theme_colors;
+pub use cursor::CursorColors;
+pub use status::StatusColors;
+pub use system::SystemColors;

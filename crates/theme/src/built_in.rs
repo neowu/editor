@@ -8,12 +8,12 @@ use gpui::SharedString;
 use gpui::WindowBackgroundAppearance;
 use gpui::rgb;
 use gpui::transparent_black;
+use syntax_theme::SyntaxTheme;
 
 use crate::AccentColors;
 use crate::Appearance;
 use crate::CursorColors;
 use crate::StatusColors;
-use crate::SyntaxTheme;
 use crate::SystemColors;
 use crate::Theme;
 use crate::ThemeColors;
