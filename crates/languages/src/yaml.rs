@@ -54,11 +54,19 @@ impl LspAdapter for YamlLspAdapter {
     ) -> Result<Value> {
         let tab_size =
             cx.update(|cx| all_language_settings(cx).language(Some(&LanguageName::new_static("YAML"))).tab_size);
-        Ok(serde_json::json!({
-            "[yaml]": {"editor.tabSize": tab_size},
-            "yaml": {"format": {"enable": true}}
-        }))
+        Ok(configuration(tab_size))
     }
+}
+
+fn configuration(tab_size: NonZeroU32) -> Value {
+    serde_json::json!({
+        "[yaml]": {"editor.tabSize": tab_size},
+        "yaml": {
+            "format": {"enable": true},
+            // `kubernetes` is the server's built-in schema, resolved per document by `apiVersion`/`kind`.
+            "schemas": {"kubernetes": ["**/kube/**/*.yaml", "**/kube/**/*.yml"]}
+        }
+    })
 }
 
 /// Settings for YAML.
@@ -88,4 +96,20 @@ pub(crate) fn languages() -> Vec<LanguageDef> {
         adapters: vec![Arc::new(YamlLspAdapter)],
         ..LanguageDef::new("yaml", settings())
     }]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn configuration_maps_kube_dirs_to_the_kubernetes_schema() {
+        let config = configuration(NonZeroU32::new(2).unwrap());
+        assert_eq!(config["[yaml]"]["editor.tabSize"], 2);
+        assert_eq!(config["yaml"]["format"]["enable"], true);
+        assert_eq!(
+            config["yaml"]["schemas"]["kubernetes"],
+            serde_json::json!(["**/kube/**/*.yaml", "**/kube/**/*.yml"])
+        );
+    }
 }

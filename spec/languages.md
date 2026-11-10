@@ -203,6 +203,10 @@
   settings change never restarts a server, since nothing that settings control
   feeds into a server's identity. yaml/json don't resolve relative schema paths
   against the worktree.
+- YAML files under a `kube/` directory (`**/kube/**/*.yaml`, `*.yml`) use
+  yaml-language-server's built-in `kubernetes` schema for completion, hover
+  and validation. Core Kubernetes types only; a
+  `# yaml-language-server: $schema=<url>` modeline covers other files and CRDs.
 - Server binary statuses no longer include checking-for-update or downloading.
 - No Vue.js support: no grammar, language server, `tsserver/request` bridge,
   default settings or `.vue` file icon. `.vue` files open as Plain Text.
