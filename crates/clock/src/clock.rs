@@ -1,5 +1,3 @@
-mod system_clock;
-
 use std::cmp::Ordering;
 use std::cmp::{self};
 use std::fmt;
@@ -7,8 +5,6 @@ use std::fmt;
 use serde::Deserialize;
 use serde::Serialize;
 use smallvec::SmallVec;
-#[allow(clippy::wildcard_imports)]
-pub use system_clock::*;
 
 /// A unique identifier for each distributed node.
 #[derive(Clone, Copy, Default, Eq, Hash, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
@@ -212,10 +208,6 @@ impl Lamport {
 
     pub const fn new(replica_id: ReplicaId) -> Self {
         Self { value: 1, replica_id }
-    }
-
-    pub const fn as_u64(self) -> u64 {
-        ((self.value as u64) << 32) | (self.replica_id.0 as u64)
     }
 
     pub const fn tick(&mut self) -> Self {

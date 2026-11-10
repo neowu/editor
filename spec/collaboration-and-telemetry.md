@@ -16,7 +16,12 @@ These controls initialize independently of collaboration. Old collaboration and
 account visibility settings no longer expose or enable features.
 
 There are no collaborator replicas: buffers only ever see the local replica,
-the SSH remote server replica, and local branches. Dead sharing/unsharing APIs
+the SSH remote server replica, and local branches. The buffer CRDT (Lamport
+timestamps, version vectors) is kept anyway: the client and the remote server
+both edit buffers concurrently (typing vs. server-side formatting, code actions,
+and reloads), anchors are Lamport insertion ids, and branch buffers merge back
+into their base. Remote ops whose causal version isn't observed yet are queued;
+the version check alone keeps each source in order. Dead sharing/unsharing APIs
 and the call-status-icon and public-channel-sharing settings are removed.
 
 There is no player concept: the theme has one `CursorColors` (cursor and

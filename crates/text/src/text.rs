@@ -42,7 +42,6 @@ use regex::Regex;
 #[allow(clippy::wildcard_imports)]
 pub use rope::*;
 use rustc_hash::FxHashMap;
-use rustc_hash::FxHashSet;
 #[allow(clippy::wildcard_imports)]
 pub use selection::*;
 use smallvec::SmallVec;
@@ -72,7 +71,6 @@ pub struct Buffer {
     snapshot: BufferSnapshot,
     history: History,
     deferred_ops: OperationQueue<Operation>,
-    deferred_replicas: FxHashSet<ReplicaId>,
     pub lamport_clock: clock::Lamport,
     subscriptions: Topic<usize>,
     edit_id_resolvers: FxHashMap<clock::Lamport, Vec<oneshot::Sender<()>>>,
@@ -741,7 +739,6 @@ impl Buffer {
             },
             history,
             deferred_ops: OperationQueue::new(),
-            deferred_replicas: FxHashSet::default(),
             lamport_clock,
             subscriptions: Topic::default(),
             edit_id_resolvers: FxHashMap::default(),
@@ -766,7 +763,6 @@ impl Buffer {
             snapshot: self.snapshot.clone(),
             history: History::new(self.base_text().clone()),
             deferred_ops: OperationQueue::new(),
-            deferred_replicas: FxHashSet::default(),
             lamport_clock: clock::Lamport::new(ReplicaId::LOCAL_BRANCH),
             subscriptions: Topic::default(),
             edit_id_resolvers: FxHashMap::default(),
@@ -824,7 +820,6 @@ impl Buffer {
             if self.can_apply_op(&op) {
                 self.apply_op(op);
             } else {
-                self.deferred_replicas.insert(op.replica_id());
                 deferred_ops.push(op);
             }
         }
@@ -1132,13 +1127,11 @@ impl Buffer {
     }
 
     fn flush_deferred_ops(&mut self) {
-        self.deferred_replicas.clear();
         let mut deferred_ops = Vec::new();
         for op in self.deferred_ops.drain().iter().cloned() {
             if self.can_apply_op(&op) {
                 self.apply_op(op);
             } else {
-                self.deferred_replicas.insert(op.replica_id());
                 deferred_ops.push(op);
             }
         }
@@ -1146,14 +1139,10 @@ impl Buffer {
     }
 
     fn can_apply_op(&self, op: &Operation) -> bool {
-        if self.deferred_replicas.contains(&op.replica_id()) {
-            false
-        } else {
-            self.version.observed_all(match op {
-                Operation::Edit(edit) => &edit.version,
-                Operation::Undo(undo) => &undo.version,
-            })
-        }
+        self.version.observed_all(match op {
+            Operation::Edit(edit) => &edit.version,
+            Operation::Undo(undo) => &undo.version,
+        })
     }
 
     pub fn has_deferred_ops(&self) -> bool {
@@ -2789,10 +2778,6 @@ impl sum_tree::SeekTarget<'_, FragmentSummary, Self> for VersionedFullOffset {
 }
 
 impl Operation {
-    fn replica_id(&self) -> ReplicaId {
-        operation_queue::Operation::lamport_timestamp(self).replica_id
-    }
-
     pub const fn timestamp(&self) -> clock::Lamport {
         match self {
             Operation::Edit(edit) => edit.timestamp,
@@ -3072,4 +3057,44 @@ pub fn chunks_with_line_ending(rope: &Rope, line_ending: LineEnding) -> impl Ite
             })
             .chain(end_with_newline)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_ops_defers_until_dependencies_arrive() {
+        let id = BufferId::new(1).unwrap();
+        let mut local = Buffer::new(ReplicaId::LOCAL, id, "abc");
+        let mut remote = Buffer::new(ReplicaId::REMOTE_SERVER, id, "abc");
+
+        let first = local.edit([(3..3, "d")]);
+        let second = local.edit([(4..4, "e")]);
+        let undo = local.undo().unwrap().1;
+
+        remote.apply_ops([undo, second]);
+        assert_eq!(remote.text(), "abc");
+        assert!(remote.has_deferred_ops());
+
+        remote.apply_ops([first]);
+        assert_eq!(remote.text(), local.text());
+        assert!(!remote.has_deferred_ops());
+    }
+
+    #[test]
+    fn apply_ops_applies_concurrent_edits_from_both_replicas() {
+        let id = BufferId::new(1).unwrap();
+        let mut local = Buffer::new(ReplicaId::LOCAL, id, "abc");
+        let mut remote = Buffer::new(ReplicaId::REMOTE_SERVER, id, "abc");
+
+        let local_op = local.edit([(0..0, "x")]);
+        let remote_op = remote.edit([(3..3, "y")]);
+        local.apply_ops([remote_op]);
+        remote.apply_ops([local_op]);
+
+        assert_eq!(local.text(), "xabcy");
+        assert_eq!(remote.text(), "xabcy");
+        assert!(!local.has_deferred_ops() && !remote.has_deferred_ops());
+    }
 }
