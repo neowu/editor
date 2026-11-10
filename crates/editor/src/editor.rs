@@ -133,7 +133,6 @@ pub(crate) use actions::ConvertToTitleCase;
 pub(crate) use actions::ConvertToUpperCamelCase;
 pub(crate) use actions::ConvertToUpperCase;
 pub(crate) use actions::Copy;
-pub(crate) use actions::CopyAndTrim;
 pub(crate) use actions::CopyFileLocation;
 pub(crate) use actions::CopyFileName;
 pub(crate) use actions::CopyFileNameWithoutExtension;

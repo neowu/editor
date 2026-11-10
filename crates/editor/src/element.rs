@@ -475,7 +475,6 @@ impl EditorElement {
         register_action(editor, window, Editor::next_snippet_tabstop);
         register_action(editor, window, Editor::previous_snippet_tabstop);
         register_action(editor, window, Editor::copy);
-        register_action(editor, window, Editor::copy_and_trim);
         register_action(editor, window, Editor::diff_clipboard_with_selection);
         register_action(editor, window, Editor::move_page_up);
         register_action(editor, window, Editor::move_page_down);

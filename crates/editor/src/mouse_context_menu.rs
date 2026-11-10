@@ -17,7 +17,6 @@ use workspace::OpenInTerminal;
 use workspace::preview::OpenPreview;
 
 use crate::Copy;
-use crate::CopyAndTrim;
 use crate::Cut;
 use crate::DisplayPoint;
 use crate::DisplaySnapshot;
@@ -230,7 +229,6 @@ pub fn deploy_context_menu(
                 .separator()
                 .action_disabled_when(!can_edit, "Cut", Box::new(Cut))
                 .action("Copy", Box::new(Copy))
-                .action("Copy and Trim", Box::new(CopyAndTrim))
                 .action_disabled_when(!can_edit, "Paste", Box::new(Paste))
                 .separator()
                 .action_disabled_when(

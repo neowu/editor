@@ -102,7 +102,6 @@ pub fn app_menus(_cx: &mut App) -> Vec<Menu> {
                 MenuItem::separator(),
                 MenuItem::os_action("Cut", actions::Cut, OsAction::Cut),
                 MenuItem::os_action("Copy", actions::Copy, OsAction::Copy),
-                MenuItem::action("Copy and Trim", actions::CopyAndTrim),
                 MenuItem::os_action("Paste", actions::Paste, OsAction::Paste),
                 MenuItem::separator(),
                 MenuItem::action("Find", buffer_search::Deploy::find()),
