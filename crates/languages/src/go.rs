@@ -12,6 +12,7 @@ use gpui::App;
 use gpui::AsyncApp;
 use gpui::Entity;
 use gpui::Task;
+use language::ContextProvider;
 use language::LspAdapterDelegate;
 use language::language_settings::DocumentSymbols;
 use language::language_settings::FormatOnSave;
@@ -34,10 +35,11 @@ use task::TaskTemplates;
 use task::TaskVariables;
 use task::VariableName;
 
-pub(crate) fn semantic_token_rules() -> SemanticTokenRules {
-    let content = grammars::get_file("go/semantic_token_rules.json").expect("missing go/semantic_token_rules.json");
-    let json = str::from_utf8(&content.data).expect("invalid utf-8 in semantic_token_rules");
-    serde_json::from_str::<SemanticTokenRules>(json).expect("failed to parse go semantic_token_rules.json")
+use crate::LanguageDef;
+
+fn semantic_token_rules() -> SemanticTokenRules {
+    serde_json::from_str(include_str!("go/semantic_token_rules.json"))
+        .expect("failed to parse go semantic_token_rules.json")
 }
 
 fn server_binary_arguments() -> Vec<OsString> {
@@ -621,4 +623,24 @@ pub(crate) fn mod_settings() -> LanguageSettings {
         auto_indent_on_paste: true,
         word_completions: WordsCompletionMode::Fallback,
     }
+}
+
+pub(crate) fn languages() -> Vec<LanguageDef> {
+    let adapter: Arc<dyn LspAdapter> = Arc::new(GoLspAdapter);
+    let context: Arc<dyn ContextProvider> = Arc::new(GoContextProvider);
+    vec![
+        LanguageDef {
+            grammar: Some(tree_sitter_go::LANGUAGE.into()),
+            adapters: vec![adapter.clone()],
+            context: Some(context.clone()),
+            semantic_token_rules: Some(semantic_token_rules()),
+            ..LanguageDef::new("go", settings())
+        },
+        LanguageDef {
+            adapters: vec![adapter.clone()],
+            context: Some(context.clone()),
+            ..LanguageDef::new("gomod", mod_settings())
+        },
+        LanguageDef { adapters: vec![adapter], context: Some(context), ..LanguageDef::new("gowork", mod_settings()) },
+    ]
 }

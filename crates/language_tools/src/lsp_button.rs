@@ -335,12 +335,7 @@ impl LanguageServerState {
             let (status_color, status_label) = server_info
                 .binary_status
                 .as_ref()
-                .and_then(|binary_status| match binary_status.status {
-                    BinaryStatus::None => None,
-                    BinaryStatus::Starting => Some((Color::Modified, "Starting…")),
-                    BinaryStatus::Stopping | BinaryStatus::Stopped => Some((Color::Disabled, "Stopped")),
-                    BinaryStatus::Failed { .. } => Some((Color::Error, "Error")),
-                })
+                .and_then(|binary_status| binary_status_label(&binary_status.status))
                 .or_else(|| {
                     Some(match server_info.health? {
                         ServerHealth::Ok => (Color::Success, "Running"),
@@ -607,10 +602,23 @@ fn tooltip_for_server_binary(server_binary: &lsp::LanguageServerBinary) -> Share
     }
 }
 
+const fn binary_status_label(status: &BinaryStatus) -> Option<(Color, &'static str)> {
+    match status {
+        BinaryStatus::None => None,
+        BinaryStatus::Starting => Some((Color::Modified, "Starting…")),
+        BinaryStatus::Stopping | BinaryStatus::Stopped => Some((Color::Disabled, "Stopped")),
+        BinaryStatus::NotInstalled { .. } => Some((Color::Disabled, "Not Installed")),
+        BinaryStatus::Failed { .. } => Some((Color::Error, "Error")),
+    }
+}
+
 impl LanguageServers {
     fn update_binary_status(&mut self, binary_status: BinaryStatus, message: Option<&str>, name: LanguageServerName) {
         let binary_status_message = message.map(SharedString::new);
-        if matches!(binary_status, BinaryStatus::Stopped | BinaryStatus::Failed { .. }) {
+        if matches!(
+            binary_status,
+            BinaryStatus::Stopped | BinaryStatus::NotInstalled { .. } | BinaryStatus::Failed { .. }
+        ) {
             self.health_statuses.retain(|_, server| server.name != name);
         }
         self.binary_statuses
@@ -801,6 +809,9 @@ impl LspButton {
                             proto::ServerBinaryStatus::Starting => BinaryStatus::Starting,
                             proto::ServerBinaryStatus::Stopping => BinaryStatus::Stopping,
                             proto::ServerBinaryStatus::Stopped => BinaryStatus::Stopped,
+                            proto::ServerBinaryStatus::NotInstalled => BinaryStatus::NotInstalled {
+                                message: status_update.message.clone().unwrap_or_default(),
+                            },
                             proto::ServerBinaryStatus::Failed => {
                                 let Some(error) = status_update.message.clone() else {
                                     return;
@@ -977,6 +988,7 @@ impl LspButton {
                         can_stop_all = false;
                     }
                     BinaryStatus::Stopped => {}
+                    BinaryStatus::NotInstalled { .. } => {}
                     BinaryStatus::Failed { .. } => {}
                 }
 
@@ -1139,7 +1151,8 @@ impl Render for LspButton {
         let mut has_other_notifications = false;
         for binary_status in state.language_servers.binary_statuses.values() {
             has_errors |= matches!(binary_status.status, BinaryStatus::Failed { .. });
-            has_other_notifications |= binary_status.message.is_some();
+            has_other_notifications |=
+                binary_status.message.is_some() && !matches!(binary_status.status, BinaryStatus::NotInstalled { .. });
         }
 
         for server in state.language_servers.health_statuses.values() {
@@ -1186,13 +1199,33 @@ impl Render for LspButton {
 #[cfg(test)]
 mod tests {
 
+    use super::BinaryStatus;
+    use super::Color;
     use super::HashMap;
     use super::LanguageServerId;
     use super::LanguageServerName;
     use super::LanguageServers;
     use super::PathBuf;
+    use super::ServerHealth;
     use super::ServersForPath;
     use super::WeakEntity;
+    use super::binary_status_label;
+
+    #[test]
+    fn not_installed_server_is_greyed_out_not_an_error() {
+        let name = LanguageServerName::new_static("terraform-ls");
+        let status = BinaryStatus::NotInstalled { message: "not found".into() };
+        assert_eq!(binary_status_label(&status), Some((Color::Disabled, "Not Installed")));
+
+        let mut language_servers = LanguageServers::default();
+        language_servers.update_server_health(LanguageServerId(1), ServerHealth::Ok, None, Some(name.clone()));
+        language_servers.update_binary_status(status.clone(), Some("not found"), name.clone());
+
+        assert!(language_servers.health_statuses.is_empty());
+        let binary_status = &language_servers.binary_statuses[&name];
+        assert_eq!(binary_status.status, status);
+        assert_eq!(binary_status.message.as_deref(), Some("not found"));
+    }
 
     #[test]
     fn removed_server_keeps_its_worktree() {

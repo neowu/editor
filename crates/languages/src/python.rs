@@ -44,11 +44,11 @@ use task::TaskTemplates;
 use task::VariableName;
 use util::rel_path::RelPath;
 
-pub(crate) fn semantic_token_rules() -> SemanticTokenRules {
-    let content =
-        grammars::get_file("python/semantic_token_rules.json").expect("missing python/semantic_token_rules.json");
-    let json = str::from_utf8(&content.data).expect("invalid utf-8 in semantic_token_rules");
-    serde_json::from_str::<SemanticTokenRules>(json).expect("failed to parse python semantic_token_rules.json")
+use crate::LanguageDef;
+
+fn semantic_token_rules() -> SemanticTokenRules {
+    serde_json::from_str(include_str!("python/semantic_token_rules.json"))
+        .expect("failed to parse python semantic_token_rules.json")
 }
 
 /// The project virtual environment, always `.venv` at the worktree root.
@@ -378,4 +378,15 @@ pub(crate) fn settings() -> LanguageSettings {
         auto_indent_on_paste: true,
         word_completions: WordsCompletionMode::Fallback,
     }
+}
+
+pub(crate) fn languages() -> Vec<LanguageDef> {
+    vec![LanguageDef {
+        grammar: Some(tree_sitter_python::LANGUAGE.into()),
+        adapters: vec![Arc::new(TyLspAdapter), Arc::new(RuffLspAdapter)],
+        context: Some(Arc::new(PythonContextProvider)),
+        manifest_name: Some(SharedString::new_static("pyproject.toml").into()),
+        semantic_token_rules: Some(semantic_token_rules()),
+        ..LanguageDef::new("python", settings())
+    }]
 }

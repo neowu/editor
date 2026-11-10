@@ -20,6 +20,7 @@ use lsp::LanguageServerName;
 use rustc_hash::FxHashMap;
 use serde_json::json;
 
+use crate::LanguageDef;
 use crate::npx;
 
 pub struct HtmlLspAdapter;
@@ -78,4 +79,12 @@ pub(crate) fn settings() -> LanguageSettings {
         auto_indent_on_paste: true,
         word_completions: WordsCompletionMode::Fallback,
     }
+}
+
+pub(crate) fn languages() -> Vec<LanguageDef> {
+    vec![LanguageDef {
+        grammar: Some(tree_sitter_html::LANGUAGE.into()),
+        adapters: vec![Arc::new(HtmlLspAdapter)],
+        ..LanguageDef::new("html", settings())
+    }]
 }

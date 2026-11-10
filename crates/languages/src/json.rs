@@ -34,6 +34,7 @@ use task::TaskTemplates;
 use task::VariableName;
 use util::rel_path::RelPath;
 
+use crate::LanguageDef;
 use crate::PackageJsonData;
 use crate::npx;
 
@@ -225,4 +226,24 @@ pub(crate) fn settings() -> LanguageSettings {
         auto_indent_on_paste: true,
         word_completions: WordsCompletionMode::Fallback,
     }
+}
+
+pub(crate) fn languages(registry: Arc<LanguageRegistry>, biome: Arc<dyn LspAdapter>) -> Vec<LanguageDef> {
+    let adapter: Arc<dyn LspAdapter> = Arc::new(JsonLspAdapter::new(registry));
+    let context: Arc<dyn ContextProvider> = Arc::new(JsonTaskProvider);
+    vec![
+        LanguageDef {
+            grammar: Some(tree_sitter_json::LANGUAGE.into()),
+            adapters: vec![adapter.clone(), biome.clone()],
+            context: Some(context.clone()),
+            ..LanguageDef::new("json", settings())
+        },
+        LanguageDef {
+            grammar: Some(tree_sitter_json::LANGUAGE.into()),
+            adapters: vec![adapter, biome],
+            context: Some(context),
+            file_types: &["tsconfig*.json"],
+            ..LanguageDef::new("jsonc", settings())
+        },
+    ]
 }

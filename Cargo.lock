@@ -1677,26 +1677,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "grammars"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "language_core",
- "rust-embed",
- "tree-sitter",
- "tree-sitter-bash",
- "tree-sitter-css",
- "tree-sitter-go",
- "tree-sitter-html",
- "tree-sitter-json",
- "tree-sitter-md",
- "tree-sitter-python",
- "tree-sitter-rust",
- "tree-sitter-typescript",
- "tree-sitter-yaml",
-]
-
-[[package]]
 name = "harfrust"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2260,14 +2240,15 @@ dependencies = [
  "async-trait",
  "futures",
  "gpui",
- "grammars",
  "itertools 0.15.0",
  "json_schema_store",
  "language",
+ "language_core",
  "log",
  "lsp",
  "project",
  "regex",
+ "rust-embed",
  "rustc-hash",
  "serde",
  "serde_json",
@@ -2276,6 +2257,17 @@ dependencies = [
  "smol",
  "snippet",
  "task",
+ "tree-sitter",
+ "tree-sitter-bash",
+ "tree-sitter-css",
+ "tree-sitter-go",
+ "tree-sitter-html",
+ "tree-sitter-json",
+ "tree-sitter-md",
+ "tree-sitter-python",
+ "tree-sitter-rust",
+ "tree-sitter-typescript",
+ "tree-sitter-yaml",
  "util",
 ]
 

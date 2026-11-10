@@ -17,6 +17,7 @@ use language::Buffer;
 use language::ContextLocation;
 use language::ContextProvider;
 use language::File;
+use language::LspAdapter;
 use language::language_settings::DocumentSymbols;
 use language::language_settings::FormatOnSave;
 use language::language_settings::Formatter;
@@ -34,8 +35,10 @@ use task::VariableName;
 use util::ResultExt;
 use util::rel_path::RelPath;
 
+use crate::LanguageDef;
 use crate::PackageJson;
 use crate::PackageJsonData;
+use crate::tsgo::TsgoLspAdapter;
 
 pub(crate) struct TypeScriptContextProvider {
     fs: Arc<dyn Fs>,
@@ -494,4 +497,27 @@ pub(crate) fn settings() -> LanguageSettings {
         auto_indent_on_paste: true,
         word_completions: WordsCompletionMode::Fallback,
     }
+}
+
+/// Language directories and their grammars; JavaScript is parsed with the TSX grammar.
+pub(crate) fn grammars() -> [(&'static str, tree_sitter::Language); 3] {
+    [
+        ("tsx", tree_sitter_typescript::LANGUAGE_TSX.into()),
+        ("typescript", tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+        ("javascript", tree_sitter_typescript::LANGUAGE_TSX.into()),
+    ]
+}
+
+pub(crate) fn languages(fs: Arc<dyn Fs>, biome: Arc<dyn LspAdapter>) -> Vec<LanguageDef> {
+    let tsgo: Arc<dyn LspAdapter> = Arc::new(TsgoLspAdapter::new(fs.clone()));
+    let context: Arc<dyn ContextProvider> = Arc::new(TypeScriptContextProvider::new(fs));
+    grammars()
+        .into_iter()
+        .map(|(dir, grammar)| LanguageDef {
+            grammar: Some(grammar),
+            adapters: vec![tsgo.clone(), biome.clone()],
+            context: Some(context.clone()),
+            ..LanguageDef::new(dir, settings())
+        })
+        .collect()
 }

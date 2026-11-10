@@ -1,20 +1,22 @@
+use std::borrow::Cow;
+use std::str;
 use std::sync::Arc;
 
 use futures::FutureExt as _;
 use gpui::App;
-use gpui::SharedString;
 use language::language_settings::AllLanguageSettings;
 use language::language_settings::LanguageSettings;
 #[allow(clippy::wildcard_imports)]
 pub use language::*;
+use language_core::QueryFile;
+use language_core::QueryFileContents;
 use project::Fs;
 use project::library::LibraryProviders;
 use python::PyprojectTomlManifestProvider;
 use rust::CargoLibraryProvider;
 use rust::CargoManifestProvider;
+use rust_embed::RustEmbed;
 use settings::SemanticTokenRules;
-
-use crate::json::JsonTaskProvider;
 
 mod bash;
 mod biome;
@@ -31,6 +33,7 @@ mod package_json;
 mod plain_text;
 mod python;
 mod rust;
+mod terraform;
 mod tombi;
 mod tsgo;
 mod typescript;
@@ -40,221 +43,27 @@ pub(crate) use package_json::PackageJson;
 pub(crate) use package_json::PackageJsonData;
 
 pub fn init(languages: Arc<LanguageRegistry>, fs: Arc<dyn Fs>, cx: &mut App) {
-    languages.register_native_grammars(grammars::native_grammars());
-
-    let bash_lsp_adapter = Arc::new(bash::BashLspAdapter);
-    let css_lsp_adapter = Arc::new(css::CssLspAdapter);
-    let biome_lsp_adapter = Arc::new(biome::BiomeLspAdapter::new(fs.clone()));
-    let go_context_provider = Arc::new(go::GoContextProvider);
-    let go_lsp_adapter = Arc::new(go::GoLspAdapter);
-    let html_lsp_adapter = Arc::new(html::HtmlLspAdapter);
-    let json_context_provider = Arc::new(JsonTaskProvider);
-    let json_lsp_adapter = Arc::new(json::JsonLspAdapter::new(languages.clone()));
-    let python_context_provider = Arc::new(python::PythonContextProvider);
-    let rust_context_provider = Arc::new(rust::RustContextProvider);
-    let rust_lsp_adapter = Arc::new(rust::RustLspAdapter);
-    let typescript_context = Arc::new(typescript::TypeScriptContextProvider::new(fs.clone()));
-    let tombi_lsp_adapter = Arc::new(tombi::TombiLspAdapter);
-    let tsgo_lsp_adapter = Arc::new(tsgo::TsgoLspAdapter::new(fs));
-    let yaml_lsp_adapter = Arc::new(yaml::YamlLspAdapter);
-
-    let built_in_languages = [
-        LanguageInfo {
-            name: "bash",
-            adapters: vec![bash_lsp_adapter],
-            context: Some(Arc::new(bash::bash_task_context())),
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: bash::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "css",
-            adapters: vec![css_lsp_adapter, biome_lsp_adapter.clone()],
-            context: None,
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: css::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "diff",
-            adapters: vec![],
-            context: None,
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: diff::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "env",
-            adapters: vec![],
-            context: None,
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: env::settings(),
-            file_types: &[".env.*"],
-        },
-        LanguageInfo {
-            name: "go",
-            adapters: vec![go_lsp_adapter.clone()],
-            context: Some(go_context_provider.clone()),
-            manifest_name: None,
-            semantic_token_rules: Some(go::semantic_token_rules()),
-            settings: go::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "gomod",
-            adapters: vec![go_lsp_adapter.clone()],
-            context: Some(go_context_provider.clone()),
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: go::mod_settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "gowork",
-            adapters: vec![go_lsp_adapter],
-            context: Some(go_context_provider),
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: go::mod_settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "html",
-            adapters: vec![html_lsp_adapter],
-            context: None,
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: html::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "json",
-            adapters: vec![json_lsp_adapter.clone(), biome_lsp_adapter.clone()],
-            context: Some(json_context_provider.clone()),
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: json::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "jsonc",
-            adapters: vec![json_lsp_adapter, biome_lsp_adapter.clone()],
-            context: Some(json_context_provider),
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: json::settings(),
-            file_types: &["tsconfig*.json"],
-        },
-        LanguageInfo {
-            name: "markdown",
-            adapters: vec![],
-            context: Some(Arc::new(markdown::markdown_task_context())),
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: markdown::settings(),
-            file_types: &[".rules", ".cursorrules", ".windsurfrules", ".clinerules"],
-        },
-        LanguageInfo {
-            name: "markdown-inline",
-            adapters: vec![],
-            context: None,
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: markdown::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "python",
-            adapters: vec![Arc::new(python::TyLspAdapter), Arc::new(python::RuffLspAdapter)],
-            context: Some(python_context_provider),
-            manifest_name: Some(SharedString::new_static("pyproject.toml").into()),
-            semantic_token_rules: Some(python::semantic_token_rules()),
-            settings: python::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "rust",
-            adapters: vec![rust_lsp_adapter],
-            context: Some(rust_context_provider),
-            manifest_name: Some(SharedString::new_static("Cargo.toml").into()),
-            semantic_token_rules: Some(rust::semantic_token_rules()),
-            settings: rust::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "toml",
-            adapters: vec![tombi_lsp_adapter],
-            context: None,
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: tombi::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "tsx",
-            adapters: vec![tsgo_lsp_adapter.clone(), biome_lsp_adapter.clone()],
-            context: Some(typescript_context.clone()),
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: typescript::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "typescript",
-            adapters: vec![tsgo_lsp_adapter.clone(), biome_lsp_adapter.clone()],
-            context: Some(typescript_context.clone()),
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: typescript::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "javascript",
-            adapters: vec![tsgo_lsp_adapter, biome_lsp_adapter],
-            context: Some(typescript_context),
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: typescript::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "yaml",
-            adapters: vec![yaml_lsp_adapter],
-            context: None,
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: yaml::settings(),
-            file_types: &[],
-        },
-        LanguageInfo {
-            name: "gitcommit",
-            adapters: vec![],
-            context: None,
-            manifest_name: None,
-            semantic_token_rules: None,
-            settings: git_commit::settings(),
-            file_types: &[],
-        },
+    let biome: Arc<dyn LspAdapter> = Arc::new(biome::BiomeLspAdapter::new(fs.clone()));
+    let definitions = [
+        bash::languages(),
+        css::languages(biome.clone()),
+        diff::languages(),
+        env::languages(),
+        git_commit::languages(),
+        go::languages(),
+        html::languages(),
+        json::languages(languages.clone(), biome.clone()),
+        markdown::languages(),
+        python::languages(),
+        rust::languages(),
+        terraform::languages(),
+        tombi::languages(),
+        typescript::languages(fs, biome),
+        yaml::languages(),
     ];
-
-    for registration in built_in_languages {
-        register_language(
-            &languages,
-            registration.name,
-            registration.adapters,
-            registration.context,
-            registration.manifest_name,
-            registration.semantic_token_rules,
-            registration.settings,
-            registration.file_types,
-            cx,
-        );
+    for definition in definitions.into_iter().flatten() {
+        register(&languages, definition, cx);
     }
-
     AllLanguageSettings::register(PLAIN_TEXT.name(), plain_text::settings(), &[], None, cx);
 
     let manifest_providers: [Arc<dyn ManifestProvider>; 2] =
@@ -265,8 +74,12 @@ pub fn init(languages: Arc<LanguageRegistry>, fs: Arc<dyn Fs>, cx: &mut App) {
     LibraryProviders::register(Arc::new(CargoLibraryProvider), cx);
 }
 
-struct LanguageInfo {
-    name: &'static str,
+/// Everything that defines a language; each language module builds its own.
+pub(crate) struct LanguageDef {
+    /// Directory under `src/` holding the language's `config.toml` and queries.
+    dir: &'static str,
+    grammar: Option<tree_sitter::Language>,
+    /// Language servers in start order; the first is the primary server.
     adapters: Vec<Arc<dyn LspAdapter>>,
     context: Option<Arc<dyn ContextProvider>>,
     manifest_name: Option<ManifestName>,
@@ -276,43 +89,77 @@ struct LanguageInfo {
     file_types: &'static [&'static str],
 }
 
-fn register_language(
-    languages: &LanguageRegistry,
-    name: &'static str,
-    adapters: Vec<Arc<dyn LspAdapter>>,
-    context: Option<Arc<dyn ContextProvider>>,
-    manifest_name: Option<ManifestName>,
-    semantic_token_rules: Option<SemanticTokenRules>,
-    settings: LanguageSettings,
-    file_types: &[&str],
-    cx: &mut App,
-) {
-    let config = grammars::load_config(name);
+impl LanguageDef {
+    /// A language with no grammar, servers or tasks.
+    pub(crate) const fn new(dir: &'static str, settings: LanguageSettings) -> Self {
+        Self {
+            dir,
+            grammar: None,
+            adapters: Vec::new(),
+            context: None,
+            manifest_name: None,
+            semantic_token_rules: None,
+            settings,
+            file_types: &[],
+        }
+    }
+}
+
+fn register(languages: &LanguageRegistry, definition: LanguageDef, cx: &mut App) {
+    let LanguageDef { dir, grammar, adapters, context, manifest_name, semantic_token_rules, settings, file_types } =
+        definition;
+    let config = load_config(dir);
     AllLanguageSettings::register(config.name.clone(), settings, file_types, semantic_token_rules, cx);
     for adapter in adapters {
         languages.register_lsp_adapter(config.name.clone(), adapter);
     }
     languages.register_language(
         config.name.clone(),
-        config.grammar.clone(),
         config.matcher.clone(),
         config.hidden,
         manifest_name.clone(),
         Arc::new(move || {
-            let config = config.clone();
-            let context = context.clone();
-            let manifest_name = manifest_name.clone();
-            async move {
-                Ok(LoadedLanguage {
-                    config,
-                    queries: grammars::load_queries(name),
-                    context_provider: context,
-                    manifest_name,
-                })
-            }
-            .boxed()
+            let loaded = LoadedLanguage {
+                config: config.clone(),
+                grammar: grammar.clone(),
+                queries: load_queries(dir),
+                context_provider: context.clone(),
+                manifest_name: manifest_name.clone(),
+            };
+            async move { Ok(loaded) }.boxed()
         }),
     );
+}
+
+/// Each language's `config.toml` and tree-sitter queries, by directory.
+#[derive(RustEmbed)]
+#[folder = "src/"]
+#[exclude = "*.rs"]
+struct LanguageDir;
+
+fn load_config(dir: &str) -> LanguageConfig {
+    let file = LanguageDir::get(&format!("{dir}/config.toml")).unwrap_or_else(|| panic!("missing {dir}/config.toml"));
+    LanguageConfig::from_toml(str::from_utf8(&file.data).unwrap())
+        .unwrap_or_else(|error| panic!("invalid {dir}/config.toml: {error:#}"))
+}
+
+fn load_queries(dir: &str) -> LanguageQueries {
+    LanguageQueries::from_files(LanguageDir::iter().filter_map(|path| {
+        let query_file = path.strip_prefix(dir)?.strip_prefix('/')?.parse::<QueryFile>().ok()?;
+        let contents = match LanguageDir::get(path.as_ref())?.data {
+            Cow::Borrowed(bytes) => Cow::Borrowed(str::from_utf8(bytes).ok()?),
+            Cow::Owned(bytes) => Cow::Owned(String::from_utf8(bytes).ok()?),
+        };
+        Some(QueryFileContents::new(query_file, contents))
+    }))
+}
+
+/// Panics unless the queries in `dir` compile against `grammar`.
+#[cfg(test)]
+fn assert_queries_compile(dir: &str, grammar: tree_sitter::Language) {
+    if let Err(error) = Language::new(load_config(dir), Some(grammar)).with_queries(load_queries(dir)) {
+        panic!("{dir}: {error:#}");
+    }
 }
 
 #[cfg(test)]
@@ -322,8 +169,50 @@ mod tests {
     use language::language_settings::RewrapBehavior;
     use language::language_settings::SoftWrap;
     use language::language_settings::WordsCompletionMode;
+    use rustc_hash::FxHashSet;
 
     use super::*;
+
+    #[test]
+    fn test_every_language_dir_has_a_loadable_config() {
+        let dirs: FxHashSet<_> =
+            LanguageDir::iter().filter_map(|path| Some(path.split_once('/')?.0.to_owned())).collect();
+        assert!(dirs.len() > 20);
+        for dir in dirs {
+            let has_queries = load_queries(&dir).highlights.is_some();
+            assert!(!load_config(&dir).name.as_ref().is_empty());
+            // Only the grammar-less languages ship no queries.
+            let grammarless =
+                ["diff", "gitcommit", "gomod", "gowork", "terraform", "terraform-vars", "toml"].contains(&&*dir);
+            assert_eq!(has_queries, !grammarless, "{dir}");
+        }
+    }
+
+    #[test]
+    fn test_queries_compile_against_each_language_grammar() {
+        let definitions = [
+            bash::languages(),
+            env::languages(),
+            go::languages(),
+            html::languages(),
+            markdown::languages(),
+            python::languages(),
+            rust::languages(),
+            yaml::languages(),
+        ];
+        for definition in definitions.into_iter().flatten() {
+            if let Some(grammar) = definition.grammar {
+                assert_queries_compile(definition.dir, grammar);
+            }
+        }
+        // These modules need adapters to build their definitions.
+        assert_queries_compile("css", tree_sitter_css::LANGUAGE.into());
+        assert_queries_compile("json", tree_sitter_json::LANGUAGE.into());
+        assert_queries_compile("jsonc", tree_sitter_json::LANGUAGE.into());
+        for (dir, grammar) in typescript::grammars() {
+            assert_queries_compile(dir, grammar);
+        }
+    }
 
     #[test]
     fn test_language_settings_differ_where_languages_need_it() {
@@ -334,7 +223,9 @@ mod tests {
         assert!(go::settings().code_actions_on_format.contains_key("source.organizeImports"));
         assert!(go::mod_settings().code_actions_on_format.is_empty());
 
-        for settings in [json::settings(), typescript::settings(), yaml::settings(), markdown::settings()] {
+        for settings in
+            [json::settings(), typescript::settings(), yaml::settings(), markdown::settings(), terraform::settings()]
+        {
             assert_eq!(settings.tab_size.get(), 2);
         }
         assert!(!yaml::settings().auto_indent_on_paste);

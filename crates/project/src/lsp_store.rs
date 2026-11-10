@@ -170,6 +170,7 @@ use language::Patch;
 use language::PointUtf16;
 use language::RelatedInformation;
 use language::RelatedLocation;
+use language::ServerNotInstalled;
 use language::TextBufferSnapshot;
 use language::ToOffset;
 use language::ToPointUtf16;
@@ -689,6 +690,12 @@ impl LocalLspStore {
                             .ok();
                         stderr_capture.lock().take();
                         Some(server)
+                    }
+
+                    Err(err) if err.is::<ServerNotInstalled>() => {
+                        delegate.update_status(adapter.name(), BinaryStatus::NotInstalled { message: err.to_string() });
+                        log::info!("{err}");
+                        None
                     }
 
                     Err(err) => {
@@ -11857,6 +11864,10 @@ fn subscribe_to_binary_statuses(languages: &Arc<LanguageRegistry>, cx: &Context<
                         BinaryStatus::Starting => proto::ServerBinaryStatus::Starting,
                         BinaryStatus::Stopping => proto::ServerBinaryStatus::Stopping,
                         BinaryStatus::Stopped => proto::ServerBinaryStatus::Stopped,
+                        BinaryStatus::NotInstalled { message: not_installed } => {
+                            message = Some(not_installed);
+                            proto::ServerBinaryStatus::NotInstalled
+                        }
                         BinaryStatus::Failed { error } => {
                             message = Some(error);
                             proto::ServerBinaryStatus::Failed

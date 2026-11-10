@@ -22,5 +22,11 @@ pub enum BinaryStatus {
     Starting,
     Stopping,
     Stopped,
-    Failed { error: String },
+    /// The server's binary wasn't found; not an error, since servers are installed by the user.
+    NotInstalled {
+        message: String,
+    },
+    Failed {
+        error: String,
+    },
 }

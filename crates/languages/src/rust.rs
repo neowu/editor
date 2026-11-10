@@ -48,10 +48,11 @@ use util::command::new_command;
 use util::merge_json_value_into;
 use util::rel_path::RelPath;
 
-pub(crate) fn semantic_token_rules() -> SemanticTokenRules {
-    let content = grammars::get_file("rust/semantic_token_rules.json").expect("missing rust/semantic_token_rules.json");
-    let json = str::from_utf8(&content.data).expect("invalid utf-8 in semantic_token_rules");
-    serde_json::from_str::<SemanticTokenRules>(json).expect("failed to parse rust semantic_token_rules.json")
+use crate::LanguageDef;
+
+fn semantic_token_rules() -> SemanticTokenRules {
+    serde_json::from_str(include_str!("rust/semantic_token_rules.json"))
+        .expect("failed to parse rust semantic_token_rules.json")
 }
 
 pub struct RustLspAdapter;
@@ -991,6 +992,17 @@ pub(crate) fn settings() -> LanguageSettings {
         auto_indent_on_paste: true,
         word_completions: WordsCompletionMode::Fallback,
     }
+}
+
+pub(crate) fn languages() -> Vec<LanguageDef> {
+    vec![LanguageDef {
+        grammar: Some(tree_sitter_rust::LANGUAGE.into()),
+        adapters: vec![Arc::new(RustLspAdapter)],
+        context: Some(Arc::new(RustContextProvider)),
+        manifest_name: Some(SharedString::new_static("Cargo.toml").into()),
+        semantic_token_rules: Some(semantic_token_rules()),
+        ..LanguageDef::new("rust", settings())
+    }]
 }
 
 #[cfg(test)]

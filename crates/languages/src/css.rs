@@ -20,6 +20,7 @@ use lsp::Uri;
 use rustc_hash::FxHashMap;
 use serde_json::json;
 
+use crate::LanguageDef;
 use crate::npx;
 
 pub struct CssLspAdapter;
@@ -88,4 +89,12 @@ pub(crate) fn settings() -> LanguageSettings {
         auto_indent_on_paste: true,
         word_completions: WordsCompletionMode::Fallback,
     }
+}
+
+pub(crate) fn languages(biome: Arc<dyn LspAdapter>) -> Vec<LanguageDef> {
+    vec![LanguageDef {
+        grammar: Some(tree_sitter_css::LANGUAGE.into()),
+        adapters: vec![Arc::new(CssLspAdapter), biome],
+        ..LanguageDef::new("css", settings())
+    }]
 }

@@ -22,6 +22,7 @@ use task::TaskTemplate;
 use task::TaskTemplates;
 use task::VariableName;
 
+use crate::LanguageDef;
 use crate::npx;
 
 pub(super) fn bash_task_context() -> ContextProviderWithTasks {
@@ -80,4 +81,13 @@ pub(crate) fn settings() -> LanguageSettings {
         auto_indent_on_paste: true,
         word_completions: WordsCompletionMode::Fallback,
     }
+}
+
+pub(crate) fn languages() -> Vec<LanguageDef> {
+    vec![LanguageDef {
+        grammar: Some(tree_sitter_bash::LANGUAGE.into()),
+        adapters: vec![Arc::new(BashLspAdapter)],
+        context: Some(Arc::new(bash_task_context())),
+        ..LanguageDef::new("bash", settings())
+    }]
 }

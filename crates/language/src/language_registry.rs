@@ -58,7 +58,6 @@ struct LanguageRegistryState {
     next_language_server_id: usize,
     languages: Vec<Arc<Language>>,
     available_languages: AvailableLanguages,
-    grammars: FxHashMap<Arc<str>, tree_sitter::Language>,
     lsp_adapters: FxHashMap<LanguageName, Vec<Arc<CachedLspAdapter>>>,
     all_lsp_adapters: FxHashMap<LanguageServerName, Arc<CachedLspAdapter>>,
     loading_languages: FxHashMap<LanguageId, Vec<oneshot::Sender<Result<Arc<Language>>>>>,
@@ -92,6 +91,8 @@ struct ServerStatusSenderState {
 
 pub struct LoadedLanguage {
     pub config: LanguageConfig,
+    /// The tree-sitter grammar that parses the language, if it has one.
+    pub grammar: Option<tree_sitter::Language>,
     pub queries: LanguageQueries,
     pub context_provider: Option<Arc<dyn ContextProvider>>,
     pub manifest_name: Option<ManifestName>,
@@ -106,7 +107,6 @@ impl LanguageRegistry {
                 next_language_server_id: 0,
                 languages: Vec::new(),
                 available_languages: AvailableLanguages::default(),
-                grammars: FxHashMap::default(),
                 loading_languages: FxHashMap::default(),
                 lsp_adapters: FxHashMap::default(),
                 all_lsp_adapters: FxHashMap::default(),
@@ -136,7 +136,6 @@ impl LanguageRegistry {
     pub fn register_language(
         &self,
         name: LanguageName,
-        grammar_name: Option<Arc<str>>,
         matcher: Arc<LanguageMatcher>,
         hidden: bool,
         manifest_name: Option<ManifestName>,
@@ -144,8 +143,7 @@ impl LanguageRegistry {
     ) {
         let state = &mut *self.state.write();
 
-        let was_loaded =
-            state.available_languages.register(name.clone(), grammar_name, matcher, hidden, manifest_name, load);
+        let was_loaded = state.available_languages.register(name.clone(), matcher, hidden, manifest_name, load);
         if was_loaded {
             state.languages.retain(|language| language.name() != name);
         }
@@ -153,15 +151,6 @@ impl LanguageRegistry {
         state.version += 1;
         state.reload_count += 1;
         state.subscription.send(()).ok();
-    }
-
-    /// Adds grammars to the registry. Language configurations reference a grammar by name. The
-    /// grammar controls how the source code is parsed.
-    pub fn register_native_grammars(
-        &self,
-        grammars: impl IntoIterator<Item = (impl Into<Arc<str>>, impl Into<tree_sitter::Language>)>,
-    ) {
-        self.state.write().grammars.extend(grammars.into_iter().map(|(name, grammar)| (name.into(), grammar.into())));
     }
 
     pub fn language_names(&self) -> Vec<LanguageName> {
@@ -178,7 +167,6 @@ impl LanguageRegistry {
         state.available_languages.add(AvailableLanguage {
             id: language.id,
             name: language.name(),
-            grammar: language.config.grammar.clone(),
             matcher: language.config.matcher.clone(),
             hidden: language.config.hidden,
             manifest_name: None,
@@ -309,18 +297,12 @@ impl LanguageRegistry {
                     .spawn(async move {
                         let language = async {
                             let loaded_language = (language_load)().await?;
-                            if let Some(grammar) = loaded_language.config.grammar.clone() {
-                                let grammar = Some(this.get_or_load_grammar(grammar).await?);
-
-                                Language::new_with_id(language_id, loaded_language.config, grammar)
+                            let has_grammar = loaded_language.grammar.is_some();
+                            let language =
+                                Language::new_with_id(language_id, loaded_language.config, loaded_language.grammar)
                                     .with_context_provider(loaded_language.context_provider)
-                                    .with_manifest(loaded_language.manifest_name)
-                                    .with_queries(loaded_language.queries)
-                            } else {
-                                Ok(Language::new_with_id(language_id, loaded_language.config, None)
-                                    .with_context_provider(loaded_language.context_provider)
-                                    .with_manifest(loaded_language.manifest_name))
-                            }
+                                    .with_manifest(loaded_language.manifest_name);
+                            if has_grammar { language.with_queries(loaded_language.queries) } else { Ok(language) }
                         }
                         .await;
 
@@ -410,12 +392,6 @@ impl LanguageRegistry {
         };
 
         self.load_language(language_id)
-    }
-
-    fn get_or_load_grammar(self: &Arc<Self>, name: Arc<str>) -> impl Future<Output = Result<tree_sitter::Language>> {
-        let grammar =
-            self.state.read().grammars.get(name.as_ref()).cloned().ok_or_else(|| anyhow!("no such grammar {name}"));
-        async move { grammar }
     }
 
     pub fn to_vec(&self) -> Vec<Arc<Language>> {

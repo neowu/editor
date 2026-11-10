@@ -416,6 +416,19 @@ pub trait LspAdapterDelegate: Send + Sync {
     async fn try_exec(&self, binary: LanguageServerBinary) -> Result<()>;
 }
 
+/// Error from [`LspAdapter::find_binary`] when the server's binary isn't installed.
+/// Reported as [`BinaryStatus::NotInstalled`] instead of a failure.
+#[derive(Debug)]
+pub struct ServerNotInstalled(pub String);
+
+impl fmt::Display for ServerNotInstalled {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for ServerNotInstalled {}
+
 // async_trait marks its boxed futures `#[must_use]`
 #[allow(clippy::double_must_use)]
 #[async_trait(?Send)]
@@ -442,14 +455,14 @@ pub trait LspAdapter: 'static + Send + Sync {
     /// Finds the binary to start the server with. Adapters override this instead of
     /// [`Self::check_if_user_installed`] to explain why the server can't start.
     async fn find_binary(&self, delegate: &Arc<dyn LspAdapterDelegate>, cx: &AsyncApp) -> Result<LanguageServerBinary> {
-        let Some(binary) = self.check_if_user_installed(delegate, cx).await else {
-            anyhow::bail!(
+        self.check_if_user_installed(delegate, cx).await.ok_or_else(|| {
+            ServerNotInstalled(format!(
                 "language server {} is not installed: `{}` was not found on your PATH",
                 self.name(),
                 self.binary_name(),
-            );
-        };
-        Ok(binary)
+            ))
+            .into()
+        })
     }
 
     fn process_diagnostics(&self, _: &mut lsp::PublishDiagnosticsParams, _: LanguageServerId) {}
@@ -1128,4 +1141,20 @@ pub fn range_from_lsp(range: lsp::Range) -> Range<Unclipped<PointUtf16>> {
         mem::swap(&mut start, &mut end);
     }
     start..end
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Context as _;
+
+    use super::ServerNotInstalled;
+
+    #[test]
+    fn server_not_installed_is_recognized_through_anyhow() {
+        let error = anyhow::Error::from(ServerNotInstalled("`terraform-ls` was not found".into()));
+        assert_eq!(error.to_string(), "`terraform-ls` was not found");
+        assert!(error.is::<ServerNotInstalled>());
+        assert!(Err::<(), _>(error).context("starting").unwrap_err().is::<ServerNotInstalled>());
+        assert!(!anyhow::anyhow!("spawn failed").is::<ServerNotInstalled>());
+    }
 }

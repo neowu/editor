@@ -22,6 +22,7 @@ use lsp::Uri;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 
+use crate::LanguageDef;
 use crate::npx;
 
 pub struct YamlLspAdapter;
@@ -79,4 +80,12 @@ pub(crate) fn settings() -> LanguageSettings {
         auto_indent_on_paste: false,
         word_completions: WordsCompletionMode::Fallback,
     }
+}
+
+pub(crate) fn languages() -> Vec<LanguageDef> {
+    vec![LanguageDef {
+        grammar: Some(tree_sitter_yaml::LANGUAGE.into()),
+        adapters: vec![Arc::new(YamlLspAdapter)],
+        ..LanguageDef::new("yaml", settings())
+    }]
 }

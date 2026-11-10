@@ -164,6 +164,9 @@ impl ActivityIndicator {
                                         proto::ServerBinaryStatus::Starting => BinaryStatus::Starting,
                                         proto::ServerBinaryStatus::Stopping => BinaryStatus::Stopping,
                                         proto::ServerBinaryStatus::Stopped => BinaryStatus::Stopped,
+                                        proto::ServerBinaryStatus::NotInstalled => BinaryStatus::NotInstalled {
+                                            message: status_update.message.clone().unwrap_or_default(),
+                                        },
                                         proto::ServerBinaryStatus::Failed => {
                                             let Some(error) = status_update.message.clone() else {
                                                 return;
@@ -430,7 +433,7 @@ impl ActivityIndicator {
         for status in &self.statuses {
             match &status.status {
                 LanguageServerStatusUpdate::Binary(BinaryStatus::Starting | BinaryStatus::Stopping) => {}
-                LanguageServerStatusUpdate::Binary(BinaryStatus::Stopped) => {
+                LanguageServerStatusUpdate::Binary(BinaryStatus::Stopped | BinaryStatus::NotInstalled { .. }) => {
                     servers_to_clear_statuses.insert(status.name.clone());
                 }
                 LanguageServerStatusUpdate::Binary(BinaryStatus::Failed { .. }) => {

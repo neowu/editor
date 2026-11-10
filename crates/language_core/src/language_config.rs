@@ -21,8 +21,6 @@ pub struct LanguageConfig {
     pub name: LanguageName,
     /// The name of this language for a Markdown code fence block
     pub code_fence_block_name: Option<Arc<str>>,
-    // The name of the native Tree-sitter grammar.
-    pub grammar: Option<Arc<str>>,
     /// The criteria for matching this language to a given file.
     #[serde(flatten)]
     pub matcher: Arc<LanguageMatcher>,
@@ -122,7 +120,6 @@ impl Default for LanguageConfig {
         Self {
             name: LanguageName::new_static(""),
             code_fence_block_name: None,
-            grammar: None,
             matcher: Arc::default(),
             brackets: Default::default(),
             auto_indent_using_last_non_empty_line: true,

@@ -2,13 +2,13 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
 use gpui::AsyncApp;
 use language::LanguageName;
 use language::LspAdapter;
 use language::LspAdapterDelegate;
+use language::ServerNotInstalled;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
 use project::Fs;
@@ -88,12 +88,13 @@ impl LspAdapter for TsgoLspAdapter {
             });
         }
 
-        npx::npx_binary(delegate, &[Self::NPX_PACKAGE], "tsc", Self::ARGUMENTS).await.with_context(|| {
-            format!(
+        npx::npx_binary(delegate, &[Self::NPX_PACKAGE], "tsc", Self::ARGUMENTS).await.ok_or_else(|| {
+            ServerNotInstalled(format!(
                 "language server {} is not installed: `node_modules/.bin/tsc` was not \
                     found in the project, and `npx` was not found on your PATH",
                 Self::SERVER_NAME,
-            )
+            ))
+            .into()
         })
     }
 

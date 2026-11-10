@@ -10,6 +10,8 @@ use language::language_settings::SoftWrap;
 use language::language_settings::WordsCompletionMode;
 use rustc_hash::FxHashMap;
 
+use crate::LanguageDef;
+
 /// Settings for Diff: patches must keep their exact whitespace.
 pub(crate) fn settings() -> LanguageSettings {
     LanguageSettings {
@@ -29,4 +31,8 @@ pub(crate) fn settings() -> LanguageSettings {
         auto_indent_on_paste: true,
         word_completions: WordsCompletionMode::Fallback,
     }
+}
+
+pub(crate) fn languages() -> Vec<LanguageDef> {
+    vec![LanguageDef::new("diff", settings())]
 }

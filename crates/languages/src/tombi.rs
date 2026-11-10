@@ -17,6 +17,7 @@ use language::language_settings::WordsCompletionMode;
 use lsp::LanguageServerBinary;
 use rustc_hash::FxHashMap;
 
+use crate::LanguageDef;
 use crate::npx;
 
 pub struct TombiLspAdapter;
@@ -59,4 +60,8 @@ pub(crate) fn settings() -> LanguageSettings {
         auto_indent_on_paste: true,
         word_completions: WordsCompletionMode::Fallback,
     }
+}
+
+pub(crate) fn languages() -> Vec<LanguageDef> {
+    vec![LanguageDef { adapters: vec![Arc::new(TombiLspAdapter)], ..LanguageDef::new("toml", settings()) }]
 }

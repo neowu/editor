@@ -34,7 +34,6 @@ gpui_macos = { path = "crates/gpui_macos", default-features = false }
 gpui_macros = { path = "crates/gpui_macros" }
 gpui_shared_string = { path = "crates/gpui_shared_string" }
 gpui_util = { path = "crates/gpui_util" }
-grammars = { path = "crates/grammars" }
 icons = { path = "crates/icons" }
 image_viewer = { path = "crates/image_viewer" }
 json_schema_store = { path = "crates/json_schema_store" }

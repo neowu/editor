@@ -31,24 +31,42 @@
   CSS, Go, HTML (with injected JS/CSS), JavaScript, JSON/JSONC, Markdown,
   Python, Rust, TSX, TypeScript, YAML. They drive highlighting plus
   structure-aware features (auto-indent, brackets, outline, text objects,
-  runnables, string/comment scopes). They are always compiled in: `grammars`
-  has no feature gate, and every bundled `config.toml` that names a grammar
-  must name one of these.
+  runnables, string/comment scopes). They are always compiled in (no feature gate).
+- One language, one file: everything for a language lives in
+  `crates/languages/src`. Its module (`rust.rs`) has a `languages()` function
+  returning its `LanguageDef`s: tree-sitter grammar, LSP adapters, task
+  context, manifest name, semantic token rules, settings and extra file globs.
+  Next to it, its directory (`rust/`) holds `config.toml` and the tree-sitter
+  queries, embedded and looked up by directory name. `languages::init` is the
+  single place that lists the modules and registers every definition.
+  - Modules that cover several languages return them all (Go/Go Mod/Go Work,
+    JSON/JSONC, Markdown/Markdown-Inline, Terraform/Terraform Vars,
+    TSX/TypeScript/JavaScript). Env uses the Bash grammar, JSONC the JSON
+    grammar and JavaScript the TSX grammar.
+  - The grammar is passed to the registry with the loaded language. There is
+    no grammar-name registry and `config.toml` has no `grammar` key.
 - Markdown uses the upstream `tree-sitter-md` crate from crates.io (no fork).
   Outlines use LSP document symbols by default
   (`document_symbols: "on"`), but Markdown overrides this to tree-sitter
   (`"off"`) because there is no Markdown language server; headings make up the
   outline. LSP symbols are fetched per buffer, so in a multibuffer refreshing one
   file never cancels another file's pending fetch.
-- Diff, Git Commit, Go Mod, Go Work and TOML are still registered
-  languages (file matching, comments, brackets, gopls for Go Mod/Work, tombi
-  for TOML, Diff's keep-trailing-whitespace settings, the Git Commit editor)
+- Diff, Git Commit, Go Mod, Go Work, Terraform, Terraform Vars and TOML are
+  still registered languages (file matching, comments, brackets, gopls for Go
+  Mod/Work, terraform-ls for Terraform, tombi for TOML, Diff's
+  keep-trailing-whitespace settings, the Git Commit editor)
   but have no grammar, so they get rough highlighting only and none of the
   structure-aware features.
 - TOML's language server is `tombi` (`tombi lsp`). It provides formatting
   (the TOML formatter under `"auto"`), lint diagnostics, completions and schema
   validation; configuration comes from the project's `tombi.toml` /
   `[tool.tombi]`.
+- Terraform (`.tf`) and Terraform Vars (`.tfvars`) use `terraform-ls`
+  (`terraform-ls serve`, from `PATH` only) with LSP language ids `terraform`
+  and `terraform-vars`. It provides completions, navigation, references,
+  hover, diagnostics, document symbols (the outline) and formatting (the
+  formatter under `"auto"`). Other HCL files (`.hcl`, stacks, tests) are not
+  registered and stay Plain Text.
 - rust-analyzer's check runs `cargo clippy`. Clippy's Cargo-group lints
   (`wildcard_dependencies`, etc.) have no span and are reported at line 1 of
   the clippy config, once per crate and target. rust-analyzer drops
@@ -150,9 +168,15 @@
   servers (css/html/json, yaml, bash, tombi) then fall back to
   `npx --yes --package <pkg> <bin>`, unpinned: npx prefers a version installed
   in the project, else the latest release from npm's cache, downloading it on
-  first use. A missing server is reported through the existing failed-server
-  status ("Failed to run …" in the activity indicator, "Error" in the LSP menu)
-  naming the server and the binary it looked for on `PATH`.
+  first use.
+- A missing server is not an error: its binary status is "Not Installed"
+  (`BinaryStatus::NotInstalled`, raised by `find_binary` returning
+  `ServerNotInstalled`). The LSP menu still lists it, greyed out like a stopped
+  server and labelled "Not Installed", with "View Message" naming the binary
+  it looked for on `PATH`; the activity indicator and the LSP button's
+  indicator dot show nothing. Restarting the server after installing it starts
+  it. Any other startup problem (spawn or initialize failure, tsgo finding
+  TypeScript < 7) is still a failure ("Failed to run …", "Error").
 - JavaScript, TypeScript and TSX run two servers, `tsgo` and `biome`. vtsls,
   typescript-language-server and ESLint are removed.
   - `tsgo` is the TypeScript 7 native language server (`tsc --lsp --stdio`).

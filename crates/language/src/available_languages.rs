@@ -21,7 +21,6 @@ use crate::ManifestName;
 pub struct AvailableLanguage {
     pub(super) id: LanguageId,
     pub(super) name: LanguageName,
-    pub(super) grammar: Option<Arc<str>>,
     pub(super) matcher: Arc<LanguageMatcher>,
     pub(super) hidden: bool,
     pub(super) load: LanguageLoader,
@@ -62,7 +61,6 @@ impl AvailableLanguages {
     pub(super) fn register(
         &mut self,
         name: LanguageName,
-        grammar: Option<Arc<str>>,
         matcher: Arc<LanguageMatcher>,
         hidden: bool,
         manifest_name: Option<ManifestName>,
@@ -70,7 +68,6 @@ impl AvailableLanguages {
     ) -> bool {
         if let Some(existing_language) = self.0.iter_mut().find(|existing_language| existing_language.name == name) {
             existing_language.id = LanguageId::new();
-            existing_language.grammar = grammar;
             existing_language.matcher = matcher;
             existing_language.hidden = hidden;
             existing_language.load = load;
@@ -82,7 +79,6 @@ impl AvailableLanguages {
             self.add(AvailableLanguage {
                 id: LanguageId::new(),
                 name,
-                grammar,
                 matcher,
                 hidden,
                 load,
