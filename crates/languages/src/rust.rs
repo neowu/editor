@@ -1008,17 +1008,53 @@ pub(crate) fn languages() -> Vec<LanguageDef> {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn semantic_token_rules_keep_personal_overrides_first() {
+    fn semantic_token_rules_map_to_theme_styles() {
         let rules = super::semantic_token_rules().rules;
         let first_style = |token_type: &str| {
-            rules.iter().find(|rule| rule.token_type.as_deref() == Some(token_type)).map(|rule| rule.style.clone())
+            rules
+                .iter()
+                .find(|rule| rule.token_type.as_deref() == Some(token_type))
+                .and_then(|rule| rule.style.first().cloned())
         };
-        assert_eq!(first_style("enumMember"), Some(vec!["type".to_string()]));
-        assert_eq!(first_style("namespace"), Some(vec!["variable".to_string()]));
+        for (token_type, style) in [
+            ("enum", "type"),
+            ("enumMember", "variant"),
+            ("namespace", "variable"),
+            ("lifetime", "lifetime"),
+            ("label", "lifetime"),
+            ("formatSpecifier", "string.escape"),
+        ] {
+            assert_eq!(first_style(token_type).as_deref(), Some(style), "{token_type}");
+        }
+
+        // Only bindings are underlined when mutable, not `&mut self` methods or compound assignments.
+        // These come first so the underline inherits the final colour, including the unsafe one.
+        let underlined: Vec<_> = rules
+            .iter()
+            .filter(|rule| rule.underline.is_some())
+            .map(|rule| (rule.token_type.as_deref().unwrap(), rule.token_modifiers.as_slice()))
+            .collect();
+        let mutable = ["mutable".to_string()];
         assert_eq!(
-            first_style("struct"),
-            Some(vec!["type.struct.definition".to_string(), "type.definition".to_string()])
+            underlined,
+            ["variable", "parameter", "selfKeyword", "static"].map(|token_type| (token_type, mutable.as_slice()))
         );
+        assert!(rules[..underlined.len()].iter().all(|rule| rule.underline.is_some()));
+
+        // The modifier-only rule applies to every token type and must stay ahead of the type mappings.
+        let unsafe_rule = &rules[underlined.len()];
+        assert_eq!(
+            (unsafe_rule.token_type.as_deref(), unsafe_rule.token_modifiers.as_slice()),
+            (None, ["unsafe".to_string()].as_slice())
+        );
+        assert!(unsafe_rule.foreground_color.is_some());
+
+        let control_flow = rules
+            .iter()
+            .position(|rule| rule.token_type.as_deref() == Some("operator") && rule.token_modifiers == ["controlFlow"])
+            .unwrap();
+        assert_eq!(rules[control_flow].style, ["keyword"]);
+        assert!(rules[control_flow + 1..].iter().any(|rule| rule.token_type.as_deref() == Some("operator")));
     }
 
     use std::fs;

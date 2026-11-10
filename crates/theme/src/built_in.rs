@@ -276,6 +276,7 @@ pub fn syntax_theme() -> SyntaxTheme {
             ("hint", HighlightStyle { color: Some(color(0x5b677fff)), ..HighlightStyle::default() }),
             ("keyword", HighlightStyle { color: Some(color(0x81a1c1ff)), ..HighlightStyle::default() }),
             ("label", HighlightStyle { color: Some(color(0x81a1c1ff)), ..HighlightStyle::default() }),
+            ("lifetime", HighlightStyle { color: Some(color(0x8fbcbbff)), ..HighlightStyle::default() }),
             (
                 "link_text",
                 HighlightStyle {
@@ -316,6 +317,7 @@ pub fn syntax_theme() -> SyntaxTheme {
             ("variable", HighlightStyle { color: Some(color(0xd8dee9ff)), ..HighlightStyle::default() }),
             ("variable.parameter", HighlightStyle { color: Some(color(0xd8dee9ff)), ..HighlightStyle::default() }),
             ("variable.special", HighlightStyle { color: Some(color(0x81a1c1ff)), ..HighlightStyle::default() }),
+            ("variant", HighlightStyle { color: Some(color(0xb48eadff)), ..HighlightStyle::default() }),
         ]
         .map(|(name, style): (&str, HighlightStyle)| (name.to_string(), style)),
     )
@@ -366,6 +368,8 @@ mod tests {
         assert_eq!(syntax.style_for_name("keyword").and_then(|style| style.color), Some(color(0x81a1c1ff)));
         assert_eq!(syntax.style_for_name("title").and_then(|style| style.font_weight), Some(FontWeight::BOLD));
         assert!(syntax.highlight_id("string.escape").is_some());
+        assert_eq!(syntax.style_for_name("lifetime").and_then(|style| style.color), Some(color(0x8fbcbbff)));
+        assert_eq!(syntax.style_for_name("variant").and_then(|style| style.color), Some(color(0xb48eadff)));
         assert!(syntax.style_for_name("missing").is_none());
     }
 

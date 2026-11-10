@@ -77,7 +77,7 @@
 
 ; Ensure enum variants are highlighted correctly regardless of naming convention
 (enum_variant
-  name: (identifier) @type)
+  name: (identifier) @variant)
 
 [
   "("

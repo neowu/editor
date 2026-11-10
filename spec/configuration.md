@@ -147,8 +147,17 @@ migrator, or Vim/Helix mode.
   distinct colour; token types without a rule produce no highlight. A language
   without rules gets no semantic highlighting (tree-sitter only), and editors
   don't request semantic tokens for it. Earlier rules take precedence; style names are tried in
-  order. The personal Rust rules (`enumMember` → `type`, `namespace` →
-  `variable`) sit before the generic mappings in the Rust file. There is no
+  order. The Rust file is written against the built-in theme: one theme key per
+  token type rust-analyzer emits by default, no fallback chains, and no rules
+  for specialised punctuation/operator tokens (not enabled). Enums and
+  all other types share `type`; enum variants use `variant` (they sit in value
+  and pattern position, so they read as constructors, not types); modules are
+  `variable`; lifetimes and
+  labels use `lifetime`; format specifiers use `string.escape`. Three rules
+  carry what only the server knows: `unsafe` is orange on any token type (a
+  modifier-only rule, kept first); `mutable` bindings (variables, parameters,
+  `self`, statics) are underlined, but not `&mut self` methods or compound
+  assignments; and `?` (`operator` + `controlFlow`) is coloured as a keyword. There is no
   default-rules viewer.
 - Settings-file actions, shortcuts, menu entries, and welcome/error links are
   removed, along with the project/server settings commands and profile selector.
