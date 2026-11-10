@@ -118,7 +118,7 @@ use text::BufferId;
 use text::ToPoint as _;
 use theme::ActiveTheme;
 use theme::Appearance;
-use theme::PlayerColor;
+use theme::CursorColors;
 use theme::built_in::BUFFER_LINE_HEIGHT;
 use ui::POPOVER_Y_PADDING;
 use ui::Tooltip;
@@ -885,8 +885,9 @@ impl EditorElement {
         end_row: DisplayRow,
         window: &Window,
         cx: &mut App,
-    ) -> (Vec<(PlayerColor, Vec<SelectionLayout>)>, BTreeMap<DisplayRow, LineHighlightSpec>, Option<DisplayPoint>) {
-        let mut selections: Vec<(PlayerColor, Vec<SelectionLayout>)> = Vec::new();
+    ) -> (Vec<(CursorColors, Vec<SelectionLayout>)>, BTreeMap<DisplayRow, LineHighlightSpec>, Option<DisplayPoint>)
+    {
+        let mut selections: Vec<(CursorColors, Vec<SelectionLayout>)> = Vec::new();
         let mut active_rows = BTreeMap::new();
         let mut newest_selection_head = None;
 
@@ -926,12 +927,12 @@ impl EditorElement {
                     layouts.push(layout);
                 }
 
-                let mut player = editor.current_user_player_color(cx);
+                let mut colors = editor.current_cursor_colors(cx);
                 if !editor.is_focused(window) {
                     const UNFOCUS_EDITOR_SELECTION_OPACITY: f32 = 0.5;
-                    player.selection = player.selection.opacity(UNFOCUS_EDITOR_SELECTION_OPACITY);
+                    colors.selection = colors.selection.opacity(UNFOCUS_EDITOR_SELECTION_OPACITY);
                 }
-                selections.push((player, layouts));
+                selections.push((colors, layouts));
             }
 
             if !editor.is_focused(window) && editor.show_cursor_when_unfocused {
@@ -953,8 +954,8 @@ impl EditorElement {
                         )
                     })
                     .collect::<Vec<_>>();
-                let player = editor.current_user_player_color(cx);
-                selections.push((player, layouts));
+                let colors = editor.current_cursor_colors(cx);
+                selections.push((colors, layouts));
             }
         });
 
@@ -964,7 +965,7 @@ impl EditorElement {
     fn collect_cursors(&self, snapshot: &EditorSnapshot, cx: &App) -> Vec<(DisplayPoint, Hsla)> {
         let editor = self.editor.read(cx);
         let mut cursors = Vec::new();
-        let color = cx.theme().player().cursor;
+        let color = cx.theme().cursor_colors().cursor;
         let mut add_cursor = |anchor: Anchor| {
             cursors.push((anchor.to_display_point(&snapshot.display_snapshot), color));
         };
@@ -978,7 +979,7 @@ impl EditorElement {
     fn layout_visible_cursors(
         &self,
         snapshot: &EditorSnapshot,
-        selections: &[(PlayerColor, Vec<SelectionLayout>)],
+        selections: &[(CursorColors, Vec<SelectionLayout>)],
         row_block_types: &FxHashMap<DisplayRow, bool>,
         visible_display_row_range: Range<DisplayRow>,
         line_layouts: &[LineWithInvisibles],
@@ -1014,7 +1015,7 @@ impl EditorElement {
                 cursor_shape_supports_cursor_motion(editor.cursor_shape).then(|| editor.selections.newest_anchor().id);
             editor.cursor_motions.reconcile_newest_selection(newest_animation_selection_id);
 
-            for (player_color, selections) in selections {
+            for (cursor_colors, selections) in selections {
                 for selection in selections {
                     let cursor_position = selection.head;
 
@@ -1124,7 +1125,7 @@ impl EditorElement {
                     }
 
                     let mut cursor = CursorLayout {
-                        color: player_color.cursor,
+                        color: cursor_colors.cursor,
                         block_width,
                         origin: point(x, y),
                         line_height,
@@ -2094,7 +2095,7 @@ impl EditorElement {
 
     fn bg_segments_per_row(
         rows: Range<DisplayRow>,
-        selections: &[(PlayerColor, Vec<SelectionLayout>)],
+        selections: &[(CursorColors, Vec<SelectionLayout>)],
         highlight_ranges: impl IntoIterator<Item = (Range<DisplayPoint>, Hsla)>,
         base_background: Hsla,
     ) -> Vec<Vec<(Range<usize>, Hsla)>> {
@@ -2106,8 +2107,8 @@ impl EditorElement {
             return Vec::new();
         }
         let highlight_iter = highlight_ranges.into_iter();
-        let selection_iter = selections.iter().flat_map(|(player_color, layouts)| {
-            let color = player_color.selection;
+        let selection_iter = selections.iter().flat_map(|(cursor_colors, layouts)| {
+            let color = cursor_colors.selection;
             layouts.iter().filter_map(move |selection_layout| {
                 if selection_layout.range.start != selection_layout.range.end {
                     Some((selection_layout.range.clone(), color))
@@ -4240,12 +4241,12 @@ impl EditorElement {
 
             let corner_radius = 0.15 * layout.position_map.line_height;
 
-            for (player_color, selections) in &layout.selections {
+            for (cursor_colors, selections) in &layout.selections {
                 for selection in selections {
                     self.paint_highlighted_range(
                         selection.range.clone(),
                         true,
-                        player_color.selection,
+                        cursor_colors.selection,
                         corner_radius,
                         corner_radius * 2.,
                         layout,
@@ -6907,7 +6908,7 @@ pub struct EditorLayout {
     cursors: Vec<(DisplayPoint, Hsla)>,
     visible_cursors: Vec<CursorLayout>,
     navigation_overlay_paint_commands: Vec<NavigationOverlayPaintCommand>,
-    selections: Vec<(PlayerColor, Vec<SelectionLayout>)>,
+    selections: Vec<(CursorColors, Vec<SelectionLayout>)>,
     test_indicators: Vec<AnyElement>,
     gutter_hover_buttons: Vec<AnyElement>,
     crease_toggles: Vec<Option<AnyElement>>,

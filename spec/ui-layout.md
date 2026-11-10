@@ -10,11 +10,23 @@ because it hurt readability; an opaque window is also cheaper to composite.
 
 ## Theme
 
-- The theme is constant: Nord (dark), a fully resolved Rust struct in
-  `theme::built_in`. Every colour is spelled out,
-  including the floating-card chrome, so there is no theme JSON, no
-  light/dark default palette, no refinement or fallback derivation, and no
-  `theme_settings` crate. To change colours, edit `theme::built_in` and rebuild.
+- The theme is constant: Nord (dark), built in Rust in `theme::built_in`, so
+  there is no theme JSON, no light/dark default palette, no refinement or
+  fallback derivation, and no `theme_settings` crate. To change colours, edit
+  `theme::built_in` and rebuild.
+- `theme::built_in` is the single origin of every colour, in three layers:
+  the Nord palette (the only raw hex values), role constants derived from it
+  by formula (`shade` scales RGB channels, `mix` flattens a translucent colour
+  onto a surface, alpha via `Hsla::alpha`), and theme fields that reference
+  roles only. No theme field holds a colour from outside the palette (except
+  the macOS traffic lights).
+- The theme is one lazily built `static`: `built_in::theme()` and `cx.theme()`
+  return `&'static Theme`. There is no theme global, no `theme::init`, and no
+  `Arc` around the theme, the syntax theme or the accents (a fixed array);
+  holders keep a `&'static SyntaxTheme`. Tests cannot install another theme.
+- Terminal bright / dim ANSI colours are the normal colour shaded +20% / -30%.
+- `StatusColors` only has the fields the UI reads; unused `_background` /
+  `_border` variants and `predictive` are gone.
 - There are no Vim/Helix theme colours (`vim_*`).
 - There is no theme registry, theme picker, light/dark mode toggle, `Settings`
   app-menu submenu, or theme settings (`theme`, `markdown_preview.theme`,
@@ -41,12 +53,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
 
 - The chrome is the theme's `panel_background`; `background`, the title bar
   colours and `status_bar_background` are set to it.
-- Card content is derived from the chrome colour instead of a new theme key:
-  the editor, gutter, toolbar and terminal backgrounds are shifted together so
-  the editor sits 5 points of HSL lightness below the chrome (above it in light
-  themes). The shift only ever adds contrast; themes that already have more are
-  left alone. Opaque active-line colours shift too; translucent ones already
-  follow the background.
+- Cards are darker than the chrome: the editor, gutter, toolbar, terminal and
+  active-tab backgrounds are one role, the chrome shaded -33% (about 5 points
+  of HSL lightness lower). The active line is translucent, so it follows the
+  card.
 - Each pane is its own card: its tab bar sits on the chrome, and everything
   below the tab bar is the card (`editor_background` fill, 10px radius, no
   border). Tab bars and inactive tabs take the chrome colour, so only the active

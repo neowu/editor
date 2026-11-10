@@ -1025,7 +1025,7 @@ impl BlockRenderer {
         let mut builder = MarkdownElementBuilder::new(
             container_style,
             self.style.base_text_style.clone(),
-            self.style.syntax.clone(),
+            self.style.syntax,
             self.highlights(cx),
         );
         builder.rendered_footnote_separator = footnote_separator_rendered;

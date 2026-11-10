@@ -1283,7 +1283,7 @@ impl Terminal {
                 // followed by a color request sequence.
 
                 let color = self.term.lock().colors()[index]
-                    .unwrap_or_else(|| to_vte_rgb(get_color_at_index(index, cx.theme().as_ref())));
+                    .unwrap_or_else(|| to_vte_rgb(get_color_at_index(index, cx.theme())));
                 self.write_to_pty(format(color).into_bytes());
             }
             TerminalBackendEvent::ChildExit(exit_status) => {
@@ -2824,7 +2824,7 @@ pub fn get_color_at_index(index: usize, theme: &Theme) -> Hsla {
         // See: https://github.com/alacritty/alacritty/blob/master/alacritty_terminal/src/term/color.rs
         256 => colors.terminal_foreground,
         257 => colors.terminal_background,
-        258 => theme.player().cursor,
+        258 => theme.cursor_colors().cursor,
         259 => colors.terminal_ansi_dim_black,
         260 => colors.terminal_ansi_dim_red,
         261 => colors.terminal_ansi_dim_green,

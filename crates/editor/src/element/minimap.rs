@@ -375,7 +375,7 @@ impl EditorElement {
 
             let background_highlights = editor.background_highlights.clone();
             let snapshot = layout.position_map.snapshot.clone();
-            let theme = cx.theme().clone();
+            let theme = cx.theme();
 
             editor.scrollbar_marker_state.dirty = false;
             editor.scrollbar_marker_state.pending_refresh = Some(cx.spawn_in(window, async move |editor, cx| {

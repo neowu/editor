@@ -242,8 +242,8 @@ impl PickerDelegate for ProjectSymbolsDelegate {
         let string_match = &self.matches.get(ix)?;
         let symbol = &self.symbols.get(string_match.candidate_id)?;
         let theme = cx.theme();
-        let local_player = theme.player();
-        let syntax_runs = styled_runs_for_code_label(&symbol.label, theme.syntax(), &local_player);
+        let cursor_colors = theme.cursor_colors();
+        let syntax_runs = styled_runs_for_code_label(&symbol.label, theme.syntax(), &cursor_colors);
 
         let path = match &symbol.path {
             SymbolLocation::InProject(project_path) => {

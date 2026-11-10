@@ -62,7 +62,7 @@ struct LanguageRegistryState {
     all_lsp_adapters: FxHashMap<LanguageServerName, Arc<CachedLspAdapter>>,
     loading_languages: FxHashMap<LanguageId, Vec<oneshot::Sender<Result<Arc<Language>>>>>,
     subscription: watch::Sender<()>,
-    theme: Option<Arc<Theme>>,
+    theme: Option<&'static Theme>,
     version: usize,
     reload_count: usize,
 }
@@ -191,9 +191,9 @@ impl LanguageRegistry {
         self.state.read().reload_count
     }
 
-    pub fn set_theme(&self, theme: Arc<Theme>) {
+    pub fn set_theme(&self, theme: &'static Theme) {
         let mut state = self.state.write();
-        state.theme = Some(theme.clone());
+        state.theme = Some(theme);
         for language in &state.languages {
             language.set_theme(theme.syntax());
         }
@@ -450,7 +450,7 @@ impl LanguageRegistryState {
     }
 
     fn add(&mut self, language: Arc<Language>) {
-        if let Some(theme) = self.theme.as_ref() {
+        if let Some(theme) = self.theme {
             language.set_theme(theme.syntax());
         }
         self.languages.push(language);

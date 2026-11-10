@@ -1043,7 +1043,7 @@ impl Element for TerminalElement {
             let line_height = terminal_settings.line_height.value();
             let font_size = buffer_font_size;
 
-            let theme = cx.theme().clone();
+            let theme = cx.theme();
 
             let link_style = HighlightStyle {
                 color: Some(theme.colors().link_text_hover),
@@ -1075,7 +1075,7 @@ impl Element for TerminalElement {
             };
 
             let text_system = cx.text_system();
-            let player_color = theme.player();
+            let cursor_colors = theme.cursor_colors();
             let match_color = theme.colors().search_match_background;
             let gutter;
             let (dimensions, line_height_px) = {
@@ -1177,7 +1177,7 @@ impl Element for TerminalElement {
                 relative_highlighted_ranges.push((search_match, match_color))
             }
             if let Some(selection) = selection {
-                relative_highlighted_ranges.push((selection.point_range(), player_color.selection));
+                relative_highlighted_ranges.push((selection.point_range(), cursor_colors.selection));
             }
 
             // then have that representation be converted to the appropriate highlight data structure
@@ -1288,7 +1288,7 @@ impl Element for TerminalElement {
                         bounds.origin,
                         bounds.size.width,
                         bounds.size.height,
-                        theme.player().cursor,
+                        theme.cursor_colors().cursor,
                         shape,
                         text,
                     )
@@ -1703,7 +1703,7 @@ pub fn convert_color(fg: &Color, theme: &Theme) -> Hsla {
             NamedColor::BrightWhite => colors.terminal_ansi_bright_white,
             NamedColor::Foreground => colors.terminal_foreground,
             NamedColor::Background => colors.terminal_ansi_background,
-            NamedColor::Cursor => theme.player().cursor,
+            NamedColor::Cursor => theme.cursor_colors().cursor,
             NamedColor::DimBlack => colors.terminal_ansi_dim_black,
             NamedColor::DimRed => colors.terminal_ansi_dim_red,
             NamedColor::DimGreen => colors.terminal_ansi_dim_green,

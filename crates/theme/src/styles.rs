@@ -1,6 +1,6 @@
 mod accents;
 mod colors;
-mod players;
+mod cursor;
 mod status;
 mod syntax;
 mod system;
@@ -10,7 +10,7 @@ pub use accents::*;
 #[allow(clippy::wildcard_imports)]
 pub use colors::*;
 #[allow(clippy::wildcard_imports)]
-pub use players::*;
+pub use cursor::*;
 #[allow(clippy::wildcard_imports)]
 pub use status::*;
 #[allow(clippy::wildcard_imports)]

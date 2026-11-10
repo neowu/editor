@@ -1,10 +1,7 @@
 pub mod built_in;
 mod styles;
 
-use std::sync::Arc;
-
 use gpui::App;
-use gpui::Global;
 use gpui::Hsla;
 use gpui::SharedString;
 use gpui::WindowBackgroundAppearance;
@@ -33,18 +30,19 @@ impl Appearance {
 
 /// Implementing this trait allows accessing the active theme.
 pub trait ActiveTheme {
-    /// Returns the active theme.
-    fn theme(&self) -> &Arc<Theme>;
+    /// Returns the theme. It is constant, so this never depends on app state.
+    fn theme(&self) -> &'static Theme;
 }
 
 impl ActiveTheme for App {
-    fn theme(&self) -> &Arc<Theme> {
-        GlobalTheme::theme(self)
+    #[inline(always)]
+    fn theme(&self) -> &'static Theme {
+        built_in::theme()
     }
 }
 
 /// A theme is the primary mechanism for defining the appearance of the UI.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Theme {
     /// The unique identifier for the theme.
     pub id: String,
@@ -69,10 +67,10 @@ impl Theme {
         &self.styles.accents
     }
 
-    /// Returns the local [`PlayerColor`] (cursor and selection) for the theme.
+    /// Returns the [`CursorColors`] (cursor and selection) for the theme.
     #[inline(always)]
-    pub const fn player(&self) -> PlayerColor {
-        self.styles.player
+    pub const fn cursor_colors(&self) -> CursorColors {
+        self.styles.cursor_colors
     }
 
     /// Returns the [`ThemeColors`] for the theme.
@@ -83,7 +81,7 @@ impl Theme {
 
     /// Returns the [`SyntaxTheme`] for the theme.
     #[inline(always)]
-    pub const fn syntax(&self) -> &Arc<SyntaxTheme> {
+    pub const fn syntax(&self) -> &SyntaxTheme {
         &self.styles.syntax
     }
 
@@ -119,29 +117,5 @@ impl Theme {
         let mut hsla = color;
         hsla.l = (hsla.l - amount).max(0.0);
         hsla
-    }
-}
-
-/// Installs the built-in theme as the active theme.
-pub fn init(cx: &mut App) {
-    cx.set_global(GlobalTheme::new(Arc::new(built_in::theme())));
-}
-
-/// The active theme.
-pub struct GlobalTheme {
-    theme: Arc<Theme>,
-}
-
-impl Global for GlobalTheme {}
-
-impl GlobalTheme {
-    /// Creates a new [`GlobalTheme`] with the given theme.
-    pub const fn new(theme: Arc<Theme>) -> Self {
-        Self { theme }
-    }
-
-    /// Returns the active theme.
-    pub fn theme(cx: &App) -> &Arc<Theme> {
-        &cx.global::<Self>().theme
     }
 }

@@ -212,7 +212,7 @@ struct HighlightRefreshInput {
     #[allow(clippy::type_complexity)]
     text_highlights: Vec<(HighlightKey, Arc<(HighlightStyle, Vec<Range<Anchor>>)>)>,
     semantic_highlights: Vec<SemanticHighlightEntry>,
-    syntax_theme: Arc<SyntaxTheme>,
+    syntax_theme: &'static SyntaxTheme,
 }
 
 impl HighlightsTreeView {
@@ -356,7 +356,7 @@ impl HighlightsTreeView {
         let project = editor.project().cloned()?;
         let multi_buffer = editor.buffer().clone();
         let multi_buffer_snapshot = multi_buffer.read(cx).snapshot(cx);
-        let syntax_theme = cx.theme().syntax().clone();
+        let syntax_theme = cx.theme().syntax();
 
         let (text_highlights, semantic_token_highlights) = display_map.update(cx, |display_map, _| {
             let text_highlights = display_map

@@ -6296,7 +6296,7 @@ pub fn panel_editor_container(_window: &mut Window, cx: &mut App) -> Div {
 pub(crate) fn git_commit_editor_style(font_size: gpui::Pixels, cx: &App) -> EditorStyle {
     EditorStyle {
         background: cx.theme().colors().editor_background,
-        local_player: cx.theme().player(),
+        cursor_colors: cx.theme().cursor_colors(),
         text: TextStyle {
             color: cx.theme().colors().text,
             font_family: font::buffer_font().family.clone(),
@@ -6307,7 +6307,7 @@ pub(crate) fn git_commit_editor_style(font_size: gpui::Pixels, cx: &App) -> Edit
             line_height: (font_size * BUFFER_LINE_HEIGHT).into(),
             ..Default::default()
         },
-        syntax: cx.theme().syntax().clone(),
+        syntax: cx.theme().syntax(),
         ..Default::default()
     }
 }

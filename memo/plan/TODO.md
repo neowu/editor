@@ -15,9 +15,6 @@
 
 # support to open in restricted mode? like not starting LSP?
 
-# lsp
-- add semantic token rules for typescript?
-
 # mermaid
 - pick the diagrams will use
 

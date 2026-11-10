@@ -138,12 +138,12 @@ pub(crate) fn render_text_input(editor: &Entity<Editor>, color_override: Option<
 
     let mut editor_style = EditorStyle {
         background: app.theme().colors().toolbar_background,
-        local_player: app.theme().player(),
+        cursor_colors: app.theme().cursor_colors(),
         text: text_style,
         ..EditorStyle::default()
     };
     if use_syntax {
-        editor_style.syntax = app.theme().syntax().clone();
+        editor_style.syntax = app.theme().syntax();
     }
 
     EditorElement::new(editor, editor_style)

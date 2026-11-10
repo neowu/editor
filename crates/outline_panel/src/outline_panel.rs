@@ -260,7 +260,7 @@ impl SearchState {
         query: String,
         previous_matches: FxHashMap<Range<editor::Anchor>, Arc<OnceLock<SearchData>>>,
         new_matches: Vec<Range<editor::Anchor>>,
-        theme: Arc<SyntaxTheme>,
+        theme: &'static SyntaxTheme,
         window: &Window,
         cx: &Context<OutlinePanel>,
     ) -> Self {
@@ -3755,7 +3755,7 @@ impl OutlinePanel {
                     new_search_query,
                     previous_matches,
                     new_search_matches,
-                    cx.theme().syntax().clone(),
+                    cx.theme().syntax(),
                     window,
                     cx,
                 ));

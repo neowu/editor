@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use gpui::AbsoluteLength;
 use gpui::BorderStyle;
 use gpui::DefiniteLength;
@@ -56,7 +54,7 @@ pub(crate) fn reset_preview_font_size(cx: &mut App) {
 /// (which may come from a theme other than the active editor theme).
 pub(crate) fn preview_markdown_style(
     colors: &ThemeColors,
-    syntax: &Arc<SyntaxTheme>,
+    syntax: &'static SyntaxTheme,
     window: &Window,
     cx: &App,
 ) -> MarkdownStyle {
@@ -136,7 +134,7 @@ pub(crate) fn preview_markdown_style(
     MarkdownStyle {
         base_text_style,
         container_style,
-        syntax: syntax.clone(),
+        syntax,
         selection_background_color: colors.element_selection_background,
         highlight_base_background: colors.editor_background,
         rule_color: colors.border,

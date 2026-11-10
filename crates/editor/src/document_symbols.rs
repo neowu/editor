@@ -56,11 +56,11 @@ impl Editor {
                 buffer.ensure_parsed(cx);
                 buffer.parsing_idle()
             });
-            let syntax = cx.theme().syntax().clone();
+            let syntax = cx.theme().syntax();
             cx.spawn(async move |_, cx| {
                 parsed.await;
                 let buffer_snapshot = buffer.read_with(cx, |buffer, _| buffer.snapshot());
-                cx.background_executor().spawn(async move { buffer_snapshot.outline(Some(&syntax)).items }).await
+                cx.background_executor().spawn(async move { buffer_snapshot.outline(Some(syntax)).items }).await
             })
         }
     }
@@ -132,14 +132,14 @@ impl Editor {
 
                     editor
                         .update(cx, |editor, cx| {
-                            let syntax = cx.theme().syntax().clone();
+                            let syntax = cx.theme().syntax();
                             let display_snapshot = editor.display_map.update(cx, |map, cx| map.snapshot(cx));
                             let language = buffer.read(cx).language().cloned();
                             for item in &mut items {
-                                if let Some(highlights) = highlights_from_buffer(&display_snapshot, item, &syntax) {
+                                if let Some(highlights) = highlights_from_buffer(&display_snapshot, item, syntax) {
                                     item.highlight_ranges = highlights;
                                 } else if let Some(language) = &language {
-                                    item.highlight_ranges = highlight_ranges_from_text(&item.text, language, &syntax);
+                                    item.highlight_ranges = highlight_ranges_from_text(&item.text, language, syntax);
                                 }
                             }
                             editor.lsp_document_symbols.insert(buffer_id, items);

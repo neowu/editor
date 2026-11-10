@@ -78,7 +78,7 @@ pub(crate) struct MarkdownElementBuilder {
     pub(crate) link_depth: usize,
     pub(crate) list_stack: Vec<ListStackEntry>,
     pub(crate) table: TableState,
-    syntax_theme: Arc<SyntaxTheme>,
+    syntax_theme: &'static SyntaxTheme,
     highlights: MarkdownHighlights,
 }
 
@@ -165,7 +165,7 @@ impl MarkdownElementBuilder {
     pub(crate) fn new(
         container_style: &StyleRefinement,
         base_text_style: TextStyle,
-        syntax_theme: Arc<SyntaxTheme>,
+        syntax_theme: &'static SyntaxTheme,
         highlights: MarkdownHighlights,
     ) -> Self {
         Self {

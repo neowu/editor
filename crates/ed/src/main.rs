@@ -245,7 +245,6 @@ fn main() {
         let app_state = Arc::new(AppState { languages, fs: fs.clone(), build_window_options, workspace_store });
         AppState::set_global(app_state.clone(), cx);
 
-        theme::init(cx);
         command_palette::init(cx);
 
         recent_projects::init(cx);
@@ -287,7 +286,7 @@ fn main() {
         svg_preview::init(cx);
         json_schema_store::init(cx);
 
-        app_state.languages.set_theme(cx.theme().clone());
+        app_state.languages.set_theme(cx.theme());
 
         initialize_workspace(app_state.clone(), cx);
         control_server::init(cx);

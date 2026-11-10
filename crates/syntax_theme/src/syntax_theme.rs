@@ -10,6 +10,12 @@ pub struct SyntaxTheme {
 }
 
 impl SyntaxTheme {
+    /// A shared theme with no styles, for places that need a `&'static` default.
+    pub fn empty() -> &'static Self {
+        static EMPTY: SyntaxTheme = SyntaxTheme { highlights: Vec::new(), capture_name_map: BTreeMap::new() };
+        &EMPTY
+    }
+
     pub fn new(highlights: impl IntoIterator<Item = (String, HighlightStyle)>) -> Self {
         let (capture_names, highlights) = highlights.into_iter().unzip();
 
@@ -45,5 +51,17 @@ impl SyntaxTheme {
                     .is_some_and(|remainder| remainder.is_empty() || remainder.starts_with('.'))
             })
             .map(|(_, index)| *index as u32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SyntaxTheme;
+
+    #[test]
+    fn test_empty_is_shared_and_has_no_styles() {
+        assert!(std::ptr::eq(SyntaxTheme::empty(), SyntaxTheme::empty()));
+        assert_eq!(SyntaxTheme::empty(), &SyntaxTheme::default());
+        assert!(SyntaxTheme::empty().style_for_name("keyword").is_none());
     }
 }

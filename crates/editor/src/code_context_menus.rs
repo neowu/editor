@@ -903,7 +903,7 @@ impl CompletionsMenu {
 
                         let highlights = gpui::combine_highlights(
                             match_highlights,
-                            styled_runs_for_code_label(&completion.label, &style.syntax, &style.local_player).map(
+                            styled_runs_for_code_label(&completion.label, style.syntax, &style.cursor_colors).map(
                                 |(range, mut highlight)| {
                                     // Ignore font weight for syntax highlighting, as we'll use it
                                     // for fuzzy matches.

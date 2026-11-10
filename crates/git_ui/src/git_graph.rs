@@ -384,7 +384,7 @@ pub(crate) fn format_timestamp(timestamp: i64) -> String {
     local_datetime.format(timestamp_format()).unwrap_or_default()
 }
 
-fn accent_colors_count(accents: &AccentColors) -> usize {
+const fn accent_colors_count(accents: &AccentColors) -> usize {
     accents.0.len()
 }
 
@@ -2894,7 +2894,7 @@ impl GitGraph {
             .and_then(|repo| repo.read(cx).branch.as_ref().map(|branch| SharedString::from(branch.name().to_string())));
 
         let theme = cx.theme();
-        let accent_colors = theme.accents().clone();
+        let accent_colors = *theme.accents();
         let background = theme.colors().editor_background;
 
         // Hover/selected highlight colors, matching `render_graph_canvas` so the

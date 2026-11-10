@@ -5,7 +5,6 @@ use std::fmt::Formatter;
 use std::marker;
 use std::result;
 use std::slice::Iter;
-use std::sync::LazyLock;
 
 use base64::engine::general_purpose::STANDARD;
 use ed_actions::workspace::CopyPath;
@@ -606,7 +605,7 @@ use text::OffsetUtf16;
 use text::Rope;
 use text::ToOffset as _;
 use theme::ActiveTheme;
-use theme::PlayerColor;
+use theme::CursorColors;
 use theme::StatusColors;
 use theme::SyntaxTheme;
 use theme::Theme;
@@ -860,10 +859,10 @@ pub enum SoftWrap {
 pub struct EditorStyle {
     pub background: Hsla,
     pub border: Hsla,
-    pub local_player: PlayerColor,
+    pub cursor_colors: CursorColors,
     pub text: TextStyle,
     pub scrollbar_width: Pixels,
-    pub syntax: Arc<SyntaxTheme>,
+    pub syntax: &'static SyntaxTheme,
     pub status: StatusColors,
     pub inlay_hints_style: HighlightStyle,
     pub unnecessary_code_fade: f32,
@@ -872,14 +871,13 @@ pub struct EditorStyle {
 
 impl Default for EditorStyle {
     fn default() -> Self {
-        static NONE_SYNTAX: LazyLock<Arc<SyntaxTheme>> = LazyLock::new(|| Arc::new(SyntaxTheme::default()));
         Self {
             background: Hsla::default(),
             border: Hsla::default(),
-            local_player: built_in::player_color(),
+            cursor_colors: built_in::cursor_colors(),
             text: TextStyle::default(),
             scrollbar_width: Pixels::default(),
-            syntax: NONE_SYNTAX.clone(),
+            syntax: SyntaxTheme::empty(),
             status: built_in::status_colors(),
             inlay_hints_style: HighlightStyle::default(),
             unnecessary_code_fade: Default::default(),
@@ -3567,8 +3565,12 @@ impl Editor {
         self.context_menu.borrow().as_ref().map(|menu| menu.origin())
     }
 
-    fn current_user_player_color(&self, cx: &App) -> PlayerColor {
-        if self.read_only(cx) { cx.theme().player().read_only() } else { self.style.as_ref().unwrap().local_player }
+    fn current_cursor_colors(&self, cx: &App) -> CursorColors {
+        if self.read_only(cx) {
+            cx.theme().cursor_colors().read_only()
+        } else {
+            self.style.as_ref().unwrap().cursor_colors
+        }
     }
 
     pub fn render_context_menu(
@@ -5839,10 +5841,10 @@ impl Editor {
                                             &rename_editor,
                                             EditorStyle {
                                                 background: cx.theme().system().transparent,
-                                                local_player: cx.editor_style.local_player,
+                                                cursor_colors: cx.editor_style.cursor_colors,
                                                 text: text_style,
                                                 scrollbar_width: cx.editor_style.scrollbar_width,
-                                                syntax: cx.editor_style.syntax.clone(),
+                                                syntax: cx.editor_style.syntax,
                                                 status: cx.editor_style.status.clone(),
                                                 inlay_hints_style: HighlightStyle {
                                                     font_weight: Some(FontWeight::BOLD),
@@ -7849,10 +7851,10 @@ impl Editor {
         EditorStyle {
             background,
             border: cx.theme().colors().border,
-            local_player: cx.theme().player(),
+            cursor_colors: cx.theme().cursor_colors(),
             text: text_style,
             scrollbar_width: EditorElement::SCROLLBAR_WIDTH,
-            syntax: cx.theme().syntax().clone(),
+            syntax: cx.theme().syntax(),
             status: cx.theme().status().clone(),
             inlay_hints_style: make_inlay_hints_style(cx),
             unnecessary_code_fade: UNNECESSARY_CODE_FADE,
@@ -8686,8 +8688,8 @@ impl ui_input::ErasedEditor for ErasedEditorImpl {
         };
         let editor_style = EditorStyle {
             background: theme_color.ghost_element_background,
-            local_player: cx.theme().player(),
-            syntax: cx.theme().syntax().clone(),
+            cursor_colors: cx.theme().cursor_colors(),
+            syntax: cx.theme().syntax(),
             text: text_style,
             ..Default::default()
         };
@@ -8771,7 +8773,7 @@ impl InvalidationRegion for SnippetState {
 pub fn styled_runs_for_code_label<'a>(
     label: &'a CodeLabel,
     syntax_theme: &'a theme::SyntaxTheme,
-    local_player: &'a theme::PlayerColor,
+    cursor_colors: &'a theme::CursorColors,
 ) -> impl 'a + Iterator<Item = (Range<usize>, HighlightStyle)> {
     let fade_out = HighlightStyle { fade_out: Some(0.35), ..Default::default() };
 
@@ -8784,9 +8786,9 @@ pub fn styled_runs_for_code_label<'a>(
     let mut prev_end = label.filter_range.end;
     Either::Right(label.runs.iter().enumerate().flat_map(move |(ix, (range, highlight_id))| {
         let style = if *highlight_id == language::HighlightId::TABSTOP_INSERT_ID {
-            HighlightStyle { color: Some(local_player.cursor), ..Default::default() }
+            HighlightStyle { color: Some(cursor_colors.cursor), ..Default::default() }
         } else if *highlight_id == language::HighlightId::TABSTOP_REPLACE_ID {
-            HighlightStyle { background_color: Some(local_player.selection), ..Default::default() }
+            HighlightStyle { background_color: Some(cursor_colors.selection), ..Default::default() }
         } else if let Some(style) = syntax_theme.get(*highlight_id).copied() {
             style
         } else {

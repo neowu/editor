@@ -5551,7 +5551,7 @@ impl Render for Workspace {
 
         let ui_font = font::setup_ui_font(window, cx);
 
-        let theme = cx.theme().clone();
+        let theme = cx.theme();
         let colors = theme.colors();
         let notification_entities =
             self.notifications.iter().map(|(_, notification)| notification.entity_id()).collect::<Vec<_>>();

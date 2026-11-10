@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use gpui::App;
 use gpui::Hsla;
 use gpui::SharedString;
@@ -10,7 +8,7 @@ use strum::IntoEnumIterator;
 
 use crate::AccentColors;
 use crate::ActiveTheme;
-use crate::PlayerColor;
+use crate::CursorColors;
 use crate::StatusColors;
 use crate::SyntaxTheme;
 use crate::SystemColors;
@@ -566,23 +564,23 @@ pub fn all_theme_colors(cx: &mut App) -> Vec<(Hsla, SharedString)> {
         .collect()
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct ThemeStyles {
     /// The background appearance of the window.
     pub window_background_appearance: WindowBackgroundAppearance,
     pub system: SystemColors,
     /// An array of colors used for theme elements that iterate through a series of colors.
     ///
-    /// Example: Player colors and indent guides, etc.
+    /// Example: git blame and indent guides, etc.
     pub accents: AccentColors,
 
     pub colors: ThemeColors,
 
     pub status: StatusColors,
 
-    pub player: PlayerColor,
+    pub cursor_colors: CursorColors,
 
-    pub syntax: Arc<SyntaxTheme>,
+    pub syntax: SyntaxTheme,
 }
 
 #[cfg(test)]

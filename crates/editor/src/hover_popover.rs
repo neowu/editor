@@ -876,7 +876,7 @@ pub fn hover_markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
             }),
             ..Default::default()
         },
-        syntax: cx.theme().syntax().clone(),
+        syntax: cx.theme().syntax(),
         selection_background_color: cx.theme().colors().element_selection_background,
         heading: StyleRefinement::default().font_weight(FontWeight::BOLD).text_base().mt(rems(1.)).mb_0(),
         table_columns_min_size: true,
@@ -922,7 +922,7 @@ pub fn diagnostics_markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
             }),
             ..Default::default()
         },
-        syntax: cx.theme().syntax().clone(),
+        syntax: cx.theme().syntax(),
         selection_background_color: cx.theme().colors().element_selection_background,
         height_is_multiple_of_line_height: true,
         heading: StyleRefinement::default().font_weight(FontWeight::BOLD).text_base().mb_0(),

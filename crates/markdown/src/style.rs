@@ -3,7 +3,6 @@ use ui::prelude::px;
 use ui::prelude::rems;
 
 use super::App;
-use super::Arc;
 use super::BlockQuoteKind;
 use super::Hsla;
 use super::Pixels;
@@ -64,7 +63,7 @@ pub struct MarkdownStyle {
     pub rule_color: Hsla,
     pub block_quote_border_color: Hsla,
     pub block_quote_kind_colors: BlockQuoteKindColors,
-    pub syntax: Arc<SyntaxTheme>,
+    pub syntax: &'static SyntaxTheme,
     pub selection_background_color: Hsla,
     /// Background behind the rendered markdown, used to blend translucent highlights.
     pub highlight_base_background: Hsla,
@@ -99,7 +98,7 @@ impl Default for MarkdownStyle {
             rule_color: Hsla::default(),
             block_quote_border_color: Hsla::default(),
             block_quote_kind_colors: BlockQuoteKindColors::default(),
-            syntax: Arc::new(SyntaxTheme::default()),
+            syntax: SyntaxTheme::empty(),
             selection_background_color: Hsla::default(),
             highlight_base_background: Hsla::default(),
             minimum_highlight_contrast: 0.,

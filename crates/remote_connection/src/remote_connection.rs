@@ -210,7 +210,7 @@ impl Render for RemoteConnectionModal {
         let nickname = self.prompt.read(cx).nickname.clone();
         let connection_string = self.prompt.read(cx).connection_string.clone();
 
-        let theme = cx.theme().clone();
+        let theme = cx.theme();
         let body_color = theme.colors().editor_background;
 
         v_flex()
