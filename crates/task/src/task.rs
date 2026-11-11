@@ -3,8 +3,6 @@
 use std::fmt;
 use std::fmt::Display;
 
-use proto::shell::ShellType;
-use proto::shell::WithArguments;
 mod task_template;
 
 use std::borrow::Cow;
@@ -12,7 +10,6 @@ use std::collections::hash_map;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use anyhow::Context as _;
 use gpui::SharedString;
 use rustc_hash::FxHashMap;
 use serde::Serialize;
@@ -270,26 +267,3 @@ pub struct TaskContext {
 /// This is a new type representing a 'tag' on a 'runnable symbol', typically a test of main() function, found via treesitter.
 #[derive(Clone, Debug)]
 pub struct RunnableTag(pub SharedString);
-
-pub fn shell_from_proto(proto: proto::Shell) -> anyhow::Result<Shell> {
-    let shell_type = proto.shell_type.context("invalid shell type")?;
-    let shell = match shell_type {
-        ShellType::System(_) => Shell::System,
-        ShellType::Program(program) => Shell::Program(program),
-        ShellType::WithArguments(program) => {
-            Shell::WithArguments { program: program.program, args: program.args, title_override: None }
-        }
-    };
-    Ok(shell)
-}
-
-pub fn shell_to_proto(shell: Shell) -> proto::Shell {
-    let shell_type = match shell {
-        Shell::System => ShellType::System(proto::System {}),
-        Shell::Program(program) => ShellType::Program(program),
-        Shell::WithArguments { program, args, title_override: _ } => {
-            ShellType::WithArguments(WithArguments { program, args })
-        }
-    };
-    proto::Shell { shell_type: Some(shell_type) }
-}

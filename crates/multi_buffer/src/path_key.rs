@@ -8,7 +8,6 @@ use gpui::Context;
 use gpui::Entity;
 use itertools::Itertools;
 use language::Buffer;
-use language::BufferEditSource;
 use language::BufferSnapshot;
 use rope::Point;
 use sum_tree::Cursor;
@@ -59,7 +58,7 @@ impl PathKey {
     pub fn for_buffer(buffer: &Entity<Buffer>, cx: &App) -> Self {
         let buffer = buffer.read(cx);
         if let Some(file) = buffer.file() {
-            Self::with_sort_prefix(file.worktree_id(cx).to_proto(), file.path().clone())
+            Self::with_sort_prefix(file.worktree_id(cx).to_usize() as u64, file.path().clone())
         } else {
             Self {
                 sort_prefix: None,
@@ -571,7 +570,7 @@ impl MultiBuffer {
         let edits = Self::sync_diff_transforms(snapshot, edits, DiffChangeKind::BufferEdited);
         if !edits.is_empty() {
             self.subscriptions.publish(edits);
-            cx.emit(Event::Edited { edited_buffer: None, source: BufferEditSource::User });
+            cx.emit(Event::Edited { edited_buffer: None });
             cx.emit(Event::BufferRangesUpdated { buffer, path_key: path_key.clone(), ranges: new_ranges });
             cx.notify();
         } else if primary_ranges_changed {
@@ -704,7 +703,7 @@ impl MultiBuffer {
         if !edits.is_empty() {
             self.subscriptions.publish(edits);
         }
-        cx.emit(Event::Edited { edited_buffer: None, source: BufferEditSource::User });
+        cx.emit(Event::Edited { edited_buffer: None });
         cx.notify();
     }
 
@@ -759,7 +758,7 @@ impl MultiBuffer {
             self.subscriptions.publish(edits);
         }
 
-        cx.emit(Event::Edited { edited_buffer: None, source: BufferEditSource::User });
+        cx.emit(Event::Edited { edited_buffer: None });
         cx.notify();
     }
 }

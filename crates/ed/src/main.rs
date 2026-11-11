@@ -22,7 +22,6 @@ use std::env;
 use std::io::IsTerminal;
 use std::io::{self};
 use std::path::Path;
-use std::path::PathBuf;
 use std::process;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -53,12 +52,10 @@ use gpui::Task;
 use gpui::TaskExt;
 use gpui::UpdateGlobal as _;
 use language::LanguageRegistry;
-use recent_projects::open_remote_project;
 use rustc_hash::FxHashMap;
 use theme::ActiveTheme;
 use util::ResultExt;
 use workspace::AppState;
-use workspace::SerializedWorkspaceLocation;
 use workspace::SessionWorkspace;
 use workspace::Toast;
 use workspace::Workspace;
@@ -355,15 +352,6 @@ fn main() {
 }
 
 fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &App) {
-    if let Some(connection_options) = request.remote_connection {
-        cx.spawn(async move |cx| {
-            let paths: Vec<PathBuf> = request.open_paths.into_iter().map(PathBuf::from).collect();
-            open_remote_project(connection_options, paths, app_state, workspace::OpenOptions::default(), cx).await
-        })
-        .detach_and_log_err(cx);
-        return;
-    }
-
     let mut task = None;
     if !request.open_paths.is_empty() || !request.diff_paths.is_empty() {
         task = Some(cx.spawn(async move |cx| {
@@ -400,28 +388,7 @@ pub(crate) async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &m
     if let Some(session_workspaces) = restorable_workspaces(cx, &app_state).await {
         let mut error_count = 0;
         for session_workspace in session_workspaces {
-            let result = match &session_workspace.location {
-                SerializedWorkspaceLocation::Local => {
-                    restore_workspace(session_workspace, app_state.clone(), cx).await.map(|_| ())
-                }
-                SerializedWorkspaceLocation::Remote(connection_options) => {
-                    let paths = session_workspace.paths.ordered_paths().cloned().collect::<Vec<_>>();
-                    open_remote_project(
-                        connection_options.clone(),
-                        paths,
-                        app_state.clone(),
-                        workspace::OpenOptions {
-                            // Each saved window must retain its own project roots,
-                            // even when some roots also appear in another window.
-                            workspace_matching: workspace::WorkspaceMatching::None,
-                            ..Default::default()
-                        },
-                        cx,
-                    )
-                    .await
-                    .map(|_| ())
-                }
-            };
+            let result = restore_workspace(session_workspace, app_state.clone(), cx).await.map(|_| ());
 
             if let Err(error) = result {
                 log::error!("Failed to restore workspace: {error:#}");
@@ -467,22 +434,6 @@ pub(crate) async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &m
                 })
                 .await?;
             }
-        }
-
-        // If the user cancelled a failed remote connection at startup,
-        // open_remote_project returns Ok but removes the window, so error_count
-        // stays 0 and the toast fallback above does not trigger. Without this
-        // check, ed would exit silently.
-        if cx.update(|cx| cx.windows().is_empty()) {
-            cx.update(|cx| {
-                workspace::open_new(
-                    workspace::OpenOptions::default(),
-                    app_state.clone(),
-                    cx,
-                    |workspace, window, cx| Editor::new_file(workspace, &workspace::NewFile, window, cx),
-                )
-            })
-            .await?;
         }
     } else {
         cx.update(|cx| {
@@ -546,7 +497,7 @@ struct Args {
     /// Use `path:line:row` syntax to open a file at a specific location.
     /// Non-existing paths and directories will ignore `:line:row` suffix.
     ///
-    /// URLs can be `file://` or `ssh://` scheme.
+    /// URLs can use the `file://` scheme.
     paths_or_urls: Vec<String>,
 
     /// Pairs of file paths to diff. Can be specified multiple times.
@@ -571,7 +522,7 @@ fn parse_url_arg(arg: &str, _cx: &App) -> String {
     match std::fs::canonicalize(Path::new(&arg)) {
         Ok(path) => format!("file://{}", path.display()),
         Err(_) => {
-            if arg.starts_with("file://") || arg.starts_with("ssh://") {
+            if arg.starts_with("file://") {
                 arg.into()
             } else {
                 format!("file://{arg}")

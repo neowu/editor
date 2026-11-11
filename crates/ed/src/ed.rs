@@ -14,7 +14,6 @@ pub(crate) mod open_listener;
 
 use std::borrow::Cow;
 use std::collections::VecDeque;
-use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -66,9 +65,7 @@ use language_tools::lsp_button::LspButton;
 use language_tools::lsp_button::{self};
 use language_tools::lsp_log_view::LspLogToolbarItemView;
 use outline_panel::OutlinePanel;
-use project::DirectoryLister;
 use project_panel::ProjectPanel;
-use recent_projects::open_remote_project;
 use search::project_search::ProjectSearchBar;
 use terminal_view::terminal_panel::TerminalPanel;
 use terminal_view::terminal_panel::{self};
@@ -343,7 +340,6 @@ fn register_actions(app_state: Arc<AppState>, workspace: &mut Workspace, _: &mut
         .register_action(|workspace, action: &workspace::Open, window, cx| {
             workspace::prompt_for_open_path_and_open(
                 workspace,
-                workspace.app_state().clone(),
                 PathPromptOptions { files: true, directories: true, multiple: true, prompt: None },
                 action.create_new_window.unwrap_or(false),
                 window,
@@ -354,44 +350,11 @@ fn register_actions(app_state: Arc<AppState>, workspace: &mut Workspace, _: &mut
             let directories = cx.can_select_mixed_files_and_dirs();
             workspace::prompt_for_open_path_and_open(
                 workspace,
-                workspace.app_state().clone(),
                 PathPromptOptions { files: true, directories, multiple: true, prompt: None },
                 true,
                 window,
                 cx,
             );
-        })
-        .register_action(|workspace, action: &ed_actions::OpenRemote, window, cx| {
-            if !action.from_existing_connection {
-                cx.propagate();
-                return;
-            }
-            // You need existing remote connection to open it this way
-            if workspace.project().read(cx).is_local() {
-                return;
-            }
-            let create_new_window = action.create_new_window.unwrap_or(false);
-
-            let paths = workspace.prompt_for_open_path(
-                PathPromptOptions { files: true, directories: true, multiple: true, prompt: None },
-                DirectoryLister::Project(workspace.project().clone()),
-                window,
-                cx,
-            );
-            cx.spawn_in(window, async move |this, cx| {
-                let Some(paths) = paths.await.log_err().flatten() else {
-                    return;
-                };
-                if let Some(task) = this
-                    .update_in(cx, |this, window, cx| {
-                        open_new_ssh_project_from_project(this, paths, create_new_window, window, cx)
-                    })
-                    .log_err()
-                {
-                    task.await.log_err();
-                }
-            })
-            .detach()
         })
         .register_action(|_, _: &ed_actions::IncreaseUiFontSize, _window, cx| {
             font::adjust_ui_font_size(cx, |size| size + px(1.0));
@@ -746,36 +709,6 @@ pub fn initialize_keymap(cx: &mut App) {
     let menus = app_menus(cx);
     cx.set_menus(menus);
     cx.set_dock_menu(vec![gpui::MenuItem::action("New Window", workspace::NewWindow)]);
-}
-
-pub fn open_new_ssh_project_from_project(
-    workspace: &Workspace,
-    paths: Vec<PathBuf>,
-    create_new_window: bool,
-    window: &Window,
-    cx: &Context<Workspace>,
-) -> Task<anyhow::Result<()>> {
-    let app_state = workspace.app_state().clone();
-    let Some(ssh_client) = workspace.project().read(cx).remote_client() else {
-        return Task::ready(Err(anyhow::anyhow!("Not an ssh project")));
-    };
-    let connection_options = ssh_client.read(cx).connection_options();
-    let requesting_window = if create_new_window { None } else { window.window_handle().downcast::<Workspace>() };
-    cx.spawn_in(window, async move |_, cx| {
-        open_remote_project(
-            connection_options,
-            paths,
-            app_state,
-            workspace::OpenOptions {
-                workspace_matching: workspace::WorkspaceMatching::None,
-                requesting_window,
-                ..Default::default()
-            },
-            cx,
-        )
-        .await
-        .map(|_| ())
-    })
 }
 
 fn open_bundled_file(

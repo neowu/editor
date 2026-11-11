@@ -59,8 +59,5 @@ usvg.workspace = true
 uuid = { workspace = true, features = ["v4"] }
 waker-fn = "1.2.0"
 
-[target.'cfg(target_os = "macos")'.dependencies]
-log.workspace = true
-
 [lints]
 workspace = true

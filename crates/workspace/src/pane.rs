@@ -2004,11 +2004,7 @@ impl Pane {
                 let new_path = pane.update_in(cx, |pane, window, cx| {
                     pane.activate_item(item_ix, true, true, window, cx);
                     pane.workspace.update(cx, |workspace, cx| {
-                        let lister = if workspace.project().read(cx).is_local() {
-                            DirectoryLister::Local(workspace.project().clone(), workspace.app_state().fs.clone())
-                        } else {
-                            DirectoryLister::Project(workspace.project().clone())
-                        };
+                        let lister = DirectoryLister(workspace.project().clone());
                         workspace.prompt_for_new_path(lister, Some(suggested_name), window, cx)
                     })
                 })??;
@@ -2561,14 +2557,7 @@ impl Pane {
 
                         let visible_in_project_panel =
                             relative_path.is_some() && worktree.is_some_and(|worktree| worktree.read(cx).is_visible());
-                        let is_local = pane.read(cx).project.upgrade().is_some_and(|project| {
-                            let project = project.read(cx);
-                            project.is_local()
-                        });
-                        let is_remote =
-                            pane.read(cx).project.upgrade().is_some_and(|project| project.read(cx).is_remote());
-
-                        let entry_id = entry.to_proto();
+                        let entry_id = entry.to_usize() as u64;
 
                         menu = menu
                             .separator()
@@ -2594,10 +2583,10 @@ impl Pane {
                                     }),
                                 )
                             })
-                            .when(is_local, |menu| {
+                            .map(|menu| {
                                 menu.when_some(reveal_path, |menu, reveal_path| {
                                     menu.separator().entry(
-                                        utils::reveal_in_file_manager_label(is_remote),
+                                        utils::reveal_in_file_manager_label(),
                                         Some(Box::new(RevealInFileManager)),
                                         window.handler_for(&pane, move |pane, _, cx| {
                                             if let Some(project) = pane.project.upgrade() {
@@ -2620,7 +2609,7 @@ impl Pane {
                                         pane.project
                                             .update(cx, |_, cx| {
                                                 cx.emit(project::Event::RevealInProjectPanel(
-                                                    ProjectEntryId::from_proto(entry_id),
+                                                    ProjectEntryId::from_usize(entry_id as usize),
                                                 ))
                                             })
                                             .ok();
@@ -2633,8 +2622,7 @@ impl Pane {
                                     Some(Box::new(OpenInTerminal)),
                                     window.handler_for(&pane, move |_, window, cx| {
                                         window.dispatch_action(
-                                            OpenTerminal { working_directory: parent_abs_path.clone(), local: false }
-                                                .boxed_clone(),
+                                            OpenTerminal { working_directory: parent_abs_path.clone() }.boxed_clone(),
                                             cx,
                                         );
                                     }),
@@ -3153,7 +3141,7 @@ fn empty_pane_hints(hints: EmptyPaneHints) -> Vec<(&'static str, &'static str, I
             command_palette,
         ],
         EmptyPaneHints::Terminal => vec![
-            ("empty-pane-new-terminal", "New Terminal", IconName::Plus, crate::NewTerminal::default().boxed_clone()),
+            ("empty-pane-new-terminal", "New Terminal", IconName::Plus, crate::NewTerminal.boxed_clone()),
             command_palette,
         ],
     }
@@ -3299,7 +3287,7 @@ impl Render for Pane {
                 pane.close_multibuffer_items(action, window, cx).detach_and_log_err(cx)
             }))
             .on_action(cx.listener(|pane: &mut Self, action: &RevealInProjectPanel, _window, cx| {
-                let entry_id = action.entry_id.map(ProjectEntryId::from_proto);
+                let entry_id = action.entry_id.map(|id| ProjectEntryId::from_usize(id as usize));
                 let active_project_path = pane.active_item().and_then(|item| item.project_path(cx));
 
                 pane.project
@@ -3892,7 +3880,7 @@ mod tests {
         let hints = empty_pane_hints(EmptyPaneHints::Terminal);
         let labels: Vec<_> = hints.iter().map(|(_, label, _, _)| *label).collect();
         assert_eq!(labels, ["New Terminal", "Command Palette"]);
-        assert!(hints[0].3.partial_eq(&crate::NewTerminal::default()));
+        assert!(hints[0].3.partial_eq(&crate::NewTerminal));
     }
 
     #[test]

@@ -1,5 +1,4 @@
 use std::error;
-use std::process::Command;
 use std::vec::Drain;
 mod app_menu;
 mod keyboard;
@@ -101,19 +100,7 @@ use crate::size;
 /// Space or virtual desktop, or on a display that is asleep is `Hidden`. A
 /// window only partly covered by other windows is `Visible`.
 ///
-/// Each platform reports from a single source, and what that source can see
-/// differs:
-///
-/// * macOS: `NSWindow.occlusionState`. Covers all of the cases above.
-/// * Windows: `WS_VISIBLE` and the minimized state. Windows keeps compositing
-///   covered windows for thumbnails and Alt-Tab and offers no occlusion
-///   notification, so a fully covered window stays `Visible`. Display sleep is
-///   not reported either.
-/// * Wayland: the `xdg_toplevel` `suspended` state (xdg-shell v6). Compositors
-///   that don't support it never report `Hidden`.
-/// * X11: mapped state plus `VisibilityNotify`. Compositing window managers
-///   generally never report a window as fully obscured, so covering is only
-///   detected without compositing.
+/// Reported from `NSWindow.occlusionState`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WindowVisibility {
     /// At least part of the window is being presented; frames drawn for it
@@ -169,10 +156,8 @@ pub fn refresh_interval_from_hz(hertz: f64) -> Option<Duration> {
 
 /// Controls whether the application participates in the system's foreground UI.
 ///
-/// Only has an effect on macOS; other platforms ignore this setting. There,
-/// [`App::request_windowing`] sets it: `Accessory` while headless and `Regular` while windowed.
-/// Set it directly with [`App::set_activation_policy`] for the one case that doesn't cover: an
-/// accessory app that shows windows, such as a menu bar utility.
+/// Set it with [`App::set_activation_policy`], e.g. for an accessory app that shows windows,
+/// such as a menu bar utility.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum ActivationPolicy {
     /// Participate in foreground application UI, such as the Dock and menu bar on macOS.
@@ -199,32 +184,6 @@ impl ActivityGuard {
     }
 }
 
-// TODO(jk): return an enum instead of a string
-
-/// The graphical session to connect to. Carries nothing yet on this platform.
-
-#[derive(Clone, Debug, Default)]
-pub struct GraphicalEnvironment;
-
-impl GraphicalEnvironment {
-    /// Returns the environment of this process's graphical session.
-    pub const fn detect() -> Self {
-        Self
-    }
-
-    /// Does nothing on this platform.
-    pub const fn apply_to(&self, _command: &mut Command) {}
-}
-
-/// A display mode for [`App::request_windowing`] to switch to.
-#[derive(Clone, Debug)]
-pub enum WindowingRequest {
-    /// No display server. Windows lay out and handle input but draw nothing.
-    Headless,
-    /// Connected to the display server that the environment names.
-    Windowed(GraphicalEnvironment),
-}
-
 #[expect(missing_docs)]
 pub trait Platform: 'static {
     fn background_executor(&self) -> BackgroundExecutor;
@@ -233,14 +192,6 @@ pub trait Platform: 'static {
 
     fn run(&self, on_finish_launching: Box<dyn 'static + FnOnce()>);
     fn quit(&self);
-    /// Switches a capable platform between headless and windowed modes. See
-    /// [`App::request_windowing`].
-    /// Sets the windowing mode the platform starts in. Called before `run`. See
-    /// [`crate::Application::with_windowing`].
-    fn set_initial_windowing(&self, _request: WindowingRequest) {}
-    fn request_windowing(&self, _request: WindowingRequest) -> Task<anyhow::Result<()>> {
-        Task::ready(Err(anyhow::anyhow!("this platform cannot switch between headless and windowed modes")))
-    }
     fn restart(&self, arguments: Vec<OsString>);
     fn activate(&self, ignoring_other_apps: bool);
     /// Sets the initial or current activation policy. Has no effect outside macOS.
@@ -323,24 +274,6 @@ pub trait Platform: 'static {
     fn on_thermal_state_change(&self, callback: Box<dyn FnMut()>);
     fn prevent_idle_sleep(&self, reason: &str) -> Task<Result<ActivityGuard>>;
 
-    /// Sets the application's process-wide identity and user-visible name.
-    ///
-    /// The identifier is used for platform identity mechanisms such as the
-    /// Windows AppUserModelID. The name is used wherever the operating system
-    /// presents the application to the user. Call this once, early in startup,
-    /// before opening windows.
-    fn set_app_identity(&self, identifier: &str, name: &str) {
-        _ = (identifier, name);
-    }
-
-    fn compositor_name(&self) -> &'static str {
-        ""
-    }
-    /// The environment of the display server a platform that can switch windowing modes is
-    /// connected to. See [`App::graphical_environment`].
-    fn graphical_environment(&self) -> Option<GraphicalEnvironment> {
-        None
-    }
     fn app_path(&self) -> Result<PathBuf>;
 
     fn set_cursor_style(&self, style: CursorStyle);
@@ -503,7 +436,6 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
     /// The current [`WindowVisibility`]. Read once when the window is created;
     /// afterwards changes arrive through [`Self::on_visibility_change`].
     fn visibility(&self) -> WindowVisibility;
-    fn is_hovered(&self) -> bool;
     fn background_appearance(&self) -> WindowBackgroundAppearance;
     fn set_title(&mut self, title: &str);
     fn set_background_appearance(&self, background_appearance: WindowBackgroundAppearance);
@@ -521,7 +453,6 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
     /// transitions are reported; the callback runs on the main thread outside
     /// of any window update.
     fn on_visibility_change(&self, callback: Box<dyn FnMut(WindowVisibility)>);
-    fn on_hover_status_change(&self, callback: Box<dyn FnMut(bool)>);
     fn on_resize(&self, callback: Box<dyn FnMut(Size<Pixels>, f32)>);
     fn on_moved(&self, callback: Box<dyn FnMut()>);
     /// Registers the callback invoked when the window moves to another

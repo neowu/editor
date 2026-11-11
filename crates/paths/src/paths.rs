@@ -63,7 +63,7 @@ pub fn set_custom_root_dir(dir: &str) -> &'static PathBuf {
     })
 }
 
-/// Returns the path to the data directory (`projects.json`, remote server state).
+/// Returns the path to the data directory (`projects.json`).
 pub fn data_dir() -> &'static PathBuf {
     DATA_DIR.get_or_init(|| base_dir(CUSTOM_ROOT_DIR.get(), "data", "XDG_DATA_HOME", ".local/share"))
 }
@@ -82,12 +82,6 @@ pub fn temp_dir() -> &'static PathBuf {
 pub fn logs_dir() -> &'static PathBuf {
     static LOGS_DIR: OnceLock<PathBuf> = OnceLock::new();
     LOGS_DIR.get_or_init(|| state_dir().join("logs"))
-}
-
-/// Returns the path to the remote server state directory on this SSH host.
-pub fn remote_server_state_dir() -> &'static PathBuf {
-    static REMOTE_SERVER_STATE: OnceLock<PathBuf> = OnceLock::new();
-    REMOTE_SERVER_STATE.get_or_init(|| data_dir().join("server_state"))
 }
 
 /// Returns the path to the `ed.log` file.

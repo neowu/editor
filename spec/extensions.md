@@ -3,7 +3,7 @@
 ## Decision
 
 No extension system or WebAssembly build target. The editor runs natively on
-macOS; the remote server runs natively on macOS and Linux.
+macOS.
 
 ## Behaviour
 

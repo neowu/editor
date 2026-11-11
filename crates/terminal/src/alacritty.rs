@@ -191,15 +191,12 @@ pub(super) fn pty_options(
     shell: Option<(String, Vec<String>)>,
     working_directory: Option<PathBuf>,
     env: impl IntoIterator<Item = (String, String)>,
-    #[cfg(windows)] escape_args: bool,
 ) -> tty::Options {
     tty::Options {
         shell: shell.map(|(program, args)| tty::Shell::new(program, args)),
         working_directory,
         drain_on_exit: true,
         env: env.into_iter().collect(),
-        #[cfg(windows)]
-        escape_args,
     }
 }
 

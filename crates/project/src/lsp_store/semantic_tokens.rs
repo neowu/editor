@@ -4,14 +4,12 @@ use std::result;
 use std::slice::Iter;
 use std::sync::Arc;
 
-use anyhow::Result;
 use clock::Global;
 use futures::FutureExt as _;
 use futures::future::Shared;
 use futures::future::join_all;
 use gpui::App;
 use gpui::AppContext;
-use gpui::AsyncApp;
 use gpui::Context;
 use gpui::Entity;
 use gpui::SharedString;
@@ -19,10 +17,7 @@ use gpui::Task;
 use language::Buffer;
 use language::LanguageName;
 use language::language_settings::AllLanguageSettings;
-use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
-use rpc::TypedEnvelope;
-use rpc::proto;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use settings::SemanticTokenRule;
@@ -33,12 +28,10 @@ use text::Bias;
 use text::OffsetUtf16;
 use text::PointUtf16;
 use text::Unclipped;
-use util::ResultExt as _;
 
 use crate::LanguageServerToQuery;
 use crate::LspStore;
 use crate::LspStoreEvent;
-use crate::lsp_command::LspCommand;
 use crate::lsp_command::SemanticTokensDelta;
 use crate::lsp_command::SemanticTokensEdit;
 use crate::lsp_command::SemanticTokensFull;
@@ -67,13 +60,12 @@ impl SemanticTokenConfig {
 impl LspStore {
     pub fn semantic_tokens(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> SemanticTokensTask {
         let version_queried_for = buffer.read(cx).version();
-        let capability_probe = SemanticTokensFull { for_server: None };
+        let capability_probe = SemanticTokensFull;
         let current_servers = self.language_server_ids_for_request(&buffer, &capability_probe, cx);
-        let empty_current_servers_are_authoritative = self.as_local().is_some();
         let latest_lsp_data = self.latest_lsp_data(&buffer, cx);
         let semantic_tokens_data = latest_lsp_data.semantic_tokens.get_or_insert_default();
         let pending_refreshes = mem::take(&mut semantic_tokens_data.pending_refreshes);
-        let current_servers_are_authoritative = !current_servers.is_empty() || empty_current_servers_are_authoritative;
+        let current_servers_are_authoritative = true;
         let server_set_shrank = current_servers_are_authoritative
             && (semantic_tokens_data.raw_tokens.servers.keys().any(|server_id| !current_servers.contains(server_id))
                 || semantic_tokens_data.fetched_servers.iter().any(|server_id| !current_servers.contains(server_id)));
@@ -229,114 +221,55 @@ impl LspStore {
         for_server: Option<LanguageServerId>,
         cx: &mut Context<Self>,
     ) -> Task<Option<FxHashMap<LanguageServerId, SemanticTokensResponse>>> {
-        if let Some((client, upstream_project_id)) = self.upstream_client() {
-            let request = SemanticTokensFull { for_server };
-            if !self.is_capable_for_proto_request(buffer, &request, cx) {
-                return Task::ready(None);
-            }
-
-            let request_timeout = LSP_REQUEST_TIMEOUT;
-            let request_task = client.request_lsp(
-                upstream_project_id,
-                None,
-                request_timeout,
-                cx.background_executor().clone(),
-                request.to_proto(upstream_project_id, buffer.read(cx)),
-            );
-            let buffer = buffer.clone();
-            cx.spawn(async move |weak_lsp_store, cx| {
-                let lsp_store = weak_lsp_store.upgrade()?;
-                let tokens = join_all(
-                    request_task
-                        .await
-                        .log_err()
-                        .flatten()
-                        .map(|response| response.payload)
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|response| {
-                            let server_id = LanguageServerId::from_proto(response.server_id);
-                            let response = request.response_from_proto(
-                                response.response,
-                                lsp_store.clone(),
+        let full_request = SemanticTokensFull;
+        let token_tasks = self
+            .language_server_ids_for_request(buffer, &full_request, cx)
+            .into_iter()
+            .filter(|&server_id| for_server.is_none_or(|for_server_id| for_server_id == server_id))
+            .map(|server_id| {
+                let request_task = match self.semantic_tokens_result_id(server_id, buffer, cx) {
+                    Some(result_id) => {
+                        let delta_request = SemanticTokensDelta { previous_result_id: result_id };
+                        if self.language_server_ids_for_request(buffer, &delta_request, cx).contains(&server_id) {
+                            self.request_lsp(buffer.clone(), LanguageServerToQuery::Other(server_id), delta_request, cx)
+                        } else {
+                            self.request_lsp(
                                 buffer.clone(),
-                                cx.clone(),
-                            );
-                            async move {
-                                match response.await {
-                                    Ok(tokens) => Some((server_id, tokens)),
-                                    Err(e) => {
-                                        log::error!(
-                                            "Failed to query remote semantic tokens for server {server_id:?}: {e:#}"
-                                        );
-                                        None
-                                    }
-                                }
-                            }
-                        }),
-                )
-                .await
-                .into_iter()
-                .flatten()
-                .collect();
-                Some(tokens)
-            })
-        } else {
-            let full_request = SemanticTokensFull { for_server: None };
-            let token_tasks = self
-                .language_server_ids_for_request(buffer, &full_request, cx)
-                .into_iter()
-                .filter(|&server_id| for_server.is_none_or(|for_server_id| for_server_id == server_id))
-                .map(|server_id| {
-                    let request_task = match self.semantic_tokens_result_id(server_id, buffer, cx) {
-                        Some(result_id) => {
-                            let delta_request = SemanticTokensDelta { previous_result_id: result_id };
-                            if self.language_server_ids_for_request(buffer, &delta_request, cx).contains(&server_id) {
-                                self.request_lsp(
-                                    buffer.clone(),
-                                    LanguageServerToQuery::Other(server_id),
-                                    delta_request,
-                                    cx,
-                                )
-                            } else {
-                                self.request_lsp(
-                                    buffer.clone(),
-                                    LanguageServerToQuery::Other(server_id),
-                                    SemanticTokensFull { for_server: Some(server_id) },
-                                    cx,
-                                )
-                            }
+                                LanguageServerToQuery::Other(server_id),
+                                SemanticTokensFull,
+                                cx,
+                            )
                         }
-                        None => self.request_lsp(
-                            buffer.clone(),
-                            LanguageServerToQuery::Other(server_id),
-                            SemanticTokensFull { for_server: Some(server_id) },
-                            cx,
-                        ),
-                    };
-                    async move { (server_id, request_task.await) }
-                })
-                .collect::<Vec<_>>();
-            if token_tasks.is_empty() {
-                return Task::ready(None);
-            }
-
-            cx.background_spawn(async move {
-                Some(
-                    join_all(token_tasks)
-                        .await
-                        .into_iter()
-                        .filter_map(|(server_id, response)| match response {
-                            Ok(tokens) => Some((server_id, tokens)),
-                            Err(e) => {
-                                log::error!("Failed to query remote semantic tokens for server {server_id:?}: {e:#}");
-                                None
-                            }
-                        })
-                        .collect(),
-                )
+                    }
+                    None => self.request_lsp(
+                        buffer.clone(),
+                        LanguageServerToQuery::Other(server_id),
+                        SemanticTokensFull,
+                        cx,
+                    ),
+                };
+                async move { (server_id, request_task.await) }
             })
+            .collect::<Vec<_>>();
+        if token_tasks.is_empty() {
+            return Task::ready(None);
         }
+
+        cx.background_spawn(async move {
+            Some(
+                join_all(token_tasks)
+                    .await
+                    .into_iter()
+                    .filter_map(|(server_id, response)| match response {
+                        Ok(tokens) => Some((server_id, tokens)),
+                        Err(e) => {
+                            log::error!("Failed to query remote semantic tokens for server {server_id:?}: {e:#}");
+                            None
+                        }
+                    })
+                    .collect(),
+            )
+        })
     }
 
     /// Marks the server's semantic tokens as refresh-pending in every buffer, to be
@@ -348,26 +281,6 @@ impl LspStore {
             }
         }
         cx.emit(LspStoreEvent::RefreshSemanticTokens { server_id });
-        if let Some((client, project_id)) = self.downstream_client.as_ref() {
-            client
-                .send(proto::RefreshSemanticTokens {
-                    project_id: *project_id,
-                    server_id: server_id.to_proto(),
-                    request_id: Some(super::next_wire_refresh_request_id()),
-                })
-                .log_err();
-        }
-    }
-
-    pub(crate) async fn handle_refresh_semantic_tokens(
-        lsp_store: Entity<Self>,
-        envelope: TypedEnvelope<proto::RefreshSemanticTokens>,
-        mut cx: AsyncApp,
-    ) -> Result<proto::Ack> {
-        lsp_store.update(&mut cx, |lsp_store, cx| {
-            lsp_store.refresh_semantic_tokens(LanguageServerId::from_proto(envelope.payload.server_id), cx);
-        });
-        Ok(proto::Ack {})
     }
 
     fn semantic_tokens_result_id(
@@ -404,9 +317,8 @@ impl LspStore {
         server_id: LanguageServerId,
         language: &LanguageName,
     ) -> Option<&lsp::SemanticTokensLegend> {
-        if let Some(local) = self.as_local()
-            && let Some(LanguageServerState::Running { adapter, .. }) = local.language_servers.get(&server_id)
-        {
+        let local = &self.local;
+        if let Some(LanguageServerState::Running { adapter, .. }) = local.language_servers.get(&server_id) {
             let context = document_selector_context_for_language(language, adapter);
             if let Some(registrations) = local
                 .language_server_dynamic_registrations
@@ -428,33 +340,6 @@ impl LspStore {
             {
                 return Some(semantic_tokens_provider_legend(provider));
             }
-        }
-
-        if let Some(initial_capabilities) = self.lsp_server_initial_capabilities.get(&server_id) {
-            let context = self.remote_document_selector_context(server_id, Some(language));
-            if let Some(registrations) = self
-                .lsp_server_text_document_registrations
-                .get(&server_id)
-                .and_then(|registrations| registrations.get("textDocument/semanticTokens"))
-            {
-                // Token indices are only meaningful with the provider's legend, so do not
-                // guess when the client cannot reconstruct the remote server's selector context.
-                for registration in registrations.values().rev() {
-                    let matches = match context.as_ref() {
-                        Some(context) => document_selector_matches(registration.document_selector.as_ref(), context),
-                        None if registration.document_selector.is_none() => true,
-                        None => return None,
-                    };
-                    if matches
-                        && let Some(provider) = registration.server_capabilities.semantic_tokens_provider.as_ref()
-                    {
-                        return Some(semantic_tokens_provider_legend(provider));
-                    }
-                }
-            }
-
-            let provider = initial_capabilities.semantic_tokens_provider.as_ref()?;
-            return Some(semantic_tokens_provider_legend(provider));
         }
 
         let tokens_provider = self.lsp_server_capabilities.get(&server_id)?.semantic_tokens_provider.as_ref()?;

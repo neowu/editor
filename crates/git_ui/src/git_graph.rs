@@ -1187,7 +1187,7 @@ impl GitGraph {
         self.previous_newest_sha = None;
     }
 
-    /// Rescans the project (on the remote host for remote projects) and then
+    /// Rescans the project and then
     /// reloads the commits from git, for changes the file watcher missed, as
     /// on a virtiofs mount inside a VM.
     fn refresh(&mut self, _: &Refresh, _window: &mut Window, cx: &mut Context<Self>) {

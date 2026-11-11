@@ -6,7 +6,6 @@ use gpui::Entity;
 use gpui::SharedString;
 use language::Buffer;
 use notifications::status_toast::StatusToast;
-use proto::RpcError;
 use ui::prelude::Color;
 use ui::prelude::Icon;
 use ui::prelude::IconName;
@@ -58,7 +57,7 @@ fn git_error_toast_title(action: &str, message: &str) -> String {
 
 pub fn show_error_toast(workspace: Entity<Workspace>, action: impl Into<SharedString>, e: anyhow::Error, cx: &mut App) {
     let action = action.into();
-    let message = format_git_error_toast_message(&e);
+    let message = e.to_string().trim().to_string();
     cx.defer(move |cx| {
         workspace.update(cx, |workspace, cx| {
             let workspace_weak = cx.weak_entity();
@@ -78,16 +77,4 @@ pub fn show_error_toast(workspace: Entity<Workspace>, action: impl Into<SharedSt
             workspace.toggle_status_toast(toast, cx)
         });
     });
-}
-
-fn rpc_error_raw_message_from_chain(error: &anyhow::Error) -> Option<&str> {
-    error.chain().find_map(|cause| cause.downcast_ref::<RpcError>().map(RpcError::raw_message))
-}
-
-fn format_git_error_toast_message(error: &anyhow::Error) -> String {
-    if let Some(message) = rpc_error_raw_message_from_chain(error) {
-        message.trim().to_string()
-    } else {
-        error.to_string().trim().to_string()
-    }
 }

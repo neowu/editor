@@ -55,7 +55,7 @@ fn semantic_token_rules() -> SemanticTokenRules {
 const VENV_DIR: &str = ".venv";
 
 /// Directory inside a virtual environment that holds its executables.
-const VENV_BIN_DIR: &str = if cfg!(windows) { "Scripts" } else { "bin" };
+const VENV_BIN_DIR: &str = "bin";
 
 /// Resolves a Python tool run as a language server: the project's
 /// `.venv` first, then the shell `PATH`, then `uvx <tool>`, which runs the

@@ -13,15 +13,9 @@ use gpui::Context;
 use gpui::Entity;
 use gpui::EventEmitter;
 use gpui::Task;
-use gpui::WeakEntity;
 use language::Buffer;
-use remote::RemoteClient;
-use rpc::proto;
-use rpc::proto::REMOTE_SERVER_PROJECT_ID;
 use rustc_hash::FxHashMap;
 use task::Shell;
-use task::shell_to_proto;
-use util::ResultExt;
 use util::shell_env;
 use worktree::Worktree;
 
@@ -30,12 +24,8 @@ use crate::worktree_store::WorktreeStore;
 pub struct ProjectEnvironment {
     #[allow(clippy::type_complexity)]
     local_environments: FxHashMap<(Shell, Arc<Path>), Shared<Task<Option<FxHashMap<String, String>>>>>,
-    #[allow(clippy::type_complexity)]
-    remote_environments: FxHashMap<(Shell, Arc<Path>), Shared<Task<Option<FxHashMap<String, String>>>>>,
     environment_error_messages: VecDeque<String>,
     environment_error_messages_tx: mpsc::UnboundedSender<String>,
-    remote_client: Option<WeakEntity<RemoteClient>>,
-    is_remote_project: bool,
     _tasks: Vec<Task<()>>,
 }
 
@@ -46,11 +36,7 @@ pub enum ProjectEnvironmentEvent {
 impl EventEmitter<ProjectEnvironmentEvent> for ProjectEnvironment {}
 
 impl ProjectEnvironment {
-    pub fn new(
-        remote_client: Option<WeakEntity<RemoteClient>>,
-        is_remote_project: bool,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn new(cx: &mut Context<Self>) -> Self {
         let (tx, mut rx) = mpsc::unbounded();
         let task = cx.spawn(async move |this, cx| {
             while let Some(message) = rx.next().await {
@@ -63,11 +49,8 @@ impl ProjectEnvironment {
         });
         Self {
             local_environments: FxHashMap::default(),
-            remote_environments: FxHashMap::default(),
             environment_error_messages: VecDeque::default(),
             environment_error_messages_tx: tx,
-            remote_client,
-            is_remote_project,
             _tasks: vec![task],
         }
     }
@@ -103,17 +86,7 @@ impl ProjectEnvironment {
             abs_path = parent.into();
         }
 
-        let remote_client = self.remote_client.as_ref().and_then(|it| it.upgrade());
-        match remote_client {
-            Some(remote_client) => remote_client
-                .clone()
-                .read(cx)
-                .shell()
-                .map(|shell| self.remote_directory_environment(&Shell::Program(shell), abs_path, remote_client, cx)),
-            None if self.is_remote_project => Some(self.local_directory_environment(&Shell::System, abs_path, cx)),
-            None => Some(self.local_directory_environment(&Shell::System, abs_path, cx)),
-        }
-        .unwrap_or_else(|| Task::ready(None).shared())
+        self.local_directory_environment(&Shell::System, abs_path, cx)
     }
 
     /// Returns the project environment by spawning a shell in `abs_path`, to get environment
@@ -151,30 +124,6 @@ impl ProjectEnvironment {
                     }
 
                     shell_env
-                })
-                .shared()
-            })
-            .clone()
-    }
-
-    pub fn remote_directory_environment(
-        &mut self,
-        shell: &Shell,
-        abs_path: Arc<Path>,
-        remote_client: Entity<RemoteClient>,
-        cx: &mut App,
-    ) -> Shared<Task<Option<FxHashMap<String, String>>>> {
-        self.remote_environments
-            .entry((shell.clone(), abs_path.clone()))
-            .or_insert_with(|| {
-                let response = remote_client.read(cx).proto_client().request(proto::GetDirectoryEnvironment {
-                    project_id: REMOTE_SERVER_PROJECT_ID,
-                    shell: Some(shell_to_proto(shell.clone())),
-                    directory: abs_path.to_string_lossy().to_string(),
-                });
-                cx.background_spawn(async move {
-                    let environment = response.await.log_err()?;
-                    Some(environment.environment.into_iter().collect())
                 })
                 .shared()
             })

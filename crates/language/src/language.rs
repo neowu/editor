@@ -20,7 +20,6 @@ pub mod language_settings;
 mod library;
 mod manifest;
 mod outline;
-pub mod proto;
 mod runnable;
 mod syntax_map;
 mod task_context;
@@ -42,7 +41,6 @@ use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
 pub use available_languages::AvailableLanguage;
-pub use buffer::Operation;
 #[allow(clippy::wildcard_imports)]
 pub use buffer::*;
 pub use diagnostic::Diagnostic;

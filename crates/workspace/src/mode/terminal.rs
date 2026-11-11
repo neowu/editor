@@ -195,7 +195,7 @@ impl Workspace {
     /// Whether this window can show terminal mode: the terminal crate is
     /// loaded and the project can run terminals.
     pub fn supports_terminal_mode(&self, cx: &App) -> bool {
-        terminal_mode_delegate(cx).is_some() && self.project.read(cx).supports_terminal(cx)
+        terminal_mode_delegate(cx).is_some()
     }
 
     /// Switches to terminal mode, restoring the saved layout the first time.
@@ -260,8 +260,7 @@ impl Workspace {
     ) -> Entity<Pane> {
         let delegate = terminal_mode_delegate(cx);
         let pane = cx.new(|cx| {
-            let mut pane =
-                Pane::new(workspace, project, Arc::default(), None, NewTerminal::default().boxed_clone(), window, cx);
+            let mut pane = Pane::new(workspace, project, Arc::default(), None, NewTerminal.boxed_clone(), window, cx);
             pane.set_can_navigate(false, cx);
             pane.set_zoom_out_on_close(false);
             pane.set_empty_pane_hints(EmptyPaneHints::Terminal);

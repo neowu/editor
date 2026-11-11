@@ -181,7 +181,7 @@ impl BufferDiagnosticsEditor {
 
         let summary = project_handle.read(cx).diagnostic_summary_for_path(&project_path, cx);
 
-        let multibuffer = cx.new(|cx| MultiBuffer::new(project_handle.read(cx).capability()));
+        let multibuffer = cx.new(|_| MultiBuffer::new(language::Capability::ReadWrite));
         let editor = cx.new(|cx| {
             let mut editor = Editor::for_multibuffer(multibuffer.clone(), Some(project_handle.clone()), window, cx);
             editor.set_vertical_scroll_margin(5, cx);

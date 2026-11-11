@@ -1,7 +1,6 @@
 use std::fs;
 
 use anyhow::Context as _;
-use futures::future;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Context;
@@ -10,19 +9,14 @@ use gpui::TaskExt;
 use gpui::Window;
 use language::Capability;
 use language::Language;
-use language::proto::serialize_anchor;
 use multi_buffer::MultiBuffer;
 use project::ProjectItem;
-use project::lsp_command::location_link_from_proto;
 use project::lsp_store::lsp_ext_command;
-use project::lsp_store::lsp_ext_command::DocsUrls;
 use project::lsp_store::lsp_ext_command::ExpandMacro;
-use project::lsp_store::lsp_ext_command::ExpandedMacro;
 use project::lsp_store::rust_analyzer_ext::RUST_ANALYZER_NAME;
 use project::lsp_store::rust_analyzer_ext::cancel_flycheck;
 use project::lsp_store::rust_analyzer_ext::clear_flycheck;
 use project::lsp_store::rust_analyzer_ext::run_flycheck;
-use rpc::proto;
 use text::ToPointUtf16;
 use url::Url;
 
@@ -83,27 +77,8 @@ pub fn go_to_parent_module(editor: &mut Editor, _: &GoToParentModule, window: &m
     let nav_entry = editor.navigation_entry(editor.selections.newest_anchor().head(), cx);
 
     let project = project.clone();
-    let lsp_store = project.read(cx).lsp_store();
-    let upstream_client = lsp_store.read(cx).upstream_client();
     cx.spawn_in(window, async move |editor, cx| {
-        let location_links = if let Some((client, project_id)) = upstream_client {
-            let buffer_id = buffer.read_with(cx, |buffer, _| buffer.remote_id());
-
-            let request = proto::LspExtGoToParentModule {
-                project_id,
-                buffer_id: buffer_id.to_proto(),
-                position: Some(serialize_anchor(&trigger_anchor)),
-                server_id: server_to_query.to_proto(),
-            };
-            let response = client.request(request).await.context("lsp ext go to parent module proto request")?;
-            future::join_all(
-                response.links.into_iter().map(|link| location_link_from_proto(link, lsp_store.clone(), cx)),
-            )
-            .await
-            .into_iter()
-            .collect::<anyhow::Result<_>>()
-            .context("go to parent module on remote server")?
-        } else {
+        let location_links = {
             let buffer_snapshot = buffer.read_with(cx, |buffer, _| buffer.snapshot());
             let position = trigger_anchor.to_point_utf16(&buffer_snapshot);
             project
@@ -155,19 +130,8 @@ pub fn expand_macro_recursively(
         return;
     };
     let project = project.clone();
-    let upstream_client = project.read(cx).lsp_store().read(cx).upstream_client();
     cx.spawn_in(window, async move |_editor, cx| {
-        let macro_expansion = if let Some((client, project_id)) = upstream_client {
-            let buffer_id = buffer.update(cx, |buffer, _| buffer.remote_id());
-            let request = proto::LspExtExpandMacro {
-                project_id,
-                buffer_id: buffer_id.to_proto(),
-                position: Some(serialize_anchor(&trigger_anchor)),
-                server_id: server_to_query.to_proto(),
-            };
-            let response = client.request(request).await.context("lsp ext expand macro proto request")?;
-            ExpandedMacro { name: response.name, expansion: response.expansion }
-        } else {
+        let macro_expansion = {
             let buffer_snapshot = buffer.read_with(cx, |buffer, _| buffer.snapshot());
             let position = trigger_anchor.to_point_utf16(&buffer_snapshot);
             project
@@ -229,19 +193,8 @@ pub fn open_docs(editor: &mut Editor, _: &OpenDocs, window: &mut Window, cx: &mu
     };
 
     let project = project.clone();
-    let upstream_client = project.read(cx).lsp_store().read(cx).upstream_client();
     cx.spawn_in(window, async move |_editor, cx| {
-        let docs_urls = if let Some((client, project_id)) = upstream_client {
-            let buffer_id = buffer.read_with(cx, |buffer, _| buffer.remote_id());
-            let request = proto::LspExtOpenDocs {
-                project_id,
-                buffer_id: buffer_id.to_proto(),
-                position: Some(serialize_anchor(&trigger_anchor)),
-                server_id: server_to_query.to_proto(),
-            };
-            let response = client.request(request).await.context("lsp ext open docs proto request")?;
-            DocsUrls { web: response.web, local: response.local }
-        } else {
+        let docs_urls = {
             let buffer_snapshot = buffer.read_with(cx, |buffer, _| buffer.snapshot());
             let position = trigger_anchor.to_point_utf16(&buffer_snapshot);
             project

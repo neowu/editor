@@ -73,13 +73,12 @@ because it hurt readability; an opaque window is also cheaper to composite.
 - There is no title bar row; the window's top row is the sidebar and the tab
   bars, to give the content the most room. The window header is one group,
   read left to right as "where, then how": empty room for the macOS traffic
-  lights, the project name (the active folder, see `git.md`; with the remote
-  host for remote projects), the
+  lights, the project name (the active folder, see `git.md`), the
   worktree and branch pickers as `worktree / branch` (shown only for a project
   in a git repository), then an icon-only, segmented mode switch, then Go
   Back / Go Forward. The switch offers Editor (`cmd-1`, `mode::Editor`), Git
   History (`cmd-2`, `mode::GitHistory`, git only) and Terminal (`cmd-3`,
-  `mode::Terminal`, projects that can run terminals), in that order, and is
+  `mode::Terminal`), in that order, and is
   shown whenever more than one mode is available; the keys work in any mode. The pickers moved here from
   the status bar so everything that names the project sits together; their
   menus open downward. The switch groups its icon buttons on a faint, borderless
@@ -89,14 +88,13 @@ because it hurt readability; an opaque window is also cheaper to composite.
   track sits on the row's centre line with clear space above and below; a
   track of full-height buttons filled the row and nearly touched the card
   below. An outlined switch looked heavier.
-  Every header text button (project, worktree, branch, remote host) shares one
+  Every header text button (project, worktree, branch) shares one
   style (`title_bar::worktree_branch::header_text_button`): 28px high like the
   icon buttons, the tab label's size and regular weight (semibold was too
   loud), with a 14px leading icon. The project name is full contrast; worktree
   and branch are muted, so the row reads as a breadcrumb. The branch icon keeps
   its change-status colour. While its menu is open, each gets the accent tint
-  and an accent label; the remote host keeps its connection-status dot on the
-  server icon (`Button::start_slot`).
+  and an accent label.
   Every top-row icon button (Go Back / Go Forward, the switch, and the tab bar
   ends' New File, preview and Zoom) is a 16px icon in a 28px square (the
   switch's are shorter, above)

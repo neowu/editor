@@ -7,10 +7,8 @@ edition.workspace = true
 path = "src/time_format.rs"
 
 [dependencies]
-time.workspace = true
-
-[target.'cfg(target_os = "macos")'.dependencies]
 objc2-core-foundation = { workspace = true, features = ["CFDate", "CFDateFormatter", "CFLocale", "CFString", "std"] }
+time.workspace = true
 
 [lints]
 workspace = true

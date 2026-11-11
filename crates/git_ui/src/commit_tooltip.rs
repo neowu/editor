@@ -317,8 +317,6 @@ pub(crate) fn shallow_boundary_notice(
     }
     let in_flight = unshallow_state == UnshallowState::InProgress;
     let icon_width = rems(1.).to_pixels(window.rem_size());
-    let can_fetch =
-        workspace.read_with(cx, |workspace, cx| !workspace.project().read(cx).is_read_only(cx)).unwrap_or(false);
     Some(
         v_flex()
             .py_1()
@@ -346,8 +344,7 @@ pub(crate) fn shallow_boundary_notice(
                         ),
                     ),
             )
-            .when(can_fetch, |this| {
-                this.child(
+            .child(
                     h_flex()
                         .gap_2()
                         .child(div().w(icon_width))
@@ -377,8 +374,7 @@ pub(crate) fn shallow_boundary_notice(
                                 .detach_and_log_err(cx);
                             }),
                         ),
-                )
-            }),
+            ),
     )
 }
 

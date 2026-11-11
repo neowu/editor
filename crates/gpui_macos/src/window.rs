@@ -1679,11 +1679,6 @@ impl PlatformWindow for MacWindow {
         visibility(&self.0.lock())
     }
 
-    // is_hovered is unused on macOS. See Window::is_window_hovered.
-    fn is_hovered(&self) -> bool {
-        false
-    }
-
     fn set_title(&mut self, title: &str) {
         unsafe {
             let app = shared_application();
@@ -1869,8 +1864,6 @@ impl PlatformWindow for MacWindow {
         state.last_visibility = Some(visibility(&state));
         state.visibility_callback = Some(callback);
     }
-
-    fn on_hover_status_change(&self, _: Box<dyn FnMut(bool)>) {}
 
     fn on_resize(&self, callback: Box<dyn FnMut(Size<Pixels>, f32)>) {
         self.0.as_ref().lock().resize_callback = Some(callback);

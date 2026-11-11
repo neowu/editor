@@ -13,7 +13,6 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::collections::hash_map;
-use std::convert::TryFrom;
 use std::ffi::OsStr;
 use std::fmt;
 use std::future::Future;
@@ -36,10 +35,8 @@ use ::ignore::gitignore::Gitignore;
 use ::ignore::gitignore::GitignoreBuilder;
 use anyhow::Context as _;
 use anyhow::Result;
-use anyhow::anyhow;
 use async_channel::Sender;
 use async_channel::{self};
-use clock::ReplicaId;
 use encoding_rs::Encoding;
 use file_content::ByteContent;
 use file_content::DecodingReader;
@@ -55,7 +52,6 @@ use fs::RemoveOptions;
 use fs::TrashId;
 use fs::Watcher;
 use fs::copy_recursive;
-use fs::read_dir_items;
 use futures::FutureExt as _;
 use futures::Stream;
 use futures::StreamExt;
@@ -100,10 +96,6 @@ use gpui::Task;
 pub use ignore::IgnoreKind;
 pub use ignore::IgnoreStack;
 use language::DiskState;
-use parking_lot::Mutex;
-use rpc::AnyProtoClient;
-use rpc::proto::split_worktree_update;
-use rpc::proto::{self};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 pub use settings::WorktreeId;
@@ -121,7 +113,6 @@ use sum_tree::TreeSet;
 use text::LineEnding;
 use text::Rope;
 use util::ResultExt;
-use util::paths::PathMatcher;
 use util::paths::SanitizedPath;
 use util::paths::home_dir;
 use util::rel_path::RelPath;
@@ -136,8 +127,8 @@ pub const FS_WATCH_LATENCY: Duration = Duration::from_millis(100);
 /// the watcher silently attached to a path that no longer exists.
 pub const ROOT_PATH_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 
-/// A set of local or remote files that are being opened as part of a project.
-/// Responsible for tracking related filesystem (for local)/RPC (for remote) events and corresponding updates.
+/// A set of files that are being opened as part of a project.
+/// Responsible for tracking related filesystem events and corresponding updates.
 /// Stores git repositories data and the diagnostics for the file(s).
 ///
 /// Has an absolute path, and may be set to be visible in ed UI or not.
@@ -147,11 +138,6 @@ pub const ROOT_PATH_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 /// * a directory opened in ed — may be added as a visible entry to the current worktree
 ///
 /// Uses [`Entry`] to track the state of each file/directory, can look up absolute paths for entries.
-pub enum Worktree {
-    Local(LocalWorktree),
-    Remote(RemoteWorktree),
-}
-
 /// An entry, created in the worktree.
 #[derive(Debug)]
 pub enum CreatedEntry {
@@ -185,14 +171,13 @@ impl fmt::Debug for LoadedBinaryFile {
     }
 }
 
-pub struct LocalWorktree {
+pub struct Worktree {
     snapshot: LocalSnapshot,
     scan_requests_tx: async_channel::Sender<ScanRequest>,
     path_prefixes_to_scan_tx: async_channel::Sender<PathPrefixScanRequest>,
     is_scanning: (watch::Sender<bool>, watch::Receiver<bool>),
     snapshot_subscriptions: VecDeque<(usize, oneshot::Sender<()>)>,
     _background_scanner_tasks: Vec<Task<()>>,
-    update_observer: Option<UpdateObservationState>,
     fs: Arc<dyn Fs>,
     fs_case_sensitive: bool,
     visible: bool,
@@ -212,21 +197,6 @@ struct ScanRequest {
     /// Reload the whole tree and every repository's git state.
     rescan: bool,
     done: SmallVec<[oneshot::Sender<()>; 1]>,
-}
-
-pub struct RemoteWorktree {
-    snapshot: Snapshot,
-    background_snapshot: Arc<Mutex<(Snapshot, Vec<proto::UpdateWorktree>)>>,
-    project_id: u64,
-    client: AnyProtoClient,
-    file_scan_inclusions: PathMatcher,
-    updates_tx: Option<UnboundedSender<proto::UpdateWorktree>>,
-    update_observer: Option<mpsc::UnboundedSender<proto::UpdateWorktree>>,
-    snapshot_subscriptions: VecDeque<(usize, oneshot::Sender<()>)>,
-    replica_id: ReplicaId,
-    visible: bool,
-    library_name: Option<Arc<str>>,
-    disconnected: bool,
 }
 
 #[derive(Clone)]
@@ -491,12 +461,6 @@ enum ScanState {
     RootDeleted,
 }
 
-struct UpdateObservationState {
-    snapshots_tx: mpsc::UnboundedSender<(LocalSnapshot, UpdatedEntriesSet)>,
-    resume_updates: watch::Sender<()>,
-    _maintain_remote_snapshot: Task<Option<()>>,
-}
-
 #[derive(Debug, Clone)]
 pub enum Event {
     UpdatedEntries(UpdatedEntriesSet),
@@ -585,12 +549,11 @@ impl Worktree {
 
             let (scan_requests_tx, scan_requests_rx) = async_channel::unbounded();
             let (path_prefixes_to_scan_tx, path_prefixes_to_scan_rx) = async_channel::unbounded();
-            let mut worktree = LocalWorktree {
+            let mut worktree = Worktree {
                 next_entry_id,
                 snapshot,
                 is_scanning: watch::channel(true),
                 snapshot_subscriptions: VecDeque::default(),
-                update_observer: None,
                 scan_requests_tx,
                 path_prefixes_to_scan_tx,
                 _background_scanner_tasks: Vec::new(),
@@ -602,297 +565,39 @@ impl Worktree {
                 scanning_enabled,
             };
             worktree.start_background_scanner(scan_requests_rx, path_prefixes_to_scan_rx, cx);
-            Worktree::Local(worktree)
+            worktree
         }))
     }
 
-    pub fn remote(
-        project_id: u64,
-        replica_id: ReplicaId,
-        worktree: proto::WorktreeMetadata,
-        client: AnyProtoClient,
-        cx: &mut App,
-    ) -> Entity<Self> {
-        cx.new(|cx: &mut Context<Self>| {
-            let mut snapshot = Snapshot::new(
-                WorktreeId::from_proto(worktree.id),
-                RelPath::from_unix_str(&worktree.root_name).map_or_else(|_| RelPath::empty_arc(), Into::into),
-                Path::new(&worktree.abs_path).into(),
-            );
-
-            snapshot.root_repo_common_dir =
-                worktree.root_repo_common_dir.map(|p| SanitizedPath::new_arc(Path::new(&p)));
-            snapshot.root_repo_is_linked_worktree = worktree.root_repo_is_linked_worktree;
-
-            let background_snapshot = Arc::new(Mutex::new((snapshot.clone(), Vec::<proto::UpdateWorktree>::new())));
-            let (background_updates_tx, mut background_updates_rx) = mpsc::unbounded::<proto::UpdateWorktree>();
-            let (mut snapshot_updated_tx, mut snapshot_updated_rx) = watch::channel(());
-
-            let settings = WorktreeSettings::get().clone();
-            let worktree = RemoteWorktree {
-                client,
-                project_id,
-                replica_id,
-                snapshot,
-                file_scan_inclusions: settings.parent_dir_scan_inclusions.clone(),
-                background_snapshot: background_snapshot.clone(),
-                updates_tx: Some(background_updates_tx),
-                update_observer: None,
-                snapshot_subscriptions: VecDeque::default(),
-                visible: worktree.visible,
-                library_name: worktree.library_name.map(Into::into),
-                disconnected: false,
-            };
-
-            // Apply updates to a separate snapshot in a background task, then
-            // send them to a foreground task which updates the model.
-            cx.background_spawn(async move {
-                while let Some(update) = background_updates_rx.next().await {
-                    {
-                        let mut lock = background_snapshot.lock();
-                        lock.0.apply_remote_update(update.clone(), &settings.parent_dir_scan_inclusions);
-                        lock.1.push(update);
-                    }
-                    snapshot_updated_tx.send(()).ok();
-                }
-            })
-            .detach();
-
-            // On the foreground task, update to the latest snapshot and notify
-            // any update observer of all updates that led to that snapshot.
-            cx.spawn(async move |this, cx| {
-                while snapshot_updated_rx.changed().await.is_ok() {
-                    this.update(cx, |this, cx| {
-                        let this = this.as_remote_mut().unwrap();
-
-                        // An earlier wakeup may already have drained these updates.
-                        if this.background_snapshot.lock().1.is_empty() {
-                            return;
-                        }
-
-                        let mut changed_entries: Vec<(Arc<RelPath>, ProjectEntryId, PathChange)> = Vec::new();
-                        {
-                            let mut lock = this.background_snapshot.lock();
-                            // Replace the snapshot, keeping the previous one around so we can
-                            // resolve the paths of removed entries (the new snapshot no longer
-                            // contains them, and the wire format only carries their ids).
-                            let old_snapshot = mem::replace(&mut this.snapshot, lock.0.clone());
-                            for update in lock.1.drain(..) {
-                                for entry_id in &update.removed_entries {
-                                    let entry_id = ProjectEntryId::from_proto(*entry_id);
-                                    if let Some(entry) = old_snapshot.entry_for_id(entry_id) {
-                                        changed_entries.push((entry.path.clone(), entry_id, PathChange::Removed));
-                                    }
-                                }
-                                for entry in &update.updated_entries {
-                                    // Remote updates don't distinguish creation from
-                                    // modification, so report `AddedOrUpdated`.
-                                    if let Some(path) = RelPath::from_unix_str(&entry.path).log_err() {
-                                        changed_entries.push((
-                                            path.into(),
-                                            ProjectEntryId::from_proto(entry.id),
-                                            PathChange::AddedOrUpdated,
-                                        ));
-                                    }
-                                }
-                                if let Some(tx) = &this.update_observer {
-                                    tx.unbounded_send(update).ok();
-                                }
-                            }
-                        };
-
-                        if !changed_entries.is_empty() {
-                            cx.emit(Event::UpdatedEntries(changed_entries.into()));
-                        }
-                        cx.notify();
-                        while let Some((scan_id, _)) = this.snapshot_subscriptions.front() {
-                            if this.observed_snapshot(*scan_id) {
-                                let (_, tx) = this.snapshot_subscriptions.pop_front().unwrap();
-                                let _ = tx.send(());
-                            } else {
-                                break;
-                            }
-                        }
-                    })?;
-                }
-                anyhow::Ok(())
-            })
-            .detach();
-
-            Worktree::Remote(worktree)
-        })
-    }
-
-    pub const fn as_local(&self) -> Option<&LocalWorktree> {
-        if let Worktree::Local(worktree) = self { Some(worktree) } else { None }
-    }
-
-    pub const fn as_remote(&self) -> Option<&RemoteWorktree> {
-        if let Worktree::Remote(worktree) = self { Some(worktree) } else { None }
-    }
-
-    pub const fn as_local_mut(&mut self) -> Option<&mut LocalWorktree> {
-        if let Worktree::Local(worktree) = self { Some(worktree) } else { None }
-    }
-
-    pub const fn as_remote_mut(&mut self) -> Option<&mut RemoteWorktree> {
-        if let Worktree::Remote(worktree) = self { Some(worktree) } else { None }
-    }
-
-    pub const fn is_local(&self) -> bool {
-        matches!(self, Worktree::Local(_))
-    }
-
-    pub const fn is_remote(&self) -> bool {
-        !self.is_local()
-    }
-
     pub fn snapshot(&self) -> Snapshot {
-        match self {
-            Worktree::Local(worktree) => worktree.snapshot.snapshot.clone(),
-            Worktree::Remote(worktree) => worktree.snapshot.clone(),
-        }
+        self.snapshot.snapshot.clone()
     }
 
     pub fn scan_id(&self) -> usize {
-        match self {
-            Worktree::Local(worktree) => worktree.snapshot.scan_id,
-            Worktree::Remote(worktree) => worktree.snapshot.scan_id,
-        }
+        self.snapshot.scan_id
     }
 
     pub fn completed_scan_id(&self) -> usize {
-        match self {
-            Worktree::Local(worktree) => worktree.snapshot.completed_scan_id,
-            Worktree::Remote(worktree) => worktree.snapshot.completed_scan_id,
-        }
+        self.snapshot.completed_scan_id
     }
 
     pub const fn is_visible(&self) -> bool {
-        match self {
-            Worktree::Local(worktree) => worktree.visible,
-            Worktree::Remote(worktree) => worktree.visible,
-        }
+        self.visible
     }
 
     /// External library sources (e.g. a crate in the cargo registry) are
     /// invisible worktrees shown in their own project panel section, and
     /// their buffers open read-only.
     pub const fn library_name(&self) -> Option<&Arc<str>> {
-        match self {
-            Worktree::Local(worktree) => worktree.library_name.as_ref(),
-            Worktree::Remote(worktree) => worktree.library_name.as_ref(),
-        }
+        self.library_name.as_ref()
     }
 
     pub fn set_library_name(&mut self, library_name: Option<Arc<str>>) {
-        match self {
-            Worktree::Local(worktree) => worktree.library_name = library_name,
-            Worktree::Remote(worktree) => worktree.library_name = library_name,
-        }
-    }
-
-    pub const fn replica_id(&self) -> ReplicaId {
-        match self {
-            Worktree::Local(_) => ReplicaId::LOCAL,
-            Worktree::Remote(worktree) => worktree.replica_id,
-        }
+        self.library_name = library_name
     }
 
     pub fn abs_path(&self) -> Arc<Path> {
-        match self {
-            Worktree::Local(worktree) => SanitizedPath::cast_arc(worktree.abs_path.clone()),
-            Worktree::Remote(worktree) => SanitizedPath::cast_arc(worktree.abs_path.clone()),
-        }
-    }
-
-    pub fn observe_updates<F, Fut>(&mut self, project_id: u64, cx: &Context<Worktree>, callback: F)
-    where
-        F: 'static + Send + Fn(proto::UpdateWorktree) -> Fut,
-        Fut: 'static + Send + Future<Output = bool>,
-    {
-        match self {
-            Worktree::Local(this) => this.observe_updates(project_id, cx, callback),
-            Worktree::Remote(this) => this.observe_updates(project_id, cx, callback),
-        }
-    }
-
-    pub fn wait_for_snapshot(&mut self, scan_id: usize) -> impl Future<Output = Result<()>> + use<> {
-        match self {
-            Worktree::Local(this) => this.wait_for_snapshot(scan_id).boxed(),
-            Worktree::Remote(this) => this.wait_for_snapshot(scan_id).boxed(),
-        }
-    }
-
-    pub fn load_file(&self, path: &RelPath, cx: &Context<Worktree>) -> Task<Result<LoadedFile>> {
-        match self {
-            Worktree::Local(this) => this.load_file(path, cx),
-            Worktree::Remote(_) => Task::ready(Err(anyhow!("remote worktrees can't yet load files"))),
-        }
-    }
-
-    pub fn load_binary_file(&self, path: &RelPath, cx: &Context<Worktree>) -> Task<Result<LoadedBinaryFile>> {
-        match self {
-            Worktree::Local(this) => this.load_binary_file(path, cx),
-            Worktree::Remote(_) => Task::ready(Err(anyhow!("remote worktrees can't yet load binary files"))),
-        }
-    }
-
-    pub fn write_file(
-        &self,
-        path: Arc<RelPath>,
-        text: Rope,
-        line_ending: LineEnding,
-        encoding: &'static Encoding,
-        has_bom: bool,
-        cx: &Context<Worktree>,
-    ) -> Task<Result<Arc<File>>> {
-        match self {
-            Worktree::Local(this) => this.write_file(path, text, line_ending, encoding, has_bom, cx),
-            Worktree::Remote(_) => Task::ready(Err(anyhow!("remote worktree can't yet write files"))),
-        }
-    }
-
-    pub fn create_entry(
-        &mut self,
-        path: Arc<RelPath>,
-        is_directory: bool,
-        content: Option<Vec<u8>>,
-        cx: &Context<Worktree>,
-    ) -> Task<Result<CreatedEntry>> {
-        let worktree_id = self.id();
-        match self {
-            Worktree::Local(this) => this.create_entry(path, is_directory, content, cx),
-            Worktree::Remote(this) => {
-                let project_id = this.project_id;
-                let request = this.client.request(proto::CreateProjectEntry {
-                    worktree_id: worktree_id.to_proto(),
-                    project_id,
-                    path: path.as_ref().as_unix_str().to_owned(),
-                    content,
-                    is_directory,
-                });
-                cx.spawn(async move |this, cx| {
-                    let response = request.await?;
-                    match response.entry {
-                        Some(entry) => this
-                            .update(cx, |worktree, cx| {
-                                worktree.as_remote_mut().unwrap().insert_entry(
-                                    entry,
-                                    response.worktree_scan_id as usize,
-                                    cx,
-                                )
-                            })?
-                            .await
-                            .map(CreatedEntry::Included),
-                        None => {
-                            let abs_path = this.read_with(cx, |worktree, _| worktree.absolutize(&path))?;
-                            Ok(CreatedEntry::Excluded { abs_path })
-                        }
-                    }
-                })
-            }
-        }
+        SanitizedPath::cast_arc(self.abs_path.clone())
     }
 
     pub fn trash_entry(
@@ -900,16 +605,9 @@ impl Worktree {
         entry_id: ProjectEntryId,
         cx: &mut Context<Worktree>,
     ) -> Option<Task<Result<TrashId>>> {
-        let entry = match self {
-            Worktree::Local(this) => this.entry_for_id(entry_id),
-            Worktree::Remote(this) => this.entry_for_id(entry_id),
-        }?
-        .clone();
+        let entry = self.entry_for_id(entry_id)?.clone();
 
-        let task = match self {
-            Worktree::Local(this) => this.trash_entry(entry.clone(), cx),
-            Worktree::Remote(this) => this.trash_entry(entry_id, cx),
-        };
+        let task = self.trash_entry_inner(entry.clone(), cx);
 
         let mut ids = vec![entry_id];
         self.get_children_ids_recursive(&entry.path, &mut ids);
@@ -921,16 +619,9 @@ impl Worktree {
     }
 
     pub fn delete_entry(&mut self, entry_id: ProjectEntryId, cx: &mut Context<Worktree>) -> Option<Task<Result<()>>> {
-        let entry = match self {
-            Worktree::Local(this) => this.entry_for_id(entry_id),
-            Worktree::Remote(this) => this.entry_for_id(entry_id),
-        }?
-        .clone();
+        let entry = self.entry_for_id(entry_id)?.clone();
 
-        let task = match self {
-            Worktree::Local(this) => this.delete_entry(entry.clone(), cx),
-            Worktree::Remote(this) => this.delete_entry(entry_id, cx),
-        };
+        let task = self.delete_entry_inner(entry.clone(), cx);
 
         let mut ids = vec![entry_id];
         let path = entry.path;
@@ -943,167 +634,12 @@ impl Worktree {
         Some(task)
     }
 
-    pub fn restore_entry(&mut self, trash_id: TrashId, cx: &mut Context<'_, Worktree>) -> Task<Result<Entry>> {
-        match self {
-            Worktree::Local(this) => this.restore_entry(trash_id, cx),
-            Worktree::Remote(this) => this.restore_entry(trash_id, cx),
-        }
-    }
-
     fn get_children_ids_recursive(&self, path: &RelPath, ids: &mut Vec<ProjectEntryId>) {
         let children_iter = self.child_entries(path);
         for child in children_iter {
             ids.push(child.id);
             self.get_children_ids_recursive(&child.path, ids);
         }
-    }
-
-    pub fn copy_external_entries(
-        &mut self,
-        target_directory: Arc<RelPath>,
-        paths: Vec<Arc<Path>>,
-        fs: Arc<dyn Fs>,
-        cx: &Context<Worktree>,
-    ) -> Task<Result<Vec<ProjectEntryId>>> {
-        match self {
-            Worktree::Local(this) => this.copy_external_entries(target_directory, paths, cx),
-            Worktree::Remote(this) => this.copy_external_entries(target_directory, paths, fs, cx),
-        }
-    }
-
-    pub fn expand_entry(&mut self, entry_id: ProjectEntryId, cx: &Context<Worktree>) -> Option<Task<Result<()>>> {
-        match self {
-            Worktree::Local(this) => this.expand_entry(entry_id, cx),
-            Worktree::Remote(this) => {
-                let response = this
-                    .client
-                    .request(proto::ExpandProjectEntry { project_id: this.project_id, entry_id: entry_id.to_proto() });
-                Some(cx.spawn(async move |this, cx| {
-                    let response = response.await?;
-                    this.update(cx, |this, _| {
-                        this.as_remote_mut().unwrap().wait_for_snapshot(response.worktree_scan_id as usize)
-                    })?
-                    .await?;
-                    Ok(())
-                }))
-            }
-        }
-    }
-
-    pub fn expand_all_for_entry(
-        &mut self,
-        entry_id: ProjectEntryId,
-        cx: &Context<Worktree>,
-    ) -> Option<Task<Result<()>>> {
-        match self {
-            Worktree::Local(this) => this.expand_all_for_entry(entry_id, cx),
-            Worktree::Remote(this) => {
-                let response = this.client.request(proto::ExpandAllForProjectEntry {
-                    project_id: this.project_id,
-                    entry_id: entry_id.to_proto(),
-                });
-                Some(cx.spawn(async move |this, cx| {
-                    let response = response.await?;
-                    this.update(cx, |this, _| {
-                        this.as_remote_mut().unwrap().wait_for_snapshot(response.worktree_scan_id as usize)
-                    })?
-                    .await?;
-                    Ok(())
-                }))
-            }
-        }
-    }
-
-    pub async fn handle_create_entry(
-        this: Entity<Self>,
-        request: proto::CreateProjectEntry,
-        mut cx: AsyncApp,
-    ) -> Result<proto::ProjectEntryResponse> {
-        let (scan_id, entry) = this.update(&mut cx, |this, cx| {
-            anyhow::Ok((
-                this.scan_id(),
-                this.create_entry(
-                    RelPath::from_unix_str(&request.path)
-                        .with_context(|| format!("received invalid relative path {:?}", request.path))?
-                        .into(),
-                    request.is_directory,
-                    request.content,
-                    cx,
-                ),
-            ))
-        })?;
-        Ok(proto::ProjectEntryResponse {
-            entry: match &entry.await? {
-                CreatedEntry::Included(entry) => Some(entry.into()),
-                CreatedEntry::Excluded { .. } => None,
-            },
-            worktree_scan_id: scan_id as u64,
-        })
-    }
-
-    pub async fn handle_trash_entry(
-        this: Entity<Self>,
-        request: proto::TrashProjectEntry,
-        mut cx: AsyncApp,
-    ) -> Result<proto::TrashProjectEntryResponse> {
-        let (scan_id, task) = this.update(&mut cx, |this, cx| {
-            (this.scan_id(), this.trash_entry(ProjectEntryId::from_proto(request.entry_id), cx))
-        });
-        let trash_id = task.ok_or_else(|| anyhow::anyhow!("invalid entry"))?.await?;
-
-        Ok(proto::TrashProjectEntryResponse { trash_id: trash_id.to_proto(), worktree_scan_id: scan_id as u64 })
-    }
-
-    pub async fn handle_delete_entry(
-        this: Entity<Self>,
-        request: proto::DeleteProjectEntry,
-        mut cx: AsyncApp,
-    ) -> Result<proto::ProjectEntryResponse> {
-        let (scan_id, task) = this.update(&mut cx, |this, cx| {
-            (this.scan_id(), this.delete_entry(ProjectEntryId::from_proto(request.entry_id), cx))
-        });
-        task.ok_or_else(|| anyhow::anyhow!("invalid entry"))?.await?;
-        Ok(proto::ProjectEntryResponse { entry: None, worktree_scan_id: scan_id as u64 })
-    }
-
-    pub async fn handle_restore_entry(
-        this: Entity<Self>,
-        request: proto::RestoreProjectEntry,
-        mut cx: AsyncApp,
-    ) -> Result<proto::RestoreProjectEntryResponse> {
-        let (scan_id, task) = this.update(&mut cx, |this, cx| {
-            (this.scan_id(), this.restore_entry(TrashId::from_proto(request.trash_id), cx))
-        });
-
-        let entry = task.await?;
-
-        Ok(proto::RestoreProjectEntryResponse {
-            entry: Some(proto::Entry::from(&entry)),
-            worktree_scan_id: scan_id as u64,
-        })
-    }
-
-    pub async fn handle_expand_entry(
-        this: Entity<Self>,
-        request: proto::ExpandProjectEntry,
-        mut cx: AsyncApp,
-    ) -> Result<proto::ExpandProjectEntryResponse> {
-        let task = this.update(&mut cx, |this, cx| this.expand_entry(ProjectEntryId::from_proto(request.entry_id), cx));
-        task.ok_or_else(|| anyhow::anyhow!("no such entry"))?.await?;
-        let scan_id = this.read_with(&cx, |this, _| this.scan_id());
-        Ok(proto::ExpandProjectEntryResponse { worktree_scan_id: scan_id as u64 })
-    }
-
-    pub async fn handle_expand_all_for_entry(
-        this: Entity<Self>,
-        request: proto::ExpandAllForProjectEntry,
-        mut cx: AsyncApp,
-    ) -> Result<proto::ExpandAllForProjectEntryResponse> {
-        let task = this
-            .update(&mut cx, |this, cx| this.expand_all_for_entry(ProjectEntryId::from_proto(request.entry_id), cx));
-        task.ok_or_else(|| anyhow::anyhow!("no such entry"))?.await?;
-        let scan_id = this.read_with(&cx, |this, _| this.scan_id());
-        Ok(proto::ExpandAllForProjectEntryResponse { worktree_scan_id: scan_id as u64 })
     }
 
     pub fn is_single_file(&self) -> bool {
@@ -1117,9 +653,7 @@ impl Worktree {
             self.root_name().join(worktree_relative_path).display().to_string().into()
         } else {
             let full_path = self.abs_path();
-            let mut full_path_string = if self.is_local()
-                && let Ok(stripped) = full_path.strip_prefix(home_dir())
-            {
+            let mut full_path_string = if let Ok(stripped) = full_path.strip_prefix(home_dir()) {
                 format!("~/{}", stripped.to_string_lossy())
             } else {
                 full_path.to_string_lossy().into_owned()
@@ -1135,7 +669,7 @@ impl Worktree {
     }
 }
 
-impl LocalWorktree {
+impl Worktree {
     pub fn fs(&self) -> &Arc<dyn Fs> {
         &self.fs
     }
@@ -1170,7 +704,7 @@ impl LocalWorktree {
         path_prefixes_to_scan_rx: async_channel::Receiver<PathPrefixScanRequest>,
         cx: &Context<Worktree>,
     ) {
-        let snapshot = self.snapshot();
+        let snapshot = self.local_snapshot();
         let next_entry_id = self.next_entry_id.clone();
         let fs = self.fs.clone();
         let scanning_enabled = self.scanning_enabled;
@@ -1224,27 +758,21 @@ impl LocalWorktree {
         });
         let scan_state_updater = cx.spawn(async move |this, cx| {
             while let Some((state, this)) = scan_states_rx.next().await.zip(this.upgrade()) {
-                this.update(cx, |this, cx| {
-                    let this = this.as_local_mut().unwrap();
-                    match state {
-                        ScanState::Started => {
-                            this.is_scanning.0.send(true).ok();
-                        }
-                        ScanState::Updated { snapshot, changes, barrier, scanning } => {
-                            this.is_scanning.0.send(scanning).ok();
-                            this.set_snapshot(snapshot, changes, cx);
-                            drop(barrier);
-                        }
-                        ScanState::RootUpdated { new_path } => {
-                            this.update_abs_path_and_refresh(new_path, cx);
-                        }
-                        ScanState::RootDeleted => {
-                            log::info!(
-                                "worktree root {} no longer exists, closing worktree",
-                                this.abs_path().display()
-                            );
-                            cx.emit(Event::Deleted);
-                        }
+                this.update(cx, |this, cx| match state {
+                    ScanState::Started => {
+                        this.is_scanning.0.send(true).ok();
+                    }
+                    ScanState::Updated { snapshot, changes, barrier, scanning } => {
+                        this.is_scanning.0.send(scanning).ok();
+                        this.set_snapshot(snapshot, changes, cx);
+                        drop(barrier);
+                    }
+                    ScanState::RootUpdated { new_path } => {
+                        this.update_abs_path_and_refresh(new_path, cx);
+                    }
+                    ScanState::RootDeleted => {
+                        log::info!("worktree root {} no longer exists, closing worktree", this.abs_path().display());
+                        cx.emit(Event::Deleted);
                     }
                 });
             }
@@ -1277,10 +805,6 @@ impl LocalWorktree {
         }
 
         self.snapshot = new_snapshot;
-
-        if let Some(share) = self.update_observer.as_mut() {
-            share.snapshots_tx.unbounded_send((self.snapshot.clone(), entry_changes.clone())).ok();
-        }
 
         if !entry_changes.is_empty() {
             cx.emit(Event::UpdatedEntries(entry_changes));
@@ -1409,7 +933,7 @@ impl LocalWorktree {
         }
     }
 
-    pub fn snapshot(&self) -> LocalSnapshot {
+    pub fn local_snapshot(&self) -> LocalSnapshot {
         self.snapshot.clone()
     }
 
@@ -1417,7 +941,7 @@ impl LocalWorktree {
         self.settings.clone()
     }
 
-    fn load_binary_file(&self, path: &RelPath, cx: &Context<Worktree>) -> Task<Result<LoadedBinaryFile>> {
+    pub fn load_binary_file(&self, path: &RelPath, cx: &Context<Worktree>) -> Task<Result<LoadedBinaryFile>> {
         let path = Arc::from(path);
         let abs_path = self.absolutize(&path);
         let fs = self.fs.clone();
@@ -1441,7 +965,6 @@ impl LocalWorktree {
                         worktree,
                         path,
                         disk_state: DiskState::Present { mtime: metadata.mtime, size: metadata.len },
-                        is_local: true,
                     })
                 }
             };
@@ -1450,7 +973,7 @@ impl LocalWorktree {
         })
     }
 
-    fn load_file(&self, path: &RelPath, cx: &Context<Worktree>) -> Task<Result<LoadedFile>> {
+    pub fn load_file(&self, path: &RelPath, cx: &Context<Worktree>) -> Task<Result<LoadedFile>> {
         let path = Arc::from(path);
         let abs_path = self.absolutize(&path);
         let fs = self.fs.clone();
@@ -1488,7 +1011,6 @@ impl LocalWorktree {
                         worktree,
                         path,
                         disk_state: DiskState::Present { mtime: metadata.mtime, size: metadata.len },
-                        is_local: true,
                     })
                 }
             };
@@ -1547,9 +1069,9 @@ impl LocalWorktree {
                     }
                     let refresh_full_path = lowest_ancestor.join(refresh_path);
 
-                    refreshes.push(this.as_local_mut().unwrap().refresh_entry(refresh_full_path.into(), None, cx));
+                    refreshes.push(this.refresh_entry(refresh_full_path.into(), None, cx));
                 }
-                (this.as_local_mut().unwrap().refresh_entry(path, None, cx), refreshes)
+                (this.refresh_entry(path, None, cx), refreshes)
             })?;
             for refresh in refreshes {
                 refresh.await.log_err();
@@ -1600,8 +1122,7 @@ impl LocalWorktree {
 
         cx.spawn(async move |this, cx| {
             write.await?;
-            let entry =
-                this.update(cx, |this, cx| this.as_local_mut().unwrap().refresh_entry(path.clone(), None, cx))?.await?;
+            let entry = this.update(cx, |this, cx| this.refresh_entry(path.clone(), None, cx))?.await?;
             let worktree = this.upgrade().context("worktree dropped")?;
             if let Some(entry) = entry {
                 Ok(File::for_entry(entry, worktree))
@@ -1616,13 +1137,12 @@ impl LocalWorktree {
                     path,
                     disk_state: DiskState::Present { mtime: metadata.mtime, size: metadata.len },
                     entry_id: None,
-                    is_local: true,
                 }))
             }
         })
     }
 
-    pub fn trash_entry(&self, entry: Entry, cx: &Context<Worktree>) -> Task<Result<TrashId>> {
+    fn trash_entry_inner(&self, entry: Entry, cx: &Context<Worktree>) -> Task<Result<TrashId>> {
         let abs_path = self.absolutize(&entry.path);
         let fs = self.fs.clone();
 
@@ -1633,15 +1153,13 @@ impl LocalWorktree {
                 fs.trash(&abs_path, RemoveOptions { recursive: true, ignore_if_not_exists: false }).await?
             };
 
-            this.update(cx, |this, _| this.as_local_mut().unwrap().refresh_entries_for_paths(vec![entry.path]))?
-                .await
-                .ok();
+            this.update(cx, |this, _| this.refresh_entries_for_paths(vec![entry.path]))?.await.ok();
 
             Ok(trash_id)
         })
     }
 
-    pub fn delete_entry(&self, entry: Entry, cx: &Context<Worktree>) -> Task<Result<()>> {
+    fn delete_entry_inner(&self, entry: Entry, cx: &Context<Worktree>) -> Task<Result<()>> {
         let abs_path = self.absolutize(&entry.path);
         let fs = self.fs.clone();
 
@@ -1652,9 +1170,7 @@ impl LocalWorktree {
                 fs.remove_dir(&abs_path, RemoveOptions { recursive: true, ignore_if_not_exists: false }).await?
             };
 
-            this.update(cx, |this, _| this.as_local_mut().unwrap().refresh_entries_for_paths(vec![entry.path]))?
-                .await
-                .ok();
+            this.update(cx, |this, _| this.refresh_entries_for_paths(vec![entry.path]))?.await.ok();
 
             Ok(())
         })
@@ -1662,7 +1178,7 @@ impl LocalWorktree {
 
     pub fn restore_entry(&mut self, trash_id: TrashId, cx: &mut Context<'_, Worktree>) -> Task<Result<Entry>> {
         let fs = self.fs.clone();
-        let worktree_abs_path = self.abs_path().clone();
+        let worktree_abs_path = self.abs_path();
 
         cx.spawn(async move |this, cx| {
             let path_buf = fs.restore(trash_id).await?;
@@ -1670,7 +1186,7 @@ impl LocalWorktree {
             let path = Arc::from(RelPath::new(path)?.as_ref());
 
             let entry = this
-                .update(cx, |this, cx| this.as_local_mut().unwrap().refresh_entry(path, None, cx))?
+                .update(cx, |this, cx| this.refresh_entry(path, None, cx))?
                 .await?
                 .context("Entry not found after restore")?;
 
@@ -1685,7 +1201,7 @@ impl LocalWorktree {
         cx: &Context<Worktree>,
     ) -> Task<Result<Vec<ProjectEntryId>>> {
         let target_directory = self.absolutize(&target_directory);
-        let worktree_path = self.abs_path().clone();
+        let worktree_path = self.abs_path();
         let fs = self.fs.clone();
         let paths = paths
             .into_iter()
@@ -1723,11 +1239,7 @@ impl LocalWorktree {
             .await
             .log_err();
             let refresh = cx.read_entity(&this.upgrade().with_context(|| "Dropped worktree")?, |this, _| {
-                anyhow::Ok::<oneshot::Receiver<()>>(
-                    this.as_local()
-                        .with_context(|| "Worktree is not local")?
-                        .refresh_entries_for_paths(paths_to_refresh.clone()),
-                )
+                anyhow::Ok::<oneshot::Receiver<()>>(this.refresh_entries_for_paths(paths_to_refresh.clone()))
             })?;
 
             cx.background_spawn(async move {
@@ -1744,7 +1256,7 @@ impl LocalWorktree {
         })
     }
 
-    fn expand_entry(&self, entry_id: ProjectEntryId, cx: &Context<Worktree>) -> Option<Task<Result<()>>> {
+    pub fn expand_entry(&self, entry_id: ProjectEntryId, cx: &Context<Worktree>) -> Option<Task<Result<()>>> {
         let path = self.entry_for_id(entry_id)?.path.clone();
         let refresh = self.refresh_entries_for_paths(vec![path]);
         Some(cx.background_spawn(async move {
@@ -1753,7 +1265,7 @@ impl LocalWorktree {
         }))
     }
 
-    fn expand_all_for_entry(&self, entry_id: ProjectEntryId, cx: &Context<Worktree>) -> Option<Task<Result<()>>> {
+    pub fn expand_all_for_entry(&self, entry_id: ProjectEntryId, cx: &Context<Worktree>) -> Option<Task<Result<()>>> {
         let path = self.entry_for_id(entry_id).unwrap().path.clone();
         let rx = self.add_path_prefix_to_scan(path);
         Some(cx.background_spawn(async move {
@@ -1813,53 +1325,6 @@ impl LocalWorktree {
         })
     }
 
-    pub fn observe_updates<F, Fut>(&mut self, project_id: u64, cx: &Context<Worktree>, callback: F)
-    where
-        F: 'static + Send + Fn(proto::UpdateWorktree) -> Fut,
-        Fut: 'static + Send + Future<Output = bool>,
-    {
-        if let Some(observer) = self.update_observer.as_mut() {
-            observer.resume_updates.send(()).ok();
-            return;
-        }
-
-        let (resume_updates_tx, mut resume_updates_rx) = watch::channel(());
-        let (snapshots_tx, mut snapshots_rx) = mpsc::unbounded::<(LocalSnapshot, UpdatedEntriesSet)>();
-        snapshots_tx.unbounded_send((self.snapshot(), Arc::default())).ok();
-
-        let worktree_id = self.id.to_proto();
-        let _maintain_remote_snapshot = cx.background_spawn(async move {
-            let mut is_first = true;
-            while let Some((snapshot, entry_changes)) = snapshots_rx.next().await {
-                let update = if is_first {
-                    is_first = false;
-                    snapshot.build_initial_update(project_id, worktree_id)
-                } else {
-                    snapshot.build_update(project_id, worktree_id, entry_changes)
-                };
-
-                for update in proto::split_worktree_update(update) {
-                    drop(watch::Receiver::borrow(&mut resume_updates_rx));
-                    loop {
-                        let result = callback(update.clone());
-                        if result.await {
-                            break;
-                        } else {
-                            log::info!("waiting to resume updates");
-                            if resume_updates_rx.changed().await.is_err() {
-                                return Some(());
-                            }
-                        }
-                    }
-                }
-            }
-            Some(())
-        });
-
-        self.update_observer =
-            Some(UpdateObservationState { snapshots_tx, resume_updates: resume_updates_tx, _maintain_remote_snapshot });
-    }
-
     pub fn update_abs_path_and_refresh(&mut self, new_path: Arc<SanitizedPath>, cx: &Context<Worktree>) {
         self.snapshot.git_repositories = TreeMap::default();
         self.snapshot.ignores_by_parent_abs_path = FxHashMap::default();
@@ -1870,220 +1335,6 @@ impl LocalWorktree {
             .map_or(RelPath::empty_arc(), |f| RelPath::from_unix_str(f).unwrap().into());
         self.snapshot.update_abs_path(new_path, root_name);
         self.restart_background_scanners(cx);
-    }
-}
-
-impl RemoteWorktree {
-    pub const fn project_id(&self) -> u64 {
-        self.project_id
-    }
-
-    pub fn client(&self) -> AnyProtoClient {
-        self.client.clone()
-    }
-
-    pub fn disconnected_from_host(&mut self) {
-        self.updates_tx.take();
-        self.snapshot_subscriptions.clear();
-        self.disconnected = true;
-    }
-
-    pub fn update_from_remote(&self, update: proto::UpdateWorktree) {
-        if let Some(updates_tx) = &self.updates_tx {
-            updates_tx.unbounded_send(update).expect("consumer runs to completion");
-        }
-    }
-
-    fn observe_updates<F, Fut>(&mut self, project_id: u64, cx: &Context<Worktree>, callback: F)
-    where
-        F: 'static + Send + Fn(proto::UpdateWorktree) -> Fut,
-        Fut: 'static + Send + Future<Output = bool>,
-    {
-        let (tx, mut rx) = mpsc::unbounded();
-        let initial_update = self.snapshot.build_initial_update(project_id, self.id().to_proto());
-        self.update_observer = Some(tx);
-        cx.spawn(async move |this, cx| {
-            let mut update = initial_update;
-            'outer: loop {
-                // SSH projects use a special project ID of 0, and we need to
-                // remap it to the correct one here.
-                update.project_id = project_id;
-
-                for chunk in split_worktree_update(update) {
-                    if !callback(chunk).await {
-                        break 'outer;
-                    }
-                }
-
-                if let Some(next_update) = rx.next().await {
-                    update = next_update;
-                } else {
-                    break;
-                }
-            }
-            this.update(cx, |this, _| {
-                let this = this.as_remote_mut().unwrap();
-                this.update_observer.take();
-            })
-        })
-        .detach();
-    }
-
-    fn observed_snapshot(&self, scan_id: usize) -> bool {
-        self.completed_scan_id >= scan_id
-    }
-
-    pub fn wait_for_snapshot(&mut self, scan_id: usize) -> impl Future<Output = Result<()>> + use<> {
-        let (tx, rx) = oneshot::channel();
-        if self.observed_snapshot(scan_id) {
-            let _ = tx.send(());
-        } else if self.disconnected {
-            drop(tx);
-        } else {
-            match self.snapshot_subscriptions.binary_search_by_key(&scan_id, |probe| probe.0) {
-                Ok(ix) | Err(ix) => self.snapshot_subscriptions.insert(ix, (scan_id, tx)),
-            }
-        }
-
-        async move {
-            rx.await?;
-            Ok(())
-        }
-    }
-
-    pub fn insert_entry(&mut self, entry: proto::Entry, scan_id: usize, cx: &Context<Worktree>) -> Task<Result<Entry>> {
-        let wait_for_snapshot = self.wait_for_snapshot(scan_id);
-        cx.spawn(async move |this, cx| {
-            wait_for_snapshot.await?;
-            this.update(cx, |worktree, _| {
-                let worktree = worktree.as_remote_mut().unwrap();
-                let snapshot = &mut worktree.background_snapshot.lock().0;
-                let entry = snapshot.insert_entry(entry, &worktree.file_scan_inclusions);
-                worktree.snapshot = snapshot.clone();
-                entry
-            })?
-        })
-    }
-
-    fn trash_entry(&self, entry_id: ProjectEntryId, cx: &Context<Worktree>) -> Task<Result<TrashId>> {
-        let response = self
-            .client
-            .request(proto::TrashProjectEntry { project_id: self.project_id, entry_id: entry_id.to_proto() });
-
-        cx.spawn(async move |this, cx| {
-            let response = response.await?;
-            let scan_id = response.worktree_scan_id as usize;
-            let trash_id = response.trash_id;
-
-            this.update(cx, move |this, _| this.as_remote_mut().unwrap().wait_for_snapshot(scan_id))?.await?;
-
-            this.update(cx, |this, _| {
-                let this = this.as_remote_mut().unwrap();
-                let snapshot = &mut this.background_snapshot.lock().0;
-                snapshot.delete_entry(entry_id);
-                this.snapshot = snapshot.clone();
-            })?;
-
-            Ok(TrashId::from_proto(trash_id))
-        })
-    }
-
-    fn delete_entry(&self, entry_id: ProjectEntryId, cx: &Context<Worktree>) -> Task<Result<()>> {
-        let response = self
-            .client
-            .request(proto::DeleteProjectEntry { project_id: self.project_id, entry_id: entry_id.to_proto() });
-
-        cx.spawn(async move |this, cx| {
-            let response = response.await?;
-            let scan_id = response.worktree_scan_id as usize;
-
-            this.update(cx, move |this, _| this.as_remote_mut().unwrap().wait_for_snapshot(scan_id))?.await?;
-
-            this.update(cx, |this, _| {
-                let this = this.as_remote_mut().unwrap();
-                let snapshot = &mut this.background_snapshot.lock().0;
-                snapshot.delete_entry(entry_id);
-                this.snapshot = snapshot.clone();
-            })
-        })
-    }
-
-    fn restore_entry(&self, trash_id: TrashId, cx: &Context<Worktree>) -> Task<Result<Entry>> {
-        let project_id = self.project_id();
-        let worktree_id = self.id().to_proto();
-        let trash_id = trash_id.to_proto();
-
-        let request = self.client.request(proto::RestoreProjectEntry { project_id, worktree_id, trash_id });
-
-        cx.spawn(async move |this, cx| {
-            let response = request.await?;
-            let scan_id = response.worktree_scan_id as usize;
-            let proto_entry = response.entry.context("Missing entry in in response")?;
-
-            this.update(cx, move |worktree, cx| {
-                worktree.as_remote_mut().unwrap().insert_entry(proto_entry, scan_id, cx)
-            })?
-            .await
-        })
-    }
-
-    fn copy_external_entries(
-        &self,
-        target_directory: Arc<RelPath>,
-        paths_to_copy: Vec<Arc<Path>>,
-        local_fs: Arc<dyn Fs>,
-        cx: &Context<Worktree>,
-    ) -> Task<anyhow::Result<Vec<ProjectEntryId>>> {
-        let client = self.client.clone();
-        let worktree_id = self.id().to_proto();
-        let project_id = self.project_id;
-
-        cx.background_spawn(async move {
-            let mut requests = Vec::new();
-            for root_path_to_copy in paths_to_copy {
-                let Some(filename) = root_path_to_copy
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .and_then(|filename| RelPath::from_unix_str(filename).ok())
-                else {
-                    continue;
-                };
-                for (abs_path, is_directory) in read_dir_items(local_fs.as_ref(), &root_path_to_copy).await? {
-                    let Some(relative_path) = abs_path
-                        .strip_prefix(&root_path_to_copy)
-                        .map_err(anyhow::Error::from)
-                        .and_then(|relative_path| RelPath::new(relative_path))
-                        .log_err()
-                    else {
-                        continue;
-                    };
-                    let content = if is_directory { None } else { Some(local_fs.load_bytes(&abs_path).await?) };
-
-                    let mut target_path = target_directory.join(filename);
-                    if relative_path.file_name().is_some() {
-                        target_path = target_path.join(&relative_path);
-                    }
-
-                    requests.push(proto::CreateProjectEntry {
-                        project_id,
-                        worktree_id,
-                        path: target_path.as_unix_str().to_owned(),
-                        is_directory,
-                        content,
-                    });
-                }
-            }
-            requests.sort_unstable_by(|a, b| a.path.cmp(&b.path));
-            requests.dedup();
-
-            let mut copied_entry_ids = Vec::new();
-            for request in requests {
-                let response = client.request(request).await?;
-                copied_entry_ids.extend(response.entry.map(|e| ProjectEntryId::from_proto(e.id)));
-            }
-
-            Ok(copied_entry_ids)
-        })
     }
 }
 
@@ -2131,27 +1382,6 @@ impl Snapshot {
         self.root_repo_is_linked_worktree
     }
 
-    fn build_initial_update(&self, project_id: u64, worktree_id: u64) -> proto::UpdateWorktree {
-        let mut updated_entries = self.entries_by_path.iter().map(proto::Entry::from).collect::<Vec<_>>();
-        updated_entries.sort_unstable_by_key(|e| e.id);
-
-        proto::UpdateWorktree {
-            project_id,
-            worktree_id,
-            abs_path: self.abs_path().to_string_lossy().into_owned(),
-            root_name: self.root_name().as_unix_str().to_owned(),
-            root_repo_common_dir: self.root_repo_common_dir().map(|p| p.to_string_lossy().into_owned()),
-            root_repo_is_linked_worktree: self.root_repo_is_linked_worktree,
-            updated_entries,
-            removed_entries: Vec::new(),
-            scan_id: self.scan_id as u64,
-            is_last_update: self.completed_scan_id == self.scan_id,
-            // Sent in separate messages.
-            updated_repositories: Vec::new(),
-            removed_repositories: Vec::new(),
-        }
-    }
-
     pub fn work_directory_abs_path(&self, work_directory: &WorkDirectory) -> PathBuf {
         match work_directory {
             WorkDirectory::InProject { relative_path } => self.absolutize(relative_path),
@@ -2178,109 +1408,11 @@ impl Snapshot {
         self.entries_by_id.get(&entry_id, ()).is_some()
     }
 
-    fn insert_entry(&mut self, entry: proto::Entry, always_included_paths: &PathMatcher) -> Result<Entry> {
-        let entry = Entry::try_from((&self.root_char_bag, always_included_paths, entry))?;
-        let old_entry = self.entries_by_id.insert_or_replace(
-            PathEntry { id: entry.id, path: entry.path.clone(), is_ignored: entry.is_ignored, scan_id: 0 },
-            (),
-        );
-        if let Some(old_entry) = old_entry {
-            self.entries_by_path.remove(&PathKey(old_entry.path), ());
-        }
-        self.entries_by_path.insert_or_replace(entry.clone(), ());
-        Ok(entry)
-    }
-
-    fn delete_entry(&mut self, entry_id: ProjectEntryId) -> Option<Arc<RelPath>> {
-        let removed_entry = self.entries_by_id.remove(&entry_id, ())?;
-        self.entries_by_path = {
-            let mut cursor = self.entries_by_path.cursor::<TraversalProgress>(());
-            let mut new_entries_by_path = cursor.slice(&TraversalTarget::path(&removed_entry.path), Bias::Left);
-            while let Some(entry) = cursor.item() {
-                if entry.path.starts_with(&removed_entry.path) {
-                    self.entries_by_id.remove(&entry.id, ());
-                    cursor.next();
-                } else {
-                    break;
-                }
-            }
-            new_entries_by_path.append(cursor.suffix(), ());
-            new_entries_by_path
-        };
-
-        Some(removed_entry.path)
-    }
-
     fn update_abs_path(&mut self, abs_path: Arc<SanitizedPath>, root_name: Arc<RelPath>) {
         self.abs_path = abs_path;
         if root_name != self.root_name {
             self.root_char_bag = root_name.as_unix_str().chars().map(|c| c.to_ascii_lowercase()).collect();
             self.root_name = root_name;
-        }
-    }
-
-    pub fn apply_remote_update(&mut self, update: proto::UpdateWorktree, always_included_paths: &PathMatcher) {
-        log::debug!(
-            "applying remote worktree update. {} entries updated, {} removed",
-            update.updated_entries.len(),
-            update.removed_entries.len()
-        );
-        if let Some(root_name) = RelPath::from_unix_str(&update.root_name).log_err() {
-            self.update_abs_path(SanitizedPath::new_arc(&Path::new(&update.abs_path)), root_name.into());
-        }
-
-        let mut entries_by_path_edits = Vec::new();
-        let mut entries_by_id_edits = Vec::new();
-
-        for entry_id in update.removed_entries {
-            let entry_id = ProjectEntryId::from_proto(entry_id);
-            entries_by_id_edits.push(Edit::Remove(entry_id));
-            if let Some(entry) = self.entry_for_id(entry_id) {
-                entries_by_path_edits.push(Edit::Remove(PathKey(entry.path.clone())));
-            }
-        }
-
-        for entry in update.updated_entries {
-            let Some(entry) = Entry::try_from((&self.root_char_bag, always_included_paths, entry)).log_err() else {
-                continue;
-            };
-            if let Some(PathEntry { path, .. }) = self.entries_by_id.get(&entry.id, ()) {
-                entries_by_path_edits.push(Edit::Remove(PathKey(path.clone())));
-            }
-            if let Some(old_entry) = self.entries_by_path.get(&PathKey(entry.path.clone()), ())
-                && old_entry.id != entry.id
-            {
-                entries_by_id_edits.push(Edit::Remove(old_entry.id));
-            }
-            entries_by_id_edits.push(Edit::Insert(PathEntry {
-                id: entry.id,
-                path: entry.path.clone(),
-                is_ignored: entry.is_ignored,
-                scan_id: 0,
-            }));
-            entries_by_path_edits.push(Edit::Insert(entry));
-        }
-
-        self.entries_by_path.edit(entries_by_path_edits, ());
-        self.entries_by_id.edit(entries_by_id_edits, ());
-
-        // A `None` from a completed scan is a real repo removal, whereas a `None`
-        // mid-scan may just mean the sender hasn't registered the root repo yet.
-        match update.root_repo_common_dir.map(|p| SanitizedPath::new_arc(Path::new(&p))) {
-            Some(dir) => {
-                self.root_repo_common_dir = Some(dir);
-                self.root_repo_is_linked_worktree = update.root_repo_is_linked_worktree;
-            }
-            None if update.is_last_update => {
-                self.root_repo_common_dir = None;
-                self.root_repo_is_linked_worktree = false;
-            }
-            None => {}
-        }
-
-        self.scan_id = update.scan_id as usize;
-        if update.is_last_update {
-            self.completed_scan_id = update.scan_id as usize;
         }
     }
 
@@ -2478,46 +1610,6 @@ impl LocalSnapshot {
             .iter()
             .map(|(_, entry)| entry)
             .find(|entry| entry.work_directory.path_key() == PathKey(path.into()))
-    }
-
-    fn build_update(
-        &self,
-        project_id: u64,
-        worktree_id: u64,
-        entry_changes: UpdatedEntriesSet,
-    ) -> proto::UpdateWorktree {
-        let mut updated_entries = Vec::new();
-        let mut removed_entries = Vec::new();
-
-        for (_, entry_id, path_change) in entry_changes.iter() {
-            if let PathChange::Removed = path_change {
-                removed_entries.push(entry_id.0 as u64);
-            } else if let Some(entry) = self.entry_for_id(*entry_id) {
-                updated_entries.push(proto::Entry::from(entry));
-            }
-        }
-
-        removed_entries.sort_unstable();
-        updated_entries.sort_unstable_by_key(|e| e.id);
-
-        // TODO - optimize, knowing that removed_entries are sorted.
-        removed_entries.retain(|id| updated_entries.binary_search_by_key(id, |e| e.id).is_err());
-
-        proto::UpdateWorktree {
-            project_id,
-            worktree_id,
-            abs_path: self.abs_path().to_string_lossy().into_owned(),
-            root_name: self.root_name().as_unix_str().to_owned(),
-            root_repo_common_dir: self.root_repo_common_dir().map(|p| p.to_string_lossy().into_owned()),
-            root_repo_is_linked_worktree: self.root_repo_is_linked_worktree,
-            updated_entries,
-            removed_entries,
-            scan_id: self.scan_id as u64,
-            is_last_update: self.completed_scan_id == self.scan_id,
-            // Sent in separate messages.
-            updated_repositories: Vec::new(),
-            removed_repositories: Vec::new(),
-        }
     }
 
     async fn insert_entry(&mut self, mut entry: Entry, fs: &dyn Fs) -> Entry {
@@ -3016,17 +2108,6 @@ async fn build_gitignore_with_root(abs_path: &Path, root: &Path, fs: &dyn Fs) ->
 }
 
 impl Deref for Worktree {
-    type Target = Snapshot;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            Worktree::Local(worktree) => &worktree.snapshot,
-            Worktree::Remote(worktree) => &worktree.snapshot,
-        }
-    }
-}
-
-impl Deref for LocalWorktree {
     type Target = LocalSnapshot;
 
     fn deref(&self) -> &Self::Target {
@@ -3034,15 +2115,7 @@ impl Deref for LocalWorktree {
     }
 }
 
-impl Deref for RemoteWorktree {
-    type Target = Snapshot;
-
-    fn deref(&self) -> &Self::Target {
-        &self.snapshot
-    }
-}
-
-impl fmt::Debug for LocalWorktree {
+impl fmt::Debug for Worktree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.snapshot.fmt(f)
     }
@@ -3080,12 +2153,11 @@ pub struct File {
     pub path: Arc<RelPath>,
     pub disk_state: DiskState,
     pub entry_id: Option<ProjectEntryId>,
-    pub is_local: bool,
 }
 
 impl language::File for File {
     fn as_local(&self) -> Option<&dyn language::LocalFile> {
-        if self.is_local { Some(self) } else { None }
+        Some(self)
     }
 
     fn disk_state(&self) -> DiskState {
@@ -3118,17 +2190,6 @@ impl language::File for File {
         self.worktree.read(cx).is_visible()
     }
 
-    fn to_proto(&self, cx: &App) -> proto::File {
-        proto::File {
-            worktree_id: self.worktree.read(cx).id().to_proto(),
-            entry_id: self.entry_id.map(|id| id.to_proto()),
-            path: self.path.as_ref().as_unix_str().to_owned(),
-            mtime: self.disk_state.mtime().map(|time| time.into()),
-            is_deleted: self.disk_state.is_deleted(),
-            is_historic: matches!(self.disk_state, DiskState::Historic { .. }),
-        }
-    }
-
     fn can_open(&self) -> bool {
         true
     }
@@ -3140,14 +2201,14 @@ impl language::LocalFile for File {
     }
 
     fn load(&self, cx: &App) -> Task<Result<String>> {
-        let worktree = self.worktree.read(cx).as_local().unwrap();
+        let worktree = self.worktree.read(cx);
         let abs_path = worktree.absolutize(&self.path);
         let fs = worktree.fs.clone();
         cx.background_spawn(async move { fs.load(&abs_path).await })
     }
 
     fn load_bytes(&self, cx: &App) -> Task<Result<Vec<u8>>> {
-        let worktree = self.worktree.read(cx).as_local().unwrap();
+        let worktree = self.worktree.read(cx);
         let abs_path = worktree.absolutize(&self.path);
         let fs = worktree.fs.clone();
         cx.background_spawn(async move { fs.load_bytes(&abs_path).await })
@@ -3165,31 +2226,6 @@ impl File {
                 DiskState::New
             },
             entry_id: Some(entry.id),
-            is_local: true,
-        })
-    }
-
-    pub fn from_proto(proto: proto::File, worktree: Entity<Worktree>, cx: &App) -> Result<Self> {
-        let worktree_id = worktree.read(cx).as_remote().context("not remote")?.id();
-
-        anyhow::ensure!(worktree_id.to_proto() == proto.worktree_id, "worktree id does not match file");
-
-        let disk_state = if proto.is_historic {
-            DiskState::Historic { was_deleted: proto.is_deleted }
-        } else if proto.is_deleted {
-            DiskState::Deleted
-        } else if let Some(mtime) = proto.mtime.map(Into::into) {
-            DiskState::Present { mtime, size: 0 }
-        } else {
-            DiskState::New
-        };
-
-        Ok(Self {
-            worktree,
-            path: RelPath::from_unix_str(&proto.path).context("invalid path in file protobuf")?.into(),
-            disk_state,
-            entry_id: proto.entry_id.map(ProjectEntryId::from_proto),
-            is_local: false,
         })
     }
 
@@ -3251,7 +2287,6 @@ pub struct Entry {
     pub size: u64,
     pub char_bag: CharBag,
     pub is_fifo: bool,
-    /// A permission change makes the entry `Updated`, so remote clients get it too.
     pub is_writable: bool,
 }
 
@@ -5664,58 +4699,6 @@ impl<'a> Iterator for ChildEntriesIter<'a> {
     }
 }
 
-impl<'a> From<&'a Entry> for proto::Entry {
-    fn from(entry: &'a Entry) -> Self {
-        Self {
-            id: entry.id.to_proto(),
-            is_dir: entry.is_dir(),
-            path: entry.path.as_ref().as_unix_str().to_owned(),
-            inode: entry.inode,
-            mtime: entry.mtime.map(|time| time.into()),
-            is_ignored: entry.is_ignored,
-            is_hidden: entry.is_hidden,
-            is_external: entry.is_external,
-            is_fifo: entry.is_fifo,
-            size: Some(entry.size),
-            canonical_path: entry.canonical_path.as_ref().map(|path| path.to_string_lossy().into_owned()),
-            is_unloaded: entry.kind == EntryKind::UnloadedDir,
-            is_read_only: !entry.is_writable,
-        }
-    }
-}
-
-impl TryFrom<(&CharBag, &PathMatcher, proto::Entry)> for Entry {
-    type Error = anyhow::Error;
-
-    fn try_from((root_char_bag, always_included, entry): (&CharBag, &PathMatcher, proto::Entry)) -> Result<Self> {
-        let kind = if entry.is_dir {
-            if entry.is_unloaded { EntryKind::UnloadedDir } else { EntryKind::Dir }
-        } else {
-            EntryKind::File
-        };
-
-        let path = RelPath::from_unix_str(&entry.path).context("invalid relative path in proto message")?;
-        let char_bag = char_bag_for_path(*root_char_bag, path);
-        let is_always_included = always_included.is_match(path);
-        Ok(Entry {
-            id: ProjectEntryId::from_proto(entry.id),
-            kind,
-            path: path.into(),
-            inode: entry.inode,
-            mtime: entry.mtime.map(|time| time.into()),
-            size: entry.size.unwrap_or(0),
-            canonical_path: entry.canonical_path.map(|path_string| Arc::from(PathBuf::from(path_string))),
-            is_ignored: entry.is_ignored,
-            is_hidden: entry.is_hidden,
-            is_always_included,
-            is_external: entry.is_external,
-            char_bag,
-            is_fifo: entry.is_fifo,
-            is_writable: !entry.is_read_only,
-        })
-    }
-}
-
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProjectEntryId(usize);
 
@@ -5725,14 +4708,6 @@ impl ProjectEntryId {
 
     pub fn new(counter: &AtomicUsize) -> Self {
         Self(counter.fetch_add(1, SeqCst))
-    }
-
-    pub const fn from_proto(id: u64) -> Self {
-        Self(id as usize)
-    }
-
-    pub const fn to_proto(self) -> u64 {
-        self.0 as u64
     }
 
     pub const fn from_usize(id: usize) -> Self {
@@ -5955,25 +4930,6 @@ fn push_normalized(rope: &mut Rope, text: &str, scratch: &mut String) {
     }
     scratch.push_str(&text[start..]);
     rope.push(scratch);
-}
-
-#[cfg(test)]
-mod entry_proto_tests {
-    use fuzzy::CharBag;
-    use rpc::proto;
-    use util::paths::PathMatcher;
-
-    use super::Entry;
-
-    #[test]
-    fn test_entry_writability_round_trips_through_proto() {
-        for is_read_only in [false, true] {
-            let proto_entry = proto::Entry { path: "a.txt".into(), is_read_only, ..Default::default() };
-            let entry = Entry::try_from((&CharBag::default(), &PathMatcher::default(), proto_entry)).unwrap();
-            assert_eq!(entry.is_writable, !is_read_only);
-            assert_eq!(proto::Entry::from(&entry).is_read_only, is_read_only);
-        }
-    }
 }
 
 /// The rebase state directory itself appearing or disappearing starts or ends

@@ -14,7 +14,6 @@ use util::paths::PathExt;
 use crate::NewWindow;
 use crate::ProjectLocation;
 use crate::ProjectsStore;
-use crate::SerializedWorkspaceLocation;
 use crate::path_list::PathList;
 use crate::persistence::recent_project_workspaces;
 
@@ -52,7 +51,6 @@ impl HistoryManager {
                 .await
                 .into_iter()
                 .rev()
-                .filter(|workspace| matches!(workspace.location, SerializedWorkspaceLocation::Local))
                 .map(|workspace| HistoryManagerEntry::new(&workspace.paths))
                 .collect::<Vec<_>>();
             this.update(cx, |this, cx| {
@@ -102,10 +100,8 @@ impl HistoryManager {
                 this.history.retain(|entry| {
                     let removed = user_removed.contains(&entry.path);
                     if removed {
-                        removed_locations.push(ProjectLocation {
-                            paths: entry.paths.ordered_paths().cloned().collect(),
-                            remote: None,
-                        });
+                        removed_locations
+                            .push(ProjectLocation { paths: entry.paths.ordered_paths().cloned().collect() });
                     }
                     !removed
                 });

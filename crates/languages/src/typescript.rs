@@ -413,7 +413,8 @@ impl ContextProvider for TypeScriptContextProvider {
         }
         let file_path = location.file_location.buffer.read(cx).file().map(|file| file.path());
 
-        let args = location.worktree_root.zip(location.fs).zip(file_path).map(|((worktree_root, fs), file_path)| {
+        let fs = location.fs;
+        let args = location.worktree_root.zip(file_path).map(|(worktree_root, file_path)| {
             (self.combined_package_json_data(fs.clone(), &worktree_root, file_path, cx), worktree_root, fs)
         });
         cx.background_spawn(async move {

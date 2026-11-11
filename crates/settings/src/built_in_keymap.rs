@@ -434,10 +434,6 @@ pub fn keymap() -> Vec<KeyBindingSpec> {
             KeyBindingSpec::new("ctrl-cmd-f", "ed::ToggleFullScreen"),
             KeyBindingSpec::new("alt-cmd-o", "projects::OpenRecent"),
             KeyBindingSpec::new("ctrl-r", "projects::OpenRecent"),
-            KeyBindingSpec::new("ctrl-cmd-o", "projects::OpenRemote")
-                .with_input(json!({"from_existing_connection": false})),
-            KeyBindingSpec::new("ctrl-cmd-shift-o", "projects::OpenRemote")
-                .with_input(json!({"from_existing_connection": true})),
             KeyBindingSpec::new("cmd-ctrl-b", "git::Branch"),
             KeyBindingSpec::new("cmd-ctrl-w", "git::Worktree"),
             KeyBindingSpec::new("cmd-s", "workspace::Save"),

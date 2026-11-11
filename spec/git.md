@@ -19,8 +19,7 @@ repository's `$PATH`; if none is found, the repository is not opened.
   `$XDG_CONFIG_HOME/git/config`, `~/.config/git/config` by default) refreshes
   local repositories, as git reads both.
 - No permalinks: the editor's Copy/Open Permalink to Line, the file
-  Copy/Open File Permalink actions and their menu entries are removed, along
-  with the matching RPCs.
+  Copy/Open File Permalink actions and their menu entries are removed.
 - No pull requests: the `git::CreatePullRequest` action is removed, and a
   successful push only shows a toast with "View Log"; PR/MR links in push
   output are not surfaced.
@@ -311,10 +310,9 @@ view) offers:
   selects the newest commit and goes away when clicked or when a new commit
   is selected.
 - Refresh (`git_graph::Refresh`, `cmd-r` in the graph) is for changes the
-  file watcher misses, e.g. a repository on a virtiofs share in a VM opened
-  over SSH and committed to from the host: guest inotify never sees host
-  writes. It rescans the worktrees (on the remote host for remote projects,
-  like `workspace::ReloadProjectFiles`), then drops the cached commits and
+  file watcher misses, e.g. a repository on a network or VM-shared mount
+  changed from another machine. It rescans the worktrees (like
+  `workspace::ReloadProjectFiles`), then drops the cached commits and
   reloads them. The button spins while commits load.
 - The search row is hidden until opened with `cmd-f` (or the Search button),
   like buffer search.

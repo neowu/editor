@@ -52,7 +52,7 @@ pub trait ContextProvider: Send + Sync {
 
 /// Metadata about the place in the project we gather the context for.
 pub struct ContextLocation<'a> {
-    pub fs: Option<Arc<dyn Fs>>,
+    pub fs: Arc<dyn Fs>,
     pub worktree_root: Option<PathBuf>,
     pub file_location: &'a Location,
 }

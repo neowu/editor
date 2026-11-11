@@ -1,5 +1,3 @@
-use proto::status_update::Status;
-use proto::update_language_server::Variant;
 gpui::actions!(activity_indicator, [DismissMessage]);
 use std::cmp::Reverse;
 use std::collections::HashSet;
@@ -150,58 +148,19 @@ impl ActivityIndicator {
             })
             .detach();
 
-            cx.subscribe(&project.read(cx).lsp_store(), |activity_indicator, _, event, cx| {
-                if let LspStoreEvent::LanguageServerUpdate { name, message, .. } = event {
-                    if let Variant::StatusUpdate(status_update) = message {
-                        let Some(name) = name.clone() else {
-                            return;
-                        };
-                        let status = match &status_update.status {
-                            Some(Status::Binary(binary_status)) => {
-                                if let Ok(binary_status) = proto::ServerBinaryStatus::try_from(*binary_status) {
-                                    let binary_status = match binary_status {
-                                        proto::ServerBinaryStatus::None => BinaryStatus::None,
-                                        proto::ServerBinaryStatus::Starting => BinaryStatus::Starting,
-                                        proto::ServerBinaryStatus::Stopping => BinaryStatus::Stopping,
-                                        proto::ServerBinaryStatus::Stopped => BinaryStatus::Stopped,
-                                        proto::ServerBinaryStatus::NotInstalled => BinaryStatus::NotInstalled {
-                                            message: status_update.message.clone().unwrap_or_default(),
-                                        },
-                                        proto::ServerBinaryStatus::Failed => {
-                                            let Some(error) = status_update.message.clone() else {
-                                                return;
-                                            };
-                                            BinaryStatus::Failed { error }
-                                        }
-                                    };
-                                    LanguageServerStatusUpdate::Binary(binary_status)
-                                } else {
-                                    return;
-                                }
-                            }
-                            Some(Status::Health(health_status)) => {
-                                if let Ok(health) = proto::ServerHealth::try_from(*health_status) {
-                                    let health = match health {
-                                        proto::ServerHealth::Ok => ServerHealth::Ok,
-                                        proto::ServerHealth::Warning => ServerHealth::Warning,
-                                        proto::ServerHealth::Error => ServerHealth::Error,
-                                    };
-                                    LanguageServerStatusUpdate::Health(
-                                        health,
-                                        status_update.message.clone().map(SharedString::from),
-                                    )
-                                } else {
-                                    return;
-                                }
-                            }
-                            None => return,
-                        };
-
+            cx.subscribe(&project.read(cx).lsp_store(), |activity_indicator, _, event, cx| match event {
+                LspStoreEvent::LanguageServerStatus { name, status, .. } => {
+                    if let Some(name) = name.clone() {
                         activity_indicator.statuses.retain(|s| s.name != name);
-                        activity_indicator.statuses.push(ServerStatus { name, status });
+                        activity_indicator.statuses.push(ServerStatus { name, status: status.clone() });
                     }
                     cx.notify()
                 }
+                LspStoreEvent::PendingWorkUpdated
+                | LspStoreEvent::LanguageServerRegisteredForBuffer { .. }
+                | LspStoreEvent::DiskBasedDiagnosticsStarted { .. }
+                | LspStoreEvent::DiskBasedDiagnosticsFinished { .. } => cx.notify(),
+                _ => {}
             })
             .detach();
 
@@ -330,8 +289,7 @@ impl ActivityIndicator {
     fn update_deferred_scan_status(&mut self, cx: &mut Context<Self>) {
         let has_deferred_scan_dirs = self.project.read(cx).visible_worktrees(cx).any(|worktree| {
             let worktree = worktree.read(cx);
-            worktree.deferred_scan_dir_count() > 0
-                && worktree.as_local().is_none_or(|local_worktree| local_worktree.settings().file_scan_depth.is_some())
+            worktree.deferred_scan_dir_count() > 0 && worktree.settings().file_scan_depth.is_some()
         });
         match &self.deferred_scan_message {
             DeferredScanMessage::Undetected if has_deferred_scan_dirs => {

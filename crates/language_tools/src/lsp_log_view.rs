@@ -39,7 +39,6 @@ use lsp::notification::SetTrace;
 use project::LanguageServerStatus;
 use project::Project;
 use project::lsp_store::log_store::Event;
-use project::lsp_store::log_store::LanguageServerKind;
 use project::lsp_store::log_store::LanguageServerLogKey;
 use project::lsp_store::log_store::LogKind;
 use project::lsp_store::log_store::LogStore;
@@ -95,36 +94,26 @@ pub fn open(
                 .update_in(cx, |workspace, window, cx| {
                     let project = workspace.project().clone();
                     let weak_project = project.downgrade();
-                    let project_is_local = project.read(cx).is_local();
-                    let weak_lsp_store = project.read(cx).lsp_store().downgrade();
                     let tool_log_store = log_store.clone();
                     let log_view =
                         get_or_create_tool(workspace, SplitDirection::Right, window, cx, move |window, cx| {
                             LspLogView::new(project, tool_log_store, window, cx)
                         });
                     log_view.update(cx, |log_view, cx| {
-                        let key_priority = |key: &LanguageServerLogKey| match &key.kind {
-                            LanguageServerKind::Local { .. } if project_is_local => 0,
-                            LanguageServerKind::Remote { .. } if !project_is_local => 0,
-                            _ => 1,
-                        };
                         let server_key = match server {
                             LanguageServerSelector::Id(id) => log_store
                                 .read(cx)
                                 .language_servers
                                 .keys()
-                                .filter(|key| key.server_id == id && key.is_for_project(&weak_project, &weak_lsp_store))
-                                .min_by_key(|key| key_priority(key))
+                                .find(|key| key.server_id == id && key.is_for_project(&weak_project))
                                 .cloned(),
                             LanguageServerSelector::Name(name) => log_store
                                 .read(cx)
                                 .language_servers
                                 .iter()
-                                .filter(|(key, state)| {
-                                    key.is_for_project(&weak_project, &weak_lsp_store)
-                                        && state.name.as_ref() == Some(&name)
+                                .find(|(key, state)| {
+                                    key.is_for_project(&weak_project) && state.name.as_ref() == Some(&name)
                                 })
-                                .min_by_key(|(key, _)| key_priority(key))
                                 .map(|(key, _)| key.clone()),
                         };
                         if let Some(server_key) = server_key {
@@ -168,12 +157,12 @@ pub(crate) struct LogMenuItem {
     pub rpc_trace_enabled: bool,
     pub selected_entry: LogKind,
     pub trace_level: lsp::TraceValue,
-    pub server_kind: LanguageServerKind,
+    pub project: WeakEntity<Project>,
 }
 
 impl LogMenuItem {
     fn key(&self) -> LanguageServerLogKey {
-        LanguageServerLogKey::new(self.server_kind.clone(), self.server_id)
+        LanguageServerLogKey::new(self.project.clone(), self.server_id)
     }
 }
 
@@ -185,8 +174,8 @@ actions!(
     ]
 );
 
-pub fn init(on_headless_host: bool, cx: &mut App) {
-    let log_store = log_store::init(on_headless_host, cx);
+pub fn init(cx: &mut App) {
+    let log_store = log_store::init(cx);
 
     cx.observe_new(move |workspace: &mut Workspace, _, cx| {
         log_store.update(cx, |store, cx| {
@@ -213,19 +202,15 @@ impl LspLogView {
         cx: &mut Context<Self>,
     ) -> Self {
         let weak_project = project.downgrade();
-        let weak_lsp_store = project.read(cx).lsp_store().downgrade();
-        let server_key = log_store.read(cx).server_keys_for_project(&weak_project, &weak_lsp_store).next();
+        let server_key = log_store.read(cx).server_keys_for_project(&weak_project).next();
         let model_changes_subscription = cx.observe_in(&log_store, window, move |this, store, window, cx| {
             this.prune_enabled_streams(cx);
             let server_key = this
                 .current_server_key
                 .as_ref()
-                .filter(|key| {
-                    store.read(cx).language_servers.contains_key(key)
-                        && key.is_for_project(&weak_project, &weak_lsp_store)
-                })
+                .filter(|key| store.read(cx).language_servers.contains_key(key) && key.is_for_project(&weak_project))
                 .cloned()
-                .or_else(|| store.read(cx).server_keys_for_project(&weak_project, &weak_lsp_store).next());
+                .or_else(|| store.read(cx).server_keys_for_project(&weak_project).next());
             if let Some(server_key) = server_key {
                 let stream_is_enabled = this.active_entry_kind == LogKind::ServerInfo
                     || this
@@ -252,9 +237,7 @@ impl LspLogView {
 
         let events_subscriptions = cx.subscribe_in(&log_store, window, move |log_view, _, e, window, cx| match e {
             Event::NewServerLogEntry { key, kind, text } => {
-                if log_view.current_server_key.as_ref() == Some(key)
-                    && LogKind::from_server_log_type(kind) == log_view.active_entry_kind
-                {
+                if log_view.current_server_key.as_ref() == Some(key) && *kind == log_view.active_entry_kind {
                     log_view.editor.update(cx, |editor, cx| {
                         editor.set_read_only(false);
                         let last_offset = editor.buffer().read(cx).len(cx);
@@ -388,12 +371,11 @@ impl LspLogView {
 
         let unknown_server = LanguageServerName::new_static("unknown server");
         let project = self.project.downgrade();
-        let lsp_store = self.project.read(cx).lsp_store().downgrade();
 
         let mut rows = log_store
             .language_servers
             .iter()
-            .filter(|(key, _)| key.is_for_project(&project, &lsp_store))
+            .filter(|(key, _)| key.is_for_project(&project))
             .map(|(key, state)| {
                 let worktree_root_name = state
                     .worktree_id
@@ -404,7 +386,7 @@ impl LspLogView {
                 LogMenuItem {
                     server_id: key.server_id,
                     server_name: state.name.clone().unwrap_or(unknown_server.clone()),
-                    server_kind: key.kind.clone(),
+                    project: key.project.clone(),
                     worktree_root_name,
                     rpc_trace_enabled: self.enabled_streams.get(key).is_some_and(|streams| {
                         streams.generation == state.generation && streams.log_kinds.contains(&LogKind::Rpc)
@@ -434,8 +416,8 @@ impl LspLogView {
             if already_enabled {
                 return;
             }
-            let Some(generation) = self.log_store.update(cx, |log_store, cx| {
-                log_store.retain_view_log_stream(key, log_kind, cx)?;
+            let Some(generation) = self.log_store.update(cx, |log_store, _| {
+                log_store.retain_view_log_stream(key, log_kind)?;
                 Some(log_store.get_language_server_state(key)?.generation)
             }) else {
                 return;
@@ -455,8 +437,8 @@ impl LspLogView {
             if streams.log_kinds.is_empty() {
                 self.enabled_streams.remove(key);
             }
-            self.log_store.update(cx, |log_store, cx| {
-                log_store.release_view_log_stream(key, log_kind, cx);
+            self.log_store.update(cx, |log_store, _| {
+                log_store.release_view_log_stream(key, log_kind);
             });
         }
     }

@@ -186,10 +186,8 @@ impl Editor {
             editor
                 .update(cx, |editor, cx| {
                     let subscription = cx.subscribe(&buffer, move |editor, buffer, event, cx| {
-                        if matches!(
-                            event,
-                            BufferEvent::Edited { .. } | BufferEvent::Reloaded | BufferEvent::FileHandleChanged
-                        ) {
+                        if matches!(event, BufferEvent::Edited | BufferEvent::Reloaded | BufferEvent::FileHandleChanged)
+                        {
                             editor.update_project_words(worktree_id, &buffer, cx);
                         }
                     });

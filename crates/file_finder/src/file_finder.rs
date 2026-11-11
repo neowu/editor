@@ -694,25 +694,14 @@ impl FoundPath {
         Self { project, absolute }
     }
 
-    /// Whether the path still names a file; worktree entries answer immediately, other paths are checked on disk
-    /// (or on the remote server).
+    /// Whether the path still names a file; worktree entries answer immediately, other paths are checked on disk.
     fn is_file(&self, project: &Project, cx: &App) -> Task<bool> {
         if let Some(entry) = project.entry_for_path(&self.project, cx) {
             return Task::ready(entry.is_file());
         }
-        if project.is_local() {
-            let fs = project.fs().clone();
-            let path = self.absolute.clone();
-            cx.background_spawn(async move { fs.is_file(&path).await })
-        } else if project.is_via_remote_server() {
-            let Some(path) = self.absolute.to_str() else {
-                return Task::ready(false);
-            };
-            let resolve_path = project.resolve_abs_path(path, cx);
-            cx.background_spawn(async move { resolve_path.await.is_some_and(|path| path.is_file()) })
-        } else {
-            Task::ready(true)
-        }
+        let fs = project.fs().clone();
+        let path = self.absolute.clone();
+        cx.background_spawn(async move { fs.is_file(&path).await })
     }
 }
 
@@ -1490,11 +1479,7 @@ impl PickerDelegate for FileFinderDelegate {
                 self.matches.push_new_matches(
                     project.worktree_store(),
                     cx,
-                    self.history_items.iter().filter(|history_item| {
-                        project.worktree_for_id(history_item.project.worktree_id, cx).is_some()
-                            || project.is_local()
-                            || project.is_via_remote_server()
-                    }),
+                    self.history_items.iter(),
                     self.currently_opened_path.as_ref(),
                     None,
                     None.into_iter(),

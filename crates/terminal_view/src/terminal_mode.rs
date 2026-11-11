@@ -29,9 +29,8 @@ pub(crate) fn init(cx: &mut App) {
 struct TerminalModeTerminals;
 
 /// A saved working directory that no longer exists falls back to the default.
-/// Remote directories can't be checked from here, so they are kept.
-fn existing_directory(directory: Option<PathBuf>, is_local: bool) -> Option<PathBuf> {
-    directory.filter(|directory| !is_local || directory.is_dir())
+fn existing_directory(directory: Option<PathBuf>) -> Option<PathBuf> {
+    directory.filter(|directory| directory.is_dir())
 }
 
 impl TerminalModeDelegate for TerminalModeTerminals {
@@ -66,9 +65,8 @@ impl TerminalModeDelegate for TerminalModeTerminals {
         cx: &mut Context<Workspace>,
     ) -> Task<Result<()>> {
         let project = workspace.project().clone();
-        let is_local = project.read(cx).is_local();
         let working_directory =
-            existing_directory(working_directory, is_local).or_else(|| default_working_directory(workspace, cx));
+            existing_directory(working_directory).or_else(|| default_working_directory(workspace, cx));
         let create_terminal = project.update(cx, |project, cx| project.create_terminal_shell(working_directory, cx));
         cx.spawn_in(window, async move |workspace, cx| {
             let terminal = create_terminal.await;
@@ -116,10 +114,9 @@ mod tests {
     #[test]
     fn test_existing_directory() {
         let temp_dir = env::temp_dir();
-        assert_eq!(existing_directory(Some(temp_dir.clone()), true), Some(temp_dir));
+        assert_eq!(existing_directory(Some(temp_dir.clone())), Some(temp_dir));
         let missing = PathBuf::from("/definitely/not/a/real/dir");
-        assert_eq!(existing_directory(Some(missing.clone()), true), None);
-        assert_eq!(existing_directory(Some(missing.clone()), false), Some(missing));
-        assert_eq!(existing_directory(None, true), None);
+        assert_eq!(existing_directory(Some(missing)), None);
+        assert_eq!(existing_directory(None), None);
     }
 }

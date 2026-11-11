@@ -88,7 +88,7 @@
 - The status bar language button and the language selector follow the buffer
   under the cursor, including in multi-buffer views (diffs, commits), and act
   on the pane shown in the current mode (the history pane in Git History).
-- Buffers loaded from disk or from a remote host defer tree-sitter parsing:
+- Buffers loaded from disk defer tree-sitter parsing:
   most bulk loads (project search, multi-file diffs) are never displayed, and
   a syntax tree costs many times the file's size. Parsing starts, and then
   stays on, when an editor draws any of the buffer's rows, or when a feature
@@ -163,7 +163,7 @@
   trailing-comma schema. The `vscode/content` schema request is not handled.
 - There is no managed Node.js runtime and no `node` settings (`node.path`,
   `node.npm_path` are removed). Node-based tooling uses `node`/`npx` from the
-  shell `PATH`, locally and on remote servers.
+  shell `PATH`.
 - Language servers are never installed by ed and there is no setting for a
   server's binary path (`lsp.<server>.binary.path` is removed). A server starts
   from a user installation the adapter finds (`PATH`, or the project). Node-based

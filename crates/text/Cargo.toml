@@ -9,7 +9,6 @@ path = "src/text.rs"
 [dependencies]
 anyhow.workspace = true
 clock.workspace = true
-futures.workspace = true
 log.workspace = true
 parking_lot.workspace = true
 regex.workspace = true

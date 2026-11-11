@@ -64,22 +64,10 @@ impl EncodingSelector {
         let buffer = workspace.active_item(cx)?.act_as::<Editor>(cx)?.read(cx).active_buffer(cx)?;
 
         let buffer_handle = buffer.read(cx);
-        let project = workspace.project().read(cx);
 
         if buffer_handle.is_dirty() {
             workspace.show_toast(
                 Toast::new(NotificationId::unique::<EncodingSelector>(), "Save file to change encoding"),
-                cx,
-            );
-            return Some(());
-        }
-
-        if project.is_via_remote_server() {
-            workspace.show_toast(
-                Toast::new(
-                    NotificationId::unique::<EncodingSelector>(),
-                    "Cannot change encoding of remote server file",
-                ),
                 cx,
             );
             return Some(());

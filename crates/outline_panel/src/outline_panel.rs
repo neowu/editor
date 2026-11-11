@@ -929,10 +929,7 @@ impl FsEntry {
 }
 
 fn directory_element_id(worktree_id: WorktreeId, first_buffer_id: BufferId, path: &RelPath) -> ElementId {
-    ElementId::from((
-        SharedString::from(format!("directory-{first_buffer_id}-{path}")),
-        worktree_id.to_proto() as usize,
-    ))
+    ElementId::from((SharedString::from(format!("directory-{first_buffer_id}-{path}")), worktree_id.to_usize()))
 }
 
 fn is_parent_row(entry: &PanelEntry, worktree_id: WorktreeId, parent_path: &RelPath) -> bool {
@@ -1434,7 +1431,7 @@ impl OutlinePanel {
 
         let context_menu = ContextMenu::build(window, cx, |menu, _, _| {
             menu.context(self.focus_handle.clone())
-                .action(utils::reveal_in_file_manager_label(false), Box::new(RevealInFileManager))
+                .action(utils::reveal_in_file_manager_label(), Box::new(RevealInFileManager))
                 .action("Open in Terminal", Box::new(OpenInTerminal))
                 .when(is_unfoldable, |menu| menu.action("Unfold Directory", Box::new(UnfoldDirectory)))
                 .when(is_foldable, |menu| menu.action("Fold Directory", Box::new(FoldDirectory)))
@@ -1851,7 +1848,7 @@ impl OutlinePanel {
             };
 
         if let Some(working_directory) = working_directory {
-            window.dispatch_action(workspace::OpenTerminal { working_directory, local: false }.boxed_clone(), cx)
+            window.dispatch_action(workspace::OpenTerminal { working_directory }.boxed_clone(), cx)
         }
     }
 
@@ -2048,7 +2045,7 @@ impl OutlinePanel {
                 let icon = FileIcons::get_icon(Path::new(&name), cx)
                     .map(|icon_path| Icon::from_path(icon_path).color(color).into_any_element());
                 (
-                    ElementId::from(("buffer", buffer_id.to_proto())),
+                    ElementId::from(("buffer", buffer_id.as_u64())),
                     HighlightedLabel::new(
                         name,
                         string_match.map(|string_match| string_match.positions.clone()).unwrap_or_default(),
@@ -2099,7 +2096,7 @@ impl OutlinePanel {
                     None => (None, "Unknown buffer".to_string()),
                 };
                 (
-                    ElementId::from(("buffer", external_file.buffer_id.to_proto())),
+                    ElementId::from(("buffer", external_file.buffer_id.as_u64())),
                     HighlightedLabel::new(
                         name,
                         string_match.map(|string_match| string_match.positions.clone()).unwrap_or_default(),
@@ -2156,7 +2153,7 @@ impl OutlinePanel {
                     .entries
                     .last()
                     .map(|entry| directory_element_id(folded_dir.worktree_id, folded_dir.first_buffer_id, &entry.path))
-                    .unwrap_or_else(|| ElementId::from(("empty-folded-dirs", folded_dir.worktree_id.to_proto()))),
+                    .unwrap_or_else(|| ElementId::from(("empty-folded-dirs", folded_dir.worktree_id.to_usize()))),
                 HighlightedLabel::new(
                     name,
                     string_match.map(|string_match| string_match.positions.clone()).unwrap_or_default(),
@@ -4380,8 +4377,6 @@ impl EventEmitter<PanelEvent> for OutlinePanel {}
 
 impl Render for OutlinePanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let (is_local, is_via_ssh) =
-            self.project.read_with(cx, |project, _| (project.is_local(), project.is_via_remote_server()));
         let query = self.query(cx);
         let pinned = self.pinned;
 
@@ -4419,8 +4414,8 @@ impl Render for OutlinePanel {
             .on_action(cx.listener(Self::toggle_active_editor_pin))
             .on_action(cx.listener(Self::unfold_directory))
             .on_action(cx.listener(Self::fold_directory))
-            .when(is_local, |el| el.on_action(cx.listener(Self::reveal_in_finder)))
-            .when(is_local || is_via_ssh, |el| el.on_action(cx.listener(Self::open_in_terminal)))
+            .on_action(cx.listener(Self::reveal_in_finder))
+            .on_action(cx.listener(Self::open_in_terminal))
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |outline_panel, event: &MouseDownEvent, window, cx| {

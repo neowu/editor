@@ -202,11 +202,7 @@ pub(crate) fn to_esc_str(keystroke: &Keystroke, mode: Modes, option_as_meta: boo
     }
 
     // Handling alt keys. These work for single ASCII characters.
-    if (!cfg!(target_os = "macos") || option_as_meta)
-        && keystroke.modifiers.alt
-        && keystroke.key.is_ascii()
-        && keystroke.key.len() == 1
-    {
+    if option_as_meta && keystroke.modifiers.alt && keystroke.key.is_ascii() && keystroke.key.len() == 1 {
         let key = keystroke.key.chars().next().unwrap();
 
         if modifiers == TerminalModifiers::Alt {

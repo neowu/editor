@@ -21,11 +21,7 @@ use gpui::Global;
 use gpui::Task;
 use parking_lot::Mutex;
 use project::Project;
-use remote::RemoteConnectionIdentity;
-use remote::RemoteConnectionOptions;
-use remote::SshConnectionOptions;
-use remote::remote_connection_identity;
-use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use serde::Serialize;
 use time::OffsetDateTime;
@@ -33,7 +29,6 @@ use util::ResultExt;
 use util::rel_path::RelPath;
 
 use self::model::SerializedWorkspace;
-use self::model::SerializedWorkspaceLocation;
 use self::model::SessionWorkspace;
 use crate::Workspace;
 use crate::path_list::PathList;
@@ -46,56 +41,15 @@ pub const WORKSPACE_STATE_DIR: &str = ".ed";
 const WORKSPACE_STATE_FILE: &str = "workspace.json";
 const MAX_RECENT_PROJECTS: usize = 100;
 
-/// Where a project lives: its root folders, in the order they were opened, and
-/// the server holding them for a remote project.
+/// Where a project lives: its root folders, in the order they were opened.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectLocation {
     pub paths: Vec<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remote: Option<RemoteServer>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct RemoteServer {
-    pub host: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub username: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub port: Option<u16>,
-}
-
-impl RemoteServer {
-    fn from_options(options: &RemoteConnectionOptions) -> RemoteServer {
-        let RemoteConnectionIdentity::Ssh { host, username, port } = remote_connection_identity(options);
-        RemoteServer { host, username, port }
-    }
-
-    fn to_options(&self) -> RemoteConnectionOptions {
-        RemoteConnectionOptions::Ssh(SshConnectionOptions {
-            host: self.host.clone().into(),
-            username: self.username.clone(),
-            port: self.port,
-            ..Default::default()
-        })
-    }
 }
 
 impl ProjectLocation {
-    pub fn new(location: &SerializedWorkspaceLocation, paths: &PathList) -> ProjectLocation {
-        ProjectLocation {
-            paths: paths.ordered_paths().cloned().collect(),
-            remote: match location {
-                SerializedWorkspaceLocation::Local => None,
-                SerializedWorkspaceLocation::Remote(options) => Some(RemoteServer::from_options(options)),
-            },
-        }
-    }
-
-    pub fn workspace_location(&self) -> SerializedWorkspaceLocation {
-        match &self.remote {
-            None => SerializedWorkspaceLocation::Local,
-            Some(server) => SerializedWorkspaceLocation::Remote(server.to_options()),
-        }
+    pub fn new(paths: &PathList) -> ProjectLocation {
+        ProjectLocation { paths: paths.ordered_paths().cloned().collect() }
     }
 
     pub fn path_list(&self) -> PathList {
@@ -116,14 +70,6 @@ pub struct RecentProject {
     pub open: bool,
 }
 
-/// A server of the recent remote projects, with those projects.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RecentServer {
-    pub server: RemoteServer,
-    /// Most recent first.
-    pub projects: Vec<ProjectLocation>,
-}
-
 /// Contents of `projects.json`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectsFile {
@@ -134,8 +80,21 @@ pub struct ProjectsFile {
 
 impl ProjectsFile {
     /// Parses `projects.json`, treating unreadable contents as an empty file.
+    /// Entries of remote projects, written by older versions, are dropped.
     pub fn parse(text: &str) -> ProjectsFile {
-        serde_json::from_str(text).unwrap_or_default()
+        #[derive(Default, Deserialize)]
+        struct Raw {
+            #[serde(default)]
+            recent: Vec<serde_json::Value>,
+        }
+        let raw: Raw = serde_json::from_str(text).unwrap_or_default();
+        let recent = raw
+            .recent
+            .into_iter()
+            .filter(|project| project.get("remote").is_none_or(serde_json::Value::is_null))
+            .filter_map(|project| serde_json::from_value(project).ok())
+            .collect();
+        ProjectsFile { recent }
     }
 
     /// Moves `location` to the front of the recent list, keeping its open
@@ -177,21 +136,6 @@ impl ProjectsFile {
             project.open = is_open;
         }
         changed
-    }
-
-    /// Servers of the recent remote projects, most recently used first.
-    pub fn recent_servers(&self) -> Vec<RecentServer> {
-        let mut servers: Vec<RecentServer> = Vec::new();
-        for project in &self.recent {
-            let Some(server) = &project.location.remote else {
-                continue;
-            };
-            match servers.iter_mut().find(|recent| &recent.server == server) {
-                Some(recent) => recent.projects.push(project.location.clone()),
-                None => servers.push(RecentServer { server: server.clone(), projects: vec![project.location.clone()] }),
-            }
-        }
-        servers
     }
 
     /// Locations of the projects marked open, most recent first.
@@ -236,10 +180,6 @@ impl ProjectsStore {
 
     pub fn recent(&self) -> Vec<RecentProject> {
         self.state.lock().recent.clone()
-    }
-
-    pub fn recent_servers(&self) -> Vec<RecentServer> {
-        self.state.lock().recent_servers()
     }
 
     pub fn last_session(&self) -> Vec<ProjectLocation> {
@@ -332,14 +272,10 @@ pub fn last_session_workspaces(cx: &App) -> Vec<SessionWorkspace> {
     let mut session = ProjectsStore::global(cx)
         .last_session()
         .into_iter()
-        .map(|location| SessionWorkspace { paths: location.path_list(), location: location.workspace_location() })
+        .map(|location| SessionWorkspace { paths: location.path_list() })
         .collect::<Vec<_>>();
     session.reverse();
     session
-}
-
-pub fn workspace_state_rel_path() -> Arc<RelPath> {
-    RelPath::from_unix_str(&format!("{WORKSPACE_STATE_DIR}/{WORKSPACE_STATE_FILE}")).unwrap().into_arc()
 }
 
 /// Whether `path`, relative to a root folder, is inside the project-level
@@ -364,58 +300,25 @@ pub(crate) async fn load_local_workspace_state(fs: &dyn Fs, root: &Path) -> Opti
     parse_workspace_state(&text)
 }
 
-/// Reads `.ed/workspace.json` from the worktree rooted at `root` of a remote
-/// project, through the project's buffers.
-pub(crate) async fn load_remote_workspace_state(
-    project: &Entity<Project>,
-    root: &Path,
-    cx: &mut AsyncApp,
-) -> Option<SerializedWorkspace> {
-    let open_buffer = project.update(cx, |project, cx| {
-        let worktree = project.visible_worktrees(cx).find(|worktree| worktree.read(cx).abs_path().as_ref() == root)?;
-        let worktree_id = worktree.read(cx).id();
-        Some(project.open_buffer((worktree_id, workspace_state_rel_path()), cx))
-    })?;
-    let buffer = open_buffer.await.ok()?;
-    let text = buffer.read_with(cx, |buffer, _| buffer.text());
-    parse_workspace_state(&text)
-}
-
 /// Writes `json` to `.ed/workspace.json` in the project's first root folder.
 pub(crate) fn write_workspace_state(
     project: &Entity<Project>,
     root: &Path,
     json: String,
-    cx: &mut App,
+    cx: &App,
 ) -> Task<Result<()>> {
-    if project.read(cx).is_local() {
-        let fs = project.read(cx).fs().clone();
-        let path = workspace_state_path(root);
-        return cx.background_spawn(async move {
-            if let Some(parent) = path.parent() {
-                fs.create_dir(parent).await?;
-            }
-            fs.atomic_write(path, json).await
-        });
-    }
-
-    let Some(worktree) =
-        project.read(cx).visible_worktrees(cx).find(|worktree| worktree.read(cx).abs_path().as_ref() == root)
-    else {
-        return Task::ready(Ok(()));
-    };
-    let write = worktree.update(cx, |worktree, cx| {
-        worktree.create_entry(workspace_state_rel_path(), false, Some(json.into_bytes()), cx)
-    });
+    let fs = project.read(cx).fs().clone();
+    let path = workspace_state_path(root);
     cx.background_spawn(async move {
-        write.await?;
-        Ok(())
+        if let Some(parent) = path.parent() {
+            fs.create_dir(parent).await?;
+        }
+        fs.atomic_write(path, json).await
     })
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct RecentWorkspace {
-    pub location: SerializedWorkspaceLocation,
     pub paths: PathList,
     pub identity_paths: PathList,
     pub timestamp: OffsetDateTime,
@@ -444,23 +347,9 @@ pub async fn recent_project_workspaces(recent: Vec<RecentProject>, fs: &dyn Fs) 
     for project in recent {
         let paths = project.location.path_list();
         let timestamp = OffsetDateTime::from_unix_timestamp(project.opened_at).unwrap_or(OffsetDateTime::UNIX_EPOCH);
-        if project.location.remote.is_some() {
-            result.push(RecentWorkspace {
-                location: project.location.workspace_location(),
-                identity_paths: paths.clone(),
-                paths,
-                timestamp,
-            });
-            continue;
-        }
         if all_paths_exist_with_a_directory(paths.paths(), fs).await {
             let identity_paths = resolve_local_workspace_identity(fs, &paths).await.unwrap_or_else(|| paths.clone());
-            result.push(RecentWorkspace {
-                location: SerializedWorkspaceLocation::Local,
-                paths,
-                identity_paths,
-                timestamp,
-            });
+            result.push(RecentWorkspace { paths, identity_paths, timestamp });
         }
     }
     dedupe_recent_workspaces(result)
@@ -472,7 +361,7 @@ pub async fn delete_recent_workspace_group(target: &RecentWorkspace, fs: &dyn Fs
     let mut doomed = Vec::new();
     for workspace in recent_project_workspaces_ungrouped(store.recent(), fs).await {
         if same_group(&workspace, target) {
-            doomed.push(ProjectLocation::new(&workspace.location, &workspace.paths));
+            doomed.push(ProjectLocation::new(&workspace.paths));
         }
     }
     cx.update(|cx| store.remove_recent(|location| doomed.contains(location), cx)).await;
@@ -482,31 +371,14 @@ async fn recent_project_workspaces_ungrouped(recent: Vec<RecentProject>, fs: &dy
     let mut result = Vec::new();
     for project in recent {
         let paths = project.location.path_list();
-        let identity_paths = if project.location.remote.is_none() {
-            resolve_local_workspace_identity(fs, &paths).await.unwrap_or_else(|| paths.clone())
-        } else {
-            paths.clone()
-        };
-        result.push(RecentWorkspace {
-            location: project.location.workspace_location(),
-            paths,
-            identity_paths,
-            timestamp: OffsetDateTime::UNIX_EPOCH,
-        });
+        let identity_paths = resolve_local_workspace_identity(fs, &paths).await.unwrap_or_else(|| paths.clone());
+        result.push(RecentWorkspace { paths, identity_paths, timestamp: OffsetDateTime::UNIX_EPOCH });
     }
     result
 }
 
 fn same_group(left: &RecentWorkspace, right: &RecentWorkspace) -> bool {
-    location_identity(&left.location) == location_identity(&right.location)
-        && left.identity_paths == right.identity_paths
-}
-
-fn location_identity(location: &SerializedWorkspaceLocation) -> Option<RemoteConnectionIdentity> {
-    match location {
-        SerializedWorkspaceLocation::Local => None,
-        SerializedWorkspaceLocation::Remote(connection) => Some(remote_connection_identity(connection)),
-    }
+    left.identity_paths == right.identity_paths
 }
 
 async fn resolve_local_workspace_identity(fs: &dyn Fs, paths: &PathList) -> Option<PathList> {
@@ -529,14 +401,8 @@ async fn resolve_local_workspace_identity(fs: &dyn Fs, paths: &PathList) -> Opti
 
 /// Keeps the first, most recent, workspace of each group.
 fn dedupe_recent_workspaces(workspaces: impl IntoIterator<Item = RecentWorkspace>) -> Vec<RecentWorkspace> {
-    let mut seen: FxHashMap<(Option<RemoteConnectionIdentity>, Vec<PathBuf>), ()> = FxHashMap::default();
-    workspaces
-        .into_iter()
-        .filter(|workspace| {
-            let key = (location_identity(&workspace.location), workspace.identity_paths.paths().to_vec());
-            seen.insert(key, ()).is_none()
-        })
-        .collect()
+    let mut seen = FxHashSet::default();
+    workspaces.into_iter().filter(|workspace| seen.insert(workspace.identity_paths.paths().to_vec())).collect()
 }
 
 #[cfg(test)]
@@ -550,17 +416,13 @@ mod tests {
     use super::ProjectLocation;
     use super::ProjectsFile;
     use super::RecentProject;
-    use super::RecentServer;
     use super::RecentWorkspace;
-    use super::RemoteServer;
     use super::dedupe_recent_workspaces;
     use super::is_in_workspace_state_dir;
-    use super::model::SerializedWorkspaceLocation;
     use super::workspace_state_path;
-    use super::workspace_state_rel_path;
 
     fn local(paths: &[&str]) -> ProjectLocation {
-        ProjectLocation { paths: paths.iter().map(PathBuf::from).collect(), remote: None }
+        ProjectLocation { paths: paths.iter().map(PathBuf::from).collect() }
     }
 
     #[test]
@@ -575,14 +437,7 @@ mod tests {
         let file = ProjectsFile {
             recent: vec![
                 RecentProject { location: local(&["/b", "/a"]), opened_at: 7, open: true },
-                RecentProject {
-                    location: ProjectLocation {
-                        paths: vec![PathBuf::from("/srv")],
-                        remote: Some(RemoteServer { host: "box".into(), username: Some("me".into()), port: None }),
-                    },
-                    opened_at: 3,
-                    open: false,
-                },
+                RecentProject { location: local(&["/srv"]), opened_at: 3, open: false },
             ],
         };
         let json = serde_json::to_string(&file).unwrap();
@@ -608,25 +463,15 @@ mod tests {
     }
 
     #[test]
-    fn test_recent_servers_groups_remote_projects_by_server() {
-        let remote = |host: &str, paths: &[&str]| ProjectLocation {
-            paths: paths.iter().map(PathBuf::from).collect(),
-            remote: Some(RemoteServer { host: host.into(), username: None, port: None }),
-        };
-        let mut file = ProjectsFile::default();
-        file.record_recent(remote("a", &["/one"]), 1);
-        file.record_recent(local(&["/local"]), 2);
-        file.record_recent(remote("b", &["/two"]), 3);
-        file.record_recent(remote("a", &["/three"]), 4);
-        let server = |host: &str| RemoteServer { host: host.into(), username: None, port: None };
+    fn test_projects_file_parse_drops_remote_projects() {
+        let json = r#"{"recent": [
+            {"paths": ["/srv"], "remote": {"host": "box"}, "opened_at": 2},
+            {"paths": ["/a"], "opened_at": 1}
+        ]}"#;
         assert_eq!(
-            file.recent_servers(),
-            [
-                RecentServer { server: server("a"), projects: vec![remote("a", &["/three"]), remote("a", &["/one"])] },
-                RecentServer { server: server("b"), projects: vec![remote("b", &["/two"])] },
-            ]
+            ProjectsFile::parse(json).recent,
+            [RecentProject { location: local(&["/a"]), opened_at: 1, open: false }]
         );
-        assert_eq!(ProjectsFile::default().recent_servers(), []);
     }
 
     #[test]
@@ -689,7 +534,6 @@ mod tests {
         assert!(is_in_workspace_state_dir(rel(".ed")));
         assert!(is_in_workspace_state_dir(rel(".ed/workspace.json")));
         assert!(is_in_workspace_state_dir(rel(".ed/sub/settings.json")));
-        assert!(is_in_workspace_state_dir(&workspace_state_rel_path()));
         assert!(!is_in_workspace_state_dir(rel(".editorconfig")));
         assert!(!is_in_workspace_state_dir(rel("src/.ed/a.rs")));
         assert!(!is_in_workspace_state_dir(rel("src/main.rs")));
@@ -708,32 +552,19 @@ mod tests {
     #[test]
     fn test_project_location_keeps_path_order() {
         let paths = PathList::new(&["/b", "/a"]);
-        let location = ProjectLocation::new(&SerializedWorkspaceLocation::Local, &paths);
+        let location = ProjectLocation::new(&paths);
         assert_eq!(location.paths, [PathBuf::from("/b"), PathBuf::from("/a")]);
         assert_eq!(location.path_list(), paths);
-        assert_eq!(location.workspace_location(), SerializedWorkspaceLocation::Local);
-    }
-
-    #[test]
-    fn test_remote_server_round_trip() {
-        let server = RemoteServer { host: "box".into(), username: Some("me".into()), port: Some(2222) };
-        let location = ProjectLocation { paths: vec![PathBuf::from("/srv")], remote: Some(server.clone()) };
-        let SerializedWorkspaceLocation::Remote(options) = location.workspace_location() else {
-            panic!("expected a remote location");
-        };
-        assert_eq!(RemoteServer::from_options(&options), server);
     }
 
     #[test]
     fn test_workspace_state_paths() {
         assert_eq!(workspace_state_path("/p".as_ref()), PathBuf::from("/p/.ed/workspace.json"));
-        assert_eq!(workspace_state_rel_path().as_unix_str(), ".ed/workspace.json");
     }
 
     #[test]
     fn test_dedupe_recent_workspaces_keeps_first_of_group() {
         let workspace = |paths: &[&str], identity: &[&str]| RecentWorkspace {
-            location: SerializedWorkspaceLocation::Local,
             paths: PathList::new(paths),
             identity_paths: PathList::new(identity),
             timestamp: OffsetDateTime::UNIX_EPOCH,

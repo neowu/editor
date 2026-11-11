@@ -430,8 +430,7 @@ pub struct ProjectSearchBar {
 
 impl ProjectSearch {
     pub fn new(project: Entity<Project>, workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
-        let capability = project.read(cx).capability();
-        let excerpts = cx.new(|_| MultiBuffer::new(capability));
+        let excerpts = cx.new(|_| MultiBuffer::new(language::Capability::ReadWrite));
         let excerpts_subscription = Self::subscribe_to_excerpts(&excerpts, cx);
         let workspace_subscription = Self::subscribe_to_workspace(&workspace, cx);
 
@@ -488,7 +487,7 @@ impl ProjectSearch {
             .excerpts
             .read(cx)
             .all_buffers_iter()
-            .filter(|buffer| is_buffer_stale(&self.project, workspace, buffer, cx))
+            .filter(|buffer| is_buffer_stale(workspace, buffer, cx))
             .map(|buffer| buffer.read(cx).remote_id())
             .collect::<Vec<_>>();
 
@@ -693,7 +692,7 @@ async fn consume_search_stream(
                 project_search
                     .update(cx, |project_search, cx| {
                         let workspace = project_search.workspace.upgrade();
-                        if !is_buffer_stale(&project_search.project, workspace.as_ref(), &buffer, cx) {
+                        if !is_buffer_stale(workspace.as_ref(), &buffer, cx) {
                             project_search.match_ranges.extend(new_ranges);
                         } else {
                             let buffer_id = buffer.read(cx).remote_id();
@@ -874,7 +873,7 @@ async fn apply_reused_chunk(
                             );
                         }
                         let previous_span = if in_order { reused_results.previous_ranges_for(&path_key) } else { None };
-                        if is_buffer_stale(&project_search.project, workspace.as_ref(), &buffer, cx) {
+                        if is_buffer_stale(workspace.as_ref(), &buffer, cx) {
                             excerpts.remove_excerpts_for_paths(vec![path_key], cx);
                             batch_changed |= previous_span.is_some();
                             continue;
@@ -2901,12 +2900,7 @@ fn register_workspace_action_for_present_search<A: Action>(
     });
 }
 
-fn is_buffer_stale(
-    project: &Entity<Project>,
-    workspace: Option<&Entity<Workspace>>,
-    buffer: &Entity<Buffer>,
-    cx: &App,
-) -> bool {
+fn is_buffer_stale(workspace: Option<&Entity<Workspace>>, buffer: &Entity<Buffer>, cx: &App) -> bool {
     let buffer_entity_id = buffer.entity_id();
     let buffer = buffer.read(cx);
     if let Some(file) = buffer.file() {
@@ -2915,7 +2909,7 @@ fn is_buffer_stale(
         !workspace.read(cx).items(cx).any(|item| {
             item.buffer_kind(cx) == ItemBufferKind::Singleton
                 && item.project_item_model_ids(cx).contains(&buffer_entity_id)
-        }) && !project.read(cx).buffer_store().read(cx).is_shared(buffer.remote_id(), cx)
+        })
     } else {
         false
     }

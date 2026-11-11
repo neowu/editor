@@ -120,11 +120,7 @@ impl Keystroke {
                 continue;
             }
             if component.eq_ignore_ascii_case("secondary") {
-                if cfg!(target_os = "macos") {
-                    modifiers.platform = true;
-                } else {
-                    modifiers.control = true;
-                };
+                modifiers.platform = true;
                 continue;
             }
 
@@ -249,20 +245,11 @@ impl KeybindingKeystroke {
     }
 
     /// Returns the modifiers.
-    ///
-    /// Platform-specific behavior:
-    /// - On macOS and Linux, this modifiers is the same as `inner.modifiers`, which is the GPUI representation of the keystroke.
-    /// - On Windows, this modifiers is the display modifiers, for example, a `ctrl-@` keystroke will have `inner.modifiers` as
-    ///   `Modifiers::control()` and `display_modifiers` as `Modifiers::control_shift()`.
     pub const fn modifiers(&self) -> &Modifiers {
         &self.inner.modifiers
     }
 
     /// Returns the key.
-    ///
-    /// Platform-specific behavior:
-    /// - On macOS and Linux, this key is the same as `inner.key`, which is the GPUI representation of the keystroke.
-    /// - On Windows, this key is the display key, for example, a `ctrl-@` keystroke will have `inner.key` as `@` and `display_key` as `2`.
     pub fn key(&self) -> &str {
         &self.inner.key
     }
@@ -357,9 +344,7 @@ pub struct Modifiers {
     #[serde(default)]
     pub shift: bool,
 
-    /// The command key, on macos
-    /// the windows key, on windows
-    /// the super key, on linux
+    /// The command key
     #[serde(default)]
     pub platform: bool,
 
@@ -376,18 +361,9 @@ impl Modifiers {
 
     /// Whether the semantically 'secondary' modifier key is pressed.
     ///
-    /// On macOS, this is the command key.
-    /// On Linux and Windows, this is the control key.
+    /// This is the command key.
     pub const fn secondary(&self) -> bool {
-        #[cfg(target_os = "macos")]
-        {
-            self.platform
-        }
-
-        #[cfg(target_os = "linux")]
-        {
-            self.control
-        }
+        self.platform
     }
 
     /// Returns how many modifier keys are pressed.
@@ -407,15 +383,7 @@ impl Modifiers {
 
     /// A Returns [`Modifiers`] with just the secondary key pressed.
     pub fn secondary_key() -> Modifiers {
-        #[cfg(target_os = "macos")]
-        {
-            Modifiers { platform: true, ..Default::default() }
-        }
-
-        #[cfg(target_os = "linux")]
-        {
-            Modifiers { control: true, ..Default::default() }
-        }
+        Modifiers { platform: true, ..Default::default() }
     }
 
     /// Returns [`Modifiers`] with just the windows key.
@@ -537,59 +505,32 @@ impl<T: AsKeystroke + ?Sized> AsKeystroke for &T {
 
 fn display_modifiers(modifiers: &Modifiers, f: &mut Formatter<'_>) -> fmt::Result {
     if modifiers.control {
-        #[cfg(target_os = "macos")]
         f.write_char('^')?;
-
-        #[cfg(target_os = "linux")]
-        write!(f, "ctrl-")?;
     }
     if modifiers.alt {
-        #[cfg(target_os = "macos")]
         f.write_char('⌥')?;
-
-        #[cfg(target_os = "linux")]
-        write!(f, "alt-")?;
     }
     if modifiers.platform {
-        #[cfg(target_os = "macos")]
         f.write_char('⌘')?;
-
-        #[cfg(target_os = "linux")]
-        f.write_char('❖')?;
     }
     if modifiers.shift {
-        #[cfg(target_os = "macos")]
         f.write_char('⇧')?;
-
-        #[cfg(target_os = "linux")]
-        write!(f, "shift-")?;
     }
     Ok(())
 }
 
 fn display_key(key: &str, f: &mut Formatter<'_>) -> fmt::Result {
     let key = match key {
-        #[cfg(target_os = "macos")]
         "backspace" => '⌫',
-        #[cfg(target_os = "macos")]
         "up" => '↑',
-        #[cfg(target_os = "macos")]
         "down" => '↓',
-        #[cfg(target_os = "macos")]
         "left" => '←',
-        #[cfg(target_os = "macos")]
         "right" => '→',
-        #[cfg(target_os = "macos")]
         "tab" => '⇥',
-        #[cfg(target_os = "macos")]
         "escape" => '⎋',
-        #[cfg(target_os = "macos")]
         "shift" => '⇧',
-        #[cfg(target_os = "macos")]
         "control" => '⌃',
-        #[cfg(target_os = "macos")]
         "alt" => '⌥',
-        #[cfg(target_os = "macos")]
         "platform" => '⌘',
 
         key if key.len() == 1 => key.chars().next().unwrap().to_ascii_uppercase(),
@@ -611,11 +552,7 @@ fn unparse(modifiers: &Modifiers, key: &str) -> String {
         result.push_str("alt-");
     }
     if modifiers.platform {
-        #[cfg(target_os = "macos")]
         result.push_str("cmd-");
-
-        #[cfg(target_os = "linux")]
-        result.push_str("super-");
     }
     if modifiers.shift {
         result.push_str("shift-");

@@ -1,16 +1,13 @@
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::collections::VecDeque;
-use std::env;
 use std::iter;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::LazyLock;
 use std::time::Duration;
-use std::time::Instant;
 
 use futures::Stream;
 use futures::StreamExt as _;
@@ -18,7 +15,6 @@ use gpui::BackgroundExecutor;
 use gpui::Task;
 use notify::Event;
 use notify::EventKind;
-use notify::event::ModifyKind;
 use parking_lot::Mutex;
 use smol::channel::Sender;
 use util::ResultExt;
@@ -29,11 +25,7 @@ use crate::PathEvent;
 use crate::PathEventKind;
 use crate::Watcher;
 
-/// macOS (FSEvents) watches cover their whole subtree; Linux (inotify) watches
-/// cover one directory.
-const RECURSIVE_WATCH: bool = cfg!(target_os = "macos");
-
-/// How often a watch on a not-yet-existing (or skipped) path is retried.
+/// How often a watch on a not-yet-existing path is retried.
 const PENDING_PATH_RETRY_INTERVAL: Duration = Duration::from_secs(2);
 
 pub(crate) async fn watch(
@@ -130,33 +122,18 @@ impl FsWatcher {
     fn add_existing_path(&self, path: Arc<Path>) -> anyhow::Result<()> {
         let case_insensitive = !self.fs.is_path_case_sensitive(&path);
         let key = WatchKey::for_registration(SanitizedPath::new(&path), case_insensitive);
-        let existing = self.registrations.lock().get(&key).cloned();
-        if let Some(existing) = existing {
+        if self.registrations.lock().contains_key(&key) {
             log::trace!("path to watch is already registered: {path:?}");
-            return existing.os_watcher.rewatch_if_stale(
-                &mut existing.os_watcher.state.lock(),
-                SanitizedPath::new(&path),
-                &key,
-            );
+            return Ok(());
         }
-        match register_existing_path(
+        let registration = register_existing_path(
             &self.native_watcher,
-            path.clone(),
+            path,
             case_insensitive,
             self.tx.clone(),
             self.pending_path_events.clone(),
-        )? {
-            Some(registration) => {
-                self.registrations.lock().insert(key, registration);
-            }
-            None => {
-                // Registration was skipped (e.g. the native watch-limit cooldown
-                // is active). Retry in the background rather than silently leaving
-                // the path unwatched forever.
-                log::warn!("watch registration for {path:?} was skipped; retrying in background");
-                self.add_pending_path(path);
-            }
-        }
+        )?;
+        self.registrations.lock().insert(key, registration);
         Ok(())
     }
 
@@ -201,7 +178,7 @@ impl Watcher for FsWatcher {
         log::trace!("watcher add: {path:?}");
 
         let path: Arc<Path> = path.into();
-        if path_covered_by_recursive_registration(&self.registrations.lock(), SanitizedPath::new(&path)) {
+        if path_covered_by_registration(&self.registrations.lock(), SanitizedPath::new(&path)) {
             log::trace!("path to watch is covered by an existing registration: {path:?}");
             return Ok(());
         }
@@ -237,18 +214,15 @@ impl Watcher for FsWatcher {
     }
 }
 
-/// Whether a recursive registration on a strict ancestor of `path` already covers
-/// it. Both key spellings are probed so a folded registration still matches; only
-/// macOS watches are recursive.
-fn path_covered_by_recursive_registration(
+/// Whether a (recursive) registration on a strict ancestor of `path` already
+/// covers it. Both key spellings are probed so a folded registration still matches.
+fn path_covered_by_registration(
     registrations: &HashMap<WatchKey, FsWatcherRegistration>,
     path: &SanitizedPath,
 ) -> bool {
     path.as_path().ancestors().skip(1).any(|ancestor| {
         let ancestor = SanitizedPath::unchecked_new(ancestor);
-        [WatchKey::exact(ancestor), WatchKey::folded(ancestor)]
-            .iter()
-            .any(|key| registrations.get(key).is_some_and(|registration| registration.os_watcher.is_recursive()))
+        [WatchKey::exact(ancestor), WatchKey::folded(ancestor)].iter().any(|key| registrations.contains_key(key))
     })
 }
 
@@ -258,22 +232,18 @@ fn register_existing_path(
     case_insensitive: bool,
     tx: async_channel::Sender<()>,
     pending_path_events: Arc<Mutex<Vec<PathEvent>>>,
-) -> anyhow::Result<Option<FsWatcherRegistration>> {
+) -> anyhow::Result<FsWatcherRegistration> {
     let root_path = SanitizedPath::new_arc(path.as_ref());
     let path_for_callback = path.clone();
-    let Some(registration_id) = native_watcher.add(path, case_insensitive, move |event: &notify::Event| {
+    let registration_id = native_watcher.add(path, case_insensitive, move |event: &notify::Event| {
         log::trace!("watcher received event: {event:?}");
         push_notify_event(&tx, &pending_path_events, &root_path, case_insensitive, path_for_callback.as_ref(), event);
-    })?
-    else {
-        return Ok(None);
-    };
-    Ok(Some(FsWatcherRegistration { id: registration_id, os_watcher: native_watcher.clone() }))
+    })?;
+    Ok(FsWatcherRegistration { id: registration_id, os_watcher: native_watcher.clone() })
 }
 
 /// Whether the volume backing `path` does case-insensitive name lookups, used to
 /// pick exact vs. folded matching.
-#[cfg(target_os = "macos")]
 pub(crate) fn case_insensitive_path(path: &Path) -> bool {
     use std::os::unix::ffi::OsStrExt as _;
 
@@ -326,21 +296,11 @@ impl WatchKey {
         // Event ancestors omit trailing separators, even when registration paths include them.
         let normalized_path = path.as_path().components().collect::<PathBuf>();
         let lossy = normalized_path.to_string_lossy();
-        // macOS (APFS/HFS+) compares names normalization-insensitively (NFC vs
-        // NFD), and FSEvents can report NFD while a config/LSP supplies NFC, so
-        // normalize before folding case. Windows (NTFS) and Linux are
-        // normalization-sensitive, so there we only fold case.
-
-        #[cfg(target_os = "macos")]
-        let folded = {
-            use unicode_normalization::UnicodeNormalization as _;
-            lossy.chars().nfc().collect::<String>().to_lowercase()
-        };
-
-        #[cfg(target_os = "linux")]
-        let folded = lossy.to_lowercase();
-
-        Self::Folded(folded.into())
+        // APFS/HFS+ compare names normalization-insensitively (NFC vs NFD), and
+        // FSEvents can report NFD while a config/LSP supplies NFC, so normalize
+        // before folding case.
+        use unicode_normalization::UnicodeNormalization as _;
+        Self::Folded(lossy.chars().nfc().collect::<String>().to_lowercase().into())
     }
 
     fn for_registration(path: &SanitizedPath, case_insensitive: bool) -> Self {
@@ -398,7 +358,7 @@ async fn poll_path_until_created(
         let registration = if fs.is_fake() { register() } else { smol::unblock(register).await };
 
         match registration {
-            Ok(Some(registration)) => {
+            Ok(registration) => {
                 {
                     let mut pending_registrations = pending_registrations.lock();
                     if pending_registrations.remove(path.as_ref()).is_none() {
@@ -417,7 +377,6 @@ async fn poll_path_until_created(
                 );
                 return;
             }
-            Ok(None) => {}
             Err(error) => {
                 log::warn!("failed to watch newly-created path {path:?}: {error}; retrying");
             }
@@ -469,8 +428,8 @@ fn push_notify_event(
 
     if event.need_rescan() {
         // A rescan event names the subtrees that lost sync (FSEvents
-        // `MustScanSubDirs`); only a pathless one (inotify queue overflow) means
-        // the whole watched root is suspect.
+        // `MustScanSubDirs`); a pathless one means the whole watched root is
+        // suspect.
         if path_events.is_empty() {
             path_events.push(PathEvent { path: watched_root.to_path_buf(), kind: Some(PathEventKind::Rescan) });
         } else {
@@ -537,12 +496,10 @@ struct PathRegistrationState {
     /// could not get their own backend watch.
     watcher_ids: Vec<WatcherRegistrationId>,
     coverage: Coverage,
-    stale: bool,
 }
 
 enum Coverage {
-    /// Has its own backend watch. On recursive backends, that watch also
-    /// serves the descendant registrations listed here by [`path_depth`] and
+    /// Has its own backend watch. That watch also serves the descendant registrations listed here by [`path_depth`] and
     /// key, so promotion proceeds shallowest first without re-sorting.
     Watched { covered: BTreeSet<(usize, WatchKey)> },
     /// Served by the recursive backend watch of this ancestor registration.
@@ -564,11 +521,7 @@ impl WatchPaths {
     }
 
     /// The nearest strict ancestor whose recursive backend watch covers `path`.
-    /// Only macOS watches are recursive.
     fn covering_ancestor(&self, path: &SanitizedPath) -> Option<WatchKey> {
-        if !RECURSIVE_WATCH {
-            return None;
-        }
         path.as_path().ancestors().skip(1).find_map(|ancestor| {
             let ancestor = SanitizedPath::unchecked_new(ancestor);
             [WatchKey::exact(ancestor), WatchKey::folded(ancestor)].into_iter().find(|key| {
@@ -603,25 +556,7 @@ impl WatchPaths {
 struct WatcherState {
     watchers: HashMap<WatcherRegistrationId, WatcherRegistrationState>,
     paths: WatchPaths,
-    cooldown_until: Option<Instant>,
     last_registration: WatcherRegistrationId,
-}
-
-impl WatcherState {
-    fn is_native_watch_limit_cooldown_active(&self) -> bool {
-        self.cooldown_until.is_some_and(|cooldown_until| cooldown_until > Instant::now())
-    }
-
-    fn start_native_watch_limit_cooldown(&mut self, path: &Path) {
-        let should_log = !self.is_native_watch_limit_cooldown_active();
-        self.cooldown_until = Some(Instant::now() + *NATIVE_WATCH_LIMIT_COOLDOWN);
-        if should_log {
-            log::warn!(
-                "OS file watch limit reached while watching {path:?}; skipping new native file watcher registrations for {} seconds",
-                NATIVE_WATCH_LIMIT_COOLDOWN.as_secs()
-            );
-        }
-    }
 }
 
 pub(crate) trait WatchBackend: Send {
@@ -666,7 +601,6 @@ impl OsWatcher {
         let state = Arc::new(Mutex::new(WatcherState {
             watchers: HashMap::default(),
             paths: WatchPaths::default(),
-            cooldown_until: None,
             last_registration: WatcherRegistrationId::default(),
         }));
         let dispatch_task = executor.spawn({
@@ -696,37 +630,21 @@ impl OsWatcher {
         }
     }
 
-    pub(crate) const fn is_recursive(&self) -> bool {
-        RECURSIVE_WATCH
-    }
-
     fn add(
         &self,
         path: Arc<Path>,
         case_insensitive: bool,
         cb: impl Fn(&notify::Event) + Send + Sync + 'static,
-    ) -> anyhow::Result<Option<WatcherRegistrationId>> {
+    ) -> anyhow::Result<WatcherRegistrationId> {
         let path = SanitizedPath::from_arc(path);
         let key = WatchKey::for_registration(&path, case_insensitive);
         let mut state = self.state.lock();
         let new_coverage = if state.paths.contains(&key) {
-            self.rewatch_if_stale(&mut state, &path, &key)?;
             None
         } else if let Some(ancestor) = state.paths.covering_ancestor(&path) {
             Some(Coverage::CoveredBy(ancestor))
         } else {
-            if state.is_native_watch_limit_cooldown_active() {
-                return Ok(None);
-            }
-
-            match self.watch(path.as_path()) {
-                Ok(()) => {}
-                Err(error) if is_max_files_watch_error(&error) => {
-                    state.start_native_watch_limit_cooldown(path.as_path());
-                    return Ok(None);
-                }
-                Err(error) => return Err(error),
-            }
+            self.watch(path.as_path())?;
             Some(Coverage::Watched { covered: BTreeSet::new() })
         };
 
@@ -747,31 +665,11 @@ impl OsWatcher {
                 {
                     covered.insert((path_depth(&path), key.clone()));
                 }
-                state
-                    .paths
-                    .0
-                    .insert(key, PathRegistrationState { path, watcher_ids: vec![id], coverage, stale: false });
+                state.paths.0.insert(key, PathRegistrationState { path, watcher_ids: vec![id], coverage });
             }
         }
 
-        Ok(Some(id))
-    }
-
-    fn rewatch_if_stale(&self, state: &mut WatcherState, path: &SanitizedPath, key: &WatchKey) -> anyhow::Result<()> {
-        let Some(path_state) = state.paths.get_mut(key) else {
-            return Ok(());
-        };
-        if !path_state.stale {
-            return Ok(());
-        }
-
-        log::trace!("rewatching stale path: {path:?}");
-        // A renamed directory's watch survives under the old path; unwatch it
-        // so the backend won't skip installation as a duplicate.
-        self.unwatch(path.as_path()).log_err();
-        self.watch(path.as_path())?;
-        path_state.stale = false;
-        Ok(())
+        Ok(id)
     }
 
     pub fn remove(&self, id: WatcherRegistrationId) {
@@ -842,7 +740,7 @@ impl OsWatcher {
                     }
                     Coverage::CoveredBy(ancestor)
                 }
-                None if self.watch_replacement(state, &covered_path) => Coverage::Watched { covered: BTreeSet::new() },
+                None if self.watch_replacement(&covered_path) => Coverage::Watched { covered: BTreeSet::new() },
                 None => {
                     pending.insert((depth, covered_key));
                     released.coverage = Coverage::Watched { covered: pending };
@@ -852,7 +750,6 @@ impl OsWatcher {
             };
             if let Some(registration) = state.paths.get_mut(&covered_key) {
                 registration.coverage = coverage;
-                registration.stale = false;
             }
         }
 
@@ -862,16 +759,10 @@ impl OsWatcher {
         self.unwatch(released.path.as_path()).log_err();
     }
 
-    fn watch_replacement(&self, state: &mut WatcherState, path: &SanitizedPath) -> bool {
-        if state.is_native_watch_limit_cooldown_active() {
-            return false;
-        }
+    fn watch_replacement(&self, path: &SanitizedPath) -> bool {
         match self.watch(path.as_path()) {
             Ok(()) => true,
             Err(error) => {
-                if is_max_files_watch_error(&error) {
-                    state.start_native_watch_limit_cooldown(path.as_path());
-                }
                 log::error!("failed to restore watch for {path:?}; retaining its covering watch: {error:#}");
                 false
             }
@@ -880,10 +771,11 @@ impl OsWatcher {
 
     fn watch(&self, path: &Path) -> anyhow::Result<()> {
         self.ensure_backend()?;
-        self.backend.lock().as_mut().expect("watcher backend initialized").watch(
-            path,
-            if RECURSIVE_WATCH { notify::RecursiveMode::Recursive } else { notify::RecursiveMode::NonRecursive },
-        )?;
+        self.backend
+            .lock()
+            .as_mut()
+            .expect("watcher backend initialized")
+            .watch(path, notify::RecursiveMode::Recursive)?;
         Ok(())
     }
 
@@ -891,9 +783,8 @@ impl OsWatcher {
         let watcher = self.backend.lock().as_mut().map(|watcher| watcher.unwatch(path));
 
         match watcher {
-            // inotify auto-removes a watch when its directory is deleted, so a
-            // later unwatch races that and fails with a benign error. Either way
-            // the path is no longer watched, which is all we wanted.
+            // A watch may already be gone (e.g. its directory was deleted); either
+            // way the path is no longer watched, which is all we wanted.
             Some(Err(error)) if !matches!(error.kind, notify::ErrorKind::WatchNotFound) => Err(error.into()),
             _ => Ok(()),
         }
@@ -906,11 +797,7 @@ impl OsWatcher {
         // watcher along with every path registered on it.
         let mut backend = self.backend.lock();
         if backend.is_none() {
-            // CORE excludes Access events, which ed discards anyway. Without this,
-            // the default mask subscribes to inotify OPEN/CLOSE_* on Linux, so every
-            // file read in a watched directory would queue events, increasing the
-            // risk of queue overflows (and thus full rescans) under read-heavy
-            // workloads like grep or language server indexing.
+            // CORE excludes Access events, which ed discards anyway.
             let config = notify::Config::default().with_event_kinds(notify::EventKindMask::CORE);
             *backend = Some(Box::new(<notify::RecommendedWatcher as notify::Watcher>::new(self.event_sink(), config)?));
         }
@@ -930,42 +817,7 @@ fn dispatch(state: &Mutex<WatcherState>, event: notify::Result<notify::Event>) {
     log::trace!("handle file watcher event: {event:?}");
 
     let callbacks = {
-        let mut state = state.lock();
-        // Invalidate before callbacks can trigger a scan.
-        if !RECURSIVE_WATCH && event.need_rescan() {
-            // Overflow may have dropped removal events.
-            for path_state in state.paths.0.values_mut() {
-                path_state.stale = true;
-            }
-        } else if !RECURSIVE_WATCH
-            && matches!(event.kind, EventKind::Remove(_) | EventKind::Modify(ModifyKind::Name(_)))
-        {
-            for path in &event.paths {
-                let path = SanitizedPath::new(path);
-                for event_key in [WatchKey::exact(path), WatchKey::folded(path)] {
-                    let Some(path_state) = state.paths.get_mut(&event_key) else {
-                        continue;
-                    };
-                    path_state.stale = true;
-                    if !matches!(event.kind, EventKind::Modify(_)) {
-                        continue;
-                    }
-                    // Descendant watches follow the directory without their own rename events.
-                    for (key, path_state) in &mut state.paths.0 {
-                        let descendant = match (key, &event_key) {
-                            (WatchKey::Exact(key), WatchKey::Exact(event_key)) => key.starts_with(event_key),
-                            (WatchKey::Folded(key), WatchKey::Folded(event_key)) => {
-                                Path::new(key.as_ref()).starts_with(Path::new(event_key.as_ref()))
-                            }
-                            _ => false,
-                        };
-                        if descendant {
-                            path_state.stale = true;
-                        }
-                    }
-                }
-            }
-        }
+        let state = state.lock();
         if event.need_rescan() {
             state.watchers.values().map(|registration| registration.callback.clone()).collect::<Vec<_>>()
         } else {
@@ -1056,22 +908,4 @@ fn enqueue(event_tx: &async_channel::Sender<notify::Result<notify::Event>>, even
     // A failed send only happens once the dispatch thread has shut down, at
     // which point there's nothing left to dispatch to.
     event_tx.try_send(event).ok();
-}
-
-fn is_max_files_watch_error(error: &anyhow::Error) -> bool {
-    error.downcast_ref::<notify::Error>().is_some_and(|error| matches!(&error.kind, notify::ErrorKind::MaxFilesWatch))
-}
-
-static NATIVE_WATCH_LIMIT_COOLDOWN: LazyLock<Duration> = LazyLock::new(|| {
-    let cooldown_seconds: u64 = env::var("ED_NATIVE_WATCH_LIMIT_COOLDOWN_SECONDS")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(5)
-        .clamp(0, 300);
-    Duration::from_secs(cooldown_seconds)
-});
-
-#[cfg(target_os = "linux")]
-pub(crate) const fn case_insensitive_path(_path: &Path) -> bool {
-    false
 }

@@ -17,26 +17,19 @@ migrator, or Vim/Helix mode.
 
 - There is no database (no SQLite, key-value store, or `db`/`sqlez`/`session`
   crates). App state lives in two JSON files:
-  - `~/.local/share/ed/projects.json`: recent projects (root folders in open
-    order, plus the SSH host/user/port for remote ones), most recent first and
+  - `~/.local/share/ed/projects.json`: recent projects (local root folders in open
+    order), most recent first and
     capped at 100, each flagged `open` while it has a window (the open list
     is the recents, not a separate list). Window bounds are not saved. It is
     read once at launch; unreadable contents count as empty. Every change
     rewrites the whole file. A project moves to the front of the recents when
     opened or its window is focused.
-    There is no separate list of remote servers: the Remote Servers modal
-    lists the servers of the recent remote projects (most recently used
-    first, each with its recent folders and Open Folder). Connecting a new
-    server goes straight to its folder picker, and the server is remembered
-    once a project on it opens. Removing a server drops its recent projects.
-    There are no per-server nicknames, ssh args or port forwards.
+    There is no Remote Servers modal.
   - `<first root folder>/.ed/workspace.json`, per project: the pane tree with
     each tab's kind and its own JSON state, pinned/active/preview tabs, which
     pane is zoomed, dock visibility/active panel/zoom, and recent navigation
-    history. A restored zoomed pane comes back zoomed and active. Remote
-    projects keep it on the server, read through the project's buffers and
-    written through the worktree after connecting. Unreadable files are
-    ignored.
+    history. A restored zoomed pane comes back zoomed and active.
+    Unreadable files are ignored.
     Identical contents aren't rewritten. Windows with no root folder aren't
     persisted.
 - Tabs persist only their own state. An editor tab on a file keeps only its
@@ -167,10 +160,9 @@ migrator, or Vim/Helix mode.
   JSON schema. Task files are not supported (see `tasks.md`).
 - EditorConfig and file modelines (vim/emacs `vim:`/`-*-` comments) are not
   supported, so language settings come only from code. There is no
-  project-local settings layer or worktree-settings sync with remote peers.
+  project-local settings layer.
   Settings lookups are global only (`Type::get()`); there is no
-  per-file/worktree location argument, and the remote terminal-shell request
-  carries no worktree id.
+  per-file/worktree location argument.
 - The built-in keymap retains contexts and binding order. Only the US/ABC QWERTY
   layout is supported: macOS has no per-layout key-equivalent remapping, so
   shortcuts always bind to the literal key. The keymap, menu bar, and dock menu
@@ -180,12 +172,6 @@ migrator, or Vim/Helix mode.
 - Personal bindings are applied last: global `cmd-[`/`cmd-]` navigate backward/
   forward, Editor `f1` opens documentation and `cmd-shift-u` toggles case, and
   Terminal `shift-enter` sends Escape followed by carriage return.
-- Settings are not synced to remote servers. Client and remote server are built
-  from the same code and both start from the built-in settings; runtime setting
-  changes only affect client-side UI (docks, font sizes, theme, panel
-  sorting/filters), so no server-side behaviour can diverge. Remote settings
-  files are not loaded. Any new runtime toggle for a server-side setting
-  (formatting, language servers, scanning, git) would need sync reintroduced.
 - JSON schemas are not generated: nothing derives `JsonSchema` and `schemars`
   is not a dependency. Actions still derive `Deserialize`, because the built-in
   keymap builds actions from a name plus JSON input. Bindings may omit input,
@@ -212,8 +198,7 @@ migrator, or Vim/Helix mode.
   when it is first shown empty.
 - Terminal mode's layout is saved in `.ed/workspace.json` (`terminal`): its
   splits, which pane is zoomed (restored zoomed and active) and, per tab, the
-  shell's working directory (local projects only;
-  remote shells report none). Shells start afresh there, without output,
+  shell's working directory. Shells start afresh there, without output,
   processes or custom titles. Restoring is lazy: nothing starts until terminal
   mode is first shown in the window, and until then the saved layout is
   written back unchanged. A directory that no longer exists falls back to the

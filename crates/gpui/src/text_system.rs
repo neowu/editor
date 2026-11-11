@@ -265,16 +265,7 @@ impl TextSystem {
             raster_bounds: RwLock::default(),
             font_ids_by_font: RwLock::default(),
             wrapper_pool: Mutex::default(),
-            fallback_font_stack: smallvec![
-                font("Helvetica"),
-                font("Segoe UI"),     // Windows
-                font("Ubuntu"),       // Gnome (Ubuntu)
-                font("Adwaita Sans"), // Gnome 47
-                font("Cantarell"),    // Gnome
-                font("Noto Sans"),    // KDE
-                font("DejaVu Sans"),
-                font("Arial"), // macOS, Windows
-            ],
+            fallback_font_stack: smallvec![font("Helvetica"), font("Arial"),],
             font_generation: Arc::default(),
             missing_glyph_reporter: Arc::new(MissingGlyphReporter {
                 generation: missing_glyph_generation.clone(),

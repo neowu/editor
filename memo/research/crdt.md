@@ -3,7 +3,15 @@
 Question: the editor is single-user now (`crates/clock`, `crates/text`). Do we
 still need the collaboration CRDT, and is a redesign worth it?
 
-## How a remote buffer works today
+> 2026-11-11: remote projects were removed (no `remote_server`, RPC or proto
+> layer), and option A below is done: the local buffer is the only writer.
+> `Buffer::branch` / `merge_into_base` and `EditPreview` had no callers and were
+> deleted, so no second writer remains. `ReplicaId` is gone, `Lamport` is a
+> `u32`, `clock::Global` is one counter, and operations, the deferred queue,
+> `wait_for_*`, remote selections and per-edit op history are removed. The
+> sections below describe the old design.
+
+## How a remote buffer worked (before removal)
 
 Both the client and the server keep a full copy of each open buffer, and both edit it.
 
@@ -82,7 +90,11 @@ Anchors become offsets that are shifted on every edit.
 
 ## Recommendation
 
-Of the redesigns, A is the realistic one. It's mainly a code-size and protocol
-cleanup, not a speed win. B costs far more than it saves. If doing A, start by
-making the server stop editing buffers (route format, code-action and reload
-results back to the client as edits), because everything else depends on that.
+With remote projects gone, option A's prerequisite (the server stops editing
+buffers) is moot: nothing else edits them. What remains of A is deleting the
+multi-writer parts: `ReplicaId`, version vectors (one `u32` instead), the
+deferred-op queue, tie-breaking between concurrent inserts, and undo as ops.
+The fragment tree, tombstones, `Locator` and insertion ids stay, because
+anchors need them. Branch buffers (`ReplicaId::LOCAL_BRANCH`) are the one
+remaining second writer and need a plan first. It's a code-size cleanup, not a
+speed win. B still costs far more than it saves.

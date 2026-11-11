@@ -6,9 +6,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 use futures::FutureExt as _;
 use futures::future::Shared;
-use futures::future::join_all;
 use gpui::AppContext as _;
-use gpui::AsyncApp;
 use gpui::Context;
 use gpui::Entity;
 use gpui::Task;
@@ -16,10 +14,7 @@ use itertools::Itertools;
 use language::Buffer;
 use language::BufferSnapshot;
 use language::OutlineItem;
-use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
-use rpc::TypedEnvelope;
-use rpc::proto;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use text::Anchor;
@@ -29,13 +24,11 @@ use util::ResultExt;
 
 use crate::DocumentSymbol;
 use crate::lsp_command::GetDocumentSymbols;
-use crate::lsp_command::LspCommand as _;
 use crate::lsp_store::LspStore;
 use crate::lsp_store::LspStoreEvent;
 use crate::lsp_store::RunningFetch;
 use crate::lsp_store::missing_servers_to_query;
 use crate::lsp_store::next_lsp_fetch_id;
-use crate::lsp_store::upstream_lsp_query_server_filter;
 
 pub(super) type DocumentSymbolsTask = Shared<Task<result::Result<Vec<OutlineItem<Anchor>>, Arc<anyhow::Error>>>>;
 
@@ -74,27 +67,6 @@ impl LspStore {
         }
 
         cx.emit(LspStoreEvent::RefreshDocumentSymbols { server_id: for_server });
-        if let Some((downstream_client, project_id)) = self.downstream_client.as_ref() {
-            downstream_client
-                .send(proto::RefreshDocumentSymbols {
-                    project_id: *project_id,
-                    server_id: for_server.map(|server_id| server_id.to_proto()),
-                })
-                .context("sending refresh document symbols downstream")
-                .log_err();
-        }
-    }
-
-    pub(super) async fn handle_refresh_document_symbols(
-        lsp_store: Entity<Self>,
-        envelope: TypedEnvelope<proto::RefreshDocumentSymbols>,
-        mut cx: AsyncApp,
-    ) -> anyhow::Result<proto::Ack> {
-        lsp_store.update(&mut cx, |lsp_store, cx| {
-            let server_id = envelope.payload.server_id.map(LanguageServerId::from_proto);
-            lsp_store.refresh_document_symbols(server_id, cx);
-        });
-        Ok(proto::Ack {})
     }
 
     /// Returns a task that resolves to the document symbol outline items for
@@ -241,61 +213,8 @@ impl LspStore {
         for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,
     ) -> Task<anyhow::Result<Option<FxHashMap<LanguageServerId, Vec<DocumentSymbol>>>>> {
-        if let Some((client, project_id)) = self.upstream_client() {
-            let request = GetDocumentSymbols;
-            if !self.is_capable_for_proto_request(buffer, &request, cx) {
-                return Task::ready(Ok(None));
-            }
-
-            let request_timeout = LSP_REQUEST_TIMEOUT;
-            let request_task = client.request_lsp(
-                project_id,
-                upstream_lsp_query_server_filter(for_servers.as_ref()),
-                request_timeout,
-                cx.background_executor().clone(),
-                request.to_proto(project_id, buffer.read(cx)),
-            );
-            let buffer = buffer.clone();
-            cx.spawn(async move |weak_lsp_store, cx| {
-                let Some(lsp_store) = weak_lsp_store.upgrade() else {
-                    return Ok(None);
-                };
-                let Some(responses) = request_task.await? else {
-                    return Ok(None);
-                };
-
-                let document_symbols = join_all(responses.payload.into_iter().map(|response| {
-                    let lsp_store = lsp_store.clone();
-                    let buffer = buffer.clone();
-                    let cx = cx.clone();
-                    async move {
-                        (
-                            LanguageServerId::from_proto(response.server_id),
-                            GetDocumentSymbols.response_from_proto(response.response, lsp_store, buffer, cx).await,
-                        )
-                    }
-                }))
-                .await;
-
-                let mut has_errors = false;
-                let result = document_symbols
-                    .into_iter()
-                    .filter_map(|(server_id, symbols)| match symbols {
-                        Ok(symbols) => Some((server_id, symbols)),
-                        Err(e) => {
-                            has_errors = true;
-                            log::error!("Failed to fetch document symbols: {e:#}");
-                            None
-                        }
-                    })
-                    .collect::<FxHashMap<_, _>>();
-                anyhow::ensure!(!has_errors || !result.is_empty(), "Failed to fetch document symbols");
-                Ok(Some(result))
-            })
-        } else {
-            let symbols_task = self.request_filtered_lsp_locally(buffer, GetDocumentSymbols, for_servers.as_ref(), cx);
-            cx.background_spawn(async move { Ok(Some(symbols_task.await.into_iter().collect())) })
-        }
+        let symbols_task = self.request_filtered_lsp_locally(buffer, GetDocumentSymbols, for_servers.as_ref(), cx);
+        cx.background_spawn(async move { Ok(Some(symbols_task.await.into_iter().collect())) })
     }
 }
 

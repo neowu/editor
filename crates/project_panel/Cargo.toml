@@ -26,7 +26,6 @@ menu.workspace = true
 notifications.workspace = true
 project.workspace = true
 rayon.workspace = true
-rpc.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
 settings.workspace = true

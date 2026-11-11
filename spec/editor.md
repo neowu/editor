@@ -127,7 +127,7 @@
   (no `relative_line_numbers` setting, no `editor::ToggleRelativeLineNumbers`).
 - No signature help: no popup, actions, keybindings or settings. The LSP
   `textDocument/signatureHelp` request isn't sent, the client capability isn't
-  advertised, and there are no proto messages for it. Use go-to-definition or
+  advertised. Use go-to-definition or
   hover to see a function's parameters.
 - Code lenses only appear in the hover popover: never as lines in the editor
   or in the code action menu. Lenses whose range covers the hovered position
@@ -184,10 +184,7 @@
   buffer is `Capability::ReadOnly` when the file isn't writable or is a
   library source (there is no `read_only_files` setting); this is re-derived on
   every worktree entry change, so `chmod` takes effect live (entries carry
-  `is_writable`). Remote projects behave the same: writability is synced on
-  `proto::Entry` (`is_read_only`), and the client re-derives the capability of
-  its remote buffers from the synced entries rather than syncing buffer
-  capability itself. Git revisions and commit views are read-only too.
+  `is_writable`). Git revisions and commit views are read-only too.
   There is no "Make Tab Read-Only/Editable" menu entry, no
   `workspace::ToggleReadOnlyFile` action, and no soft-read-only (`Read`)
   `Capability`.
@@ -222,7 +219,7 @@
   indented column.
 - There is no notion of private files or secrets: no `private_files` or
   `redact_private_values` settings, no `redactions.scm` queries, and no
-  is-private flag on worktree entries or files. Over SSH, `.env`, key and
+  is-private flag on worktree entries or files. `.env`, key and
   certificate files open, copy, rename and jump-to-symbol like any other file.
   Logs and error messages are not scrubbed for secret-looking environment
   variables; logs stay local.

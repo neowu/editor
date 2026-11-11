@@ -65,7 +65,7 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
 - `state` lists the left, bottom and right docks: open or not, the visible
   panel's persistent name, and whether the dock holds keyboard focus.
 - `state` also lists the project's language servers with the progress work
-  each reports in flight (local or forwarded from a remote host). `wait-lsp`
+  each reports in flight. `wait-lsp`
   polls it until a (named) server exists and has reported no work for 1s,
   since servers go briefly quiet between phases (e.g. rust-analyzer's fetch
   then index). Use it instead of fixed sleeps before LSP-driven steps.

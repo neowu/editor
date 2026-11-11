@@ -7,13 +7,10 @@ Macs remain supported. Only the latest macOS is targeted; the minimum is 27.2
 and code does not gate on OS version at runtime. The minimum lives in source:
 `crates/ed/build.rs` (`MACOSX_DEPLOYMENT_TARGET` for the binary), `Info.plist`
 (`LSMinimumSystemVersion`), and the Metal shader build in `gpui_apple/build.rs`. `gpui_apple` builds only for
-macOS; iOS is not supported. The headless
-remote server supports macOS and Linux.
+macOS; iOS is not supported. There is no other build target: the headless
+remote server is removed (see `collaboration-and-telemetry.md`).
 
-SSH remotes support only macOS and Linux, using Unix paths and shells. Windows
-remote detection, command execution, and proxy startup are removed.
-
-Paths are Unix-only everywhere, local and remote: `/`-separated with no drive
+Paths are Unix-only: `/`-separated with no drive
 or UNC prefixes. There is no path-style abstraction; code uses
 `std::path::Path` semantics directly, plus the `/`-string helpers in the
 `path` crate (`join`, `join_path`, `normalize`, `split`).
@@ -43,9 +40,8 @@ or UNC prefixes. There is no path-style abstraction; code uses
   add to the existing window unless the action asks for a new one. New
   windows show the Launchpad.
 - Quit and restart never ask for confirmation (unsaved changes still prompt).
-- Open and Save As use the system dialogs for local projects and the built-in
-  pickers for remote ones.
-- Terminals, tasks, environment capture, and SSH commands only understand
+- Open and Save As use the system dialogs.
+- Terminals, tasks, and environment capture only understand
   POSIX shells (sh/bash/zsh) and fish. Any other shell is treated as POSIX;
   csh/tcsh, rc, PowerShell, cmd, Nushell, Xonsh, and Elvish quoting and syntax
   are not supported.
@@ -57,21 +53,12 @@ or UNC prefixes. There is no path-style abstraction; code uses
   semantics (unset stdio is inherited). There is no custom `posix_spawn` path:
   it existed upstream only to reset Mach exception ports inherited from Zed's
   crash handler, and there is no crash handler.
-- Git operations (including clones and commit signing) and SSH connections require
+- Git operations (including clones and commit signing) require
   authentication that works without user input, such as an SSH agent or cached
   credentials. Password/passphrase requests fail instead of opening a prompt.
-  SSH host verification must also succeed without interactive confirmation.
-- SSH remotes run plain `ssh <args> <host> ...` for every command. The editor
-  starts no master process and passes no ControlMaster/ControlPath options;
-  connection reuse is left to the user's ssh config (e.g. `ControlMaster auto`
-  + `ControlPersist`). The initial connect times out after 17s.
-- The askpass crate, password dialogs, credential forwarding over RPC, and
-  askpass helper modes are removed. Remote connection progress and cancellation
-  remain available.
+- The askpass crate, password dialogs, and askpass helper modes are removed.
 - GPUI has no credential storage API; the platform layer never touches the
   macOS Keychain.
-- The remote servers modal lists only hosts added manually in the editor; ssh
-  config `Host` entries are never read or suggested.
 - No accessibility support: GPUI has no AccessKit integration, never registers
   with the macOS accessibility API, and builds no accessibility tree. There are
   no role/aria element APIs, no accessibility dev actions, and no
@@ -93,11 +80,8 @@ or UNC prefixes. There is no path-style abstraction; code uses
 - No reduce-motion mode: GPUI has no `reduce_motion` flag and there is no
   `reduce_motion` setting; animations (spinners, GIFs, scrollbar fades,
   notification fades, cursor animation, smooth scrolling, dock open/close) always run.
-- The remote server needs no display server, GPU, desktop integration, or fonts.
-  It retains background execution, timers, and a foreground event loop for remote projects.
 - There is no platform-selection crate: the editor constructs `gpui_macos::MacPlatform`
-  directly, and the remote server owns a headless GPUI platform (smol worker pool plus a
-  main-thread event loop, no-op text system, no windows) used on both macOS and Linux.
+  directly.
 - GPUI core has no direct `libc` dependency; native OS integration belongs in
   platform-specific crates.
 - No external drag and drop: GPUI has no file-drop events and windows are not
@@ -111,7 +95,6 @@ or UNC prefixes. There is no path-style abstraction; code uses
   insets/safe areas, visual viewport, system back action, soft keyboard requests,
   text-input state notifications, or soft-keyboard text configuration
   (autocorrect, autocapitalize, enter-key hint).
-- Linux remote data and logs follow XDG directory settings.
 
 ## App identity and user directories
 
@@ -122,9 +105,9 @@ or UNC prefixes. There is no path-style abstraction; code uses
 - The About window is compact: app icon, `ed <version>` headline, and a
   single centered OK button (Enter/Escape close it). No separate version
   label and no Copy button.
-- macOS and Linux use the same XDG layout; nothing is written under
+- User directories follow the XDG layout; nothing is written under
   `~/Library`. Each base honours its `XDG_*_HOME` variable when absolute:
-  - data (`projects.json`, remote server state) `~/.local/share/ed`
+  - data (`projects.json`) `~/.local/share/ed`
   - state `~/.local/state/ed`, logs in `~/.local/state/ed/logs/ed.log`
   - cache/temp `~/.cache/ed`
   - no config directory: ed reads no config files.
@@ -141,16 +124,20 @@ or UNC prefixes. There is no path-style abstraction; code uses
   registered in memory, never written to `~/Library/Preferences`.
 - No `zed://` URL scheme: the bundle registers no URL types, there is no
   open-URL prompt or `OpenZedUrl` action, and terminal links don't match
-  `zed://`. The app only accepts `file://` and `ssh://` URLs.
+  `zed://`. The app only accepts paths and `file://` URLs.
   Dock-menu items dispatch their actions directly through AppKit, not via URLs.
-- Branding is `ed` everywhere (crates `ed`/`ed_actions`, UI text, proto
-  package `ed.messages`, `TERM_PROGRAM=ed`, pasteboard types).
+- Branding is `ed` everywhere (crates `ed`/`ed_actions`, UI text,
+  `TERM_PROGRAM=ed`, pasteboard types).
   Environment variables use the `ED_` prefix (task variables like `$ED_FILE`,
   `ED_WINDOW_SIZE`, ...) and the project folder is `.ed`; upstream
   `ZED_*` variables and `.zed` folders are ignored.
 - Linux desktop, FreeBSD, Windows, and browser backends, packaging, and associated
   build/test/release tooling are removed.
-- Unsupported editor targets fail with a macOS-only diagnostic.
+- No non-macOS code: crates carry no Linux/Windows `cfg` branches or
+  target-specific dependency sections, and GPUI has no display-server APIs
+  (no windowing-mode switching, `GraphicalEnvironment`, compositor name, or
+  window hover tracking; the cursor follows the key window).
+  `gpui` fails to compile for any other target.
 - System-specification reports are removed: no `--system-specs` flag or
   copy-system-specs action.
 - The filesystem-watcher debug window, recording API, and JSON exports are removed.
@@ -163,26 +150,21 @@ or UNC prefixes. There is no path-style abstraction; code uses
     Removing that ancestor first installs replacement watches for the surviving
     descendants (shallowest first); if a replacement fails, the ancestor's watch
     is kept until the descendants it still serves are removed.
-  - Only native watchers (FSEvents, inotify) are used; the upstream poll
-    watcher, filesystem-type detection, and `*_FILE_WATCHER_*` env overrides
-    are removed. Mounts whose native watcher misses changes made elsewhere
+  - Only FSEvents is used, always recursive; the upstream poll watcher,
+    inotify handling (stale-watch tracking, watch-limit cooldown),
+    filesystem-type detection, and `*_FILE_WATCHER_*` env overrides are removed. Mounts whose native watcher misses changes made elsewhere
     (e.g. a host commit on a VM's virtiofs/9p/NFS mount) are not tracked
     automatically.
-  - `workspace::ReloadProjectFiles` covers that case: every worktree (on the
-    remote host for remote projects, via `RescanWorktrees`) rescans its root
+  - `workspace::ReloadProjectFiles` covers that case: every worktree rescans its root
     and its repositories' git directories as if the watcher lost sync, so
     entries, open buffers and git state catch up.
 - File formats and protocol data may describe other operating systems, paths,
-  line endings, or remote hosts; these do not imply editor host support.
+  or line endings; these do not imply editor host support.
 
 ## Build requirements
 
 Use a Rust toolchain and the native SDK/C toolchain for the intended target.
-Metal shaders compile at runtime on macOS. Linux remote-server builds require a
-Linux host or a configured Linux cross-compilation toolchain.
-Crates in the remote server's dependency tree must gate macOS-only build steps
-(e.g. `xcrun`, SDK probes) and macOS paths behind `target_os = "macos"`, keeping
-Linux branches for paths, crash handling, and LSP download assets. Upstream workflow
+Metal shaders compile at runtime on macOS. Upstream workflow
 generators that depended on removed release and deployment infrastructure are absent.
 macOS builds pass `-C force-unwind-tables=no` (`.cargo/config.toml`): rustc's
 default async unwind tables are not compact-unwind encodable, which bloats
@@ -195,18 +177,15 @@ from the installed app only resolve the panic location itself.
 
 ## Packaging
 
-- `install_remote_server.fish` runs on a Linux host with the build prerequisites
-  installed, builds the remote server in release mode, and installs it as
-  `~/.local/bin/ed_server` for SSH editing.
 - `release.fish` builds `target/release/ed.app` for the host Mac: the `ed`
   binary in `Contents/MacOS`, `crates/ed/resources/Info.plist` with the
   Cargo.toml version, an icon generated from `app-icon@2x.png`, and `Document.icns`.
 - `release.fish` signs the bundle with a self-signed keychain identity
   (`ed-local`, or `ED_SIGN_IDENTITY`) and stops with setup instructions when it is
   missing. A stable signature keeps macOS privacy grants across rebuilds; ad-hoc
-  signatures change every build, so Local Network access is lost and `ssh` to
-  LAN/VM hosts (e.g. Apple container machines on 192.168.64.x) fails with
-  `Undefined error: 0`. `Info.plist` carries `NSLocalNetworkUsageDescription`.
+  signatures change every build, so grants such as Local Network access (used
+  by `ssh`/git run from the terminal) are lost. `Info.plist` carries
+  `NSLocalNetworkUsageDescription`.
 - App icon: Nord-dark rounded square with an inset screen showing `</>` in
   `#88C0D0`. Source is `crates/ed/resources/app-icon.svg`; the PNGs are rendered
   from it at 512 and 1024 px.

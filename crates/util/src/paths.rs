@@ -41,8 +41,8 @@ pub trait PathExt {
     /// # Returns
     ///
     /// * A `PathBuf` containing the compacted file path. If the input path
-    ///   does not have the user's home directory prefix, or if we are not on
-    ///   Linux or macOS, the original path is returned unchanged.
+    ///   does not have the user's home directory prefix, the original path is
+    ///   returned unchanged.
     fn compact(&self) -> PathBuf;
 
     /// Returns a file's extension or, if the file is hidden, its name without the leading dot
@@ -218,27 +218,6 @@ impl From<&SanitizedPath> for PathBuf {
 impl AsRef<Path> for SanitizedPath {
     fn as_ref(&self) -> &Path {
         &self.0
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct RemotePathBuf {
-    string: String,
-}
-
-impl RemotePathBuf {
-    pub const fn new(string: String) -> Self {
-        Self { string }
-    }
-
-    pub fn to_proto(self) -> String {
-        self.string
-    }
-}
-
-impl Display for RemotePathBuf {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.string)
     }
 }
 

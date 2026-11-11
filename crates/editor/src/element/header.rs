@@ -215,8 +215,7 @@ pub(crate) fn render_buffer_header(
     cx: &mut App,
 ) -> impl IntoElement {
     let buffer_id = for_excerpt.buffer_id();
-    let header_hovered_state =
-        window.use_keyed_state(("buffer-header-hovered", buffer_id.to_proto()), cx, |_, _| false);
+    let header_hovered_state = window.use_keyed_state(("buffer-header-hovered", buffer_id.as_u64()), cx, |_, _| false);
     let header_hovered = *header_hovered_state.read(cx);
     let editor_read = editor.read(cx);
     let multi_buffer = editor_read.buffer.read(cx);
@@ -273,7 +272,7 @@ pub(crate) fn render_buffer_header(
     let open_file_label = editor_read.addons.values().find_map(|addon| addon.open_file_label()).unwrap_or("Open File");
 
     let header = div()
-        .id(("buffer-header", buffer_id.to_proto()))
+        .id(("buffer-header", buffer_id.as_u64()))
         .on_hover(move |hovered, _window, cx| {
             header_hovered_state.update(cx, |state, cx| {
                 if *state != *hovered {
@@ -441,7 +440,7 @@ pub(crate) fn render_buffer_header(
                                 .when_some(diff_stat, |this, (added, removed)| {
                                     let ui_font_size = font::ui_font_size(cx);
                                     this.child(WithRemSize::new(ui_font_size).child(DiffStat::new(
-                                        ("buffer-header-diff-stat", buffer_id.to_proto()),
+                                        ("buffer-header-diff-stat", buffer_id.as_u64()),
                                         added as usize,
                                         removed as usize,
                                     )))
@@ -493,7 +492,7 @@ pub(crate) fn render_buffer_header(
     let editor = editor.clone();
     let buffer_snapshot = buffer.clone();
 
-    right_click_menu(("buffer-header-context-menu", buffer_id.to_proto())).trigger(move |_, _, _| header).menu(
+    right_click_menu(("buffer-header-context-menu", buffer_id.as_u64())).trigger(move |_, _, _| header).menu(
         move |window, cx| {
             let menu_context = focus_handle.clone();
             let editor = editor.clone();
@@ -569,8 +568,7 @@ pub(crate) fn render_buffer_header(
                                 Some(Box::new(OpenInTerminal)),
                                 window.handler_for(&editor, move |_, window, cx| {
                                     window.dispatch_action(
-                                        OpenTerminal { working_directory: parent_abs_path.clone(), local: false }
-                                            .boxed_clone(),
+                                        OpenTerminal { working_directory: parent_abs_path.clone() }.boxed_clone(),
                                         cx,
                                     );
                                 }),

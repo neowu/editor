@@ -71,8 +71,7 @@ pub(crate) struct PtyProcessInfo {
 impl PtyProcessInfo {
     pub(crate) fn new(pid_getter: ProcessIdGetter) -> PtyProcessInfo {
         // Task enumeration is on by default and would retain a `Process` entry
-        // per thread, each pinning an open `/proc/<pid>/task/<tid>/stat` handle
-        // on Linux (#58651).
+        // per thread (#58651).
         let process_refresh_kind = ProcessRefreshKind::nothing()
             .with_cmd(UpdateKind::Always)
             .with_cwd(UpdateKind::Always)
@@ -109,9 +108,8 @@ impl PtyProcessInfo {
         let fallback_pid = self.pid_getter.fallback_pid();
         let mut system = self.system.write();
         // sysinfo never evicts processes that are absent from the refreshed pid
-        // set, so entries for former foreground processes (each pinning an open
-        // `/proc/<pid>/stat` handle on Linux) would otherwise accumulate for as
-        // long as this terminal lives (#58651). Rebuild the `System` whenever
+        // set, so entries for former foreground processes would otherwise
+        // accumulate for as long as this terminal lives (#58651). Rebuild the `System` whenever
         // the foreground process changes to keep the map bounded.
         if self.last_foreground_pid.lock().replace(pid) != Some(pid) {
             *system = System::new();

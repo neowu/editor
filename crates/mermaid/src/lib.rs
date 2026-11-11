@@ -192,8 +192,6 @@ mod tests {
         let sources = [
             "flowchart LR\n  accTitle: Steps\n  accDescr: How it goes\n  A[Start] --> B[Done]\n  click A href \"https://example.com\" \"tip\"\n  click B call back()",
             "sequenceDiagram\n  accTitle: Greeting\n  Alice->>Bob: Hello\n  link Alice: Home @ https://example.com",
-            "pie title Pets\n  accDescr: Pet counts\n  \"Dogs\" : 3\n  \"Cats\" : 2",
-            "gantt\n  dateFormat YYYY-MM-DD\n  accTitle: Plan\n  section A\n  Task one :a1, 2024-01-01, 3d\n  click a1 href \"https://example.com\"",
             "stateDiagram-v2\n  [*] --> Still\n  click Still \"https://example.com\" \"tip\"",
             "classDiagram\n  class Duck\n  link Duck \"https://example.com\" \"tip\"",
         ];
@@ -271,8 +269,6 @@ mod tests {
 
         let out = svg("flowchart LR\n  A[\"a <u>underlined</u> word\"]");
         assert!(out.contains("<tspan text-decoration=\"underline\">underlined</tspan>"), "{out}");
-        let out = svg("kanban\n  todo[Todo]\n    t1[<u>card</u>]");
-        assert!(out.contains("text-decoration=\"underline\">card</tspan>"), "{out}");
 
         let out = svg("flowchart LR\n  A[\"List<T>\"]");
         assert!(out.contains("List&lt;T&gt;"), "{out}");

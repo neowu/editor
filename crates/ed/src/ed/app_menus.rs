@@ -53,14 +53,10 @@ pub fn app_menus(_cx: &mut App) -> Vec<Menu> {
             items: vec![
                 MenuItem::action("About ed", ed_actions::About),
                 MenuItem::separator(),
-                #[cfg(target_os = "macos")]
                 MenuItem::os_submenu("Services", gpui::SystemMenuType::Services),
                 MenuItem::separator(),
-                #[cfg(target_os = "macos")]
                 MenuItem::action("Hide ed", super::Hide),
-                #[cfg(target_os = "macos")]
                 MenuItem::action("Hide Others", super::HideOthers),
-                #[cfg(target_os = "macos")]
                 MenuItem::action("Show All", super::ShowAll),
                 MenuItem::separator(),
                 MenuItem::action("Quit ed", Quit),
@@ -73,14 +69,8 @@ pub fn app_menus(_cx: &mut App) -> Vec<Menu> {
                 MenuItem::action("New", workspace::NewFile),
                 MenuItem::action("New Window", workspace::NewWindow),
                 MenuItem::separator(),
-                #[cfg(not(target_os = "macos"))]
-                MenuItem::action("Open File...", workspace::OpenFiles),
-                MenuItem::action(
-                    if cfg!(not(target_os = "macos")) { "Open Folder..." } else { "Open…" },
-                    workspace::Open::default(),
-                ),
+                MenuItem::action("Open…", workspace::Open::default()),
                 MenuItem::action("Open Recent…", ed_actions::OpenRecent::default()),
-                MenuItem::action("Open Remote…", ed_actions::OpenRemote::default()),
                 MenuItem::separator(),
                 MenuItem::action("Add Folder to Project…", workspace::AddFolderToProject),
                 MenuItem::separator(),

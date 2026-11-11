@@ -2,14 +2,10 @@
 //!
 //! Vendored from <https://github.com/Byron/trash-rs> (MIT, see `LICENSE-MIT`),
 //! merged with Zed's fork (<https://github.com/zed-industries/trash-rs>) for
-//! returning the trashed item and restoring on macOS, and trimmed to macOS and
-//! Linux (freedesktop).
+//! returning the trashed item and restoring, and trimmed to macOS.
 
 use std::os::unix;
 use std::path;
-#[cfg(target_os = "linux")]
-mod freedesktop;
-#[cfg(target_os = "macos")]
 mod macos;
 
 use std::ffi::OsString;
@@ -20,18 +16,12 @@ use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 
-#[cfg(target_os = "linux")]
-use freedesktop as platform;
-#[cfg(target_os = "macos")]
 use macos as platform;
 
 /// An item in the trash, with enough information to restore it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrashItem {
-    /// Platform-specific identifier of the item in the trash.
-    ///
-    /// * freedesktop: path to the `.trashinfo` file.
-    /// * macOS: path to the item inside the trash.
+    /// Path to the item inside the trash.
     pub id: OsString,
     /// Name of the item at the time of trashing.
     pub name: OsString,

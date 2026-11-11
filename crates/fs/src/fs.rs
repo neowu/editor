@@ -19,7 +19,6 @@ mod git_clone_progress;
 use std::ffi::CString;
 use std::io::Write;
 use std::io::{self};
-#[cfg(target_os = "macos")]
 use std::mem::MaybeUninit;
 use std::os::fd::AsFd;
 use std::os::fd::AsRawFd;
@@ -56,7 +55,6 @@ use parking_lot::Mutex;
 use rope::Rope;
 use serde::Deserialize;
 use serde::Serialize;
-use slotmap::KeyData;
 use slotmap::SlotMap;
 use smol::io::AsyncWriteExt;
 use tempfile::TempDir;
@@ -135,7 +133,7 @@ pub trait Fs: Send + Sync {
     async fn read_dir(&self, path: &Path) -> Result<Pin<Box<dyn Send + Stream<Item = Result<PathBuf>>>>>;
 
     /// Creates the native file watcher now rather than on the first `watch`, so a
-    /// failure to start it (e.g. inotify instance limits) can be reported at startup.
+    /// failure to start it can be reported at startup.
     fn start_native_watcher(&self) -> Result<()> {
         Ok(())
     }
@@ -321,29 +319,7 @@ impl MTime {
     }
 }
 
-impl From<proto::Timestamp> for MTime {
-    fn from(timestamp: proto::Timestamp) -> Self {
-        MTime(timestamp.into())
-    }
-}
-
-impl From<MTime> for proto::Timestamp {
-    fn from(mtime: MTime) -> Self {
-        mtime.0.into()
-    }
-}
-
 slotmap::new_key_type! { pub struct TrashId; }
-
-impl TrashId {
-    pub fn from_proto(value: u64) -> Self {
-        KeyData::from_ffi(value).into()
-    }
-
-    pub fn to_proto(self) -> u64 {
-        self.0.as_ffi()
-    }
-}
 
 pub struct RealFs {
     this: Weak<Self>,
@@ -360,19 +336,6 @@ pub trait FileHandle: Send + Sync + Debug {
 }
 
 impl FileHandle for File {
-    #[cfg(target_os = "linux")]
-    fn current_path(&self, _: &Arc<dyn Fs>) -> Result<PathBuf> {
-        let fd = self.as_fd();
-        let fd_path = format!("/proc/self/fd/{}", fd.as_raw_fd());
-        let new_path = fs::read_link(fd_path)?;
-        if new_path.file_name().is_some_and(|f| f.to_string_lossy().ends_with(" (deleted)")) {
-            anyhow::bail!("file was deleted")
-        };
-
-        Ok(new_path)
-    }
-
-    #[cfg(target_os = "macos")]
     fn current_path(&self, _: &Arc<dyn Fs>) -> Result<PathBuf> {
         use std::ffi::CStr;
         use std::ffi::OsStr;
@@ -412,20 +375,7 @@ fn rename_without_replace(source: &Path, target: &Path) -> io::Result<()> {
     let source = path_to_c_string(source)?;
     let target = path_to_c_string(target)?;
 
-    #[cfg(target_os = "macos")]
     let result = unsafe { libc::renamex_np(source.as_ptr(), target.as_ptr(), libc::RENAME_EXCL) };
-
-    #[cfg(target_os = "linux")]
-    let result = unsafe {
-        libc::syscall(
-            libc::SYS_renameat2,
-            libc::AT_FDCWD,
-            source.as_ptr(),
-            libc::AT_FDCWD,
-            target.as_ptr(),
-            libc::RENAME_NOREPLACE,
-        )
-    };
 
     if result == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
 }

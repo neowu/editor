@@ -3601,7 +3601,7 @@ impl GitPanel {
     }
 
     fn can_push_and_pull(&self, cx: &App) -> bool {
-        !self.project.read(cx).is_read_only(cx) && !self.rebase_in_progress(cx)
+        !self.rebase_in_progress(cx)
     }
 
     /// A rebase is stopped on conflicts: only resolving, continuing or
@@ -3832,10 +3832,8 @@ impl GitPanel {
 
         self.reopen_commit_buffer_task = cx.spawn_in(window, async move |git_panel, cx| {
             let result = async {
-                // Set up the buffer before awaiting the commit template as the
-                // request may never resolve (for example, a remote server that
-                // doesn't know about `LoadCommitTemplate`) and must not block the
-                // commit editor from attaching to the shared buffer.
+                // Set up the buffer before awaiting the commit template, which
+                // must not block the commit editor from attaching to the buffer.
                 let buffer = load_buffer.await?;
                 git_panel.update_in(cx, |git_panel, window, cx| {
                     if git_panel.commit_editor.read(cx).buffer().read(cx).as_singleton().as_ref() != Some(&buffer) {
@@ -4543,8 +4541,6 @@ impl GitPanel {
             (false, "Commit in progress")
         } else if !self.has_commit_message(cx) {
             (false, "No commit message")
-        } else if !self.has_write_access(cx) {
-            (false, "You do not have write access to this project")
         } else {
             (true, self.commit_button_title())
         }
@@ -5193,7 +5189,6 @@ impl GitPanel {
             .or_else(|| entry.status_entry().and_then(|entry| entry.staging.as_bool()));
 
         let checkbox = Checkbox::new("stage-file", is_staging_or_staged.into())
-            .disabled(!self.has_write_access(cx))
             .fill()
             .elevation(ElevationIndex::Surface)
             .on_click({
@@ -5223,7 +5218,6 @@ impl GitPanel {
 
     fn render_entries(
         &self,
-        has_write_access: bool,
         repo: Entity<Repository>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -5262,38 +5256,23 @@ impl GitPanel {
                             }) {
                                 match &this.entries.get(ix) {
                                     Some(GitListEntry::Status(entry)) => {
-                                        items.push(this.render_status_entry(
-                                            ix,
-                                            entry,
-                                            0,
-                                            has_write_access,
-                                            repo,
-                                            window,
-                                            cx,
-                                        ));
+                                        items.push(this.render_status_entry(ix, entry, 0, repo, window, cx));
                                     }
                                     Some(GitListEntry::TreeStatus(entry)) => {
                                         items.push(this.render_status_entry(
                                             ix,
                                             &entry.entry,
                                             entry.depth,
-                                            has_write_access,
                                             repo,
                                             window,
                                             cx,
                                         ));
                                     }
                                     Some(GitListEntry::Directory(entry)) => {
-                                        items.push(this.render_directory_entry(
-                                            ix,
-                                            entry,
-                                            has_write_access,
-                                            window,
-                                            cx,
-                                        ));
+                                        items.push(this.render_directory_entry(ix, entry, window, cx));
                                     }
                                     Some(GitListEntry::Header(header)) => {
-                                        items.push(this.render_list_header(ix, header, has_write_access, window, cx));
+                                        items.push(this.render_list_header(ix, header, window, cx));
                                     }
                                     Some(GitListEntry::EmptySection(section)) => {
                                         items.push(this.render_empty_section(*section));
@@ -5348,7 +5327,6 @@ impl GitPanel {
         &self,
         ix: usize,
         header: &GitHeaderEntry,
-        has_write_access: bool,
         _window: &Window,
         cx: &Context<Self>,
     ) -> AnyElement {
@@ -5398,12 +5376,12 @@ impl GitPanel {
                 gpui::Empty.into_any_element()
             } else {
                 let checkbox = Checkbox::new(checkbox_id, toggle_state)
-                    .disabled(!has_write_access || all_conflicts_resolved)
+                    .disabled(all_conflicts_resolved)
                     .fill()
                     .elevation(ElevationIndex::Surface)
                     .on_click(move |_, window, cx| {
                         cx.stop_propagation();
-                        if !has_write_access || all_conflicts_resolved {
+                        if all_conflicts_resolved {
                             return;
                         }
 
@@ -5644,7 +5622,6 @@ impl GitPanel {
         ix: usize,
         entry: &GitStatusEntry,
         depth: usize,
-        has_write_access: bool,
         repo: &Repository,
         window: &Window,
         cx: &Context<Self>,
@@ -5747,13 +5724,13 @@ impl GitPanel {
                     Checkbox::new(checkbox_id, toggle_state)
                         .fill()
                         .elevation(ElevationIndex::Surface)
-                        .disabled(!has_write_access || resolved_conflict)
+                        .disabled(resolved_conflict)
                         .on_click_ext({
                             let entry = entry.clone();
                             let this = cx.weak_entity();
                             move |_, click, window, cx| {
                                 this.update(cx, |this, cx| {
-                                    if !has_write_access || resolved_conflict {
+                                    if resolved_conflict {
                                         return;
                                     }
                                     if click.modifiers().shift {
@@ -5817,7 +5794,6 @@ impl GitPanel {
         &self,
         ix: usize,
         entry: &GitTreeDirEntry,
-        has_write_access: bool,
         window: &Window,
         cx: &Context<Self>,
     ) -> AnyElement {
@@ -5908,7 +5884,7 @@ impl GitPanel {
             .child(
                 div().id(checkbox_wrapper_id).flex_none().occlude().cursor_pointer().child(
                     Checkbox::new(checkbox_id, toggle_state)
-                        .disabled(!has_write_access || resolved_conflict)
+                        .disabled(resolved_conflict)
                         .fill()
                         .elevation(ElevationIndex::Surface)
                         .on_click({
@@ -5916,7 +5892,7 @@ impl GitPanel {
                             let this = cx.weak_entity();
                             move |_, window, cx| {
                                 this.update(cx, |this, cx| {
-                                    if !has_write_access || resolved_conflict {
+                                    if resolved_conflict {
                                         return;
                                     }
                                     this.toggle_staged_for_entry(
@@ -5988,10 +5964,6 @@ impl GitPanel {
             .when_some(directory, |this, dir| {
                 this.child(self.entry_label(dir, path_color).truncate_start().when(strikethrough, Label::strikethrough))
             })
-    }
-
-    fn has_write_access(&self, cx: &App) -> bool {
-        !self.project.read(cx).is_read_only(cx)
     }
 
     pub fn load_commit_template(&self, cx: &mut Context<Self>) -> Task<anyhow::Result<Option<GitCommitTemplate>>> {
@@ -6115,15 +6087,13 @@ impl GitPanel {
 
 impl Render for GitPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let project = self.project.read(cx);
         let has_entries = !self.entries.is_empty();
-        let has_write_access = self.has_write_access(cx);
 
         v_flex()
             .id("git_panel")
             .key_context(self.dispatch_context(window, cx))
             .track_focus(&self.focus_handle)
-            .when(has_write_access && !project.is_read_only(cx), |this| {
+            .map(|this| {
                 this.on_action(cx.listener(Self::toggle_staged_for_selected))
                     .on_action(cx.listener(Self::stage_range))
                     .on_action(cx.listener(GitPanel::on_commit))
@@ -6190,7 +6160,7 @@ impl Render for GitPanel {
                             if let Some(repo) = self.active_repository.clone()
                                 && has_entries
                             {
-                                this.child(self.render_entries(has_write_access, repo, window, cx))
+                                this.child(self.render_entries(repo, window, cx))
                             } else {
                                 this.child(self.render_empty_state(cx).into_any_element())
                             }

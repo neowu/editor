@@ -33,6 +33,6 @@ No `postage`. Pick by shape:
 
 ## Scan barriers
 
-`LocalWorktree::refresh_entries_for_paths` / `add_path_prefix_to_scan` return a
+`Worktree::refresh_entries_for_paths` / `add_path_prefix_to_scan` return a
 `oneshot::Receiver<()>` that resolves (with `Canceled`) once the scanner has
 processed the request. Callers that don't wait `drop` it explicitly.

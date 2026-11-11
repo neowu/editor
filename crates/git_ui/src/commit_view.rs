@@ -59,10 +59,8 @@ use language::LanguageRegistry;
 use language::LineEnding;
 use language::OffsetRangeExt as _;
 use language::Point;
-use language::ReplicaId;
 use language::Rope;
 use language::TextBuffer;
-use language::proto;
 use multi_buffer::PathKey;
 use project::Project;
 use project::ProjectPath;
@@ -1131,10 +1129,6 @@ impl language::File for GitBlob {
         self.worktree_id
     }
 
-    fn to_proto(&self, _cx: &App) -> proto::File {
-        unimplemented!()
-    }
-
     fn can_open(&self) -> bool {
         !self.is_binary
     }
@@ -1232,8 +1226,7 @@ pub(crate) async fn build_buffer(
         None
     };
     let buffer = cx.new(|cx| {
-        let buffer =
-            TextBuffer::new_normalized(ReplicaId::LOCAL, cx.entity_id().as_non_zero_u64().into(), line_ending, text);
+        let buffer = TextBuffer::new_normalized(cx.entity_id().as_non_zero_u64().into(), line_ending, text);
         let mut buffer = Buffer::build(buffer, Some(blob), Capability::ReadWrite, cx);
         buffer.set_language_registry(language_registry.clone());
         buffer.set_language_async(language, cx);

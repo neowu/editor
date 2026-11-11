@@ -95,8 +95,6 @@ use ::git::status::FileStatus;
 pub(crate) use actions::AcceptInlayHint;
 pub(crate) use actions::AddSelectionAbove;
 pub(crate) use actions::AddSelectionBelow;
-pub(crate) use actions::ApplyAllDiffHunks;
-pub(crate) use actions::ApplyDiffHunk;
 pub(crate) use actions::AutoIndent;
 pub(crate) use actions::Backspace;
 pub(crate) use actions::Backtab;
@@ -641,7 +639,6 @@ use workspace::SplitDirection;
 use workspace::Workspace;
 use workspace::item::ItemBufferKind;
 use workspace::item::ItemHandle;
-use workspace::item::SaveOptions;
 use workspace::notifications::DetachAndPromptErr;
 use workspace::notifications::NotifyResultExt;
 use workspace::notifications::NotifyTaskExt;
@@ -1169,7 +1166,6 @@ pub struct Editor {
     pub scroll_manager: ScrollManager,
     /// When inline assist editors are linked, they all render cursors because
     /// typing enters text into each of them, even the ones that aren't focused.
-    pub(crate) show_cursor_when_unfocused: bool,
     columnar_selection_state: Option<ColumnarSelectionState>,
     add_selections_state: Option<AddSelectionsState>,
     select_next_state: Option<SelectNextState>,
@@ -2046,7 +2042,6 @@ impl Editor {
 
         let mut editor = Self {
             focus_handle,
-            show_cursor_when_unfocused: false,
             last_focused_descendant: None,
             buffer: multi_buffer.clone(),
             display_map: display_map.clone(),
@@ -4559,7 +4554,7 @@ impl Editor {
             .to_path_buf();
             Some(parent)
         }) {
-            window.dispatch_action(OpenTerminal { working_directory, local: false }.boxed_clone(), cx);
+            window.dispatch_action(OpenTerminal { working_directory }.boxed_clone(), cx);
         }
     }
 
@@ -7002,11 +6997,6 @@ impl Editor {
         (self.read_only(cx) || self.blink_manager.read(cx).visible()) && self.focus_handle.is_focused(window)
     }
 
-    pub fn set_show_cursor_when_unfocused(&mut self, is_enabled: bool, cx: &mut Context<Self>) {
-        self.show_cursor_when_unfocused = is_enabled;
-        cx.notify();
-    }
-
     fn on_buffer_changed(&mut self, _: Entity<MultiBuffer>, cx: &mut Context<Self>) {
         cx.notify();
     }
@@ -7019,7 +7009,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         match event {
-            multi_buffer::Event::Edited { edited_buffer, source: _ } => {
+            multi_buffer::Event::Edited { edited_buffer } => {
                 self.scrollbar_marker_state.dirty = true;
                 self.active_indent_guides_state.dirty = true;
                 self.fit_gutter_line_number_width(false, cx);
@@ -7487,13 +7477,6 @@ impl Editor {
 
             self.buffer.update(cx, |buffer, cx| {
                 buffer.finalize_last_transaction(cx);
-
-                buffer.set_active_selections(
-                    &self.selections.disjoint_anchors_arc(),
-                    self.selections.line_mode(),
-                    self.cursor_shape,
-                    cx,
-                );
             });
 
             if cx.is_cursor_visible()
@@ -7528,7 +7511,6 @@ impl Editor {
     pub fn handle_blur(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.cursor_motions.clear();
         self.blink_manager.update(cx, BlinkManager::disable);
-        self.buffer.update(cx, |buffer, cx| buffer.remove_active_selections(cx));
 
         if let Some(blame) = self.blame.as_ref() {
             blame.update(cx, GitBlame::blur)

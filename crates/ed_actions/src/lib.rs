@@ -334,17 +334,6 @@ pub struct OpenRecent {
     pub create_new_window: Option<bool>,
 }
 
-/// Creates a project from a selected template.
-#[derive(PartialEq, Clone, Deserialize, Default, Action)]
-#[action(namespace = projects)]
-#[serde(deny_unknown_fields)]
-pub struct OpenRemote {
-    #[serde(default)]
-    pub from_existing_connection: bool,
-    #[serde(default)]
-    pub create_new_window: Option<bool>,
-}
-
 pub mod git_panel {
     use gpui::actions;
 

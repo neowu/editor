@@ -41,14 +41,14 @@ ed (binary: wires everything, opens windows)
     git_ui, search, file_finder, picker, title_bar, diagnostics, ...
      └─ workspace          (views: window shell, panes, docks, items)
          ├─ project        (models: everything one open project knows)
-         │   ├─ worktree, language, lsp, git, fs, remote, task, terminal
+         │   ├─ worktree, language, lsp, git, fs, task, terminal
          ├─ ui             (stateless components)
          └─ gpui, settings, theme
 ```
 
-- `project` has no UI. It knows nothing about panes, editors or windows, and
-  is what `remote_server` runs headless (`HeadlessProject` reuses the same
-  stores).
+- `project` has no UI. It knows nothing about panes, editors or windows.
+  `Project` and its stores (buffer, worktree, LSP, git, task, image) are
+  local-only: no remote mode, wire protocol or headless host.
 - `workspace` knows `project` but no concrete item types (no `Editor`, no
   panels). It talks to them through traits: `Item`, `ProjectItem`, `Panel`,
   `StatusItemView`, `ToolbarItemView`, `ModalView`.

@@ -174,8 +174,7 @@ pub fn increase_open_file_limit() -> Result<()> {
 
     let libc::rlimit { rlim_cur: soft_limit, rlim_max: hard_limit } = get().context("getrlimit(RLIMIT_NOFILE)")?;
     // These are startup targets, not OS ceilings. Preserve higher inherited limits.
-    let target = if cfg!(target_os = "macos") { 10_240 } else { 65_536 };
-    let mut requested_limit = hard_limit.min(target);
+    let mut requested_limit = hard_limit.min(10_240);
 
     while requested_limit > soft_limit {
         let Err(error) = set(requested_limit, hard_limit) else {
@@ -236,16 +235,7 @@ fn load_shell_from_passwd() -> Result<()> {
 pub fn get_shell_safe_ed_path(shell_kind: shell::ShellKind) -> anyhow::Result<String> {
     use anyhow::Context as _;
     use paths::PathExt;
-    let mut ed_path = env::current_exe().context("Failed to determine current ed executable path.")?;
-    if cfg!(target_os = "linux")
-        && !ed_path.is_file()
-        && let Some(truncated) =
-            ed_path.clone().file_name().and_then(|s| s.to_str()).and_then(|n| n.strip_suffix(" (deleted)"))
-    {
-        // Might have been deleted during update; let's use the new binary if there is one.
-        ed_path.set_file_name(truncated);
-    }
-
+    let ed_path = env::current_exe().context("Failed to determine current ed executable path.")?;
     ed_path.try_shell_safe(shell_kind).context("Failed to shell-escape ed executable path.")
 }
 

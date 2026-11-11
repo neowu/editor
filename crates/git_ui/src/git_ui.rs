@@ -4,7 +4,6 @@ use anyhow::anyhow;
 use ed_actions::git::Worktree;
 use editor::Editor;
 use editor::actions::DiffClipboardWithSelectionData;
-use git_ui_core::worktree_picker;
 use git_ui_core::worktree_picker::WorktreePicker;
 use git_ui_core::worktree_service;
 use workspace::Toast;
@@ -178,35 +177,8 @@ pub fn init(cx: &mut App) {
 
         workspace.register_action(|workspace, action: &ed_actions::OpenWorktreeInNewWindow, window, cx| {
             let path = action.path.clone();
-            let is_remote = !workspace.project().read(cx).is_local();
-
-            if is_remote {
-                let connection_options = workspace.project().read(cx).remote_connection_options(cx);
-                let app_state = workspace.app_state().clone();
-                let workspace_handle = workspace.weak_handle();
-                cx.spawn_in(window, async move |_, cx| {
-                    if let Some(connection_options) = connection_options {
-                        worktree_picker::open_remote_worktree(
-                            connection_options,
-                            vec![path],
-                            app_state,
-                            workspace_handle,
-                            cx,
-                        )
-                        .await?;
-                    }
-                    anyhow::Ok(())
-                })
-                .detach_and_log_err(cx);
-            } else {
-                workspace.open_workspace_for_paths(OpenMode::NewWindow, vec![path], window, cx).detach_and_log_err(cx);
-            }
+            workspace.open_workspace_for_paths(OpenMode::NewWindow, vec![path], window, cx).detach_and_log_err(cx);
         });
-
-        let project = workspace.project().read(cx);
-        if project.is_read_only(cx) {
-            return;
-        }
 
         workspace.register_action(|workspace, _: &git::Fetch, window, cx| {
             let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {

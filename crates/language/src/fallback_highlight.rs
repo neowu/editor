@@ -522,7 +522,6 @@ mod tests {
     use gpui::HighlightStyle;
     use text::Buffer as TextBuffer;
     use text::BufferId;
-    use text::ReplicaId;
 
     use super::CAPTURE_NAMES;
     use super::FallbackHighlighter;
@@ -558,8 +557,7 @@ mod tests {
     fn test_highlights_c_and_tracks_edits() {
         let theme = theme();
         set_theme(&theme);
-        let mut buffer =
-            TextBuffer::new(ReplicaId::LOCAL, BufferId::new(1).unwrap(), "int main() {\n    return 0; // done\n}\n");
+        let mut buffer = TextBuffer::new(BufferId::new(1).unwrap(), "int main() {\n    return 0; // done\n}\n");
         let highlighter = FallbackHighlighter::for_buffer(None, Some("main.c"), buffer.snapshot()).unwrap();
         assert_eq!(highlighter.syntax_name(), "C");
 
@@ -583,7 +581,7 @@ mod tests {
     fn test_highlights_regex_query() {
         let theme = theme();
         set_theme(&theme);
-        let buffer = TextBuffer::new(ReplicaId::LOCAL, BufferId::new(1).unwrap(), r"^fn\s+(\w+)\(.*$");
+        let buffer = TextBuffer::new(BufferId::new(1).unwrap(), r"^fn\s+(\w+)\(.*$");
         let highlighter = FallbackHighlighter::for_syntax_name("Regular Expression", buffer.snapshot()).unwrap();
         let runs = highlighted(&highlighter, buffer.snapshot(), &theme);
         assert!(runs.iter().any(|(text, _)| text == "^"), "{runs:?}");
@@ -595,7 +593,7 @@ mod tests {
         let theme = theme();
         set_theme(&theme);
         let source = "a = {\n  version = \"1\", # c\n  b = [\n    \"x\",\n  ],\n}\nk = 1\n";
-        let buffer = TextBuffer::new(ReplicaId::LOCAL, BufferId::new(1).unwrap(), source);
+        let buffer = TextBuffer::new(BufferId::new(1).unwrap(), source);
         let highlighter = FallbackHighlighter::for_buffer(None, Some("Cargo.toml"), buffer.snapshot()).unwrap();
         let runs = highlighted(&highlighter, buffer.snapshot(), &theme);
         assert!(runs.contains(&("version".into(), "tag".into())), "{runs:?}");
@@ -610,7 +608,7 @@ mod tests {
         let theme = theme();
         set_theme(&theme);
         let source = "# q\n```sql\nSELECT 1\nFROM t;\n```\n";
-        let buffer = TextBuffer::new(ReplicaId::LOCAL, BufferId::new(1).unwrap(), source);
+        let buffer = TextBuffer::new(BufferId::new(1).unwrap(), source);
         let text = buffer.snapshot();
         let content_start = source.find("SELECT").unwrap();
         let content_range = content_start..source.rfind("```").unwrap();
@@ -635,7 +633,7 @@ mod tests {
 
     #[test]
     fn test_syntax_selection() {
-        let text = |text: &str| TextBuffer::new(ReplicaId::LOCAL, BufferId::new(1).unwrap(), text).snapshot().clone();
+        let text = |text: &str| TextBuffer::new(BufferId::new(1).unwrap(), text).snapshot().clone();
         let syntax = |file_name: Option<&str>, language: Option<&str>, first_line: &str| {
             let language = language.map(|name| {
                 Language::new(
@@ -660,7 +658,7 @@ mod tests {
         let theme = theme();
         set_theme(&theme);
         let line = "fn main() { let s = \"a /* b\"; } // c\n";
-        let mut buffer = TextBuffer::new(ReplicaId::LOCAL, BufferId::new(1).unwrap(), line.repeat(200));
+        let mut buffer = TextBuffer::new(BufferId::new(1).unwrap(), line.repeat(200));
         let highlighter = FallbackHighlighter::for_buffer(None, Some("main.rs"), buffer.snapshot()).unwrap();
         highlighted(&highlighter, buffer.snapshot(), &theme);
 
@@ -699,7 +697,7 @@ mod tests {
     fn bench_large_file() {
         set_theme(&theme());
         let source = "static int add(int a, int b) {\n    /* sum */ return a + b; // ok\n}\n";
-        let buffer = TextBuffer::new(ReplicaId::LOCAL, BufferId::new(1).unwrap(), source.repeat(10_000));
+        let buffer = TextBuffer::new(BufferId::new(1).unwrap(), source.repeat(10_000));
         let snapshot = buffer.snapshot();
         let start = Instant::now();
         LazyLock::force(&SYNTAX_SET);

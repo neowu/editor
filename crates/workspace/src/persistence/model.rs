@@ -8,7 +8,6 @@ use gpui::Axis;
 use gpui::Entity;
 use gpui::WeakEntity;
 use project::Project;
-use remote::RemoteConnectionOptions;
 use serde::Deserialize;
 use serde::Serialize;
 use util::ResultExt;
@@ -21,16 +20,9 @@ use crate::Workspace;
 use crate::item::ItemHandle;
 use crate::path_list::PathList;
 
-#[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub enum SerializedWorkspaceLocation {
-    Local,
-    Remote(RemoteConnectionOptions),
-}
-
 /// A project that was open when ed last quit.
 #[derive(Debug, PartialEq, Clone)]
 pub struct SessionWorkspace {
-    pub location: SerializedWorkspaceLocation,
     pub paths: PathList,
 }
 

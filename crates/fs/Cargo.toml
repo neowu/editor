@@ -18,8 +18,8 @@ log.workspace = true
 notify = "9.0.0-rc.4"
 parking_lot.workspace = true
 paths.workspace = true
-proto.workspace = true
 rope.workspace = true
+rustix.workspace = true
 serde.workspace = true
 slotmap.workspace = true
 smol.workspace = true
@@ -27,13 +27,8 @@ tempfile.workspace = true
 text.workspace = true
 thiserror.workspace = true
 trash.workspace = true
-util.workspace = true
-
-[target.'cfg(target_os = "macos")'.dependencies]
 unicode-normalization = "0.1"
-
-[target."cfg(unix)".dependencies]
-rustix.workspace = true
+util.workspace = true
 
 [lints]
 workspace = true

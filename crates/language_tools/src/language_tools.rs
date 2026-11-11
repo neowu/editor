@@ -18,7 +18,7 @@ use workspace::Workspace;
 
 pub fn init(cx: &mut App) {
     highlights_tree_view::init(cx);
-    lsp_log_view::init(false, cx);
+    lsp_log_view::init(cx);
     syntax_tree_view::init(cx);
     key_context_view::init(cx);
 }

@@ -1,5 +1,3 @@
-// todo("windows"): remove
-
 use std::fmt::Debug;
 use std::iter::Peekable;
 use std::ops::Add;

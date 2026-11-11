@@ -22,11 +22,7 @@ use crate::SharedString;
 use crate::Size;
 use crate::swap_rgba_pa_to_bgra;
 
-#[cfg(target_os = "macos")]
 const EMOJI_FONT_FAMILIES: &[&str] = &["Apple Color Emoji", ".AppleColorEmojiUI"];
-
-#[cfg(target_os = "linux")]
-const EMOJI_FONT_FAMILIES: &[&str] = &["Noto Color Emoji", "Emoji One", "Twitter Color Emoji", "JoyPixels"];
 
 fn is_emoji_presentation(c: char) -> bool {
     static EMOJI_PRESENTATION_REGEX: LazyLock<regex::Regex> =

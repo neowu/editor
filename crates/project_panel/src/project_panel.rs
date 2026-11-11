@@ -12,7 +12,6 @@ use ui::utils as ui_utils;
 use util::paths;
 use util::paths::SortMode;
 use util::paths::SortOrder;
-use workspace::notifications::NotificationId;
 
 use crate::undo as crate_undo;
 mod undo;
@@ -77,7 +76,6 @@ use gpui::MouseButton;
 use gpui::MouseDownEvent;
 use gpui::MouseExitEvent;
 use gpui::ParentElement;
-use gpui::PathPromptOptions;
 use gpui::Pixels;
 use gpui::Point;
 use gpui::PromptLevel;
@@ -114,7 +112,6 @@ use menu::SelectPrevious;
 use notifications::status_toast::StatusToast;
 use project::Entry;
 use project::EntryKind;
-use project::Fs;
 use project::GitEntry;
 use project::GitEntryRef;
 use project::GitTraversal;
@@ -128,8 +125,6 @@ use project::git_store::RepositoryEvent;
 use project::git_store::git_traversal::ChildEntriesGitIter;
 use project::project_settings::GoToDiagnosticSeverityFilter;
 use rayon::slice::ParallelSliceMut;
-use rpc::ErrorCode;
-use rpc::ErrorExt;
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use settings::FolderIndicator;
@@ -249,7 +244,6 @@ impl State {
 
 pub struct ProjectPanel {
     project: Entity<Project>,
-    fs: Arc<dyn Fs>,
     focus_handle: FocusHandle,
     scroll_handle: UniformListScrollHandle,
     // An update loop that keeps incrementing/decrementing scroll offset while there is a dragged entry that's
@@ -510,8 +504,6 @@ actions!(
         Cut,
         /// Pastes the previously cut or copied item.
         Paste,
-        /// Downloads the selected remote file
-        DownloadFromRemote,
         /// Renames the selected file or directory.
         Rename,
         /// Opens the selected file in the editor.
@@ -894,7 +886,6 @@ impl ProjectPanel {
                 let mut this = Self {
                     project: project.clone(),
                     hover_scroll_task: None,
-                    fs: workspace.app_state().fs.clone(),
                     focus_handle,
                     rendered_entries_len: 0,
                     folded_directory_drag_target: None,
@@ -947,7 +938,6 @@ impl ProjectPanel {
                         let file_path = entry.path.clone();
                         let worktree_id = worktree.read(cx).id();
                         let entry_id = entry.id;
-                        let is_via_ssh = project.read(cx).is_via_remote_server();
 
                         workspace
                             .open_path_preview(
@@ -960,21 +950,9 @@ impl ProjectPanel {
                                 cx,
                             )
                             .detach_and_prompt_err("Failed to open file", window, cx, move |e| {
-                                match e.error_code() {
-                                    ErrorCode::Disconnected => {
-                                        if is_via_ssh {
-                                            Some("Disconnected from SSH host".to_string())
-                                        } else {
-                                            Some("Disconnected from remote project".to_string())
-                                        }
-                                    }
-                                    // See note in worktree.rs where this error originates. Returning Some in this case prevents
-                                    // the error popup from saying "Try Again", which is a red herring in this case
-                                    ErrorCode::Internal if e.to_string().contains("File is too large to load") => {
-                                        Some(e.to_string())
-                                    }
-                                    _ => None,
-                                }
+                                // Returning Some prevents the error popup from saying "Try Again",
+                                // which is a red herring for a file that is too large.
+                                e.to_string().contains("File is too large to load").then(|| e.to_string())
                             });
 
                         if let Some(project_panel) = project_panel.upgrade() {
@@ -1097,11 +1075,7 @@ impl ProjectPanel {
             let is_dir = entry.is_dir();
             let is_foldable = self.is_foldable(entry, worktree);
             let is_unfoldable = self.is_unfoldable(entry, worktree);
-            let is_read_only = project.is_read_only(cx);
             let is_library = worktree.library_name().is_some();
-            let is_remote = project.is_remote();
-
-            let is_local = project.is_local();
             let file_name = Path::new(entry_file_name(entry, worktree.root_name()));
             let is_previewable = !is_dir && MarkdownPreviewView::is_previewable_path(file_name, project.languages());
             let is_svg = !is_dir && SvgPreviewView::is_svg_path(file_name);
@@ -1120,43 +1094,31 @@ impl ProjectPanel {
             let has_pasteable_content = self.has_pasteable_content(cx);
             let context_menu = ContextMenu::build(window, cx, |menu, _, _| {
                 menu.context(self.focus_handle.clone()).map(|menu| {
-                    if is_read_only {
-                        menu.when(is_previewable, |menu| menu.action("Open Preview", Box::new(OpenMarkdownPreview)))
+                    if is_library {
+                        menu.action(ui_utils::reveal_in_file_manager_label(), Box::new(RevealInFileManager))
+                            .action("Open in Terminal", Box::new(OpenInTerminal))
+                            .when(is_previewable, |menu| menu.action("Open Preview", Box::new(OpenMarkdownPreview)))
                             .when(is_svg, |menu| menu.action("Open SVG Preview", Box::new(OpenSvgPreview)))
-                            .when(is_dir, |menu| menu.action("Search Inside", Box::new(NewSearchInDirectory)))
-                    } else if is_library {
-                        menu.when(is_local, |menu| {
-                            menu.action(
-                                ui_utils::reveal_in_file_manager_label(is_remote),
-                                Box::new(RevealInFileManager),
-                            )
-                        })
-                        .action("Open in Terminal", Box::new(OpenInTerminal))
-                        .when(is_previewable, |menu| menu.action("Open Preview", Box::new(OpenMarkdownPreview)))
-                        .when(is_svg, |menu| menu.action("Open SVG Preview", Box::new(OpenSvgPreview)))
-                        .when(is_unfoldable, |menu| menu.action("Unfold Directory", Box::new(UnfoldDirectory)))
-                        .when(is_foldable, |menu| menu.action("Fold Directory", Box::new(FoldDirectory)))
-                        .separator()
-                        .action("Copy", Box::new(Copy))
-                        .action("Copy Path", Box::new(CopyPath))
-                        .action("Copy Relative Path", Box::new(CopyRelativePath))
-                        .when(is_dir && !is_root, |menu| {
-                            menu.separator()
-                                .action("Expand All", Box::new(ExpandSelectedEntryAndChildren))
-                                .action("Collapse All", Box::new(CollapseSelectedEntryAndChildren))
-                        })
-                        .when(is_root, |menu| menu.separator().action("Remove Library", Box::new(RemoveFromProject)))
+                            .when(is_unfoldable, |menu| menu.action("Unfold Directory", Box::new(UnfoldDirectory)))
+                            .when(is_foldable, |menu| menu.action("Fold Directory", Box::new(FoldDirectory)))
+                            .separator()
+                            .action("Copy", Box::new(Copy))
+                            .action("Copy Path", Box::new(CopyPath))
+                            .action("Copy Relative Path", Box::new(CopyRelativePath))
+                            .when(is_dir && !is_root, |menu| {
+                                menu.separator()
+                                    .action("Expand All", Box::new(ExpandSelectedEntryAndChildren))
+                                    .action("Collapse All", Box::new(CollapseSelectedEntryAndChildren))
+                            })
+                            .when(is_root, |menu| {
+                                menu.separator().action("Remove Library", Box::new(RemoveFromProject))
+                            })
                     } else {
                         menu.action("New File", Box::new(NewFile))
                             .action("New Folder", Box::new(NewDirectory))
                             .separator()
-                            .when(is_local, |menu| {
-                                menu.action(
-                                    ui_utils::reveal_in_file_manager_label(is_remote),
-                                    Box::new(RevealInFileManager),
-                                )
-                            })
-                            .when(is_local, |menu| menu.action("Open in Default App", Box::new(OpenWithSystem)))
+                            .action(ui_utils::reveal_in_file_manager_label(), Box::new(RevealInFileManager))
+                            .action("Open in Default App", Box::new(OpenWithSystem))
                             .action("Open in Terminal", Box::new(OpenInTerminal))
                             .when(is_previewable, |menu| menu.action("Open Preview", Box::new(OpenMarkdownPreview)))
                             .when(is_svg, |menu| menu.action("Open SVG Preview", Box::new(OpenSvgPreview)))
@@ -1182,9 +1144,6 @@ impl ProjectPanel {
                                     "Redo",
                                     Box::new(Redo),
                                 )
-                            })
-                            .when(is_remote, |menu| {
-                                menu.separator().action("Download...", Box::new(DownloadFromRemote))
                             })
                             .separator()
                             .action("Copy Path", Box::new(CopyPath))
@@ -3228,141 +3187,6 @@ impl ProjectPanel {
         Some(())
     }
 
-    fn download_from_remote(&mut self, _: &DownloadFromRemote, window: &mut Window, cx: &mut Context<Self>) {
-        let entries = self.effective_entries();
-        if entries.is_empty() {
-            return;
-        }
-
-        let project = self.project.read(cx);
-
-        // Collect file entries with their worktree_id, path, and relative path for destination
-        // For directories, we collect all files under them recursively
-        let mut files_to_download: Vec<(WorktreeId, Arc<RelPath>, PathBuf)> = Vec::new();
-
-        for selected in &entries {
-            let Some(worktree) = project.worktree_for_id(selected.worktree_id, cx) else {
-                continue;
-            };
-            let worktree = worktree.read(cx);
-            let Some(entry) = worktree.entry_for_id(selected.entry_id) else {
-                continue;
-            };
-
-            if entry.is_file() {
-                // Single file: use just the filename
-                let filename = entry.path.file_name().map(str::to_string).unwrap_or_default();
-                files_to_download.push((selected.worktree_id, entry.path.clone(), PathBuf::from(filename)));
-            } else if entry.is_dir() {
-                // Directory: collect all files recursively, preserving relative paths
-                let dir_name = entry.path.file_name().map(str::to_string).unwrap_or_default();
-                let base_path = entry.path.clone();
-
-                // Use traverse_from_path to iterate all entries under this directory
-                let mut traversal = worktree.traverse_from_path(true, true, true, &entry.path);
-                while let Some(child_entry) = traversal.entry() {
-                    // Stop when we're no longer under the directory
-                    if !child_entry.path.starts_with(&base_path) {
-                        break;
-                    }
-
-                    if child_entry.is_file() {
-                        // Calculate relative path from the directory root
-                        let relative_path = child_entry
-                            .path
-                            .strip_prefix(&base_path)
-                            .map(|p| PathBuf::from(dir_name.clone()).join(p.as_unix_str()))
-                            .unwrap_or_else(|_| {
-                                PathBuf::from(child_entry.path.file_name().map(str::to_string).unwrap_or_default())
-                            });
-                        files_to_download.push((selected.worktree_id, child_entry.path.clone(), relative_path));
-                    }
-                    traversal.advance();
-                }
-            }
-        }
-
-        if files_to_download.is_empty() {
-            return;
-        }
-
-        let total_files = files_to_download.len();
-        let workspace = self.workspace.clone();
-
-        let destination_dir = cx.prompt_for_paths(PathPromptOptions {
-            files: false,
-            directories: true,
-            multiple: false,
-            prompt: Some("Download".into()),
-        });
-
-        let fs = self.fs.clone();
-        let notification_id = NotificationId::Named("download-progress".into());
-        cx.spawn_in(window, async move |this, cx| {
-            if let Ok(Ok(Some(mut paths))) = destination_dir.await
-                && let Some(dest_dir) = paths.pop()
-            {
-                // Show initial toast
-                workspace
-                    .update(cx, |workspace, cx| {
-                        workspace.show_toast(
-                            workspace::Toast::new(
-                                notification_id.clone(),
-                                format!("Downloading 0/{} files...", total_files),
-                            ),
-                            cx,
-                        );
-                    })
-                    .ok();
-
-                for (index, (worktree_id, entry_path, relative_path)) in files_to_download.into_iter().enumerate() {
-                    // Update progress toast
-                    workspace
-                        .update(cx, |workspace, cx| {
-                            workspace.show_toast(
-                                workspace::Toast::new(
-                                    notification_id.clone(),
-                                    format!("Downloading {}/{} files...", index + 1, total_files),
-                                ),
-                                cx,
-                            );
-                        })
-                        .ok();
-
-                    let destination_path = dest_dir.join(&relative_path);
-
-                    // Create parent directories if needed
-                    if let Some(parent) = destination_path.parent()
-                        && !parent.exists()
-                    {
-                        fs.create_dir(parent).await.log_err();
-                    }
-
-                    let download_task = this.update(cx, |this, cx| {
-                        let project = this.project.clone();
-                        project.update(cx, |project, cx| {
-                            project.download_file(worktree_id, entry_path, destination_path, cx)
-                        })
-                    });
-                    if let Ok(task) = download_task {
-                        task.await.log_err();
-                    }
-                }
-
-                // Show completion toast
-                workspace
-                    .update(cx, |workspace, cx| {
-                        workspace.show_toast(
-                            workspace::Toast::new(notification_id.clone(), format!("Downloaded {} files", total_files)),
-                            cx,
-                        );
-                    })
-                    .ok();
-            }
-        })
-        .detach();
-    }
-
     fn duplicate(&mut self, _: &Duplicate, window: &mut Window, cx: &mut Context<Self>) {
         let entries = self.disjoint_effective_entries_excluding_roots(cx);
         if entries.is_empty() {
@@ -3480,7 +3304,7 @@ impl ProjectPanel {
             let working_directory =
                 if entry.is_dir() { Some(abs_path) } else { abs_path.parent().map(|path| path.to_path_buf()) };
             if let Some(working_directory) = working_directory {
-                window.dispatch_action(workspace::OpenTerminal { working_directory, local: false }.boxed_clone(), cx)
+                window.dispatch_action(workspace::OpenTerminal { working_directory }.boxed_clone(), cx)
             }
         }
     }
@@ -3740,8 +3564,7 @@ impl ProjectPanel {
             .filter_map(|selection| {
                 let worktree = project.worktree_for_id(selection.worktree_id, cx)?.read(cx);
                 let entry = worktree.entry_for_id(selection.entry_id)?;
-                let path = worktree.absolutize(&entry.path);
-                (worktree.is_local() || path.exists()).then_some(path)
+                Some(worktree.absolutize(&entry.path))
             })
             .collect()
     }
@@ -4185,14 +4008,13 @@ impl ProjectPanel {
 
         let open_file_after_drop = paths.len() == 1 && paths[0].is_file();
 
-        let Some((target_directory, worktree, fs)) = (|| {
+        let Some((target_directory, worktree)) = (|| {
             let project = self.project.read(cx);
-            let fs = project.fs().clone();
             let worktree = project.worktree_for_entry(entry_id, cx)?;
             let entry = worktree.read(cx).entry_for_id(entry_id)?;
             let path = entry.path.clone();
             let target_directory = if entry.is_dir() { path } else { path.parent()?.into() };
-            Some((target_directory, worktree, fs))
+            Some((target_directory, worktree))
         })() else {
             return;
         };
@@ -4238,7 +4060,7 @@ impl ProjectPanel {
                 }
 
                 let (worktree_id, task) = worktree.update(cx, |worktree, cx| {
-                    (worktree.id(), worktree.copy_external_entries(target_directory, paths, fs, cx))
+                    (worktree.id(), worktree.copy_external_entries(target_directory, paths, cx))
                 });
 
                 let opened_entries: Vec<_> = task.await.with_context(|| "failed to copy external paths")?;
@@ -4535,10 +4357,8 @@ impl ProjectPanel {
 
                     let refresh_tasks: Vec<_> = paths_to_refresh
                         .into_iter()
-                        .filter_map(|(worktree, leaf_path)| {
-                            worktree.update(cx, |worktree, cx| {
-                                worktree.as_local_mut().map(|local| local.refresh_entry(leaf_path, None, cx))
-                            })
+                        .map(|(worktree, leaf_path)| {
+                            worktree.update(cx, |worktree, cx| worktree.refresh_entry(leaf_path, None, cx))
                         })
                         .collect();
 
@@ -5108,7 +4928,7 @@ impl ProjectPanel {
         let id: ElementId = if is_sticky {
             SharedString::from(format!("project_panel_sticky_item_{}", entry_id.to_usize())).into()
         } else {
-            (entry_id.to_proto() as usize).into()
+            entry_id.to_usize().into()
         };
 
         let tooltip_path = self
@@ -6034,7 +5854,6 @@ impl Render for ProjectPanel {
         }
 
         let has_worktree = !self.state.visible_entries.is_empty();
-        let project = self.project.read(cx);
         let show_sticky_entries = self.scroll_handle.is_scrollable() && self.scroll_handle.offset().y < px(0.);
 
         if has_worktree {
@@ -6160,7 +5979,7 @@ impl Render for ProjectPanel {
                 .on_action(cx.listener(Self::remove_from_project))
                 .on_action(cx.listener(Self::compare_marked_files))
                 .on_action(cx.listener(Self::open_context_menu))
-                .when(!project.is_read_only(cx), |el| {
+                .map(|el| {
                     el.on_action(cx.listener(Self::new_file))
                         .on_action(cx.listener(Self::new_directory))
                         .on_action(cx.listener(Self::rename))
@@ -6174,13 +5993,10 @@ impl Render for ProjectPanel {
                         .on_action(cx.listener(Self::add_to_git_info_exclude))
                         .map(|el| el.on_action(cx.listener(Self::undo)).on_action(cx.listener(Self::redo)))
                 })
-                .when(project.is_local(), |el| {
+                .map(|el| {
                     el.on_action(cx.listener(Self::reveal_in_finder))
                         .on_action(cx.listener(Self::open_system))
                         .on_action(cx.listener(Self::open_in_terminal))
-                })
-                .when(project.is_via_remote_server(), |el| {
-                    el.on_action(cx.listener(Self::open_in_terminal)).on_action(cx.listener(Self::download_from_remote))
                 })
                 .track_focus(&self.focus_handle(cx))
                 .child(
@@ -6435,7 +6251,7 @@ impl Render for ProjectPanel {
                                         }
                                     }),
                                 )
-                                .when(!project.is_read_only(cx), |el| {
+                                .map(|el| {
                                     el.on_click(cx.listener(|this, event: &gpui::ClickEvent, window, cx| {
                                         if event.click_count() > 1
                                             && let Some(entry_id) = this.state.last_worktree_root_id
@@ -6700,9 +6516,8 @@ mod tests {
     #[test]
     fn test_last_entry_in_subtree() {
         let paths = ["", "a", "a/b", "a/b/c", "a/d", "ab", "e"].map(|path| RelPath::new_test(path).into_owned());
-        let entries =
-            || paths.iter().enumerate().map(|(ix, path)| (ProjectEntryId::from_proto(ix as u64), path.as_ref()));
-        let id = |ix: u64| ProjectEntryId::from_proto(ix);
+        let entries = || paths.iter().enumerate().map(|(ix, path)| (ProjectEntryId::from_usize(ix), path.as_ref()));
+        let id = ProjectEntryId::from_usize;
 
         assert_eq!(last_entry_in_subtree(entries(), id(0)), Some(id(6)));
         // `ab` shares the `a` prefix but is not inside `a`.
@@ -6733,9 +6548,9 @@ mod tests {
 
     #[test]
     fn test_sort_worktree_entries_lists_directories_first() {
-        let entry = |id: u64, path: &str, kind: EntryKind| GitEntry {
+        let entry = |id: usize, path: &str, kind: EntryKind| GitEntry {
             entry: Entry {
-                id: ProjectEntryId::from_proto(id),
+                id: ProjectEntryId::from_usize(id),
                 kind,
                 path: RelPath::new_test(path).into_owned().into(),
                 ..libraries_header_entry().entry

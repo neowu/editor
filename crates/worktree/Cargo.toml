@@ -10,7 +10,6 @@ path = "src/worktree.rs"
 anyhow.workspace = true
 async-channel.workspace = true
 async-lock.workspace = true
-clock.workspace = true
 encoding_rs.workspace = true
 file_content.workspace = true
 fs.workspace = true
@@ -22,9 +21,7 @@ gpui.workspace = true
 ignore.workspace = true
 language.workspace = true
 log.workspace = true
-parking_lot.workspace = true
 paths.workspace = true
-rpc = { workspace = true, features = ["gpui"] }
 rustc-hash.workspace = true
 settings.workspace = true
 smallvec.workspace = true

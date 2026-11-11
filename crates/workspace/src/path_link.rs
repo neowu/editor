@@ -15,12 +15,6 @@ use util::rel_path::RelPath;
 
 use crate::Workspace;
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum BackgroundPathChecks {
-    LocalFileSystem,
-    ProjectPathResolution,
-}
-
 /// How a path-like string gets matched against files by [`resolve_open_target`].
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum PathMatching {
@@ -91,17 +85,6 @@ pub fn resolve_open_target(
     maybe_path: &str,
     cwd: Option<&Path>,
     cx: &App,
-) -> Task<Option<OpenTarget>> {
-    resolve_open_target_internal(workspace, matching, maybe_path, cwd, cx, None)
-}
-
-fn resolve_open_target_internal(
-    workspace: &WeakEntity<Workspace>,
-    matching: PathMatching,
-    maybe_path: &str,
-    cwd: Option<&Path>,
-    cx: &App,
-    background_path_checks: Option<BackgroundPathChecks>,
 ) -> Task<Option<OpenTarget>> {
     let Some(workspace) = workspace.upgrade() else {
         return Task::ready(None);
@@ -233,71 +216,24 @@ fn resolve_open_target_internal(
     }
 
     let project = workspace.read(cx).project().clone();
-    let background_path_checks = background_path_checks.unwrap_or_else(|| {
-        if project.read(cx).is_local() {
-            BackgroundPathChecks::LocalFileSystem
-        } else {
-            BackgroundPathChecks::ProjectPathResolution
+    let fs_paths_to_check = local_paths_to_check(&potential_paths, matching, cwd, &worktree_candidates, cx);
+    let fs = project.read(cx).fs().clone();
+    let background_resolution_task = cx.background_spawn(async move {
+        for mut path_to_check in fs_paths_to_check {
+            if let Some(fs_path_to_check) = fs.canonicalize(&path_to_check.path).await.ok()
+                && let Some(metadata) = fs.metadata(&fs_path_to_check).await.ok().flatten()
+            {
+                if open_target.as_ref().map(|open_target| open_target.path().path != fs_path_to_check).unwrap_or(true) {
+                    path_to_check.path = fs_path_to_check;
+                    return Some(OpenTarget::Path(path_to_check, metadata.is_dir));
+                }
+
+                break;
+            }
         }
+
+        open_target
     });
-
-    let background_resolution_task = match background_path_checks {
-        BackgroundPathChecks::LocalFileSystem => {
-            let fs_paths_to_check = local_paths_to_check(&potential_paths, matching, cwd, &worktree_candidates, cx);
-            let fs = project.read(cx).fs().clone();
-            cx.background_spawn(async move {
-                for mut path_to_check in fs_paths_to_check {
-                    if let Some(fs_path_to_check) = fs.canonicalize(&path_to_check.path).await.ok()
-                        && let Some(metadata) = fs.metadata(&fs_path_to_check).await.ok().flatten()
-                    {
-                        if open_target
-                            .as_ref()
-                            .map(|open_target| open_target.path().path != fs_path_to_check)
-                            .unwrap_or(true)
-                        {
-                            path_to_check.path = fs_path_to_check;
-                            return Some(OpenTarget::Path(path_to_check, metadata.is_dir));
-                        }
-
-                        break;
-                    }
-                }
-
-                open_target
-            })
-        }
-        BackgroundPathChecks::ProjectPathResolution => {
-            let paths_to_check = project_paths_to_check(&potential_paths, cwd);
-            cx.spawn(async move |cx| {
-                for mut path_to_check in paths_to_check {
-                    let path = path_to_check.path.to_string_lossy();
-                    let resolve_task = project.update(cx, |project, cx| project.resolve_abs_path(path.as_ref(), cx));
-
-                    if let Some(resolved_path) = resolve_task.await
-                        && let Some(resolved_abs_path) = {
-                            let is_dir = resolved_path.is_dir();
-                            resolved_path.into_abs_path().map(|resolved_abs_path| (resolved_abs_path, is_dir))
-                        }
-                    {
-                        let (resolved_abs_path, is_dir) = resolved_abs_path;
-                        let resolved_abs_path = PathBuf::from(resolved_abs_path);
-                        if open_target
-                            .as_ref()
-                            .map(|open_target| open_target.path().path != resolved_abs_path)
-                            .unwrap_or(true)
-                        {
-                            path_to_check.path = resolved_abs_path;
-                            return Some(OpenTarget::Path(path_to_check, is_dir));
-                        }
-
-                        break;
-                    }
-                }
-
-                open_target
-            })
-        }
-    };
 
     cx.spawn(async move |cx| {
         if let Some(open_target) = background_resolution_task.await {
@@ -402,26 +338,4 @@ fn local_paths_to_check(
             paths_to_check
         }))
         .collect()
-}
-
-fn project_paths_to_check(potential_paths: &[PathWithPosition], cwd: Option<&Path>) -> Vec<PathWithPosition> {
-    cwd.iter()
-        .flat_map(|cwd| {
-            potential_paths.iter().filter_map(|path_to_check| normalize_absolute_candidate(cwd, path_to_check))
-        })
-        .chain(potential_paths.iter().filter_map(|path_to_check| {
-            let maybe_path = &path_to_check.path;
-            (maybe_path.starts_with("~") || maybe_path.is_absolute()).then(|| path_to_check.clone())
-        }))
-        .collect()
-}
-
-fn normalize_absolute_candidate(cwd: &Path, path_to_check: &PathWithPosition) -> Option<PathWithPosition> {
-    path_to_check.path.is_relative().then(|| {
-        normalize_lexically(&cwd.join(&path_to_check.path)).ok().map(|path| PathWithPosition {
-            path,
-            row: path_to_check.row,
-            column: path_to_check.column,
-        })
-    })?
 }

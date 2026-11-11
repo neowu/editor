@@ -1156,7 +1156,6 @@ pub struct Window {
     visibility: WindowVisibility,
     pub(crate) visibility_observers:
         SingleSubscriberSet<Box<dyn FnMut(WindowVisibility, &mut Window, &mut App) -> bool>>,
-    hovered: Rc<Cell<bool>>,
     pub(crate) needs_present: Rc<Cell<bool>>,
     /// Collected only after `Window::reset_frame_stats`.
     pub(crate) frame_stats: Option<Box<FrameStats>>,
@@ -1459,7 +1458,6 @@ impl Window {
         let invalidator = WindowInvalidator::new();
         let active = Rc::new(Cell::new(platform_window.is_active()));
         let visibility = platform_window.visibility();
-        let hovered = Rc::new(Cell::new(platform_window.is_hovered()));
         let needs_present = Rc::new(Cell::new(false));
         let next_frame_callbacks: Rc<RefCell<Vec<FrameCallback>>> = Rc::default();
         let input_rate_tracker = Rc::new(RefCell::new(InputRateTracker::default()));
@@ -1499,20 +1497,13 @@ impl Window {
             let mut deferred_force_render = false;
             move |request_frame_options| {
                 // This must be checked before accessing App: if this request
-                // arrived re-entrantly while a draw is on this thread's stack
-                // (e.g. via a nested message pump in the Windows window
-                // procedure), drawing would nest draws, and even touching the
-                // App would panic on its already-mutable borrow. Skip instead;
+                // arrived re-entrantly while a draw is on this thread's stack,
+                // drawing would nest draws, and even touching the App would
+                // panic on its already-mutable borrow. Skip instead;
                 // the platform leaves the window invalidated (or re-invalidates
                 // it), so a fresh request arrives once the in-progress draw
                 // unwinds. Remember force_render so the deferred frame still
                 // bypasses the view cache.
-                //
-                // Returning here skips `complete_frame`, which on Wayland would
-                // stall the window's frame callbacks (no `surface.commit()`) —
-                // but calling it would hit the App borrow panic above, and this
-                // branch is unreachable there in practice: only Windows pumps
-                // platform events (and thus requests frames) mid-draw.
                 if draw_in_progress() {
                     log::debug!("deferring re-entrant window draw request");
                     deferred_force_render |= request_frame_options.force_render;
@@ -1675,17 +1666,6 @@ impl Window {
                     .log_err();
             }
         }));
-        platform_window.on_hover_status_change(Box::new({
-            let mut cx = cx.to_async();
-            move |active| {
-                handle
-                    .update(&mut cx, |_, window, _| {
-                        window.hovered.set(active);
-                        window.refresh();
-                    })
-                    .log_err();
-            }
-        }));
         platform_window.on_input({
             let mut cx = cx.to_async();
             Box::new(move |event| {
@@ -1758,7 +1738,6 @@ impl Window {
             active,
             visibility,
             visibility_observers: SingleSubscriberSet::new(),
-            hovered,
             needs_present,
             frame_stats: None,
             input_rate_tracker,
@@ -1993,8 +1972,6 @@ impl Window {
     }
 
     /// Check if the platform window is maximized.
-    ///
-    /// On some platforms (namely Windows) this is different than the bounds being the size of the display
     pub fn is_maximized(&self) -> bool {
         self.platform_window.is_maximized()
     }
@@ -2334,20 +2311,12 @@ impl Window {
         self.active.get()
     }
 
-    /// Returns whether this window is considered to be the window
-    /// that currently owns the mouse cursor.
-    /// On mac, this is equivalent to `is_window_active`.
-    pub fn is_window_hovered(&self) -> bool {
-        if cfg!(target_os = "linux") { self.hovered.get() } else { self.is_window_active() }
-    }
-
     /// Toggle zoom on the window.
     pub fn zoom_window(&self) {
         self.platform_window.zoom();
     }
 
-    /// Handle window movement for Linux and macOS.
-    /// Tells the compositor to take control of window movement (Wayland and X11)
+    /// Hands window movement to the system for a drag that started in this window.
     ///
     /// Events may not be received during a move operation.
     pub fn start_window_move(&self) {
@@ -4264,7 +4233,7 @@ impl Window {
 
     fn reset_cursor_style(&self, cx: &App) {
         // Set the cursor only if we're the active window.
-        if self.is_window_hovered() {
+        if self.is_window_active() {
             // A drag can start before the next paint records its cursor in the frame.
             let style = cx
                 .active_drag_cursor_style()

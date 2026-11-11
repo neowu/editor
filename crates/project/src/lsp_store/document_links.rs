@@ -7,9 +7,7 @@ use std::time::Duration;
 use anyhow::Context as _;
 use futures::FutureExt as _;
 use futures::future::Shared;
-use futures::future::join_all;
 use gpui::AppContext as _;
-use gpui::AsyncApp;
 use gpui::Context;
 use gpui::Entity;
 use gpui::SharedString;
@@ -19,8 +17,6 @@ use language::point_to_lsp;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
 use lsp::request::DocumentLinkResolve;
-use rpc::TypedEnvelope;
-use rpc::proto;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use text::Anchor;
@@ -29,7 +25,6 @@ use text::ToPointUtf16 as _;
 use util::ResultExt as _;
 
 use crate::lsp_command::GetDocumentLinks;
-use crate::lsp_command::LspCommand as _;
 use crate::lsp_store::LspStore;
 use crate::lsp_store::LspStoreEvent;
 use crate::lsp_store::RunningFetch;
@@ -102,27 +97,6 @@ impl LspStore {
         }
 
         cx.emit(LspStoreEvent::RefreshDocumentLinks { server_id: for_server });
-        if let Some((downstream_client, project_id)) = self.downstream_client.as_ref() {
-            downstream_client
-                .send(proto::RefreshDocumentLinks {
-                    project_id: *project_id,
-                    server_id: for_server.map(|server_id| server_id.to_proto()),
-                })
-                .context("sending refresh document links downstream")
-                .log_err();
-        }
-    }
-
-    pub(super) async fn handle_refresh_document_links(
-        lsp_store: Entity<Self>,
-        envelope: TypedEnvelope<proto::RefreshDocumentLinks>,
-        mut cx: AsyncApp,
-    ) -> anyhow::Result<proto::Ack> {
-        lsp_store.update(&mut cx, |lsp_store, cx| {
-            let server_id = envelope.payload.server_id.map(LanguageServerId::from_proto);
-            lsp_store.refresh_document_links(server_id, cx);
-        });
-        Ok(proto::Ack {})
     }
 
     /// `Some(..)` means the underlying state was actually refreshed; `None`
@@ -258,65 +232,8 @@ impl LspStore {
         for_servers: Option<FxHashSet<LanguageServerId>>,
         cx: &mut Context<Self>,
     ) -> Task<anyhow::Result<Option<FxHashMap<LanguageServerId, Vec<LspDocumentLink>>>>> {
-        if let Some((client, project_id)) = self.upstream_client() {
-            // No `for_servers` filter is forwarded: unlike its siblings, `GetDocumentLinks`
-            // is answered from the host's own `fetch_document_links` cache with the full
-            // per-server map, to spare the LSP request, so filtering could not reduce the
-            // work anyway.
-            let request = GetDocumentLinks;
-            if !self.is_capable_for_proto_request(buffer, &request, cx) {
-                return Task::ready(Ok(None));
-            }
-
-            let request_timeout = LSP_REQUEST_TIMEOUT;
-            let request_task = client.request_lsp(
-                project_id,
-                None,
-                request_timeout,
-                cx.background_executor().clone(),
-                request.to_proto(project_id, buffer.read(cx)),
-            );
-            let buffer = buffer.clone();
-            cx.spawn(async move |weak_lsp_store, cx| {
-                let Some(lsp_store) = weak_lsp_store.upgrade() else {
-                    return Ok(None);
-                };
-                let Some(responses) = request_task.await? else {
-                    return Ok(None);
-                };
-
-                let document_links = join_all(responses.payload.into_iter().map(|response| {
-                    let lsp_store = lsp_store.clone();
-                    let buffer = buffer.clone();
-                    let cx = cx.clone();
-                    async move {
-                        let server_id = LanguageServerId::from_proto(response.server_id);
-                        let links =
-                            GetDocumentLinks.response_from_proto(response.response, lsp_store, buffer, cx).await;
-                        (server_id, links)
-                    }
-                }))
-                .await;
-
-                let mut has_errors = false;
-                let result = document_links
-                    .into_iter()
-                    .filter_map(|(server_id, links)| match links {
-                        Ok(links) => Some((server_id, links)),
-                        Err(e) => {
-                            has_errors = true;
-                            log::error!("Failed to fetch document links for server {server_id}: {e:#}");
-                            None
-                        }
-                    })
-                    .collect::<FxHashMap<_, _>>();
-                anyhow::ensure!(!has_errors || !result.is_empty(), "Failed to fetch document links");
-                Ok(Some(result))
-            })
-        } else {
-            let links_task = self.request_filtered_lsp_locally(buffer, GetDocumentLinks, for_servers.as_ref(), cx);
-            cx.background_spawn(async move { Ok(Some(links_task.await.into_iter().collect())) })
-        }
+        let links_task = self.request_filtered_lsp_locally(buffer, GetDocumentLinks, for_servers.as_ref(), cx);
+        cx.background_spawn(async move { Ok(Some(links_task.await.into_iter().collect())) })
     }
 
     /// Returns the resolved state for a cached document link, deduplicating
@@ -388,9 +305,9 @@ impl LspStore {
         Some(ResolvedDocumentLink::Resolving(resolve_task))
     }
 
-    /// Builds the LSP/proto request task for a single unresolved link. Returns
-    /// a task that yields `None` when the resolve request cannot be issued
-    /// (no upstream capability, no local server, or no `resolveProvider`).
+    /// Builds the LSP request task for a single unresolved link. Returns a task that
+    /// yields `None` when the resolve request cannot be issued (no local server or no
+    /// `resolveProvider`).
     fn resolve_document_link_request(
         &self,
         buffer: &Entity<Buffer>,
@@ -399,7 +316,6 @@ impl LspStore {
         cx: &mut Context<Self>,
     ) -> Task<Option<lsp::DocumentLink>> {
         let snapshot = buffer.read(cx).snapshot();
-        let buffer_id = buffer.read(cx).remote_id();
         let lsp_link = lsp::DocumentLink {
             range: lsp::Range {
                 start: point_to_lsp(cached_link.range.start.to_point_utf16(&snapshot)),
@@ -420,26 +336,13 @@ impl LspStore {
             return Task::ready(None);
         }
 
-        if let Some((upstream_client, project_id)) = self.upstream_client() {
-            let request = proto::ResolveDocumentLink {
-                project_id,
-                buffer_id: buffer_id.into(),
-                language_server_id: server_id.0 as u64,
-                lsp_link: serde_json::to_vec(&lsp_link).unwrap_or_default(),
-            };
-            cx.background_spawn(async move {
-                let response = upstream_client.request(request).await.log_err()?;
-                serde_json::from_slice::<lsp::DocumentLink>(&response.lsp_link).log_err()
-            })
-        } else {
-            let Some(server) = self.language_server_for_id(server_id) else {
-                return Task::ready(None);
-            };
-            let request_timeout = LSP_REQUEST_TIMEOUT;
-            cx.background_spawn(async move {
-                server.request::<DocumentLinkResolve>(lsp_link, request_timeout).await.into_response().log_err()
-            })
-        }
+        let Some(server) = self.language_server_for_id(server_id) else {
+            return Task::ready(None);
+        };
+        let request_timeout = LSP_REQUEST_TIMEOUT;
+        cx.background_spawn(async move {
+            server.request::<DocumentLinkResolve>(lsp_link, request_timeout).await.into_response().log_err()
+        })
     }
 
     fn cache_resolved_link(
@@ -458,28 +361,6 @@ impl LspStore {
         link.data.clone_from(&resolved.data);
         link.resolved = true;
         Some(link.clone())
-    }
-
-    pub(super) async fn handle_resolve_document_link(
-        lsp_store: Entity<Self>,
-        envelope: TypedEnvelope<proto::ResolveDocumentLink>,
-        mut cx: AsyncApp,
-    ) -> anyhow::Result<proto::ResolveDocumentLinkResponse> {
-        let lsp_link: lsp::DocumentLink =
-            serde_json::from_slice(&envelope.payload.lsp_link).context("deserializing document link to resolve")?;
-        let server_id = LanguageServerId::from_proto(envelope.payload.language_server_id);
-
-        let resolve_task = lsp_store.update(&mut cx, |lsp_store, _| {
-            let server = lsp_store
-                .language_server_for_id(server_id)
-                .with_context(|| format!("No language server {server_id}"))?;
-            anyhow::Ok(server.request::<DocumentLinkResolve>(lsp_link, LSP_REQUEST_TIMEOUT))
-        })?;
-        let resolved = resolve_task.await.into_response()?;
-
-        Ok(proto::ResolveDocumentLinkResponse {
-            lsp_link: serde_json::to_vec(&resolved).context("serializing resolved document link")?,
-        })
     }
 }
 

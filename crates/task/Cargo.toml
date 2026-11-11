@@ -10,7 +10,6 @@ path = "src/task.rs"
 anyhow.workspace = true
 gpui.workspace = true
 hex.workspace = true
-proto.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true
 serde_json.workspace = true

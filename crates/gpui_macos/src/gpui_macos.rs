@@ -1,4 +1,3 @@
-#![cfg(target_os = "macos")]
 //! macOS platform implementation for GPUI.
 //!
 //! macOS screens have a y axis that goes up from the bottom of the screen and

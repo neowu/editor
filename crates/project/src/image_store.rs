@@ -2,7 +2,6 @@ use std::collections::hash_map;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::future::Future;
 use std::io::Cursor;
 use std::num::NonZeroU64;
 use std::path::PathBuf;
@@ -13,16 +12,11 @@ use anyhow::Result;
 use futures::channel::oneshot;
 use gpui::App;
 use gpui::AppContext;
-use gpui::Asset;
-use gpui::AssetLogger;
 use gpui::AsyncApp;
 use gpui::Context;
 use gpui::Entity;
 use gpui::EventEmitter;
-use gpui::ImageCacheError;
-use gpui::ImageSource;
 use gpui::Img;
-use gpui::RenderImage;
 use gpui::Subscription;
 use gpui::Task;
 use gpui::WeakEntity;
@@ -32,10 +26,6 @@ pub use image::ImageFormat as RasterImageFormat;
 use image::ImageReader;
 use language::DiskState;
 use language::File;
-use rpc::AnyProtoClient;
-use rpc::ErrorExt as _;
-use rpc::TypedEnvelope;
-use rpc::proto;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use util::ResultExt;
@@ -43,7 +33,6 @@ use util::rel_path::RelPath;
 use worktree::LoadedBinaryFile;
 use worktree::PathChange;
 use worktree::Worktree;
-use worktree::WorktreeId;
 
 use crate::Project;
 use crate::ProjectEntryId;
@@ -54,13 +43,6 @@ use crate::worktree_store::WorktreeStoreEvent;
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, PartialOrd, Ord, Eq)]
 pub struct ImageId(NonZeroU64);
-
-impl ImageId {
-    pub const fn to_proto(&self) -> u64 {
-        self.0.get()
-    }
-}
-
 impl Display for ImageId {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
@@ -142,40 +124,6 @@ pub struct ImageItem {
     pub image: Arc<gpui::Image>,
     reload_task: Option<Task<()>>,
     pub image_metadata: Option<ImageMetadata>,
-}
-
-#[derive(Clone, Eq, Hash, PartialEq)]
-struct ProjectImageSource {
-    project: WeakEntity<Project>,
-    path: ProjectPath,
-}
-
-enum ProjectImageAsset {}
-
-impl Asset for ProjectImageAsset {
-    type Source = ProjectImageSource;
-    type Output = Result<Arc<RenderImage>, ImageCacheError>;
-
-    fn load(source: Self::Source, cx: &mut App) -> impl Future<Output = Self::Output> + Send + 'static {
-        let svg_renderer = cx.svg_renderer();
-        let load_image = cx.spawn(async move |cx| {
-            let open_image = source.project.update(cx, |project, cx| project.open_image(source.path, cx))?;
-            let image = open_image.await?;
-            Ok::<_, anyhow::Error>(image.read_with(cx, |image, _cx| image.image.clone()))
-        });
-
-        async move {
-            let image = load_image.await?;
-            image.to_image_data(svg_renderer).map_err(Into::into)
-        }
-    }
-}
-
-pub fn project_image_source(project: WeakEntity<Project>, path: ProjectPath) -> ImageSource {
-    let source = ProjectImageSource { project, path };
-    ImageSource::from(move |window: &mut gpui::Window, cx: &mut App| {
-        window.use_asset::<AssetLogger<ProjectImageAsset>>(&source, cx)
-    })
 }
 
 impl ImageItem {
@@ -320,34 +268,6 @@ impl ProjectItem for ImageItem {
     }
 }
 
-trait ImageStoreImpl {
-    fn open_image(
-        &self,
-        path: Arc<RelPath>,
-        worktree: Entity<Worktree>,
-        cx: &mut Context<ImageStore>,
-    ) -> Task<Result<Entity<ImageItem>>>;
-
-    fn reload_images(&self, images: FxHashSet<Entity<ImageItem>>, cx: &mut Context<ImageStore>) -> Task<Result<()>>;
-
-    fn as_local(&self) -> Option<Entity<LocalImageStore>>;
-    fn as_remote(&self) -> Option<Entity<RemoteImageStore>>;
-}
-
-struct RemoteImageStore {
-    upstream_client: AnyProtoClient,
-    project_id: u64,
-    loading_remote_images_by_id: FxHashMap<ImageId, LoadingRemoteImage>,
-    remote_image_listeners: FxHashMap<ImageId, Vec<oneshot::Sender<anyhow::Result<Entity<ImageItem>>>>>,
-    loaded_images: FxHashMap<ImageId, Entity<ImageItem>>,
-}
-
-struct LoadingRemoteImage {
-    state: proto::ImageState,
-    chunks: Vec<Vec<u8>>,
-    received_size: u64,
-}
-
 struct LocalImageStore {
     local_image_ids_by_path: FxHashMap<ProjectPath, ImageId>,
     local_image_ids_by_entry_id: FxHashMap<ProjectEntryId, ImageId>,
@@ -356,7 +276,7 @@ struct LocalImageStore {
 }
 
 pub struct ImageStore {
-    state: Box<dyn ImageStoreImpl>,
+    state: Entity<LocalImageStore>,
     opened_images: FxHashMap<ImageId, WeakEntity<ImageItem>>,
     worktree_store: Entity<WorktreeStore>,
     #[allow(clippy::type_complexity)]
@@ -368,7 +288,7 @@ impl ImageStore {
     pub fn local(worktree_store: Entity<WorktreeStore>, cx: &mut Context<Self>) -> Self {
         let this = cx.weak_entity();
         Self {
-            state: Box::new(cx.new(|cx| {
+            state: cx.new(|cx| {
                 let subscription = cx.subscribe(&worktree_store, |this: &mut LocalImageStore, _, event, cx| {
                     if let WorktreeStoreEvent::WorktreeAdded(worktree) = event {
                         this.subscribe_to_worktree(worktree, cx);
@@ -381,27 +301,7 @@ impl ImageStore {
                     image_store: this,
                     _subscription: subscription,
                 }
-            })),
-            opened_images: FxHashMap::default(),
-            loading_images_by_path: FxHashMap::default(),
-            worktree_store,
-        }
-    }
-
-    pub fn remote(
-        worktree_store: Entity<WorktreeStore>,
-        upstream_client: AnyProtoClient,
-        project_id: u64,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        Self {
-            state: Box::new(cx.new(|_| RemoteImageStore {
-                upstream_client,
-                project_id,
-                loading_remote_images_by_id: FxHashMap::default(),
-                remote_image_listeners: FxHashMap::default(),
-                loaded_images: FxHashMap::default(),
-            })),
+            }),
             opened_images: FxHashMap::default(),
             loading_images_by_path: FxHashMap::default(),
             worktree_store,
@@ -440,7 +340,7 @@ impl ImageStore {
                 let (mut tx, rx) = watch::channel(None);
                 entry.insert(rx.clone());
 
-                let load_image = self.state.open_image(project_path.path.clone(), worktree, cx);
+                let load_image = LocalImageStore::open_image(&self.state, project_path.path.clone(), worktree, cx);
 
                 cx.spawn(async move |this, cx| {
                     let load_result = load_image.await;
@@ -458,7 +358,9 @@ impl ImageStore {
             }
         };
 
-        cx.background_spawn(async move { Self::wait_for_loading_image(loading_watch).await.map_err(|e| e.cloned()) })
+        cx.background_spawn(async move {
+            Self::wait_for_loading_image(loading_watch).await.map_err(|e| anyhow::anyhow!("{e:#}"))
+        })
     }
 
     pub async fn wait_for_loading_image(
@@ -486,7 +388,7 @@ impl ImageStore {
             return Task::ready(Ok(()));
         }
 
-        self.state.reload_images(images, cx)
+        LocalImageStore::reload_images(images, cx)
     }
 
     fn add_image(&mut self, image: Entity<ImageItem>, cx: &mut Context<ImageStore>) -> Result<()> {
@@ -498,127 +400,21 @@ impl ImageStore {
     }
 
     fn on_image_event(&mut self, image: Entity<ImageItem>, event: &ImageItemEvent, cx: &mut Context<Self>) {
-        if let ImageItemEvent::FileHandleChanged = event
-            && let Some(local) = self.state.as_local()
-        {
-            local.update(cx, |local, cx| {
+        if let ImageItemEvent::FileHandleChanged = event {
+            self.state.update(cx, |local, cx| {
                 local.image_changed_file(image, cx);
             })
         }
     }
-
-    pub fn handle_create_image_for_peer(
-        &mut self,
-        envelope: TypedEnvelope<proto::CreateImageForPeer>,
-        cx: &mut Context<Self>,
-    ) -> Result<()> {
-        if let Some(remote) = self.state.as_remote() {
-            let worktree_store = self.worktree_store.clone();
-            let image =
-                remote.update(cx, |remote, cx| remote.handle_create_image_for_peer(envelope, &worktree_store, cx))?;
-            if let Some(image) = image {
-                remote.update(cx, |this, cx| {
-                    let image = image.clone();
-                    let image_id = image.read(cx).id;
-                    this.loaded_images.insert(image_id, image)
-                });
-
-                self.add_image(image, cx)?;
-            }
-        }
-
-        Ok(())
-    }
 }
-
-impl RemoteImageStore {
-    pub fn wait_for_remote_image(&mut self, id: ImageId, cx: &Context<Self>) -> Task<Result<Entity<ImageItem>>> {
-        if let Some(image) = self.loaded_images.remove(&id) {
-            return Task::ready(Ok(image));
-        }
-
-        let (tx, rx) = oneshot::channel();
-        self.remote_image_listeners.entry(id).or_default().push(tx);
-
-        cx.spawn(async move |_this, cx| cx.background_spawn(async move { rx.await? }).await)
-    }
-
-    pub fn handle_create_image_for_peer(
-        &mut self,
-        envelope: TypedEnvelope<proto::CreateImageForPeer>,
-        worktree_store: &Entity<WorktreeStore>,
-        cx: &mut Context<Self>,
-    ) -> Result<Option<Entity<ImageItem>>> {
-        use proto::create_image_for_peer::Variant;
-        match envelope.payload.variant {
-            Some(Variant::State(state)) => {
-                let image_id = ImageId::from(NonZeroU64::new(state.id).context("invalid image id")?);
-
-                self.loading_remote_images_by_id
-                    .insert(image_id, LoadingRemoteImage { state, chunks: Vec::new(), received_size: 0 });
-                Ok(None)
-            }
-            Some(Variant::Chunk(chunk)) => {
-                let image_id = ImageId::from(NonZeroU64::new(chunk.image_id).context("invalid image id")?);
-
-                let loading =
-                    self.loading_remote_images_by_id.get_mut(&image_id).context("received chunk for unknown image")?;
-
-                loading.received_size += chunk.data.len() as u64;
-                loading.chunks.push(chunk.data);
-
-                if loading.received_size == loading.state.content_size {
-                    let loading = self.loading_remote_images_by_id.remove(&image_id).unwrap();
-
-                    let mut content = Vec::with_capacity(loading.received_size as usize);
-                    for chunk_data in loading.chunks {
-                        content.extend_from_slice(&chunk_data);
-                    }
-
-                    let image_metadata = ImageItem::compute_metadata_from_bytes(&content).log_err();
-                    let image = create_gpui_image(content)?;
-
-                    let proto_file = loading.state.file.context("missing file in image state")?;
-                    let worktree_id = WorktreeId::from_proto(proto_file.worktree_id);
-                    let worktree =
-                        worktree_store.read(cx).worktree_for_id(worktree_id, cx).context("worktree not found")?;
-
-                    let file = Arc::new(
-                        worktree::File::from_proto(proto_file, worktree, cx).context("invalid file in image state")?,
-                    );
-
-                    let entity =
-                        cx.new(|_cx| ImageItem { id: image_id, file, image, image_metadata, reload_task: None });
-
-                    if let Some(listeners) = self.remote_image_listeners.remove(&image_id) {
-                        for listener in listeners {
-                            listener.send(Ok(entity.clone())).ok();
-                        }
-                    }
-
-                    Ok(Some(entity))
-                } else {
-                    Ok(None)
-                }
-            }
-            None => {
-                log::warn!("Received CreateImageForPeer with no variant");
-                Ok(None)
-            }
-        }
-    }
-
-    // TODO: subscribe to worktree and update image contents or at least mark as dirty on file changes
-}
-
-impl ImageStoreImpl for Entity<LocalImageStore> {
+impl LocalImageStore {
     fn open_image(
-        &self,
+        this: &Entity<Self>,
         path: Arc<RelPath>,
         worktree: Entity<Worktree>,
         cx: &mut Context<ImageStore>,
     ) -> Task<Result<Entity<ImageItem>>> {
-        let this = self.clone();
+        let this = this.clone();
 
         let load_file = worktree.update(cx, |worktree, cx| worktree.load_binary_file(path.as_ref(), cx));
         cx.spawn(async move |image_store, cx| {
@@ -651,7 +447,7 @@ impl ImageStoreImpl for Entity<LocalImageStore> {
         })
     }
 
-    fn reload_images(&self, images: FxHashSet<Entity<ImageItem>>, cx: &mut Context<ImageStore>) -> Task<Result<()>> {
+    fn reload_images(images: FxHashSet<Entity<ImageItem>>, cx: &Context<ImageStore>) -> Task<Result<()>> {
         cx.spawn(async move |_, cx| {
             for image in images {
                 if let Some(rec) = image.update(cx, |image, cx| image.reload(cx)) {
@@ -661,60 +457,11 @@ impl ImageStoreImpl for Entity<LocalImageStore> {
             Ok(())
         })
     }
-
-    fn as_local(&self) -> Option<Entity<LocalImageStore>> {
-        Some(self.clone())
-    }
-
-    fn as_remote(&self) -> Option<Entity<RemoteImageStore>> {
-        None
-    }
 }
-
-impl ImageStoreImpl for Entity<RemoteImageStore> {
-    fn open_image(
-        &self,
-        path: Arc<RelPath>,
-        worktree: Entity<Worktree>,
-        cx: &mut Context<ImageStore>,
-    ) -> Task<Result<Entity<ImageItem>>> {
-        let worktree_id = worktree.read(cx).id().to_proto();
-        let (project_id, client) = {
-            let store = self.read(cx);
-            (store.project_id, store.upstream_client.clone())
-        };
-        let remote_store = self.clone();
-
-        cx.spawn(async move |_image_store, cx| {
-            let response = client
-                .request(proto::OpenImageByPath { project_id, worktree_id, path: path.as_unix_str().to_owned() })
-                .await?;
-
-            let image_id = ImageId::from(NonZeroU64::new(response.image_id).context("invalid image_id in response")?);
-
-            remote_store.update(cx, |remote_store, cx| remote_store.wait_for_remote_image(image_id, cx)).await
-        })
-    }
-
-    fn reload_images(&self, _images: FxHashSet<Entity<ImageItem>>, _cx: &mut Context<ImageStore>) -> Task<Result<()>> {
-        Task::ready(Err(anyhow::anyhow!("Reloading images from remote is not supported")))
-    }
-
-    fn as_local(&self) -> Option<Entity<LocalImageStore>> {
-        None
-    }
-
-    fn as_remote(&self) -> Option<Entity<RemoteImageStore>> {
-        Some(self.clone())
-    }
-}
-
 impl LocalImageStore {
     fn subscribe_to_worktree(&self, worktree: &Entity<Worktree>, cx: &mut Context<Self>) {
         cx.subscribe(worktree, |this, worktree, event, cx| {
-            if worktree.read(cx).is_local()
-                && let worktree::Event::UpdatedEntries(changes) = event
-            {
+            if let worktree::Event::UpdatedEntries(changes) = event {
                 this.local_worktree_entries_changed(&worktree, changes, cx);
             }
         })
@@ -784,7 +531,6 @@ impl LocalImageStore {
                         Some(mtime) => DiskState::Present { mtime, size: entry.size },
                         None => old_file.disk_state,
                     },
-                    is_local: true,
                     entry_id: Some(entry.id),
                     path: entry.path.clone(),
                     worktree: worktree.clone(),
@@ -792,7 +538,6 @@ impl LocalImageStore {
             } else {
                 worktree::File {
                     disk_state: DiskState::Deleted,
-                    is_local: true,
                     entry_id: old_file.entry_id,
                     path: old_file.path.clone(),
                     worktree: worktree.clone(),

@@ -156,9 +156,6 @@ use markdown::MarkdownElement;
 use project::Project;
 use project::ProjectPath;
 use project::WorktreeId;
-use rpc::ErrorCode;
-use rpc::ErrorExt as _;
-use rpc::RpcError;
 use ui::App;
 use ui::TextSize;
 use util::rel_path::RelPath;
@@ -418,15 +415,8 @@ pub(crate) fn project_path_display(project: &Project, project_path: &ProjectPath
 }
 
 pub(crate) fn already_exists_error(err: &anyhow::Error) -> bool {
-    err.chain().any(|cause| {
-        if let Some(io_err) = cause.downcast_ref::<io::Error>() {
-            io_err.kind() == ErrorKind::AlreadyExists
-        } else if let Some(rpc_error) = cause.downcast_ref::<RpcError>() {
-            rpc_error.error_code() == ErrorCode::AlreadyExists
-        } else {
-            false
-        }
-    })
+    err.chain()
+        .any(|cause| cause.downcast_ref::<io::Error>().is_some_and(|io_err| io_err.kind() == ErrorKind::AlreadyExists))
 }
 
 impl Inner {
@@ -874,5 +864,25 @@ impl Inner {
             .await?;
 
         Ok(answer == 0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+
+    use anyhow::Context as _;
+
+    use super::already_exists_error;
+
+    #[test]
+    fn test_already_exists_error_finds_io_error_in_chain() {
+        let exists = io::Error::from(io::ErrorKind::AlreadyExists);
+        let wrapped = Err::<(), _>(exists).context("renaming").unwrap_err();
+        assert!(already_exists_error(&wrapped));
+
+        let missing = anyhow::Error::from(io::Error::from(io::ErrorKind::NotFound));
+        assert!(!already_exists_error(&missing));
+        assert!(!already_exists_error(&anyhow::anyhow!("already exists")));
     }
 }

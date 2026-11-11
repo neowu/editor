@@ -1,4 +1,3 @@
-use std::hash::DefaultHasher;
 use std::mem;
 use std::sync::atomic::Ordering;
 
@@ -41,7 +40,6 @@ use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::collections::hash_map;
 use std::env;
-use std::hash::Hash;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::ExitStatus;
@@ -131,15 +129,12 @@ pub use path_list::PathList;
 pub use path_list::SerializedPathList;
 pub use persistence::ProjectLocation;
 pub use persistence::ProjectsStore;
-pub use persistence::RecentServer;
 pub use persistence::RecentWorkspace;
-pub use persistence::RemoteServer;
 pub use persistence::delete_recent_workspace_group;
 pub use persistence::last_session_workspaces;
 pub use persistence::model::DockData;
 pub use persistence::model::DockStructure;
 use persistence::model::SerializedWorkspace;
-pub use persistence::model::SerializedWorkspaceLocation;
 pub use persistence::model::SessionWorkspace;
 pub use persistence::recent_project_workspaces;
 use project::DirectoryLister;
@@ -152,15 +147,6 @@ use project::UpdatedEntriesSet;
 use project::Worktree;
 use project::WorktreeId;
 use project::WorktreeSettings;
-use remote::RemoteClientDelegate;
-use remote::RemoteConnection;
-pub use remote::RemoteConnectionIdentity;
-use remote::remote_client::ConnectionIdentifier;
-pub use remote::remote_connection_identity;
-pub use remote::same_remote_connection_identity;
-use rpc::ErrorExt;
-use rpc::proto::ErrorCode;
-use rpc::proto::{self};
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use serde::Deserialize;
@@ -477,11 +463,7 @@ pub struct ToggleFileFinder {
 #[derive(Default, PartialEq, Eq, Clone, Deserialize, Action)]
 #[action(namespace = workspace)]
 #[serde(deny_unknown_fields)]
-pub struct NewTerminal {
-    /// If true, creates a local terminal even in remote projects.
-    #[serde(default)]
-    pub local: bool,
-}
+pub struct NewTerminal;
 
 /// Increases size of a currently focused dock by a given amount of pixels.
 #[derive(Clone, PartialEq, Deserialize, Action)]
@@ -606,27 +588,22 @@ impl PartialEq for Toast {
 #[serde(deny_unknown_fields)]
 pub struct OpenTerminal {
     pub working_directory: PathBuf,
-    /// If true, creates a local terminal even in remote projects.
-    #[serde(default)]
-    pub local: bool,
 }
 
 fn prompt_and_open_paths(app_state: Arc<AppState>, options: PathPromptOptions, create_new_window: bool, cx: &mut App) {
-    if let Some(workspace_window) =
-        workspace_windows_for_location(&SerializedWorkspaceLocation::Local, cx).into_iter().next()
-    {
+    if let Some(workspace_window) = workspace_windows(cx).into_iter().next() {
         workspace_window
             .update(cx, |workspace, window, cx| {
-                prompt_for_open_path_and_open(workspace, app_state, options, create_new_window, window, cx);
+                prompt_for_open_path_and_open(workspace, options, create_new_window, window, cx);
             })
             .ok();
     } else {
-        let task = Workspace::new_local(Vec::new(), app_state.clone(), None, None, OpenMode::Activate, cx);
+        let task = Workspace::new_local(Vec::new(), app_state, None, None, OpenMode::Activate, cx);
         cx.spawn(async move |cx| {
             let OpenResult { window, .. } = task.await?;
             window.update(cx, |workspace, window, cx| {
                 window.activate_window();
-                prompt_for_open_path_and_open(workspace, app_state, options, create_new_window, window, cx);
+                prompt_for_open_path_and_open(workspace, options, create_new_window, window, cx);
             })?;
             anyhow::Ok(())
         })
@@ -636,18 +613,12 @@ fn prompt_and_open_paths(app_state: Arc<AppState>, options: PathPromptOptions, c
 
 pub fn prompt_for_open_path_and_open(
     workspace: &mut Workspace,
-    app_state: Arc<AppState>,
     options: PathPromptOptions,
     create_new_window: bool,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
-    let paths = workspace.prompt_for_open_path(
-        options,
-        DirectoryLister::Local(workspace.project().clone(), app_state.fs.clone()),
-        window,
-        cx,
-    );
+    let paths = workspace.prompt_for_open_path(options, DirectoryLister(workspace.project().clone()), window, cx);
     let workspace_window = window.window_handle().downcast::<Workspace>();
     cx.spawn_in(window, async move |this, cx| {
         let Some(paths) = paths.await.log_err().flatten() else {
@@ -728,7 +699,6 @@ impl ProjectItemRegistry {
             let project_path = project_path.clone();
             let is_file = project.read(cx).entry_for_path(&project_path, cx).is_some_and(|entry| entry.is_file());
             let entry_abs_path = project.read(cx).absolute_path(&project_path, cx);
-            let is_local = project.read(cx).is_local();
             let project_item = <T::Item as project::ProjectItem>::try_open(project, &project_path, cx)?;
             let project = project.clone();
             Some(window.spawn(cx, async move |cx| {
@@ -752,10 +722,9 @@ impl ProjectItemRegistry {
                     }
                     Err(e) => {
                         log::warn!("Failed to open a project item: {e:#}");
-                        if e.error_code() == ErrorCode::Internal
-                            && let Some(abs_path) = entry_abs_path.as_deref().filter(|_| is_file)
+                        if let Some(abs_path) = entry_abs_path.as_deref().filter(|_| is_file)
                             && let Some(broken_project_item_view) =
-                                cx.update(|window, cx| T::for_broken_project_item(abs_path, is_local, &e, window, cx))?
+                                cx.update(|window, cx| T::for_broken_project_item(abs_path, &e, window, cx))?
                         {
                             let build_workspace_item =
                                 Box::new(move |_: &mut Pane, _: &mut Window, cx: &mut Context<Pane>| {
@@ -988,13 +957,6 @@ pub enum OpenVisible {
     OnlyDirectories,
 }
 
-enum WorkspaceLocation {
-    // Valid local paths or SSH project to serialize
-    Location(SerializedWorkspaceLocation, PathList),
-    // No valid location found to serialize
-    None,
-}
-
 type PromptForNewPath = Box<
     dyn Fn(
         &mut Workspace,
@@ -1080,7 +1042,6 @@ pub struct Workspace {
 
     _schedule_serialize_workspace: Option<Task<()>>,
     _serialize_workspace_task: Option<Task<()>>,
-    _schedule_serialize_ssh_paths: Option<Task<()>>,
     pane_history_timestamp: Arc<AtomicUsize>,
     /// One back/forward history shared by every center and Git History pane.
     nav_history: NavHistory,
@@ -1146,14 +1107,6 @@ impl Workspace {
                     if this.rename_persisted_navigation_history_paths(old_abs_path, new_abs_path) {
                         this.serialize_workspace(window, cx);
                     }
-                }
-
-                project::Event::DisconnectedFromHost => {
-                    this.update_window_edited(window, cx);
-                }
-
-                project::Event::DisconnectedFromRemote { server_not_running: _ } => {
-                    this.update_window_edited(window, cx);
                 }
 
                 project::Event::Closed => {
@@ -1346,7 +1299,6 @@ impl Workspace {
 
             _schedule_serialize_workspace: None,
             _serialize_workspace_task: None,
-            _schedule_serialize_ssh_paths: None,
 
             _subscriptions: subscriptions,
             pane_history_timestamp,
@@ -2142,12 +2094,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> oneshot::Receiver<Option<Vec<PathBuf>>> {
-        if !lister.is_local(cx) {
-            let prompt = self.on_prompt_for_open_path.take().unwrap();
-            let rx = prompt(self, lister, window, cx);
-            self.on_prompt_for_open_path = Some(prompt);
-            rx
-        } else {
+        {
             let (tx, rx) = oneshot::channel();
             let abs_path = cx.prompt_for_paths(path_prompt_options);
 
@@ -2188,13 +2135,6 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> oneshot::Receiver<Option<Vec<PathBuf>>> {
-        if self.project.read(cx).is_via_remote_server() {
-            let prompt = self.on_prompt_for_new_path.take().unwrap();
-            let rx = prompt(self, lister, suggested_name, window, cx);
-            self.on_prompt_for_new_path = Some(prompt);
-            return rx;
-        }
-
         let (tx, rx) = oneshot::channel();
         cx.spawn_in(window, async move |workspace, cx| {
             let abs_path = workspace.update(cx, |workspace, cx| {
@@ -2203,9 +2143,7 @@ impl Workspace {
                     .and_then(|p| p.parent().map(|p| p.to_path_buf()))
                     .or_else(|| {
                         let project = workspace.project.read(cx);
-                        project
-                            .visible_worktrees(cx)
-                            .find_map(|worktree| Some(worktree.read(cx).as_local()?.abs_path().to_path_buf()))
+                        project.visible_worktrees(cx).next().map(|worktree| worktree.read(cx).abs_path().to_path_buf())
                     })
                     .or_else(env::home_dir)
                     .unwrap_or_else(|| PathBuf::from(""));
@@ -2387,9 +2325,6 @@ impl Workspace {
         window: &Window,
         cx: &Context<Self>,
     ) -> Task<Result<bool>> {
-        if self.project.read(cx).is_disconnected(cx) {
-            return Task::ready(Ok(true));
-        }
         let dirty_items = self
             .panes
             .iter()
@@ -2538,18 +2473,17 @@ impl Workspace {
                 let pane = pane.clone();
                 let task = cx.spawn(async move |cx| {
                     let (worktree, project_path) = project_path?;
-                    let (entry_is_directory, worktree_is_local) = worktree.read_with(cx, |worktree, _| {
+                    let entry_is_directory = worktree.read_with(cx, |worktree, _| {
                         let entry = if project_path.path.as_unix_str().is_empty() {
                             worktree.root_entry()
                         } else {
                             worktree.entry_for_path(&project_path.path)
                         };
-                        (entry.map(|entry| entry.is_dir()), worktree.is_local())
+                        entry.map(|entry| entry.is_dir())
                     });
                     let is_directory = match entry_is_directory {
                         Some(is_directory) => is_directory,
-                        None if worktree_is_local => fs.is_dir(&abs_path).await,
-                        None => false,
+                        None => fs.is_dir(&abs_path).await,
                     };
 
                     if is_directory {
@@ -2668,7 +2602,7 @@ impl Workspace {
 
         let paths = self.prompt_for_open_path(
             PathPromptOptions { files: false, directories: true, multiple: true, prompt: None },
-            DirectoryLister::Project(self.project.clone()),
+            DirectoryLister(self.project.clone()),
             window,
             cx,
         );
@@ -3411,7 +3345,6 @@ impl Workspace {
 
         // Not a valid URL - treat as a file path
         let project = self.project();
-        let project_is_local = project.read(cx).is_local();
 
         // If it's an absolute path, open it directly
         if Path::new(url_or_path).has_root() {
@@ -3421,30 +3354,16 @@ impl Workspace {
 
         let path = Path::new(url_or_path);
         // Try to resolve relative path against base_path first
-        let path_from_base = if let Some(base) = base_path {
-            let resolved_path = Some(base.join(path));
-            if project_is_local {
-                if let Some(resolved_path) = resolved_path
-                    && resolved_path.exists()
-                {
-                    open_abs_path(self, resolved_path, cx);
-                    return;
-                }
-                None
-            } else {
-                resolved_path
+        if let Some(base) = base_path {
+            let resolved_path = base.join(path);
+            if resolved_path.exists() {
+                open_abs_path(self, resolved_path, cx);
+                return;
             }
-        } else {
-            None
-        };
+        }
 
         // Try to resolve against project worktrees
-        let project_path = project.update(cx, |project, cx| {
-            path_from_base
-                .as_deref()
-                .and_then(|base_path| project.find_project_path(base_path, cx))
-                .or_else(|| project.find_project_path(path, cx))
-        });
+        let project_path = project.read(cx).find_project_path(path, cx);
         if let Some(project_path) = project_path {
             let url_or_path = url_or_path.to_owned();
             let task = self.open_path(project_path, None, true, window, cx);
@@ -4280,15 +4199,15 @@ impl Workspace {
         self.last_window_title = Some(title);
     }
 
-    fn is_window_edited(&self, cx: &App) -> bool {
-        !self.project.read(cx).is_disconnected(cx) && !self.dirty_items.is_empty()
+    fn is_window_edited(&self) -> bool {
+        !self.dirty_items.is_empty()
     }
 
-    fn update_window_edited(&mut self, window: &mut Window, cx: &App) {
+    fn update_window_edited(&mut self, window: &mut Window, _cx: &App) {
         if !self.owns_window_chrome(window) {
             return;
         }
-        let is_edited = self.is_window_edited(cx);
+        let is_edited = self.is_window_edited();
         if is_edited != self.window_edited {
             self.window_edited = is_edited;
             window.set_window_edited(self.window_edited);
@@ -4313,7 +4232,7 @@ impl Workspace {
         self.last_window_title = None;
         self.apply_window_title(window, cx);
 
-        self.window_edited = self.is_window_edited(cx);
+        self.window_edited = self.is_window_edited();
         window.set_window_edited(self.window_edited);
     }
 
@@ -4398,12 +4317,8 @@ impl Workspace {
     /// Where this workspace's project lives, or `None` for a workspace without
     /// root folders, which isn't persisted.
     pub fn project_location(&self, cx: &App) -> Option<ProjectLocation> {
-        match self.workspace_location(cx) {
-            WorkspaceLocation::Location(location, paths) if !paths.is_empty() => {
-                Some(ProjectLocation::new(&location, &paths))
-            }
-            _ => None,
-        }
+        let paths = PathList::new(&self.root_paths(cx));
+        (!paths.is_empty()).then(|| ProjectLocation::new(&paths))
     }
 
     /// Bypass the serialization throttle and write the workspace state now.
@@ -4475,7 +4390,7 @@ impl Workspace {
 
     /// Writes this workspace's state to `.ed/workspace.json` in its first root
     /// folder. Workspaces without root folders aren't persisted.
-    fn serialize_workspace_internal(&mut self, window: &Window, cx: &mut Context<Self>) -> Task<()> {
+    fn serialize_workspace_internal(&mut self, window: &Window, cx: &Context<Self>) -> Task<()> {
         if self.restoring_workspace {
             return Task::ready(());
         }
@@ -4527,17 +4442,6 @@ impl Workspace {
         })
     }
 
-    fn workspace_location(&self, cx: &App) -> WorkspaceLocation {
-        let paths = PathList::new(&self.root_paths(cx));
-        if let Some(connection) = self.project.read(cx).remote_connection_options(cx) {
-            WorkspaceLocation::Location(SerializedWorkspaceLocation::Remote(connection), paths)
-        } else if self.project.read(cx).is_local() {
-            WorkspaceLocation::Location(SerializedWorkspaceLocation::Local, paths)
-        } else {
-            WorkspaceLocation::None
-        }
-    }
-
     fn update_history(&self, cx: &mut App) {
         let Some(location) = self.project_location(cx) else {
             return;
@@ -4545,9 +4449,7 @@ impl Workspace {
         if let Some(store) = ProjectsStore::try_global(cx) {
             store.record_recent(location.clone(), cx);
         }
-        if location.remote.is_none()
-            && let Some(manager) = HistoryManager::global(cx)
-        {
+        if let Some(manager) = HistoryManager::global(cx) {
             manager.update(cx, |this, cx| {
                 this.update_history(HistoryManagerEntry::new(&location.path_list()), cx);
             });
@@ -5623,7 +5525,7 @@ impl WorkspaceStore {
 pub async fn last_opened_workspace_location(fs: &dyn fs::Fs, cx: &AsyncApp) -> Option<SessionWorkspace> {
     let recent = cx.update(|cx| ProjectsStore::global(cx).recent());
     let workspace = recent_project_workspaces(recent, fs).await.into_iter().next()?;
-    Some(SessionWorkspace { location: workspace.location, paths: workspace.paths })
+    Some(SessionWorkspace { paths: workspace.paths })
 }
 
 pub async fn restore_workspace(
@@ -5726,37 +5628,13 @@ fn serialize_pane_handle(
     SerializedPane::new(items, active, pinned_count, zoomed)
 }
 
-fn workspace_is_at_location(workspace: &Entity<Workspace>, location: &SerializedWorkspaceLocation, cx: &App) -> bool {
-    let WorkspaceLocation::Location(workspace_location, _) = workspace.read(cx).workspace_location(cx) else {
-        return false;
-    };
-
-    match (&workspace_location, location) {
-        (SerializedWorkspaceLocation::Local, SerializedWorkspaceLocation::Local) => true,
-        (SerializedWorkspaceLocation::Remote(workspace_remote), SerializedWorkspaceLocation::Remote(remote)) => {
-            same_remote_connection_identity(Some(workspace_remote), Some(remote))
-        }
-        _ => false,
-    }
-}
-
-pub fn workspace_windows_for_location(
-    serialized_location: &SerializedWorkspaceLocation,
-    cx: &App,
-) -> Vec<WindowHandle<Workspace>> {
-    cx.windows()
-        .into_iter()
-        .filter_map(|window| window.downcast::<Workspace>())
-        .filter(|window| {
-            window.entity(cx).is_ok_and(|workspace| workspace_is_at_location(&workspace, serialized_location, cx))
-        })
-        .collect()
+pub fn workspace_windows(cx: &App) -> Vec<WindowHandle<Workspace>> {
+    cx.windows().into_iter().filter_map(|window| window.downcast::<Workspace>()).collect()
 }
 
 pub async fn find_existing_workspace(
     abs_paths: &[PathBuf],
     open_options: &OpenOptions,
-    location: &SerializedWorkspaceLocation,
     cx: &mut AsyncApp,
 ) -> (Option<(WindowHandle<Workspace>, Entity<Workspace>)>, OpenVisible) {
     let mut existing: Option<(WindowHandle<Workspace>, Entity<Workspace>)> = None;
@@ -5765,7 +5643,7 @@ pub async fn find_existing_workspace(
 
     if open_options.workspace_matching != WorkspaceMatching::None {
         cx.update(|cx| {
-            for window in workspace_windows_for_location(location, cx) {
+            for window in workspace_windows(cx) {
                 let Ok(workspace) = window.entity(cx) else {
                     continue;
                 };
@@ -5833,8 +5711,7 @@ pub fn open_paths(
     let abs_paths = abs_paths.to_vec();
 
     cx.spawn(async move |cx| {
-        let (mut existing, mut open_visible) =
-            find_existing_workspace(&abs_paths, &open_options, &SerializedWorkspaceLocation::Local, cx).await;
+        let (mut existing, mut open_visible) = find_existing_workspace(&abs_paths, &open_options, cx).await;
 
         // Fallback: if no workspace contains the paths and all paths are files,
         // prefer an existing local workspace window (active window first).
@@ -5845,7 +5722,7 @@ pub fn open_paths(
 
             if all_metadatas.into_iter().all(|file| !file.is_dir) {
                 cx.update(|cx| {
-                    let windows = workspace_windows_for_location(&SerializedWorkspaceLocation::Local, cx);
+                    let windows = workspace_windows(cx);
                     let window = cx
                         .active_window()
                         .and_then(|window| window.downcast::<Workspace>())
@@ -5930,125 +5807,6 @@ pub fn open_new(
             .ok();
         Ok(())
     })
-}
-
-#[allow(clippy::type_complexity)]
-pub fn open_remote_project_with_new_connection(
-    window: WindowHandle<Workspace>,
-    remote_connection: Arc<dyn RemoteConnection>,
-    cancel_rx: oneshot::Receiver<()>,
-    delegate: Arc<dyn RemoteClientDelegate>,
-    app_state: Arc<AppState>,
-    paths: Vec<PathBuf>,
-    cx: &mut App,
-) -> Task<Result<(Option<Entity<Workspace>>, Vec<Option<Box<dyn ItemHandle>>>)>> {
-    cx.spawn(async move |cx| {
-        let session = match cx
-            .update(|cx| {
-                remote::RemoteClient::new(
-                    ConnectionIdentifier::Workspace(remote_workspace_connection_id(&paths)),
-                    remote_connection,
-                    cancel_rx,
-                    delegate,
-                    cx,
-                )
-            })
-            .await?
-        {
-            Some(result) => result,
-            None => return Ok((None, Vec::new())),
-        };
-
-        let project =
-            cx.update(|cx| project::Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), cx));
-
-        let (workspace, items) = open_remote_project_inner(project, paths, app_state, window, cx).await?;
-        Ok((Some(workspace), items))
-    })
-}
-
-#[allow(clippy::type_complexity)]
-pub fn open_remote_project_with_existing_connection(
-    project: Entity<Project>,
-    paths: Vec<PathBuf>,
-    app_state: Arc<AppState>,
-    window: WindowHandle<Workspace>,
-    cx: &mut AsyncApp,
-) -> Task<Result<(Entity<Workspace>, Vec<Option<Box<dyn ItemHandle>>>)>> {
-    cx.spawn(async move |cx| open_remote_project_inner(project, paths, app_state, window, cx).await)
-}
-
-async fn open_remote_project_inner(
-    project: Entity<Project>,
-    paths: Vec<PathBuf>,
-    app_state: Arc<AppState>,
-    window: WindowHandle<Workspace>,
-    cx: &mut AsyncApp,
-) -> Result<(Entity<Workspace>, Vec<Option<Box<dyn ItemHandle>>>)> {
-    let first_root = paths.first().cloned();
-    let mut project_paths_to_open = vec![];
-    let mut project_path_errors = vec![];
-
-    for path in paths {
-        let result = cx.update(|cx| Workspace::project_path_for_path(project.clone(), path.as_path(), true, cx)).await;
-        match result {
-            Ok((_, project_path)) => {
-                project_paths_to_open.push((path, Some(project_path)));
-            }
-            Err(error) => {
-                project_path_errors.push(error);
-            }
-        };
-    }
-
-    if project_paths_to_open.is_empty() {
-        return Err(project_path_errors.pop().context("no paths given")?);
-    }
-
-    // The state file lives on the server, so it can only be read once the
-    // project's worktrees exist.
-    let serialized_workspace = match first_root {
-        Some(root) => persistence::load_remote_workspace_state(&project, &root, cx).await,
-        None => None,
-    };
-
-    let workspace = window.update(cx, |_, window, cx| {
-        replace_window_workspace(window, cx, |window, cx| {
-            let workspace = Workspace::new(project.clone(), app_state.clone(), window, cx);
-            workspace.update_history(cx);
-            workspace
-        })
-    })?;
-
-    let items = window
-        .update(cx, |_, window, cx| {
-            window.activate_window();
-            open_items(serialized_workspace, project_paths_to_open, window, cx)
-        })?
-        .await?;
-
-    workspace.update(cx, |workspace, cx| {
-        for error in project_path_errors {
-            if error.error_code() == proto::ErrorCode::PathDoesNotExist {
-                if let Some(path) = error.error_tag("path") {
-                    workspace.show_error(format!("'{path}' does not exist"), cx)
-                }
-            } else {
-                workspace.show_error(format!("{error}"), cx)
-            }
-        }
-    });
-
-    Ok((workspace, items.into_iter().map(|item| item?.ok()).collect()))
-}
-
-/// Identifies a remote workspace's server connection; stable for the same root
-/// folders so reconnecting reuses the server's state directory.
-fn remote_workspace_connection_id(paths: &[PathBuf]) -> i64 {
-    use std::hash::Hasher as _;
-    let mut hasher = DefaultHasher::new();
-    paths.hash(&mut hasher);
-    (hasher.finish() >> 1).cast_signed()
 }
 
 pub fn reload(cx: &mut App) {
@@ -6363,18 +6121,6 @@ mod tests {
         assert_eq!(window_title("editor", Some("main.rs")), "editor — main.rs");
         assert_eq!(window_title("editor", Some("")), "editor");
         assert_eq!(window_title("editor", None), "editor");
-    }
-
-    #[test]
-    fn test_remote_workspace_connection_id_is_stable_per_paths() {
-        use std::path::PathBuf;
-
-        use super::remote_workspace_connection_id;
-
-        let paths = [PathBuf::from("/srv/a"), PathBuf::from("/srv/b")];
-        assert_eq!(remote_workspace_connection_id(&paths), remote_workspace_connection_id(&paths));
-        assert!(remote_workspace_connection_id(&paths) >= 0);
-        assert_ne!(remote_workspace_connection_id(&paths), remote_workspace_connection_id(&paths[..1]));
     }
 
     #[test]

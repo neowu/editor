@@ -15,8 +15,8 @@ pending review of the overhead.
   app spawned keeps running, detached or after the app quits. Each process is
   charged to a "responsible" process, which is normally the app that spawned it.
 - The likely source here is `~/.ssh/config` with `Host *`, `ControlMaster auto`
-  and `ControlPersist 600`. The first `ssh` that ed runs (git fetch/push/pull,
-  or a remote connection) forks a detached `[mux]` master that lives on for 10
+  and `ControlPersist 600`. The first `ssh` that ed runs (via git
+  fetch/push/pull) forks a detached `[mux]` master that lives on for 10
   minutes, charged to ed. The ed log shows a git remote operation at 10:55:03
   and the background record was updated at 10:56:15.
 - Jobs left running in the integrated terminal (`cmd &`, `nohup`) are charged
@@ -55,16 +55,16 @@ pending review of the overhead.
 - `util::command::new_disclaimed_command`: opt-in. It installs the `pre_exec`
   hook when the command is built (`async-process` has no `pre_exec`), and fills
   the shared exec plan just before spawn. `new_command` is unchanged.
-- Uses of the disclaimed command: `ssh`/`scp`/`sftp` (remote transport and the
-  `path_exists` probe), and git `push`/`pull`/`fetch` via
-  `GitBinary::build_remote_command`.
+- Uses of the disclaimed command: git `push`/`pull`/`fetch` via
+  `GitBinary::build_remote_command` (the branch also covered the ssh remote
+  transport, which has since been removed with remote projects).
 - Terminal: alacritty owns the PTY spawn and its `pre_exec`, so the shell runs
   through the ed binary as `ed --exec-disclaimed <program> <args…>`. `main`
   handles that argument first and re-execs with all signals reset to default,
   because Rust's runtime ignores `SIGPIPE`. With no explicit shell, ed builds
   alacritty's macOS default `login -flp user /bin/zsh -fc "exec -a -<shell>
   <shell>"` itself. The trampoline is registered only by the macOS app, so
-  tests and Linux pass the shell through unchanged.
+  tests pass the shell through unchanged.
 - Spec: `spec/platform.md` gains an "Allow in the Background" bullet.
 
 ## Overhead
@@ -73,7 +73,7 @@ None of this has been measured yet.
 
 - Plain commands (`git status`, LSPs, …): none. They stay on std's
   `posix_spawn` fast path.
-- Disclaimed commands (ssh, git network operations): std must fork, not
+- Disclaimed commands (git network operations): std must fork, not
   `posix_spawn`, because a `pre_exec` hook exists. Forking a large app
   copies its page tables, so expect roughly sub-millisecond to a few ms.
   The second exec in the child is cheap. These operations already take
@@ -87,15 +87,14 @@ None of this has been measured yet.
 
 ## Options to weigh
 
-1. Merge as is: covers ssh, git and the terminal.
+1. Merge as is: covers git (and the ssh it runs) and the terminal.
 2. Cheaper terminal: replace the ed-binary trampoline with a tiny helper
    executable in the bundle (`Contents/MacOS/ed-exec`, just argv →
    `posix_spawn`), which avoids loading AppKit for each terminal.
-3. ssh and git only: drop the terminal part. That removes the per-terminal
+3. git only: drop the terminal part. That removes the per-terminal
    cost but leaves terminal background jobs charged to ed.
-4. No code change: pass `-o ControlPersist=no` to the ssh that ed runs. That
-   fixes the remote-connection mux, but not git (which uses the user's ssh
-   config) or the terminal.
+4. No code change: ed no longer runs ssh itself, so there is no `ssh` command
+   line to add `-o ControlPersist=no` to. git uses the user's ssh config.
 5. Do nothing: switch the Settings toggle off. Background jobs keep running
    either way, and the toggle only controls the listing and notification.
 

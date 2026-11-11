@@ -233,7 +233,7 @@ pub fn deploy_context_menu(
                 .separator()
                 .action_disabled_when(
                     !has_reveal_target,
-                    utils::reveal_in_file_manager_label(false),
+                    utils::reveal_in_file_manager_label(),
                     Box::new(RevealInFileManager),
                 )
                 .when(can_preview, |builder| builder.action("Open Preview", Box::new(OpenPreview)))

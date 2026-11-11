@@ -1,6 +1,3 @@
-use rpc::proto as rpc_proto;
-use rpc::proto as rpc_proto_;
-
 use crate::fallback_highlight;
 mod bracket_ranges;
 pub mod row_chunk;
@@ -27,11 +24,8 @@ use std::time::Duration;
 use std::time::Instant;
 use std::vec;
 
-use anyhow::Context as _;
 use anyhow::Result;
 pub use bracket_ranges::BracketMatch;
-use clock::Lamport;
-pub use clock::ReplicaId;
 use encoding_rs::Encoding;
 use file_content::ByteContent;
 use file_content::decode_byte_header;
@@ -41,7 +35,6 @@ use futures_lite::future::yield_now;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Context;
-use gpui::Entity;
 use gpui::EventEmitter;
 use gpui::HighlightStyle;
 use gpui::SharedString;
@@ -83,9 +76,6 @@ pub use text::ToPointUtf16;
 pub use text::Transaction;
 pub use text::TransactionId;
 pub use text::Unclipped;
-use text::operation_queue;
-use text::operation_queue::OperationQueue;
-use theme::ActiveTheme as _;
 use theme::SyntaxTheme;
 use util::RangeExt;
 use util::rel_path::RelPath;
@@ -112,7 +102,6 @@ use crate::language_settings::AUTO_INDENT;
 use crate::language_settings::AutoIndentMode;
 use crate::language_settings::LanguageSettings;
 use crate::outline::OutlineItem;
-pub use crate::proto;
 use crate::row_chunk::RowChunkId;
 use crate::row_chunk::RowChunks;
 use crate::runnable::RunnableRange;
@@ -128,7 +117,6 @@ use crate::syntax_map::SyntaxSnapshot;
 use crate::syntax_map::ToTreeSitterPoint;
 use crate::syntax_map::flattened_highlight_regions;
 use crate::text_diff::text_diff;
-use crate::unified_diff_with_offsets;
 
 /// Indicate whether a [`Buffer`] has permissions to edit.
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -152,7 +140,6 @@ pub type BufferRow = u32;
 /// syntax trees, git status, and diagnostics.
 pub struct Buffer {
     text: TextBuffer,
-    branch_state: Option<BufferBranchState>,
     /// Filesystem state, `None` when there is no path.
     file: Option<Arc<dyn File>>,
     /// The mtime of the file when this buffer was last loaded from
@@ -178,12 +165,8 @@ pub struct Buffer {
     parse_status: (watch::Sender<ParseStatus>, watch::Receiver<ParseStatus>),
     non_text_state_update_count: usize,
     diagnostics: TreeMap<LanguageServerId, DiagnosticSet>,
-    remote_selections: TreeMap<ReplicaId, SelectionSet>,
-    diagnostics_timestamp: clock::Lamport,
     completion_triggers: BTreeSet<String>,
     completion_triggers_per_language_server: FxHashMap<LanguageServerId, BTreeSet<String>>,
-    completion_triggers_timestamp: clock::Lamport,
-    deferred_ops: OperationQueue<Operation>,
     capability: Capability,
     has_conflict: bool,
     /// Memoize calls to has_changes_since(saved_version).
@@ -236,11 +219,6 @@ pub enum ParseStatus {
     Parsing,
 }
 
-struct BufferBranchState {
-    base_buffer: Entity<Buffer>,
-    merged_operations: Vec<Lamport>,
-}
-
 /// An immutable, cheaply cloneable representation of a fixed
 /// state of a buffer.
 pub struct BufferSnapshot {
@@ -249,7 +227,6 @@ pub struct BufferSnapshot {
     tree_sitter_data: Arc<TreeSitterData>,
     fallback_highlighter: Option<Arc<FallbackHighlighter>>,
     diagnostics: TreeMap<LanguageServerId, DiagnosticSet>,
-    remote_selections: TreeMap<ReplicaId, SelectionSet>,
     language: Option<Arc<Language>>,
     file: Option<Arc<dyn File>>,
     non_text_state_update_count: usize,
@@ -291,84 +268,15 @@ pub enum CursorShape {
     Hollow,
 }
 
-#[derive(Clone, Debug)]
-struct SelectionSet {
-    line_mode: bool,
-    cursor_shape: CursorShape,
-    selections: Arc<[Selection<Anchor>]>,
-    lamport_timestamp: clock::Lamport,
-}
-
-/// An operation used to synchronize this buffer with its other replicas.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Operation {
-    /// A text operation.
-    Buffer(text::Operation),
-
-    /// An update to the buffer's diagnostics.
-    UpdateDiagnostics {
-        /// The id of the language server that produced the new diagnostics.
-        server_id: LanguageServerId,
-        /// The diagnostics.
-        diagnostics: Arc<[DiagnosticEntry<Anchor>]>,
-        /// The buffer's lamport timestamp.
-        lamport_timestamp: clock::Lamport,
-    },
-
-    /// An update to the most recent selections in this buffer.
-    UpdateSelections {
-        /// The selections.
-        selections: Arc<[Selection<Anchor>]>,
-        /// The buffer's lamport timestamp.
-        lamport_timestamp: clock::Lamport,
-        /// Whether the selections are in 'line mode'.
-        line_mode: bool,
-        /// The [`CursorShape`] associated with these selections.
-        cursor_shape: CursorShape,
-    },
-
-    /// An update to the characters that should trigger autocompletion
-    /// for this buffer.
-    UpdateCompletionTriggers {
-        /// The characters that trigger autocompletion.
-        triggers: Vec<String>,
-        /// The buffer's lamport timestamp.
-        lamport_timestamp: clock::Lamport,
-        /// The language server ID.
-        server_id: LanguageServerId,
-    },
-
-    /// An update to the line ending type of this buffer.
-    UpdateLineEnding {
-        /// The line ending type.
-        line_ending: LineEnding,
-        /// The buffer's lamport timestamp.
-        lamport_timestamp: clock::Lamport,
-    },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum BufferEditSource {
-    User,
-    Remote,
-}
-
-impl BufferEditSource {
-    pub const fn is_local(self) -> bool {
-        !matches!(self, Self::Remote)
-    }
-}
-
 /// An event that occurs in a buffer.
 #[derive(Clone, Debug, PartialEq)]
 pub enum BufferEvent {
-    /// The buffer was changed in a way that must be
-    /// propagated to its other replicas.
-    Operation { operation: Operation, is_local: bool },
     /// The buffer was edited.
-    Edited { source: BufferEditSource },
+    Edited,
     /// The buffer's `dirty` bit changed.
     DirtyChanged,
+    /// The buffer's line ending changed.
+    LineEndingChanged,
     /// The buffer was saved.
     Saved,
     /// The buffer's file was changed on disk.
@@ -426,9 +334,6 @@ pub trait File: Send + Sync + Any {
     ///
     /// This is needed for looking up project-specific settings.
     fn worktree_id(&self, cx: &App) -> WorktreeId;
-
-    /// Converts this file into a protobuf message.
-    fn to_proto(&self, cx: &App) -> rpc_proto::File;
 
     fn can_open(&self) -> bool {
         !self.is_local()
@@ -747,166 +652,6 @@ impl HighlightedTextBuilder {
     }
 }
 
-#[derive(Clone)]
-pub struct EditPreview {
-    old_snapshot: text::BufferSnapshot,
-    applied_edits_snapshot: text::BufferSnapshot,
-    syntax_snapshot: SyntaxSnapshot,
-}
-
-impl EditPreview {
-    pub fn unchanged(snapshot: &BufferSnapshot) -> Self {
-        Self {
-            old_snapshot: snapshot.text.clone(),
-            applied_edits_snapshot: snapshot.text.clone(),
-            syntax_snapshot: snapshot.syntax.clone(),
-        }
-    }
-
-    pub fn as_unified_diff(
-        &self,
-        file: Option<&Arc<dyn File>>,
-        edits: &[(Range<Anchor>, impl AsRef<str>)],
-    ) -> Option<String> {
-        let (first, _) = edits.first()?;
-        let (last, _) = edits.last()?;
-
-        let start = first.start.to_point(&self.old_snapshot);
-        let old_end = last.end.to_point(&self.old_snapshot);
-        let new_end = last.end.bias_right(&self.old_snapshot).to_point(&self.applied_edits_snapshot);
-
-        let start = Point::new(start.row.saturating_sub(3), 0);
-        let old_end = Point::new(old_end.row + 4, 0).min(self.old_snapshot.max_point());
-        let new_end = Point::new(new_end.row + 4, 0).min(self.applied_edits_snapshot.max_point());
-
-        let diff_body = unified_diff_with_offsets(
-            &self.old_snapshot.text_for_range(start..old_end).collect::<String>(),
-            &self.applied_edits_snapshot.text_for_range(start..new_end).collect::<String>(),
-            start.row,
-            start.row,
-        );
-
-        let path = file.map(|f| f.path().as_unix_str());
-        let header = match path {
-            Some(p) => format!("--- a/{}\n+++ b/{}\n", p, p),
-            None => String::new(),
-        };
-
-        Some(format!("{}{}", header, diff_body))
-    }
-
-    pub fn highlight_edits(
-        &self,
-        current_snapshot: &BufferSnapshot,
-        edits: &[(Range<Anchor>, impl AsRef<str>)],
-        include_deletions: bool,
-        cx: &App,
-    ) -> HighlightedText {
-        let Some(visible_range_in_preview_snapshot) = self.compute_visible_range(edits) else {
-            return HighlightedText::default();
-        };
-
-        let mut highlighted_text = HighlightedTextBuilder::default();
-
-        let visible_range_in_preview_snapshot =
-            visible_range_in_preview_snapshot.to_offset(&self.applied_edits_snapshot);
-        let mut offset_in_preview_snapshot = visible_range_in_preview_snapshot.start;
-
-        let insertion_highlight_style =
-            HighlightStyle { background_color: Some(cx.theme().status().created_background), ..Default::default() };
-        let deletion_highlight_style =
-            HighlightStyle { background_color: Some(cx.theme().status().deleted_background), ..Default::default() };
-        let syntax_theme = cx.theme().syntax();
-
-        for (range, edit_text) in edits {
-            let edit_new_end_in_preview_snapshot =
-                range.end.bias_right(&self.old_snapshot).to_offset(&self.applied_edits_snapshot);
-            let edit_start_in_preview_snapshot = edit_new_end_in_preview_snapshot - edit_text.as_ref().len();
-
-            let unchanged_range_in_preview_snapshot = offset_in_preview_snapshot..edit_start_in_preview_snapshot;
-            if !unchanged_range_in_preview_snapshot.is_empty() {
-                highlighted_text.add_text_from_buffer_range(
-                    unchanged_range_in_preview_snapshot,
-                    &self.applied_edits_snapshot,
-                    &self.syntax_snapshot,
-                    None,
-                    syntax_theme,
-                );
-            }
-
-            let range_in_current_snapshot = range.to_offset(current_snapshot);
-            if include_deletions && !range_in_current_snapshot.is_empty() {
-                highlighted_text.add_text_from_buffer_range(
-                    range_in_current_snapshot,
-                    &current_snapshot.text,
-                    &current_snapshot.syntax,
-                    Some(deletion_highlight_style),
-                    syntax_theme,
-                );
-            }
-
-            if !edit_text.as_ref().is_empty() {
-                highlighted_text.add_text_from_buffer_range(
-                    edit_start_in_preview_snapshot..edit_new_end_in_preview_snapshot,
-                    &self.applied_edits_snapshot,
-                    &self.syntax_snapshot,
-                    Some(insertion_highlight_style),
-                    syntax_theme,
-                );
-            }
-
-            offset_in_preview_snapshot = edit_new_end_in_preview_snapshot;
-        }
-
-        highlighted_text.add_text_from_buffer_range(
-            offset_in_preview_snapshot..visible_range_in_preview_snapshot.end,
-            &self.applied_edits_snapshot,
-            &self.syntax_snapshot,
-            None,
-            syntax_theme,
-        );
-
-        highlighted_text.build()
-    }
-
-    pub fn build_result_buffer(&self, cx: &mut App) -> Entity<Buffer> {
-        cx.new(|cx| {
-            let mut buffer = Buffer::local_normalized(
-                self.applied_edits_snapshot.as_rope().clone(),
-                self.applied_edits_snapshot.line_ending(),
-                cx,
-            );
-            buffer.set_language_async(self.syntax_snapshot.root_language(), cx);
-            buffer
-        })
-    }
-
-    pub const fn result_text_snapshot(&self) -> &text::BufferSnapshot {
-        &self.applied_edits_snapshot
-    }
-
-    pub const fn result_syntax_snapshot(&self) -> &SyntaxSnapshot {
-        &self.syntax_snapshot
-    }
-
-    pub fn anchor_to_offset_in_result(&self, anchor: Anchor) -> usize {
-        anchor.bias_right(&self.old_snapshot).to_offset(&self.applied_edits_snapshot)
-    }
-
-    pub fn compute_visible_range<T>(&self, edits: &[(Range<Anchor>, T)]) -> Option<Range<Point>> {
-        let (first, _) = edits.first()?;
-        let (last, _) = edits.last()?;
-
-        let start = first.start.bias_left(&self.old_snapshot).to_point(&self.applied_edits_snapshot);
-        let end = last.end.bias_right(&self.old_snapshot).to_point(&self.applied_edits_snapshot);
-
-        // Ensure that the first line of the first edit and the last line of the last edit are always fully visible
-        let range = Point::new(start.row, 0)..Point::new(end.row, self.applied_edits_snapshot.line_len(end.row));
-
-        Some(range)
-    }
-}
-
 /// Which pre-existing line to exclude from auto-indentation when inserting
 /// text.
 #[derive(Clone, Copy, Debug)]
@@ -921,7 +666,7 @@ impl Buffer {
     /// Create a new buffer with the given base text.
     pub fn local<T: Into<String>>(base_text: T, cx: &mut Context<Self>) -> Self {
         Self::build(
-            TextBuffer::new(ReplicaId::LOCAL, cx.entity_id().as_non_zero_u64().into(), base_text.into()),
+            TextBuffer::new(cx.entity_id().as_non_zero_u64().into(), base_text.into()),
             None,
             Capability::ReadWrite,
             cx,
@@ -931,103 +676,11 @@ impl Buffer {
     /// Create a new buffer with the given base text that has proper line endings and other normalization applied.
     pub fn local_normalized(base_text_normalized: Rope, line_ending: LineEnding, cx: &mut Context<Self>) -> Self {
         Self::build(
-            TextBuffer::new_normalized(
-                ReplicaId::LOCAL,
-                cx.entity_id().as_non_zero_u64().into(),
-                line_ending,
-                base_text_normalized,
-            ),
+            TextBuffer::new_normalized(cx.entity_id().as_non_zero_u64().into(), line_ending, base_text_normalized),
             None,
             Capability::ReadWrite,
             cx,
         )
-    }
-
-    /// Create a new buffer that is a replica of a remote buffer.
-    pub fn remote(
-        remote_id: BufferId,
-        replica_id: ReplicaId,
-        capability: Capability,
-        base_text: impl Into<String>,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        Self::build(TextBuffer::new(replica_id, remote_id, base_text.into()), None, capability, cx)
-    }
-
-    /// Create a new buffer that is a replica of a remote buffer, populating its
-    /// state from the given protobuf message.
-    pub fn from_proto(
-        replica_id: ReplicaId,
-        capability: Capability,
-        message: proto::BufferState,
-        file: Option<Arc<dyn File>>,
-        cx: &mut Context<Self>,
-    ) -> Result<Self> {
-        let buffer_id = BufferId::new(message.id).context("Could not deserialize buffer_id")?;
-        let buffer = TextBuffer::new(replica_id, buffer_id, message.base_text);
-        let mut this = Self::build(buffer, file, capability, cx);
-        this.text.set_line_ending(proto::deserialize_line_ending(
-            rpc_proto_::LineEnding::try_from(message.line_ending).ok().context("missing line_ending")?,
-        ));
-        this.saved_version = proto::deserialize_version(&message.saved_version);
-        this.saved_mtime = message.saved_mtime.map(|time| time.into());
-        Ok(this)
-    }
-
-    /// Serialize the buffer's state to a protobuf message.
-    pub fn to_proto(&self, cx: &App) -> proto::BufferState {
-        proto::BufferState {
-            id: self.remote_id().into(),
-            file: self.file.as_ref().map(|f| f.to_proto(cx)),
-            base_text: self.base_text().to_string(),
-            line_ending: proto::serialize_line_ending(self.line_ending()) as i32,
-            saved_version: proto::serialize_version(&self.saved_version),
-            saved_mtime: self.saved_mtime.map(|time| time.into()),
-        }
-    }
-
-    /// Serialize as protobufs all of the changes to the buffer since the given version.
-    pub fn serialize_ops(&self, since: Option<clock::Global>, cx: &App) -> Task<Vec<proto::Operation>> {
-        let mut operations = Vec::new();
-        operations.extend(self.deferred_ops.iter().map(proto::serialize_operation));
-
-        operations.extend(self.remote_selections.iter().map(|(_, set)| {
-            proto::serialize_operation(&Operation::UpdateSelections {
-                selections: set.selections.clone(),
-                lamport_timestamp: set.lamport_timestamp,
-                line_mode: set.line_mode,
-                cursor_shape: set.cursor_shape,
-            })
-        }));
-
-        for (server_id, diagnostics) in self.diagnostics.iter() {
-            operations.push(proto::serialize_operation(&Operation::UpdateDiagnostics {
-                lamport_timestamp: self.diagnostics_timestamp,
-                server_id: *server_id,
-                diagnostics: diagnostics.iter().cloned().collect(),
-            }));
-        }
-
-        for (server_id, completions) in &self.completion_triggers_per_language_server {
-            operations.push(proto::serialize_operation(&Operation::UpdateCompletionTriggers {
-                triggers: completions.iter().cloned().collect(),
-                lamport_timestamp: self.completion_triggers_timestamp,
-                server_id: *server_id,
-            }));
-        }
-
-        let text_operations = self.text.operations().clone();
-        cx.background_spawn(async move {
-            let since = since.unwrap_or_default();
-            operations.extend(
-                text_operations
-                    .iter()
-                    .filter(|(_, op)| !since.observed(op.timestamp()))
-                    .map(|(_, op)| proto::serialize_operation(&Operation::Buffer(op.clone()))),
-            );
-            operations.sort_unstable_by_key(proto::lamport_timestamp_for_operation);
-            operations
-        })
     }
 
     /// Assign a language to the buffer, returning the buffer.
@@ -1075,7 +728,6 @@ impl Buffer {
             was_dirty_before_starting_transaction: None,
             has_unsaved_edits: Cell::new((buffer.version(), false)),
             text: buffer,
-            branch_state: None,
             file,
             capability,
             syntax_map,
@@ -1088,13 +740,9 @@ impl Buffer {
             wait_for_autoindent_txs: Vec::default(),
             pending_autoindent: Option::default(),
             language: None,
-            remote_selections: TreeMap::default(),
             diagnostics: TreeMap::default(),
-            diagnostics_timestamp: Lamport::MIN,
             completion_triggers: BTreeSet::default(),
             completion_triggers_per_language_server: FxHashMap::default(),
-            completion_triggers_timestamp: Lamport::MIN,
-            deferred_ops: OperationQueue::new(),
             has_conflict: false,
             change_bits: Vec::default(),
             _subscriptions: Vec::new(),
@@ -1130,7 +778,7 @@ impl Buffer {
     pub fn build_empty_snapshot(cx: &mut App) -> BufferSnapshot {
         let entity_id = cx.reserve_entity::<Self>().entity_id();
         let buffer_id = entity_id.as_non_zero_u64().into();
-        let text = TextBuffer::new_normalized(ReplicaId::LOCAL, buffer_id, LineEnding::default(), Rope::new());
+        let text = TextBuffer::new_normalized(buffer_id, LineEnding::default(), Rope::new());
         let text = text.into_snapshot();
         let syntax = SyntaxMap::new(&text).snapshot();
         let tree_sitter_data = TreeSitterData::new(&text);
@@ -1141,7 +789,6 @@ impl Buffer {
             fallback_highlighter: None,
             file: None,
             diagnostics: TreeMap::default(),
-            remote_selections: TreeMap::default(),
             language: None,
             non_text_state_update_count: 0,
             capability: Capability::ReadOnly,
@@ -1172,128 +819,11 @@ impl Buffer {
             tree_sitter_data,
             fallback_highlighter: self.fallback_highlighter.clone(),
             file: self.file.clone(),
-            remote_selections: self.remote_selections.clone(),
             diagnostics: self.diagnostics.clone(),
             language: self.language.clone(),
             non_text_state_update_count: self.non_text_state_update_count,
             capability: self.capability,
             resolved_settings: self.resolved_settings.clone(),
-        }
-    }
-
-    pub fn branch(&mut self, cx: &mut Context<Self>) -> Entity<Self> {
-        let this = cx.entity();
-        cx.new(|cx| {
-            let mut branch = Self {
-                branch_state: Some(BufferBranchState { base_buffer: this.clone(), merged_operations: Vec::default() }),
-                language: self.language.clone(),
-                has_conflict: self.has_conflict,
-                has_unsaved_edits: Cell::new(self.has_unsaved_edits.get_mut().clone()),
-                _subscriptions: vec![cx.subscribe(&this, Self::on_base_buffer_event)],
-                ..Self::build(self.text.branch(), self.file.clone(), self.capability(), cx)
-            };
-            if let Some(language_registry) = self.language_registry() {
-                branch.set_language_registry(language_registry);
-            }
-            branch.refresh_fallback_highlighter(cx);
-
-            // Reparse the branch buffer so that we get syntax highlighting immediately.
-            branch.reparse(cx, true);
-
-            branch
-        })
-    }
-
-    pub fn preview_edits(&self, edits: Arc<[(Range<Anchor>, Arc<str>)]>, cx: &App) -> Task<EditPreview> {
-        let registry = self.language_registry();
-        let language = self.language().cloned();
-        let old_snapshot = self.text.snapshot().clone();
-        let mut branch_buffer = self.text.branch();
-        let mut syntax_snapshot = self.syntax_map.lock().snapshot();
-        let file = self.file.clone();
-        cx.background_spawn(async move {
-            if !edits.is_empty() {
-                if let Some(language) = language.clone() {
-                    syntax_snapshot.reparse(&old_snapshot, file.as_deref(), registry.clone(), language);
-                }
-
-                branch_buffer.edit(edits.iter().cloned());
-                let snapshot = branch_buffer.snapshot();
-                syntax_snapshot.interpolate(snapshot);
-
-                if let Some(language) = language {
-                    syntax_snapshot.reparse(snapshot, file.as_deref(), registry, language);
-                }
-            }
-            EditPreview { old_snapshot, applied_edits_snapshot: branch_buffer.into_snapshot(), syntax_snapshot }
-        })
-    }
-
-    /// Applies all of the changes in this buffer that intersect any of the
-    /// given `ranges` to its base buffer.
-    ///
-    /// If `ranges` is empty, then all changes will be applied. This buffer must
-    /// be a branch buffer to call this method.
-    pub fn merge_into_base(&mut self, ranges: Vec<Range<usize>>, cx: &mut Context<Self>) {
-        let Some(base_buffer) = self.base_buffer() else {
-            log::error!("not a branch buffer");
-            return;
-        };
-
-        let mut ranges = if ranges.is_empty() { &[0..usize::MAX] } else { ranges.as_slice() }.iter().peekable();
-
-        let mut edits = Vec::new();
-        for edit in self.edits_since::<usize>(&base_buffer.read(cx).version()) {
-            let mut is_included = false;
-            while let Some(range) = ranges.peek() {
-                if range.end < edit.new.start {
-                    ranges.next().unwrap();
-                } else {
-                    if range.start <= edit.new.end {
-                        is_included = true;
-                    }
-                    break;
-                }
-            }
-
-            if is_included {
-                edits.push((edit.old.clone(), self.text_for_range(edit.new.clone()).collect::<String>()));
-            }
-        }
-
-        let operation = base_buffer.update(cx, |base_buffer, cx| {
-            // cx.emit(BufferEvent::DiffBaseChanged);
-            base_buffer.edit(edits, None, cx)
-        });
-
-        if let Some(operation) = operation
-            && let Some(BufferBranchState { merged_operations, .. }) = &mut self.branch_state
-        {
-            merged_operations.push(operation);
-        }
-    }
-
-    fn on_base_buffer_event(&mut self, _: Entity<Buffer>, event: &BufferEvent, cx: &mut Context<Self>) {
-        let BufferEvent::Operation { operation, .. } = event else {
-            return;
-        };
-        let Some(BufferBranchState { merged_operations, .. }) = &mut self.branch_state else {
-            return;
-        };
-
-        let mut operation_to_undo = None;
-        if let Operation::Buffer(text::Operation::Edit(operation)) = &operation
-            && let Ok(ix) = merged_operations.binary_search(&operation.timestamp)
-        {
-            merged_operations.remove(ix);
-            operation_to_undo = Some(operation.timestamp);
-        }
-
-        self.apply_ops([operation.clone()], cx);
-
-        if let Some(timestamp) = operation_to_undo {
-            let counts = [(timestamp, u32::MAX)].into_iter().collect();
-            self.undo_operations(counts, cx);
         }
     }
 
@@ -1414,9 +944,8 @@ impl Buffer {
     /// Assign the line ending type to the buffer.
     pub fn set_line_ending(&mut self, line_ending: LineEnding, cx: &mut Context<Self>) {
         self.text.set_line_ending(line_ending);
-
-        let lamport_timestamp = self.text.lamport_clock.tick();
-        self.send_operation(Operation::UpdateLineEnding { line_ending, lamport_timestamp }, true, cx);
+        self.was_changed();
+        cx.emit(BufferEvent::LineEndingChanged);
     }
 
     /// Assign the buffer a new [`Capability`].
@@ -1579,7 +1108,6 @@ impl Buffer {
                 matches!(old_file.disk_state(), DiskState::Present { .. }),
                 new_file.disk_state() == DiskState::Deleted,
                 was_dirty,
-                new_file.is_local(),
             )
         });
         self.file = Some(new_file);
@@ -1602,10 +1130,6 @@ impl Buffer {
             cx.emit(BufferEvent::FileHandleChanged);
             cx.notify();
         }
-    }
-
-    pub fn base_buffer(&self) -> Option<Entity<Self>> {
-        Some(self.branch_state.as_ref()?.base_buffer.clone())
     }
 
     /// Returns the name of the syntax used for fallback highlighting, if this
@@ -1848,15 +1372,15 @@ impl Buffer {
         diagnostics: DiagnosticSet,
         cx: &mut Context<Self>,
     ) {
-        let lamport_timestamp = self.text.lamport_clock.tick();
-        let op = Operation::UpdateDiagnostics {
-            server_id,
-            diagnostics: diagnostics.iter().cloned().collect(),
-            lamport_timestamp,
-        };
-
-        self.apply_diagnostic_update(server_id, diagnostics, lamport_timestamp, cx);
-        self.send_operation(op, true, cx);
+        if diagnostics.is_empty() {
+            self.diagnostics.remove(&server_id);
+        } else {
+            self.diagnostics.insert(server_id, diagnostics);
+        }
+        self.non_text_state_update_count += 1;
+        self.was_changed();
+        cx.notify();
+        cx.emit(BufferEvent::DiagnosticsUpdated);
     }
 
     pub fn buffer_diagnostics(&self, for_server: Option<LanguageServerId>) -> Vec<&DiagnosticEntry<Anchor>> {
@@ -2311,27 +1835,14 @@ impl Buffer {
         self.end_transaction_at(Instant::now(), cx)
     }
 
-    pub fn end_transaction_with_source(
-        &mut self,
-        source: BufferEditSource,
-        cx: &mut Context<Self>,
-    ) -> Option<TransactionId> {
-        self.end_transaction_at_internal(Instant::now(), source, cx)
-    }
-
     /// Terminates the current transaction, providing the current time. Subsequent transactions
     /// that occur within a short period of time will be grouped together. This
     /// is controlled by the buffer's undo grouping duration.
     pub fn end_transaction_at(&mut self, now: Instant, cx: &mut Context<Self>) -> Option<TransactionId> {
-        self.end_transaction_at_internal(now, BufferEditSource::User, cx)
+        self.end_transaction_at_internal(now, cx)
     }
 
-    fn end_transaction_at_internal(
-        &mut self,
-        now: Instant,
-        source: BufferEditSource,
-        cx: &mut Context<Self>,
-    ) -> Option<TransactionId> {
+    fn end_transaction_at_internal(&mut self, now: Instant, cx: &mut Context<Self>) -> Option<TransactionId> {
         assert!(self.transaction_depth > 0);
         self.transaction_depth -= 1;
         let was_dirty = if self.transaction_depth == 0 {
@@ -2340,7 +1851,7 @@ impl Buffer {
             false
         };
         if let Some((transaction_id, start_version)) = self.text.end_transaction_at(now) {
-            self.did_edit(&start_version, was_dirty, source, cx);
+            self.did_edit(&start_version, was_dirty, cx);
             Some(transaction_id)
         } else {
             None
@@ -2393,33 +1904,6 @@ impl Buffer {
         self.text.merge_transactions(transaction, destination);
     }
 
-    /// Waits for the buffer to receive operations with the given timestamps.
-    pub fn wait_for_edits<It: IntoIterator<Item = clock::Lamport>>(
-        &mut self,
-        edit_ids: It,
-    ) -> impl Future<Output = Result<()>> + use<It> {
-        self.text.wait_for_edits(edit_ids)
-    }
-
-    /// Waits for the buffer to receive the operations necessary for resolving the given anchors.
-    pub fn wait_for_anchors<It: IntoIterator<Item = Anchor>>(
-        &mut self,
-        anchors: It,
-    ) -> impl 'static + Future<Output = Result<()>> + use<It> {
-        self.text.wait_for_anchors(anchors)
-    }
-
-    /// Waits for the buffer to receive operations up to the given version.
-    pub fn wait_for_version(&mut self, version: clock::Global) -> impl Future<Output = Result<()>> + use<> {
-        self.text.wait_for_version(version)
-    }
-
-    /// Forces all futures returned by [`Buffer::wait_for_version`], [`Buffer::wait_for_edits`], or
-    /// [`Buffer::wait_for_version`] to resolve with an error.
-    pub fn give_up_waiting(&mut self) {
-        self.text.give_up_waiting();
-    }
-
     /// Resolves with the id of the edit that applied the pending autoindent, if it changed anything.
     pub fn wait_for_autoindent_applied(&mut self) -> Option<oneshot::Receiver<Option<clock::Lamport>>> {
         let mut rx = None;
@@ -2429,36 +1913,6 @@ impl Buffer {
             rx = Some(channel.1);
         }
         rx
-    }
-
-    /// Stores a set of selections that should be broadcasted to all of the buffer's replicas.
-    pub fn set_active_selections(
-        &mut self,
-        selections: Arc<[Selection<Anchor>]>,
-        line_mode: bool,
-        cursor_shape: CursorShape,
-        cx: &mut Context<Self>,
-    ) {
-        let lamport_timestamp = self.text.lamport_clock.tick();
-        self.remote_selections.insert(
-            self.text.replica_id(),
-            SelectionSet { selections: selections.clone(), lamport_timestamp, line_mode, cursor_shape },
-        );
-        self.send_operation(
-            Operation::UpdateSelections { selections, line_mode, lamport_timestamp, cursor_shape },
-            true,
-            cx,
-        );
-        self.non_text_state_update_count += 1;
-        cx.notify();
-    }
-
-    /// Clears the selections, so that other replicas of the buffer do not see any selections for
-    /// this replica.
-    pub fn remove_active_selections(&mut self, cx: &mut Context<Self>) {
-        if self.remote_selections.get(&self.text.replica_id()).is_none_or(|set| !set.selections.is_empty()) {
-            self.set_active_selections(Arc::default(), false, CursorShape::default(), cx);
-        }
     }
 
     /// Replaces the buffer's entire text.
@@ -2582,17 +2036,16 @@ impl Buffer {
             .filter(|_| autoindents_edits(self.language.is_some(), self.parse_deferred))
             .map(|mode| (self.snapshot(), mode));
 
-        let edit_operation = self.text.edit(edits.iter().cloned());
-        let edit_id = edit_operation.timestamp();
+        let edit_id = self.text.edit(edits.iter().cloned());
 
         if let Some((before_edit, mode)) = autoindent_request {
             let mut delta = 0isize;
             let entries: Vec<_> = edits
                 .into_iter()
                 .enumerate()
-                .zip(&edit_operation.as_edit().unwrap().new_text)
                 .filter(|_| AUTO_INDENT == AutoIndentMode::SyntaxAware)
-                .map(|((ix, (range, _)), new_text)| {
+                .map(|(ix, (range, new_text))| {
+                    let new_text = LineEnding::normalize_arc(new_text);
                     let new_text_length = new_text.len();
                     let old_start = range.start.to_point(&before_edit);
                     let old_end = range.end.to_point(&before_edit);
@@ -2674,17 +2127,11 @@ impl Buffer {
         }
 
         self.end_transaction(cx);
-        self.send_operation(Operation::Buffer(edit_operation), true, cx);
+        self.was_changed();
         Some(edit_id)
     }
 
-    fn did_edit(
-        &mut self,
-        old_version: &clock::Global,
-        was_dirty: bool,
-        source: BufferEditSource,
-        cx: &mut Context<Self>,
-    ) {
+    fn did_edit(&mut self, old_version: &clock::Global, was_dirty: bool, cx: &mut Context<Self>) {
         self.was_changed();
 
         if self.edits_since::<usize>(old_version).next().is_none() {
@@ -2693,7 +2140,7 @@ impl Buffer {
 
         self.pending_autoindent.take();
         self.reparse(cx, true);
-        cx.emit(BufferEvent::Edited { source });
+        cx.emit(BufferEvent::Edited);
         let is_dirty = self.is_dirty();
         if was_dirty != is_dirty {
             cx.emit(BufferEvent::DirtyChanged);
@@ -2771,153 +2218,13 @@ impl Buffer {
         position
     }
 
-    /// Applies the given remote operations to the buffer.
-    pub fn apply_ops<I: IntoIterator<Item = Operation>>(&mut self, ops: I, cx: &mut Context<Self>) {
-        self.pending_autoindent.take();
-        let was_dirty = self.is_dirty();
-        let old_version = self.version.clone();
-        let mut deferred_ops = Vec::new();
-        let buffer_ops = ops
-            .into_iter()
-            .filter_map(|op| match op {
-                Operation::Buffer(op) => Some(op),
-                _ => {
-                    if self.can_apply_op(&op) {
-                        self.apply_op(op, cx);
-                    } else {
-                        deferred_ops.push(op);
-                    }
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-        for operation in &buffer_ops {
-            self.send_operation(Operation::Buffer(operation.clone()), false, cx);
-        }
-        self.text.apply_ops(buffer_ops);
-        self.deferred_ops.insert(deferred_ops);
-        self.flush_deferred_ops(cx);
-        self.did_edit(&old_version, was_dirty, BufferEditSource::Remote, cx);
-        // Notify independently of whether the buffer was edited as the operations could include a
-        // selection update.
-        cx.notify();
-    }
-
-    fn flush_deferred_ops(&mut self, cx: &mut Context<Self>) {
-        let mut deferred_ops = Vec::new();
-        for op in self.deferred_ops.drain().iter().cloned() {
-            if self.can_apply_op(&op) {
-                self.apply_op(op, cx);
-            } else {
-                deferred_ops.push(op);
-            }
-        }
-        self.deferred_ops.insert(deferred_ops);
-    }
-
-    pub fn has_deferred_ops(&self) -> bool {
-        !self.deferred_ops.is_empty() || self.text.has_deferred_ops()
-    }
-
-    fn can_apply_op(&self, operation: &Operation) -> bool {
-        match operation {
-            Operation::Buffer(_) => {
-                unreachable!("buffer operations should never be applied at this layer")
-            }
-            Operation::UpdateDiagnostics { diagnostics: diagnostic_set, .. } => {
-                diagnostic_set.iter().all(|diagnostic| {
-                    self.text.can_resolve(&diagnostic.range.start) && self.text.can_resolve(&diagnostic.range.end)
-                })
-            }
-            Operation::UpdateSelections { selections, .. } => {
-                selections.iter().all(|s| self.can_resolve(&s.start) && self.can_resolve(&s.end))
-            }
-            Operation::UpdateCompletionTriggers { .. } | Operation::UpdateLineEnding { .. } => true,
-        }
-    }
-
-    fn apply_op(&mut self, operation: Operation, cx: &mut Context<Self>) {
-        match operation {
-            Operation::Buffer(_) => {
-                unreachable!("buffer operations should never be applied at this layer")
-            }
-            Operation::UpdateDiagnostics { server_id, diagnostics: diagnostic_set, lamport_timestamp } => {
-                let snapshot = self.snapshot();
-                self.apply_diagnostic_update(
-                    server_id,
-                    DiagnosticSet::from_sorted_entries(diagnostic_set.iter().cloned(), &snapshot),
-                    lamport_timestamp,
-                    cx,
-                );
-            }
-            Operation::UpdateSelections { selections, lamport_timestamp, line_mode, cursor_shape } => {
-                if let Some(set) = self.remote_selections.get(&lamport_timestamp.replica_id)
-                    && set.lamport_timestamp > lamport_timestamp
-                {
-                    return;
-                }
-
-                self.remote_selections.insert(
-                    lamport_timestamp.replica_id,
-                    SelectionSet { selections, lamport_timestamp, line_mode, cursor_shape },
-                );
-                self.text.lamport_clock.observe(lamport_timestamp);
-                self.non_text_state_update_count += 1;
-            }
-            Operation::UpdateCompletionTriggers { triggers, lamport_timestamp, server_id } => {
-                if triggers.is_empty() {
-                    self.completion_triggers_per_language_server.remove(&server_id);
-                } else {
-                    self.completion_triggers_per_language_server.insert(server_id, triggers.into_iter().collect());
-                }
-                self.completion_triggers = self
-                    .completion_triggers_per_language_server
-                    .values()
-                    .flat_map(|triggers| triggers.iter().cloned())
-                    .collect();
-                self.text.lamport_clock.observe(lamport_timestamp);
-            }
-            Operation::UpdateLineEnding { line_ending, lamport_timestamp } => {
-                self.text.set_line_ending(line_ending);
-                self.text.lamport_clock.observe(lamport_timestamp);
-            }
-        }
-    }
-
-    fn apply_diagnostic_update(
-        &mut self,
-        server_id: LanguageServerId,
-        diagnostics: DiagnosticSet,
-        lamport_timestamp: clock::Lamport,
-        cx: &mut Context<Self>,
-    ) {
-        if lamport_timestamp > self.diagnostics_timestamp {
-            if diagnostics.is_empty() {
-                self.diagnostics.remove(&server_id);
-            } else {
-                self.diagnostics.insert(server_id, diagnostics);
-            }
-            self.diagnostics_timestamp = lamport_timestamp;
-            self.non_text_state_update_count += 1;
-            self.text.lamport_clock.observe(lamport_timestamp);
-            cx.notify();
-            cx.emit(BufferEvent::DiagnosticsUpdated);
-        }
-    }
-
-    fn send_operation(&mut self, operation: Operation, is_local: bool, cx: &mut Context<Self>) {
-        self.was_changed();
-        cx.emit(BufferEvent::Operation { operation, is_local });
-    }
-
     /// Undoes the most recent transaction.
     pub fn undo(&mut self, cx: &mut Context<Self>) -> Option<TransactionId> {
         let was_dirty = self.is_dirty();
         let old_version = self.version.clone();
 
-        if let Some((transaction_id, operation)) = self.text.undo() {
-            self.send_operation(Operation::Buffer(operation), true, cx);
-            self.did_edit(&old_version, was_dirty, BufferEditSource::User, cx);
+        if let Some(transaction_id) = self.text.undo() {
+            self.did_edit(&old_version, was_dirty, cx);
             self.restore_encoding_for_transaction(transaction_id, was_dirty);
             Some(transaction_id)
         } else {
@@ -2929,13 +2236,11 @@ impl Buffer {
     pub fn undo_transaction(&mut self, transaction_id: TransactionId, cx: &mut Context<Self>) -> bool {
         let was_dirty = self.is_dirty();
         let old_version = self.version.clone();
-        if let Some(operation) = self.text.undo_transaction(transaction_id) {
-            self.send_operation(Operation::Buffer(operation), true, cx);
-            self.did_edit(&old_version, was_dirty, BufferEditSource::User, cx);
-            true
-        } else {
-            false
+        let undone = self.text.undo_transaction(transaction_id);
+        if undone {
+            self.did_edit(&old_version, was_dirty, cx);
         }
+        undone
     }
 
     /// Manually undoes all changes after a given transaction in the buffer's undo history.
@@ -2943,23 +2248,11 @@ impl Buffer {
         let was_dirty = self.is_dirty();
         let old_version = self.version.clone();
 
-        let operations = self.text.undo_to_transaction(transaction_id);
-        let undone = !operations.is_empty();
-        for operation in operations {
-            self.send_operation(Operation::Buffer(operation), true, cx);
-        }
+        let undone = self.text.undo_to_transaction(transaction_id);
         if undone {
-            self.did_edit(&old_version, was_dirty, BufferEditSource::User, cx)
+            self.did_edit(&old_version, was_dirty, cx)
         }
         undone
-    }
-
-    pub fn undo_operations(&mut self, counts: FxHashMap<Lamport, u32>, cx: &mut Context<Buffer>) {
-        let was_dirty = self.is_dirty();
-        let old_version = self.version.clone();
-        let operation = self.text.undo_operations(counts);
-        self.send_operation(Operation::Buffer(operation), true, cx);
-        self.did_edit(&old_version, was_dirty, BufferEditSource::User, cx);
     }
 
     /// Manually redoes a specific transaction in the buffer's redo history.
@@ -2967,9 +2260,8 @@ impl Buffer {
         let was_dirty = self.is_dirty();
         let old_version = self.version.clone();
 
-        if let Some((transaction_id, operation)) = self.text.redo() {
-            self.send_operation(Operation::Buffer(operation), true, cx);
-            self.did_edit(&old_version, was_dirty, BufferEditSource::User, cx);
+        if let Some(transaction_id) = self.text.redo() {
+            self.did_edit(&old_version, was_dirty, cx);
             self.restore_encoding_for_transaction(transaction_id, was_dirty);
             Some(transaction_id)
         } else {
@@ -2996,13 +2288,9 @@ impl Buffer {
         let was_dirty = self.is_dirty();
         let old_version = self.version.clone();
 
-        let operations = self.text.redo_to_transaction(transaction_id);
-        let redone = !operations.is_empty();
-        for operation in operations {
-            self.send_operation(Operation::Buffer(operation), true, cx);
-        }
+        let redone = self.text.redo_to_transaction(transaction_id);
         if redone {
-            self.did_edit(&old_version, was_dirty, BufferEditSource::User, cx)
+            self.did_edit(&old_version, was_dirty, cx)
         }
         redone
     }
@@ -3014,26 +2302,17 @@ impl Buffer {
         triggers: BTreeSet<String>,
         cx: &mut Context<Self>,
     ) {
-        self.completion_triggers_timestamp = self.text.lamport_clock.tick();
         if triggers.is_empty() {
             self.completion_triggers_per_language_server.remove(&server_id);
         } else {
-            self.completion_triggers_per_language_server.insert(server_id, triggers.clone());
+            self.completion_triggers_per_language_server.insert(server_id, triggers);
         }
         self.completion_triggers = self
             .completion_triggers_per_language_server
             .values()
             .flat_map(|triggers| triggers.iter().cloned())
             .collect();
-        self.send_operation(
-            Operation::UpdateCompletionTriggers {
-                triggers: triggers.into_iter().collect(),
-                lamport_timestamp: self.completion_triggers_timestamp,
-                server_id,
-            },
-            true,
-            cx,
-        );
+        self.was_changed();
         cx.notify();
     }
 
@@ -3099,10 +2378,10 @@ impl Buffer {
             self.reparse = None;
             self.did_finish_parsing(edited.snapshot.syntax, None, false, cx);
             if did_edit {
-                cx.emit(BufferEvent::Edited { source: BufferEditSource::User });
+                cx.emit(BufferEvent::Edited);
             }
         } else {
-            self.did_edit(&base_version, false, BufferEditSource::User, cx);
+            self.did_edit(&base_version, false, cx);
         }
     }
 }
@@ -4520,36 +3799,6 @@ impl BufferSnapshot {
         runnable::runnable_ranges(self, offset_range)
     }
 
-    /// Returns selections for remote peers intersecting the given range.
-    #[allow(clippy::type_complexity)]
-    pub fn selections_in_range(
-        &self,
-        range: Range<Anchor>,
-        include_local: bool,
-    ) -> impl Iterator<Item = (ReplicaId, bool, CursorShape, impl Iterator<Item = &Selection<Anchor>> + '_)> + '_ {
-        self.remote_selections
-            .iter()
-            .filter(move |(replica_id, set)| {
-                (include_local || **replica_id != self.text.replica_id()) && !set.selections.is_empty()
-            })
-            .map(move |(replica_id, set)| {
-                let start_ix = match set
-                    .selections
-                    .binary_search_by(|probe| probe.end.cmp(&range.start, self).then(Ordering::Greater))
-                {
-                    Ok(ix) | Err(ix) => ix,
-                };
-                let end_ix = match set
-                    .selections
-                    .binary_search_by(|probe| probe.start.cmp(&range.end, self).then(Ordering::Less))
-                {
-                    Ok(ix) | Err(ix) => ix,
-                };
-
-                (*replica_id, set.line_mode, set.cursor_shape, set.selections[start_ix..end_ix].iter())
-            })
-    }
-
     /// Returns if the buffer contains any diagnostics.
     pub fn has_diagnostics(&self) -> bool {
         !self.diagnostics.is_empty()
@@ -4761,10 +4010,9 @@ const fn autoindents_edits(has_language: bool, parse_deferred: bool) -> bool {
 }
 
 /// Whether a buffer empties itself when its file changes on disk: a clean
-/// local buffer follows its file's deletion (`was_present` and now
-/// `is_deleted`). Remote replicas get the emptying from the host's edit.
-const fn clears_on_file_deletion(was_present: bool, is_deleted: bool, was_dirty: bool, is_local: bool) -> bool {
-    was_present && is_deleted && !was_dirty && is_local
+/// buffer follows its file's deletion (`was_present` and now `is_deleted`).
+const fn clears_on_file_deletion(was_present: bool, is_deleted: bool, was_dirty: bool) -> bool {
+    was_present && is_deleted && !was_dirty
 }
 
 fn indent_size_for_line(text: &text::BufferSnapshot, row: u32) -> IndentSize {
@@ -4793,7 +4041,6 @@ impl Clone for BufferSnapshot {
             text: self.text.clone(),
             syntax: self.syntax.clone(),
             file: self.file.clone(),
-            remote_selections: self.remote_selections.clone(),
             diagnostics: self.diagnostics.clone(),
             language: self.language.clone(),
             tree_sitter_data: self.tree_sitter_data.clone(),
@@ -5113,20 +4360,6 @@ impl<'a> Iterator for BufferChunks<'a> {
     }
 }
 
-impl operation_queue::Operation for Operation {
-    fn lamport_timestamp(&self) -> clock::Lamport {
-        match self {
-            Operation::Buffer(_) => {
-                unreachable!("buffer operations should never be deferred at this layer")
-            }
-            Operation::UpdateDiagnostics { lamport_timestamp, .. }
-            | Operation::UpdateSelections { lamport_timestamp, .. }
-            | Operation::UpdateCompletionTriggers { lamport_timestamp, .. }
-            | Operation::UpdateLineEnding { lamport_timestamp, .. } => *lamport_timestamp,
-        }
-    }
-}
-
 impl IndentSize {
     /// Returns an [`IndentSize`] representing the given spaces.
     pub const fn spaces(len: u32) -> Self {
@@ -5336,15 +4569,13 @@ mod file_deletion_tests {
 
     #[test]
     fn test_clears_on_file_deletion() {
-        assert!(clears_on_file_deletion(true, true, false, true));
+        assert!(clears_on_file_deletion(true, true, false));
         // Unsaved edits are kept, so they can be saved to recreate the file.
-        assert!(!clears_on_file_deletion(true, true, true, true));
-        // Remote replicas receive the host's edit.
-        assert!(!clears_on_file_deletion(true, true, false, false));
+        assert!(!clears_on_file_deletion(true, true, true));
         // Only a file that was on disk can be deleted from it (not a new or
         // already deleted one), and only a deletion clears.
-        assert!(!clears_on_file_deletion(false, true, false, true));
-        assert!(!clears_on_file_deletion(true, false, false, true));
+        assert!(!clears_on_file_deletion(false, true, false));
+        assert!(!clears_on_file_deletion(true, false, false));
     }
 }
 

@@ -23,6 +23,7 @@ use gpui::WeakEntity;
 use gpui::actions;
 use language::BinaryStatus;
 use language::BufferId;
+use language::LanguageServerStatusUpdate;
 use language::ServerHealth;
 use lsp::LanguageServerId;
 use lsp::LanguageServerName;
@@ -31,9 +32,6 @@ use project::LspStore;
 use project::LspStoreEvent;
 use project::Worktree;
 use project::lsp_store::log_store::GlobalLogStore;
-use proto::status_update::Status;
-use proto::update_language_server::Variant;
-use rpc::proto;
 use rustc_hash::FxHashSet;
 use sysinfo::Pid;
 use sysinfo::ProcessRefreshKind;
@@ -325,12 +323,10 @@ impl LanguageServerState {
                 continue;
             };
             let server_selector = server_info.server_selector();
-            let is_remote = self.lsp_store.update(cx, |lsp_store, _| lsp_store.as_remote().is_some()).unwrap_or(false);
-            let has_logs = is_remote
-                || self.workspace.upgrade().is_some_and(|workspace| {
-                    let project = workspace.read(cx).project();
-                    lsp_logs.read(cx).has_server_logs(&server_selector, &project.downgrade(), &self.lsp_store)
-                });
+            let has_logs = self.workspace.upgrade().is_some_and(|workspace| {
+                let project = workspace.read(cx).project();
+                lsp_logs.read(cx).has_server_logs(&server_selector, &project.downgrade())
+            });
 
             let (status_color, status_label) = server_info
                 .binary_status
@@ -810,79 +806,46 @@ impl LspButton {
 
         // TODO `LspStore` is global and reports status from all language servers, even from the other windows.
         match e {
-            LspStoreEvent::LanguageServerUpdate {
-                language_server_id,
-                name,
-                message: Variant::StatusUpdate(status_update),
-            } => match &status_update.status {
-                Some(Status::Binary(binary_status)) => {
+            LspStoreEvent::LanguageServerStatus { language_server_id, name, status } => match status {
+                LanguageServerStatusUpdate::Binary(binary_status) => {
                     let Some(name) = name.as_ref() else {
                         return;
                     };
-                    if let Ok(binary_status) = proto::ServerBinaryStatus::try_from(*binary_status) {
-                        let binary_status = match binary_status {
-                            proto::ServerBinaryStatus::None => BinaryStatus::None,
-                            proto::ServerBinaryStatus::Starting => BinaryStatus::Starting,
-                            proto::ServerBinaryStatus::Stopping => BinaryStatus::Stopping,
-                            proto::ServerBinaryStatus::Stopped => BinaryStatus::Stopped,
-                            proto::ServerBinaryStatus::NotInstalled => BinaryStatus::NotInstalled {
-                                message: status_update.message.clone().unwrap_or_default(),
-                            },
-                            proto::ServerBinaryStatus::Failed => {
-                                let Some(error) = status_update.message.clone() else {
-                                    return;
-                                };
-                                BinaryStatus::Failed { error }
-                            }
-                        };
-                        self.server_state.update(cx, |state, _| {
-                            state.language_servers.update_binary_status(
-                                binary_status,
-                                status_update.message.as_deref(),
-                                name.clone(),
-                            );
-                        });
-                        updated = true;
+                    let message = match binary_status {
+                        BinaryStatus::NotInstalled { message } => Some(message.as_str()),
+                        BinaryStatus::Failed { error } => Some(error.as_str()),
+                        _ => None,
                     };
+                    self.server_state.update(cx, |state, _| {
+                        state.language_servers.update_binary_status(binary_status.clone(), message, name.clone());
+                    });
+                    updated = true;
                 }
-                Some(Status::Health(health_status)) => {
-                    if let Ok(health) = proto::ServerHealth::try_from(*health_status) {
-                        let health = match health {
-                            proto::ServerHealth::Ok => ServerHealth::Ok,
-                            proto::ServerHealth::Warning => ServerHealth::Warning,
-                            proto::ServerHealth::Error => ServerHealth::Error,
-                        };
-                        self.server_state.update(cx, |state, _| {
-                            state.language_servers.update_server_health(
-                                *language_server_id,
-                                health,
-                                status_update.message.as_deref(),
-                                name.clone(),
-                            );
-                        });
-                        updated = true;
-                    }
+                LanguageServerStatusUpdate::Health(health, message) => {
+                    self.server_state.update(cx, |state, _| {
+                        state.language_servers.update_server_health(
+                            *language_server_id,
+                            *health,
+                            message.as_deref(),
+                            name.clone(),
+                        );
+                    });
+                    updated = true;
                 }
-                None => {}
             },
-            LspStoreEvent::LanguageServerUpdate {
-                language_server_id,
-                name,
-                message: Variant::RegisteredForBuffer(update),
-                ..
-            } => {
+            LspStoreEvent::LanguageServerRegisteredForBuffer { language_server_id, name, buffer_abs_path, .. } => {
                 self.server_state.update(cx, |state, cx| {
                     let Ok(worktree) = state.workspace.update(cx, |workspace, cx| {
                         workspace
                             .project()
                             .read(cx)
-                            .find_worktree(Path::new(&update.buffer_abs_path), cx)
+                            .find_worktree(buffer_abs_path, cx)
                             .map(|(worktree, _)| worktree.downgrade())
                     }) else {
                         return;
                     };
                     state.language_servers.register_for_buffer(
-                        PathBuf::from(&update.buffer_abs_path),
+                        buffer_abs_path.clone(),
                         worktree,
                         *language_server_id,
                         name.clone(),

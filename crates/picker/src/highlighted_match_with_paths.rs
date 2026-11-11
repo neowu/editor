@@ -7,12 +7,10 @@ use ui::prelude::Icon;
 use ui::prelude::IconName;
 use ui::prelude::IconSize;
 use ui::prelude::IntoElement;
-use ui::prelude::Label;
 use ui::prelude::LabelCommon;
 use ui::prelude::LabelSize;
 use ui::prelude::ParentElement;
 use ui::prelude::RenderOnce;
-use ui::prelude::SharedString;
 use ui::prelude::Styled;
 use ui::prelude::Window;
 use ui::prelude::h_flex;
@@ -20,7 +18,6 @@ use ui::prelude::v_flex;
 
 #[derive(Clone)]
 pub struct HighlightedMatchWithPaths {
-    pub prefix: Option<SharedString>,
     pub match_label: HighlightedMatch,
     pub paths: Vec<HighlightedMatch>,
     pub active: bool,
@@ -85,17 +82,9 @@ impl RenderOnce for HighlightedMatchWithPaths {
     fn render(mut self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         v_flex()
             .min_w_0()
-            .child(
-                h_flex()
-                    .gap_1()
-                    .child(self.match_label.clone())
-                    .when_some(self.prefix.as_ref(), |this, prefix| {
-                        this.child(Label::new(format!("({})", prefix)).color(Color::Muted))
-                    })
-                    .when(self.active, |this| {
-                        this.child(Icon::new(IconName::Check).size(IconSize::Small).color(Color::Accent))
-                    }),
-            )
+            .child(h_flex().gap_1().child(self.match_label.clone()).when(self.active, |this| {
+                this.child(Icon::new(IconName::Check).size(IconSize::Small).color(Color::Accent))
+            }))
             .when(!self.paths.is_empty(), |this| self.render_paths_children(this))
     }
 }

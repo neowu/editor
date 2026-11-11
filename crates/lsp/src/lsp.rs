@@ -170,16 +170,6 @@ pub enum LanguageServerSelector {
 #[repr(transparent)]
 pub struct LanguageServerId(pub usize);
 
-impl LanguageServerId {
-    pub const fn from_proto(id: u64) -> Self {
-        Self(id as usize)
-    }
-
-    pub const fn to_proto(self) -> u64 {
-        self.0 as u64
-    }
-}
-
 /// A name of a language server.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Deserialize, Serialize)]
 #[serde(transparent)]
@@ -206,10 +196,6 @@ impl AsRef<OsStr> for LanguageServerName {
 impl LanguageServerName {
     pub const fn new_static(s: &'static str) -> Self {
         Self(SharedString::new_static(s))
-    }
-
-    pub fn from_proto(s: String) -> Self {
-        Self(s.into())
     }
 }
 

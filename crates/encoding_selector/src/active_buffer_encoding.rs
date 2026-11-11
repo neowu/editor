@@ -11,7 +11,6 @@ use gpui::Subscription;
 use gpui::WeakEntity;
 use gpui::Window;
 use gpui::div;
-use project::Project;
 use ui::Button;
 use ui::ButtonCommon;
 use ui::Clickable;
@@ -27,11 +26,9 @@ use crate::Toggle;
 pub struct ActiveBufferEncoding {
     active_encoding: Option<&'static Encoding>,
     workspace: WeakEntity<Workspace>,
-    project: Entity<Project>,
     _observe_active_editor: Option<Subscription>,
     has_bom: bool,
     is_dirty: bool,
-    is_via_remote_server: bool,
 }
 
 impl ActiveBufferEncoding {
@@ -39,11 +36,9 @@ impl ActiveBufferEncoding {
         Self {
             active_encoding: None,
             workspace: workspace.weak_handle(),
-            project: workspace.project().clone(),
             _observe_active_editor: None,
             has_bom: false,
             is_dirty: false,
-            is_via_remote_server: false,
         }
     }
 
@@ -51,9 +46,6 @@ impl ActiveBufferEncoding {
         self.active_encoding = None;
         self.has_bom = false;
         self.is_dirty = false;
-
-        let project = self.project.read(cx);
-        self.is_via_remote_server = project.is_via_remote_server();
 
         if let Some(buffer) = editor.read(cx).active_buffer(cx) {
             let buffer = buffer.read(cx);
@@ -81,13 +73,8 @@ impl Render for ActiveBufferEncoding {
             text.push_str(" (BOM)");
         }
 
-        let (disabled, tooltip_text) = if self.is_dirty {
-            (true, "Save file to change encoding")
-        } else if self.is_via_remote_server {
-            (true, "Cannot change encoding of remote server file")
-        } else {
-            (false, "Reopen with Encoding")
-        };
+        let (disabled, tooltip_text) =
+            if self.is_dirty { (true, "Save file to change encoding") } else { (false, "Reopen with Encoding") };
 
         div().child(
             Button::new("change-encoding", text)
@@ -126,7 +113,6 @@ impl StatusItemView for ActiveBufferEncoding {
             self.active_encoding = None;
             self.has_bom = false;
             self.is_dirty = false;
-            self.is_via_remote_server = false;
             self._observe_active_editor = None;
         }
 

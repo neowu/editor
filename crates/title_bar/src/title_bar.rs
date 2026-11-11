@@ -7,8 +7,6 @@ mod worktree_branch;
 
 use std::path::Path;
 
-use ed_actions::OpenRemote;
-use gpui::AnyElement;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Context;
@@ -26,15 +24,10 @@ use project::Project;
 use project::git_store::GitStoreEvent;
 use project::linked_worktree_short_name;
 use project::repo_identity_path;
-use remote::RemoteConnectionOptions;
-use theme::ActiveTheme;
-use ui::IconWithIndicator;
-use ui::Indicator;
 use ui::PopoverMenu;
 use ui::PopoverMenuHandle;
 use ui::Tooltip;
 use ui::prelude::Color;
-use ui::prelude::Disableable;
 use ui::prelude::FluentBuilder;
 use ui::prelude::Icon;
 use ui::prelude::IconName;
@@ -94,7 +87,7 @@ fn toggle_project_menu(title_bar: WeakEntity<TitleBar>, window: &Window, cx: &mu
     });
 }
 
-/// The project's remote host, name, worktree and branch, shown in the
+/// The project's name, worktree and branch, shown in the
 /// window header above the sidebar or at the start of the top-left tab bar.
 pub struct TitleBar {
     project: Entity<Project>,
@@ -114,10 +107,7 @@ impl Render for TitleBar {
             let worktree_and_branch = active
                 .repository
                 .and_then(|repository| self.render_worktree_and_branch(repository, active.linked_worktree_name, cx));
-            title_bar
-                .children(self.render_project_host(cx))
-                .child(self.render_project_name(active.project_name, window, cx))
-                .children(worktree_and_branch)
+            title_bar.child(self.render_project_name(active.project_name, window, cx)).children(worktree_and_branch)
         })
     }
 }
@@ -250,86 +240,6 @@ impl TitleBar {
         let first = worktrees.next();
         worktrees.next().is_some()
             || first.is_some_and(|worktree| !git_store.nested_repositories(worktree.read(cx).id(), cx).is_empty())
-    }
-
-    fn render_remote_project_connection(&self, cx: &Context<Self>) -> Option<AnyElement> {
-        let workspace = self.workspace.clone();
-
-        let options = self.project.read(cx).remote_connection_options(cx)?;
-        let host: SharedString = options.display_name().into();
-
-        let (nickname, tooltip_title, icon) = match options {
-            RemoteConnectionOptions::Ssh(options) => {
-                (options.nickname.map(|nick| nick.into()), "Remote Project", IconName::Server)
-            }
-        };
-
-        let nickname = nickname.unwrap_or_else(|| host.clone());
-
-        let (indicator_color, meta) = match self.project.read(cx).remote_connection_state(cx)? {
-            remote::ConnectionState::Connecting => (Color::Info, format!("Connecting to: {host}")),
-            remote::ConnectionState::Connected => (Color::Success, format!("Connected to: {host}")),
-            remote::ConnectionState::HeartbeatMissed => {
-                (Color::Warning, format!("Connection attempt to {host} missed. Retrying..."))
-            }
-            remote::ConnectionState::Reconnecting => {
-                (Color::Warning, format!("Lost connection to {host}. Reconnecting..."))
-            }
-            remote::ConnectionState::Disconnected => (Color::Error, format!("Disconnected from {host}")),
-        };
-
-        let icon_color = match self.project.read(cx).remote_connection_state(cx)? {
-            remote::ConnectionState::Connecting => Color::Info,
-            remote::ConnectionState::Connected => Color::Default,
-            remote::ConnectionState::HeartbeatMissed => Color::Warning,
-            remote::ConnectionState::Reconnecting => Color::Warning,
-            remote::ConnectionState::Disconnected => Color::Error,
-        };
-
-        let meta = SharedString::from(meta);
-
-        Some(
-            PopoverMenu::new("remote-project-menu")
-                .menu(move |window, cx| {
-                    workspace.upgrade()?;
-                    Some(recent_projects::RemoteServerProjects::popover(workspace.clone(), None, window, cx))
-                })
-                .trigger_with_tooltip(
-                    header_text_button(
-                        "remote_project",
-                        util::truncate_and_trailoff(&nickname, MAX_PROJECT_NAME_LENGTH),
-                    )
-                    .start_slot(
-                        IconWithIndicator::new(
-                            Icon::new(icon).size(IconSize::Small).color(icon_color),
-                            Some(Indicator::dot().color(indicator_color)),
-                        )
-                        .indicator_border_color(Some(cx.theme().colors().title_bar_background)),
-                    ),
-                    move |_window, cx| {
-                        Tooltip::with_meta(tooltip_title, Some(&OpenRemote::default()), meta.clone(), cx)
-                    },
-                )
-                .anchor(gpui::Anchor::TopLeft)
-                .into_any_element(),
-        )
-    }
-
-    pub fn render_project_host(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        if self.project.read(cx).is_via_remote_server() {
-            return self.render_remote_project_connection(cx);
-        }
-
-        if self.project.read(cx).is_disconnected(cx) {
-            return Some(
-                header_text_button("disconnected", "Disconnected")
-                    .disabled(true)
-                    .color(Color::Disabled)
-                    .into_any_element(),
-            );
-        }
-
-        None
     }
 
     fn render_project_name(&self, name: Option<SharedString>, _: &mut Window, cx: &Context<Self>) -> impl IntoElement {

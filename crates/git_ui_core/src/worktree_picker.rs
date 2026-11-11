@@ -40,7 +40,6 @@ use picker::PickerEditorPosition;
 use project::Project;
 use project::git_store::RepositoryEvent;
 use project::repo_identity_path;
-use remote::remote_client::ConnectionIdentifier;
 use rustc_hash::FxHashSet;
 use ui::Button;
 use ui::CommonAnimationExt as _;
@@ -78,7 +77,6 @@ use util::paths::PathExt;
 use workspace::ModalView;
 use workspace::Workspace;
 use workspace::dock::DockPosition;
-use workspace::notifications::DetachAndPromptErr;
 
 use crate::notifications::show_error_toast;
 use crate::worktree_service;
@@ -1204,55 +1202,4 @@ fn create_new_list_item(
         )
         .when_some(disabled_tooltip, |this, reason| this.tooltip(Tooltip::text(reason)))
         .into_any_element()
-}
-
-pub async fn open_remote_worktree(
-    connection_options: remote::RemoteConnectionOptions,
-    paths: Vec<PathBuf>,
-    app_state: Arc<workspace::AppState>,
-    workspace: gpui::WeakEntity<Workspace>,
-    cx: &mut gpui::AsyncWindowContext,
-) -> anyhow::Result<()> {
-    let connect_task = workspace.update_in(cx, |workspace, window, cx| {
-        workspace.toggle_modal(window, cx, |window, cx| {
-            remote_connection::RemoteConnectionModal::new(&connection_options, Vec::new(), window, cx)
-        });
-
-        let prompt = workspace
-            .active_modal::<remote_connection::RemoteConnectionModal>(cx)
-            .expect("Modal just created")
-            .read(cx)
-            .prompt
-            .clone();
-
-        remote_connection::connect(ConnectionIdentifier::setup(), connection_options.clone(), prompt, window, cx)
-            .prompt_err("Failed to connect", window, cx, |_| None)
-    })?;
-
-    let session = connect_task.await;
-
-    workspace
-        .update_in(cx, |workspace, _window, cx| {
-            if let Some(prompt) = workspace.active_modal::<remote_connection::RemoteConnectionModal>(cx) {
-                prompt.update(cx, |prompt, cx| prompt.finished(cx))
-            }
-        })
-        .ok();
-
-    let Some(Some(session)) = session else {
-        return Ok(());
-    };
-
-    let new_project =
-        cx.update(|_, cx| project::Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), cx))?;
-
-    let options = cx.update(|_, cx| (app_state.build_window_options)(None, cx))?;
-
-    let new_window = cx.open_window(options, |window, cx| {
-        cx.new(|cx| Workspace::new(new_project.clone(), app_state.clone(), window, cx))
-    })?;
-
-    workspace::open_remote_project_with_existing_connection(new_project, paths, app_state, new_window, cx).await?;
-
-    Ok(())
 }

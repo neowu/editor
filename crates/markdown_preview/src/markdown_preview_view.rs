@@ -54,7 +54,6 @@ use markdown::MarkdownListState;
 use markdown::MarkdownOptions;
 use project::Project;
 use project::ProjectPath;
-use project::image_store;
 use project::search::SearchQuery;
 use settings::SeedQuerySetting;
 use theme::built_in::BUFFER_LINE_HEIGHT;
@@ -1162,18 +1161,8 @@ fn resolve_preview_image(
         let project_path =
             resolve_project_path_for_preview_image(&decoded, workspace_relative_path, source_project_path, project, cx);
         if let Some(project_path) = project_path {
-            let is_remote = project
-                .read(cx)
-                .worktree_for_id(project_path.worktree_id, cx)
-                .is_some_and(|worktree| !worktree.read(cx).is_local());
-            if is_remote {
-                return Some(image_store::project_image_source(project.downgrade(), project_path));
-            }
-
             let path = project.read(cx).absolute_path(&project_path, cx)?;
             return path.exists().then(|| ImageSource::Resource(Resource::Path(Arc::from(path.as_path()))));
-        } else if project.read(cx).is_remote() {
-            return None;
         }
     }
 

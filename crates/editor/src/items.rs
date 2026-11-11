@@ -348,11 +348,7 @@ impl Item for Editor {
         if self.read_only(cx) {
             return Task::ready(Ok(()));
         }
-        let buffers = self.buffer().clone().read(cx).all_buffers();
-        let buffers = buffers
-            .into_iter()
-            .map(|handle| handle.read(cx).base_buffer().unwrap_or(handle.clone()))
-            .collect::<FxHashSet<_>>();
+        let buffers = self.buffer().read(cx).all_buffers();
 
         let buffers_to_save = if self.buffer.read(cx).is_singleton() && !options.autosave {
             buffers
@@ -604,12 +600,11 @@ impl ProjectItem for Editor {
 
     fn for_broken_project_item(
         abs_path: &Path,
-        is_local: bool,
         e: &anyhow::Error,
         window: &mut Window,
         cx: &mut App,
     ) -> Option<InvalidItemView> {
-        Some(InvalidItemView::new(abs_path, is_local, e, window, cx))
+        Some(InvalidItemView::new(abs_path, e, window, cx))
     }
 }
 

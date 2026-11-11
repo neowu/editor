@@ -433,10 +433,6 @@ actions!(
     [
         /// Amends the editor text with hint's edit (if sent).
         AcceptInlayHint,
-        /// Applies all diff hunks in the editor.
-        ApplyAllDiffHunks,
-        /// Applies the diff hunk at the current position.
-        ApplyDiffHunk,
         /// Deletes the character before the cursor.
         Backspace,
         /// Cancels the current operation.

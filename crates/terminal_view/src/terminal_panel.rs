@@ -110,13 +110,11 @@ pub fn init(cx: &mut App) {
         workspace.register_action(TerminalPanel::new_terminal);
         workspace.register_action(TerminalPanel::open_terminal);
         workspace.register_action(|workspace, _: &ToggleFocus, window, cx| {
-            if is_enabled_in_workspace(workspace, cx) {
-                workspace.toggle_panel_focus::<TerminalPanel>(window, cx);
-            }
+            workspace.toggle_panel_focus::<TerminalPanel>(window, cx);
         });
         workspace.register_action(TerminalPanel::toggle_shell);
         workspace.register_action(|workspace, _: &Toggle, window, cx| {
-            if is_enabled_in_workspace(workspace, cx) && !workspace.toggle_panel_focus::<TerminalPanel>(window, cx) {
+            if !workspace.toggle_panel_focus::<TerminalPanel>(window, cx) {
                 workspace.close_panel::<TerminalPanel>(window, cx);
             }
         });
@@ -287,7 +285,7 @@ impl TerminalPanel {
     }
 
     fn toggle_shell(workspace: &mut Workspace, _: &ToggleShell, window: &mut Window, cx: &mut Context<Workspace>) {
-        if !workspace.mode().has_docks() || !is_enabled_in_workspace(workspace, cx) {
+        if !workspace.mode().has_docks() {
             return;
         }
         let Some(terminal_panel) = workspace.panel::<Self>(cx) else {
@@ -335,7 +333,7 @@ impl TerminalPanel {
                     let working_directory = default_working_directory(workspace, cx);
                     terminal_panel
                         .update(cx, |panel, cx| {
-                            panel.add_terminal_shell(false, working_directory, RevealStrategy::Always, window, cx)
+                            panel.add_terminal_shell(working_directory, RevealStrategy::Always, window, cx)
                         })
                         .detach_and_log_err(cx);
                 }
@@ -394,7 +392,7 @@ impl TerminalPanel {
     /// active pane while that mode is shown, else in the terminal panel.
     fn new_terminal(
         workspace: &mut Workspace,
-        action: &workspace::NewTerminal,
+        _: &workspace::NewTerminal,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
@@ -410,13 +408,7 @@ impl TerminalPanel {
 
         terminal_panel
             .update(cx, |this, cx| {
-                this.add_terminal_shell(
-                    action.local,
-                    default_working_directory(workspace, cx),
-                    RevealStrategy::Always,
-                    window,
-                    cx,
-                )
+                this.add_terminal_shell(default_working_directory(workspace, cx), RevealStrategy::Always, window, cx)
             })
             .detach_and_log_err(cx);
     }
@@ -463,9 +455,6 @@ impl TerminalPanel {
     ) -> Task<Result<WeakEntity<Terminal>>> {
         let workspace = self.workspace.clone();
         self.spawn_pending_terminal(window, cx, async move |terminal_panel, cx| {
-            if workspace.update(cx, |workspace, cx| !is_enabled_in_workspace(workspace, cx))? {
-                anyhow::bail!("terminal not yet supported for remote projects");
-            }
             let project = workspace.read_with(cx, |workspace, _| workspace.project().clone())?;
             let terminal = project.update(cx, |project, cx| project.create_terminal_task(task, cx)).await?;
             let pane = terminal_panel.read_with(cx, |terminal_panel, _| terminal_panel.active_pane.clone())?;
@@ -502,7 +491,6 @@ impl TerminalPanel {
 
     fn add_terminal_shell(
         &mut self,
-        force_local: bool,
         cwd: Option<PathBuf>,
         reveal_strategy: RevealStrategy,
         window: &Window,
@@ -510,15 +498,8 @@ impl TerminalPanel {
     ) -> Task<Result<WeakEntity<Terminal>>> {
         let workspace = self.workspace.clone();
         self.spawn_pending_terminal(window, cx, async move |terminal_panel, cx| {
-            if workspace.update(cx, |workspace, cx| !is_enabled_in_workspace(workspace, cx))? {
-                anyhow::bail!("terminal is unavailable for this project");
-            }
             let project = workspace.read_with(cx, |workspace, _| workspace.project().clone())?;
-            let terminal = if force_local {
-                project.update(cx, |project, cx| project.create_local_terminal(cx)).await
-            } else {
-                project.update(cx, |project, cx| project.create_terminal_shell(cwd, cx)).await
-            };
+            let terminal = project.update(cx, |project, cx| project.create_terminal_shell(cwd, cx)).await;
 
             let pane = terminal_panel.read_with(cx, |terminal_panel, _| terminal_panel.active_pane.clone())?;
             match terminal {
@@ -665,10 +646,6 @@ impl TerminalPanel {
         self.center.panes()
     }
 
-    fn is_enabled(&self, cx: &App) -> bool {
-        self.workspace.upgrade().is_some_and(|workspace| is_enabled_in_workspace(workspace.read(cx), cx))
-    }
-
     fn activate_pane_in_direction(&mut self, direction: SplitDirection, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(pane) = self.center.find_pane_in_direction(&self.active_pane, direction, cx) {
             window.focus(&pane.focus_handle(cx), cx);
@@ -691,10 +668,6 @@ impl TerminalPanel {
     }
 }
 
-fn is_enabled_in_workspace(workspace: &Workspace, cx: &App) -> bool {
-    workspace.project().read(cx).supports_terminal(cx)
-}
-
 /// The "+" opens a terminal right away: every entry of the generic new-item
 /// menu other than "New Terminal" is unrelated to the terminal panel.
 /// Terminal mode's panes also get Split Right / Split Down, which open a shell
@@ -713,9 +686,9 @@ pub(crate) fn set_terminal_tab_bar_buttons(pane: &mut Pane, with_splits: bool, c
             .child(
                 pane::top_row_icon_button("plus", IconName::Plus)
                     .on_click(|_, window, cx| {
-                        window.dispatch_action(workspace::NewTerminal::default().boxed_clone(), cx);
+                        window.dispatch_action(workspace::NewTerminal.boxed_clone(), cx);
                     })
-                    .tooltip(Tooltip::for_action_title("New Terminal", &workspace::NewTerminal::default())),
+                    .tooltip(Tooltip::for_action_title("New Terminal", &workspace::NewTerminal)),
             )
             .when(with_splits, |this| {
                 this.child(
@@ -754,7 +727,7 @@ pub fn new_terminal_pane(
             project.clone(),
             Arc::default(),
             None,
-            workspace::NewTerminal::default().boxed_clone(),
+            workspace::NewTerminal.boxed_clone(),
             window,
             cx,
         );
@@ -1054,7 +1027,7 @@ impl Panel for TerminalPanel {
                 return;
             };
 
-            this.add_terminal_shell(false, kind, RevealStrategy::Always, window, cx).detach_and_log_err(cx)
+            this.add_terminal_shell(kind, RevealStrategy::Always, window, cx).detach_and_log_err(cx)
         })
     }
 
@@ -1066,12 +1039,8 @@ impl Panel for TerminalPanel {
         TERMINAL_PANEL_KEY
     }
 
-    fn icon(&self, _window: &Window, cx: &App) -> Option<IconName> {
-        if (self.is_enabled(cx) || !self.has_no_terminals(cx)) && TerminalSettings::get().button {
-            Some(IconName::TerminalAlt)
-        } else {
-            None
-        }
+    fn icon(&self, _window: &Window, _cx: &App) -> Option<IconName> {
+        if TerminalSettings::get().button { Some(IconName::TerminalAlt) } else { None }
     }
 
     fn icon_tooltip(&self, _window: &Window, _cx: &App) -> Option<&'static str> {

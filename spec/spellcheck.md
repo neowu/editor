@@ -32,7 +32,7 @@
 - Words are only allowed per project: `spellcheck.txt` at a worktree root
   (one word per line, `#` comments, case-insensitive), used only when it
   exists. There is no global word list. It is read through the project's
-  buffer, so unsaved edits apply immediately and remote projects work.
+  buffer, so unsaved edits apply immediately.
 - On a misspelled word, code actions offer up to 5 suggestions and
   "Add … to spellcheck.txt", which inserts the word in case-insensitive
   sorted position (comments stay put), skips words already listed, and

@@ -9,9 +9,7 @@ use crate::Point;
 /// Options for a parent-anchored popup window such as a menu, dropdown, context menu or tooltip.
 ///
 /// A popup is placed relative to an anchor rectangle on its parent window rather than at an
-/// absolute screen position. The platform resolves the final position, so this works both on
-/// systems where the compositor owns window placement (Wayland) and on platforms with absolute
-/// coordinates.
+/// absolute screen position. The platform resolves the final position.
 ///
 /// The popup's size comes from [`WindowOptions::window_bounds`](crate::WindowOptions), whose
 /// origin is ignored. All coordinates are in logical pixels.

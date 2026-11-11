@@ -24,14 +24,6 @@ impl WorktreeId {
         Self(handle_id)
     }
 
-    pub const fn from_proto(id: u64) -> Self {
-        Self(id as usize)
-    }
-
-    pub const fn to_proto(self) -> u64 {
-        self.0 as u64
-    }
-
     pub const fn to_usize(self) -> usize {
         self.0
     }

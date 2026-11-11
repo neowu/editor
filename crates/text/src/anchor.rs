@@ -21,14 +21,8 @@ use crate::locator::Locator;
 #[doc(alias = "TextAnchor")]
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Anchor {
-    // /// The timestamp of the operation that inserted the text
-    // /// in which this anchor is located.
-    // pub(crate) timestamp: clock::Lamport,
-    // we store the replica id and sequence number of the timestamp inline
-    // to avoid the alignment of our fields from increasing the size of this struct
-    // This saves 8 bytes, by allowing replica id, value and bias to occupy the padding
-    pub(crate) timestamp_replica_id: clock::ReplicaId,
-    pub(crate) timestamp_value: clock::Seq,
+    /// The timestamp of the edit that inserted the text in which this anchor is located.
+    pub(crate) timestamp: clock::Lamport,
 
     /// The byte offset into the text inserted in the operation
     /// at `timestamp`.
@@ -59,27 +53,15 @@ impl Debug for Anchor {
 
 impl Anchor {
     pub const fn new(timestamp: clock::Lamport, offset: u32, bias: Bias, buffer_id: BufferId) -> Self {
-        Self { timestamp_replica_id: timestamp.replica_id, timestamp_value: timestamp.value, offset, bias, buffer_id }
+        Self { timestamp, offset, bias, buffer_id }
     }
 
     pub const fn min_for_buffer(buffer_id: BufferId) -> Self {
-        Self {
-            timestamp_replica_id: clock::Lamport::MIN.replica_id,
-            timestamp_value: clock::Lamport::MIN.value,
-            offset: u32::MIN,
-            bias: Bias::Left,
-            buffer_id,
-        }
+        Self { timestamp: clock::Lamport::MIN, offset: u32::MIN, bias: Bias::Left, buffer_id }
     }
 
     pub const fn max_for_buffer(buffer_id: BufferId) -> Self {
-        Self {
-            timestamp_replica_id: clock::Lamport::MAX.replica_id,
-            timestamp_value: clock::Lamport::MAX.value,
-            offset: u32::MAX,
-            bias: Bias::Right,
-            buffer_id,
-        }
+        Self { timestamp: clock::Lamport::MAX, offset: u32::MAX, bias: Bias::Right, buffer_id }
     }
 
     pub const fn min_min_range_for_buffer(buffer_id: BufferId) -> Range<Self> {
@@ -147,7 +129,7 @@ impl Anchor {
                 return false;
             };
             let (.., item) =
-                buffer.fragments.find::<Dimensions<Option<&Locator>, usize>, _>(&None, &Some(fragment_id), Bias::Left);
+                buffer.fragments.find::<Dimensions<Option<&Locator>, usize>, _>((), &Some(fragment_id), Bias::Left);
             item.is_some_and(|fragment| fragment.visible)
         }
     }
@@ -162,7 +144,7 @@ impl Anchor {
 
     #[inline]
     pub const fn timestamp(&self) -> clock::Lamport {
-        clock::Lamport { replica_id: self.timestamp_replica_id, value: self.timestamp_value }
+        self.timestamp
     }
 
     pub fn opaque_id(&self) -> [u8; 20] {
@@ -170,10 +152,8 @@ impl Anchor {
         let buffer_id: u64 = self.buffer_id.into();
         bytes[0..8].copy_from_slice(&buffer_id.to_le_bytes());
         bytes[8..12].copy_from_slice(&self.offset.to_le_bytes());
-        bytes[12..16].copy_from_slice(&self.timestamp_value.to_le_bytes());
-        let replica_id = self.timestamp_replica_id.as_u16();
-        bytes[16..18].copy_from_slice(&replica_id.to_le_bytes());
-        bytes[18] = self.bias as u8;
+        bytes[12..16].copy_from_slice(&self.timestamp.value.to_le_bytes());
+        bytes[16] = self.bias as u8;
         bytes
     }
 }

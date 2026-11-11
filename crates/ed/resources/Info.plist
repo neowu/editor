@@ -27,7 +27,7 @@
 <key>LSMinimumSystemVersion</key>
 <string>27.2</string>
 <key>NSLocalNetworkUsageDescription</key>
-<string>ed connects to SSH remote hosts on your local network.</string>
+<string>Terminals, git and language servers started by ed may connect to hosts on your local network.</string>
 <key>NSHighResolutionCapable</key>
 <true/>
 <key>CFBundleSupportedPlatforms</key>

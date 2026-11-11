@@ -34,8 +34,7 @@ clients as JSON.
 - In a single-file worktree (a file opened without its folder) there is no
   worktree root: `$ED_WORKTREE_ROOT`, the relative path variables and the
   default cwd are unset, so templates that need them don't resolve.
-- A task always runs in the terminal dock with the default system shell (the
-  remote shell on a remote project), saves nothing first, and leaves its tab
+- A task always runs in the terminal dock with the default system shell, saves nothing first, and leaves its tab
   open with no summary lines when it finishes. Running a task whose tab
   already exists waits for that run to finish, then replaces the tab's output.
 - A task terminal tab has a rerun button (and `terminal::RerunTask`) that

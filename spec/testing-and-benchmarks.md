@@ -29,13 +29,11 @@
 
 Development and release builds, with default or all features enabled, must be
 warning-free, including all Cargo targets and the configured Clippy lints.
-This applies to the macOS workspace and Linux remote-server targets.
 
 Keep Cargo dependencies limited to the code, build steps, documentation, and
 optional behaviour that remain in this fork. Remove unused shared workspace
-dependency definitions too. Platform-specific dependencies belong to their
-target sections; dependencies used by optional features, release builds, or
-another target in the same package must remain available.
+dependency definitions too. Dependencies used by optional features, release
+builds, or another target in the same package must remain available.
 Default and all-feature workspace checks must have no unused-dependency warnings.
 Keep the workspace lint enabled; exceptions for dependencies shared between a
 library and its binary are confined to the affected target.

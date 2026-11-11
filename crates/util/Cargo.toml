@@ -20,13 +20,10 @@ serde_json.workspace = true
 unicase.workspace = true
 
 dirs.workspace = true
+libc.workspace = true
+log.workspace = true
 shlex.workspace = true
 smol.workspace = true
-
-log.workspace = true
-
-[target."cfg(unix)".dependencies]
-libc.workspace = true
 
 [lints]
 workspace = true

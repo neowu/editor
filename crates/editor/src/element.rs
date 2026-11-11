@@ -772,8 +772,6 @@ impl EditorElement {
             register_action(editor, window, Editor::restore_file);
             register_action(editor, window, Editor::git_restore);
             register_action(editor, window, Editor::restore_and_next);
-            register_action(editor, window, Editor::apply_all_diff_hunks);
-            register_action(editor, window, Editor::apply_selected_diff_hunks);
             register_action(editor, window, Editor::insert_uuid_v4);
             register_action(editor, window, Editor::insert_uuid_v7);
             register_action(editor, window, Editor::align_selections);
@@ -876,8 +874,6 @@ impl EditorElement {
     #[allow(clippy::type_complexity)]
     fn layout_selections(
         &self,
-        start_anchor: Anchor,
-        end_anchor: Anchor,
         local_selections: &[Selection<Point>],
         snapshot: &EditorSnapshot,
         start_row: DisplayRow,
@@ -931,29 +927,6 @@ impl EditorElement {
                     const UNFOCUS_EDITOR_SELECTION_OPACITY: f32 = 0.5;
                     colors.selection = colors.selection.opacity(UNFOCUS_EDITOR_SELECTION_OPACITY);
                 }
-                selections.push((colors, layouts));
-            }
-
-            if !editor.is_focused(window) && editor.show_cursor_when_unfocused {
-                let cursor_offset_on_selection = editor.cursor_offset_on_selection;
-
-                let layouts = snapshot
-                    .buffer_snapshot()
-                    .selections_in_range(&(start_anchor..end_anchor), true)
-                    .map(move |(_, line_mode, cursor_shape, selection)| {
-                        SelectionLayout::new(
-                            selection,
-                            line_mode,
-                            cursor_offset_on_selection,
-                            cursor_shape,
-                            &snapshot.display_snapshot,
-                            false,
-                            false,
-                            None,
-                        )
-                    })
-                    .collect::<Vec<_>>();
-                let colors = editor.current_cursor_colors(cx);
                 selections.push((colors, layouts));
             }
         });
@@ -6036,16 +6009,8 @@ impl Element for EditorElement {
                         })
                         .unwrap_or_else(|| (Vec::new(), Vec::new(), FxHashMap::default()));
 
-                    let (selections, active_rows, newest_selection_head) = self.layout_selections(
-                        start_anchor,
-                        end_anchor,
-                        &local_selections,
-                        &snapshot,
-                        start_row,
-                        end_row,
-                        window,
-                        cx,
-                    );
+                    let (selections, active_rows, newest_selection_head) =
+                        self.layout_selections(&local_selections, &snapshot, start_row, end_row, window, cx);
 
                     let current_selection_head = self.editor.update(cx, |editor, cx| {
                         (editor.selections.count() != 0).then(|| {

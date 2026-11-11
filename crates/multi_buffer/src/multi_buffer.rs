@@ -21,7 +21,6 @@ use std::cmp::{self};
 use std::collections::BTreeMap;
 use std::collections::Bound;
 use std::fmt;
-use std::future::Future;
 use std::io;
 use std::iter::FromIterator;
 use std::iter::{self};
@@ -44,7 +43,6 @@ pub use anchor::AnchorRangeExt;
 use anchor::AnchorSeekTarget;
 use anchor::ExcerptAnchor;
 use anyhow::Result;
-use anyhow::anyhow;
 use buffer_diff::BufferDiff;
 use buffer_diff::BufferDiffEvent;
 use buffer_diff::BufferDiffSnapshot;
@@ -52,7 +50,6 @@ use buffer_diff::DiffChanged;
 use buffer_diff::DiffHunkSecondaryStatus;
 use buffer_diff::DiffHunkStatus;
 use buffer_diff::DiffHunkStatusKind;
-use clock::ReplicaId;
 use futures_lite::future::yield_now;
 use gpui::App;
 use gpui::Context;
@@ -64,7 +61,6 @@ use language::AutoIndentExclusion;
 use language::AutoindentMode;
 use language::Buffer;
 use language::BufferChunks;
-use language::BufferEditSource;
 use language::BufferRow;
 use language::BufferSnapshot;
 use language::Capability;
@@ -72,7 +68,6 @@ use language::CharClassifier;
 use language::CharKind;
 use language::CharScopeContext;
 use language::Chunk;
-use language::CursorShape;
 use language::DiagnosticEntryRef;
 use language::File;
 use language::IndentGuideSettings;
@@ -86,7 +81,6 @@ use language::Outline;
 use language::OutlineItem;
 use language::Point;
 use language::PointUtf16;
-use language::Selection;
 use language::TextDimension;
 use language::TextObject;
 use language::ToOffset as _;
@@ -156,7 +150,7 @@ pub enum Event {
     BuffersRemoved { removed_buffer_ids: Vec<BufferId> },
     BuffersEdited { buffer_ids: Vec<BufferId> },
     DiffHunksToggled,
-    Edited { edited_buffer: Option<Entity<Buffer>>, source: BufferEditSource },
+    Edited { edited_buffer: Option<Entity<Buffer>> },
     TransactionUndone { transaction_id: TransactionId },
     Reloaded,
     CapabilityChanged,
@@ -1683,47 +1677,6 @@ impl MultiBuffer {
         }
     }
 
-    pub fn set_active_selections(
-        &self,
-        selections: &[Selection<Anchor>],
-        line_mode: bool,
-        cursor_shape: CursorShape,
-        cx: &mut Context<Self>,
-    ) {
-        let snapshot = self.snapshot(cx);
-        let mut selections_by_buffer: FxHashMap<BufferId, Vec<Selection<text::Anchor>>> = FxHashMap::default();
-
-        for selection in selections {
-            for (buffer_snapshot, buffer_range, _) in snapshot.range_to_buffer_ranges(selection.start..selection.end) {
-                selections_by_buffer.entry(buffer_snapshot.remote_id()).or_default().push(Selection {
-                    id: selection.id,
-                    start: buffer_snapshot.anchor_at(buffer_range.start, selection.start.bias()),
-                    end: buffer_snapshot.anchor_at(buffer_range.end, selection.end.bias()),
-                    reversed: selection.reversed,
-                    goal: selection.goal,
-                });
-            }
-        }
-
-        for (buffer_id, buffer_state) in &self.buffers {
-            if !selections_by_buffer.contains_key(buffer_id) {
-                buffer_state.buffer.update(cx, |buffer, cx| buffer.remove_active_selections(cx));
-            }
-        }
-
-        for (buffer_id, selections) in selections_by_buffer {
-            self.buffers[&buffer_id].buffer.update(cx, |buffer, cx| {
-                buffer.set_active_selections(selections.into(), line_mode, cursor_shape, cx);
-            });
-        }
-    }
-
-    pub fn remove_active_selections(&self, cx: &mut Context<Self>) {
-        for buffer in self.buffers.values() {
-            buffer.buffer.update(cx, |buffer, cx| buffer.remove_active_selections(cx));
-        }
-    }
-
     fn merge_excerpt_ranges<'a>(
         expanded_ranges: impl IntoIterator<Item = &'a ExcerptRange<Point>> + 'a,
     ) -> Vec<ExcerptRange<Point>> {
@@ -1785,7 +1738,7 @@ impl MultiBuffer {
         if !edits.is_empty() {
             self.subscriptions.publish(edits);
         }
-        cx.emit(Event::Edited { edited_buffer: None, source: BufferEditSource::User });
+        cx.emit(Event::Edited { edited_buffer: None });
         cx.emit(Event::BuffersRemoved { removed_buffer_ids });
         cx.notify();
     }
@@ -1830,39 +1783,6 @@ impl MultiBuffer {
         found
     }
 
-    pub fn wait_for_anchors<'a, Anchors: 'a + Iterator<Item = Anchor>>(
-        &self,
-        anchors: Anchors,
-        cx: &mut Context<Self>,
-    ) -> impl 'static + Future<Output = Result<()>> + use<Anchors> {
-        let mut error = None;
-        let mut futures = Vec::new();
-        for anchor in anchors {
-            if let Some(excerpt_anchor) = anchor.excerpt_anchor() {
-                if let Some(buffer) = self.buffers.get(&excerpt_anchor.text_anchor.buffer_id) {
-                    buffer
-                        .buffer
-                        .update(cx, |buffer, _| futures.push(buffer.wait_for_anchors([excerpt_anchor.text_anchor()])));
-                } else {
-                    error = Some(anyhow!(
-                        "buffer {:?} is not part of this multi-buffer",
-                        excerpt_anchor.text_anchor.buffer_id
-                    ));
-                    break;
-                }
-            }
-        }
-        async move {
-            if let Some(error) = error {
-                Err(error)?;
-            }
-            for future in futures {
-                future.await?;
-            }
-            Ok(())
-        }
-    }
-
     pub fn text_anchor_for_position<T: ToOffset>(
         &self,
         position: T,
@@ -1878,7 +1798,7 @@ impl MultiBuffer {
         use language::BufferEvent;
         let buffer_id = buffer.read(cx).remote_id();
         cx.emit(match event {
-            &BufferEvent::Edited { source } => Event::Edited { edited_buffer: Some(buffer), source },
+            BufferEvent::Edited => Event::Edited { edited_buffer: Some(buffer) },
             BufferEvent::DirtyChanged => Event::DirtyChanged,
             BufferEvent::Saved => Event::Saved,
             BufferEvent::FileHandleChanged => Event::FileHandleChanged,
@@ -1893,7 +1813,7 @@ impl MultiBuffer {
                 }
                 Event::CapabilityChanged
             }
-            BufferEvent::Operation { .. } | BufferEvent::ReloadNeeded => return,
+            BufferEvent::LineEndingChanged | BufferEvent::ReloadNeeded => return,
         });
     }
 
@@ -1935,7 +1855,7 @@ impl MultiBuffer {
         if !edits.is_empty() {
             self.subscriptions.publish(edits);
         }
-        cx.emit(Event::Edited { edited_buffer: None, source: BufferEditSource::User });
+        cx.emit(Event::Edited { edited_buffer: None });
     }
 
     fn inverted_buffer_diff_changed(
@@ -1978,7 +1898,7 @@ impl MultiBuffer {
         if !edits.is_empty() {
             self.subscriptions.publish(edits);
         }
-        cx.emit(Event::Edited { edited_buffer: None, source: BufferEditSource::User });
+        cx.emit(Event::Edited { edited_buffer: None });
     }
 
     pub fn all_buffers_iter(&self) -> impl Iterator<Item = Entity<Buffer>> {
@@ -2160,7 +2080,7 @@ impl MultiBuffer {
             .publish(vec![Edit { old: MultiBufferOffset(0)..old_len, new: MultiBufferOffset(0)..new_len }]);
 
         cx.emit(Event::DiffHunksToggled);
-        cx.emit(Event::Edited { edited_buffer: None, source: BufferEditSource::User });
+        cx.emit(Event::Edited { edited_buffer: None });
     }
 
     pub fn set_use_extended_diff_range(&mut self, use_extended: bool, _cx: &mut Context<Self>) {
@@ -2272,7 +2192,7 @@ impl MultiBuffer {
             self.subscriptions.publish(edits);
         }
         cx.emit(Event::DiffHunksToggled);
-        cx.emit(Event::Edited { edited_buffer: None, source: BufferEditSource::User });
+        cx.emit(Event::Edited { edited_buffer: None });
     }
 
     fn sync(&self, cx: &App) {
@@ -2828,7 +2748,7 @@ impl MultiBuffer {
             self.subscriptions.publish(edits);
         }
         cx.emit(Event::DiffHunksToggled);
-        cx.emit(Event::Edited { edited_buffer: None, source: BufferEditSource::User });
+        cx.emit(Event::Edited { edited_buffer: None });
     }
 }
 
@@ -5534,62 +5454,6 @@ impl MultiBufferSnapshot {
         }
 
         Some((start_excerpt.buffer_snapshot(self), start_excerpt.range.clone()))
-    }
-
-    pub fn selections_in_range<'a>(
-        &'a self,
-        range: &'a Range<Anchor>,
-        include_local: bool,
-    ) -> impl 'a + Iterator<Item = (ReplicaId, bool, CursorShape, Selection<Anchor>)> {
-        let mut cursor = self.excerpts.cursor::<ExcerptSummary>(());
-        cursor.seek(&range.start.seek_target(self), Bias::Left);
-        cursor
-            .take_while(move |excerpt| {
-                let excerpt_start = Anchor::in_buffer(excerpt.path_key_index, excerpt.range.context.start);
-                excerpt_start.cmp(&range.end, self).is_le()
-            })
-            .flat_map(move |excerpt| {
-                let buffer_snapshot = excerpt.buffer_snapshot(self);
-                let mut query_range = excerpt.range.context.start..excerpt.range.context.end;
-                if let Some(excerpt_anchor) = range.start.excerpt_anchor()
-                    && excerpt.contains(&excerpt_anchor, self)
-                {
-                    query_range.start = excerpt_anchor.text_anchor();
-                }
-                if let Some(excerpt_anchor) = range.end.excerpt_anchor()
-                    && excerpt.contains(&excerpt_anchor, self)
-                {
-                    query_range.end = excerpt_anchor.text_anchor();
-                }
-
-                buffer_snapshot.selections_in_range(query_range, include_local).flat_map(
-                    move |(replica_id, line_mode, cursor_shape, selections)| {
-                        selections.map(move |selection| {
-                            let mut start = Anchor::in_buffer(excerpt.path_key_index, selection.start);
-                            let mut end = Anchor::in_buffer(excerpt.path_key_index, selection.end);
-                            if range.start.cmp(&start, self).is_gt() {
-                                start = range.start;
-                            }
-                            if range.end.cmp(&end, self).is_lt() {
-                                end = range.end;
-                            }
-
-                            (
-                                replica_id,
-                                line_mode,
-                                cursor_shape,
-                                Selection {
-                                    id: selection.id,
-                                    start,
-                                    end,
-                                    reversed: selection.reversed,
-                                    goal: selection.goal,
-                                },
-                            )
-                        })
-                    },
-                )
-            })
     }
 
     pub const fn show_headers(&self) -> bool {

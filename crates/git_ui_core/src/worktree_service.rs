@@ -25,7 +25,6 @@ use gpui::TaskExt;
 use gpui::WeakEntity;
 use project::Project;
 use project::git_store::Repository;
-use remote::RemoteConnectionOptions;
 use rustc_hash::FxHashSet;
 use ui::prelude::ActiveTheme;
 use ui::prelude::Button;
@@ -577,7 +576,6 @@ fn create_worktree_workspace_inner(
     let previous_state = workspace.capture_state_for_worktree_switch(window, fallback_focused_dock, cx);
     let workspace_handle = workspace.weak_handle();
     let window_handle = window.window_handle().downcast::<Workspace>();
-    let remote_connection_options = project.read(cx).remote_connection_options(cx);
 
     let (git_repos, non_git_paths) = classify_worktrees(project.read(cx), cx);
 
@@ -585,20 +583,6 @@ fn create_worktree_workspace_inner(
         let toast_workspace = cx.entity();
         show_error_toast(toast_workspace, "worktree create", anyhow!("No git repositories found in the project"), cx);
         return Task::ready(Err(anyhow!("No git repositories found in the project")));
-    }
-
-    if remote_connection_options.is_some() {
-        let is_disconnected = project.read(cx).remote_client().is_some_and(|client| client.read(cx).is_disconnected());
-        if is_disconnected {
-            let toast_workspace = cx.entity();
-            show_error_toast(
-                toast_workspace,
-                "worktree create",
-                anyhow!("Cannot create worktree: remote connection is not active"),
-                cx,
-            );
-            return Task::ready(Err(anyhow!("Cannot create worktree: remote connection is not active")));
-        }
     }
 
     let worktree_name = action.worktree_name.clone();
@@ -617,7 +601,6 @@ fn create_worktree_workspace_inner(
             previous_state,
             workspace_handle.clone(),
             window_handle,
-            remote_connection_options,
             cx,
         )
         .await;
@@ -672,7 +655,6 @@ pub fn handle_switch_worktree(
     let previous_state = workspace.capture_state_for_worktree_switch(window, fallback_focused_dock, cx);
     let workspace_handle = workspace.weak_handle();
     let window_handle = window.window_handle().downcast::<Workspace>();
-    let remote_connection_options = project.read(cx).remote_connection_options(cx);
 
     let (git_repos, non_git_paths) = classify_worktrees(project.read(cx), cx);
 
@@ -693,7 +675,6 @@ pub fn handle_switch_worktree(
             previous_state,
             workspace_handle.clone(),
             window_handle,
-            remote_connection_options,
             cx,
         )
         .await;
@@ -722,7 +703,6 @@ async fn do_create_worktree(
     previous_state: PreviousWorkspaceState,
     workspace: WeakEntity<Workspace>,
     window_handle: Option<gpui::WindowHandle<Workspace>>,
-    remote_connection_options: Option<RemoteConnectionOptions>,
     cx: &mut AsyncWindowContext,
 ) -> anyhow::Result<Entity<Workspace>> {
     // List existing worktrees from all repos to detect name collisions
@@ -790,7 +770,6 @@ async fn do_create_worktree(
         previous_state,
         workspace,
         window_handle,
-        remote_connection_options,
         WorktreeOperation::Create,
         cx,
     )
@@ -804,7 +783,6 @@ async fn do_switch_worktree(
     previous_state: PreviousWorkspaceState,
     workspace: WeakEntity<Workspace>,
     window_handle: Option<gpui::WindowHandle<Workspace>>,
-    remote_connection_options: Option<RemoteConnectionOptions>,
     cx: &mut AsyncWindowContext,
 ) -> anyhow::Result<Entity<Workspace>> {
     let path_remapping: Vec<(PathBuf, PathBuf)> =
@@ -822,7 +800,6 @@ async fn do_switch_worktree(
         previous_state,
         workspace,
         window_handle,
-        remote_connection_options,
         WorktreeOperation::Switch,
         cx,
     )
@@ -839,7 +816,6 @@ async fn open_worktree_workspace(
     previous_state: PreviousWorkspaceState,
     workspace: WeakEntity<Workspace>,
     window_handle: Option<gpui::WindowHandle<Workspace>>,
-    remote_connection_options: Option<RemoteConnectionOptions>,
     operation: WorktreeOperation,
     cx: &mut AsyncWindowContext,
 ) -> anyhow::Result<Entity<Workspace>> {
@@ -876,34 +852,12 @@ async fn open_worktree_workspace(
         };
 
     let app_state = source_workspace.read_with(cx, |workspace, _| workspace.app_state().clone());
-    let new_workspace = if let Some(connection_options) = remote_connection_options {
-        let connect_task = cx.update(|window, cx| {
-            remote_connection::connect_with_modal(&source_workspace, connection_options.clone(), window, cx)
-        })?;
-        let session = connect_task.await;
-        remote_connection::dismiss_connection_modal(&source_workspace, cx);
-        let session = session?.context("remote connection was cancelled")?;
-        let project =
-            cx.update(|_, cx| Project::remote(session, app_state.languages.clone(), app_state.fs.clone(), cx))?;
-        let (new_workspace, _) = workspace::open_remote_project_with_existing_connection(
-            project,
-            all_paths.clone(),
-            app_state,
-            window_handle,
-            cx,
-        )
-        .await?;
-        if let Some(init) = init {
-            new_workspace.update_in(cx, |workspace, window, cx| init(workspace, window, cx))?;
-        }
-        new_workspace
-    } else {
-        cx.update(|_, cx| {
+    let new_workspace = cx
+        .update(|_, cx| {
             Workspace::new_local(all_paths.clone(), app_state, Some(window_handle), init, OpenMode::Activate, cx)
         })?
         .await?
-        .workspace
-    };
+        .workspace;
 
     let panels_task = new_workspace.update(cx, |workspace, _cx| workspace.take_panels_task());
 

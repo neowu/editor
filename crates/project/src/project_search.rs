@@ -43,9 +43,6 @@ use gpui::Task;
 use language::Buffer;
 use language::BufferSnapshot;
 use language::Point;
-use parking_lot::Mutex;
-use rpc::AnyProtoClient;
-use rpc::proto;
 use rustc_hash::FxHashMap;
 use text::Rope;
 use util::ResultExt;
@@ -56,10 +53,8 @@ use worktree::Snapshot;
 use worktree::Worktree;
 use worktree::WorktreeSettings;
 
-use crate::Project;
 use crate::ProjectItem;
 use crate::ProjectPath;
-use crate::RemotelyCreatedModels;
 use crate::buffer_store::BufferStore;
 use crate::search::MatchPositionHint;
 use crate::search::SearchQuery;
@@ -77,9 +72,7 @@ pub struct Search {
 enum SearchKind {
     /// Search for candidates by inspecting file contents on file system, avoiding loading the buffer unless we know that a given file contains a match.
     Local { fs: Arc<dyn Fs>, worktrees: Vec<Entity<Worktree>> },
-    /// Query remote host for candidates. As of writing, the host runs a local search in "buffers with matches only" mode.
-    Remote { client: AnyProtoClient, remote_id: u64, models: Arc<Mutex<RemotelyCreatedModels>> },
-    /// Run search against a known set of candidates. Even when working with a remote host, this won't round-trip to host.
+    /// Run search against a known set of candidates.
     OpenBuffersOnly,
 }
 
@@ -123,7 +116,6 @@ enum FindSearchCandidates {
         confirm_contents_will_match_tx: Sender<MatchingEntry>,
         confirm_contents_will_match_rx: Receiver<MatchingEntry>,
     },
-    Remote,
     OpenBuffersOnly,
 }
 
@@ -140,19 +132,6 @@ impl Search {
         Self { kind: SearchKind::Local { fs, worktrees }, buffer_store, worktree_store, limit }
     }
 
-    pub(crate) fn remote(
-        buffer_store: Entity<BufferStore>,
-        worktree_store: Entity<WorktreeStore>,
-        limit: usize,
-        client_state: (AnyProtoClient, u64, Arc<Mutex<RemotelyCreatedModels>>),
-    ) -> Self {
-        Self {
-            kind: SearchKind::Remote { client: client_state.0, remote_id: client_state.1, models: client_state.2 },
-            buffer_store,
-            worktree_store,
-            limit,
-        }
-    }
     pub(crate) const fn open_buffers_only(
         buffer_store: Entity<BufferStore>,
         worktree_store: Entity<WorktreeStore>,
@@ -184,10 +163,9 @@ impl Search {
                 match (&self.kind, buffer.file()) {
                     (SearchKind::Local { .. }, Some(file)) => {
                         self.limit = self.limit.saturating_sub(1);
-                        let sort_key = (file.worktree_id(cx).to_proto(), file.path().clone());
+                        let sort_key = (file.worktree_id(cx).to_usize(), file.path().clone());
                         entryless_file_buffers.push((sort_key, handle));
                     }
-                    (SearchKind::Remote { .. }, _) => {}
                     _ => {
                         self.limit = self.limit.saturating_sub(1);
                         unnamed_buffers.push(handle);
@@ -267,72 +245,6 @@ impl Search {
                             },
                             tasks,
                         )
-                    }
-                    SearchKind::Remote { client, remote_id, models } => {
-                        let (handle, rx) =
-                            self.buffer_store.update(cx, |this, _| this.register_project_search_result_handle());
-
-                        let cancel_ongoing_search = util::defer({
-                            let client = client.clone();
-                            move || {
-                                _ = client.send(proto::FindSearchCandidatesCancelled { project_id: remote_id, handle });
-                            }
-                        });
-                        let request = client.request(proto::FindSearchCandidates {
-                            project_id: remote_id,
-                            query: Some(query.to_proto()),
-                            limit: self.limit as u64,
-                            handle,
-                        });
-
-                        let buffer_store = self.buffer_store;
-                        let guard = cx.update(|cx| {
-                            Project::retain_remotely_created_models_impl(
-                                &models,
-                                &buffer_store,
-                                &self.worktree_store,
-                                cx,
-                            )
-                        });
-
-                        let issue_remote_buffers_request = cx
-                            .spawn(async move |cx| {
-                                let _ = async move {
-                                    request.await?;
-
-                                    let (buffer_tx, buffer_rx) = bounded(24);
-
-                                    let wait_for_remote_buffers = cx.spawn(async move |cx| {
-                                        while let Ok(buffer_id) = rx.recv().await {
-                                            let buffer = buffer_store.update(cx, |buffer_store, cx| {
-                                                buffer_store.wait_for_remote_buffer(buffer_id, cx)
-                                            });
-                                            buffer_tx.send(buffer).await?;
-                                        }
-                                        anyhow::Ok(())
-                                    });
-
-                                    let forward_buffers = cx.background_spawn(async move {
-                                        while let Ok(buffer) = buffer_rx.recv().await {
-                                            let _ = grab_buffer_snapshot_tx
-                                                .send((buffer.await?, MatchPositionHint::default()))
-                                                .await;
-                                        }
-                                        anyhow::Ok(())
-                                    });
-                                    let (left, right) = future::join(wait_for_remote_buffers, forward_buffers).await;
-                                    left?;
-                                    right?;
-
-                                    drop(guard);
-                                    cancel_ongoing_search.abort();
-                                    anyhow::Ok(())
-                                }
-                                .await
-                                .log_err();
-                            })
-                            .boxed_local();
-                        (FindSearchCandidates::Remote, vec![issue_remote_buffers_request])
                     }
                 };
 
@@ -417,20 +329,15 @@ impl Search {
                 let gitignored_tracker = PathInclusionMatcher::new(query.clone());
                 let include_ignored = query.include_ignored();
                 for worktree in worktrees {
-                    let scan_complete =
-                        worktree.read_with(cx, |worktree, _| worktree.as_local().map(|local| local.scan_complete()));
-                    if let Some(scan_complete) = scan_complete {
-                        let mut scan_complete = pin!(scan_complete);
-                        if scan_complete.as_mut().now_or_never().is_none() {
-                            _ = results_tx.send(SearchResult::WaitingForScan).await;
-                            scan_complete.await;
-                            _ = results_tx.send(SearchResult::Searching).await;
-                        }
+                    let mut scan_complete = pin!(worktree.read_with(cx, |worktree, _| worktree.scan_complete()));
+                    if scan_complete.as_mut().now_or_never().is_none() {
+                        _ = results_tx.send(SearchResult::WaitingForScan).await;
+                        scan_complete.await;
+                        _ = results_tx.send(SearchResult::Searching).await;
                     }
 
-                    let (mut snapshot, worktree_settings) = worktree
-                        .read_with(cx, |this, _| Some((this.snapshot(), this.as_local()?.settings())))
-                        .context("The worktree is not local")?;
+                    let (mut snapshot, worktree_settings) =
+                        worktree.read_with(cx, |this, _| (this.snapshot(), this.settings()));
                     if query.include_ignored() {
                         // Pre-fetch all of the ignored directories as they're going to be searched.
                         let mut entries_to_refresh = vec![];
@@ -441,10 +348,9 @@ impl Search {
                             }
                         }
                         let barrier = worktree.update(cx, |this, _| {
-                            let local = this.as_local_mut()?;
                             let barrier = entries_to_refresh
                                 .into_iter()
-                                .map(|path| local.add_path_prefix_to_scan(path).into_future())
+                                .map(|path| this.add_path_prefix_to_scan(path).into_future())
                                 .collect::<Vec<_>>();
                             Some(barrier)
                         });
@@ -513,7 +419,7 @@ impl Search {
         buffer_store: Entity<BufferStore>,
         rx: Receiver<(ProjectPath, MatchPositionHint)>,
         find_all_matches_tx: Sender<(Entity<Buffer>, MatchPositionHint)>,
-        sorted_entryless_file_buffers: Vec<((u64, Arc<RelPath>), Entity<Buffer>)>,
+        sorted_entryless_file_buffers: Vec<((usize, Arc<RelPath>), Entity<Buffer>)>,
         mut cx: AsyncApp,
     ) {
         let mut entryless_file_buffers = sorted_entryless_file_buffers.into_iter().peekable();
@@ -521,8 +427,8 @@ impl Search {
         _ = async move {
             while let Some(requested_paths) = rx.next().await {
                 let line_hints: Vec<MatchPositionHint> = requested_paths.iter().map(|(_, line)| *line).collect();
-                let sort_keys: Vec<(u64, Arc<RelPath>)> =
-                    requested_paths.iter().map(|(path, _)| (path.worktree_id.to_proto(), path.path.clone())).collect();
+                let sort_keys: Vec<(usize, Arc<RelPath>)> =
+                    requested_paths.iter().map(|(path, _)| (path.worktree_id.to_usize(), path.path.clone())).collect();
                 let mut buffers = buffer_store.update(&mut cx, |this, cx| {
                     requested_paths
                         .into_iter()
@@ -635,10 +541,10 @@ impl Search {
     }
 }
 
-fn path_key_sort_key(buffer: &Entity<Buffer>, cx: &App) -> (Option<u64>, Option<Arc<RelPath>>, String) {
+fn path_key_sort_key(buffer: &Entity<Buffer>, cx: &App) -> (Option<usize>, Option<Arc<RelPath>>, String) {
     let buffer = buffer.read(cx);
     match buffer.file() {
-        Some(file) => (Some(file.worktree_id(cx).to_proto()), Some(file.path().clone()), String::new()),
+        Some(file) => (Some(file.worktree_id(cx).to_usize()), Some(file.path().clone()), String::new()),
         None => (None, None, buffer.remote_id().to_string()),
     }
 }
@@ -662,9 +568,7 @@ impl Worker {
                     confirm_contents_will_match_rx,
                     confirm_contents_will_match_tx,
                 } => (input_paths_rx, confirm_contents_will_match_rx, confirm_contents_will_match_tx, Some(fs)),
-                FindSearchCandidates::Remote | FindSearchCandidates::OpenBuffersOnly => {
-                    (unbounded().1, unbounded().1, unbounded().0, None)
-                }
+                FindSearchCandidates::OpenBuffersOnly => (unbounded().1, unbounded().1, unbounded().0, None),
             };
         // WorkerA: grabs a request for "find all matches in file/a" <- takes 5 minutes
         // right after: WorkerB: grabs a request for "find all matches in file/b" <- takes 5 seconds
@@ -748,7 +652,7 @@ impl RequestHandler<'_> {
     async fn handle_find_first_match(&self, entry: MatchingEntry) {
         async move {
             let abs_path = entry.worktree_root.join(entry.path.path.as_std_path());
-            let fs = self.fs.context("Trying to query filesystem in remote project search")?;
+            let fs = self.fs.context("no filesystem for an open-buffers-only search")?;
             let Some(mut file) = fs.open_sync(&abs_path).await.log_err() else {
                 return anyhow::Ok(());
             };

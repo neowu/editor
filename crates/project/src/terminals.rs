@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Context as _;
 use anyhow::Result;
 use futures::FutureExt;
 use futures::future::Shared;
@@ -13,9 +12,6 @@ use gpui::Context;
 use gpui::Entity;
 use gpui::Task;
 use gpui::WeakEntity;
-use remote::Interactive;
-use remote::RemoteClient;
-use rpc::proto;
 use rustc_hash::FxHashMap;
 use task::Shell;
 use task::ShellBuilder;
@@ -23,9 +19,7 @@ use task::SpawnInTerminal;
 use terminal::Terminal;
 use terminal::TerminalBuilder;
 use terminal::TerminalMode;
-use terminal::insert_ed_terminal_env;
 use terminal::terminal_settings::TerminalSettings;
-use util::get_default_system_shell;
 use util::get_system_shell;
 use util::rel_path::RelPath;
 
@@ -78,16 +72,11 @@ impl Project {
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Terminal>>> {
         let original_task = spawn_task.clone();
-        let is_via_remote = self.remote_client.is_some();
 
         let path: Option<Arc<Path>> = if let Some(cwd) = &spawn_task.cwd {
-            if is_via_remote {
-                Some(Arc::from(cwd.as_ref()))
-            } else {
-                let cwd = cwd.to_string_lossy();
-                let tilde_substituted = shellexpand::tilde(&cwd);
-                Some(Arc::from(Path::new(tilde_substituted.as_ref())))
-            }
+            let cwd = cwd.to_string_lossy();
+            let tilde_substituted = shellexpand::tilde(&cwd);
+            Some(Arc::from(Path::new(tilde_substituted.as_ref())))
         } else {
             self.active_project_directory(cx)
         };
@@ -96,21 +85,11 @@ impl Project {
         let venv = self.project_venv(path.as_deref(), &settings, cx);
 
         // The terminal keeps the task as requested so a rerun wraps it in the shell afresh.
-        let remote_shell = self.remote_client.as_ref().and_then(|remote_client| remote_client.read(cx).shell());
-        let shell = remote_shell.map_or(Shell::System, Shell::Program);
-        let spawn_task = wrap_task_in_shell(&spawn_task, &shell);
+        let spawn_task = wrap_task_in_shell(&spawn_task, &Shell::System);
         let terminal_mode =
             TerminalMode::task(SpawnInTerminal { command_label: spawn_task.command_label.clone(), ..original_task });
 
-        let local_path = if is_via_remote { None } else { path.clone() };
-        let remote_client = self.remote_client.clone();
-        let shell = match &remote_client {
-            Some(remote_client) => remote_client.read(cx).shell().unwrap_or_else(get_default_system_shell),
-            None => get_system_shell(),
-        };
-
-        // Prepare a task for resolving the environment
-        let env_task = self.resolve_directory_environment(&shell, path.clone(), remote_client.clone(), cx);
+        let env_task = self.resolve_directory_environment(&get_system_shell(), path.clone(), cx);
 
         cx.spawn(async move |project, cx| {
             let mut env = env_task.await.unwrap_or_default();
@@ -122,28 +101,14 @@ impl Project {
 
             let builder = project
                 .update(cx, move |_, cx| {
-                    let (shell, env) = {
-                        env.extend(spawn_task.env);
-                        match remote_client {
-                            Some(remote_client) => create_remote_shell(
-                                spawn_task.command.as_ref().map(|command| (command, &spawn_task.args)),
-                                env,
-                                path,
-                                remote_client,
-                                cx,
-                            )?,
-                            None => (
-                                if let Some(program) = spawn_task.command {
-                                    Shell::WithArguments { program, args: spawn_task.args, title_override: None }
-                                } else {
-                                    Shell::System
-                                },
-                                env,
-                            ),
-                        }
+                    env.extend(spawn_task.env);
+                    let shell = if let Some(program) = spawn_task.command {
+                        Shell::WithArguments { program, args: spawn_task.args, title_override: None }
+                    } else {
+                        Shell::System
                     };
                     anyhow::Ok(TerminalBuilder::new(
-                        local_path.map(|path| path.to_path_buf()),
+                        path.map(|path| path.to_path_buf()),
                         terminal_mode,
                         shell,
                         env,
@@ -152,7 +117,6 @@ impl Project {
                         settings.max_scroll_history_lines,
                         settings.path_hyperlink_regexes,
                         Duration::from_millis(settings.path_hyperlink_timeout_ms),
-                        is_via_remote,
                         cx.entity_id().as_u64(),
                         cx,
                     ))
@@ -184,66 +148,13 @@ impl Project {
         cwd: Option<PathBuf>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Terminal>>> {
-        self.create_terminal_shell_internal(cwd, false, cx)
-    }
-
-    /// Creates a local terminal even if the project is remote.
-    /// In remote projects: opens in ed's launch directory (bypasses SSH).
-    /// In local projects: opens in the project directory (same as regular terminals).
-    pub fn create_local_terminal(&mut self, cx: &mut Context<Self>) -> Task<Result<Entity<Terminal>>> {
-        let working_directory = if self.remote_client.is_some() {
-            // Remote project: don't use remote paths, let shell use ed's cwd
-            None
-        } else {
-            // Local project: use project directory like normal terminals
-            self.active_project_directory(cx).map(|p| p.to_path_buf())
-        };
-        self.create_terminal_shell_internal(working_directory, true, cx)
-    }
-
-    /// Internal method for creating terminal shells.
-    /// If force_local is true, creates a local terminal even if the project has a remote client.
-    /// This allows "breaking out" to a local shell in remote projects.
-    fn create_terminal_shell_internal(
-        &self,
-        cwd: Option<PathBuf>,
-        force_local: bool,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<Entity<Terminal>>> {
-        let path = cwd.map(|p| Arc::from(&*p));
-        let is_via_remote = !force_local && self.remote_client.is_some();
+        let path: Option<Arc<Path>> = cwd.map(|p| Arc::from(&*p));
 
         let settings = TerminalSettings::get().clone();
         let venv = self.project_venv(path.as_deref(), &settings, cx);
-        let local_path = if is_via_remote { None } else { path.clone() };
-
-        let remote_client = if force_local { None } else { self.remote_client.clone() };
-        let remote_shell_request = remote_client.as_ref().map(|remote_client| {
-            remote_client
-                .read(cx)
-                .proto_client()
-                .request(proto::GetTerminalShell { project_id: proto::REMOTE_SERVER_PROJECT_ID })
-        });
-        let env_shell = match &remote_client {
-            Some(remote_client) => remote_client.read(cx).shell().unwrap_or_else(get_default_system_shell),
-            None => get_system_shell(),
-        };
-
-        // Prepare a task for resolving the environment
-        let env_task = self.resolve_directory_environment(&env_shell, path.clone(), remote_client.clone(), cx);
+        let env_task = self.resolve_directory_environment(&get_system_shell(), path.clone(), cx);
 
         cx.spawn(async move |project, cx| {
-            let remote_shell = if let Some(remote_shell_request) = remote_shell_request {
-                let response =
-                    remote_shell_request.await.context("failed to get terminal shell settings from remote server")?;
-                let shell = response.shell.context("remote server returned no terminal shell")?;
-                let shell =
-                    task::shell_from_proto(shell).context("remote server returned an invalid terminal shell")?;
-                log::debug!("create_terminal_shell_internal: using remote terminal shell setting: {shell:?}");
-                Some(shell)
-            } else {
-                None
-            };
             let mut env = env_task.await.unwrap_or_default();
             env.extend(settings.env);
 
@@ -253,22 +164,9 @@ impl Project {
 
             let builder = project
                 .update(cx, move |_, cx| {
-                    let (shell, env) = {
-                        match remote_client {
-                            Some(remote_client) => {
-                                let empty_args = Vec::new();
-                                let spawn_command = match remote_shell.as_ref() {
-                                    Some(Shell::System) | None => None,
-                                    Some(Shell::Program(program)) => Some((program, &empty_args)),
-                                    Some(Shell::WithArguments { program, args, .. }) => Some((program, args)),
-                                };
-                                create_remote_shell(spawn_command, env, path, remote_client, cx)?
-                            }
-                            None => (settings.shell, env),
-                        }
-                    };
+                    let (shell, env) = (settings.shell, env);
                     anyhow::Ok(TerminalBuilder::new(
-                        local_path.map(|path| path.to_path_buf()),
+                        path.map(|path| path.to_path_buf()),
                         TerminalMode::interactive(),
                         shell,
                         env,
@@ -277,7 +175,6 @@ impl Project {
                         settings.max_scroll_history_lines,
                         settings.path_hyperlink_regexes,
                         Duration::from_millis(settings.path_hyperlink_timeout_ms),
-                        is_via_remote,
                         cx.entity_id().as_u64(),
                         cx,
                     ))
@@ -315,9 +212,7 @@ impl Project {
         if terminal.read(cx).task().is_some() {
             return self.create_terminal_shell(cwd, cx);
         }
-        let local_path = if self.is_via_remote_server() { None } else { cwd };
-
-        let builder = terminal.read(cx).clone_builder(cx, local_path);
+        let builder = terminal.read(cx).clone_builder(cx, cwd);
         cx.spawn(async |project, cx| {
             let terminal = builder.await?;
             project.update(cx, |project, cx| {
@@ -345,57 +240,15 @@ impl Project {
         &self,
         shell: &str,
         path: Option<Arc<Path>>,
-        remote_client: Option<Entity<RemoteClient>>,
         cx: &mut App,
     ) -> Shared<Task<Option<FxHashMap<String, String>>>> {
-        if let Some(path) = &path {
+        if let Some(path) = path {
             let shell = Shell::Program(shell.to_string());
-            self.environment.update(cx, |project_env, cx| match &remote_client {
-                Some(remote_client) => {
-                    project_env.remote_directory_environment(&shell, path.clone(), remote_client.clone(), cx)
-                }
-                None => project_env.local_directory_environment(&shell, path.clone(), cx),
-            })
+            self.environment.update(cx, |project_env, cx| project_env.local_directory_environment(&shell, path, cx))
         } else {
             Task::ready(None).shared()
         }
     }
-}
-
-fn create_remote_shell(
-    spawn_command: Option<(&String, &Vec<String>)>,
-    mut env: FxHashMap<String, String>,
-    working_directory: Option<Arc<Path>>,
-    remote_client: Entity<RemoteClient>,
-    cx: &App,
-) -> Result<(Shell, FxHashMap<String, String>)> {
-    insert_ed_terminal_env(&mut env);
-
-    let (program, args) = match spawn_command {
-        Some((program, args)) => (Some(program.clone()), args),
-        None => (None, &Vec::new()),
-    };
-
-    let command = remote_client.read(cx).build_command(
-        program,
-        args.as_slice(),
-        &env,
-        working_directory.map(|path| path.display().to_string()),
-        None,
-        Interactive::Yes,
-    )?;
-
-    log::debug!("Connecting to a remote server: {:?}", command.program);
-    let host = remote_client.read(cx).connection_options().display_name();
-
-    Ok((
-        Shell::WithArguments {
-            program: command.program,
-            args: command.args,
-            title_override: Some(format!("{} — Terminal", host)),
-        },
-        command.env,
-    ))
 }
 
 /// Puts the project `.venv` in front of `PATH` and sets `VIRTUAL_ENV`, so its

@@ -4,9 +4,14 @@ This fork is a single-user editor. Collaboration panels, channels and channel
 notes, calls, screen sharing, participant controls, account menus, and sign-in
 entry points are removed, together with the collaboration server, UI, client,
 and account API crates. Unused account, channel, call, and following protocol
-definitions are removed. Local services use HTTP directly; remote editing uses RPC
-over the SSH channel only. The collab websocket transport (`Peer`, websocket
-message framing, `async-tungstenite`) is removed.
+definitions are removed.
+
+The editor is local-only: there are no remote (SSH) projects, no server
+binary, and no RPC or protobuf layer (the `remote`, `remote_connection`,
+`remote_server`, `rpc` and `proto` crates are gone). `Project`, its stores,
+worktrees, terminals and search have a single local mode. `projects.json`
+entries carrying a `remote` key, written by older versions, are dropped on
+load.
 GPUI has no screen-capture API or `screen-capture` feature, and the app does not
 link ScreenCaptureKit or ReplayKit.
 GPUI has no video `surface` element or CoreVideo pixel-buffer render path.
@@ -15,14 +20,15 @@ The window header and status bar retain project, worktree, Git, and platform win
 These controls initialize independently of collaboration. Old collaboration and
 account visibility settings no longer expose or enable features.
 
-There are no collaborator replicas: buffers only ever see the local replica,
-the SSH remote server replica, and local branches. The buffer CRDT (Lamport
-timestamps, version vectors) is kept anyway: the client and the remote server
-both edit buffers concurrently (typing vs. server-side formatting, code actions,
-and reloads), anchors are Lamport insertion ids, and branch buffers merge back
-into their base. Remote ops whose causal version isn't observed yet are queued;
-the version check alone keeps each source in order. Dead sharing/unsharing APIs
-and the call-status-icon and public-channel-sharing settings are removed.
+There are no collaborator or server replicas: the local buffer is the only
+writer. The text buffer keeps the fragment tree, tombstones and insertion ids
+that anchors need, but its clock is one counter: a `Lamport` timestamp is a
+`u32` and a version (`clock::Global`) is the newest timestamp applied, because
+edits apply in timestamp order. There are no operations to send or replay, no
+deferred-op queue, no branch buffers, no buffer-held selections for other
+replicas, and undo/redo stays local (an undo map of per-edit counts).
+Dead sharing/unsharing APIs and the call-status-icon and public-channel-sharing
+settings are removed.
 
 There is no player concept: the theme has one `CursorColors` (cursor and
 selection), greyed out in read-only editors. Places that need several distinct colors (git blame, Mermaid diagrams, debug
@@ -39,35 +45,11 @@ The local log is for error review only; interactive debugging goes through edctl
 automation (`automation.md`). The `log` backend is a small module in the `ed`
 binary, not a separate crate. The editor logs at a fixed `info` level (errors only
 for `usvg`/`simplecss`). There is no `log` setting and no `ED_LOG`/`RUST_LOG`
-filtering, and `RUST_LOG` is not forwarded to the remote server.
-
-SSH editing remains supported, including transport and buffer synchronization.
-WSL transport, UI, settings, CLI requests, and saved connection restoration are removed.
-Reconnection uses separate timeouts for the new connection's handshake and
-for the resync that follows; the resync timeout starts only once the handshake
-completes.
-The SSH username is passed verbatim with `-l` and the host after `--`
-(`ssh … -l <user> -- <host>`), so domain usernames like `DOMAIN\user` work and
-neither can be parsed as an ssh option; scp and sftp also put `--` before the
-destination.
+filtering.
 
 The application updater, update checks, downloads/installers, helper executable,
 release-note actions, and update indicators are removed. Updates are installed
 externally. The obsolete extension auto-update setting is also removed.
-
-SSH connections require an executable server installed by the user at
-`~/.local/bin/ed_server` on the target host. Connection setup checks that
-it runs, then uses it for the remote session and command execution. A missing or
-unusable binary fails the connection with an error naming the required path.
-The editor never downloads, builds, uploads, or installs a remote server.
-Remote-server release fetching and archive caching are removed. The obsolete
-`upload_binary_over_ssh` setting is removed.
-
-The remote server keeps no log file. Its log records are streamed to the client
-as JSON and re-logged into the editor's own log. The server and proxy log at a
-fixed `info` level; `RUST_LOG` is not read. The only file it writes is a
-panic report (`server-<id>-panic.log` in the remote logs dir, overwritten per
-panic), since a panicking server aborts before the record can be forwarded.
 
 Feature flags and local flag overrides are removed.
 Diff-review gutter controls and intentional panic/crash
@@ -77,17 +59,16 @@ Feedback actions, bug-report links, and feature-request/email menu entries are
 removed.
 
 The editor has a single application identity and icon. There is no
-release-channel concept anywhere (app, remote client, or remote server). The app
+release-channel concept. The app
 version is the `ed` crate's Cargo.toml version; no commit SHA, build ID, or
 bundle type is embedded or shown.
 
 The ztracing instrumentation and Tracy integration are removed. The GPUI
 `profiler` feature is removed too: no task/frame timing collection, performance
 profiler panel or `instrumentation.performance_profiler` setting, FPS/frame debug
-overlay, input-latency histogram, hang monitor, or remote profiling RPC. GPUI has no
+overlay, input-latency histogram, or hang monitor. GPUI has no
 `profiling` crate instrumentation (no puffin/optick/superluminal/tracy hooks).
 Diagnostic logs remain available.
 
-Editor and remote RPC code have no direct `tracing` dependency. Verbose RPC
-debug/trace output is removed; warnings and errors use `log` and the existing
-local logging pipeline. Third-party dependencies may still use `tracing` internally.
+Editor code has no direct `tracing` dependency; warnings and errors use `log`
+and the local logging pipeline. Third-party dependencies may still use `tracing` internally.

@@ -118,7 +118,6 @@ use crate::WindowAppearance;
 use crate::WindowHandle;
 use crate::WindowId;
 use crate::WindowInvalidator;
-use crate::WindowingRequest;
 use crate::asset_cache::CachedLoad;
 use crate::colors::Colors;
 use crate::colors::GlobalColors;
@@ -252,7 +251,7 @@ impl Application {
     }
 
     /// Configures when the application should automatically quit.
-    /// By default, [`QuitMode::Default`] is used.
+    /// By default, [`QuitMode::Explicit`] is used.
     pub fn with_quit_mode(self, mode: QuitMode) -> Self {
         self.0.borrow_mut().quit_mode = mode;
         self
@@ -422,12 +421,10 @@ impl MissingGlyphCallbackSlot {
 /// Defines when the application should automatically quit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum QuitMode {
-    /// Use [`QuitMode::Explicit`] on macOS and [`QuitMode::LastWindowClosed`] on other platforms.
-    #[default]
-    Default,
     /// Quit automatically when the last window is closed.
     LastWindowClosed,
     /// Quit only when requested via [`App::quit`].
+    #[default]
     Explicit,
 }
 
@@ -765,39 +762,6 @@ impl App {
     /// Gracefully quit the application via the platform's standard routine.
     pub fn quit(&self) {
         self.platform.quit();
-    }
-
-    /// Switches the platform between headless and windowed modes.
-    ///
-    /// On Linux, headless means no display server: windows opened afterwards lay out and handle
-    /// input but draw nothing. Windowed, the platform connects to the display server the
-    /// environment names. On macOS, the modes set the [`ActivationPolicy`]: headless is
-    /// `Accessory` (no Dock icon or menu bar) and windowed is `Regular`. Switching to windowed
-    /// doesn't activate the app: call [`App::activate`] for that.
-    ///
-    /// The returned task resolves once the switch has been applied. It fails if the platform is
-    /// already in the requested mode (switching to another display server means going headless
-    /// first), if the platform doesn't allow the mode or can't switch at all, if any window is
-    /// open (a window belongs to the display server that opened it), or if the display server
-    /// can't be reached.
-    pub fn request_windowing(&self, request: WindowingRequest) -> Task<anyhow::Result<()>> {
-        if !self.windows.is_empty() {
-            return Task::ready(Err(anyhow::anyhow!("cannot switch windowing modes while windows are open")));
-        }
-        self.platform.request_windowing(request)
-    }
-
-    /// The environment of the display server the platform is connected to, or `None` while
-    /// headless. Its activation token is always unset, since the connection has used it.
-    ///
-    /// Programs an app launches inherit this process's environment, which may name another
-    /// graphical session, or none if the app started headless. Pass them this one with
-    /// [`GraphicalEnvironment::apply_to`](crate::GraphicalEnvironment::apply_to).
-    ///
-    /// On macOS, the environment carries nothing, and this is `None` while the activation
-    /// policy is `Accessory`. Always `None` on platforms that can't switch windowing modes.
-    pub fn graphical_environment(&self) -> Option<crate::GraphicalEnvironment> {
-        self.platform.graphical_environment()
     }
 
     /// Returns the current policy for hiding the cursor in response to
@@ -1225,16 +1189,6 @@ impl App {
         self.platform.open_url(url);
     }
 
-    /// Sets the application's process-wide identity and user-visible name.
-    ///
-    /// The identifier is used for platform identity mechanisms such as the
-    /// Windows AppUserModelID. The name is used wherever the operating system
-    /// presents the application to the user. Call this once, early in startup,
-    /// before opening windows.
-    pub fn set_app_identity(&self, identifier: &str, name: &str) {
-        self.platform.set_app_identity(identifier, name);
-    }
-
     /// Returns the full pathname of the current app bundle.
     ///
     /// Returns an error if the app is not being run from a bundle.
@@ -1242,18 +1196,10 @@ impl App {
         self.platform.app_path()
     }
 
-    /// On Linux, returns the name of the compositor in use.
-    ///
-    /// Returns an empty string on other platforms.
-    pub fn compositor_name(&self) -> &'static str {
-        self.platform.compositor_name()
-    }
-
     /// Displays a platform modal for selecting paths.
     ///
     /// When one or more paths are selected, they'll be relayed asynchronously via the returned oneshot channel.
     /// If cancelled, a `None` will be relayed instead.
-    /// May return an error on Linux if the file picker couldn't be opened.
     pub fn prompt_for_paths(&self, options: PathPromptOptions) -> oneshot::Receiver<Result<Option<Vec<PathBuf>>>> {
         self.platform.prompt_for_paths(options)
     }
@@ -1263,7 +1209,6 @@ impl App {
     /// The provided directory will be used to set the initial location.
     /// When a path is selected, it is relayed asynchronously via the returned oneshot channel.
     /// If cancelled, a `None` will be relayed instead.
-    /// May return an error on Linux if the file picker couldn't be opened.
     pub fn prompt_for_new_path(
         &self,
         directory: &Path,
@@ -1294,17 +1239,14 @@ impl App {
     }
 
     /// Configures when the application should automatically quit.
-    /// By default, [`QuitMode::Default`] is used.
+    /// By default, [`QuitMode::Explicit`] is used.
     pub const fn set_quit_mode(&mut self, mode: QuitMode) {
         self.quit_mode = mode;
     }
 
     /// Sets whether the application participates in the system's foreground UI.
     ///
-    /// Only has an effect on macOS, where [`Self::request_windowing`] normally sets it. Use this
-    /// for an accessory app that shows windows, such as a menu bar utility. It overrides the
-    /// policy until the next [`Self::request_windowing`], and the app counts as headless while
-    /// `Accessory`. After switching to [`ActivationPolicy::Regular`], activate the app yourself
+    /// Use this for an accessory app that shows windows, such as a menu bar utility. After switching to [`ActivationPolicy::Regular`], activate the app yourself
     /// with [`Self::activate`]; otherwise its menu bar may not appear until the app is
     /// reactivated.
     pub fn set_activation_policy(&mut self, policy: ActivationPolicy) {
@@ -2200,13 +2142,7 @@ impl App {
                         true
                     });
 
-                    let quit_on_empty = match cx.quit_mode {
-                        QuitMode::Explicit => false,
-                        QuitMode::LastWindowClosed => true,
-                        QuitMode::Default => cfg!(not(target_os = "macos")),
-                    };
-
-                    if quit_on_empty && cx.windows.is_empty() {
+                    if cx.quit_mode == QuitMode::LastWindowClosed && cx.windows.is_empty() {
                         cx.quit();
                     }
                 } else {

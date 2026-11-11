@@ -4,6 +4,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
+use editor::Editor;
 use fs::Fs;
 use futures::channel::mpsc;
 use futures::channel::mpsc::UnboundedReceiver;
@@ -13,9 +14,6 @@ use git_ui_core::file_diff_view::FileDiffView;
 use gpui::AsyncApp;
 use gpui::Global;
 use gpui::WindowHandle;
-use recent_projects::navigate_to_positions;
-use remote::RemoteConnectionOptions;
-use remote::SshConnectionOptions;
 use util::ResultExt;
 use util::paths::PathWithPosition;
 use workspace::AppState;
@@ -28,8 +26,6 @@ pub struct OpenRequest {
     pub open_paths: Vec<String>,
     pub diff_paths: Vec<[String; 2]>,
     pub diff_all: bool,
-
-    pub remote_connection: Option<RemoteConnectionOptions>,
 }
 
 impl OpenRequest {
@@ -39,8 +35,6 @@ impl OpenRequest {
         for url in request.urls {
             if let Some(file) = url.strip_prefix("file://") {
                 this.parse_file_path(file)
-            } else if url.starts_with("ssh://") {
-                this.parse_ssh_file_path(&url)?
             } else {
                 log::error!("unhandled url: {}", url);
             }
@@ -54,75 +48,6 @@ impl OpenRequest {
             self.open_paths.push(decoded.into_owned())
         }
     }
-
-    fn parse_ssh_file_path(&mut self, file: &str) -> Result<()> {
-        let url = parse_ssh_url(file)?;
-        let host = match url.host().with_context(|| format!("missing host in ssh url: {url}"))? {
-            url::Host::Domain(host) => host.to_string(),
-            url::Host::Ipv4(host) => host.to_string(),
-            url::Host::Ipv6(host) => host.to_string(),
-        };
-        let username =
-            if url.username().is_empty() { None } else { Some(urlencoding::decode(url.username())?.into_owned()) };
-        let port = url.port();
-        anyhow::ensure!(self.open_paths.is_empty(), "cannot open both local and ssh paths");
-        anyhow::ensure!(
-            url.password().is_none(),
-            "SSH password authentication is unsupported; configure non-interactive authentication"
-        );
-        let connection_options = RemoteConnectionOptions::Ssh(SshConnectionOptions {
-            host: host.into(),
-            port,
-            username,
-            ..Default::default()
-        });
-        if let Some(ssh_connection) = &self.remote_connection {
-            anyhow::ensure!(*ssh_connection == connection_options, "cannot open multiple different remote connections");
-        }
-        self.remote_connection = Some(connection_options);
-        self.parse_file_path(url.path());
-        Ok(())
-    }
-}
-
-fn parse_ssh_url(url: &str) -> Result<url::Url> {
-    if let Ok(url) = url::Url::parse(url) {
-        return Ok(url);
-    }
-    // SCP/git style urls use ':' to separate from Authority and Path.
-    // They are unsupported by Url::parse, but can be normalized into a Url.
-    //   SCPUrl("ssh://user@host:~/relpath") => Url("ssh://user@host/~/relpath")
-    //   SCPUrl("ssh://user@host:/abs/path") => Url("ssh://user@host/abs/path")
-    //   SCPUrl("ssh://[2600::]:~/foo") => Url("ssh://[2600::]/~/foo")
-    let ssh_target = url.strip_prefix("ssh://").with_context(|| format!("invalid ssh url: {url}"))?;
-
-    let (authority, path) = if let Some((authority, path)) = ssh_target.rsplit_once(":~/") {
-        (authority, format!("/~/{path}"))
-    } else if let Some((authority, path)) = ssh_target.rsplit_once(":/") {
-        (authority, format!("/{path}"))
-    } else {
-        anyhow::bail!("invalid ssh url: {url}");
-    };
-
-    let (userinfo, host) =
-        authority.rsplit_once('@').map_or((None, authority), |(userinfo, host)| (Some(userinfo), host));
-    anyhow::ensure!(!host.is_empty() && url::Host::parse(host).is_ok(), "invalid ssh url: {url}");
-
-    let normalized_authority = if let Some(userinfo) = userinfo {
-        let (username, colon_password) = if let Some((username, password)) = userinfo.split_once(':') {
-            (
-                urlencoding::encode(&urlencoding::decode(username)?).into_owned(),
-                format!(":{}", urlencoding::encode(&urlencoding::decode(password)?).into_owned()),
-            )
-        } else {
-            (urlencoding::encode(&urlencoding::decode(userinfo)?).into_owned(), String::new())
-        };
-        format!("{username}{colon_password}@{host}")
-    } else {
-        authority.to_string()
-    };
-
-    Ok(url::Url::parse(&format!("ssh://{normalized_authority}{path}"))?)
 }
 
 #[derive(Clone)]
@@ -225,6 +150,38 @@ pub async fn open_paths_with_positions(
     navigate_to_positions(&window, items_for_navigation, path_positions, cx);
 
     Ok((window, items))
+}
+
+fn navigate_to_positions(
+    window: &WindowHandle<Workspace>,
+    items: impl IntoIterator<Item = Option<Box<dyn ItemHandle>>>,
+    positions: &[PathWithPosition],
+    cx: &mut AsyncApp,
+) {
+    for (item, path) in items.into_iter().zip(positions) {
+        let Some(item) = item else {
+            continue;
+        };
+        let Some(row) = path.row else {
+            continue;
+        };
+        if let Some(active_editor) = item.downcast::<Editor>() {
+            window
+                .update(cx, |_, window, cx| {
+                    active_editor.update(cx, |editor, cx| {
+                        let row = row.saturating_sub(1);
+                        let col = path.column.unwrap_or(0).saturating_sub(1);
+                        let Some(buffer) = editor.buffer().read(cx).as_singleton() else {
+                            return;
+                        };
+                        let buffer_snapshot = buffer.read(cx).snapshot();
+                        let point = buffer_snapshot.point_from_external_input(row, col);
+                        editor.go_to_singleton_buffer_point(point, window, cx);
+                    });
+                })
+                .ok();
+        }
+    }
 }
 
 pub async fn derive_paths_with_position(

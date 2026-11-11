@@ -6,9 +6,5 @@ edition.workspace = true
 [lib]
 path = "src/clock.rs"
 
-[dependencies]
-serde = { workspace = true, features = ["derive"] }
-smallvec.workspace = true
-
 [lints]
 workspace = true
