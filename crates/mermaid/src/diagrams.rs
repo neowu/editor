@@ -14,39 +14,21 @@ pub(crate) mod common {
     pub(crate) mod tokens;
 }
 
-pub(crate) mod agentflow;
 pub(crate) mod architecture;
-pub(crate) mod block;
 pub(crate) mod c4;
 pub(crate) mod class;
-pub(crate) mod cynefin;
 pub(crate) mod er;
 pub(crate) mod eventmodeling;
-/// Swimlane diagrams draw through the flowchart, and agentflow reads its shapes.
 pub(crate) mod flowchart;
-pub(crate) mod gantt;
-pub(crate) mod git;
-pub(crate) mod info;
-pub(crate) mod ishikawa;
-pub(crate) mod journey;
-pub(crate) mod kanban;
 pub(crate) mod mindmap;
-pub(crate) mod packet;
-pub(crate) mod pie;
-pub(crate) mod quadrant;
 pub(crate) mod radar;
 pub(crate) mod railroad;
 pub(crate) mod requirement;
-pub(crate) mod sankey;
 pub(crate) mod sequence;
 pub(crate) mod state;
-pub(crate) mod swimlane;
 pub(crate) mod timeline;
 pub(crate) mod treemap;
-pub(crate) mod treeview;
 pub(crate) mod usecase;
-pub(crate) mod venn;
-pub(crate) mod wardley;
 pub(crate) mod xychart;
 
 use crate::Options;
@@ -97,38 +79,21 @@ pub(crate) struct Diagram {
 /// The diagram type named `type` (Pele's names), when this build includes it.
 pub(crate) fn find(r#type: &str) -> Option<Diagram> {
     match r#type {
-        "agentflow" => Some(agentflow::DIAGRAM),
         "architecture" => Some(architecture::DIAGRAM),
-        "block" => Some(block::DIAGRAM),
         "c4" => Some(c4::DIAGRAM),
         "class" => Some(class::DIAGRAM),
-        "cynefin" => Some(cynefin::DIAGRAM),
         "er" => Some(er::DIAGRAM),
         "eventmodeling" => Some(eventmodeling::DIAGRAM),
         "flowchart" => Some(flowchart::DIAGRAM),
-        "gantt" => Some(gantt::DIAGRAM),
-        "gitGraph" => Some(git::DIAGRAM),
-        "info" => Some(info::DIAGRAM),
-        "ishikawa" => Some(ishikawa::DIAGRAM),
-        "journey" => Some(journey::DIAGRAM),
-        "kanban" => Some(kanban::DIAGRAM),
         "mindmap" => Some(mindmap::DIAGRAM),
-        "packet" => Some(packet::DIAGRAM),
-        "pie" => Some(pie::DIAGRAM),
-        "quadrantChart" => Some(quadrant::DIAGRAM),
         "radar" => Some(radar::DIAGRAM),
         "railroad" => Some(railroad::DIAGRAM),
         "requirement" => Some(requirement::DIAGRAM),
-        "sankey" => Some(sankey::DIAGRAM),
         "sequence" => Some(sequence::DIAGRAM),
         "state" => Some(state::DIAGRAM),
-        "swimlane" => Some(swimlane::DIAGRAM),
         "timeline" => Some(timeline::DIAGRAM),
         "treemap" => Some(treemap::DIAGRAM),
-        "treeView" => Some(treeview::DIAGRAM),
         "usecase" => Some(usecase::DIAGRAM),
-        "venn" => Some(venn::DIAGRAM),
-        "wardley" => Some(wardley::DIAGRAM),
         "xychart" => Some(xychart::DIAGRAM),
         _ => None,
     }
