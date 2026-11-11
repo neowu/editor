@@ -461,7 +461,7 @@ impl SyntaxSnapshot {
                 let slice = cursor.slice(
                     &SyntaxLayerPosition {
                         depth: depth + 1,
-                        range: Anchor::min_max_range_for_buffer(text.remote_id()),
+                        range: Anchor::min_max_range_for_buffer(text.buffer_id()),
                         language: None,
                     },
                     Bias::Left,
@@ -635,7 +635,7 @@ impl SyntaxSnapshot {
                 start_point: Point::zero().to_ts_point(),
                 end_point: text.max_point().to_ts_point(),
             }],
-            range: Anchor::min_max_range_for_buffer(text.remote_id()),
+            range: Anchor::min_max_range_for_buffer(text.buffer_id()),
             mode: ParseMode::Single,
         });
 
@@ -653,7 +653,7 @@ impl SyntaxSnapshot {
             } else {
                 SyntaxLayerPosition {
                     depth: max_depth + 1,
-                    range: Anchor::min_max_range_for_buffer(text.remote_id()),
+                    range: Anchor::min_max_range_for_buffer(text.buffer_id()),
                     language: None,
                 }
             };
@@ -664,7 +664,7 @@ impl SyntaxSnapshot {
 
                 let bounded_position = SyntaxLayerPositionBeforeChange {
                     position: position.clone(),
-                    change: changed_regions.start_position(text.remote_id()),
+                    change: changed_regions.start_position(text.buffer_id()),
                 };
                 if bounded_position.cmp(cursor.start(), text).is_gt() {
                     let slice = cursor.slice(&bounded_position, Bias::Left);
@@ -944,7 +944,7 @@ impl SyntaxSnapshot {
         let out_of_order = |reason: &str| -> ! {
             let file_path = file.map_or_else(|| "<untitled>".to_owned(), |file| format!("{:?}", file.path()));
             let mut dump =
-                format!("layers out of order: {reason}\nbuffer: {:?}\nfile: {file_path}\nlayers:\n", text.remote_id(),);
+                format!("layers out of order: {reason}\nbuffer: {:?}\nfile: {file_path}\nlayers:\n", text.buffer_id(),);
             for layer in self.layers.iter() {
                 util::write_str!(
                     dump,
@@ -1999,8 +1999,8 @@ impl sum_tree::Summary for SyntaxLayerSummary {
         Self {
             max_depth: 0,
             min_depth: 0,
-            range: Anchor::max_for_buffer(buffer.remote_id())..Anchor::min_for_buffer(buffer.remote_id()),
-            last_layer_range: Anchor::min_for_buffer(buffer.remote_id())..Anchor::max_for_buffer(buffer.remote_id()),
+            range: Anchor::max_for_buffer(buffer.buffer_id())..Anchor::min_for_buffer(buffer.buffer_id()),
+            last_layer_range: Anchor::min_for_buffer(buffer.buffer_id())..Anchor::max_for_buffer(buffer.buffer_id()),
             last_layer_language: None,
             contains_unknown_injections: false,
         }

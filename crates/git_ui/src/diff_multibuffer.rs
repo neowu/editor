@@ -444,7 +444,7 @@ impl DiffMultibuffer {
 
         let excerpt_ranges = {
             let diff_hunk_ranges = diff_snapshot
-                .hunks_intersecting_range(Anchor::min_max_range_for_buffer(snapshot.remote_id()), &snapshot)
+                .hunks_intersecting_range(Anchor::min_max_range_for_buffer(snapshot.buffer_id()), &snapshot)
                 .map(|diff_hunk| diff_hunk.buffer_range.to_point(&snapshot));
             let conflict_ranges = conflict_set.as_ref().and_then(|conflict_set| {
                 let conflicts = conflict_set.read(cx).snapshot();
@@ -456,7 +456,7 @@ impl DiffMultibuffer {
             conflict_ranges.unwrap_or_else(|| diff_hunk_ranges.collect())
         };
 
-        let buffer_id = snapshot.text.remote_id();
+        let buffer_id = snapshot.text.buffer_id();
         let mut needs_fold = false;
 
         let (was_empty, is_excerpt_newly_added) = self.editor.update(cx, |editor, cx| {
@@ -543,7 +543,7 @@ impl DiffMultibuffer {
                 .read(cx)
                 .snapshot(cx)
                 .buffers_with_paths()
-                .map(|(buffer_snapshot, path_key)| (path_key.clone(), buffer_snapshot.remote_id()))
+                .map(|(buffer_snapshot, path_key)| (path_key.clone(), buffer_snapshot.buffer_id()))
                 .collect::<FxHashMap<_, _>>();
 
             let mut entries = BTreeMap::new();
@@ -561,7 +561,7 @@ impl DiffMultibuffer {
             let repo_path_by_display_id = this
                 .buffer_subscriptions
                 .iter()
-                .map(|(repo_path, sub)| (sub.display_buffer.read(cx).remote_id(), repo_path.clone()))
+                .map(|(repo_path, sub)| (sub.display_buffer.read(cx).buffer_id(), repo_path.clone()))
                 .collect::<FxHashMap<_, _>>();
 
             this.editor.update(cx, |editor, cx| {

@@ -238,7 +238,7 @@ fn runnable_ranges_from_grouped_matches(
     let mut runnable_ranges = SmallVec::with_capacity(groups.len());
 
     let tags = runnable_tags_from_pattern(&runnable_config.query, pattern_index);
-    let buffer_id = buffer.remote_id();
+    let buffer_id = buffer.buffer_id();
     for group in groups {
         let Some(ResolvedRunnable { run_range, extra_captures: local_extras }) =
             resolver.resolve(&group.captures, &shared_captures, buffer)
@@ -298,7 +298,7 @@ fn runnable_range_from_captures(
         .collect();
 
     // A runnable has one range, even when its query pattern contributes multiple tags.
-    let buffer_id = buffer.remote_id();
+    let buffer_id = buffer.buffer_id();
     Some(RunnableRange {
         run_range,
         full_range,

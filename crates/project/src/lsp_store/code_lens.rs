@@ -107,7 +107,7 @@ impl LspStore {
         buffer: &Entity<Buffer>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Option<CodeLensActions>>> {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         let fetch_task = self.fetch_code_lenses(buffer, cx);
 
         cx.spawn(async move |lsp_store, cx| {
@@ -126,7 +126,7 @@ impl LspStore {
 
     fn fetch_code_lenses(&mut self, buffer: &Entity<Buffer>, cx: &mut Context<Self>) -> CodeLensTask {
         let version_queried_for = buffer.read(cx).version();
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         let current_servers = self.language_server_ids_for_request(buffer, &GetCodeLens, cx);
 
         let mut servers_to_query = None;
@@ -260,7 +260,7 @@ impl LspStore {
         lens_id: CodeLensActionId,
         cx: &mut Context<Self>,
     ) -> CodeLensResolveTask {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
 
         let Some(code_lens) = self.lsp_data.get_mut(&buffer_id).and_then(|data| data.code_lens.as_mut()) else {
             return Task::ready(None).shared();

@@ -334,7 +334,7 @@ pub(crate) fn construct_initial_buffer_versions_map<D: ToOffset + Copy, _S: Into
             .and_then(|(text_anchor, _)| multibuffer.buffer(text_anchor.buffer_id));
         if let Some(buffer) = edit_range_buffer {
             let (buffer_id, buffer_version) =
-                buffer.read_with(cx, |buffer, _| (buffer.remote_id(), buffer.version.clone()));
+                buffer.read_with(cx, |buffer, _| (buffer.buffer_id(), buffer.version.clone()));
             initial_buffer_versions.insert(buffer_id, buffer_version);
         }
     }
@@ -374,7 +374,7 @@ pub(crate) fn handle_from(
             };
 
             edit_contexts
-                .entry((snapshot.remote_id(), language.id()))
+                .entry((snapshot.buffer_id(), language.id()))
                 .or_insert_with(|| JsxAutoCloseEditContext {
                     buffer: buffer.clone(),
                     config: config.clone(),
@@ -474,8 +474,8 @@ pub(crate) fn handle_from(
                         continue;
                     };
 
-                    let is_entirely_in_buffer = selection_buffer_offset_head.0.remote_id() == buffer_id
-                        && selection_buffer_offset_tail.0.remote_id() == buffer_id;
+                    let is_entirely_in_buffer = selection_buffer_offset_head.0.buffer_id() == buffer_id
+                        && selection_buffer_offset_tail.0.buffer_id() == buffer_id;
                     if !is_entirely_in_buffer {
                         base_selections.push(*selection);
                         continue;

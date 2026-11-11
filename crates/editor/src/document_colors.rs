@@ -151,7 +151,7 @@ impl Editor {
             match colors {
                 Ok(colors) => {
                     if colors.colors.is_empty() {
-                        new_editor_colors.entry(buffer_snapshot.remote_id()).or_default().clear();
+                        new_editor_colors.entry(buffer_snapshot.buffer_id()).or_default().clear();
                     } else {
                         for color in colors.colors {
                             let color_range = range_from_lsp(color.lsp_range);
@@ -167,7 +167,7 @@ impl Editor {
                                 continue;
                             };
 
-                            let new_buffer_colors = new_editor_colors.entry(buffer_snapshot.remote_id()).or_default();
+                            let new_buffer_colors = new_editor_colors.entry(buffer_snapshot.buffer_id()).or_default();
 
                             let (Ok(i) | Err(i)) = new_buffer_colors.binary_search_by(|(probe, _)| {
                                 probe

@@ -226,7 +226,7 @@ impl ExcerptAnchor {
         let Some(excerpt) = cursor.item() else {
             return false;
         };
-        if excerpt.buffer_id != buffer_snapshot.remote_id() {
+        if excerpt.buffer_id != buffer_snapshot.buffer_id() {
             return false;
         }
         let is_valid = self.text_anchor == excerpt.range.context.start
@@ -429,13 +429,13 @@ impl Anchor {
     /// Panics if the anchor is from a different buffer.
     pub fn text_anchor_in(&self, buffer: &BufferSnapshot) -> text::Anchor {
         match self {
-            Anchor::Min => text::Anchor::min_for_buffer(buffer.remote_id()),
+            Anchor::Min => text::Anchor::min_for_buffer(buffer.buffer_id()),
             Anchor::Excerpt(excerpt_anchor) => {
                 let text_anchor = excerpt_anchor.text_anchor;
-                assert_eq!(text_anchor.buffer_id, buffer.remote_id());
+                assert_eq!(text_anchor.buffer_id, buffer.buffer_id());
                 text_anchor
             }
-            Anchor::Max => text::Anchor::max_for_buffer(buffer.remote_id()),
+            Anchor::Max => text::Anchor::max_for_buffer(buffer.buffer_id()),
         }
     }
 

@@ -1920,7 +1920,7 @@ impl Editor {
                     if let Some(buffer) = editor.buffer.read(cx).as_singleton() {
                         let snapshot = buffer.read(cx).snapshot();
                         let focus_handle = editor.focus_handle(cx);
-                        if snapshot.remote_id() == *id && focus_handle.is_focused(window) {
+                        if snapshot.buffer_id() == *id && focus_handle.is_focused(window) {
                             for (range, snippet) in snippet_edits {
                                 let buffer_range = language::range_from_lsp(*range).to_offset(&snapshot);
                                 editor
@@ -2289,7 +2289,7 @@ impl Editor {
             editor.inlay_hints = Some(LspInlayHintData::new(INLAY_HINTS));
 
             if let Some(buffer) = multi_buffer.read(cx).as_singleton() {
-                editor.register_buffer(buffer.read(cx).remote_id(), cx);
+                editor.register_buffer(buffer.read(cx).buffer_id(), cx);
             }
         }
 
@@ -2943,7 +2943,7 @@ impl Editor {
                 let snapshot = editor.buffer().read(cx).snapshot(cx);
                 let head = editor.selections.newest_anchor().head();
                 let (buffer_snapshot, excerpt_range) = snapshot.excerpt_containing(head..head)?;
-                if buffer_snapshot.remote_id() != buffer.read(cx).remote_id() {
+                if buffer_snapshot.buffer_id() != buffer.read(cx).buffer_id() {
                     return None;
                 }
                 Some(excerpt_range)
@@ -3431,7 +3431,7 @@ impl Editor {
                 let buffer_folded = snapshot
                     .buffer_snapshot()
                     .buffer_line_for_row(multibuffer_row)
-                    .map(|(buffer_snapshot, _)| buffer_snapshot.remote_id())
+                    .map(|(buffer_snapshot, _)| buffer_snapshot.buffer_id())
                     .map(|buffer_id| self.is_buffer_folded(buffer_id, cx))
                     .unwrap_or(false);
                 if buffer_folded {
@@ -3605,7 +3605,7 @@ impl Editor {
         else {
             return;
         };
-        let Some(buffer) = self.buffer.read(cx).buffer(buffer_snapshot.remote_id()) else {
+        let Some(buffer) = self.buffer.read(cx).buffer(buffer_snapshot.buffer_id()) else {
             return;
         };
 
@@ -5968,7 +5968,7 @@ impl Editor {
             .disjoint_anchor_ranges()
             .flat_map(|range| [range.start, range.end])
             .filter_map(|anchor| snapshot.anchor_to_buffer_anchor(anchor))
-            .filter_map(|(_, buffer_snapshot)| multi_buffer.buffer(buffer_snapshot.remote_id()))
+            .filter_map(|(_, buffer_snapshot)| multi_buffer.buffer(buffer_snapshot.buffer_id()))
             .any(|buffer| project.supports_range_formatting(&buffer, cx))
     }
 
@@ -6033,7 +6033,7 @@ impl Editor {
                     for (buffer_snapshot, buffer_range, _) in
                         snapshot.range_to_buffer_ranges(selection_range.start..selection_range.end)
                     {
-                        let buffer_id = buffer_snapshot.remote_id();
+                        let buffer_id = buffer_snapshot.buffer_id();
                         let start = buffer_snapshot.anchor_before(buffer_range.start);
                         let end = buffer_snapshot.anchor_after(buffer_range.end);
                         buffers.insert(multi_buffer.buffer(buffer_id).unwrap());
@@ -6993,7 +6993,7 @@ impl Editor {
         }
     }
 
-    pub fn show_local_cursors(&self, window: &mut Window, cx: &mut App) -> bool {
+    pub fn show_cursors(&self, window: &mut Window, cx: &mut App) -> bool {
         (self.read_only(cx) || self.blink_manager.read(cx).visible()) && self.focus_handle.is_focused(window)
     }
 
@@ -7025,7 +7025,7 @@ impl Editor {
                         cx.emit(EditorEvent::TitleChanged);
                     }
 
-                    let buffer_id = buffer.read(cx).remote_id();
+                    let buffer_id = buffer.read(cx).buffer_id();
 
                     if self.project.is_some() {
                         self.register_buffer(buffer_id, cx);
@@ -7043,7 +7043,7 @@ impl Editor {
                     hovered_link_state.symbol_range = None;
                 }
                 self.refresh_document_highlights(cx);
-                let buffer_id = buffer.read(cx).remote_id();
+                let buffer_id = buffer.read(cx).buffer_id();
                 self.remove_invalid_lsp_data(&[buffer_id], false, cx);
                 if self.buffer.read(cx).diff_for(buffer_id).is_none()
                     && let Some(project) = self.project.clone()
@@ -7249,7 +7249,7 @@ impl Editor {
         if self.delegate_open_excerpts {
             let selections_by_buffer: FxHashMap<_, _> = new_selections_by_buffer
                 .into_iter()
-                .map(|(buffer, value)| (buffer.read(cx).remote_id(), value))
+                .map(|(buffer, value)| (buffer.read(cx).buffer_id(), value))
                 .collect();
             if !selections_by_buffer.is_empty() {
                 cx.emit(EditorEvent::OpenExcerptsRequested { selections_by_buffer, split });
@@ -7686,17 +7686,17 @@ impl Editor {
             .filter(|buffer| self.is_lsp_relevant(buffer.read(cx).file(), cx))
             .chain(for_buffer.and_then(|buffer_id| self.buffer.read(cx).buffer(buffer_id)))
             .filter(|buffer| {
-                let buffer_id = buffer.read(cx).remote_id();
+                let buffer_id = buffer.read(cx).buffer_id();
                 for_buffer.is_none_or(|for_buffer| for_buffer == buffer_id)
                     && self.registered_buffers.contains_key(&buffer_id)
             })
-            .unique_by(|buffer| buffer.read(cx).remote_id())
+            .unique_by(|buffer| buffer.read(cx).buffer_id())
             .collect()
     }
 
     fn is_buffer_visible(&self, buffer_id: BufferId, cx: &mut Context<Self>) -> bool {
         self.buffer.read(cx).is_singleton()
-            || self.visible_buffers(cx).iter().any(|buffer| buffer.read(cx).remote_id() == buffer_id)
+            || self.visible_buffers(cx).iter().any(|buffer| buffer.read(cx).buffer_id() == buffer_id)
     }
 
     /// Spawns one task per buffer. A full refresh (`for_buffer == None`) replaces every task of `kind`;
@@ -7712,7 +7712,7 @@ impl Editor {
         let Some(buffer_id) = for_buffer else {
             self.clear_lsp_data_tasks(kind);
             for buffer in buffers {
-                let buffer_id = buffer.read(cx).remote_id();
+                let buffer_id = buffer.read(cx).buffer_id();
                 let task = spawn(buffer, cx).shared();
                 self.insert_lsp_data_task(kind, buffer_id, task);
             }
@@ -7772,7 +7772,7 @@ impl Editor {
             .filter(|buffer| self.is_lsp_relevant(buffer.read(cx).file(), cx))
             .collect();
         for visible_buffer in visible_buffers {
-            self.register_buffer(visible_buffer.read(cx).remote_id(), cx);
+            self.register_buffer(visible_buffer.read(cx).buffer_id(), cx);
         }
     }
 

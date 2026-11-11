@@ -350,10 +350,10 @@ impl sum_tree::Summary for Summary {
 
     fn zero(buffer: &text::BufferSnapshot) -> Self {
         Self {
-            start: Anchor::min_for_buffer(buffer.remote_id()),
-            end: Anchor::max_for_buffer(buffer.remote_id()),
-            min_start: Anchor::max_for_buffer(buffer.remote_id()),
-            max_end: Anchor::min_for_buffer(buffer.remote_id()),
+            start: Anchor::min_for_buffer(buffer.buffer_id()),
+            end: Anchor::max_for_buffer(buffer.buffer_id()),
+            min_start: Anchor::max_for_buffer(buffer.buffer_id()),
+            max_end: Anchor::min_for_buffer(buffer.buffer_id()),
             count: 0,
         }
     }

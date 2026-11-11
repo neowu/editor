@@ -163,7 +163,7 @@ impl Editor {
                 self.clear_runnables(None);
                 return;
             }
-            let buffer_id = buffer_read.remote_id();
+            let buffer_id = buffer_read.buffer_id();
             if invalidate_buffer_data != Some(buffer_id) && self.runnables.has_cached(buffer_id, &buffer_read.version())
             {
                 return;
@@ -237,7 +237,7 @@ impl Editor {
                             let context_range =
                                 BufferOffset(context_buffer_range.start)..BufferOffset(context_buffer_range.end);
 
-                            acc.entry((buffer_snapshot.remote_id(), task_buffer_range.start.row))
+                            acc.entry((buffer_snapshot.buffer_id(), task_buffer_range.start.row))
                                 .or_insert_with(|| RunnableTasks {
                                     templates: Vec::new(),
                                     offset,
@@ -307,7 +307,7 @@ impl Editor {
             return;
         };
 
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         let editor = cx.weak_entity();
         let reveal_strategy = action.reveal;
         let task_context = Self::build_tasks_context(&project, &buffer, buffer_row, &tasks, cx);
@@ -398,7 +398,7 @@ impl Editor {
         let snapshot = self.snapshot(window, cx);
         let multibuffer_row = MultiBufferRow(DisplayPoint::new(display_row, 0).to_point(&snapshot).row);
         let (buffer_snapshot, range) = snapshot.buffer_snapshot().buffer_line_for_row(multibuffer_row)?;
-        Some((buffer_snapshot.remote_id(), range.start.row))
+        Some((buffer_snapshot.buffer_id(), range.start.row))
     }
 
     pub fn task_context(&self, window: &mut Window, cx: &mut App) -> Task<Option<TaskContext>> {
@@ -424,7 +424,7 @@ impl Editor {
         let captured_variables = {
             let mut variables = TaskVariables::default();
             let buffer = location.buffer.read(cx);
-            let buffer_id = buffer.remote_id();
+            let buffer_id = buffer.buffer_id();
             let snapshot = buffer.snapshot();
             let starting_point = location.range.start.to_point(&snapshot);
             let starting_offset = starting_point.to_offset(&snapshot);
@@ -475,7 +475,7 @@ impl Editor {
             .into_iter()
             .filter_map(|buffer| {
                 let lsp_tasks_source = buffer.read(cx).language()?.context_provider()?.lsp_task_source()?;
-                let buffer_id = buffer.read(cx).remote_id();
+                let buffer_id = buffer.read(cx).buffer_id();
                 if skip_cached && self.runnables.has_cached(buffer_id, &buffer.read(cx).version()) {
                     None
                 } else {
@@ -518,10 +518,10 @@ impl Editor {
                 if let Some(tasks) = self
                     .runnables
                     .runnables
-                    .get(&buffer_snapshot.remote_id())
+                    .get(&buffer_snapshot.buffer_id())
                     .and_then(|(_, tasks)| tasks.get(&symbol_start_row))
                 {
-                    let buffer = self.buffer.read(cx).buffer(buffer_snapshot.remote_id())?;
+                    let buffer = self.buffer.read(cx).buffer(buffer_snapshot.buffer_id())?;
                     return Some((buffer, symbol_start_row, Arc::new(tasks.to_owned())));
                 }
             }

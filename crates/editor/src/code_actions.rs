@@ -85,12 +85,12 @@ impl Editor {
             .buffer_snapshot()
             .buffer_line_for_row(MultiBufferRow(multibuffer_point.row))
             .and_then(|(buffer_snapshot, range)| {
-                self.buffer().read(cx).buffer(buffer_snapshot.remote_id()).map(|buffer| (buffer, range.start.row))
+                self.buffer().read(cx).buffer(buffer_snapshot.buffer_id()).map(|buffer| (buffer, range.start.row))
             })
         else {
             return;
         };
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         let tasks = self.runnables.runnables((buffer_id, buffer_row)).map(|t| Arc::new(t.to_owned()));
 
         let project = self.project.clone();
@@ -275,7 +275,7 @@ impl Editor {
         let snapshot = self.snapshot(window, cx);
         let multibuffer_row = MultiBufferRow(DisplayPoint::new(display_row, 0).to_point(&snapshot).row);
         let (buffer_snapshot, range) = snapshot.buffer_snapshot().buffer_line_for_row(multibuffer_row)?;
-        Some((buffer_snapshot.remote_id(), range.start.row))
+        Some((buffer_snapshot.buffer_id(), range.start.row))
     }
 
     pub fn has_available_code_actions_for_selection(&self) -> bool {

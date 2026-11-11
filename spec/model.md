@@ -82,9 +82,9 @@ each an entity with its own event enum:
   language server prompts, ...). Views subscribe to `Project` for those, and
   to a store directly only for what `Project` doesn't forward (e.g. the git
   panel and project panel subscribe to `GitStore`).
-- Local vs remote is decided inside the stores: `Project::local` builds local
-  stores, `Project::remote` builds ones that forward to a `RemoteClient`.
-  Views never branch on it beyond `is_local()` checks for UI choices.
+- Everything is local: `Project::local` builds the stores. A buffer's
+  `language::File` has a disk path (`as_local`) only for worktree files;
+  git-backed files (index text, commit blobs) have none.
 - A model a view shows (a `Buffer`, an `ImageItem`) implements
   `project::ProjectItem` (`try_open` from a `ProjectPath`). The model is shared:
   one `Buffer` per file however many views read it.

@@ -110,7 +110,7 @@ impl Editor {
             .chain(buffer_id.and_then(|buffer_id| self.buffer.read(cx).buffer(buffer_id)))
             .filter_map(|editor_buffer| {
                 let buffer = editor_buffer.read(cx);
-                let editor_buffer_id = buffer.remote_id();
+                let editor_buffer_id = buffer.buffer_id();
                 // Tokens are only styled for languages with rules, so don't ask servers for the rest.
                 let has_rules = buffer.language().is_some_and(|language| {
                     AllLanguageSettings::get_global(cx).semantic_token_rules(&language.name()).is_some()

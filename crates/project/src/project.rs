@@ -945,8 +945,8 @@ impl Project {
     }
 
     #[inline]
-    pub fn buffer_for_id(&self, remote_id: BufferId, cx: &App) -> Option<Entity<Buffer>> {
-        self.buffer_store.read(cx).get(remote_id)
+    pub fn buffer_for_id(&self, buffer_id: BufferId, cx: &App) -> Option<Entity<Buffer>> {
+        self.buffer_store.read(cx).get(buffer_id)
     }
 
     #[inline]
@@ -2370,7 +2370,7 @@ impl Project {
         if !relevant_language_servers.contains(name) {
             return None;
         }
-        let opened_in_servers = self.lsp_store.read(cx).language_server_ids_for_opened_buffer(buffer.remote_id());
+        let opened_in_servers = self.lsp_store.read(cx).language_server_ids_for_opened_buffer(buffer.buffer_id());
         self.language_server_statuses(cx)
             .filter(|(_, server_status)| relevant_language_servers.contains(&server_status.name))
             .find_map(|(server_id, server_status)| {

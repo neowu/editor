@@ -1156,7 +1156,7 @@ impl LocalLspStore {
         // same buffer.
         lsp_store.update(cx, |this, cx| {
             let this = &mut this.local;
-            buffers.retain(|buffer| this.buffers_being_formatted.insert(buffer.read(cx).remote_id()));
+            buffers.retain(|buffer| this.buffers_being_formatted.insert(buffer.read(cx).buffer_id()));
         })?;
         let _cleanup = defer({
             let this = lsp_store.clone();
@@ -1166,7 +1166,7 @@ impl LocalLspStore {
                 this.update(&mut cx, |this, cx| {
                     let this = &mut this.local;
                     for buffer in buffers {
-                        this.buffers_being_formatted.remove(&buffer.read(cx).remote_id());
+                        this.buffers_being_formatted.remove(&buffer.read(cx).buffer_id());
                     }
                 })
                 .ok();
@@ -1219,7 +1219,7 @@ impl LocalLspStore {
         // same buffer.
         lsp_store.update(cx, |this, cx| {
             let this = &mut this.local;
-            buffers.retain(|buffer| this.buffers_being_formatted.insert(buffer.handle.read(cx).remote_id()));
+            buffers.retain(|buffer| this.buffers_being_formatted.insert(buffer.handle.read(cx).buffer_id()));
         })?;
 
         let _cleanup = defer({
@@ -1230,7 +1230,7 @@ impl LocalLspStore {
                 this.update(&mut cx, |this, cx| {
                     let this = &mut this.local;
                     for buffer in buffers {
-                        this.buffers_being_formatted.remove(&buffer.handle.read(cx).remote_id());
+                        this.buffers_being_formatted.remove(&buffer.handle.read(cx).buffer_id());
                     }
                 })
                 .ok();
@@ -2280,9 +2280,6 @@ impl LocalLspStore {
         let Some(file) = File::from_dyn(file.as_ref()) else {
             return;
         };
-        if !file.is_local() {
-            return;
-        }
         let path = ProjectPath::from_file(file, cx);
         let worktree_id = file.worktree_id(cx);
         let language = buffer.language().cloned();
@@ -2480,14 +2477,11 @@ impl LocalLspStore {
         cx: &mut Context<LspStore>,
     ) {
         let buffer = buffer_handle.read(cx);
-        let buffer_id = buffer.remote_id();
+        let buffer_id = buffer.buffer_id();
 
         let Some(file) = File::from_dyn(buffer.file()) else {
             return;
         };
-        if !file.is_local() {
-            return;
-        }
 
         let abs_path = file.abs_path(cx);
         if let Some((longest_line_length, maximum_line_length)) =
@@ -2679,10 +2673,7 @@ impl LocalLspStore {
         old_file: &File,
         cx: &mut App,
     ) -> Vec<LanguageServerId> {
-        let old_path = match old_file.as_local() {
-            Some(local) => local.abs_path(cx),
-            None => return Vec::new(),
-        };
+        let old_path = old_file.abs_path(cx);
 
         let Ok(file_url) = lsp::Uri::from_file_path(old_path.as_path()) else {
             return Vec::new();
@@ -2698,7 +2689,7 @@ impl LocalLspStore {
     ) -> Vec<LanguageServerId> {
         let abs_path = file_url.to_file_path().ok();
         buffer.update(cx, |buffer, cx| {
-            let buffer_id = buffer.remote_id();
+            let buffer_id = buffer.buffer_id();
             let mut snapshots = self.buffer_snapshots.remove(&buffer_id);
 
             let mut detached_servers = Vec::new();
@@ -2738,7 +2729,7 @@ impl LocalLspStore {
         const OLD_VERSIONS_TO_RETAIN: i32 = 10;
 
         if let Some(version) = version {
-            let buffer_id = buffer.read(cx).remote_id();
+            let buffer_id = buffer.read(cx).buffer_id();
             let snapshots = if let Some(snapshots) =
                 self.buffer_snapshots.get_mut(&buffer_id).and_then(|m| m.get_mut(&server_id))
             {
@@ -2775,7 +2766,7 @@ impl LocalLspStore {
         let actions = lsp_store
             .update(cx, move |this, cx| {
                 let request = GetCodeActions {
-                    range: text::Anchor::min_max_range_for_buffer(buffer.read(cx).remote_id()),
+                    range: text::Anchor::min_max_range_for_buffer(buffer.read(cx).buffer_id()),
                     kinds: Some(code_action_kinds),
                 };
                 let server = LanguageServerToQuery::Other(language_server_id);
@@ -3170,7 +3161,7 @@ impl LocalLspStore {
                                 }
                             }
                             if !snippet_edits.is_empty() {
-                                let buffer_id = buffer_to_edit.read(cx).remote_id();
+                                let buffer_id = buffer_to_edit.read(cx).buffer_id();
                                 cx.emit(LspStoreEvent::SnippetEdit { buffer_id, edits: snippet_edits });
                             }
 
@@ -3904,7 +3895,7 @@ impl LspStore {
                 self.on_buffer_added(buffer, cx).log_err();
             }
             BufferStoreEvent::BufferChangedFilePath { buffer, old_file } => {
-                let buffer_id = buffer.read(cx).remote_id();
+                let buffer_id = buffer.read(cx).buffer_id();
                 let local = &mut self.local;
                 if let Some(old_file) = File::from_dyn(old_file.as_ref()) {
                     local.reset_buffer(buffer, old_file, cx);
@@ -4043,7 +4034,7 @@ impl LspStore {
     }
 
     fn on_buffer_reloaded(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         let task = self.pull_diagnostics_for_buffer(buffer, cx);
         self.buffer_reload_tasks.insert(buffer_id, task);
     }
@@ -4054,7 +4045,7 @@ impl LspStore {
         only_register_servers: FxHashSet<LanguageServerSelector>,
         cx: &mut Context<Self>,
     ) -> OpenLspBufferHandle {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         let handle = OpenLspBufferHandle(cx.new(|_| OpenLspBuffer(buffer.clone())));
         {
             let local = &mut self.local;
@@ -4065,10 +4056,7 @@ impl LspStore {
             // When a new unnamed buffer is created and saved, we will start loading it's language. Once the language is loaded, we go over all "language-less" buffers and try to fit that new language
             // with them. However, we do that only for the buffers that we think are open in at least one editor; thus, we need to keep tab of unnamed buffers as well, even though they're not actually registered with any language
             // servers in practice (we don't support non-file URI schemes in our LSP impl).
-            let Some(file) = File::from_dyn(buffer.read(cx).file()) else {
-                return handle;
-            };
-            if !file.is_local() {
+            if File::from_dyn(buffer.read(cx).file()).is_none() {
                 return handle;
             }
 
@@ -4158,7 +4146,7 @@ impl LspStore {
                                         // it skips didClose and leaks the per-server state
                                         // while still dropping the snapshots.
                                         let local = &mut this.local;
-                                        if local.registered_buffers.contains_key(&buffer.read(cx).remote_id())
+                                        if local.registered_buffers.contains_key(&buffer.read(cx).buffer_id())
                                             && let Some(file_url) = file_path_to_lsp_url(&f.abs_path(cx)).log_err()
                                         {
                                             local.unregister_buffer_from_language_servers(&buffer, &file_url, cx);
@@ -4199,7 +4187,7 @@ impl LspStore {
                             {
                                 let local = &mut this.local;
                                 local.initialize_buffer(&buffer, cx);
-                                if local.registered_buffers.contains_key(&buffer.read(cx).remote_id()) {
+                                if local.registered_buffers.contains_key(&buffer.read(cx).buffer_id()) {
                                     local.register_buffer_with_language_servers(
                                         &buffer,
                                         FxHashSet::default(),
@@ -4216,7 +4204,7 @@ impl LspStore {
                         {
                             let local = &mut this.local;
                             for buffer in buffers_with_language {
-                                if local.registered_buffers.contains_key(&buffer.read(cx).remote_id()) {
+                                if local.registered_buffers.contains_key(&buffer.read(cx).buffer_id()) {
                                     local.register_buffer_with_language_servers(
                                         &buffer,
                                         FxHashSet::default(),
@@ -4260,7 +4248,7 @@ impl LspStore {
     ) {
         let buffer = buffer_entity.read(cx);
         let buffer_file = buffer.file().cloned();
-        let buffer_id = buffer.remote_id();
+        let buffer_id = buffer.buffer_id();
         let mut detached_servers = Vec::new();
         let mut detached_abs_path = None;
         let local_store = &mut self.local;
@@ -4333,7 +4321,7 @@ impl LspStore {
         buffer: &Entity<Buffer>,
         cx: &App,
     ) -> FxHashSet<LanguageServerId> {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         self.local.buffers_opened_in_servers.get(&buffer_id).into_iter().flatten().copied().collect()
     }
 
@@ -4383,7 +4371,7 @@ impl LspStore {
         let buffer = buffer.read(cx);
         local
             .buffers_opened_in_servers
-            .get(&buffer.remote_id())
+            .get(&buffer.buffer_id())
             .into_iter()
             .flatten()
             .filter_map(|server_id| match local.language_servers.get(server_id)? {
@@ -4495,9 +4483,7 @@ impl LspStore {
             LanguageServerQueryOutcome::Respond(response) => return Task::ready(Ok(response)),
         };
 
-        let file = File::from_dyn(buffer.read(cx).file()).and_then(File::as_local);
-
-        let Some(file) = file else {
+        let Some(file) = File::from_dyn(buffer.read(cx).file()) else {
             return Task::ready(Ok(Default::default()));
         };
 
@@ -4608,12 +4594,12 @@ impl LspStore {
                 .buffers()
                 .filter_map(|buffer| {
                     let raw_buffer = buffer.read(cx);
-                    if !local.registered_buffers.contains_key(&raw_buffer.remote_id()) {
+                    if !local.registered_buffers.contains_key(&raw_buffer.buffer_id()) {
                         return None;
                     }
                     let file = File::from_dyn(raw_buffer.file()).cloned()?;
                     let language = raw_buffer.language().cloned()?;
-                    Some((file, language, raw_buffer.remote_id()))
+                    Some((file, language, raw_buffer.buffer_id()))
                 })
                 .sorted_by_key(|(file, _, _)| Reverse(file.worktree.read(cx).is_visible()));
             for (file, language, buffer_id) in buffers {
@@ -5503,7 +5489,7 @@ impl LspStore {
         buffer: Entity<Buffer>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Option<Vec<LspPullDiagnostics>>>> {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
 
         let servers = buffer.update(cx, |buffer, cx| {
             self.running_language_servers_for_local_buffer(buffer, cx)
@@ -5599,7 +5585,7 @@ impl LspStore {
     ) -> FxHashMap<Range<BufferRow>, Task<Result<CacheInlayHints>>> {
         let next_hint_id = self.next_hint_id.clone();
         let capability_probe =
-            InlayHints { range: text::Anchor::min_max_range_for_buffer(buffer.read(cx).remote_id()) };
+            InlayHints { range: text::Anchor::min_max_range_for_buffer(buffer.read(cx).buffer_id()) };
         let current_servers = self.language_server_ids_for_request(&buffer, &capability_probe, cx);
         let lsp_data = self.latest_lsp_data(&buffer, cx);
         let query_version = lsp_data.buffer_version.clone();
@@ -6122,7 +6108,7 @@ impl LspStore {
 
         let buffer = buffer.read(cx);
         let file = File::from_dyn(buffer.file())?;
-        let abs_path = file.as_local()?.abs_path(cx);
+        let abs_path = file.abs_path(cx);
         let uri = lsp::Uri::from_file_path(&abs_path)
             .ok()
             .with_context(|| format!("Failed to convert path to URI: {}", abs_path.display()))
@@ -6136,7 +6122,7 @@ impl LspStore {
             let buffer_snapshots = self
                 .local
                 .buffer_snapshots
-                .get_mut(&buffer.remote_id())
+                .get_mut(&buffer.buffer_id())
                 .and_then(|m| m.get_mut(&language_server.server_id()))?;
             let previous_snapshot = buffer_snapshots.last()?;
 
@@ -6205,7 +6191,7 @@ impl LspStore {
     pub fn on_buffer_saved(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> Option<()> {
         let file = File::from_dyn(buffer.read(cx).file())?;
         let worktree_id = file.worktree_id(cx);
-        let abs_path = file.as_local()?.abs_path(cx);
+        let abs_path = file.abs_path(cx);
         let text_document = lsp::TextDocumentIdentifier { uri: file_path_to_lsp_url(&abs_path).log_err()? };
         let local = &self.local;
 
@@ -6662,7 +6648,7 @@ impl LspStore {
         R: LspCommand,
     {
         let local = &self.local;
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         buffer.update(cx, |buffer, cx| {
             local
                 .language_servers_for_buffer(buffer, cx)
@@ -6713,7 +6699,7 @@ impl LspStore {
                     let local = &self.local;
                     local
                         .buffers_opened_in_servers
-                        .get(&buffer.remote_id())
+                        .get(&buffer.buffer_id())
                         .is_some_and(|servers| servers.contains(server_id))
                 })
                 .collect::<Vec<_>>()
@@ -7153,10 +7139,9 @@ impl LspStore {
                 .into_iter()
                 .map(|buffer_handle| {
                     let buffer = buffer_handle.read(cx);
-                    let buffer_abs_path =
-                        File::from_dyn(buffer.file()).and_then(|file| file.as_local().map(|f| f.abs_path(cx)));
+                    let buffer_abs_path = File::from_dyn(buffer.file()).map(|file| file.abs_path(cx));
 
-                    (buffer_handle, buffer_abs_path, buffer.remote_id())
+                    (buffer_handle, buffer_abs_path, buffer.buffer_id())
                 })
                 .collect::<Vec<_>>();
 
@@ -7391,7 +7376,7 @@ impl LspStore {
                 .update(cx, |lsp_store, cx| {
                     let local = &mut lsp_store.local;
                     for buffer in buffers {
-                        if local.registered_buffers.contains_key(&buffer.read(cx).remote_id()) {
+                        if local.registered_buffers.contains_key(&buffer.read(cx).buffer_id()) {
                             local.register_buffer_with_language_servers(
                                 &buffer,
                                 only_restart_servers.clone(),
@@ -7756,14 +7741,9 @@ impl LspStore {
                     continue;
                 }
                 // didOpen
-                let file = match file.as_local() {
-                    Some(file) => file,
-                    None => continue,
-                };
-
                 let local = &mut self.local;
 
-                let buffer_id = buffer.remote_id();
+                let buffer_id = buffer.buffer_id();
                 if local.registered_buffers.contains_key(&buffer_id) {
                     let abs_path = file.abs_path(cx);
                     let uri = match lsp::Uri::from_file_path(&abs_path) {
@@ -8283,7 +8263,7 @@ impl LspStore {
     /// Gets the most recent LSP data for the given buffer: if the data is absent or out of date,
     /// new [`BufferLspData`] will be created to replace the previous state.
     pub fn latest_lsp_data(&mut self, buffer: &Entity<Buffer>, cx: &mut App) -> &mut BufferLspData {
-        let (buffer_id, buffer_version) = buffer.read_with(cx, |buffer, _| (buffer.remote_id(), buffer.version()));
+        let (buffer_id, buffer_version) = buffer.read_with(cx, |buffer, _| (buffer.buffer_id(), buffer.version()));
         let lsp_data = self.lsp_data.entry(buffer_id).or_insert_with(|| BufferLspData::new(buffer, cx));
         if buffer_version.changed_since(&lsp_data.buffer_version) {
             lsp_data.reset_for_newer_buffer_version(buffer, cx);

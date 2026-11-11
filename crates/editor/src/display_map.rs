@@ -529,7 +529,7 @@ impl DisplayMap {
             let rhs_snapshot = self.buffer.read(cx).snapshot(cx);
             let mut buffers_to_unfold = Vec::new();
             for my_buffer in self.folded_buffers() {
-                let their_buffer = rhs_snapshot.diff_for_buffer_id(*my_buffer).map(|diff| diff.base_text().remote_id());
+                let their_buffer = rhs_snapshot.diff_for_buffer_id(*my_buffer).map(|diff| diff.base_text().buffer_id());
 
                 let Some(their_buffer) = their_buffer else {
                     buffers_to_unfold.push(*my_buffer);

@@ -84,7 +84,7 @@ fn open_conflict_set_for_buffer(_editor: &mut Editor, buffer: Entity<Buffer>, cx
     let buffer = buffer.downgrade();
 
     cx.spawn(async move |editor, cx| {
-        let buffer_id = buffer.read_with(cx, |buffer, _| buffer.remote_id())?;
+        let buffer_id = buffer.read_with(cx, |buffer, _| buffer.buffer_id())?;
         if let Some(conflict_set) = editor.read_with(cx, |editor, _| {
             editor
                 .addon::<ConflictAddon>()
@@ -353,7 +353,7 @@ pub(crate) fn resolve_conflict(
                 let conflict_addon = editor.addon_mut::<ConflictAddon>()?;
                 let snapshot = multibuffer.read(cx).snapshot(cx);
                 let buffer_snapshot = buffer.read(cx).snapshot();
-                let state = conflict_addon.buffers.get_mut(&buffer_snapshot.remote_id())?;
+                let state = conflict_addon.buffers.get_mut(&buffer_snapshot.buffer_id())?;
                 let ix = state
                     .block_ids
                     .binary_search_by(|(range, _)| range.start.cmp(&resolved_conflict.range.start, &buffer_snapshot))

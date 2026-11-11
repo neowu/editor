@@ -82,14 +82,14 @@ impl Editor {
             .into_iter()
             .filter(|buffer| self.is_lsp_relevant(buffer.read(cx).file(), cx))
             .filter_map(|buffer| {
-                let id = buffer.read(cx).remote_id();
+                let id = buffer.read(cx).buffer_id();
                 if for_buffer.is_none_or(|target| target == id) && lsp_symbols_enabled(buffer.read(cx), cx) {
                     Some(buffer)
                 } else {
                     None
                 }
             })
-            .unique_by(|buffer| buffer.read(cx).remote_id())
+            .unique_by(|buffer| buffer.read(cx).buffer_id())
             .collect::<Vec<_>>();
 
         let mut symbols_altered = false;
@@ -112,7 +112,7 @@ impl Editor {
         });
 
         for buffer in buffers_to_query {
-            let buffer_id = buffer.read(cx).remote_id();
+            let buffer_id = buffer.read(cx).buffer_id();
             let project = project.clone();
             let task = cx
                 .spawn(async move |editor, cx| {

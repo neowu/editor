@@ -280,7 +280,7 @@ impl GitBlame {
             let (commit_details, commit_tag_names) = parse_commit_details(blame.messages, blame.tag_names);
             let entries = build_blame_entry_sum_tree(blame.entries, snapshot.max_point().row);
             buffers.insert(
-                snapshot.remote_id(),
+                snapshot.buffer_id(),
                 GitBlameBuffer { entries, buffer_snapshot: snapshot, buffer_edits, commit_details, commit_tag_names },
             );
         }
@@ -518,7 +518,7 @@ impl GitBlame {
                         .map(|buffer| {
                             let buffer = buffer.upgrade().context("buffer was dropped")?;
                             let project = project.upgrade().context("project was dropped")?;
-                            let id = buffer.read(cx).remote_id();
+                            let id = buffer.read(cx).buffer_id();
                             let snapshot = buffer.read(cx).snapshot();
                             let buffer_edits = buffer.update(cx, |buffer, _| buffer.subscribe());
 

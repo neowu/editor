@@ -89,7 +89,7 @@ impl LocalBufferStore {
         let encoding = buffer.encoding();
         let has_bom = buffer.has_bom();
         let version = buffer.version();
-        let _buffer_id = buffer.remote_id();
+        let _buffer_id = buffer.buffer_id();
         let file = buffer.file().cloned();
         if file.as_ref().is_some_and(|file| file.disk_state() == DiskState::New) {
             has_changed_file = true;
@@ -335,7 +335,7 @@ impl LocalBufferStore {
             };
             this.update(cx, |this, cx| {
                 this.add_buffer(buffer.clone(), cx)?;
-                let buffer_id = buffer.read(cx).remote_id();
+                let buffer_id = buffer.read(cx).buffer_id();
                 if let Some(file) = File::from_dyn(buffer.read(cx).file()) {
                     let project_path = ProjectPath { worktree_id: file.worktree_id(cx), path: file.path.clone() };
                     let entry_id = file.entry_id;
@@ -369,7 +369,7 @@ impl LocalBufferStore {
             buffer_store.update(cx, |buffer_store, cx| {
                 buffer_store.add_buffer(buffer.clone(), cx).log_err();
                 if !project_searchable {
-                    buffer_store.non_searchable_buffers.insert(buffer.read(cx).remote_id());
+                    buffer_store.non_searchable_buffers.insert(buffer.read(cx).buffer_id());
                 }
             })?;
             Ok(buffer)
@@ -497,25 +497,25 @@ impl BufferStore {
 
     fn add_buffer(&mut self, buffer_entity: Entity<Buffer>, cx: &mut Context<Self>) -> Result<()> {
         let buffer = buffer_entity.read(cx);
-        let remote_id = buffer.remote_id();
+        let buffer_id = buffer.buffer_id();
         let path = File::from_dyn(buffer.file())
             .map(|file| ProjectPath { path: file.path.clone(), worktree_id: file.worktree_id(cx) });
 
-        if self.opened_buffers.get(&remote_id).is_some_and(|buffer| buffer.upgrade().is_some()) {
-            anyhow::bail!("buffer {remote_id} was already registered");
+        if self.opened_buffers.get(&buffer_id).is_some_and(|buffer| buffer.upgrade().is_some()) {
+            anyhow::bail!("buffer {buffer_id} was already registered");
         }
-        self.opened_buffers.insert(remote_id, buffer_entity.downgrade());
+        self.opened_buffers.insert(buffer_id, buffer_entity.downgrade());
 
         let handle = cx.entity().downgrade();
         buffer_entity.update(cx, move |_, cx| {
             cx.on_release(move |buffer, cx| {
-                handle.update(cx, |_, cx| cx.emit(BufferStoreEvent::BufferDropped(buffer.remote_id()))).ok();
+                handle.update(cx, |_, cx| cx.emit(BufferStoreEvent::BufferDropped(buffer.buffer_id()))).ok();
             })
             .detach()
         });
 
         if let Some(path) = path {
-            self.path_to_buffer_id.insert(path, remote_id);
+            self.path_to_buffer_id.insert(path, buffer_id);
         }
 
         cx.subscribe(&buffer_entity, Self::on_buffer_event).detach();
@@ -550,7 +550,7 @@ impl BufferStore {
     fn buffer_changed_file(&mut self, buffer: Entity<Buffer>, cx: &App) -> Option<()> {
         let file = File::from_dyn(buffer.read(cx).file())?;
 
-        let remote_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         if let Some(entry_id) = file.entry_id {
             {
                 let local = &mut self.local;
@@ -559,12 +559,12 @@ impl BufferStore {
                         return None;
                     }
                     None => {
-                        local.local_buffer_ids_by_entry_id.insert(entry_id, remote_id);
+                        local.local_buffer_ids_by_entry_id.insert(entry_id, buffer_id);
                     }
                 }
             }
             self.path_to_buffer_id
-                .insert(ProjectPath { worktree_id: file.worktree_id(cx), path: file.path.clone() }, remote_id);
+                .insert(ProjectPath { worktree_id: file.worktree_id(cx), path: file.path.clone() }, buffer_id);
         };
 
         Some(())
@@ -603,7 +603,7 @@ impl BufferStore {
         });
 
         self.add_buffer(buffer.clone(), cx).log_err();
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         if !project_searchable {
             self.non_searchable_buffers.insert(buffer_id);
         }

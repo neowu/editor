@@ -805,7 +805,7 @@ impl Editor {
                 blame
                     .blame_for_rows(
                         &[RowInfo {
-                            buffer_id: Some(buffer.remote_id()),
+                            buffer_id: Some(buffer.buffer_id()),
                             buffer_row: Some(point.row),
                             ..Default::default()
                         }],
@@ -814,7 +814,7 @@ impl Editor {
                     .next()
             })
             .flatten()?;
-        let repository = blame.read(cx).repository(cx, buffer.remote_id())?;
+        let repository = blame.read(cx).repository(cx, buffer.buffer_id())?;
         Some((blame_entry, repository))
     }
 

@@ -1070,7 +1070,7 @@ impl StatusItemView for LspButton {
                         EditorEvent::BufferRangesUpdated { buffer, .. } => {
                             let updated = lsp_button.server_state.update(cx, |state, cx| {
                                 if let Some(active_editor) = state.active_editor.as_mut() {
-                                    let buffer_id = buffer.read(cx).remote_id();
+                                    let buffer_id = buffer.read(cx).buffer_id();
                                     active_editor.editor_buffers.insert(buffer_id)
                                 } else {
                                     false

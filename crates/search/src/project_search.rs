@@ -488,7 +488,7 @@ impl ProjectSearch {
             .read(cx)
             .all_buffers_iter()
             .filter(|buffer| is_buffer_stale(workspace, buffer, cx))
-            .map(|buffer| buffer.read(cx).remote_id())
+            .map(|buffer| buffer.read(cx).buffer_id())
             .collect::<Vec<_>>();
 
         if stale_buffer_ids.is_empty() {
@@ -695,7 +695,7 @@ async fn consume_search_stream(
                         if !is_buffer_stale(workspace.as_ref(), &buffer, cx) {
                             project_search.match_ranges.extend(new_ranges);
                         } else {
-                            let buffer_id = buffer.read(cx).remote_id();
+                            let buffer_id = buffer.read(cx).buffer_id();
                             project_search
                                 .excerpts
                                 .update(cx, |excerpts, cx| excerpts.remove_excerpts_for_buffer(buffer_id, cx));

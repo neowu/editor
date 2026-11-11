@@ -213,7 +213,7 @@ impl Editor {
             .range_to_buffer_ranges(visible_range)
             .into_iter()
             .filter(|(_, excerpt_visible_range, _)| !excerpt_visible_range.is_empty())
-            .filter_map(|(buffer_snapshot, _, _)| multi_buffer.buffer(buffer_snapshot.remote_id()))
+            .filter_map(|(buffer_snapshot, _, _)| multi_buffer.buffer(buffer_snapshot.buffer_id()))
             .collect()
     }
 
@@ -287,7 +287,7 @@ impl Editor {
                     let formatted_ranges =
                         buffer.edited_ranges_for_transaction::<usize>(&transaction).collect::<Vec<_>>();
 
-                    (buffer.remote_id(), formatted_ranges)
+                    (buffer.buffer_id(), formatted_ranges)
                 });
                 editor.update_in(cx, |editor, window, cx| {
                     let snapshot = editor.buffer.read(cx).snapshot(cx);
@@ -299,8 +299,8 @@ impl Editor {
                         let &cursor = cursors_to_pin.get(&head)?;
                         let (buffer_cursor, cursor_snapshot) = snapshot.anchor_to_buffer_anchor(cursor)?;
                         let (buffer_head, head_snapshot) = snapshot.anchor_to_buffer_anchor(head)?;
-                        if cursor_snapshot.remote_id() != formatted_buffer_id
-                            || head_snapshot.remote_id() != formatted_buffer_id
+                        if cursor_snapshot.buffer_id() != formatted_buffer_id
+                            || head_snapshot.buffer_id() != formatted_buffer_id
                         {
                             return None;
                         }
@@ -787,7 +787,7 @@ impl Editor {
             multibuffer_snapshot.anchor_range_to_buffer_anchor_range(newest_selection.range())?;
 
         let old_text = buffer.text_for_range(replace_range.clone()).collect::<String>();
-        let (lookbehind, lookahead) = if buffer.remote_id() == buffer_snapshot.remote_id() {
+        let (lookbehind, lookahead) = if buffer.buffer_id() == buffer_snapshot.buffer_id() {
             let lookbehind =
                 newest_range_buffer.start.to_offset(&buffer).saturating_sub(replace_range.start.to_offset(&buffer));
             let lookahead =
@@ -830,7 +830,7 @@ impl Editor {
 
             if let Some((buffer_snapshot_2, anchor_range)) =
                 multibuffer_snapshot.anchor_range_to_buffer_anchor_range(start_anchor..end_anchor)
-                && buffer_snapshot_2.remote_id() == buffer_snapshot.remote_id()
+                && buffer_snapshot_2.buffer_id() == buffer_snapshot.buffer_id()
             {
                 all_commit_ranges.push(anchor_range.clone());
                 if !self.linked_edit_ranges.is_empty() {
@@ -889,7 +889,7 @@ impl Editor {
             if available_commands.contains(&lsp_command.command) {
                 Some(CodeAction {
                     server_id: *server_id,
-                    range: language::Anchor::min_min_range_for_buffer(buffer.remote_id()),
+                    range: language::Anchor::min_min_range_for_buffer(buffer.buffer_id()),
                     lsp_action: LspAction::Command(lsp_command.clone()),
                     resolved: false,
                 })

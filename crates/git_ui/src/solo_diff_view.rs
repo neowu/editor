@@ -241,7 +241,7 @@ impl SoloDiffView {
         diff.read(cx)
             .snapshot(cx)
             .hunks_intersecting_range(
-                Anchor::min_for_buffer(buffer.remote_id())..Anchor::max_for_buffer(buffer.remote_id()),
+                Anchor::min_for_buffer(buffer.buffer_id())..Anchor::max_for_buffer(buffer.buffer_id()),
                 buffer,
             )
             .map(|diff_hunk| diff_hunk.buffer_range.to_point(buffer))

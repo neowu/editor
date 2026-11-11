@@ -959,7 +959,7 @@ impl GitStore {
         buffer: Entity<Buffer>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<BufferDiff>>> {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         if let Some(diff_state) = self.diffs.get(&buffer_id)
             && let Some(unstaged_diff) = diff_state.read(cx).unstaged_diff.as_ref().and_then(|weak| weak.upgrade())
         {
@@ -982,7 +982,7 @@ impl GitStore {
             return Task::ready(Ok(unstaged_diff));
         }
 
-        let Some((repo, repo_path)) = self.repository_and_path_for_buffer_id(buffer.read(cx).remote_id(), cx) else {
+        let Some((repo, repo_path)) = self.repository_and_path_for_buffer_id(buffer.read(cx).buffer_id(), cx) else {
             return Task::ready(Err(anyhow!("failed to find git repository for buffer")));
         };
 
@@ -1021,7 +1021,7 @@ impl GitStore {
         buffer: Entity<Buffer>,
         cx: &mut Context<Self>,
     ) -> Task<Result<(Entity<BufferDiff>, Entity<Buffer>)>> {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
 
         if let Some(diff_state) = self.diffs.get(&buffer_id)
             && let Some(staged_diff) = diff_state.read(cx).staged_diff_and_index_text_buffer()
@@ -1035,7 +1035,7 @@ impl GitStore {
             return Task::ready(Ok(staged_diff));
         }
 
-        let Some((repo, repo_path)) = self.repository_and_path_for_buffer_id(buffer.read(cx).remote_id(), cx) else {
+        let Some((repo, repo_path)) = self.repository_and_path_for_buffer_id(buffer.read(cx).buffer_id(), cx) else {
             return Task::ready(Err(anyhow!("failed to find git repository for buffer")));
         };
 
@@ -1089,7 +1089,7 @@ impl GitStore {
             return Ok(());
         }
         let buffer_snapshot = buffer.read(cx).snapshot();
-        let buffer_id = buffer_snapshot.remote_id();
+        let buffer_id = buffer_snapshot.buffer_id();
         let file_exists = buffer_snapshot.file().is_some_and(|file| file.disk_state().exists());
 
         let unstaged_snapshot = unstaged_diff.read(cx).snapshot(cx);
@@ -1185,7 +1185,7 @@ impl GitStore {
             return Ok(());
         }
         let buffer_snapshot = buffer.read(cx).snapshot();
-        let buffer_id = buffer_snapshot.remote_id();
+        let buffer_id = buffer_snapshot.buffer_id();
         let file_exists = buffer_snapshot.file().is_some_and(|file| file.disk_state().exists());
 
         let uncommitted_snapshot = uncommitted_diff.read(cx).snapshot(cx);
@@ -1280,7 +1280,7 @@ impl GitStore {
         repo: Entity<Repository>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<BufferDiff>>> {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
 
         if let Some(diff_state) = self.diffs.get(&buffer_id)
             && let Some(oid_diff) = diff_state.read(cx).oid_diff(oid)
@@ -1372,7 +1372,7 @@ impl GitStore {
         buffer: Entity<Buffer>,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<BufferDiff>>> {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
 
         if let Some(diff_state) = self.diffs.get(&buffer_id)
             && let Some(uncommitted_diff) =
@@ -1387,7 +1387,7 @@ impl GitStore {
             return Task::ready(Ok(uncommitted_diff));
         }
 
-        let Some((repo, repo_path)) = self.repository_and_path_for_buffer_id(buffer.read(cx).remote_id(), cx) else {
+        let Some((repo, repo_path)) = self.repository_and_path_for_buffer_id(buffer.read(cx).buffer_id(), cx) else {
             return Task::ready(Err(anyhow!("failed to find git repository for buffer")));
         };
 
@@ -1426,7 +1426,7 @@ impl GitStore {
             Err(e) => {
                 this.update(cx, |this, cx| {
                     let buffer = buffer_entity.read(cx);
-                    let buffer_id = buffer.remote_id();
+                    let buffer_id = buffer.buffer_id();
                     this.loading_diffs.remove(&(buffer_id, kind));
                 })?;
                 return Err(e);
@@ -1436,7 +1436,7 @@ impl GitStore {
 
         this.update(cx, |this, cx| {
             let buffer = buffer_entity.read(cx);
-            let buffer_id = buffer.remote_id();
+            let buffer_id = buffer.buffer_id();
             let language = buffer.language().cloned();
             let language_registry = buffer.language_registry();
             let index_text_file =
@@ -1569,7 +1569,7 @@ impl GitStore {
             });
             let diff_state = this.diffs.get(&buffer_id).cloned();
             if let Some(index_text_buffer) = diff_state.and_then(|diff_state| diff_state.read(cx).index_text_buffer()) {
-                this.buffer_ids_by_index_text_buffer_id.insert(index_text_buffer.read(cx).remote_id(), buffer_id);
+                this.buffer_ids_by_index_text_buffer_id.insert(index_text_buffer.read(cx).buffer_id(), buffer_id);
             }
             rx
         })??
@@ -1587,7 +1587,7 @@ impl GitStore {
     }
 
     pub fn open_conflict_set(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> Task<Entity<ConflictSet>> {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
 
         if let Some(git_state) = self.diffs.get(&buffer_id)
             && let Some(conflict_set) = git_state.read(cx).conflict_set.as_ref().and_then(|weak| weak.upgrade())
@@ -1640,7 +1640,7 @@ impl GitStore {
         cx: &mut Context<Self>,
     ) -> Task<Result<Option<Blame>>> {
         let buffer = buffer.read(cx);
-        let Some((repo, repo_path)) = self.repository_and_path_for_buffer_id(buffer.remote_id(), cx) else {
+        let Some((repo, repo_path)) = self.repository_and_path_for_buffer_id(buffer.buffer_id(), cx) else {
             return Task::ready(Err(anyhow!("failed to find a git repository for buffer")));
         };
         let content = match &version {
@@ -2045,7 +2045,7 @@ impl GitStore {
                 self.activate_parked_repositories_for_buffer(buffer, cx);
                 cx.subscribe(buffer, |this, buffer, event, cx| {
                     if let BufferEvent::LanguageChanged(_) = event {
-                        let buffer_id = buffer.read(cx).remote_id();
+                        let buffer_id = buffer.read(cx).buffer_id();
                         if let Some(diff_state) = this.diffs.get(&buffer_id) {
                             diff_state.update(cx, |diff_state, cx| {
                                 diff_state.buffer_language_changed(buffer, cx);
@@ -2065,7 +2065,7 @@ impl GitStore {
                 // new path is actually a path that is being tracked by a git
                 // repository. In that case, we'll want to update the buffer's
                 // `BufferDiffState`, in case it already has one.
-                let buffer_id = buffer.read(cx).remote_id();
+                let buffer_id = buffer.read(cx).buffer_id();
                 let diff_state = self.diffs.get(&buffer_id);
                 let repo = self.repository_and_path_for_buffer_id(buffer_id, cx);
 
@@ -2106,7 +2106,7 @@ impl GitStore {
     ) -> impl Future<Output = ()> + use<> {
         let mut futures = Vec::new();
         for buffer in buffers {
-            if let Some(diff_state) = self.diffs.get_mut(&buffer.read(cx).remote_id()) {
+            if let Some(diff_state) = self.diffs.get_mut(&buffer.read(cx).buffer_id()) {
                 let buffer = buffer.read(cx).text_snapshot();
                 diff_state.update(cx, |diff_state, cx| {
                     diff_state.recalculate_diffs(buffer.clone(), cx);
@@ -2685,7 +2685,7 @@ impl BufferGitState {
             self.staged_diff = None;
         }
         self.recalculate_diff_task = Some(cx.spawn(async move |this, cx| {
-            log::debug!("start recalculating diffs for buffer {}", buffer.remote_id());
+            log::debug!("start recalculating diffs for buffer {}", buffer.buffer_id());
 
             if index_text_buffer_language_enabled && let Some(index_text_buffer) = &index_text_buffer {
                 index_text_buffer.update(cx, |index_text_buffer, cx| {
@@ -2853,7 +2853,7 @@ impl BufferGitState {
 
                 oid_diff.update(cx, |diff, cx| diff.set_snapshot(new_oid_diff, cx));
 
-                log::debug!("finished recalculating oid diff for buffer {} oid {:?}", buffer.remote_id(), oid);
+                log::debug!("finished recalculating oid diff for buffer {} oid {:?}", buffer.buffer_id(), oid);
 
                 yield_now().await;
             }
@@ -2875,7 +2875,7 @@ impl BufferGitState {
             if cancel {
                 log::debug!(
                     concat!("aborting recalculating diffs for buffer {}", "due to subsequent hunk operations",),
-                    buffer.remote_id()
+                    buffer.buffer_id()
                 );
                 return Ok(());
             }
@@ -2941,7 +2941,7 @@ impl BufferGitState {
 
             yield_now().await;
 
-            log::debug!("finished recalculating diffs for buffer {}", buffer.remote_id());
+            log::debug!("finished recalculating diffs for buffer {}", buffer.buffer_id());
 
             if let Some(this) = this.upgrade() {
                 this.update(cx, |this, _| {
@@ -3376,7 +3376,7 @@ impl Repository {
             git_store.update(&mut cx, |git_store, cx| {
                 for (buffer, diff_bases_change) in buffer_diff_base_changes {
                     let buffer_snapshot = buffer.read(cx).text_snapshot();
-                    let buffer_id = buffer_snapshot.remote_id();
+                    let buffer_id = buffer_snapshot.buffer_id();
                     let Some(diff_state) = git_store.diffs.get(&buffer_id) else {
                         continue;
                     };
@@ -4044,7 +4044,7 @@ impl Repository {
                                         continue;
                                     };
                                     let Some(diff_state) =
-                                        git_store.read(cx).diffs.get(&buffer.read(cx).remote_id()).cloned()
+                                        git_store.read(cx).diffs.get(&buffer.read(cx).buffer_id()).cloned()
                                     else {
                                         continue;
                                     };
@@ -4477,7 +4477,7 @@ impl Repository {
                 git_store
                     .update(&mut cx, |git_store, cx| {
                         let buffer_id =
-                            git_store.buffer_store.read(cx).get_by_path(&project_path?)?.read(cx).remote_id();
+                            git_store.buffer_store.read(cx).get_by_path(&project_path?)?.read(cx).buffer_id();
                         let diff_state = git_store.diffs.get(&buffer_id)?;
                         diff_state.update(cx, |diff_state, _| {
                             diff_state.hunk_staging_operation_count_as_of_write = hunk_staging_operation_count;

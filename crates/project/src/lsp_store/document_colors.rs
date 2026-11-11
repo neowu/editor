@@ -76,7 +76,7 @@ impl LspStore {
 
     pub fn document_colors(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> Option<DocumentColorTask> {
         let version_queried_for = buffer.read(cx).version();
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
 
         let current_servers = self.language_server_ids_for_request(&buffer, &GetDocumentColor, cx);
 

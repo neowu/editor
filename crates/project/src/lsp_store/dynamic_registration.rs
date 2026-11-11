@@ -251,7 +251,7 @@ impl LspStore {
         };
         let mut buffers_with_language_server = Vec::new();
         for handle in self.buffer_store.read(cx).buffers() {
-            let buffer_id = handle.read(cx).remote_id();
+            let buffer_id = handle.read(cx).buffer_id();
             if local.buffers_opened_in_servers.get(&buffer_id).filter(|servers| servers.contains(&server_id)).is_some()
             {
                 buffers_with_language_server.push(handle);

@@ -96,7 +96,7 @@ impl History {
             id: self.next_transaction_id.tick(),
             buffer_transactions: buffer_transactions
                 .into_iter()
-                .map(|(buffer, transaction)| (buffer.read(cx).remote_id(), transaction.id))
+                .map(|(buffer, transaction)| (buffer.read(cx).buffer_id(), transaction.id))
                 .collect(),
             first_edit_at: now,
             last_edit_at: now,
@@ -261,7 +261,7 @@ impl MultiBuffer {
         let mut buffer_transactions = HashMap::default();
         for BufferState { buffer, .. } in self.buffers.values() {
             if let Some(transaction_id) = buffer.update(cx, |buffer, cx| buffer.end_transaction_at(now, cx)) {
-                buffer_transactions.insert(buffer.read(cx).remote_id(), transaction_id);
+                buffer_transactions.insert(buffer.read(cx).buffer_id(), transaction_id);
             }
         }
 

@@ -599,11 +599,11 @@ impl MarkdownPreviewView {
         let display_snapshot = editor.display_snapshot(cx);
         let source_offset = editor.selections.last::<MultiBufferOffset>(&display_snapshot).range().start;
         let buffer = editor.buffer().read(cx).as_singleton()?;
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         let (buffer_snapshot, buffer_offset) =
             display_snapshot.buffer_snapshot().point_to_buffer_offset(source_offset)?;
 
-        if buffer_snapshot.remote_id() == buffer_id { Some(buffer_offset.0) } else { None }
+        if buffer_snapshot.buffer_id() == buffer_id { Some(buffer_offset.0) } else { None }
     }
 
     fn sync_preview_to_source_index(&mut self, source_index: usize, reveal: bool, cx: &mut Context<Self>) {

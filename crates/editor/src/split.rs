@@ -256,13 +256,13 @@ where
             return;
         };
 
-        let source_buffer_id = first.source_buffer_snapshot.remote_id();
+        let source_buffer_id = first.source_buffer_snapshot.buffer_id();
         let Some(diff) = source_snapshot.diff_for_buffer_id(source_buffer_id) else {
             pending.clear();
             return;
         };
-        let source_is_lhs = source_buffer_id == diff.base_text().remote_id();
-        let target_buffer_id = if source_is_lhs { diff.buffer_id() } else { diff.base_text().remote_id() };
+        let source_is_lhs = source_buffer_id == diff.base_text().buffer_id();
+        let target_buffer_id = if source_is_lhs { diff.buffer_id() } else { diff.base_text().buffer_id() };
         let Some(target_buffer) = target_snapshot.buffer_for_id(target_buffer_id) else {
             pending.clear();
             return;
@@ -299,7 +299,7 @@ where
     };
 
     for (buffer_snapshot, source_range, source_excerpt_range) in source_snapshot.range_to_buffer_ranges(source_bounds) {
-        let buffer_id = buffer_snapshot.remote_id();
+        let buffer_id = buffer_snapshot.buffer_id();
 
         if current_buffer_id != Some(buffer_id) {
             if let (Some(start), Some(end)) = (union_context_start.take(), union_context_end.take()) {
@@ -823,7 +823,7 @@ impl SplittableEditor {
         rhs_multibuffer_snapshot
             .buffers_with_paths()
             .filter_map(|(buffer, path)| {
-                let diff = rhs_multibuffer.diff_for(buffer.remote_id())?;
+                let diff = rhs_multibuffer.diff_for(buffer.buffer_id())?;
                 Some((path.clone(), diff))
             })
             .collect()
@@ -982,7 +982,7 @@ impl SplittableEditor {
                     rhs_multibuffer.update_excerpts_for_path(path, buffer.clone(), ranges, context_line_count, cx);
                 if has_ranges
                     && rhs_multibuffer
-                        .diff_for(buffer.read(cx).remote_id())
+                        .diff_for(buffer.read(cx).buffer_id())
                         .is_none_or(|old_diff| old_diff.entity_id() != diff.entity_id())
                 {
                     rhs_multibuffer.add_diff(diff, cx);
@@ -996,7 +996,7 @@ impl SplittableEditor {
                 rhs_multibuffer.update_excerpts_for_path(path.clone(), buffer.clone(), ranges, context_line_count, cx);
             if has_ranges
                 && rhs_multibuffer
-                    .diff_for(buffer.read(cx).remote_id())
+                    .diff_for(buffer.read(cx).buffer_id())
                     .is_none_or(|old_diff| old_diff.entity_id() != diff.entity_id())
             {
                 rhs_multibuffer.add_diff(diff.clone(), cx);
@@ -1122,7 +1122,7 @@ impl SplittableEditor {
                     );
                     if have_excerpt
                         && lhs_multibuffer
-                            .diff_for(base_text_buffer_snapshot.remote_id())
+                            .diff_for(base_text_buffer_snapshot.buffer_id())
                             .is_none_or(|old_diff| old_diff.entity_id() != diff.entity_id())
                     {
                         lhs_multibuffer.add_inverted_diff(diff.clone(), main_buffer.clone(), lhs_cx);

@@ -1881,7 +1881,7 @@ impl BlockMapWriter<'_> {
                 && let Some(diff) = multi_buffer_snapshot.diff_for_buffer_id(buffer_id)
             {
                 let companion_buffer_id = if companion.companion.is_rhs(companion.display_map_id) {
-                    diff.base_text().remote_id()
+                    diff.base_text().buffer_id()
                 } else {
                     diff.buffer_id()
                 };

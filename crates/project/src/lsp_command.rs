@@ -2104,7 +2104,7 @@ impl LspCommand for GetDocumentDiagnostics {
                     file_path_to_lsp_url(&abs_path)
                 })
                 .transpose()?
-                .with_context(|| format!("missing url on buffer {}", buffer.remote_id()))
+                .with_context(|| format!("missing url on buffer {}", buffer.buffer_id()))
         })?;
 
         let mut pulled_diagnostics = FxHashMap::default();

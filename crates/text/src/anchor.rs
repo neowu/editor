@@ -120,7 +120,7 @@ impl Anchor {
 
     /// Returns true when the [`Anchor`] is located inside a visible fragment.
     pub fn is_valid(&self, buffer: &BufferSnapshot) -> bool {
-        if self.buffer_id != buffer.remote_id {
+        if self.buffer_id != buffer.buffer_id {
             false
         } else if self.is_min() || self.is_max() {
             true

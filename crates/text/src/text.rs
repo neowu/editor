@@ -117,7 +117,7 @@ pub struct BufferSnapshot {
     insertion_slices: TreeSet<InsertionSlice>,
     undo_map: UndoMap,
     pub version: clock::Global,
-    remote_id: BufferId,
+    buffer_id: BufferId,
     line_ending: LineEnding,
 }
 
@@ -603,14 +603,14 @@ impl FromIterator<char> for LineIndent {
 }
 
 impl Buffer {
-    pub fn new(remote_id: BufferId, base_text: impl Into<String>) -> Buffer {
+    pub fn new(buffer_id: BufferId, base_text: impl Into<String>) -> Buffer {
         let mut base_text = base_text.into();
         let line_ending = LineEnding::detect(&base_text);
         LineEnding::normalize(&mut base_text);
-        Self::new_normalized(remote_id, line_ending, Rope::from(&*base_text))
+        Self::new_normalized(buffer_id, line_ending, Rope::from(&*base_text))
     }
 
-    pub fn new_normalized(remote_id: BufferId, line_ending: LineEnding, normalized: Rope) -> Buffer {
+    pub fn new_normalized(buffer_id: BufferId, line_ending: LineEnding, normalized: Rope) -> Buffer {
         let history = History::new(normalized);
         let mut fragments = SumTree::new(());
         let mut insertions = SumTree::default();
@@ -657,7 +657,7 @@ impl Buffer {
 
         Buffer {
             snapshot: BufferSnapshot {
-                remote_id,
+                buffer_id,
                 visible_text,
                 deleted_text: Rope::new(),
                 line_ending,
@@ -685,8 +685,8 @@ impl Buffer {
         self.snapshot
     }
 
-    pub fn remote_id(&self) -> BufferId {
-        self.remote_id
+    pub fn buffer_id(&self) -> BufferId {
+        self.buffer_id
     }
 
     /// Applies `edits` and returns the id of the edit.
@@ -1278,8 +1278,8 @@ impl BufferSnapshot {
         rope
     }
 
-    pub const fn remote_id(&self) -> BufferId {
-        self.remote_id
+    pub const fn buffer_id(&self) -> BufferId {
+        self.buffer_id
     }
 
     pub fn row_count(&self) -> u32 {
@@ -1571,7 +1571,7 @@ impl BufferSnapshot {
             let Some(insertion) = self.try_find_fragment(&anchor) else {
                 panic!(
                     "invalid insertion for buffer {}@{:?} with anchor {:?}",
-                    self.remote_id(),
+                    self.buffer_id(),
                     self.version,
                     anchor
                 );
@@ -1582,7 +1582,7 @@ impl BufferSnapshot {
                 insertion.timestamp,
                 anchor.timestamp(),
                 "invalid insertion for buffer {}@{:?}. anchor: {:?}, {:?}, {:?}, {:?}. timestamp: {:?}, offset: {:?}, bias: {:?}",
-                self.remote_id(),
+                self.buffer_id(),
                 self.version,
                 anchor.timestamp.value,
                 anchor.offset,
@@ -1649,15 +1649,15 @@ impl BufferSnapshot {
 
     #[cold]
     fn panic_bad_anchor(&self, anchor: &Anchor) -> ! {
-        if anchor.buffer_id != self.remote_id {
+        if anchor.buffer_id != self.buffer_id {
             panic!(
                 "invalid anchor - buffer id does not match: anchor {anchor:?}; buffer id: {}, version: {:?}",
-                self.remote_id, self.version
+                self.buffer_id, self.version
             );
         } else if !self.version.observed(anchor.timestamp()) {
             panic!("invalid anchor - snapshot has not observed lamport: {:?}; version: {:?}", anchor, self.version);
         } else {
-            panic!("invalid anchor {:?}. buffer id: {}, version: {:?}", anchor, self.remote_id, self.version);
+            panic!("invalid anchor {:?}. buffer id: {}, version: {:?}", anchor, self.buffer_id, self.version);
         }
     }
 
@@ -1719,9 +1719,9 @@ impl BufferSnapshot {
 
     fn anchor_at_offset(&self, mut offset: usize, bias: Bias) -> Anchor {
         if bias == Bias::Left && offset == 0 {
-            Anchor::min_for_buffer(self.remote_id)
+            Anchor::min_for_buffer(self.buffer_id)
         } else if bias == Bias::Right && offset >= self.len() {
-            Anchor::max_for_buffer(self.remote_id)
+            Anchor::max_for_buffer(self.buffer_id)
         } else {
             if !self.visible_text.assert_char_boundary::<false>(offset) {
                 offset = match bias {
@@ -1733,15 +1733,15 @@ impl BufferSnapshot {
             let Some(fragment) = item else {
                 // We got a bad offset, likely out of bounds
                 log::error!("Failed to find fragment at offset {} (len: {})", offset, self.len());
-                return Anchor::max_for_buffer(self.remote_id);
+                return Anchor::max_for_buffer(self.buffer_id);
             };
             let overshoot = offset - start;
-            Anchor::new(fragment.timestamp, fragment.insertion_offset + overshoot as u32, bias, self.remote_id)
+            Anchor::new(fragment.timestamp, fragment.insertion_offset + overshoot as u32, bias, self.buffer_id)
         }
     }
 
     pub fn can_resolve(&self, anchor: &Anchor) -> bool {
-        self.remote_id == anchor.buffer_id
+        self.buffer_id == anchor.buffer_id
             && (anchor.is_min() || anchor.is_max() || self.version.observed(anchor.timestamp()))
     }
 
@@ -1765,7 +1765,7 @@ impl BufferSnapshot {
     where
         D: TextDimension + Ord,
     {
-        self.edits_since_in_range(since, Anchor::min_for_buffer(self.remote_id)..Anchor::max_for_buffer(self.remote_id))
+        self.edits_since_in_range(since, Anchor::min_for_buffer(self.buffer_id)..Anchor::max_for_buffer(self.buffer_id))
     }
 
     pub fn anchored_edits_since<'a, D>(
@@ -1777,7 +1777,7 @@ impl BufferSnapshot {
     {
         self.anchored_edits_since_in_range(
             since,
-            Anchor::min_for_buffer(self.remote_id)..Anchor::max_for_buffer(self.remote_id),
+            Anchor::min_for_buffer(self.buffer_id)..Anchor::max_for_buffer(self.buffer_id),
         )
     }
 
@@ -1833,7 +1833,7 @@ impl BufferSnapshot {
             old_end: D::zero(()),
             new_end: D::zero(()),
             range: (start_fragment_id, range.start.offset)..(end_fragment_id, range.end.offset),
-            buffer_id: self.remote_id,
+            buffer_id: self.buffer_id,
         })
         .into_iter()
         .flatten()

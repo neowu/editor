@@ -4493,8 +4493,8 @@ fn subscribe_for_editor_events(
                 outline_panel.update_fs_entries(editor.clone(), debounce, window, cx);
             }
             EditorEvent::BufferRangesUpdated { buffer, .. } => {
-                outline_panel.new_entries_for_fs_update.insert(buffer.read(cx).remote_id());
-                outline_panel.invalidate_outlines(&[buffer.read(cx).remote_id()]);
+                outline_panel.new_entries_for_fs_update.insert(buffer.read(cx).buffer_id());
+                outline_panel.invalidate_outlines(&[buffer.read(cx).buffer_id()]);
                 outline_panel.update_fs_entries(editor.clone(), debounce, window, cx);
             }
             EditorEvent::BuffersEdited { buffer_ids } => {

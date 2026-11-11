@@ -704,7 +704,7 @@ impl fmt::Debug for BufferStateSnapshot {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BufferStateSnapshot")
             .field("path_key", &self.path_key)
-            .field("buffer_id", &self.buffer_snapshot.remote_id())
+            .field("buffer_id", &self.buffer_snapshot.buffer_id())
             .finish()
     }
 }
@@ -1572,7 +1572,7 @@ impl MultiBuffer {
 
             if start_region.excerpt == end_region.excerpt {
                 if start_region.buffer.capability == Capability::ReadWrite && start_region.is_main_buffer {
-                    buffer_edits.entry(start_region.buffer.remote_id()).or_default().push(BufferEdit {
+                    buffer_edits.entry(start_region.buffer.buffer_id()).or_default().push(BufferEdit {
                         range: buffer_start..buffer_end,
                         new_text,
                         is_insertion: true,
@@ -1583,7 +1583,7 @@ impl MultiBuffer {
                 let start_excerpt_range = buffer_start..start_region.buffer_range.end;
                 let end_excerpt_range = end_region.buffer_range.start..buffer_end;
                 if start_region.buffer.capability == Capability::ReadWrite && start_region.is_main_buffer {
-                    buffer_edits.entry(start_region.buffer.remote_id()).or_default().push(BufferEdit {
+                    buffer_edits.entry(start_region.buffer.buffer_id()).or_default().push(BufferEdit {
                         range: start_excerpt_range,
                         new_text: new_text.clone(),
                         is_insertion: true,
@@ -1591,7 +1591,7 @@ impl MultiBuffer {
                     });
                 }
                 if end_region.buffer.capability == Capability::ReadWrite && end_region.is_main_buffer {
-                    buffer_edits.entry(end_region.buffer.remote_id()).or_default().push(BufferEdit {
+                    buffer_edits.entry(end_region.buffer.buffer_id()).or_default().push(BufferEdit {
                         range: end_excerpt_range,
                         new_text: new_text.clone(),
                         is_insertion: false,
@@ -1607,7 +1607,7 @@ impl MultiBuffer {
                         break;
                     }
                     if region.buffer.capability == Capability::ReadWrite && region.is_main_buffer {
-                        buffer_edits.entry(region.buffer.remote_id()).or_default().push(BufferEdit {
+                        buffer_edits.entry(region.buffer.buffer_id()).or_default().push(BufferEdit {
                             range: region.buffer_range.clone(),
                             new_text: new_text.clone(),
                             is_insertion: false,
@@ -1747,14 +1747,14 @@ impl MultiBuffer {
     pub fn point_to_buffer_offset<T: ToOffset>(&self, point: T, cx: &App) -> Option<(Entity<Buffer>, BufferOffset)> {
         let snapshot = self.read(cx);
         let (buffer, offset) = snapshot.point_to_buffer_offset(point)?;
-        Some((self.buffers.get(&buffer.remote_id())?.buffer.clone(), offset))
+        Some((self.buffers.get(&buffer.buffer_id())?.buffer.clone(), offset))
     }
 
     // If point is at the end of the buffer, the last excerpt is returned
     pub fn point_to_buffer_point<T: ToPoint>(&self, point: T, cx: &App) -> Option<(Entity<Buffer>, Point)> {
         let snapshot = self.read(cx);
         let (buffer, point) = snapshot.point_to_buffer_point(point.to_point(&snapshot))?;
-        Some((self.buffers.get(&buffer.remote_id())?.buffer.clone(), point))
+        Some((self.buffers.get(&buffer.buffer_id())?.buffer.clone(), point))
     }
 
     pub fn buffer_point_to_anchor(
@@ -1768,8 +1768,8 @@ impl MultiBuffer {
         let buffer_snapshot = buffer.read(cx).snapshot();
         let text_anchor = buffer_snapshot.anchor_after(point);
         let snapshot = self.snapshot(cx);
-        let path_key_index = snapshot.path_key_index_for_buffer(buffer_snapshot.remote_id())?;
-        for excerpt in snapshot.excerpts_for_buffer(buffer_snapshot.remote_id()) {
+        let path_key_index = snapshot.path_key_index_for_buffer(buffer_snapshot.buffer_id())?;
+        for excerpt in snapshot.excerpts_for_buffer(buffer_snapshot.buffer_id()) {
             if excerpt.context.start.cmp(&text_anchor, &buffer_snapshot).is_gt() {
                 found = Some(Anchor::in_buffer(path_key_index, excerpt.context.start));
                 break;
@@ -1796,7 +1796,7 @@ impl MultiBuffer {
 
     fn on_buffer_event(&mut self, buffer: Entity<Buffer>, event: &language::BufferEvent, cx: &mut Context<Self>) {
         use language::BufferEvent;
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         cx.emit(match event {
             BufferEvent::Edited => Event::Edited { edited_buffer: Some(buffer) },
             BufferEvent::DirtyChanged => Event::DirtyChanged,
@@ -1867,7 +1867,7 @@ impl MultiBuffer {
     ) {
         let snapshot = self.sync_mut(cx);
 
-        let base_text_buffer_id = diff.read(cx).base_text_buffer().read(cx).remote_id();
+        let base_text_buffer_id = diff.read(cx).base_text_buffer().read(cx).buffer_id();
         let Some(path) = snapshot.path_for_buffer(base_text_buffer_id).cloned() else {
             return;
         };
@@ -2031,7 +2031,7 @@ impl MultiBuffer {
         cx: &mut Context<Self>,
     ) {
         let snapshot = diff.read(cx).base_text(cx);
-        let base_text_buffer_id = snapshot.remote_id();
+        let base_text_buffer_id = snapshot.buffer_id();
         let diff_change_range = 0..snapshot.len();
         self.snapshot.get_mut().has_inverted_diff = true;
         self.inverted_buffer_diff_changed(diff.clone(), main_buffer.clone(), Some(diff_change_range), cx);
@@ -2258,7 +2258,7 @@ impl MultiBuffer {
                         return false;
                     }
                     let base_text = diff.diff.read(cx).base_text_buffer().read(cx);
-                    base_text.remote_id() != existing_diff.base_text().remote_id()
+                    base_text.buffer_id() != existing_diff.base_text().buffer_id()
                         || base_text.version().changed_since(existing_diff.base_text().version())
                 }) {
                     if diffs_to_add.capacity() == 0 {
@@ -2275,7 +2275,7 @@ impl MultiBuffer {
         let mut edited = false;
         for buffer_state in buffers.values() {
             let buffer = buffer_state.buffer.read(cx);
-            let last_snapshot = buffer_snapshots.get(&buffer.remote_id()).expect("each buffer should have a snapshot");
+            let last_snapshot = buffer_snapshots.get(&buffer.buffer_id()).expect("each buffer should have a snapshot");
             let current_version = buffer.version();
             let non_text_state_update_count = buffer.non_text_state_update_count();
 
@@ -2313,7 +2313,7 @@ impl MultiBuffer {
         for (path, path_key_index, buffer, prev_version) in paths_to_edit {
             new_excerpts.append(cursor.slice(&path, Bias::Left), ());
             let buffer = buffer.read(cx);
-            let buffer_id = buffer.remote_id();
+            let buffer_id = buffer.buffer_id();
 
             buffer_snapshots.insert(
                 buffer_id,
@@ -2557,7 +2557,7 @@ impl MultiBuffer {
                         );
                         if !hunk_buffer_range.is_empty() {
                             let hunk_info = DiffTransformHunkInfo {
-                                buffer_id: buffer_snapshot.remote_id(),
+                                buffer_id: buffer_snapshot.buffer_id(),
                                 hunk_start_anchor: hunk.buffer_range.start,
                                 hunk_secondary_status: hunk.secondary_status,
                                 excerpt_end: excerpt.end_anchor(),
@@ -2581,7 +2581,7 @@ impl MultiBuffer {
                         }
 
                         let hunk_info = DiffTransformHunkInfo {
-                            buffer_id: buffer_snapshot.remote_id(),
+                            buffer_id: buffer_snapshot.buffer_id(),
                             hunk_start_anchor: hunk.buffer_range.start,
                             hunk_secondary_status: hunk.secondary_status,
                             excerpt_end: excerpt.end_anchor(),
@@ -2643,7 +2643,7 @@ impl MultiBuffer {
                                     DiffTransform::DeletedHunk {
                                         base_text_byte_range: hunk.diff_base_byte_range.clone(),
                                         summary: base_text_summary,
-                                        buffer_id: buffer_snapshot.remote_id(),
+                                        buffer_id: buffer_snapshot.buffer_id(),
                                         hunk_info,
                                         has_trailing_newline,
                                     },
@@ -2828,7 +2828,7 @@ impl MultiBufferSnapshot {
     pub fn diff_hunks_in_range<T: ToPoint>(&self, range: Range<T>) -> impl Iterator<Item = MultiBufferDiffHunk> + '_ {
         let query_range = range.start.to_point(self)..range.end.to_point(self);
         self.lift_buffer_metadata(query_range.clone(), move |buffer, buffer_range| {
-            let diff = self.diff_state(buffer.remote_id())?;
+            let diff = self.diff_state(buffer.buffer_id())?;
             let iter = if let Some(main_buffer) = &diff.main_buffer {
                 let buffer_start = buffer.point_to_offset(buffer_range.start);
                 let buffer_end = buffer.point_to_offset(buffer_range.end);
@@ -2881,7 +2881,7 @@ impl MultiBufferSnapshot {
                         matches!(
                             cursor.item(),
                             Some(DiffTransform::DeletedHunk { buffer_id, hunk_info, .. })
-                                if *buffer_id == buffer_snapshot.remote_id()
+                                if *buffer_id == buffer_snapshot.buffer_id()
                                     && hunk_info.hunk_start_anchor == hunk.buffer_range.start
                         )
                     };
@@ -2923,7 +2923,7 @@ impl MultiBufferSnapshot {
             let multi_buffer_range = Anchor::range_in_buffer(excerpt.path_key_index, buffer_range.clone());
             Some(MultiBufferDiffHunk {
                 row_range: MultiBufferRow(range.start.row)..MultiBufferRow(end_row),
-                buffer_id: buffer_snapshot.remote_id(),
+                buffer_id: buffer_snapshot.buffer_id(),
                 buffer_range,
                 word_diffs,
                 diff_base_byte_range: BufferOffset(hunk.diff_base_byte_range.start)
@@ -2951,7 +2951,7 @@ impl MultiBufferSnapshot {
     }
 
     pub fn buffer_ids_for_range<T: ToOffset>(&self, range: Range<T>) -> impl Iterator<Item = BufferId> + '_ {
-        self.excerpts_for_range(range).map(|excerpt| excerpt.buffer_snapshot(self).remote_id())
+        self.excerpts_for_range(range).map(|excerpt| excerpt.buffer_snapshot(self).buffer_id())
     }
 
     /// Resolves the given [`text::Anchor`]s to [`crate::Anchor`]s if the anchor is within a visible excerpt.
@@ -3043,7 +3043,7 @@ impl MultiBufferSnapshot {
                 let end = region.buffer_range.end.min(region.buffer_range.start + end_overshoot);
                 let excerpt_range = region.excerpt.range.clone();
                 if let Some(prev) = result.last_mut().filter(|(prev_buffer, prev_range, prev_excerpt)| {
-                    prev_buffer.remote_id() == region.buffer.remote_id()
+                    prev_buffer.buffer_id() == region.buffer.buffer_id()
                         && prev_range.end == start
                         && prev_excerpt.context.start == excerpt_range.context.start
                 }) {
@@ -3064,7 +3064,7 @@ impl MultiBufferSnapshot {
             let buffer_offset = BufferOffset(excerpt.range.context.start.to_offset(buffer_snapshot));
             let excerpt_range = excerpt.range.clone();
             if result.last_mut().is_none_or(|(prev_buffer, prev_range, prev_excerpt)| {
-                prev_buffer.remote_id() != buffer_snapshot.remote_id()
+                prev_buffer.buffer_id() != buffer_snapshot.buffer_id()
                     || prev_range.end != buffer_offset
                     || prev_excerpt.context.start != excerpt_range.context.start
             }) {
@@ -4064,7 +4064,7 @@ impl MultiBufferSnapshot {
                     } else {
                         let departed_base_sorts_after =
                             anchor.diff_base_anchor.zip(base_text).is_some_and(|(diff_base_anchor, base_text)| {
-                                diff_base_anchor.buffer_id > base_text.remote_id()
+                                diff_base_anchor.buffer_id > base_text.buffer_id()
                             });
                         if at_transform_end
                             && (departed_base_sorts_after
@@ -5115,12 +5115,12 @@ impl MultiBufferSnapshot {
 
             // Avoid retrieving the language settings repeatedly for every buffer row.
             if let Some((prev_buffer_id, _)) = &prev_settings
-                && prev_buffer_id != &buffer.remote_id()
+                && prev_buffer_id != &buffer.buffer_id()
             {
                 prev_settings.take();
             }
             let settings = &prev_settings
-                .get_or_insert_with(|| (buffer.remote_id(), LanguageSettings::for_buffer_snapshot(buffer, None, cx)))
+                .get_or_insert_with(|| (buffer.buffer_id(), LanguageSettings::for_buffer_snapshot(buffer, None, cx)))
                 .1;
             let tab_size = settings.tab_size.get();
 
@@ -5171,7 +5171,7 @@ impl MultiBufferSnapshot {
                 cmp::Ordering::Greater => {
                     for next_depth in current_depth..depth {
                         indent_stack.push(IndentGuide {
-                            buffer_id: buffer.remote_id(),
+                            buffer_id: buffer.buffer_id(),
                             start_row: first_row,
                             end_row: last_row,
                             depth: next_depth,
@@ -5247,7 +5247,7 @@ impl MultiBufferSnapshot {
         group_id: usize,
     ) -> impl Iterator<Item = DiagnosticEntryRef<'_, Point>> + '_ {
         self.lift_buffer_metadata::<Point, _, _>(Point::zero()..self.max_point(), move |buffer, range| {
-            if buffer.remote_id() != buffer_id {
+            if buffer.buffer_id() != buffer_id {
                 return None;
             };
             Some(
@@ -5315,7 +5315,7 @@ impl MultiBufferSnapshot {
             )
         })
         .map(|(range, diagnostic, excerpt)| {
-            (excerpt.buffer_snapshot(self).remote_id(), DiagnosticEntryRef { diagnostic, range })
+            (excerpt.buffer_snapshot(self).buffer_id(), DiagnosticEntryRef { diagnostic, range })
         })
     }
 
@@ -5376,13 +5376,13 @@ impl MultiBufferSnapshot {
         let excerpt = excerpt?;
         let buffer_snapshot = excerpt.buffer_snapshot(self);
         Some((
-            buffer_snapshot.remote_id(),
+            buffer_snapshot.buffer_id(),
             buffer_snapshot
                 .symbols_containing(
                     anchor
                         .excerpt_anchor()
                         .map(|anchor| anchor.text_anchor())
-                        .unwrap_or(text::Anchor::min_for_buffer(buffer_snapshot.remote_id())),
+                        .unwrap_or(text::Anchor::min_for_buffer(buffer_snapshot.buffer_id())),
                     theme,
                 )
                 .into_iter()
@@ -5536,7 +5536,7 @@ impl MultiBufferSnapshot {
         }
 
         let end_region = cursor.region()?;
-        if end_region.buffer.remote_id() != start_region.buffer.remote_id() {
+        if end_region.buffer.buffer_id() != start_region.buffer.buffer_id() {
             return None;
         }
 
@@ -5571,12 +5571,12 @@ impl MultiBufferSnapshot {
 
         if let Anchor::Excerpt(excerpt_anchor) = range.start
             && (excerpt_anchor.path != start_excerpt.path_key_index
-                || excerpt_anchor.buffer_id() != snapshot.remote_id())
+                || excerpt_anchor.buffer_id() != snapshot.buffer_id())
         {
             return None;
         }
         if let Anchor::Excerpt(excerpt_anchor) = range.end
-            && (excerpt_anchor.path != end_excerpt.path_key_index || excerpt_anchor.buffer_id() != snapshot.remote_id())
+            && (excerpt_anchor.path != end_excerpt.path_key_index || excerpt_anchor.buffer_id() != snapshot.buffer_id())
         {
             return None;
         }
@@ -5609,7 +5609,7 @@ impl MultiBufferSnapshot {
                     }
 
                     let region = cursor.region()?;
-                    if region.buffer.remote_id() != buffer_id
+                    if region.buffer.buffer_id() != buffer_id
                         || region.buffer_range.start > BufferOffset(buffer_range.end)
                     {
                         return None;
@@ -5621,7 +5621,7 @@ impl MultiBufferSnapshot {
                     cursor.next();
                     while let Some(region) = cursor.region()
                         && region.is_main_buffer
-                        && region.buffer.remote_id() == buffer_id
+                        && region.buffer.buffer_id() == buffer_id
                         && region.buffer_range.start <= end
                     {
                         end = end.max(region.buffer_range.end).min(BufferOffset(buffer_range.end));
@@ -5955,7 +5955,7 @@ impl Excerpt {
         Excerpt {
             path_key,
             path_key_index,
-            buffer_id: buffer_snapshot.remote_id(),
+            buffer_id: buffer_snapshot.buffer_id(),
             max_buffer_row: range.context.end.to_point(buffer_snapshot).row,
             text_summary: buffer_snapshot
                 .text_summary_for_range::<TextSummary, _>(range.context.to_offset(buffer_snapshot)),
@@ -6461,7 +6461,7 @@ impl Iterator for MultiBufferRows<'_> {
         };
 
         let result = Some(RowInfo {
-            buffer_id: Some(region.buffer.remote_id()),
+            buffer_id: Some(region.buffer.buffer_id()),
             buffer_row: Some(buffer_point.row),
             multibuffer_row: Some(MultiBufferRow(self.point.row)),
             diff_status: region.diff_hunk_status.filter(|_| self.point < region.range.end),

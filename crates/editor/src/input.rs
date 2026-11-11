@@ -1589,7 +1589,7 @@ impl Editor {
         let buffer = self.buffer.read(cx).buffer(query_range.end.buffer_id)?;
         let buffer_snapshot = buffer.read(cx).snapshot();
         let (base_range, linked_ranges) =
-            self.linked_edit_ranges.get(buffer_snapshot.remote_id(), query_range.clone(), &buffer_snapshot)?;
+            self.linked_edit_ranges.get(buffer_snapshot.buffer_id(), query_range.clone(), &buffer_snapshot)?;
         // find offset from the start of current range to current cursor position
         let start_byte_offset = TO::to_offset(&base_range.start, &buffer_snapshot);
 

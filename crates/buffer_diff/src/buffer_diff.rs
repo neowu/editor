@@ -98,7 +98,7 @@ impl Debug for BufferDiffSnapshot {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("BufferDiffSnapshot")
             .field("hunks", &self.hunks)
-            .field("remote_id", &self.base_text.remote_id())
+            .field("buffer_id", &self.base_text.buffer_id())
             .field("secondary_diff", &self.secondary_diff)
             .finish()
     }
@@ -244,7 +244,7 @@ impl sum_tree::Summary for DiffHunkSummary {
 
     fn zero(buffer: &text::BufferSnapshot) -> Self {
         DiffHunkSummary {
-            buffer_range: Anchor::min_min_range_for_buffer(buffer.remote_id()),
+            buffer_range: Anchor::min_min_range_for_buffer(buffer.buffer_id()),
             diff_base_byte_range: 0..0,
             added_rows: 0,
             removed_rows: 0,
@@ -289,7 +289,7 @@ impl sum_tree::SeekTarget<'_, DiffHunkSummary, DiffHunkSummary> for usize {
 
 impl BufferDiffSnapshot {
     pub const fn buffer_id(&self) -> BufferId {
-        self.buffer_snapshot.remote_id()
+        self.buffer_snapshot.buffer_id()
     }
 
     pub const fn buffer_snapshot(&self) -> &text::BufferSnapshot {
@@ -430,7 +430,7 @@ impl BufferDiffSnapshot {
     }
 
     pub fn hunks<'a>(&'a self, buffer_snapshot: &'a text::BufferSnapshot) -> impl 'a + Iterator<Item = DiffHunk> {
-        self.hunks_intersecting_range(Anchor::min_max_range_for_buffer(buffer_snapshot.remote_id()), buffer_snapshot)
+        self.hunks_intersecting_range(Anchor::min_max_range_for_buffer(buffer_snapshot.buffer_id()), buffer_snapshot)
     }
 
     pub fn range_to_hunk_range(
@@ -464,8 +464,8 @@ impl BufferDiffSnapshot {
         }
         let left = &self.base_text;
         let right = &other.base_text;
-        let (old_id, old_version, old_empty) = (left.remote_id(), left.version(), left.is_empty());
-        let (new_id, new_version, new_empty) = (right.remote_id(), right.version(), right.is_empty());
+        let (old_id, old_version, old_empty) = (left.buffer_id(), left.version(), left.is_empty());
+        let (new_id, new_version, new_empty) = (right.buffer_id(), right.version(), right.is_empty());
         (new_id == old_id && new_version == old_version) || (new_empty && old_empty)
     }
 
@@ -663,7 +663,7 @@ impl BufferDiffSnapshot {
                 };
 
                 let pending = vec![PendingHunk::new(
-                    Anchor::min_max_range_for_buffer(buffer.remote_id()),
+                    Anchor::min_max_range_for_buffer(buffer.buffer_id()),
                     0..index_len,
                     version,
                     sense,
@@ -970,7 +970,7 @@ fn compute_hunks(
     } else {
         tree.push(
             InternalDiffHunk {
-                buffer_range: Anchor::min_max_range_for_buffer(buffer.remote_id()),
+                buffer_range: Anchor::min_max_range_for_buffer(buffer.buffer_id()),
                 diff_base_byte_range: 0..0,
                 diff_base_point_range: Point::new(0, 0)..Point::new(0, 0),
                 base_word_diffs: Vec::default(),
@@ -1094,7 +1094,7 @@ fn compare_hunks(
     let mut last_unchanged_new_hunk_end: Option<text::Anchor> = None;
     let mut has_changes = false;
     let mut extended_end_candidate: Option<text::Anchor> = None;
-    let base_text_changed = old_base_text.remote_id() != new_base_text.remote_id()
+    let base_text_changed = old_base_text.buffer_id() != new_base_text.buffer_id()
         || new_base_text.version().changed_since(old_base_text.version());
 
     loop {
@@ -1207,7 +1207,7 @@ fn compare_hunks(
 
     let extended_range = if has_changes && let Some(changed_range) = changed_range.clone() {
         let extended_start = *last_unchanged_new_hunk_end
-            .unwrap_or(text::Anchor::min_for_buffer(new_snapshot.remote_id()))
+            .unwrap_or(text::Anchor::min_for_buffer(new_snapshot.buffer_id()))
             .min(&changed_range.start, new_snapshot);
         let extended_start = new_snapshot
             .anchored_edits_since_in_range::<usize>(old_snapshot.version(), extended_start..changed_range.start)
@@ -1216,7 +1216,7 @@ fn compare_hunks(
             .unwrap_or(changed_range.start);
 
         let extended_end = *extended_end_candidate
-            .unwrap_or(text::Anchor::max_for_buffer(new_snapshot.remote_id()))
+            .unwrap_or(text::Anchor::max_for_buffer(new_snapshot.buffer_id()))
             .max(&changed_range.end, new_snapshot);
         let extended_end = new_snapshot
             .anchored_edits_since_in_range::<usize>(old_snapshot.version(), changed_range.end..extended_end)
@@ -1272,7 +1272,7 @@ impl BufferDiff {
         });
 
         BufferDiff {
-            buffer_id: buffer.remote_id(),
+            buffer_id: buffer.buffer_id(),
             base_text_buffer: base_text,
             diff_snapshot: None,
             buffer_snapshot: buffer.clone(),
@@ -1287,7 +1287,7 @@ impl BufferDiff {
         _cx: &mut App,
     ) -> Self {
         BufferDiff {
-            buffer_id: buffer.remote_id(),
+            buffer_id: buffer.buffer_id(),
             base_text_buffer,
             diff_snapshot: None,
             buffer_snapshot: buffer.clone(),
@@ -1325,7 +1325,7 @@ impl BufferDiff {
         };
 
         BufferDiff {
-            buffer_id: buffer.remote_id(),
+            buffer_id: buffer.buffer_id(),
             base_text_buffer: base_text,
             diff_snapshot: Some(diff_snapshot),
             buffer_snapshot: buffer.clone(),
@@ -1442,7 +1442,7 @@ impl BufferDiff {
         let version = buffer.version().clone();
         let hunks = self
             .snapshot(cx)
-            .hunks_intersecting_range(Anchor::min_max_range_for_buffer(buffer.remote_id()), buffer)
+            .hunks_intersecting_range(Anchor::min_max_range_for_buffer(buffer.buffer_id()), buffer)
             .filter(|hunk| {
                 !((stage && hunk.secondary_status == DiffHunkSecondaryStatus::NoSecondaryHunk)
                     || (!stage && hunk.secondary_status == DiffHunkSecondaryStatus::HasSecondaryHunk))
@@ -1456,7 +1456,7 @@ impl BufferDiff {
         let version = buffer.version().clone();
         let hunks = self
             .snapshot(cx)
-            .raw_hunks_intersecting_range(Anchor::min_max_range_for_buffer(buffer.remote_id()), buffer)
+            .raw_hunks_intersecting_range(Anchor::min_max_range_for_buffer(buffer.buffer_id()), buffer)
             .map(|hunk| {
                 PendingHunk::new(hunk.buffer_range, hunk.diff_base_byte_range, version.clone(), PendingSense::Suppress)
             })
@@ -1574,7 +1574,7 @@ impl BufferDiff {
         let old_base_text = &old_snapshot.base_text;
         let base_text_changed = old_base_text_exists != new_base_text_exists
             || (new_base_text_exists
-                && (old_base_text.remote_id() != new_base_text.remote_id()
+                && (old_base_text.buffer_id() != new_base_text.buffer_id()
                     || new_base_text.version().changed_since(old_base_text.version())));
         let DiffChanged { mut changed_range, mut base_text_changed_range, mut extended_range, base_text_changed: _ } =
             match (old_base_text_exists, new_base_text_exists) {

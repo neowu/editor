@@ -97,7 +97,7 @@ impl Editor {
 
         let mut jobs = Vec::new();
         for (buffer_snapshot, range, _) in self.visible_buffer_ranges(cx) {
-            let Some(buffer) = self.buffer.read(cx).buffer(buffer_snapshot.remote_id()) else {
+            let Some(buffer) = self.buffer.read(cx).buffer(buffer_snapshot.buffer_id()) else {
                 continue;
             };
             let Some(mode) = check_mode(buffer.read(cx)) else {
@@ -125,7 +125,7 @@ impl Editor {
                             {
                                 highlights.push(start..end);
                             }
-                            misspellings.push((snapshot.remote_id(), anchors));
+                            misspellings.push((snapshot.buffer_id(), anchors));
                         }
                     }
                     (misspellings, highlights)
@@ -401,7 +401,7 @@ impl CodeActionProvider for SpellCheckActions {
             .misspellings
             .borrow()
             .iter()
-            .filter(|(buffer_id, _)| *buffer_id == snapshot.remote_id())
+            .filter(|(buffer_id, _)| *buffer_id == snapshot.buffer_id())
             .map(|(_, anchors)| anchors.to_offset(&snapshot))
             .find(|word| word.start <= range.start && range.end <= word.end)
         else {

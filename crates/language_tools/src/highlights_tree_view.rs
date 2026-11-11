@@ -502,7 +502,7 @@ impl HighlightsTreeView {
             let changed = self.selected_item_ix.take().is_some();
             return changed;
         };
-        let cursor_buffer_id = cursor_buffer.remote_id();
+        let cursor_buffer_id = cursor_buffer.buffer_id();
 
         let best = self
             .display_items
@@ -1129,7 +1129,7 @@ fn format_anchor_range(
         snapshot.point_to_buffer_point(start).zip(snapshot.point_to_buffer_point(end))?;
     let display =
         SharedString::from(format!("[{}:{} - {}:{}]", start.row + 1, start.column + 1, end.row + 1, end.column + 1,));
-    Some((display, start_buffer.remote_id(), start..end))
+    Some((display, start_buffer.buffer_id(), start..end))
 }
 
 fn render_style_preview(style: HighlightStyle, selected: bool, cx: &App) -> Div {

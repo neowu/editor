@@ -360,7 +360,7 @@ impl BufferDiagnosticsEditor {
                 let diagnostic_blocks = cx.update(|_window, cx| {
                     DiagnosticRenderer::diagnostic_blocks_for_group(
                         group,
-                        buffer_snapshot.remote_id(),
+                        buffer_snapshot.buffer_id(),
                         Some(Arc::new(buffer_diagnostics_editor.clone())),
                         languages,
                         cx,

@@ -62,7 +62,7 @@ impl PathKey {
         } else {
             Self {
                 sort_prefix: None,
-                path: RelPath::from_unix_str(&buffer.remote_id().to_string()).unwrap().into_arc(),
+                path: RelPath::from_unix_str(&buffer.buffer_id().to_string()).unwrap().into_arc(),
             }
         }
     }
@@ -139,11 +139,11 @@ impl MultiBuffer {
     ) -> Vec<ExcerptRange<Point>> {
         let multibuffer_snapshot = self.snapshot(cx);
 
-        if multibuffer_snapshot.path_for_buffer(buffer_snapshot.remote_id()) == Some(path) {
+        if multibuffer_snapshot.path_for_buffer(buffer_snapshot.buffer_id()) == Some(path) {
             excerpt_ranges.sort_by_key(|range| range.context.start);
             let mut combined_ranges = Vec::new();
             let mut new_ranges = excerpt_ranges.into_iter().peekable();
-            for existing_range in multibuffer_snapshot.excerpts_for_buffer(buffer_snapshot.remote_id()) {
+            for existing_range in multibuffer_snapshot.excerpts_for_buffer(buffer_snapshot.buffer_id()) {
                 let existing_range = ExcerptRange {
                     context: existing_range.context.to_point(buffer_snapshot),
                     primary: existing_range.primary.to_point(buffer_snapshot),
@@ -350,7 +350,7 @@ impl MultiBuffer {
         cx: &mut Context<Self>,
     ) -> bool {
         let path_key_index = self.get_or_create_path_key_index(&path_key);
-        if let Some(old_path_key) = self.snapshot(cx).path_for_buffer(buffer_snapshot.remote_id())
+        if let Some(old_path_key) = self.snapshot(cx).path_for_buffer(buffer_snapshot.buffer_id())
             && old_path_key != &path_key
         {
             self.remove_excerpts(old_path_key.clone(), cx);
@@ -364,7 +364,7 @@ impl MultiBuffer {
         assert_eq!(self.history.transaction_depth(), 0);
         self.sync_mut(cx);
 
-        let buffer_id = buffer_snapshot.remote_id();
+        let buffer_id = buffer_snapshot.buffer_id();
 
         let snapshot = self.snapshot.get_mut();
         let mut cursor = snapshot.excerpts.cursor::<Dimensions<PathKey, ExcerptOffset>>(());

@@ -601,7 +601,7 @@ impl CommitView {
 
             while let Some(file) = loaded_files.next().await {
                 let file = file?;
-                let buffer_id = cx.update(|_, cx| file.buffer.read(cx).remote_id())?;
+                let buffer_id = cx.update(|_, cx| file.buffer.read(cx).buffer_id())?;
                 this.update(cx, |this, cx| {
                     this.editor.update(cx, |editor, cx| {
                         editor.rhs_editor().update(cx, |editor, _cx| {
@@ -815,7 +815,7 @@ impl CommitView {
     /// The buffer of `editor` when it shows one of this commit's file revisions.
     fn revision_buffer(&self, editor: &Entity<Editor>, cx: &App) -> Option<Entity<language::Buffer>> {
         let buffer = editor.read(cx).buffer().read(cx).as_singleton()?;
-        self.multibuffer.read(cx).buffer(buffer.read(cx).remote_id())
+        self.multibuffer.read(cx).buffer(buffer.read(cx).buffer_id())
     }
 
     /// Whether the active history tab is another tab showing this commit's

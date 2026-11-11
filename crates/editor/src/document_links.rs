@@ -32,7 +32,7 @@ impl Editor {
         let buffers_to_query = self.lsp_data_buffers(for_buffer, cx);
         self.spawn_lsp_data_tasks(LspDataKind::DocumentLinks, for_buffer, buffers_to_query, cx, |buffer, cx| {
             let project = project.clone();
-            let buffer_id = buffer.read(cx).remote_id();
+            let buffer_id = buffer.read(cx).buffer_id();
             cx.spawn(async move |editor, cx| {
                 cx.background_executor().timer(LSP_REQUEST_DEBOUNCE_TIMEOUT).await;
 
@@ -72,7 +72,7 @@ impl Editor {
         position: text::Anchor,
         cx: &mut Context<Self>,
     ) -> Option<Task<Vec<(LanguageServerId, LspDocumentLink)>>> {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         let snapshot = buffer.read(cx).snapshot();
         let matches = self
             .lsp_document_links

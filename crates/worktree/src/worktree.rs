@@ -2189,10 +2189,6 @@ impl language::File for File {
     fn is_in_visible_worktree(&self, cx: &App) -> bool {
         self.worktree.read(cx).is_visible()
     }
-
-    fn can_open(&self) -> bool {
-        true
-    }
 }
 
 impl language::LocalFile for File {

@@ -228,7 +228,7 @@ impl Item for Editor {
             .and_then(|buffer| {
                 let buffer = buffer.read(cx);
                 let path = buffer.project_path(cx)?;
-                let buffer_id = buffer.remote_id();
+                let buffer_id = buffer.buffer_id();
                 let project = self.project()?.read(cx);
                 let entry = project.entry_for_path(&path, cx)?;
                 let status = project.git_store().read(cx).status_for_buffer_id(buffer_id, cx)?;
@@ -1340,7 +1340,7 @@ fn compute_format_target(
         }
 
         let Some(diff_snapshot) =
-            git_store.get_unstaged_diff(buffer.remote_id(), cx).map(|diff| diff.read(cx).snapshot(cx))
+            git_store.get_unstaged_diff(buffer.buffer_id(), cx).map(|diff| diff.read(cx).snapshot(cx))
         else {
             if settings.format_on_save == FormatOnSave::ModificationsIfAvailable {
                 fall_back_to_full_format = true;

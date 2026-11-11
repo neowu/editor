@@ -254,10 +254,8 @@ struct SelectionLayout {
     head: DisplayPoint,
     cursor_shape: CursorShape,
     is_newest: bool,
-    is_local: bool,
     range: Range<DisplayPoint>,
     active_rows: Range<DisplayRow>,
-    user_name: Option<SharedString>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -366,8 +364,6 @@ impl SelectionLayout {
         cursor_shape: CursorShape,
         map: &DisplaySnapshot,
         is_newest: bool,
-        is_local: bool,
-        user_name: Option<SharedString>,
     ) -> Self {
         let id = selection.id;
         let buffer_snapshot = map.buffer_snapshot();
@@ -413,7 +409,7 @@ impl SelectionLayout {
             }
         }
 
-        Self { id, head, cursor_shape, is_newest, is_local, range, active_rows, user_name }
+        Self { id, head, cursor_shape, is_newest, range, active_rows }
     }
 }
 
@@ -905,8 +901,6 @@ impl EditorElement {
                         editor.cursor_shape,
                         &snapshot.display_snapshot,
                         is_newest,
-                        true,
-                        None,
                     );
                     if is_newest {
                         newest_selection_head = Some(layout.head);
@@ -972,7 +966,7 @@ impl EditorElement {
             let mut handled_animation_cursors = FxHashSet::default();
             let mut request_animation_frame = false;
 
-            let show_local_cursors = editor.show_local_cursors(window, cx);
+            let show_cursors = editor.show_cursors(window, cx);
             let cursor_viewport = CursorViewport::new(
                 content_origin,
                 text_hitbox.bounds,
@@ -992,10 +986,7 @@ impl EditorElement {
                     let cursor_position = selection.head;
 
                     let in_range = visible_display_row_range.contains(&cursor_position.row());
-                    if (selection.is_local && !show_local_cursors)
-                        || !in_range
-                        || row_block_types.get(&cursor_position.row()) == Some(&true)
-                    {
+                    if !show_cursors || !in_range || row_block_types.get(&cursor_position.row()) == Some(&true) {
                         continue;
                     }
 
@@ -1103,16 +1094,9 @@ impl EditorElement {
                         line_height,
                         shape: selection.cursor_shape,
                         block_text,
-                        cursor_name: None,
                         animated_corners: None,
                     };
-                    let cursor_name = selection.user_name.clone().map(|name| CursorName {
-                        string: name,
-                        color: self.style.background,
-                        is_top_row: cursor_position.row().0 == 0,
-                    });
-                    cursor.layout(content_origin, cursor_name, window, cx);
-                    if selection.is_local && cursor_shape_supports_cursor_motion(selection.cursor_shape) {
+                    if cursor_shape_supports_cursor_motion(selection.cursor_shape) {
                         handled_animation_cursors.insert(selection.id);
                         let target_bounds = window.pixel_snap_bounds(cursor.bounds(content_origin));
                         cursor.animated_corners = editor.cursor_motions.update(
@@ -1123,7 +1107,7 @@ impl EditorElement {
                             animation_now,
                         );
                         request_animation_frame |= cursor.animated_corners.is_some();
-                    } else if selection.is_local {
+                    } else {
                         editor.cursor_motions.remove(selection.id);
                     }
                     cursors.push(cursor);
@@ -4225,7 +4209,7 @@ impl EditorElement {
                         window,
                     );
 
-                    if selection.is_local && !selection.range.is_empty() {
+                    if !selection.range.is_empty() {
                         invisible_display_ranges.push(selection.range.clone());
                     }
                 }
@@ -6023,8 +6007,6 @@ impl Element for EditorElement {
                                 editor.cursor_shape,
                                 &snapshot,
                                 true,
-                                true,
-                                None,
                             )
                             .head
                             .row()
@@ -7297,8 +7279,6 @@ struct NavigationOverlayLayoutContext<'a> {
     editor_font_size: Pixels,
 }
 
-const LABEL_LINE_HEIGHT_PADDING_PX: f32 = 2.0;
-
 pub struct CursorLayout {
     origin: gpui::Point<Pixels>,
     block_width: Pixels,
@@ -7306,15 +7286,7 @@ pub struct CursorLayout {
     color: Hsla,
     shape: CursorShape,
     block_text: Option<ShapedLine>,
-    cursor_name: Option<AnyElement>,
     animated_corners: Option<[gpui::Point<Pixels>; 4]>,
-}
-
-#[derive(Debug)]
-pub struct CursorName {
-    string: SharedString,
-    color: Hsla,
-    is_top_row: bool,
 }
 
 impl CursorLayout {
@@ -7326,16 +7298,7 @@ impl CursorLayout {
         shape: CursorShape,
         block_text: Option<ShapedLine>,
     ) -> CursorLayout {
-        CursorLayout {
-            origin,
-            block_width,
-            line_height,
-            color,
-            shape,
-            block_text,
-            cursor_name: None,
-            animated_corners: None,
-        }
+        CursorLayout { origin, block_width, line_height, color, shape, block_text, animated_corners: None }
     }
 
     fn bounds(&self, origin: gpui::Point<Pixels>) -> Bounds<Pixels> {
@@ -7351,40 +7314,6 @@ impl CursorLayout {
         }
     }
 
-    pub fn layout(
-        &mut self,
-        origin: gpui::Point<Pixels>,
-        cursor_name: Option<CursorName>,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        if let Some(cursor_name) = cursor_name {
-            let bounds = self.bounds(origin);
-            let text_size = self.line_height / 1.5;
-
-            let name_origin = if cursor_name.is_top_row {
-                point(bounds.right() - px(1.), bounds.top())
-            } else {
-                match self.shape {
-                    CursorShape::Bar => point(bounds.right() - px(2.), bounds.top() - text_size / 2. - px(1.)),
-                    _ => point(bounds.right() - px(1.), bounds.top() - text_size / 2. - px(1.)),
-                }
-            };
-            let mut name_element = div()
-                .bg(self.color)
-                .text_size(text_size)
-                .px_0p5()
-                .line_height(text_size + px(LABEL_LINE_HEIGHT_PADDING_PX))
-                .text_color(cursor_name.color)
-                .child(cursor_name.string)
-                .into_any_element();
-
-            name_element.prepaint_as_root(name_origin, AvailableSpace::min_size(), window, cx);
-
-            self.cursor_name = Some(name_element);
-        }
-    }
-
     pub fn paint(&mut self, origin: gpui::Point<Pixels>, window: &mut Window, cx: &mut App) {
         let bounds = window.pixel_snap_bounds(self.bounds(origin));
 
@@ -7392,9 +7321,6 @@ impl CursorLayout {
             let mut builder = gpui::PathBuilder::fill();
             builder.add_polygon(&corners, true);
             if let Ok(path) = builder.build() {
-                if let Some(name) = &mut self.cursor_name {
-                    name.paint(window, cx);
-                }
                 window.paint_path(path, self.color);
 
                 if !animated_corners_overlap_target(bounds, &corners) {
@@ -7408,10 +7334,6 @@ impl CursorLayout {
             } else {
                 fill(bounds, self.color)
             };
-
-            if let Some(name) = &mut self.cursor_name {
-                name.paint(window, cx);
-            }
 
             window.paint_quad(cursor);
         }

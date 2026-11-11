@@ -599,7 +599,7 @@ impl Editor {
                 invalidate_hints_for_buffers.extend(self.buffer().read(cx).all_buffers().into_iter().filter_map(
                     |buffer| {
                         let buffer = buffer.read(cx);
-                        if buffer.language() == Some(&affected_language) { Some(buffer.remote_id()) } else { None }
+                        if buffer.language() == Some(&affected_language) { Some(buffer.buffer_id()) } else { None }
                     },
                 ));
 
@@ -631,7 +631,7 @@ impl Editor {
 
         let mut buffers_to_query = FxHashMap::default();
         for (buffer_snapshot, visible_range, _) in visible_excerpts {
-            let buffer_id = buffer_snapshot.remote_id();
+            let buffer_id = buffer_snapshot.buffer_id();
 
             if !self.registered_buffers.contains_key(&buffer_id) {
                 continue;
@@ -795,7 +795,7 @@ impl Editor {
                 .all_adjusted(&snapshot)
                 .into_iter()
                 .flat_map(|selection| snapshot.buffer_snapshot().range_to_buffer_ranges(selection.range()))
-                .map(|(buffer, _, _)| buffer.remote_id())
+                .map(|(buffer, _, _)| buffer.buffer_id())
                 .collect::<FxHashSet<_>>()
         };
         let Some(inlay_hints) = self.inlay_hints.as_ref() else {

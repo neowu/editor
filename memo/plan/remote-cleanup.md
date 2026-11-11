@@ -55,8 +55,10 @@ are roughly ordered by payoff per effort.
 ## `language::File::as_local` returns an `Option`
 
 There are three implementors. `worktree::File` always returns `Some` now;
-`IndexTextFile` (`git_store.rs`) and `GitBlob` (`commit_view.rs`) presumably
-return `None`. The `Option` still means "has a path on disk", so it can't
+`IndexTextFile` (`git_store.rs`) and `GitBlob` (`commit_view.rs`) return
+`None`. Done: the always-true checks on the concrete `worktree::File` in
+`lsp_store` are gone, as are `File::is_local` and the `can_open` default that
+depended on it. The `Option` still means "has a path on disk", so it can't
 simply go. Options:
 
 - Leave it.
@@ -104,6 +106,14 @@ simply go. Options:
 
   These are covered only by edctl runs. A minimal gpui test-support setup for
   `language` and `project` would close that.
+
+## Done in the third pass
+
+- `remote_id` (field and `remote_id()` on text/language buffers) renamed to
+  `buffer_id`.
+- Editor `SelectionLayout::is_local` / `user_name`, `CursorName` and
+  `CursorLayout::layout` (collaborator name labels) removed;
+  `show_local_cursors` renamed to `show_cursors`.
 
 ## Not verified yet
 

@@ -44,7 +44,7 @@ where
         let (position, buffer) = multi_buffer_snapshot
             .anchor_to_buffer_anchor(selection.head())
             .and_then(|(anchor, _)| Some((anchor, multi_buffer.buffer(anchor.buffer_id)?)))?;
-        if !seen_buffer_ids.insert(buffer.read(cx).remote_id()) {
+        if !seen_buffer_ids.insert(buffer.read(cx).buffer_id()) {
             return None;
         }
 
@@ -130,7 +130,7 @@ pub fn lsp_tasks(
                     let lsp_buffer_context = lsp_task_context(&project, &buffer, cx).await.unwrap_or_default();
 
                     let runnables_task = project.update(cx, |project, cx| {
-                        let buffer_id = buffer.read(cx).remote_id();
+                        let buffer_id = buffer.read(cx).buffer_id();
                         project.request_lsp(
                             buffer,
                             LanguageServerToQuery::Other(server_id),

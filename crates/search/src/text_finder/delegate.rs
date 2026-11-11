@@ -196,7 +196,7 @@ fn multibuffer_ranges_to_search_matches<'a>(
 
         let file = buffer_snapshot.file()?;
         let path = ProjectPath { worktree_id: file.worktree_id(cx), path: Arc::clone(file.path()) };
-        let buffer = multi_buffer.buffer(buffer_snapshot.remote_id())?;
+        let buffer = multi_buffer.buffer(buffer_snapshot.buffer_id())?;
 
         let start_offset: usize = buffer_snapshot.summary_for_anchor(&text_range.start);
         let end_offset: usize = buffer_snapshot.summary_for_anchor(&text_range.end);

@@ -94,7 +94,7 @@ pub(super) fn refresh_linked_ranges(editor: &mut Editor, window: &Window, cx: &C
                     let highlights = async move {
                         let edits = linked_edits_task.await.log_err()?;
                         let snapshot = cx.read_entity(buffer, |buffer, _| buffer.snapshot());
-                        let buffer_id = snapshot.remote_id();
+                        let buffer_id = snapshot.buffer_id();
 
                         // Find the range containing our current selection.
                         // We might not find one, because the selection contains both the start and end of the contained range

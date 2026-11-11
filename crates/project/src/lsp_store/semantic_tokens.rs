@@ -174,7 +174,7 @@ impl LspStore {
                 } else {
                     let remaining_tokens = lsp_store.update(cx, |lsp_store, cx| {
                         let mut remaining_tokens = None;
-                        if let Some(current_lsp_data) = lsp_store.current_lsp_data(buffer.read(cx).remote_id())
+                        if let Some(current_lsp_data) = lsp_store.current_lsp_data(buffer.read(cx).buffer_id())
                             && current_lsp_data.buffer_version == version_queried_for
                             && let Some(semantic_tokens) = current_lsp_data.semantic_tokens.as_mut()
                             && semantic_tokens.generation == query_generation
@@ -263,7 +263,7 @@ impl LspStore {
                     .filter_map(|(server_id, response)| match response {
                         Ok(tokens) => Some((server_id, tokens)),
                         Err(e) => {
-                            log::error!("Failed to query remote semantic tokens for server {server_id:?}: {e:#}");
+                            log::error!("Failed to query semantic tokens for server {server_id:?}: {e:#}");
                             None
                         }
                     })

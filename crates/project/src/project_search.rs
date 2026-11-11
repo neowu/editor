@@ -153,7 +153,7 @@ impl Search {
         let buffers = self.buffer_store.read(cx);
         for handle in buffers.buffers() {
             let buffer = handle.read(cx);
-            if !buffers.is_searchable(&buffer.remote_id())
+            if !buffers.is_searchable(&buffer.buffer_id())
                 || buffer.file().is_some_and(|file| file.disk_state().is_deleted())
             {
                 continue;
@@ -545,7 +545,7 @@ fn path_key_sort_key(buffer: &Entity<Buffer>, cx: &App) -> (Option<usize>, Optio
     let buffer = buffer.read(cx);
     match buffer.file() {
         Some(file) => (Some(file.worktree_id(cx).to_usize()), Some(file.path().clone()), String::new()),
-        None => (None, None, buffer.remote_id().to_string()),
+        None => (None, None, buffer.buffer_id().to_string()),
     }
 }
 

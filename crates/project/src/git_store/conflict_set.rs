@@ -213,7 +213,7 @@ impl ConflictSet {
             line_pos = line_end + 1;
         }
 
-        ConflictSetSnapshot { conflicts: conflicts.into(), buffer_id: buffer.remote_id() }
+        ConflictSetSnapshot { conflicts: conflicts.into(), buffer_id: buffer.buffer_id() }
     }
 }
 

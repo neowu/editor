@@ -79,7 +79,7 @@ impl TextDiffView {
                 multibuffer_snapshot.anchor_range_to_buffer_anchor_range(first_selection.range())?;
             let max_point = source_buffer.max_point();
             let buffer_range = buffer_range.to_point(source_buffer);
-            let source_buffer = multibuffer.read(cx).buffer(source_buffer.remote_id())?;
+            let source_buffer = multibuffer.read(cx).buffer(source_buffer.buffer_id())?;
 
             if buffer_range.is_empty() {
                 let full_range = Point::new(0, 0)..max_point;

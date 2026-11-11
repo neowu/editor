@@ -304,11 +304,6 @@ pub trait File: Send + Sync + Any {
     /// file is local.
     fn as_local(&self) -> Option<&dyn LocalFile>;
 
-    /// Returns whether this file is local.
-    fn is_local(&self) -> bool {
-        self.as_local().is_some()
-    }
-
     /// Returns whether the file is new, exists in storage, or has been deleted. Includes metadata
     /// only available in some states, such as modification time.
     fn disk_state(&self) -> DiskState;
@@ -320,8 +315,7 @@ pub trait File: Send + Sync + Any {
     /// includes the name of the worktree's root folder).
     fn full_path(&self, cx: &App) -> PathBuf;
 
-    /// Returns the absolute path to this file in its backing file system.
-    /// For remote files, this is an absolute path on the remote host.
+    /// Returns the absolute path to this file on disk, if it has one.
     fn file_system_abs_path(&self, cx: &App) -> Option<PathBuf> {
         self.as_local().map(|file| file.abs_path(cx))
     }
@@ -336,7 +330,7 @@ pub trait File: Send + Sync + Any {
     fn worktree_id(&self, cx: &App) -> WorktreeId;
 
     fn can_open(&self) -> bool {
-        !self.is_local()
+        true
     }
 
     /// Returns whether this file belongs to a worktree shown as a project root.

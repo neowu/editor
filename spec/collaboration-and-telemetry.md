@@ -26,12 +26,15 @@ that anchors need, but its clock is one counter: a `Lamport` timestamp is a
 `u32` and a version (`clock::Global`) is the newest timestamp applied, because
 edits apply in timestamp order. There are no operations to send or replay, no
 deferred-op queue, no branch buffers, no buffer-held selections for other
-replicas, and undo/redo stays local (an undo map of per-edit counts).
+replicas, and undo/redo stays local (an undo map of per-edit counts). A buffer's
+`BufferId` (`buffer_id()`) is just its identity within the process, used by
+anchors and the stores' lookup maps.
 Dead sharing/unsharing APIs and the call-status-icon and public-channel-sharing
 settings are removed.
 
 There is no player concept: the theme has one `CursorColors` (cursor and
-selection), greyed out in read-only editors. Places that need several distinct colors (git blame, Mermaid diagrams, debug
+selection), greyed out in read-only editors. Every rendered selection is the
+local user's, so cursors carry no collaborator name label. Places that need several distinct colors (git blame, Mermaid diagrams, debug
 ranges) use the theme's `accents` palette.
 
 No usage events, activity metrics, machine identifiers, remote telemetry forwarding,

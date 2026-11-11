@@ -382,7 +382,7 @@ fn available_commands<'a>(
         .map(|worktree| worktree.read(cx))
         .filter(|worktree| worktree.is_visible())
         .map(|worktree| worktree.id());
-    let opened_in_servers = lsp_store.language_server_ids_for_opened_buffer(buffer.remote_id());
+    let opened_in_servers = lsp_store.language_server_ids_for_opened_buffer(buffer.buffer_id());
     project
         .language_server_statuses(cx)
         .filter(move |(server_id, status)| {

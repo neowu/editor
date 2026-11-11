@@ -341,7 +341,7 @@ fn existing_blame_editor(
             return None;
         }
         let buffer = editor.read(cx).buffer().read(cx).as_singleton()?;
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
         if blame.read(cx).repository(cx, buffer_id).as_ref() != Some(repository) {
             return None;
         }

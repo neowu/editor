@@ -373,7 +373,7 @@ impl ProjectDiagnosticsEditor {
     ) -> Task<Result<()>> {
         let was_empty = self.multibuffer.read(cx).is_empty();
         let buffer_snapshot = buffer.read(cx).snapshot();
-        let buffer_id = buffer_snapshot.remote_id();
+        let buffer_id = buffer_snapshot.buffer_id();
 
         let max_severity = lsp::DiagnosticSeverity::WARNING;
 
@@ -415,7 +415,7 @@ impl ProjectDiagnosticsEditor {
                 let more = cx.update(|_, cx| {
                     DiagnosticRenderer::diagnostic_blocks_for_group(
                         group,
-                        buffer_snapshot.remote_id(),
+                        buffer_snapshot.buffer_id(),
                         Some(diagnostics_toolbar_editor.clone()),
                         languages,
                         cx,

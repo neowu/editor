@@ -25,7 +25,7 @@ impl Editor {
             self.lsp_data_buffers(for_buffer, cx).into_iter().filter(|_| DOCUMENT_FOLDING_RANGES.enabled()).collect();
         self.spawn_lsp_data_tasks(LspDataKind::FoldingRanges, for_buffer, buffers_to_query, cx, |buffer, cx| {
             let project = project.clone();
-            let buffer_id = buffer.read(cx).remote_id();
+            let buffer_id = buffer.read(cx).buffer_id();
             cx.spawn(async move |editor, cx| {
                 cx.background_executor().timer(LSP_REQUEST_DEBOUNCE_TIMEOUT).await;
 

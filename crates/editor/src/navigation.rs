@@ -1713,14 +1713,14 @@ impl Editor {
         let cursor = self.selections.newest_anchor().head();
 
         cx.spawn_in(window, async move |editor, wcx| -> Result<()> {
-            let Ok(Some(remote_id)) = editor.update(wcx, |ed, cx| {
+            let Ok(Some(buffer_id)) = editor.update(wcx, |ed, cx| {
                 let buffer = ed.buffer.read(cx).as_singleton()?;
-                Some(buffer.read(cx).remote_id())
+                Some(buffer.read(cx).buffer_id())
             }) else {
                 return Ok(());
             };
 
-            let task = editor.update(wcx, |ed, cx| ed.buffer_outline_items(remote_id, cx))?;
+            let task = editor.update(wcx, |ed, cx| ed.buffer_outline_items(buffer_id, cx))?;
             let outline_items: Vec<OutlineItem<text::Anchor>> = task.await;
 
             let multi_snapshot = editor.read_with(wcx, |editor, cx| editor.buffer.read(cx).snapshot(cx))?;
@@ -1835,10 +1835,10 @@ impl Editor {
             let key = &mut key.1;
             let mut multibuffer = MultiBuffer::new(capability);
             let mut sorted_locations = locations.into_iter().collect::<Vec<_>>();
-            sorted_locations.sort_by_key(|(buffer, _)| buffer.read(cx).remote_id());
+            sorted_locations.sort_by_key(|(buffer, _)| buffer.read(cx).buffer_id());
             for (buffer, mut ranges_for_buffer) in sorted_locations {
                 ranges_for_buffer.sort_by_key(|range| (range.start, Reverse(range.end)));
-                key.push((buffer.read(cx).remote_id(), ranges_for_buffer.clone()));
+                key.push((buffer.read(cx).buffer_id(), ranges_for_buffer.clone()));
                 multibuffer.set_excerpts_for_path(
                     PathKey::for_buffer(&buffer, cx),
                     buffer.clone(),

@@ -108,7 +108,7 @@ impl LspStore {
         cx: &mut Context<Self>,
     ) -> Task<Option<BufferDocumentLinks>> {
         let version_queried_for = buffer.read(cx).version();
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
 
         let current_servers = self.language_server_ids_for_request(buffer, &GetDocumentLinks, cx);
 
@@ -251,7 +251,7 @@ impl LspStore {
         link_id: DocumentLinkId,
         cx: &mut Context<Self>,
     ) -> Option<ResolvedDocumentLink> {
-        let buffer_id = buffer.read(cx).remote_id();
+        let buffer_id = buffer.read(cx).buffer_id();
 
         let document_links = self.lsp_data.get(&buffer_id)?.document_links.as_ref()?;
         let cached_link = document_links.links.get(&server_id)?.get(&link_id)?.clone();
