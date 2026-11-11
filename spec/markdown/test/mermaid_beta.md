@@ -56,21 +56,7 @@ ishikawa-beta
         Too dark
 ```
 
-## Railroad
 
-```mermaid
-railroad-beta
-title Expression grammar
-
-expression = sequence(
-    nonterminal("term"),
-    zeroOrMore(sequence(
-        choice(terminal("+"), terminal("-")),
-        nonterminal("term")
-    ))
-) ;
-term = oneOrMore(nonterminal("digit")) ;
-```
 
 ## Cynefin
 

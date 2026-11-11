@@ -120,8 +120,6 @@ use crate::markdown_preview_style::preview_markdown_style;
 use crate::markdown_preview_style::reset_preview_font_size;
 use crate::mermaid_diagrams::MermaidDiagrams;
 
-/// Languages the preview renders.
-const PREVIEW_LANGUAGES: [&str; 2] = ["Markdown", "HTML"];
 const REPARSE_DEBOUNCE: Duration = Duration::from_millis(200);
 /// The rendered content is centered and capped at this width, for readability.
 const MAX_CONTENT_WIDTH: Pixels = px(1200.);
@@ -267,7 +265,7 @@ impl MarkdownPreviewView {
         cx: &mut Context<Workspace>,
     ) -> Option<Entity<Editor>> {
         if let Some(editor) = workspace.shown_pane().read(cx).active_item().and_then(|item| item.act_as::<Editor>(cx))
-            && Self::is_previewable_file(&editor, cx)
+            && Self::is_markdown_file(&editor, cx)
         {
             return Some(editor);
         }
@@ -310,12 +308,7 @@ impl MarkdownPreviewView {
                     SharedString::default(),
                     Some(language_registry),
                     None,
-                    MarkdownOptions {
-                        parse_html: true,
-                        parse_heading_slugs: true,
-                        render_metadata_blocks: true,
-                        ..Default::default()
-                    },
+                    MarkdownOptions { parse_heading_slugs: true, render_metadata_blocks: true },
                     cx,
                 )
             });
@@ -386,26 +379,15 @@ impl MarkdownPreviewView {
         if let Some(item) = active_item
             && item.item_id() != cx.entity_id()
             && let Some(editor) = item.act_as::<Editor>(cx)
-            && Self::is_previewable_file(&editor, cx)
+            && Self::is_markdown_file(&editor, cx)
         {
             self.set_editor(editor, window, cx);
         }
     }
 
     pub fn is_markdown_path(path: impl AsRef<Path>, languages: &Arc<LanguageRegistry>) -> bool {
-        Self::path_has_language(path.as_ref(), &["Markdown"], languages)
-    }
-
-    /// Whether the preview can render the file at `path`: markdown or HTML.
-    pub fn is_previewable_path(path: impl AsRef<Path>, languages: &Arc<LanguageRegistry>) -> bool {
-        Self::path_has_language(path.as_ref(), &PREVIEW_LANGUAGES, languages)
-    }
-
-    fn path_has_language(path: &Path, names: &[&str], languages: &Arc<LanguageRegistry>) -> bool {
-        languages.language_for_file_path(path).is_some_and(|language_id| {
-            names.iter().any(|name| {
-                languages.available_language_for_name(name).is_some_and(|language| language.id() == language_id)
-            })
+        languages.language_for_file_path(path.as_ref()).is_some_and(|language_id| {
+            languages.available_language_for_name("Markdown").is_some_and(|language| language.id() == language_id)
         })
     }
 
@@ -435,21 +417,12 @@ impl MarkdownPreviewView {
         .detach();
     }
 
-    /// Whether the preview can render the editor's buffer: markdown or HTML.
-    pub fn is_previewable_file(editor: &Entity<Editor>, cx: &App) -> bool {
-        Self::editor_language_is(editor, &PREVIEW_LANGUAGES, cx)
-    }
-
-    pub fn is_html_file(editor: &Entity<Editor>, cx: &App) -> bool {
-        Self::editor_language_is(editor, &["HTML"], cx)
-    }
-
-    fn editor_language_is(editor: &Entity<Editor>, names: &[&str], cx: &App) -> bool {
+    pub fn is_markdown_file(editor: &Entity<Editor>, cx: &App) -> bool {
         let buffer = editor.read(cx).buffer().read(cx);
         buffer
             .as_singleton()
             .and_then(|buffer| buffer.read(cx).language().map(|language| language.name()))
-            .is_some_and(|language| names.iter().any(|name| language == *name))
+            .is_some_and(|language| language == "Markdown")
     }
 
     fn set_editor(&mut self, editor: Entity<Editor>, window: &Window, cx: &mut Context<Self>) {
@@ -570,19 +543,17 @@ impl MarkdownPreviewView {
                     return None;
                 }
 
-                let is_html = Self::is_html_file(&editor, cx);
                 editor.update(cx, |editor, cx| {
                     let contents = editor.buffer().read(cx).as_singleton()?.read(cx).as_rope().to_string().into();
                     let selection_start = Self::selected_source_index(editor, cx)?;
-                    Some((contents, selection_start, is_html))
+                    Some((contents, selection_start))
                 })
             })?;
 
             view.update(cx, move |view, cx| {
-                if let Some((contents, selection_start, is_html)) = update {
+                if let Some((contents, selection_start)) = update {
                     view.hovered_url = None;
                     view.markdown.update(cx, |markdown, cx| {
-                        markdown.set_html_document(is_html);
                         markdown.reset(contents, cx);
                     });
                     view.markdown_parse_pending = view.markdown.read(cx).is_parsing();

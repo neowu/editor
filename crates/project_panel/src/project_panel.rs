@@ -1077,7 +1077,7 @@ impl ProjectPanel {
             let is_unfoldable = self.is_unfoldable(entry, worktree);
             let is_library = worktree.library_name().is_some();
             let file_name = Path::new(entry_file_name(entry, worktree.root_name()));
-            let is_previewable = !is_dir && MarkdownPreviewView::is_previewable_path(file_name, project.languages());
+            let is_previewable = !is_dir && MarkdownPreviewView::is_markdown_path(file_name, project.languages());
             let is_svg = !is_dir && SvgPreviewView::is_svg_path(file_name);
 
             let should_show_compare = !is_dir && self.file_abs_paths_to_diff(cx).is_some();
@@ -1784,7 +1784,7 @@ impl ProjectPanel {
         let Some((project_path, file_name)) = self.selected_file(cx) else {
             return;
         };
-        if !MarkdownPreviewView::is_previewable_path(Path::new(file_name), self.project.read(cx).languages()) {
+        if !MarkdownPreviewView::is_markdown_path(Path::new(file_name), self.project.read(cx).languages()) {
             return;
         }
         self.workspace

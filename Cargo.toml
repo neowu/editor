@@ -319,47 +319,9 @@ too_many_arguments = "allow"  # in Rust it can be very tedious to reduce argumen
 [workspace.lints.rust]
 unused_crate_dependencies = "warn"
 
-[patch.crates-io]
-async-process = { git = "https://github.com/zed-industries/async-process.git", rev = "0b6d6713570af61806e1e5cb40e0f757cb93fd9d" }
-async-task = { git = "https://github.com/zed-industries/async-task.git", rev = "015845a19fc31752c02367567d3b8900a406f9da" }
-notify = { git = "https://github.com/zed-industries/notify", rev = "d842f16b2716bd60f09caf3ae3a894237ab38f54" }
-notify-types = { git = "https://github.com/zed-industries/notify", rev = "d842f16b2716bd60f09caf3ae3a894237ab38f54" }
-
 [profile.dev]
+opt-level = 3
 debug = "none"
-split-debuginfo = "unpacked"
-incremental = true
-codegen-units = 16
-
-[profile.dev.package]
-derive_refineable = { opt-level = 3 }
-# proc-macros start
-gpui_macros = { opt-level = 3 }
-proc-macro2 = { opt-level = 3 }
-quote = { opt-level = 3 }
-syn = { opt-level = 3 }
-# proc-macros end
-
-# Build single-source-file crates with cg=1 as it helps make `cargo build` of a whole workspace a bit faster
-activity_indicator = { codegen-units = 1 }
-assets = { codegen-units = 1 }
-command_palette = { codegen-units = 1 }
-ed_actions = { codegen-units = 1 }
-file_content = { codegen-units = 1 }
-file_icons = { codegen-units = 1 }
-image_viewer = { codegen-units = 1 }
-menu = { codegen-units = 1 }
-notifications = { codegen-units = 1 }
-paths = { codegen-units = 1 }
-project_symbols = { codegen-units = 1 }
-refineable = { codegen-units = 1 }
-resvg = { opt-level = 3 }
-serde_json = { opt-level = 3 }
-snippet = { codegen-units = 1 }
-taffy = { opt-level = 3 }
-time_format = { codegen-units = 1 }
-tree-sitter = { opt-level = 3 }
-ui_input = { codegen-units = 1 }
 
 [profile.release]
 debug = "line-tables-only"
@@ -368,3 +330,9 @@ strip = true
 lto = "thin"
 panic = "abort"  # The panic hook logs and exits anyway, so unwinding buys nothing.
 codegen-units = 1
+
+[patch.crates-io]
+async-process = { git = "https://github.com/zed-industries/async-process.git", rev = "0b6d6713570af61806e1e5cb40e0f757cb93fd9d" }
+async-task = { git = "https://github.com/zed-industries/async-task.git", rev = "015845a19fc31752c02367567d3b8900a406f9da" }
+notify = { git = "https://github.com/zed-industries/notify", rev = "d842f16b2716bd60f09caf3ae3a894237ab38f54" }
+notify-types = { git = "https://github.com/zed-industries/notify", rev = "d842f16b2716bd60f09caf3ae3a894237ab38f54" }

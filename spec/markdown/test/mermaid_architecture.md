@@ -16,18 +16,6 @@ architecture-beta
     gateway:R -- L:server
 ```
 
-## Block
-
-```mermaid
-block
-  columns 3
-  Start(("Start")) space:2
-  down<[" "]>(down) space:2
-  Decision{{"Decide"}} right<["Yes"]>(right) A["Process A"]
-  no<["No"]>(down) space r3<["Done"]>(down)
-  B["Process B"] r2<["Done"]>(right) End(("End"))
-```
-
 ## C4 context
 
 ```mermaid
@@ -76,24 +64,6 @@ Developer --> Preview
 Developer --> Edit
 ```
 
-## Swimlane
-
-```mermaid
-swimlane-beta LR
-  subgraph Author
-    write[Write doc]
-    fix[Fix comments]
-  end
-  subgraph Reviewer
-    read[Review]
-    approve[Approve]
-  end
-  write --> read
-  read -->|changes| fix
-  fix --> read
-  read --> approve
-```
-
 ## Event modeling
 
 ```mermaid
@@ -112,18 +82,4 @@ data ItemAdded {
   description: string
   price: number
 }
-```
-
-## Agent flow
-
-```mermaid
-agentflow-beta TB
-  flow reviewer["Review Agent"]
-    changes["Gather changes"]@{ shape: input }
-    analyse["Analyse diff"]@{ shape: task }
-    lint["run_linter"]@{ shape: tool }
-    ok["Clean?"]@{ shape: decision }
-
-    changes --> analyse --> lint --> ok
-  end
 ```

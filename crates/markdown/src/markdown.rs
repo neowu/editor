@@ -3,7 +3,6 @@ use std::hash::DefaultHasher;
 use base64::prelude::BASE64_STANDARD;
 mod builder;
 mod element;
-mod html;
 pub mod parser;
 mod path_range;
 mod rendered_text;
@@ -157,10 +156,6 @@ pub struct Markdown {
 
 #[derive(Clone, Copy, Default)]
 pub struct MarkdownOptions {
-    pub parse_html: bool,
-    /// The source is an HTML document rather than markdown: it is converted
-    /// as one HTML block, with the same tags as `parse_html`.
-    pub html_document: bool,
     pub parse_heading_slugs: bool,
     pub render_metadata_blocks: bool,
 }
@@ -405,12 +400,6 @@ impl Markdown {
 
         self.active_root_block = active_root_block;
         cx.notify();
-    }
-
-    /// Sets whether the source is an HTML document; takes effect on the next
-    /// [`Self::reset`] or [`Self::replace`].
-    pub const fn set_html_document(&mut self, html_document: bool) {
-        self.options.html_document = html_document;
     }
 
     pub fn reset(&mut self, source: SharedString, cx: &mut Context<Self>) {
@@ -1172,6 +1161,19 @@ mod tests {
         let parsed = parse("text[^a]\n\n[^a]: one\n\n[^b]: two\n");
         let after_footnote = parsed.blocks.iter().map(|block| block.after_footnote_definition).collect::<Vec<_>>();
         assert_eq!(after_footnote, [false, false, true]);
+    }
+
+    #[test]
+    fn html_stays_raw() {
+        use super::MarkdownEvent;
+        use super::MarkdownTag;
+        let source = "<div align=\"center\">\n<img src=\"a.png\">\n</div>\n\nsome <b>bold</b>\n";
+        let parsed = parse_markdown_with_options(source, MarkdownOptions::default());
+        let events = parsed.events.iter().map(|(range, event)| (&source[range.clone()], event)).collect::<Vec<_>>();
+        assert!(events.contains(&("<div align=\"center\">\n", &MarkdownEvent::Html)));
+        assert!(events.contains(&("<b>", &MarkdownEvent::InlineHtml)));
+        assert!(events.iter().any(|(_, event)| matches!(event, MarkdownEvent::Start(MarkdownTag::HtmlBlock))));
+        assert!(!events.iter().any(|(_, event)| matches!(event, MarkdownEvent::Start(MarkdownTag::Image { .. }))));
     }
 
     #[test]

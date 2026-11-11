@@ -2,9 +2,7 @@ use std::collections::BTreeMap;
 use std::ops::Range;
 use std::sync::Arc;
 
-use gpui::DefiniteLength;
 use gpui::SharedString;
-use gpui::TextAlign;
 use linkify::LinkFinder;
 use pulldown_cmark::Alignment;
 use pulldown_cmark::CowStr;
@@ -19,9 +17,6 @@ use rustc_hash::FxHashSet;
 use util::markdown::generate_heading_slug;
 
 use crate::MarkdownOptions;
-use crate::html::HtmlConverter;
-use crate::html::SourceMap;
-use crate::html::{self};
 use crate::path_range::PathWithRange;
 
 pub const PARSE_OPTIONS: Options = Options::ENABLE_TABLES
@@ -40,7 +35,7 @@ pub const PARSE_OPTIONS: Options = Options::ENABLE_TABLES
 pub(crate) struct ParseState {
     pub(crate) events: Vec<(Range<usize>, MarkdownEvent)>,
     root_block_starts: Vec<usize>,
-    pub(crate) depth: usize,
+    depth: usize,
 }
 
 #[derive(Debug, Default)]
@@ -243,20 +238,11 @@ fn yaml_frontmatter_candidate(text: &str) -> Option<&str> {
 }
 
 pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) -> ParsedMarkdownData {
-    let MarkdownOptions {
-        parse_html,
-        html_document,
-        parse_heading_slugs,
-        render_metadata_blocks: parse_metadata_blocks,
-    } = options;
-    if html_document {
-        return parse_html_document(text, parse_heading_slugs);
-    }
+    let MarkdownOptions { parse_heading_slugs, render_metadata_blocks: parse_metadata_blocks } = options;
     let mut state = ParseState::default();
     let mut language_names = FxHashSet::default();
     let mut language_paths = FxHashSet::default();
     let mut has_untagged_code_block = false;
-    let mut html = parse_html.then(HtmlConverter::default);
     let mut metadata_blocks = BTreeMap::default();
     let mut within_link = false;
     let mut within_code_block = false;
@@ -303,31 +289,6 @@ pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) 
         }
         match pulldown_event {
             pulldown_cmark::Event::Start(tag) => {
-                if let pulldown_cmark::Tag::HtmlBlock = &tag
-                    && let Some(html) = &mut html
-                {
-                    // An HTML block arrives line by line; convert it as a whole
-                    // so tags may span lines.
-                    let mut block = String::new();
-                    let mut chunks = Vec::new();
-                    for (event, range) in parser.by_ref() {
-                        match event {
-                            pulldown_cmark::Event::Html(chunk) => {
-                                chunks.push((block.len(), range.start));
-                                block.push_str(&chunk);
-                            }
-                            pulldown_cmark::Event::End(pulldown_cmark::TagEnd::HtmlBlock) => break,
-                            _ => {}
-                        }
-                    }
-                    if !chunks.is_empty() {
-                        let tokens = html::lex(&block);
-                        let map = SourceMap::new(chunks);
-                        html.convert(text, &block, &tokens, &map, true, &mut state);
-                    }
-                    continue;
-                }
-
                 let tag = match tag {
                     pulldown_cmark::Tag::Link { link_type, dest_url, title, id } => {
                         within_link = true;
@@ -426,10 +387,8 @@ pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) 
                         dest_url: SharedString::from(dest_url.into_string()),
                         title: SharedString::from(title.into_string()),
                         id: SharedString::from(id.into_string()),
-                        width: None,
-                        height: None,
                     },
-                    pulldown_cmark::Tag::HtmlBlock => MarkdownTag::HtmlBlock { align: None },
+                    pulldown_cmark::Tag::HtmlBlock => MarkdownTag::HtmlBlock,
                     pulldown_cmark::Tag::DefinitionList => MarkdownTag::DefinitionList,
                     pulldown_cmark::Tag::DefinitionListTitle => MarkdownTag::DefinitionListTitle,
                     pulldown_cmark::Tag::DefinitionListDefinition => MarkdownTag::DefinitionListDefinition,
@@ -461,9 +420,6 @@ pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) 
                     }
                 } else if let pulldown_cmark::TagEnd::Table = tag {
                     within_table = false;
-                }
-                if let Some(html) = &mut html {
-                    html.before_markdown_end(&range, &mut state);
                 }
                 state.push_event(range, MarkdownEvent::End(tag));
             }
@@ -524,7 +480,7 @@ pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) 
 
                 let mut ranges = ranges.into_iter().peekable();
 
-                if !within_link && !within_code_block && !html.as_ref().is_some_and(HtmlConverter::in_link) {
+                if !within_link && !within_code_block {
                     let mut finder = LinkFinder::new();
                     finder.kinds(&[linkify::LinkKind::Url]);
 
@@ -613,14 +569,7 @@ pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) 
                 state.push_event(content_range, event)
             }
             pulldown_cmark::Event::Html(_) => state.push_event(range, MarkdownEvent::Html),
-            pulldown_cmark::Event::InlineHtml(inline) => match &mut html {
-                Some(html) => {
-                    let tokens = html::lex(&inline);
-                    let map = SourceMap::new(vec![(0, range.start)]);
-                    html.convert(text, &inline, &tokens, &map, false, &mut state);
-                }
-                None => state.push_event(range, MarkdownEvent::InlineHtml),
-            },
+            pulldown_cmark::Event::InlineHtml(_) => state.push_event(range, MarkdownEvent::InlineHtml),
             pulldown_cmark::Event::FootnoteReference(label) => {
                 state.push_event(range, MarkdownEvent::FootnoteReference(SharedString::from(label.to_string())))
             }
@@ -632,10 +581,6 @@ pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) 
             }
             pulldown_cmark::Event::InlineMath(_) | pulldown_cmark::Event::DisplayMath(_) => {}
         }
-    }
-
-    if let Some(html) = &mut html {
-        html.finish(text.len(), &mut state);
     }
 
     let heading_slugs =
@@ -652,22 +597,6 @@ pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) 
         footnote_definitions,
         link_definition_spans,
         has_untagged_code_block,
-    }
-}
-
-fn parse_html_document(text: &str, parse_heading_slugs: bool) -> ParsedMarkdownData {
-    let mut state = ParseState::default();
-    let mut html = HtmlConverter::default();
-    let tokens = html::lex(text);
-    html.convert(text, text, &tokens, &SourceMap::new(vec![(0, 0)]), true, &mut state);
-    html.finish(text.len(), &mut state);
-    let heading_slugs =
-        if parse_heading_slugs { build_heading_slugs(text, &state.events) } else { FxHashMap::default() };
-    ParsedMarkdownData {
-        events: state.events,
-        root_block_starts: state.root_block_starts,
-        heading_slugs,
-        ..Default::default()
     }
 }
 
@@ -718,10 +647,6 @@ pub enum MarkdownEvent {
     Html,
     /// An inline HTML node.
     InlineHtml,
-    /// Start of an HTML inline style with no markdown equivalent.
-    StartHtmlStyle(HtmlStyle),
-    /// End of the innermost [`MarkdownEvent::StartHtmlStyle`].
-    EndHtmlStyle,
     /// A reference to a footnote with given label, which may or may not be defined
     /// by an event with a `Tag::FootnoteDefinition` tag. Definitions and references to them may
     /// occur in any order.
@@ -766,10 +691,8 @@ pub enum MarkdownTag {
         metadata: CodeBlockMetadata,
     },
 
-    /// A HTML block, or a block-level HTML element such as `<div align="center">`.
-    HtmlBlock {
-        align: Option<TextAlign>,
-    },
+    /// A HTML block.
+    HtmlBlock,
 
     /// A list. If the list is ordered the field indicates the number of the first item.
     /// Contains only list items.
@@ -817,9 +740,6 @@ pub enum MarkdownTag {
         title: SharedString,
         /// Identifier of reference links, e.g. `world` in the link `[hello][world]`.
         id: SharedString,
-        /// Size from an HTML `<img>`'s `width`/`height` attributes.
-        width: Option<DefiniteLength>,
-        height: Option<DefiniteLength>,
     },
 
     /// A metadata block.
@@ -828,17 +748,6 @@ pub enum MarkdownTag {
     DefinitionList,
     DefinitionListTitle,
     DefinitionListDefinition,
-}
-
-/// Inline HTML styles that markdown has no syntax for.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum HtmlStyle {
-    /// `<u>`, `<ins>`
-    Underline,
-    /// `<mark>`
-    Mark,
-    /// `<code>`, `<kbd>`, `<samp>`, `<tt>`
-    Code,
 }
 
 #[derive(Clone, Debug, PartialEq)]

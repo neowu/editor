@@ -10,14 +10,12 @@ use gpui::ListState;
 use gpui::Refineable;
 use gpui::StatefulInteractiveElement;
 use gpui::StyledImage;
-use gpui::UnderlineStyle;
 use gpui::list;
 use gpui::prelude::FluentBuilder;
 use ui::LabelCommon;
 use ui::WithScrollbar;
 use ui::prelude::ActiveTheme;
 use ui::prelude::Color;
-use ui::prelude::DefiniteLength;
 use ui::prelude::Element;
 use ui::prelude::ElementId;
 use ui::prelude::Icon;
@@ -107,7 +105,6 @@ use super::canvas;
 use super::img;
 use super::point;
 use super::size;
-use crate::parser::HtmlStyle;
 
 type UrlHoverCallback = Rc<dyn Fn(Option<SharedString>, &mut Window, &mut App)>;
 type SourceClickCallback = Box<dyn Fn(usize, usize, &mut Window, &mut App) -> bool>;
@@ -336,8 +333,6 @@ impl BlockRenderer {
         source: ImageSource,
         dest_url: SharedString,
         alt_text: Option<SharedString>,
-        width: Option<DefiniteLength>,
-        height: Option<DefiniteLength>,
     ) {
         let enclosing_link_url = (builder.link_depth > 0)
             .then(|| builder.rendered_links.last())
@@ -388,8 +383,6 @@ impl BlockRenderer {
                     .rounded_md()
                     .mr_1()
                     .mb_1()
-                    .when_some(height, |this, height| this.h(height))
-                    .when_some(width, |this, width| this.w(width))
                     .with_fallback(move || {
                         image_fallback_element(dest_url.clone(), alt_text.clone(), fallback_opens_image_url)
                     }),
@@ -1124,18 +1117,6 @@ impl RenderPass<'_> {
             }
             MarkdownEvent::Html => self.push_html(range),
             MarkdownEvent::InlineHtml => self.push_inline_html(range),
-            MarkdownEvent::StartHtmlStyle(style) => self.builder.push_text_style(match style {
-                HtmlStyle::Underline => TextStyleRefinement {
-                    underline: Some(UnderlineStyle { thickness: px(1.), ..Default::default() }),
-                    ..Default::default()
-                },
-                HtmlStyle::Mark => TextStyleRefinement {
-                    background_color: Some(cx.theme().colors().search_match_background),
-                    ..Default::default()
-                },
-                HtmlStyle::Code => renderer.style.inline_code.clone(),
-            }),
-            MarkdownEvent::EndHtmlStyle => self.builder.pop_text_style(),
             MarkdownEvent::Rule => {
                 self.builder.push_div(
                     div().border_b_1().my(renderer.style.paragraph_spacing).border_color(renderer.style.rule_color),
@@ -1167,9 +1148,7 @@ impl RenderPass<'_> {
         let markdown_end = self.markdown_end;
         let builder = &mut self.builder;
         match tag {
-            MarkdownTag::Image { dest_url, width, height, .. } => {
-                self.start_image(index, range, dest_url, *width, *height, cx)
-            }
+            MarkdownTag::Image { dest_url, .. } => self.start_image(index, range, dest_url, cx),
             MarkdownTag::Paragraph => {
                 let text_align_override = builder.table.current_cell_alignment().and_then(alignment_to_text_align);
                 renderer.push_markdown_paragraph(builder, range, markdown_end, text_align_override);
@@ -1182,10 +1161,7 @@ impl RenderPass<'_> {
                 renderer.push_markdown_block_quote(builder, *kind, range, markdown_end);
             }
             MarkdownTag::CodeBlock { kind, metadata } => self.start_code_block(range, kind, metadata, window, cx),
-            MarkdownTag::HtmlBlock { align } => {
-                builder.push_text_style(TextStyleRefinement { text_align: *align, ..Default::default() });
-                builder.push_div(div(), range, markdown_end);
-            }
+            MarkdownTag::HtmlBlock => builder.push_div(div(), range, markdown_end),
             MarkdownTag::List(bullet_index) => {
                 builder.push_list(*bullet_index);
                 let is_top_level = builder.list_stack.len() == 1;
@@ -1249,10 +1225,7 @@ impl RenderPass<'_> {
             MarkdownTagEnd::Heading(_) => renderer.pop_markdown_heading(builder),
             MarkdownTagEnd::BlockQuote(_kind) => renderer.pop_markdown_block_quote(builder),
             MarkdownTagEnd::CodeBlock => self.end_code_block(range, cx),
-            MarkdownTagEnd::HtmlBlock => {
-                builder.pop_div();
-                builder.pop_text_style();
-            }
+            MarkdownTagEnd::HtmlBlock => builder.pop_div(),
             MarkdownTagEnd::List(_) => {
                 builder.pop_list();
                 builder.pop_div();
@@ -1332,15 +1305,7 @@ impl RenderPass<'_> {
         }
     }
 
-    fn start_image(
-        &mut self,
-        index: usize,
-        range: &Range<usize>,
-        dest_url: &SharedString,
-        width: Option<DefiniteLength>,
-        height: Option<DefiniteLength>,
-        cx: &App,
-    ) {
+    fn start_image(&mut self, index: usize, range: &Range<usize>, dest_url: &SharedString, cx: &App) {
         let parsed = &self.frame.parsed;
         let source = if let Some(image) = self.frame.images.get(&range.start) {
             Some(image.clone().into())
@@ -1350,15 +1315,7 @@ impl RenderPass<'_> {
         if let Some(source) = source {
             let alt_text = collect_image_alt_text(&parsed.events[index..], &parsed.source);
             self.image_range = Some(range.clone());
-            self.renderer.push_markdown_image(
-                &mut self.builder,
-                range,
-                source,
-                dest_url.clone(),
-                alt_text,
-                width,
-                height,
-            );
+            self.renderer.push_markdown_image(&mut self.builder, range, source, dest_url.clone(), alt_text);
         }
     }
 
