@@ -15,9 +15,6 @@
 
 # support to open in restricted mode? like not starting LSP?
 
-# mermaid
-- pick the diagrams will use
-
 # picker
 - unify command palette and file picker and tab switcher? so i can use cmd+T on terminal mode
 

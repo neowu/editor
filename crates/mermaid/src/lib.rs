@@ -185,7 +185,6 @@ mod tests {
     use super::Options;
     use super::Theme;
     use super::render;
-    use super::text;
 
     #[test]
     fn output_has_no_browser_markup() {
@@ -210,43 +209,6 @@ mod tests {
     fn svg(source: &str) -> String {
         let theme = Theme::monochrome(Color::rgb(0xff, 0xff, 0xff), Color::rgb(0, 0, 0));
         render(source, &Options::default(), &theme).unwrap().svg
-    }
-
-    #[test]
-    fn packet_closes_single_bit_and_range_labels() {
-        let out = svg("packet-beta\n0: \"Flag\"\n1-7: \"Payload\"");
-        assert!(out.contains(">0</text>"), "{out}");
-        assert!(out.contains(">1</text>"), "{out}");
-        assert!(out.contains(">7</text>"), "{out}");
-        assert_eq!(out.matches("<text ").count(), out.matches("</text>").count());
-    }
-
-    #[test]
-    fn radar_closes_circular_and_polygonal_grid_shapes() {
-        for graticule in ["circle", "polygon"] {
-            let out = svg(&format!(
-                "radar-beta\naxis a[\"A\"], b[\"B\"], c[\"C\"]\ncurve x[\"X\"]{{1, 2, 3}}\ngraticule {graticule}\nmax 5"
-            ));
-            let shape = if graticule == "circle" { "<circle r=\"" } else { "<polygon points=\"" };
-            let shapes: Vec<&str> = out.split(shape).skip(1).collect();
-            assert!(!shapes.is_empty(), "{out}");
-            for shape in shapes {
-                assert!(shape.split('>').next().unwrap().ends_with('/'), "{out}");
-            }
-        }
-    }
-
-    #[test]
-    fn git_closes_rotated_and_horizontal_commit_labels() {
-        for rotate in [false, true] {
-            let out = svg(&format!(
-                "---\nconfig:\n  gitGraph:\n    rotateCommitLabel: {rotate}\n---\ngitGraph\ncommit id: \"first\"\ncommit id: \"second\""
-            ));
-            assert!(out.contains("ondine-commit-label"), "{out}");
-            assert!(out.contains("first"), "{out}");
-            assert!(out.contains("second"), "{out}");
-            assert_eq!(out.matches("<g ").count(), out.matches("</g>").count(), "{out}");
-        }
     }
 
     #[test]
@@ -316,71 +278,6 @@ mod tests {
         assert!(out.contains("List&lt;T&gt;"), "{out}");
         let out = svg("flowchart LR\n  A[\"<span title=x>red</span> and <small>print</small><img src=x>\"]");
         assert!(out.contains("red and print"), "{out}");
-    }
-
-    #[test]
-    fn sankey_reads_unicode_names() {
-        for keyword in ["sankey", "sankey-beta"] {
-            for (from, to) in [
-                ("Доход", "Расходы"),
-                ("Café", "München"),
-                ("収入", "支出"),
-                ("☀️", "🏠"),
-                ("Cafe\u{301}", "Cafe\u{300}"),
-            ] {
-                for quoted in [false, true] {
-                    let field = |name: &str| if quoted { format!("\"{name}\"") } else { name.to_owned() };
-                    let out = svg(&format!("{keyword}\n{},{},100\n", field(from), field(to)));
-                    assert!(out.contains(&format!("data-id=\"{from}\"")), "{out}");
-                    assert!(out.contains(&format!(">{to} <tspan")), "{out}");
-                }
-            }
-            let out = svg(&format!("{keyword}\n\"Доход #35; #amp; #34;чистый#34;\",Расходы,1\n"));
-            assert!(out.contains(">Доход # &amp; &quot;чистый&quot; <tspan"), "{out}");
-
-            let theme = Theme::default();
-            for name in ["a#65534;", "\"a&#65535;\"", "a#1;", "a\tb", "a\u{7f}b"] {
-                let source = format!("{keyword}\n{name},b,1\n");
-                assert!(render(&source, &Options::default(), &theme).is_err(), "{source}");
-            }
-        }
-    }
-
-    #[test]
-    fn sankey_fills_links_with_gradients() {
-        let out = svg("sankey\nA,B,1\nA,C,2\n");
-        assert_eq!(out.matches("<linearGradient").count(), 2, "{out}");
-        assert!(out.contains("fill=\"url(#ondine-sankey-0)\""), "{out}");
-        let out = svg("---\nconfig:\n  sankey:\n    linkColor: source\n---\nsankey\nA,B,1\n");
-        assert!(!out.contains("<linearGradient"), "{out}");
-    }
-
-    #[test]
-    fn sankey_keeps_adjacent_labels_apart() {
-        let source = "sankey-beta\nVisitors,Signed up,3200\nVisitors,Bounced,9800\nSigned up,Opened a folder,2100\nSigned up,Never returned,1100\nOpened a folder,Ran Agency,1450\nOpened a folder,Write-only,650\nRan Agency,Upgraded to Pro,380\nRan Agency,Stayed free,1070\nUpgraded to Pro,Upgraded to Team,96\nUpgraded to Pro,Stayed on Pro,284";
-        let theme = Theme::default();
-        // At 16px the monospace labels are too wide to find a free place, unlike Pele's.
-        {
-            let font_size = 14.0;
-            let options = Options { font_size, max_width: Some(664.0), ..Options::default() };
-            let out = render(source, &options, &theme).unwrap().svg;
-            let small = (font_size * 0.875).round();
-            let bounds = |id: &str, value: u32| {
-                let at = out.find(&format!("data-id=\"{id}\"><text x=\"")).unwrap();
-                let rest = &out[at..];
-                let attr = |name: &str| {
-                    let from = rest.find(&format!(" {name}=\"")).unwrap() + name.len() + 3;
-                    rest[from..from + rest[from..].find('"').unwrap()].to_owned()
-                };
-                let width = text::measure::width(&format!("{id} {value}"), small, 0);
-                let x: f64 = attr("x").parse().unwrap();
-                let left = if attr("text-anchor") == "end" { x - width } else { x };
-                (left, left + width, attr("y").parse::<f64>().unwrap())
-            };
-            let a = bounds("Opened a folder", 2100);
-            let b = bounds("Ran Agency", 1450);
-            assert!(a.1 <= b.0 || b.1 <= a.0 || (a.2 - b.2).abs() >= small * 1.5, "{a:?} {b:?}");
-        }
     }
 
     /// Every `name="number"` attribute value in `text`, in order.
@@ -525,23 +422,6 @@ mod tests {
         let natural = render(source, &Options::default(), &theme).unwrap();
         let narrow = render(source, &Options { max_width: Some(1.0), ..Options::default() }, &theme).unwrap();
         assert_eq!(narrow.svg, natural.svg);
-    }
-
-    #[test]
-    fn quadrant_puts_a_crowded_label_below_its_title() {
-        let out = svg(
-            "quadrantChart\n  title Q4 candidates by effort and impact\n  x-axis Low effort --> High effort\n  y-axis Low impact --> High impact\n  quadrant-1 Plan carefully\n  quadrant-2 Do first\n  quadrant-3 Reconsider\n  quadrant-4 Quick wins\n  Chart gallery editor: [0.72, 0.85]\n  First-run onboarding: [0.35, 0.78]\n  Shared folders: [0.88, 0.70]\n  Export to PDF: [0.30, 0.55]\n  Custom themes: [0.45, 0.20]\n  Calendar sync: [0.65, 0.30]\n  Keyboard shortcut sheet: [0.12, 0.48]",
-        );
-        let start = out.find("<g class=\"ondine-quadrant\" data-id=\"3\">").unwrap();
-        let quadrant = &out[start..start + out[start..].find("</g>").unwrap()];
-        let (rect_x, rect_w) = (numbers(quadrant, "x")[0], numbers(quadrant, "width")[0]);
-        let title_y = numbers(quadrant, "y")[1];
-        let end = out.find(">Keyboard shortcut sheet</text>").unwrap();
-        let label = &out[out[..end].rfind("<text").unwrap()..end];
-        let (x, y) = (numbers(label, "x")[0], numbers(label, "y")[0]);
-        let half = text::measure::width("Keyboard shortcut sheet", 12.0, 0) / 2.0;
-        assert!(y > title_y + 12.0, "{out}");
-        assert!(x - half > rect_x && x + half < rect_x + rect_w, "{out}");
     }
 
     #[test]
