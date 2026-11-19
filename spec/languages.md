@@ -74,8 +74,21 @@
   (`terraform-ls serve`, from `PATH` only) with LSP language ids `terraform`
   and `terraform-vars`. It provides completions, navigation, references,
   hover, diagnostics, document symbols (the outline) and formatting (the
-  formatter under `"auto"`). Other HCL files (`.hcl`, stacks, tests) are not
+  formatter under `"auto"`). Resource references only resolve once
+  terraform-ls has the provider schema, which needs `terraform` on `PATH` and
+  providers installed for the host platform (`terraform init`).
+  terraform-ls has no definition for indexed references such as
+  `module.x["k"]`, so the adapter opts into the definition symbol fallback
+  below with label `"x"` (its workspace symbols are named `module "x"`).
+  Other HCL files (`.hcl`, stacks, tests) are not
   registered and stay Plain Text.
+- Definition symbol fallback (`LspAdapter::definition_symbol_label`, opt-in,
+  project-level so cmd-hover links and go to definition both get it): when an
+  adapter's server returns no definition, the word under the cursor is looked
+  up with workspace symbols, and the one symbol from that server whose name
+  ends with the adapter's label is the definition. Symbols in the current
+  file's directory win; any ambiguity yields nothing (then the editor falls
+  back to references).
 - rust-analyzer's check runs `cargo clippy`. Clippy's Cargo-group lints
   (`wildcard_dependencies`, etc.) have no span and are reported at line 1 of
   the clippy config, once per crate and target. rust-analyzer drops
@@ -158,6 +171,12 @@
   in the order they were sent, through one queue. Notifications are serialized
   lazily but never overtake an earlier request, so e.g. a formatting request
   always sees the document version from the `didChange` sent before it.
+- A failed LSP request is logged once, by `LspStore::request_lsp`, and only
+  when it is a fault: no answer (timeout, dead connection, malformed response)
+  or a JSON-RPC protocol error (parse error, invalid request, method not found,
+  invalid params), decided by error type and code, never message text. A
+  server's own error answer is not logged (terraform-ls answers "no definition
+  here" with one); it shows in the LSP log's RPC trace.
 - `initialize` sends the workspace as `workspaceFolders` plus `rootUri` (for
   servers that predate workspace folders); the long-deprecated `rootPath` is
   not sent.

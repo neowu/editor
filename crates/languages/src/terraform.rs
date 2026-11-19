@@ -40,6 +40,13 @@ impl LspAdapter for TerraformLspAdapter {
     fn language_ids(&self) -> FxHashMap<LanguageName, String> {
         FxHashMap::from_iter([(LanguageName::new_static("Terraform Vars"), "terraform-vars".to_owned())])
     }
+
+    // terraform-ls has no definition for indexed references such as
+    // `module.x["key"].out`, but its workspace symbols name each block by its
+    // labels (`module "x"`, `resource "type" "x"`).
+    fn definition_symbol_label(&self, word: &str) -> Option<String> {
+        Some(format!("\"{word}\""))
+    }
 }
 
 /// Settings for Terraform and Terraform Vars.
@@ -81,6 +88,11 @@ mod tests {
         assert_eq!(adapter.language_ids()[&LanguageName::new_static("Terraform Vars")], "terraform-vars");
         // `.tf` falls back to the lowercased language name.
         assert_eq!(LanguageName::new_static("Terraform").lsp_id(), "terraform");
+    }
+
+    #[test]
+    fn definition_symbol_label_is_quoted_block_label() {
+        assert_eq!(TerraformLspAdapter.definition_symbol_label("website_cert").as_deref(), Some("\"website_cert\""));
     }
 
     #[test]

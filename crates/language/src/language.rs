@@ -471,6 +471,13 @@ pub trait LspAdapter: 'static + Send + Sync {
         None
     }
 
+    /// Opt-in fallback for when the server finds no definition for `word`: the
+    /// workspace symbol whose name ends with the returned label (its last
+    /// space-separated part) is taken as the definition.
+    fn definition_symbol_label(&self, _word: &str) -> Option<String> {
+        None
+    }
+
     async fn labels_for_completions(
         self: Arc<Self>,
         completions: &[lsp::CompletionItem],

@@ -69,7 +69,6 @@ use super::WORKSPACE_DIAGNOSTICS_REPULL_DELAY;
 use super::WORKSPACE_DIAGNOSTICS_TOKEN_START;
 use super::capabilities::dynamic_text_document_registration_allows_buffer;
 use super::lsp_pull_cancelled_with_retrigger;
-use super::should_log_lsp_request_failure;
 use super::should_log_lsp_response_error;
 use crate::LspPullDiagnostics;
 use crate::ProjectPath;
@@ -644,10 +643,7 @@ impl LspStore {
                         diagnostics_task =
                             lsp_store.update(cx, |lsp_store, cx| lsp_store.pull_diagnostics(buffer.clone(), cx))?;
                     }
-                    Err(error)
-                        if should_log_lsp_response_error(&error)
-                            && should_log_lsp_request_failure(&format!("{error:#}")) =>
-                    {
+                    Err(error) if should_log_lsp_response_error(&error) => {
                         return Err(error).context("pulling diagnostics");
                     }
                     Err(_) => return Ok(()),

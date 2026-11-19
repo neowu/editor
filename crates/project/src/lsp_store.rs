@@ -14,6 +14,7 @@ mod capabilities;
 mod code_actions;
 pub mod code_lens;
 mod completions;
+mod definition_symbols;
 mod diagnostics;
 mod document_colors;
 mod document_links;
@@ -1037,11 +1038,13 @@ impl SymbolLocation {
     }
 }
 
-fn should_log_lsp_request_failure(message: &str) -> bool {
-    // "content modified" and "server cancelled the request" are noisy failure
-    // modes of rust-analyzer where requests are denied before it has loaded a
-    // project.
-    !(message.ends_with("content modified") || message.ends_with("server cancelled the request"))
+/// Whether a failed request is a fault worth reviewing. A server that answers
+/// with an error of its own is working: terraform-ls, for one, reports "no
+/// definition here" that way. That answer is in the LSP log's RPC trace. What
+/// is logged is a request that got no answer (timeout, dead connection,
+/// malformed response) or one the server could not accept (protocol error).
+fn should_log_lsp_request_error(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<lsp::ResponseError>().is_none_or(lsp::ResponseError::is_protocol_error)
 }
 
 fn should_log_lsp_response_error(error: &anyhow::Error) -> bool {
@@ -1586,10 +1589,7 @@ impl LspStore {
             Ok(lsp_params) => lsp_params,
             Err(err) => {
                 let err = err.context(format!("{} via {} failed", request.display_name(), language_server.name()));
-                let message = format!("{err:#}");
-                if should_log_lsp_request_failure(&message) {
-                    log::warn!("{message}");
-                }
+                log::warn!("{err:#}");
                 return Task::ready(Err(err));
             }
         };
@@ -1634,14 +1634,11 @@ impl LspStore {
             let result = lsp_request.await.into_response();
 
             let response = result.map_err(|err| {
-                let context = format!("{} via {} failed", request.display_name(), language_server.name());
-                if should_log_lsp_response_error(&err) {
-                    let message = format!("{context}: {err}");
-                    if should_log_lsp_request_failure(&message) {
-                        log::warn!("{message}");
-                    }
+                let err = err.context(format!("{} via {} failed", request.display_name(), language_server.name()));
+                if should_log_lsp_request_error(&err) {
+                    log::warn!("{err:#}");
                 }
-                err.context(context)
+                err
             })?;
 
             request
@@ -1736,8 +1733,19 @@ impl LspStore {
         cx: &mut Context<Self>,
     ) -> Task<Result<Option<Vec<LocationLink>>>> {
         let definitions_task = self.request_multiple_lsp_locally(buffer, GetDefinitions { position }, cx);
-        cx.background_spawn(async move {
-            Ok(Some(definitions_task.await.into_iter().flat_map(|(_, definitions)| definitions).dedup().collect()))
+        let symbol_query = self.definition_symbol_query(buffer, position, cx);
+        let buffer = buffer.clone();
+        cx.spawn(async move |this, cx| {
+            let definitions: Vec<_> =
+                definitions_task.await.into_iter().flat_map(|(_, definitions)| definitions).dedup().collect();
+            if definitions.is_empty()
+                && let Some(query) = symbol_query
+            {
+                let link =
+                    definition_symbols::definition_from_symbols(this, buffer, query, cx).await.log_err().flatten();
+                return Ok(Some(link.into_iter().collect()));
+            }
+            Ok(Some(definitions))
         })
     }
 
@@ -2501,13 +2509,9 @@ impl LspStore {
         cx.background_spawn(async move {
             let mut responses = Vec::with_capacity(response_results.len());
             while let Some((server_id, response_result)) = response_results.next().await {
-                match response_result {
-                    Ok(response) => responses.push((server_id, response)),
-                    // rust-analyzer likes to error with this when its still loading up
-                    Err(e)
-                        if !should_log_lsp_response_error(&e) || !should_log_lsp_request_failure(&format!("{e:#}")) => {
-                    }
-                    Err(e) => log::error!("Error handling response for request {request:?}: {e:#}"),
+                // `request_lsp` has logged the failures worth reviewing.
+                if let Ok(response) = response_result {
+                    responses.push((server_id, response));
                 }
             }
             responses
@@ -2921,4 +2925,25 @@ async fn populate_labels_for_symbols(
 
 pub(crate) fn collapse_newlines(text: &str, separator: &str) -> String {
     text.lines().map(str::trim).filter(|line| !line.is_empty()).join(separator)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_unanswered_or_rejected_lsp_requests_are_logged() {
+        let response = |code: i64| {
+            anyhow::Error::new(lsp::ResponseError::new(code.into(), "message")).context("Get definition failed")
+        };
+        // terraform-ls "no reference origin found", internal error, content modified
+        for code in [-32098, -32603, -32801] {
+            assert!(!should_log_lsp_request_error(&response(code)), "{code}");
+        }
+        // method not found, invalid params
+        for code in [-32601, -32602] {
+            assert!(should_log_lsp_request_error(&response(code)), "{code}");
+        }
+        assert!(should_log_lsp_request_error(&anyhow::anyhow!("request timed out")));
+    }
 }

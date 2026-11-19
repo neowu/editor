@@ -375,6 +375,13 @@ impl ResponseError {
         self.code == ResponseErrorCode::ServerCancelled || self.code == ResponseErrorCode::ContentModified
     }
 
+    /// The server could not accept the request at all (JSON-RPC parse error,
+    /// invalid request, method not found, invalid params), as opposed to
+    /// failing to produce a result for it.
+    pub fn is_protocol_error(&self) -> bool {
+        matches!(i64::from(self.code), -32700 | -32600 | -32601 | -32602)
+    }
+
     pub fn should_retrigger(&self) -> bool {
         self.code == ResponseErrorCode::ServerCancelled
             && self
@@ -1652,6 +1659,22 @@ impl Drop for Subscription {
                     io_handlers.lock().remove(id);
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn protocol_errors_are_the_json_rpc_request_rejections() {
+        for code in [-32700, -32600, -32601, -32602] {
+            assert!(ResponseError::new(code.into(), "").is_protocol_error(), "{code}");
+        }
+        // internal error, server-defined, request failed, server cancelled, content modified
+        for code in [-32603, -32098, -32803, -32802, -32801] {
+            assert!(!ResponseError::new(code.into(), "").is_protocol_error(), "{code}");
         }
     }
 }
