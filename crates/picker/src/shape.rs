@@ -9,16 +9,17 @@ const VERTICAL_CHROME: Rems = Rems(10.0);
 const MIN_HEIGHT: Rems = Rems(20.0);
 
 /// The picker's size: a fixed width and a max height it shrinks below to fit
-/// its content.
+/// its content, unless `fixed_height` keeps the results at the max height.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Shape {
     pub(crate) width: Rems,
     pub(crate) max_height: Rems,
+    pub(crate) fixed_height: bool,
 }
 
 impl Default for Shape {
     fn default() -> Self {
-        Self { width: crate::DEFAULT_MODAL_WIDTH, max_height: crate::DEFAULT_MODAL_MAX_HEIGHT }
+        Self { width: crate::DEFAULT_MODAL_WIDTH, max_height: crate::DEFAULT_MODAL_MAX_HEIGHT, fixed_height: false }
     }
 }
 
@@ -72,5 +73,6 @@ mod tests {
         let shape = Shape::default();
         assert_eq!(shape.width, crate::DEFAULT_MODAL_WIDTH);
         assert_eq!(shape.max_height, crate::DEFAULT_MODAL_MAX_HEIGHT);
+        assert!(!shape.fixed_height);
     }
 }

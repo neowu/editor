@@ -119,7 +119,7 @@ use crate::Open;
 use crate::OpenInTerminal;
 use crate::OpenTerminal;
 use crate::SplitDirection;
-use crate::ToggleFileFinder;
+use crate::ToggleFinder;
 use crate::ToggleZoom;
 use crate::Workspace;
 use crate::ZoomIn;
@@ -3139,12 +3139,7 @@ fn empty_pane_hints(hints: EmptyPaneHints) -> Vec<(&'static str, &'static str, I
         EmptyPaneHints::Files => vec![
             ("empty-pane-new-file", "New File", IconName::Plus, NewFile.boxed_clone()),
             ("empty-pane-open-file", "Open File", IconName::FolderOpen, Open::DEFAULT.boxed_clone()),
-            (
-                "empty-pane-go-to-file",
-                "Go to File",
-                IconName::MagnifyingGlass,
-                ToggleFileFinder::default().boxed_clone(),
-            ),
+            ("empty-pane-go-to-file", "Go to File", IconName::MagnifyingGlass, ToggleFinder::default().boxed_clone()),
             command_palette,
         ],
         EmptyPaneHints::Terminal => vec![

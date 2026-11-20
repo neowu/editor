@@ -38,7 +38,7 @@ Dependencies only point downward:
 ```
 ed (binary: wires everything, opens windows)
  └─ feature crates: editor, project_panel, outline_panel, terminal_view,
-    git_ui, search, file_finder, picker, title_bar, diagnostics, ...
+    git_ui, search, finder, picker, title_bar, diagnostics, ...
      └─ workspace          (views: window shell, panes, docks, items)
          ├─ project        (models: everything one open project knows)
          │   ├─ worktree, language, lsp, git, fs, task, terminal

@@ -103,6 +103,8 @@ impl<D: PickerDelegate> Picker<D> {
 
         let editor_position = self.delegate.editor_position();
         let picker_bounds = Rc::clone(&self.picker_bounds);
+        let max_height = self.shape.max_height(window);
+        let fixed_height = self.shape.fixed_height;
 
         let menu = v_flex()
             .key_context("Picker")
@@ -149,7 +151,7 @@ impl<D: PickerDelegate> Picker<D> {
                         .relative()
                         .flex_grow_1()
                         .min_h_0()
-                        .max_h(self.shape.max_height(window))
+                        .map(|this| if fixed_height { this.h(max_height) } else { this.max_h(max_height) })
                         .overflow_hidden()
                         .children(self.delegate.render_header(window, cx))
                         .child(self.render_element_container(cx))
@@ -174,12 +176,16 @@ impl<D: PickerDelegate> Picker<D> {
             .when(self.delegate.match_count() == 0, |el| {
                 el.when_some(self.delegate.no_matches_text(window, cx), |el, text| {
                     el.child(
-                        v_flex().flex_grow_1().py_2().child(
-                            ListItem::new("empty_state")
-                                .inset(true)
-                                .spacing(ListItemSpacing::Sparse)
-                                .disabled(true)
-                                .child(Label::new(text).color(Color::Muted)),
+                        // The outer element carries the fixed height so the
+                        // padding doesn't add to it.
+                        v_flex().when(fixed_height, |this| this.h(max_height)).child(
+                            v_flex().flex_grow_1().py_2().child(
+                                ListItem::new("empty_state")
+                                    .inset(true)
+                                    .spacing(ListItemSpacing::Sparse)
+                                    .disabled(true)
+                                    .child(Label::new(text).color(Color::Muted)),
+                            ),
                         ),
                     )
                 })

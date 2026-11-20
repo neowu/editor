@@ -21,8 +21,8 @@ ed_actions = { path = "crates/ed_actions" }
 editor = { path = "crates/editor" }
 encoding_selector = { path = "crates/encoding_selector" }
 file_content = { path = "crates/file_content" }
-file_finder = { path = "crates/file_finder" }
 file_icons = { path = "crates/file_icons" }
+finder = { path = "crates/finder" }
 fs = { path = "crates/fs" }
 fuzzy = { path = "crates/fuzzy" }
 git = { path = "crates/git" }
@@ -59,7 +59,6 @@ paths = { path = "crates/paths" }
 picker = { path = "crates/picker" }
 project = { path = "crates/project" }
 project_panel = { path = "crates/project_panel" }
-project_symbols = { path = "crates/project_symbols" }
 recent_projects = { path = "crates/recent_projects" }
 refineable = { path = "crates/refineable" }
 rope = { path = "crates/rope" }
@@ -68,7 +67,6 @@ snippet = { path = "crates/snippet" }
 spell_check = { path = "crates/spell_check" }
 sum_tree = { path = "crates/sum_tree" }
 svg_preview = { path = "crates/svg_preview" }
-tab_switcher = { path = "crates/tab_switcher" }
 task = { path = "crates/task" }
 terminal = { path = "crates/terminal" }
 terminal_view = { path = "crates/terminal_view" }

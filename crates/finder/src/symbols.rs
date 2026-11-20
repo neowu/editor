@@ -14,6 +14,8 @@ use gpui::DismissEvent;
 use gpui::Entity;
 use gpui::HighlightStyle;
 use gpui::ParentElement as _;
+use gpui::SharedString;
+use gpui::Styled as _;
 use gpui::StyledText;
 use gpui::Task;
 use gpui::TaskExt as _;
@@ -28,35 +30,21 @@ use project::Project;
 use project::Symbol;
 use project::lsp_store::SymbolLocation;
 use theme::ActiveTheme as _;
+use ui::LabelLike;
+use ui::ListItem;
+use ui::ListItemSpacing;
 use ui::font;
+use ui::prelude::Color;
+use ui::prelude::Label;
+use ui::prelude::LabelCommon as _;
+use ui::prelude::LabelSize;
+use ui::prelude::Toggleable as _;
+use ui::prelude::h_flex;
 use util::ResultExt as _;
 use workspace::Workspace;
-use workspace::ui::LabelLike;
-use workspace::ui::ListItem;
-use workspace::ui::ListItemSpacing;
-use workspace::ui::prelude::Color;
-use workspace::ui::prelude::Label;
-use workspace::ui::prelude::LabelCommon as _;
-use workspace::ui::prelude::LabelSize;
-use workspace::ui::prelude::Toggleable as _;
-use workspace::ui::prelude::h_flex;
-use workspace::ui::prelude::v_flex;
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(|workspace: &mut Workspace, _window, _: &mut Context<Workspace>| {
-        workspace.register_action(|workspace, _: &workspace::ToggleProjectSymbols, window, cx| {
-            let project = workspace.project().clone();
-            let handle = cx.entity().downgrade();
-            workspace.toggle_modal(window, cx, move |window, cx| {
-                let delegate = ProjectSymbolsDelegate::new(handle, project);
-                Picker::uniform_list(delegate, window, cx)
-            });
-        });
-    })
-    .detach();
-}
-
-pub struct ProjectSymbolsDelegate {
+/// Searches the project's symbols through the language servers.
+pub(crate) struct SymbolsDelegate {
     workspace: WeakEntity<Workspace>,
     project: Entity<Project>,
     selected_match_index: usize,
@@ -67,8 +55,8 @@ pub struct ProjectSymbolsDelegate {
     matches: Vec<StringMatch>,
 }
 
-impl ProjectSymbolsDelegate {
-    fn new(workspace: WeakEntity<Workspace>, project: Entity<Project>) -> Self {
+impl SymbolsDelegate {
+    pub(crate) fn new(workspace: WeakEntity<Workspace>, project: Entity<Project>) -> Self {
         Self {
             workspace,
             project,
@@ -120,11 +108,15 @@ impl ProjectSymbolsDelegate {
     }
 }
 
-impl PickerDelegate for ProjectSymbolsDelegate {
+impl PickerDelegate for SymbolsDelegate {
     type ListItem = ListItem;
 
     fn placeholder_text(&self, _window: &mut Window, _cx: &mut App) -> Arc<str> {
         "Search project symbols...".into()
+    }
+
+    fn no_matches_text(&self, _window: &mut Window, _cx: &mut App) -> Option<SharedString> {
+        Some("No symbols".into())
     }
 
     fn confirm(&mut self, secondary: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
@@ -275,19 +267,41 @@ impl PickerDelegate for ProjectSymbolsDelegate {
 
         let highlights = gpui::combine_highlights(custom_highlights, syntax_runs);
 
+        // One line per symbol, like the other finder modes: the label, then
+        // its location filling the rest of the row.
         Some(
             ListItem::new(ix).inset(true).spacing(ListItemSpacing::Sparse).toggle_state(selected).child(
-                v_flex()
+                h_flex()
+                    .w_full()
+                    .min_w_0()
+                    .gap_1p5()
+                    .overflow_hidden()
                     .child(
                         LabelLike::new()
                             .child(StyledText::new(&label).with_default_highlights(&text_style, highlights)),
                     )
                     .child(
-                        h_flex().child(Label::new(path).size(LabelSize::Small).color(Color::Muted)).child(
-                            Label::new(format!(":{line_number}")).size(LabelSize::Small).color(Color::Placeholder),
-                        ),
+                        Label::new(location_label(&path, line_number))
+                            .size(LabelSize::Small)
+                            .color(Color::Muted)
+                            .flex_1()
+                            .truncate_start(),
                     ),
             ),
         )
+    }
+}
+
+fn location_label(path: &str, line_number: u32) -> String {
+    format!("{path}:{line_number}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::location_label;
+
+    #[test]
+    fn location_label_joins_path_and_line() {
+        assert_eq!(location_label("src/main.rs", 12), "src/main.rs:12");
     }
 }

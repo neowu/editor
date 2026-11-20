@@ -17,7 +17,7 @@ use file_icons::FileIcons;
 use futures::future::join_all;
 use fuzzy::PathMatch;
 use fuzzy::PathMatchCandidate;
-use gpui::Action as _;
+use gpui::Action;
 use gpui::AnyElement;
 use gpui::App;
 use gpui::AppContext as _;
@@ -53,12 +53,17 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use ui::Checkbox;
 use ui::HighlightedLabel;
+use ui::KeyBinding;
 use ui::ListItem;
 use ui::ListItemSpacing;
+use ui::StyledExt as _;
 use ui::Tooltip;
+use ui::prelude::ActiveTheme as _;
+use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
 use ui::prelude::Color;
+use ui::prelude::FluentBuilder as _;
 use ui::prelude::Icon;
 use ui::prelude::IconButton;
 use ui::prelude::IconName;
@@ -88,46 +93,96 @@ use workspace::Workspace;
 use workspace::notifications::NotifyResultExt as _;
 use workspace::searchable::SeedQuery;
 
+use crate::symbols::SymbolsDelegate;
+use crate::tabs::TabsDelegate;
+
+mod symbols;
+mod tabs;
+
 actions!(
-    file_finder,
+    finder,
     [
-        /// Selects the previous item in the file finder.
+        /// Selects the previous item in the finder.
         SelectPrevious,
-        /// Opens the selected file in the editor without dismissing the file finder,
+        /// Opens the selected file in the editor without dismissing the finder,
         /// so additional files can be opened in sequence.
-        OpenWithoutDismiss
+        OpenWithoutDismiss,
+        /// Switches the finder to searching project files.
+        ShowFiles,
+        /// Switches the finder to searching project symbols.
+        ShowSymbols,
+        /// Switches the finder to searching open tabs.
+        ShowTabs,
+        /// Closes the tab selected in the finder's tab list.
+        CloseSelectedTab
     ]
 );
 
-impl ModalView for FileFinder {}
+/// What the finder searches; one tab of its bottom bar each.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Files,
+    Symbols,
+    Tabs,
+}
 
-pub struct FileFinder {
+impl Mode {
+    const ALL: [Self; 3] = [Self::Files, Self::Symbols, Self::Tabs];
+
+    const fn label(self) -> &'static str {
+        match self {
+            Self::Files => "Files",
+            Self::Symbols => "Symbols",
+            Self::Tabs => "Tabs",
+        }
+    }
+
+    fn action(self) -> Box<dyn Action> {
+        match self {
+            Self::Files => ShowFiles.boxed_clone(),
+            Self::Symbols => ShowSymbols.boxed_clone(),
+            Self::Tabs => ShowTabs.boxed_clone(),
+        }
+    }
+}
+
+impl ModalView for Finder {}
+
+/// One modal searching files, symbols or open tabs. Each mode is its own
+/// embedded picker of the same size, so switching keeps the layout and
+/// carries the query over.
+pub struct Finder {
     picker: Entity<Picker<FileFinderDelegate>>,
+    symbols: Option<Entity<Picker<SymbolsDelegate>>>,
+    tabs: Option<Entity<Picker<TabsDelegate>>>,
+    mode: Mode,
+    width: Rems,
+    /// The active mode's picker.
     picker_focus_handle: FocusHandle,
     init_modifiers: Option<Modifiers>,
 }
 
 pub fn init(cx: &mut App) {
-    cx.observe_new(FileFinder::register).detach();
+    cx.observe_new(Finder::register).detach();
     cx.observe_new(OpenPathPrompt::register).detach();
     cx.observe_new(OpenPathPrompt::register_new_path).detach();
 }
 
-impl FileFinder {
+impl Finder {
     fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
-        workspace.register_action(|workspace, action: &workspace::ToggleFileFinder, window, cx| {
-            let Some(file_finder) = workspace.active_modal::<Self>(cx) else {
+        workspace.register_action(|workspace, action: &workspace::ToggleFinder, window, cx| {
+            let Some(finder) = workspace.active_modal::<Self>(cx) else {
                 let seed_query = Self::seed_query(workspace, window, cx);
                 Self::open(workspace, action.separate_history, action.include_ignored, seed_query, window, cx).detach();
                 return;
             };
 
-            file_finder.update(cx, |file_finder, cx| {
-                file_finder.init_modifiers = Some(window.modifiers());
-                file_finder.picker.update(cx, |picker, cx| {
-                    picker.cycle_selection(window, cx);
-                });
+            finder.update(cx, |finder, _| {
+                if finder.mode == Mode::Files {
+                    finder.init_modifiers = Some(window.modifiers());
+                }
             });
+            window.dispatch_action(menu::SelectNext.boxed_clone(), cx);
         });
     }
 
@@ -177,7 +232,7 @@ impl FileFinder {
                             cx,
                         );
 
-                        FileFinder::new(delegate, seed_query, window, cx)
+                        Finder::new(delegate, seed_query, window, cx)
                     });
                 })
                 .ok();
@@ -207,10 +262,8 @@ impl FileFinder {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let modal_max_width = Self::modal_max_width(window);
-        let picker = cx.new(|cx| {
-            Picker::uniform_list(delegate, window, cx).initial_width(Rems::from_pixels(modal_max_width, window))
-        });
+        let width = Rems::from_pixels(Self::modal_max_width(window), window);
+        let picker = Self::new_picker(delegate, width, window, cx);
         let picker_focus_handle = picker.focus_handle(cx);
         picker.update(cx, |picker, cx| {
             picker.delegate.focus_handle = picker_focus_handle.clone();
@@ -222,12 +275,112 @@ impl FileFinder {
         });
         Self {
             picker,
+            symbols: None,
+            tabs: None,
+            mode: Mode::Files,
+            width,
             picker_focus_handle,
             init_modifiers: window.modifiers().modified().then_some(window.modifiers()),
         }
     }
 
+    /// A mode's picker. It is embedded, so the finder draws the chrome and
+    /// handles what a standalone picker would: closing when the picker is
+    /// dismissed or loses focus to anything but another mode.
+    fn new_picker<D: PickerDelegate>(
+        delegate: D,
+        width: Rems,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<Picker<D>> {
+        let picker =
+            cx.new(|cx| Picker::uniform_list(delegate, window, cx).initial_width(width).fixed_height().embedded());
+        cx.subscribe(&picker, |_, _, _: &DismissEvent, cx| cx.emit(DismissEvent)).detach();
+        cx.on_focus_out(&picker.focus_handle(cx), window, |this, _, window, cx| {
+            if window.is_window_active() && !this.picker_focus_handle.is_focused(window) {
+                cx.emit(DismissEvent);
+            }
+        })
+        .detach();
+        picker
+    }
+
+    fn query(&self, cx: &App) -> String {
+        match self.mode {
+            Mode::Files => self.picker.read(cx).query(cx),
+            Mode::Symbols => self.symbols.as_ref().map_or_default(|picker| picker.read(cx).query(cx)),
+            Mode::Tabs => self.tabs.as_ref().map_or_default(|picker| picker.read(cx).query(cx)),
+        }
+    }
+
+    /// Switches what is searched, keeping the query. Symbols and tabs are
+    /// only built once they are first shown.
+    fn set_mode(&mut self, mode: Mode, window: &mut Window, cx: &mut Context<Self>) {
+        if mode == self.mode {
+            return;
+        }
+        let query = self.query(cx);
+        let width = self.width;
+        self.picker_focus_handle = match mode {
+            Mode::Files => activate_picker(&self.picker, &query, window, cx),
+            Mode::Symbols => {
+                let picker = if let Some(picker) = &self.symbols {
+                    picker.clone()
+                } else {
+                    let delegate = self.picker.read_with(cx, |picker, _| {
+                        SymbolsDelegate::new(picker.delegate.workspace.clone(), picker.delegate.project.clone())
+                    });
+                    self.symbols.insert(Self::new_picker(delegate, width, window, cx)).clone()
+                };
+                activate_picker(&picker, &query, window, cx)
+            }
+            Mode::Tabs => {
+                let picker = if let Some(picker) = &self.tabs {
+                    picker.clone()
+                } else {
+                    let delegate = self.picker.read_with(cx, |picker, _| {
+                        TabsDelegate::new(picker.delegate.workspace.clone(), picker.delegate.project.clone())
+                    });
+                    let picker = Self::new_picker(delegate, width, window, cx);
+                    picker.update(cx, |picker, cx| picker.delegate.subscribe_to_updates(window, cx));
+                    self.tabs.insert(picker).clone()
+                };
+                activate_picker(&picker, &query, window, cx)
+            }
+        };
+        self.mode = mode;
+        // A mode switched to with the modifier still held must not confirm
+        // when the modifier is released.
+        self.init_modifiers = None;
+        cx.notify();
+    }
+
+    fn handle_close_selected_tab(&mut self, _: &CloseSelectedTab, window: &mut Window, cx: &mut Context<Self>) {
+        if self.mode == Mode::Tabs
+            && let Some(tabs) = &self.tabs
+        {
+            tabs.update(cx, |picker, cx| picker.delegate.close_selected(window, cx));
+        }
+    }
+
+    fn render_mode_bar(&self, cx: &Context<Self>) -> impl IntoElement {
+        h_flex().w_full().px_2().py_1().gap_1().border_t_1().border_color(cx.theme().colors().border_variant).children(
+            Mode::ALL.map(|mode| {
+                let active = mode == self.mode;
+                Button::new(mode.label(), mode.label())
+                    .label_size(LabelSize::Small)
+                    .color(if active { Color::Default } else { Color::Muted })
+                    .toggle_state(active)
+                    .key_binding(KeyBinding::for_action_in(mode.action().as_ref(), &self.picker_focus_handle, cx))
+                    .on_click(cx.listener(move |this, _, window, cx| this.set_mode(mode, window, cx)))
+            }),
+        )
+    }
+
     fn handle_modifiers_changed(&mut self, event: &ModifiersChangedEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if self.mode != Mode::Files {
+            return;
+        }
         let Some(init_modifiers) = self.init_modifiers.take() else {
             return;
         };
@@ -240,11 +393,16 @@ impl FileFinder {
     }
 
     fn handle_select_prev(&mut self, _: &SelectPrevious, window: &mut Window, cx: &mut Context<Self>) {
-        self.init_modifiers = Some(window.modifiers());
+        if self.mode == Mode::Files {
+            self.init_modifiers = Some(window.modifiers());
+        }
         window.dispatch_action(Box::new(menu::SelectPrevious), cx);
     }
 
     fn handle_toggle_ignored(&mut self, _: &ToggleIncludeIgnored, window: &mut Window, cx: &mut Context<Self>) {
+        if self.mode != Mode::Files {
+            return;
+        }
         self.picker.update(cx, |picker, cx| {
             picker.delegate.include_ignored = match picker.delegate.include_ignored {
                 Some(true) => None,
@@ -255,6 +413,9 @@ impl FileFinder {
     }
 
     fn open_without_dismiss(&mut self, _: &OpenWithoutDismiss, window: &mut Window, cx: &mut Context<Self>) {
+        if self.mode != Mode::Files {
+            return;
+        }
         self.picker.update(cx, |picker, cx| {
             picker.delegate.confirm_without_dismiss(window, cx);
         });
@@ -266,6 +427,22 @@ impl FileFinder {
     }
 }
 
+/// Focuses a mode's picker and gives it the query of the mode being left.
+fn activate_picker<D: PickerDelegate>(
+    picker: &Entity<Picker<D>>,
+    query: &str,
+    window: &mut Window,
+    cx: &mut App,
+) -> FocusHandle {
+    picker.update(cx, |picker, cx| {
+        if picker.query(cx) != query {
+            picker.set_query(query, window, cx);
+        }
+        picker.focus(window, cx);
+        picker.focus_handle(cx)
+    })
+}
+
 const MAX_SEED_QUERY_LENGTH: usize = 100;
 
 /// Flattens a selection into a single-line file query, capped to a sane length,
@@ -275,30 +452,40 @@ fn sanitize_file_query(selection: &str) -> Option<String> {
     (!query.is_empty()).then(|| query.chars().take(MAX_SEED_QUERY_LENGTH).collect())
 }
 
-impl EventEmitter<DismissEvent> for FileFinder {}
+impl EventEmitter<DismissEvent> for Finder {}
 
-impl Focusable for FileFinder {
+impl Focusable for Finder {
     fn focus_handle(&self, _: &App) -> FocusHandle {
         self.picker_focus_handle.clone()
     }
 }
 
-impl Render for FileFinder {
+impl Render for Finder {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let key_context = self.picker.read(cx).delegate.key_context(window, cx);
 
         v_flex()
             .key_context(key_context)
+            .elevation_3(cx)
             .on_modifiers_changed(cx.listener(Self::handle_modifiers_changed))
             .on_action(cx.listener(Self::handle_select_prev))
             .on_action(cx.listener(Self::handle_toggle_ignored))
             .on_action(cx.listener(Self::open_without_dismiss))
-            .child(self.picker.clone())
+            .on_action(cx.listener(Self::handle_close_selected_tab))
+            .on_action(cx.listener(|this, _: &ShowFiles, window, cx| this.set_mode(Mode::Files, window, cx)))
+            .on_action(cx.listener(|this, _: &ShowSymbols, window, cx| this.set_mode(Mode::Symbols, window, cx)))
+            .on_action(cx.listener(|this, _: &ShowTabs, window, cx| this.set_mode(Mode::Tabs, window, cx)))
+            .map(|this| match self.mode {
+                Mode::Files => this.child(self.picker.clone()),
+                Mode::Symbols => this.children(self.symbols.clone()),
+                Mode::Tabs => this.children(self.tabs.clone()),
+            })
+            .child(self.render_mode_bar(cx))
     }
 }
 
 pub struct FileFinderDelegate {
-    file_finder: WeakEntity<FileFinder>,
+    finder: WeakEntity<Finder>,
     workspace: WeakEntity<Workspace>,
     project: Entity<Project>,
 
@@ -810,7 +997,7 @@ fn buffer_range_for_line_range(buffer_snapshot: &BufferSnapshot, line_range: Ran
 
 impl FileFinderDelegate {
     fn new(
-        file_finder: WeakEntity<FileFinder>,
+        finder: WeakEntity<Finder>,
         workspace: WeakEntity<Workspace>,
         project: Entity<Project>,
         currently_opened_path: Option<FoundPath>,
@@ -818,11 +1005,11 @@ impl FileFinderDelegate {
         separate_history: bool,
         include_ignored: Option<bool>,
         window: &Window,
-        cx: &mut Context<FileFinder>,
+        cx: &mut Context<Finder>,
     ) -> Self {
         Self::subscribe_to_updates(&project, window, cx);
         Self {
-            file_finder,
+            finder,
             workspace,
             project,
 
@@ -848,15 +1035,15 @@ impl FileFinderDelegate {
         }
     }
 
-    fn subscribe_to_updates(project: &Entity<Project>, window: &Window, cx: &mut Context<FileFinder>) {
-        cx.subscribe_in(project, window, |file_finder, _, event, window, cx| match event {
-            project::Event::WorktreeUpdatedEntries(_, _) => file_finder.picker.update(cx, |picker, cx| {
+    fn subscribe_to_updates(project: &Entity<Project>, window: &Window, cx: &mut Context<Finder>) {
+        cx.subscribe_in(project, window, |finder, _, event, window, cx| match event {
+            project::Event::WorktreeUpdatedEntries(_, _) => finder.picker.update(cx, |picker, cx| {
                 picker.delegate.refresh_history(window, cx);
                 picker.delegate.debounce_next_refresh = true;
                 picker.refresh(window, cx);
             }),
             project::Event::WorktreeAdded(_) | project::Event::WorktreeRemoved(_) => {
-                file_finder.picker.update(cx, |picker, cx| picker.refresh(window, cx));
+                finder.picker.update(cx, |picker, cx| picker.refresh(window, cx));
             }
             _ => {}
         })
@@ -1149,7 +1336,7 @@ impl FileFinderDelegate {
         }
 
         if full_path.is_ascii() {
-            let max_width = FileFinder::modal_max_width(window);
+            let max_width = Finder::modal_max_width(window);
             let (normal_em, small_em) = {
                 let style = window.text_style();
                 let font_id = window.text_system().resolve_font(&style.font());
@@ -1289,7 +1476,7 @@ impl FileFinderDelegate {
 
     fn key_context(&self, _window: &Window, _cx: &App) -> KeyContext {
         let mut key_context = KeyContext::new_with_defaults();
-        key_context.add("FileFinder");
+        key_context.add("Finder");
         key_context
     }
 
@@ -1384,7 +1571,7 @@ impl FileFinderDelegate {
         });
 
         let selection_query = self.latest_search_query.clone();
-        let finder = self.file_finder.clone();
+        let finder = self.finder.clone();
         let workspace = self.workspace.clone();
 
         cx.spawn_in(window, async move |_, cx| {
@@ -1688,9 +1875,8 @@ impl PickerDelegate for FileFinderDelegate {
         }
     }
 
-    fn dismissed(&mut self, _: &mut Window, cx: &mut Context<Picker<FileFinderDelegate>>) {
-        self.file_finder.update(cx, |_, cx| cx.emit(DismissEvent)).ok();
-    }
+    // The finder closes on the picker's own `DismissEvent`.
+    fn dismissed(&mut self, _: &mut Window, _: &mut Context<Picker<FileFinderDelegate>>) {}
 
     fn render_match(
         &self,
@@ -1821,6 +2007,7 @@ mod tests {
 
     use super::Match;
     use super::Matches;
+    use super::Mode;
     use super::ProjectPanelOrdMatch;
     use super::SelectedMatch;
     use super::labels_for_absolute_path;
@@ -1835,6 +2022,14 @@ mod tests {
             is_dir: false,
             distance_to_relative_ancestor: usize::MAX,
         }))
+    }
+
+    #[test]
+    fn modes_have_distinct_labels_and_actions() {
+        let labels = Mode::ALL.map(Mode::label);
+        assert_eq!(labels, ["Files", "Symbols", "Tabs"]);
+        let actions = Mode::ALL.map(|mode| mode.action().name());
+        assert_eq!(actions, ["finder::ShowFiles", "finder::ShowSymbols", "finder::ShowTabs"]);
     }
 
     #[test]

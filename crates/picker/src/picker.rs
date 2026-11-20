@@ -401,15 +401,6 @@ impl<D: PickerDelegate> Picker<D> {
     /// A picker, which displays its matches using `gpui::list`, matches can have different heights.
     /// The picker allows the user to perform search items by text.
     /// If `PickerDelegate::render_match` only returns items with the same height, use `Picker::uniform_list` as its implementation is optimized for that.
-    pub fn nonsearchable_list(delegate: D, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let head = Head::empty(Self::on_empty_head_blur, window, cx);
-
-        Self::new(delegate, ContainerKind::List, head, window, cx)
-    }
-
-    /// A picker, which displays its matches using `gpui::list`, matches can have different heights.
-    /// The picker allows the user to perform search items by text.
-    /// If `PickerDelegate::render_match` only returns items with the same height, use `Picker::uniform_list` as its implementation is optimized for that.
     pub fn list(delegate: D, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let head = Head::editor(delegate.placeholder_text(window, cx), Self::on_input_editor_event, window, cx);
 
@@ -454,6 +445,13 @@ impl<D: PickerDelegate> Picker<D> {
     /// popover selectors). The width is also the picker's minimum.
     pub const fn initial_width(mut self, width: Rems) -> Self {
         self.shape.width = width;
+        self
+    }
+
+    /// Keeps the results area at its max height instead of shrinking to fit,
+    /// so the picker's size doesn't change with the number of matches.
+    pub const fn fixed_height(mut self) -> Self {
+        self.shape.fixed_height = true;
         self
     }
 
@@ -1047,9 +1045,10 @@ impl<D: PickerDelegate> Picker<D> {
     }
 
     fn render_element_container(&self, cx: &Context<Self>) -> impl IntoElement {
-        // The picker shrinks to fit its content, so the list infers its size
-        // from its items.
-        let sizing_behavior = ListSizingBehavior::Infer;
+        // A picker that shrinks to fit its content infers the list's size from
+        // its items; a fixed-height one lets the list fill the results area.
+        let sizing_behavior =
+            if self.shape.fixed_height { ListSizingBehavior::Auto } else { ListSizingBehavior::Infer };
 
         match &self.element_container {
             ElementContainer::UniformList(scroll_handle) => uniform_list(

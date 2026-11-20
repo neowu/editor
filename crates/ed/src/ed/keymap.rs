@@ -417,10 +417,7 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("cmd-shift-f", "pane::DeploySearch");
     k.bind_input("cmd-shift-h", "pane::DeploySearch", json!({"replace_enabled": true}));
     k.bind("cmd-shift-t", "pane::ReopenClosedItem");
-    k.bind("cmd-t", "project_symbols::Toggle");
-    k.bind("cmd-p", "file_finder::Toggle");
-    k.bind_input("ctrl-shift-tab", "tab_switcher::Toggle", json!({"select_last": true}));
-    k.bind("ctrl-tab", "tab_switcher::Toggle");
+    k.bind("cmd-p", "finder::Toggle");
     k.bind("cmd-shift-p", "command_palette::Toggle");
     k.bind("cmd-shift-m", "diagnostics::Deploy");
     k.bind_input("cmd-w", "pane::CloseActiveItem", json!({"close_pinned": false}));
@@ -601,19 +598,17 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.group(Some("LspCommandSelector > Picker > Editor"));
     k.bind("tab", "lsp_command_selector::ToggleArgumentsFocus");
 
-    k.group(Some("FileFinder || (FileFinder > Picker > Editor)"));
+    k.group(Some("Finder || (Finder > Picker > Editor)"));
     k.bind("cmd-shift-i", "search::ToggleIncludeIgnored");
+    k.bind("cmd-1", "finder::ShowFiles");
+    k.bind("cmd-2", "finder::ShowSymbols");
+    k.bind("cmd-3", "finder::ShowTabs");
+    k.bind("ctrl-backspace", "finder::CloseSelectedTab");
 
     k.group(Some("RecentProjects || (RecentProjects > Picker > Editor)"));
     k.bind("cmd-shift-a", "workspace::AddFolderToProject");
     k.bind("shift-backspace", "recent_projects::RemoveSelected");
     k.bind("cmd-shift-enter", "recent_projects::AddToWorkspace");
-
-    k.group(Some("TabSwitcher"));
-    k.bind("ctrl-shift-tab", "menu::SelectPrevious");
-    k.bind("ctrl-up", "menu::SelectPrevious");
-    k.bind("ctrl-down", "menu::SelectNext");
-    k.bind("ctrl-backspace", "tab_switcher::CloseSelectedItem");
 
     k.group(Some("StashList || (StashList > Picker > Editor)"));
     k.bind("ctrl-shift-backspace", "stash_picker::DropStashItem");
@@ -712,8 +707,8 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("shift-tab", "git_graph::FocusPreviousTabStop");
     k.group(Some("Picker > Editor"));
     k.bind("cmd-shift-s", "picker::ToggleMultiSelect");
-    k.group(Some("FileFinder || (FileFinder > Picker > Editor) || (FileFinder > Picker > menu)"));
-    k.bind("cmd-shift-p", "file_finder::SelectPrevious");
+    k.group(Some("Finder || (Finder > Picker > Editor) || (Finder > Picker > menu)"));
+    k.bind("cmd-shift-p", "finder::SelectPrevious");
     k.bind("tab", "picker::MultiSelectNext");
     k.group(Some("TextFinder || (TextFinder > Picker > Editor) || (TextFinder > Picker > menu)"));
     k.bind("alt-cmd-f", "text_finder::ToProjectSearch");

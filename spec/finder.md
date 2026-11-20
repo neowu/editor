@@ -1,4 +1,18 @@
-# File finder
+# Finder
+
+- One finder modal (`cmd-p`) searches files, project symbols, or open tabs.
+  A bar at its bottom shows the three modes with their keys (`cmd-1/2/3`,
+  also clickable). There is no separate symbol picker or tab switcher, and no
+  `cmd-t` / `ctrl-tab`.
+- Switching mode keeps the query and the window's frame: every mode has the
+  same width, a results area fixed at the picker's max height (it doesn't
+  shrink to fit), and one-line rows (a symbol's location sits beside its
+  label). The finder always opens in Files; Symbols and Tabs are built when
+  first shown.
+- Tabs lists the tabs of all editor panes, most recently used first, with the
+  previous tab preselected (`cmd-p cmd-3 enter` jumps back). Moving the
+  selection doesn't activate tabs; only confirming does. `ctrl-backspace`
+  closes the selected tab.
 
 - History (recently opened files, the current file, and selected matches)
   only lists paths that are still files. They are checked when the finder

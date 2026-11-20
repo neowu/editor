@@ -97,7 +97,7 @@ enum CliCommand {
         #[arg(long)]
         available: bool,
     },
-    /// Dispatch an action to the focused element, e.g. `file_finder::Toggle`.
+    /// Dispatch an action to the focused element, e.g. `finder::Toggle`.
     Action {
         name: String,
         /// Action arguments as JSON.

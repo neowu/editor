@@ -436,20 +436,11 @@ pub struct CloseItemInAllPanes {
 #[action(namespace = workspace)]
 pub struct SendKeystrokes(pub String);
 
-actions!(
-    project_symbols,
-    [
-        /// Toggles the project symbols search.
-        #[action(name = "Toggle")]
-        ToggleProjectSymbols
-    ]
-);
-
-/// Toggles the file finder interface.
+/// Toggles the finder.
 #[derive(Default, PartialEq, Eq, Clone, Deserialize, Action)]
-#[action(namespace = file_finder, name = "Toggle")]
+#[action(namespace = finder, name = "Toggle")]
 #[serde(deny_unknown_fields)]
-pub struct ToggleFileFinder {
+pub struct ToggleFinder {
     #[serde(default)]
     pub separate_history: bool,
     #[serde(default)]
