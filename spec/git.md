@@ -15,6 +15,12 @@ repository's `$PATH`; if none is found, the repository is not opened.
   the user's own config, so hooks, credential helpers, `core.sshCommand` and
   external diff tools all apply. Only `core.fsmonitor` and
   `log.showSignature` are forced off.
+- Remote commands (push/pull/fetch) run with
+  `GIT_SSH_COMMAND="ssh -o ControlPersist=no"`, so they never leave an ssh
+  master running after the app quits. An existing master is still reused.
+  Trade-offs: without one, every remote command pays a full ssh handshake;
+  `core.sshCommand`, `GIT_SSH` and an inherited `GIT_SSH_COMMAND` are
+  ignored for these commands, so ssh is configured through `~/.ssh/config`.
 - Editing git's global config (`~/.gitconfig` or
   `$XDG_CONFIG_HOME/git/config`, `~/.config/git/config` by default) refreshes
   local repositories, as git reads both.

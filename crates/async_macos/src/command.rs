@@ -1,16 +1,9 @@
 #![allow(clippy::disallowed_methods, reason = "this is the wrapper the lint points to")]
 
-use std::collections::HashMap;
-use std::ffi::CString;
 use std::ffi::OsStr;
-use std::ffi::OsString;
 use std::future::poll_fn;
 use std::io;
-use std::iter;
-use std::mem::MaybeUninit;
 use std::os::fd::OwnedFd;
-use std::os::unix::ffi::OsStrExt as _;
-use std::os::unix::process::CommandExt as _;
 use std::path::Path;
 use std::pin::Pin;
 use std::process::ExitStatus;
@@ -39,91 +32,11 @@ pub struct Command {
     stdout: bool,
     stderr: bool,
     kill_on_drop: bool,
-    disclaim: bool,
 }
 
 impl From<std::process::Command> for Command {
     fn from(inner: std::process::Command) -> Self {
-        Self { inner, stdin: false, stdout: false, stderr: false, kill_on_drop: false, disclaim: false }
-    }
-}
-
-unsafe extern "C" {
-    // libSystem SPI, also used by Chromium and iTerm2.
-    fn responsibility_spawnattrs_setdisclaim(attrs: *mut libc::posix_spawnattr_t, disclaim: libc::c_int)
-    -> libc::c_int;
-}
-
-/// What a disclaimed child re-execs itself with. Built before fork, so the
-/// child allocates nothing.
-struct DisclaimedExec {
-    program: CString,
-    _strings: Vec<CString>,
-    argv: Vec<*mut libc::c_char>,
-    envp: Vec<*mut libc::c_char>,
-    attrs: libc::posix_spawnattr_t,
-}
-
-// The pointers only reference the `CString`s owned by the same value.
-unsafe impl Send for DisclaimedExec {}
-unsafe impl Sync for DisclaimedExec {}
-
-impl DisclaimedExec {
-    fn new(command: &std::process::Command) -> io::Result<Self> {
-        let program = CString::new(command.get_program().as_bytes())?;
-        let mut env: HashMap<OsString, OsString> = std::env::vars_os().collect();
-        for (key, value) in command.get_envs() {
-            match value {
-                Some(value) => env.insert(key.to_owned(), value.to_owned()),
-                None => env.remove(key),
-            };
-        }
-
-        let mut strings = vec![program.clone()];
-        for arg in command.get_args() {
-            strings.push(CString::new(arg.as_bytes())?);
-        }
-        let argc = strings.len();
-        for (key, value) in env {
-            strings.push(CString::new([key.as_bytes(), b"=", value.as_bytes()].concat())?);
-        }
-        let pointers = |strings: &[CString]| {
-            strings.iter().map(|string| string.as_ptr().cast_mut()).chain(iter::once(std::ptr::null_mut())).collect()
-        };
-        let argv = pointers(&strings[..argc]);
-        let envp = pointers(&strings[argc..]);
-
-        let mut attrs = MaybeUninit::uninit();
-        let result = unsafe {
-            match libc::posix_spawnattr_init(attrs.as_mut_ptr()) {
-                0 => {
-                    match libc::posix_spawnattr_setflags(attrs.as_mut_ptr(), libc::POSIX_SPAWN_SETEXEC as libc::c_short)
-                    {
-                        0 => responsibility_spawnattrs_setdisclaim(attrs.as_mut_ptr(), 1),
-                        error => error,
-                    }
-                }
-                error => error,
-            }
-        };
-        if result != 0 {
-            return Err(io::Error::from_raw_os_error(result));
-        }
-        Ok(Self { program, _strings: strings, argv, envp, attrs: unsafe { attrs.assume_init() } })
-    }
-
-    /// Replaces the calling process. Only returns on failure.
-    fn exec(&self) {
-        unsafe {
-            libc::posix_spawnp(
-                std::ptr::null_mut(),
-                self.program.as_ptr(),
-                std::ptr::null(),
-                &raw const self.attrs,
-                self.argv.as_ptr(),
-                self.envp.as_ptr(),
-            );
-        }
+        Self { inner, stdin: false, stdout: false, stderr: false, kill_on_drop: false }
     }
 }
 
@@ -199,31 +112,7 @@ impl Command {
         self
     }
 
-    /// Makes the child, not this app, the process macOS holds responsible
-    /// for itself and its descendants. Use it for commands whose descendants
-    /// may outlive the app (git starting an ssh `ControlPersist` master), which
-    /// would otherwise list the app under "Allow in the Background".
-    ///
-    /// A process can only be disclaimed as it is exec'd, so the forked child
-    /// re-execs itself with `POSIX_SPAWN_SETEXEC`. This costs a fork, where
-    /// other commands use `posix_spawn`.
-    pub const fn disclaim(&mut self) -> &mut Self {
-        self.disclaim = true;
-        self
-    }
-
     pub fn spawn(&mut self) -> io::Result<Child> {
-        if std::mem::take(&mut self.disclaim) {
-            let exec = DisclaimedExec::new(&self.inner)?;
-            // The hook runs after std set up stdio, the working directory and
-            // signals. If the re-exec fails, std's plain exec follows.
-            unsafe {
-                self.inner.pre_exec(move || {
-                    exec.exec();
-                    Ok(())
-                });
-            }
-        }
         let mut child = self.inner.spawn()?;
         Ok(Child {
             stdin: child.stdin.take().map(|pipe| pipe_fd(pipe.into()).map(ChildStdin)).transpose()?,
@@ -371,6 +260,8 @@ impl AsyncRead for ChildStderr {
 #[cfg(test)]
 #[allow(clippy::zombie_processes, reason = "children are reaped by ProcessExit")]
 mod tests {
+    use std::os::unix::process::CommandExt as _;
+
     use futures::AsyncWriteExt as _;
     use futures::executor::block_on;
 
@@ -407,53 +298,6 @@ mod tests {
             assert!(output.status.success());
             assert!(output.stdout == payload);
         });
-    }
-
-    unsafe extern "C" {
-        fn responsibility_get_pid_responsible_for_pid(pid: libc::pid_t) -> libc::pid_t;
-    }
-
-    #[test]
-    fn disclaim_keeps_args_env_stdio_and_working_directory() {
-        let dir = std::env::temp_dir().canonicalize().unwrap();
-        let output = block_on(
-            new_command("sh")
-                .args([
-                    "-c",
-                    r#"printf '%s|%s|%s|%s' "$1" "$ED_TEST_VAR" "${HOME-unset}" "$(pwd -P)""#,
-                    "sh",
-                    "arg one",
-                ])
-                .env("ED_TEST_VAR", "value")
-                .env_remove("HOME")
-                .current_dir(&dir)
-                .disclaim()
-                .output(),
-        )
-        .unwrap();
-        assert!(output.status.success());
-        assert_eq!(String::from_utf8(output.stdout).unwrap(), format!("arg one|value|unset|{}", dir.display()));
-    }
-
-    #[test]
-    fn disclaim_makes_the_child_responsible_for_itself() {
-        let responsible = |disclaim: bool| {
-            let mut command = new_command("/bin/sleep");
-            command.arg("30").kill_on_drop(true);
-            if disclaim {
-                command.disclaim();
-            }
-            let child = command.spawn().unwrap();
-            let pid = child.id().cast_signed();
-            unsafe { responsibility_get_pid_responsible_for_pid(pid) == pid }
-        };
-        assert!(responsible(true));
-        assert!(!responsible(false));
-    }
-
-    #[test]
-    fn disclaim_reports_a_missing_program() {
-        assert!(new_command("/nonexistent/ed-test").disclaim().spawn().is_err());
     }
 
     #[test]

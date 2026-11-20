@@ -2316,7 +2316,6 @@ impl GitRepository for RealGitRepository {
             let git = GitBinary::new(git_binary_path, working_directory);
             let mut command = git.build_command(&["push"]);
             command
-                .disclaim()
                 .envs(env.iter())
                 .args(options.map(|option| match option {
                     PushOptions::SetUpstream => "--set-upstream",
@@ -2345,7 +2344,7 @@ impl GitRepository for RealGitRepository {
         async move {
             let git = GitBinary::new(git_binary_path, working_directory);
             let mut command = git.build_command(PULL_ARGS);
-            command.disclaim().envs(env.iter());
+            command.envs(env.iter());
             command.arg(remote_name).args(branch_name).stdout(Stdio::piped()).stderr(Stdio::piped());
 
             run_git_command(git, env, command).await
@@ -2383,7 +2382,7 @@ impl GitRepository for RealGitRepository {
         async move {
             let git = GitBinary::new(git_binary_path, working_directory);
             let mut command = git.build_command(&["fetch", &remote_name]);
-            command.disclaim().envs(env.iter()).stdout(Stdio::piped()).stderr(Stdio::piped());
+            command.envs(env.iter()).stdout(Stdio::piped()).stderr(Stdio::piped());
 
             run_git_command(git, env, command).await
         }
@@ -3008,6 +3007,9 @@ async fn run_git_command(
     command.env("GIT_CONFIG_COUNT", (config_count + 2).to_string());
     // Override inherited prompt helpers as well as terminal input.
     command
+        // An ssh `ControlPersist` master outlives the app in its coalition,
+        // which makes macOS show the quit app as still running.
+        .env("GIT_SSH_COMMAND", "ssh -o ControlPersist=no")
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_ASKPASS", "/usr/bin/false")
         .env("SSH_ASKPASS", "/usr/bin/false")
