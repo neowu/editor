@@ -219,6 +219,17 @@ because it hurt readability; an opaque window is also cheaper to composite.
     switches to it.
   - Pane navigation (`ActivatePane*`, next/previous pane) stays among the
     terminal panes; Zoom expands one terminal pane over the others.
+  - The mode switch's Terminal button carries a red dot, in every mode, while
+    a terminal mode terminal runs a process (same test as the close/quit
+    prompt: a foreground job, not the shell at its prompt), so a job left
+    running there stays in sight. Terminal panel terminals don't count: they
+    are visible beside the code. The workspace caches the flag and rechecks
+    it only when a terminal's tab changes (its foreground process, name or
+    directory changed) or a terminal is added or removed; nothing polls.
+    A terminal checks its foreground process on output and once more after
+    output has been quiet for 100ms, because the shell echoes a command
+    before it starts the job and a quiet job (`sleep`) prints nothing more;
+    without the second check the tab title and the dot missed such jobs.
 - There are no terminals in editor panes: the `NewCenterTerminal` action is
   gone, and editor panes refuse dropped terminal tabs, so a terminal never
   lands among files.

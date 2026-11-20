@@ -1,6 +1,9 @@
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::time::Duration;
 
 use gpui::Context;
 use gpui::Task;
@@ -57,8 +60,23 @@ fn is_foreground_job(foreground: Pid, foreground_parent: Option<Pid>, child: Pid
     foreground != child && !(child_name == "login" && foreground_parent == Some(child))
 }
 
+/// How long output must be quiet before the foreground process is rechecked.
+const RECHECK_DELAY: Duration = Duration::from_millis(100);
+
+/// Whether the foreground process changed in a way the tab shows: its name,
+/// its directory, or the process itself, since a job named like the shell
+/// (a script run by it) still starts and ends a running process.
+fn process_changed(previous: Option<&ProcessInfo>, current: Option<&ProcessInfo>) -> bool {
+    match (previous, current) {
+        (None, None) => false,
+        (Some(prev), Some(now)) => prev.pid != now.pid || prev.cwd != now.cwd || prev.name != now.name,
+        _ => true,
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct ProcessInfo {
+    pid: Pid,
     pub(crate) name: String,
     pub(crate) cwd: PathBuf,
     pub(crate) argv: Vec<String>,
@@ -72,6 +90,8 @@ pub(crate) struct PtyProcessInfo {
     last_foreground_pid: Mutex<Option<Pid>>,
     pub(crate) current: RwLock<Option<ProcessInfo>>,
     task: Mutex<Option<Task<()>>>,
+    /// Output arrived while `task` was checking or waiting.
+    woken: AtomicBool,
 }
 
 impl PtyProcessInfo {
@@ -102,6 +122,7 @@ impl PtyProcessInfo {
             last_foreground_pid: Mutex::new(None),
             current: RwLock::new(None),
             task: Mutex::new(None),
+            woken: AtomicBool::new(false),
         }
     }
 
@@ -157,6 +178,7 @@ impl PtyProcessInfo {
         let cwd = process.cwd().map_or(PathBuf::new(), ToOwned::to_owned);
 
         let info = ProcessInfo {
+            pid: process.pid(),
             name: process.name().to_str()?.to_owned(),
             cwd,
             argv: process.cmd().iter().filter_map(|s| s.to_str().map(ToOwned::to_owned)).collect(),
@@ -165,44 +187,62 @@ impl PtyProcessInfo {
         Some(info)
     }
 
-    /// Updates the cached process info, emitting a [`Event::TitleChanged`] event if the ed-relevant info has changed.
+    /// Reloads the foreground process, returning whether it changed and its
+    /// directory if that did.
+    fn detect_change(&self) -> (bool, Option<PathBuf>) {
+        let previous = self.current.read().clone();
+        let current = self.load();
+        let has_changed = process_changed(previous.as_ref(), current.as_ref());
+        if has_changed {
+            (*self.current.write()).clone_from(&current);
+        }
+        let changed_cwd = match (previous.as_ref(), current.as_ref()) {
+            (Some(prev), Some(now)) if prev.cwd != now.cwd => Some(now.cwd.clone()),
+            (None, Some(now)) => Some(now.cwd.clone()),
+            _ => None,
+        };
+        (has_changed, changed_cwd)
+    }
+
+    /// Updates the cached process info on terminal output, emitting a
+    /// [`Event::TitleChanged`] event if the ed-relevant info has changed.
+    /// Checks at once, then again once output has been quiet for
+    /// [`RECHECK_DELAY`]: the shell echoes a command before it starts the job,
+    /// and a quiet job (`sleep`) prints nothing more to trigger a later check.
     pub(crate) fn emit_title_changed_if_changed(self: &Arc<Self>, cx: &Context<'_, Terminal>) {
         if self.task.lock().is_some() {
+            self.woken.store(true, Ordering::Relaxed);
             return;
         }
-        let this = Arc::clone(self);
-        let change_task = cx.background_executor().spawn(async move {
-            let previous = this.current.read().clone();
-            let current = this.load();
-            let has_changed = match (previous.as_ref(), current.as_ref()) {
-                (None, None) => false,
-                (Some(prev), Some(now)) => prev.cwd != now.cwd || prev.name != now.name,
-                _ => true,
-            };
-            if has_changed {
-                (*this.current.write()).clone_from(&current);
-            }
-            let changed_cwd = match (previous.as_ref(), current.as_ref()) {
-                (Some(prev), Some(now)) if prev.cwd != now.cwd => Some(now.cwd.clone()),
-                (None, Some(now)) => Some(now.cwd.clone()),
-                _ => None,
-            };
-            (has_changed, changed_cwd)
-        });
-        let this = Arc::downgrade(self);
+        let weak = Arc::downgrade(self);
         *self.task.lock() = Some(cx.spawn(async move |term, cx| {
-            let (has_changed, new_cwd) = change_task.await;
-            if has_changed {
-                term.update(cx, |terminal, cx| {
-                    if let Some(cwd) = new_cwd {
-                        terminal.record_cwd_change(cwd);
-                    }
-                    cx.emit(Event::TitleChanged);
-                })
-                .ok();
-            }
-            if let Some(this) = this.upgrade() {
-                this.task.lock().take();
+            let mut quiet = false;
+            loop {
+                let Some(this) = weak.upgrade() else {
+                    return;
+                };
+                let detect = Arc::clone(&this);
+                let (has_changed, new_cwd) =
+                    cx.background_executor().spawn(async move { detect.detect_change() }).await;
+                if has_changed {
+                    term.update(cx, |terminal, cx| {
+                        if let Some(cwd) = new_cwd {
+                            terminal.record_cwd_change(cwd);
+                        }
+                        cx.emit(Event::TitleChanged);
+                    })
+                    .ok();
+                }
+                if quiet && !this.woken.load(Ordering::Relaxed) {
+                    this.task.lock().take();
+                    return;
+                }
+                drop(this);
+                cx.background_executor().timer(RECHECK_DELAY).await;
+                let Some(this) = weak.upgrade() else {
+                    return;
+                };
+                quiet = !this.woken.swap(false, Ordering::Relaxed);
             }
         }));
     }
@@ -229,5 +269,24 @@ mod tests {
         assert!(!is_foreground_job(pid(11), Some(pid(10)), pid(10), login));
         assert!(is_foreground_job(pid(12), Some(pid(11)), pid(10), login));
         assert!(is_foreground_job(pid(12), None, pid(10), login));
+    }
+
+    #[test]
+    fn process_changed_works() {
+        let info = |pid: u32, name: &str, cwd: &str| ProcessInfo {
+            pid: Pid::from_u32(pid),
+            name: name.to_owned(),
+            cwd: PathBuf::from(cwd),
+            argv: Vec::new(),
+        };
+        let shell = info(10, "fish", "/a");
+        assert!(!process_changed(None, None));
+        assert!(process_changed(None, Some(&shell)));
+        assert!(process_changed(Some(&shell), None));
+        assert!(!process_changed(Some(&shell), Some(&shell.clone())));
+        assert!(process_changed(Some(&shell), Some(&info(10, "fish", "/b"))));
+        assert!(process_changed(Some(&shell), Some(&info(11, "sleep", "/a"))));
+        // A script run by the shell has the shell's name and directory.
+        assert!(process_changed(Some(&shell), Some(&info(11, "fish", "/a"))));
     }
 }

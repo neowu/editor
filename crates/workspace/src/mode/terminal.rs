@@ -263,6 +263,20 @@ impl Workspace {
             .collect()
     }
 
+    /// Rechecks whether a terminal mode terminal runs a process, redrawing the
+    /// mode switch's dot when that changes. Called when a terminal's tab
+    /// changes (its foreground process did) rather than polled.
+    fn refresh_terminal_running_process(&mut self, cx: &mut Context<Workspace>) {
+        let running = self
+            .terminal_panes()
+            .into_iter()
+            .flat_map(|pane| pane.read(cx).items())
+            .any(|item| item.has_running_process(cx));
+        if mem::replace(&mut self.terminal_has_running_process, running) != running {
+            cx.notify();
+        }
+    }
+
     fn terminal_is_empty(&self, cx: &App) -> bool {
         self.terminal_panes().iter().all(|pane| pane.read(cx).items_len() == 0)
     }
@@ -418,6 +432,7 @@ impl Workspace {
         match event {
             pane::Event::AddItem { item } => {
                 item.added_to_pane(self, pane.clone(), window, cx);
+                self.refresh_terminal_running_process(cx);
                 self.serialize_workspace(window, cx);
             }
             pane::Event::Split { direction, mode } => {
@@ -430,6 +445,7 @@ impl Workspace {
                 if self.terminal_is_empty(cx) {
                     self.zoom_terminal_pane(None, cx);
                 }
+                self.refresh_terminal_running_process(cx);
                 self.notify_mode(WorkspaceMode::Terminal, cx);
                 self.serialize_workspace(window, cx);
             }
@@ -449,7 +465,10 @@ impl Workspace {
                 self.notify_mode(WorkspaceMode::Terminal, cx);
                 self.serialize_workspace(window, cx);
             }
-            pane::Event::ChangeItemTitle => self.notify_mode(WorkspaceMode::Terminal, cx),
+            pane::Event::ChangeItemTitle => {
+                self.refresh_terminal_running_process(cx);
+                self.notify_mode(WorkspaceMode::Terminal, cx);
+            }
             _ => {}
         }
     }

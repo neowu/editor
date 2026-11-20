@@ -796,6 +796,8 @@ pub struct Workspace {
     terminal_center: PaneGroup,
     active_terminal_pane: Entity<Pane>,
     terminal_layout: TerminalLayout,
+    /// Whether a terminal mode terminal runs a process, as of its last tab change.
+    terminal_has_running_process: bool,
     terminal_mode_view: Entity<ModeView>,
     window_header: Entity<window_header::WindowHeader>,
 
@@ -1040,6 +1042,7 @@ impl Workspace {
             terminal_center: PaneGroup::new(terminal_pane.clone()),
             active_terminal_pane: terminal_pane,
             terminal_layout: TerminalLayout::Pending(None),
+            terminal_has_running_process: false,
             terminal_mode_view,
             window_header,
 

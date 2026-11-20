@@ -22,6 +22,7 @@ use gpui::canvas;
 use gpui::div;
 use project::Project;
 use project::git_store::GitStoreEvent;
+use ui::Indicator;
 use ui::Tab;
 use ui::Tooltip;
 use ui::prelude::ActiveTheme as _;
@@ -95,6 +96,7 @@ struct WindowHeaderState {
     mode: WorkspaceMode,
     has_repository: bool,
     has_terminal_mode: bool,
+    terminal_running: bool,
 }
 
 impl WindowHeaderState {
@@ -106,6 +108,7 @@ impl WindowHeaderState {
             mode: workspace.mode(),
             has_repository: project.read(cx).active_repository(cx).is_some(),
             has_terminal_mode: workspace.supports_terminal_mode(cx),
+            terminal_running: workspace.terminal_has_running_process,
         }
     }
 }
@@ -193,7 +196,7 @@ impl Render for WindowHeader {
                     .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .map(|this| {
                         let modes = switchable_modes(self.shown.has_repository, self.shown.has_terminal_mode);
-                        this.when(modes.len() > 1, |this| this.child(render_mode_switch(self.shown.mode, &modes, cx)))
+                        this.when(modes.len() > 1, |this| this.child(render_mode_switch(self.shown, &modes, cx)))
                     })
                     .child(render_nav_buttons(&self.workspace, self.shown)),
             )
@@ -252,10 +255,16 @@ fn switchable_modes(has_repository: bool, has_terminal_mode: bool) -> Vec<Worksp
     .collect()
 }
 
+/// The dot on `mode`'s button: red on Terminal while one of its terminals runs
+/// a process, in every mode, so a job left running there stays in sight.
+fn mode_indicator(mode: WorkspaceMode, terminal_running: bool) -> Option<Color> {
+    (mode == WorkspaceMode::Terminal && terminal_running).then_some(Color::Error)
+}
+
 /// Icon-only mode switch (Editor / Git History / Terminal): top-row icon
 /// buttons grouped on a faint track, so the modes read as one control, with
 /// the shown mode's button filled and its icon in the accent colour.
-fn render_mode_switch(shown_mode: WorkspaceMode, modes: &[WorkspaceMode], cx: &App) -> impl IntoElement {
+fn render_mode_switch(state: WindowHeaderState, modes: &[WorkspaceMode], cx: &App) -> impl IntoElement {
     let segment = |mode: WorkspaceMode| {
         let (id, icon, label, action): (&'static str, IconName, &'static str, Box<dyn gpui::Action>) = match mode {
             WorkspaceMode::Editor => ("workspace-mode-editor", IconName::Code, "Editor", Box::new(Editor)),
@@ -266,12 +275,15 @@ fn render_mode_switch(shown_mode: WorkspaceMode, modes: &[WorkspaceMode], cx: &A
                 ("workspace-mode-terminal", IconName::TerminalAlt, "Terminal", Box::new(Terminal))
             }
         };
-        let shown = mode == shown_mode;
+        let shown = mode == state.mode;
         let tooltip_action = action.boxed_clone();
         top_row_icon_button(id, icon)
             .size(MODE_SWITCH_BUTTON_SIZE)
             .icon_color(if shown { Color::Accent } else { Color::Muted })
             .when(shown, |this| this.style(ButtonStyle::Filled))
+            .when_some(mode_indicator(mode, state.terminal_running), |this, color| {
+                this.indicator(Indicator::dot().color(color))
+            })
             .tooltip(move |_window, cx| Tooltip::for_action(label, tooltip_action.as_ref(), cx))
             .on_click(move |_, window, cx| window.dispatch_action(action.boxed_clone(), cx))
     };
@@ -446,6 +458,7 @@ mod tests {
     use super::MODE_SWITCH_BUTTON_SIZE;
     use super::MODE_SWITCH_PADDING;
     use super::TAB_BAR_START_OFFSET;
+    use super::mode_indicator;
     use super::sidebar_header_overhang;
     use super::switchable_modes;
     use super::tab_bars_are_titlebar;
@@ -457,6 +470,17 @@ mod tests {
         assert!(tab_bars_are_titlebar(WorkspaceMode::Editor));
         assert!(tab_bars_are_titlebar(WorkspaceMode::GitHistory));
         assert!(!tab_bars_are_titlebar(WorkspaceMode::Terminal));
+    }
+
+    #[test]
+    fn mode_indicator_works() {
+        use ui::Color;
+
+        use crate::WorkspaceMode;
+        assert_eq!(mode_indicator(WorkspaceMode::Terminal, true), Some(Color::Error));
+        assert_eq!(mode_indicator(WorkspaceMode::Terminal, false), None);
+        assert_eq!(mode_indicator(WorkspaceMode::Editor, true), None);
+        assert_eq!(mode_indicator(WorkspaceMode::GitHistory, true), None);
     }
 
     #[test]
