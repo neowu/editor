@@ -136,6 +136,26 @@ mod tests {
 
     use super::*;
 
+    // `scan_dir` checks the scanned directory once and then only each child's own path.
+    #[test]
+    fn parent_and_child_checks_match_ancestor_checks() {
+        let settings = WorktreeSettings::built_in();
+        for path in ["a", ".a", "a/b", "a/.b", ".a/b", "a/.git", "a/.git/HEAD", "a/b/.DS_Store", "a/.cache/b/c"] {
+            let path = RelPath::new_test(path);
+            let parent = path.parent().expect("path has a parent");
+            assert_eq!(
+                settings.is_path_hidden(parent) || settings.hidden_files.is_match(&*path),
+                settings.is_path_hidden(&path),
+                "{path:?}"
+            );
+            assert_eq!(
+                settings.is_path_excluded(parent) || settings.file_scan_exclusions.is_match(&*path),
+                settings.is_path_excluded(&path),
+                "{path:?}"
+            );
+        }
+    }
+
     #[test]
     fn built_in_worktree_settings() {
         let settings = WorktreeSettings::built_in();

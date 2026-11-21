@@ -3458,6 +3458,7 @@ impl BackgroundScanner {
             root_char_bag = snapshot.root_char_bag;
         }
 
+        let parent_is_hidden = self.settings.is_path_hidden(&job.path);
         let next_entry_id = Arc::clone(&self.next_entry_id);
         let mut ignore_stack = job.ignore_stack.clone();
         let mut new_ignore = None;
@@ -3556,7 +3557,8 @@ impl BackgroundScanner {
                 }
             }
 
-            if self.settings.is_path_excluded(&child_path) {
+            // `job.path` was checked above, so only the child can match.
+            if self.settings.file_scan_exclusions.is_match(&child_path) {
                 log::debug!("skipping excluded child entry {child_path:?}");
 
                 self.state.lock().await.remove_path_from_snapshot_and_unwatch(&child_path, self.watcher.as_ref(), true);
@@ -3644,15 +3646,9 @@ impl BackgroundScanner {
                 child_entry.is_always_included = self.settings.is_path_always_included(&child_path, false);
             }
 
-            {
-                let relative_path = job.path.join(
-                    RelPath::from_unix_str(child_name.to_str().expect("file name is utf-8"))
-                        .expect("file name is a valid relative path"),
-                );
-                if self.settings.is_path_hidden(&relative_path) {
-                    log::debug!("detected hidden file: {relative_path:?}");
-                    child_entry.is_hidden = true;
-                }
+            if parent_is_hidden || self.settings.hidden_files.is_match(&child_entry.path) {
+                log::debug!("detected hidden file: {:?}", child_entry.path);
+                child_entry.is_hidden = true;
             }
 
             new_entries.push(child_entry);
