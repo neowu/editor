@@ -426,12 +426,8 @@ actions!(
         Backspace,
         /// Cancels the current operation.
         Cancel,
-        /// Cancels the running flycheck operation.
-        CancelFlycheck,
         /// Cancels pending language server work.
         CancelLanguageServerWork,
-        /// Clears flycheck results.
-        ClearFlycheck,
         /// Confirms the rename operation.
         ConfirmRename,
         /// Confirms completion by inserting at cursor.
@@ -729,8 +725,6 @@ actions!(
         RotateSelectionsBackward,
         /// Rotates selections or lines forward.
         RotateSelectionsForward,
-        /// Runs flycheck diagnostics.
-        RunFlycheck,
         /// Scrolls the cursor to the bottom of the viewport.
         ScrollCursorBottom,
         /// Scrolls the cursor to the center of the viewport.

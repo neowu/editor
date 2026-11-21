@@ -10,24 +10,17 @@ use gpui::Window;
 use language::Capability;
 use language::Language;
 use multi_buffer::MultiBuffer;
-use project::ProjectItem as _;
 use project::lsp_store::lsp_ext_command;
 use project::lsp_store::lsp_ext_command::ExpandMacro;
 use project::lsp_store::rust_analyzer_ext::RUST_ANALYZER_NAME;
-use project::lsp_store::rust_analyzer_ext::cancel_flycheck;
-use project::lsp_store::rust_analyzer_ext::clear_flycheck;
-use project::lsp_store::rust_analyzer_ext::run_flycheck;
 use text::ToPointUtf16 as _;
 use url::Url;
 
-use crate::CancelFlycheck;
-use crate::ClearFlycheck;
 use crate::Editor;
 use crate::ExpandMacroRecursively;
 use crate::GoToParentModule;
 use crate::GotoDefinitionKind;
 use crate::OpenDocs;
-use crate::RunFlycheck;
 use crate::element::register_action;
 use crate::hover_links::HoverLink;
 use crate::lsp_ext::find_specific_language_server_in_selection;
@@ -37,14 +30,6 @@ fn is_rust_language(language: &Language) -> bool {
 }
 
 pub(crate) fn apply_related_actions(editor: &Entity<Editor>, window: &mut Window, cx: &App) {
-    if editor.read(cx).project().is_some_and(|project| {
-        project.read(cx).language_server_statuses(cx).any(|(_, status)| status.name == RUST_ANALYZER_NAME)
-    }) {
-        register_action(editor, window, cancel_flycheck_action);
-        register_action(editor, window, run_flycheck_action);
-        register_action(editor, window, clear_flycheck_action);
-    }
-
     if editor
         .read(cx)
         .buffer()
@@ -240,46 +225,4 @@ pub(crate) fn open_docs(editor: &mut Editor, _: &OpenDocs, window: &mut Window, 
         anyhow::Ok(())
     })
     .detach_and_log_err(cx);
-}
-
-fn cancel_flycheck_action(editor: &mut Editor, _: &CancelFlycheck, _: &mut Window, cx: &mut Context<Editor>) {
-    let Some(project) = &editor.project else {
-        return;
-    };
-    let multibuffer_snapshot = editor.buffer.read_with(cx, |buffer, cx| buffer.snapshot(cx));
-    let buffer_id = editor.selections.disjoint_anchors_arc().iter().find_map(|selection| {
-        let buffer_id = multibuffer_snapshot.anchor_to_buffer_anchor(selection.start)?.0.buffer_id;
-        let project = project.read(cx);
-        let entry_id = project.buffer_for_id(buffer_id, cx)?.read(cx).entry_id(cx)?;
-        project.path_for_entry(entry_id, cx)
-    });
-    cancel_flycheck(project.clone(), buffer_id, cx).detach_and_log_err(cx);
-}
-
-fn run_flycheck_action(editor: &mut Editor, _: &RunFlycheck, _: &mut Window, cx: &mut Context<Editor>) {
-    let Some(project) = &editor.project else {
-        return;
-    };
-    let multibuffer_snapshot = editor.buffer.read_with(cx, |buffer, cx| buffer.snapshot(cx));
-    let buffer_id = editor.selections.disjoint_anchors_arc().iter().find_map(|selection| {
-        let buffer_id = multibuffer_snapshot.anchor_to_buffer_anchor(selection.head())?.0.buffer_id;
-        let project = project.read(cx);
-        let entry_id = project.buffer_for_id(buffer_id, cx)?.read(cx).entry_id(cx)?;
-        project.path_for_entry(entry_id, cx)
-    });
-    run_flycheck(project.clone(), buffer_id, cx).detach_and_log_err(cx);
-}
-
-fn clear_flycheck_action(editor: &mut Editor, _: &ClearFlycheck, _: &mut Window, cx: &mut Context<Editor>) {
-    let Some(project) = &editor.project else {
-        return;
-    };
-    let multibuffer_snapshot = editor.buffer.read_with(cx, |buffer, cx| buffer.snapshot(cx));
-    let buffer_id = editor.selections.disjoint_anchors_arc().iter().find_map(|selection| {
-        let buffer_id = multibuffer_snapshot.anchor_to_buffer_anchor(selection.head())?.0.buffer_id;
-        let project = project.read(cx);
-        let entry_id = project.buffer_for_id(buffer_id, cx)?.read(cx).entry_id(cx)?;
-        project.path_for_entry(entry_id, cx)
-    });
-    clear_flycheck(project.clone(), buffer_id, cx).detach_and_log_err(cx);
 }

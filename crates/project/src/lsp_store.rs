@@ -863,6 +863,7 @@ pub struct LspStore {
     semantic_token_config: SemanticTokenConfig,
     lsp_data: FxHashMap<BufferId, BufferLspData>,
     buffer_reload_tasks: FxHashMap<BufferId, Task<anyhow::Result<()>>>,
+    disk_change_flycheck_tasks: FxHashMap<LanguageServerId, Task<()>>,
     next_hint_id: Arc<AtomicUsize>,
 }
 
@@ -1120,6 +1121,7 @@ impl LspStore {
             semantic_token_config: SemanticTokenConfig::new(),
             lsp_data: FxHashMap::default(),
             buffer_reload_tasks: FxHashMap::default(),
+            disk_change_flycheck_tasks: FxHashMap::default(),
             next_hint_id: Arc::default(),
             active_entry: None,
             _maintain_workspace_config,
@@ -1233,6 +1235,10 @@ impl LspStore {
 
     fn on_buffer_reloaded(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) {
         let buffer_id = buffer.read(cx).buffer_id();
+        let server_ids = buffer.update(cx, |buffer, cx| self.local.language_server_ids_for_buffer(buffer, cx));
+        for server_id in server_ids {
+            self.schedule_flycheck_for_disk_change(server_id, cx);
+        }
         let task = self.pull_diagnostics_for_buffer(buffer, cx);
         self.buffer_reload_tasks.insert(buffer_id, task);
     }

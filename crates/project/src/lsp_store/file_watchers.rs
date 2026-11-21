@@ -49,6 +49,8 @@ use worktree::WorktreeId;
 use super::LanguageServerState;
 use super::LocalLspStore;
 use super::LspStore;
+use super::rust_analyzer_ext;
+use crate::ProjectPath;
 use crate::ProjectTransaction;
 use crate::lsp_command::file_path_to_lsp_url;
 
@@ -577,6 +579,24 @@ impl LspStore {
                 }
             }
         }
+        let needs_flycheck = {
+            let worktree = worktree_handle.read(cx);
+            let buffer_store = self.buffer_store.read(cx);
+            changes.iter().any(|(path, _, change)| {
+                rust_analyzer_ext::disk_change_needs_flycheck(
+                    path,
+                    *change,
+                    worktree.entry_for_path(path).is_some_and(|entry| entry.is_ignored),
+                    buffer_store.get_by_path(&ProjectPath { worktree_id, path: Arc::clone(path) }).is_some(),
+                )
+            })
+        };
+        if needs_flycheck {
+            for server_id in language_server_ids {
+                self.schedule_flycheck_for_disk_change(server_id, cx);
+            }
+        }
+        let local = &self.local;
         for (path, _, _) in changes {
             if let Some(file_name) = path.file_name()
                 && local.watched_manifest_filenames.contains(file_name)

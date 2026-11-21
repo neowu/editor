@@ -119,6 +119,13 @@
   (absolute paths) to `vfs.extraIncludes`. Exact duplicate diagnostics in a
   publish are collapsed to one. These warnings show in the diagnostics pane
   under the clippy config, not at the offending `Cargo.toml` line.
+- rust-analyzer re-runs its check only on `didSave`, so a change made on disk
+  (an agent, `git checkout`) would leave cargo diagnostics stale. The editor
+  sends `rust-analyzer/runFlycheck` for the workspace when a buffer reloads
+  from disk or an unopened, non-ignored `.rs` file changes, debounced 1s per
+  server so a burst is one check. Manual saves keep the immediate `didSave`
+  path. Not covered: a dirty buffer whose file changed on disk (it doesn't
+  reload), and `Cargo.toml`, which rust-analyzer reloads itself.
 - C and C++ are not registered languages (no clangd, comments, brackets or
   per-language settings): their files open as Plain Text and are highlighted
   by the fallback below.

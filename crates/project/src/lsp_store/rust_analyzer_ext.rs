@@ -1,27 +1,63 @@
+use std::time::Duration;
+
 use ::serde::Deserialize;
 use ::serde::Serialize;
-use anyhow::Context as _;
-use gpui::App;
-use gpui::AsyncApp;
-use gpui::Entity;
-use gpui::Task;
+use gpui::Context;
 use gpui::WeakEntity;
-use language::Buffer;
 use language::LanguageServerStatusUpdate;
 use language::ServerHealth;
 use lsp::LanguageServer;
 use lsp::LanguageServerId;
 use lsp::LanguageServerName;
 use lsp::notification::Notification;
+use util::rel_path::RelPath;
+use worktree::PathChange;
 
 use crate::LspStore;
 use crate::LspStoreEvent;
-use crate::Project;
-use crate::ProjectPath;
 use crate::lsp_store;
 
 pub const RUST_ANALYZER_NAME: LanguageServerName = LanguageServerName::new_static("rust-analyzer");
 pub const CARGO_DIAGNOSTICS_SOURCE_NAME: &str = "rustc";
+
+/// Collapses a burst of on-disk changes (an agent editing several files) into one check.
+const DISK_CHANGE_FLYCHECK_DEBOUNCE: Duration = Duration::from_secs(1);
+
+/// Whether a worktree change is a Rust source edit rust-analyzer won't re-check on its own.
+/// Open buffers are covered by their reload; ignored paths (`target/`) are flycheck's own output.
+pub(crate) fn disk_change_needs_flycheck(
+    path: &RelPath,
+    change: PathChange,
+    is_ignored: bool,
+    has_open_buffer: bool,
+) -> bool {
+    !matches!(change, PathChange::Loaded) && !is_ignored && !has_open_buffer && path.extension() == Some("rs")
+}
+
+impl LspStore {
+    /// rust-analyzer runs flycheck only on `didSave`, which a change made on disk never sends,
+    /// so its cargo diagnostics would stay stale until the next manual save.
+    pub(crate) fn schedule_flycheck_for_disk_change(&mut self, server_id: LanguageServerId, cx: &Context<Self>) {
+        if self.language_server_for_id(server_id).is_none_or(|server| server.name() != RUST_ANALYZER_NAME) {
+            return;
+        }
+        let task = cx.spawn(async move |lsp_store, cx| {
+            cx.background_executor().timer(DISK_CHANGE_FLYCHECK_DEBOUNCE).await;
+            lsp_store
+                .read_with(cx, |lsp_store, _| {
+                    if let Some(server) = lsp_store.language_server_for_id(server_id) {
+                        server
+                            .notify::<lsp_store::lsp_ext_command::LspExtRunFlycheck>(
+                                lsp_store::lsp_ext_command::RunFlycheckParams { text_document: None },
+                            )
+                            .ok();
+                    }
+                })
+                .ok();
+        });
+        self.disk_change_flycheck_tasks.insert(server_id, task);
+    }
+}
 
 /// Experimental: Informs the end user about the state of the server.
 ///
@@ -75,133 +111,24 @@ pub fn register_notifications(lsp_store: WeakEntity<LspStore>, language_server: 
         .detach();
 }
 
-pub fn cancel_flycheck(
-    project: Entity<Project>,
-    buffer_path: Option<ProjectPath>,
-    cx: &mut App,
-) -> Task<anyhow::Result<()>> {
-    let lsp_store = project.read(cx).lsp_store();
-    let buffer = buffer_path.map(|buffer_path| {
-        project.update(cx, |project, cx| {
-            project.buffer_store().update(cx, |buffer_store, cx| buffer_store.open_buffer(buffer_path, cx))
-        })
-    });
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    cx.spawn(async move |cx| {
-        let buffer = match buffer {
-            Some(buffer) => Some(buffer.await?),
-            None => None,
-        };
-        let Some(rust_analyzer_server) = find_rust_analyzer_server(&project, buffer.as_ref(), cx) else {
-            return Ok(());
-        };
-
-        lsp_store
-            .read_with(cx, |lsp_store, _| {
-                if let Some(server) = lsp_store.language_server_for_id(rust_analyzer_server) {
-                    server.notify::<lsp_store::lsp_ext_command::LspExtCancelFlycheck>(())
-                } else {
-                    Ok(())
-                }
-            })
-            .context("lsp ext cancel flycheck")?;
-
-        anyhow::Ok(())
-    })
-}
-
-pub fn run_flycheck(
-    project: Entity<Project>,
-    buffer_path: Option<ProjectPath>,
-    cx: &mut App,
-) -> Task<anyhow::Result<()>> {
-    let lsp_store = project.read(cx).lsp_store();
-    let buffer = buffer_path.map(|buffer_path| {
-        project.update(cx, |project, cx| {
-            project.buffer_store().update(cx, |buffer_store, cx| buffer_store.open_buffer(buffer_path, cx))
-        })
-    });
-
-    cx.spawn(async move |cx| {
-        let buffer = match buffer {
-            Some(buffer) => Some(buffer.await?),
-            None => None,
-        };
-        let Some(rust_analyzer_server) = find_rust_analyzer_server(&project, buffer.as_ref(), cx) else {
-            return Ok(());
-        };
-
-        lsp_store
-            .read_with(cx, |lsp_store, _| {
-                if let Some(server) = lsp_store.language_server_for_id(rust_analyzer_server) {
-                    server.notify::<lsp_store::lsp_ext_command::LspExtRunFlycheck>(
-                        lsp_store::lsp_ext_command::RunFlycheckParams { text_document: None },
-                    )
-                } else {
-                    Ok(())
-                }
-            })
-            .context("lsp ext run flycheck")?;
-
-        anyhow::Ok(())
-    })
-}
-
-pub fn clear_flycheck(
-    project: Entity<Project>,
-    buffer_path: Option<ProjectPath>,
-    cx: &mut App,
-) -> Task<anyhow::Result<()>> {
-    let lsp_store = project.read(cx).lsp_store();
-    let buffer = buffer_path.map(|buffer_path| {
-        project.update(cx, |project, cx| {
-            project.buffer_store().update(cx, |buffer_store, cx| buffer_store.open_buffer(buffer_path, cx))
-        })
-    });
-
-    cx.spawn(async move |cx| {
-        let buffer = match buffer {
-            Some(buffer) => Some(buffer.await?),
-            None => None,
-        };
-        let Some(rust_analyzer_server) = find_rust_analyzer_server(&project, buffer.as_ref(), cx) else {
-            return Ok(());
-        };
-
-        lsp_store
-            .read_with(cx, |lsp_store, _| {
-                if let Some(server) = lsp_store.language_server_for_id(rust_analyzer_server) {
-                    server.notify::<lsp_store::lsp_ext_command::LspExtClearFlycheck>(())
-                } else {
-                    Ok(())
-                }
-            })
-            .context("lsp ext clear flycheck")?;
-
-        anyhow::Ok(())
-    })
-}
-
-fn find_rust_analyzer_server(
-    project: &Entity<Project>,
-    buffer: Option<&Entity<Buffer>>,
-    cx: &AsyncApp,
-) -> Option<LanguageServerId> {
-    project.read_with(cx, |project, cx| {
-        buffer
-            .and_then(|buffer| project.language_server_id_for_name(buffer.read(cx), &RUST_ANALYZER_NAME, cx))
-            // If no rust-analyzer found for the current buffer (e.g. `settings.json`), fall back to the project lookup
-            // and use project's rust-analyzer if it's the only one.
-            .or_else(|| {
-                let rust_analyzer_servers = project
-                    .lsp_store()
-                    .read(cx)
-                    .language_server_statuses
-                    .iter()
-                    .filter(|(_, server_status)| server_status.name == RUST_ANALYZER_NAME)
-                    .map(|(server_id, _)| *server_id)
-                    .collect::<Vec<_>>();
-                if rust_analyzer_servers.len() == 1 { rust_analyzer_servers.first().copied() } else { None }
-            })
-    })
+    #[test]
+    fn disk_change_needs_flycheck_only_for_unopened_tracked_rust_files() {
+        let rust = RelPath::new_test("crates/a/src/lib.rs");
+        for change in [PathChange::Added, PathChange::Removed, PathChange::Updated, PathChange::AddedOrUpdated] {
+            assert!(disk_change_needs_flycheck(&rust, change, false, false));
+        }
+        // The initial scan is not a change.
+        assert!(!disk_change_needs_flycheck(&rust, PathChange::Loaded, false, false));
+        // Flycheck's own output must not re-trigger it.
+        assert!(!disk_change_needs_flycheck(&rust, PathChange::Updated, true, false));
+        // An open buffer triggers through its reload, and a manual save through `didSave`.
+        assert!(!disk_change_needs_flycheck(&rust, PathChange::Updated, false, true));
+        for other in ["Cargo.toml", "README.md", "src/rs", "Makefile"] {
+            assert!(!disk_change_needs_flycheck(&RelPath::new_test(other), PathChange::Updated, false, false));
+        }
+    }
 }

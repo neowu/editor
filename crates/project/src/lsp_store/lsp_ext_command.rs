@@ -422,18 +422,7 @@ impl LspCommand for GetLspRunnables {
 }
 
 #[derive(Debug)]
-pub struct LspExtCancelFlycheck;
-
-#[derive(Debug)]
 pub struct LspExtRunFlycheck;
-
-#[derive(Debug)]
-pub struct LspExtClearFlycheck;
-
-impl Notification for LspExtCancelFlycheck {
-    type Params = ();
-    const METHOD: &'static str = "rust-analyzer/cancelFlycheck";
-}
 
 impl Notification for LspExtRunFlycheck {
     type Params = RunFlycheckParams;
@@ -444,9 +433,4 @@ impl Notification for LspExtRunFlycheck {
 #[serde(rename_all = "camelCase")]
 pub struct RunFlycheckParams {
     pub text_document: Option<lsp::TextDocumentIdentifier>,
-}
-
-impl Notification for LspExtClearFlycheck {
-    type Params = ();
-    const METHOD: &'static str = "rust-analyzer/clearFlycheck";
 }
