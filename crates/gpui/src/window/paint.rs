@@ -186,15 +186,7 @@ impl Window {
     /// Floors the near edge and ceils the far edge, producing a strict superset of the raw region.
     #[inline]
     fn cover_bounds(&self, bounds: Bounds<Pixels>) -> Bounds<ScaledPixels> {
-        let scale_factor = self.scale_factor();
-        let left = floor_to_device_pixel(bounds.left().0, scale_factor);
-        let top = floor_to_device_pixel(bounds.top().0, scale_factor);
-        let right = ceil_to_device_pixel(bounds.right().0, scale_factor).max(left);
-        let bottom = ceil_to_device_pixel(bounds.bottom().0, scale_factor).max(top);
-        Bounds::from_corners(
-            point(ScaledPixels(left), ScaledPixels(top)),
-            point(ScaledPixels(right), ScaledPixels(bottom)),
-        )
+        cover_bounds(bounds, self.scale_factor())
     }
 
     #[inline]
@@ -808,5 +800,49 @@ pub fn outline(
         border_widths: (1.).into(),
         border_color: border_color.into(),
         border_style,
+    }
+}
+
+fn cover_bounds(bounds: Bounds<Pixels>, scale_factor: f32) -> Bounds<ScaledPixels> {
+    let left = floor_to_device_pixel(bounds.left().0, scale_factor);
+    let top = floor_to_device_pixel(bounds.top().0, scale_factor);
+    // Rounding outward would turn an empty region into a 1px strip at
+    // fractional positions, so return a zero size instead. Negative
+    // sizes become zero too, because the blurred shadow shader draws a
+    // negative-size hole the same as a positive one.
+    if bounds.is_empty() {
+        return Bounds::new(point(ScaledPixels(left), ScaledPixels(top)), crate::Size::default());
+    }
+    let right = ceil_to_device_pixel(bounds.right().0, scale_factor).max(left);
+    let bottom = ceil_to_device_pixel(bounds.bottom().0, scale_factor).max(top);
+    Bounds::from_corners(point(ScaledPixels(left), ScaledPixels(top)), point(ScaledPixels(right), ScaledPixels(bottom)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::px;
+
+    #[test]
+    fn cover_bounds_keeps_empty_regions_empty() {
+        for scale_factor in [1.0, 1.25, 1.5, 2.0] {
+            for fraction in [0., 0.2, 0.5, 0.75] {
+                for empty in
+                    [size(px(40.), px(0.)), size(px(0.), px(20.)), size(px(0.), px(0.)), size(px(-3.), px(20.))]
+                {
+                    let covered =
+                        cover_bounds(Bounds::new(point(px(30. + fraction), px(181. + fraction)), empty), scale_factor);
+                    assert!(covered.is_empty(), "{empty:?} at {fraction} x{scale_factor}: {covered:?}");
+                }
+                // Positive-area regions still round outward to a superset.
+                let bounds = Bounds::new(point(px(30. + fraction), px(181. + fraction)), size(px(10.2), px(0.1)));
+                let covered = cover_bounds(bounds, scale_factor);
+                assert!(covered.left().0 <= bounds.left().0 * scale_factor);
+                assert!(covered.top().0 <= bounds.top().0 * scale_factor);
+                assert!(covered.right().0 >= bounds.right().0 * scale_factor);
+                assert!(covered.bottom().0 >= bounds.bottom().0 * scale_factor);
+                assert!(!covered.is_empty());
+            }
+        }
     }
 }
