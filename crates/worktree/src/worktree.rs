@@ -2093,13 +2093,19 @@ async fn is_dot_git(path: &Path, fs: &dyn Fs) -> bool {
 
     // If we're in a bare repository, we are not inside a `.git` folder. In a
     // bare repository, the root folder contains what would normally be in the
-    // `.git` folder.
-    let head_metadata = fs.metadata(&path.join("HEAD")).await;
-    if !matches!(head_metadata, Ok(Some(_))) {
-        return false;
-    }
-    let config_metadata = fs.metadata(&path.join("config")).await;
-    matches!(config_metadata, Ok(Some(_)))
+    // `.git` folder, so `HEAD` and `config` must be files: source directories
+    // can contain entries with those names (`head` matches `HEAD` on
+    // case-insensitive filesystems).
+    //
+    // `HEAD` may be a symlink (`core.preferSymlinkRefs`) that dangles once its
+    // ref only lives in `packed-refs`; Git resolves it by name, so a broken
+    // link still counts.
+    fs.is_file(&path.join("config")).await && is_file_or_symlink(&path.join("HEAD"), fs).await
+}
+
+/// Whether the path is a file or a symlink, without resolving the link.
+async fn is_file_or_symlink(path: &Path, fs: &dyn Fs) -> bool {
+    fs.is_file(path).await || fs.read_link(path).await.is_ok()
 }
 
 async fn build_gitignore(abs_path: &Path, fs: &dyn Fs) -> Result<Gitignore> {
