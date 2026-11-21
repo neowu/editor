@@ -14,6 +14,7 @@ use anyhow::Ok;
 use anyhow::Result;
 use async_macos::yield_now;
 use fancy_regex::Captures;
+use fancy_regex::Expander;
 use fancy_regex::Regex;
 use fancy_regex::RegexBuilder;
 use gpui::Entity;
@@ -87,6 +88,9 @@ pub enum SearchQuery {
     Regex {
         regex: Regex,
         replacement: Option<String>,
+        /// `replacement` with escape sequences resolved and capture references delimited, ready
+        /// for `Captures::expand`. Only set for queries that are not `escaped`.
+        replacement_template: Option<String>,
         whole_word: bool,
         case_sensitive: bool,
         include_ignored: bool,
@@ -225,6 +229,7 @@ impl SearchQuery {
         Ok(Self::Regex {
             regex,
             replacement: None,
+            replacement_template: None,
             whole_word,
             case_sensitive,
             include_ignored,
@@ -274,12 +279,15 @@ impl SearchQuery {
     }
 
     pub fn with_replacement(mut self, new_replacement: String) -> Self {
-        match self {
-            Self::Text { ref mut replacement, .. } | Self::Regex { ref mut replacement, .. } => {
+        match &mut self {
+            Self::Text { replacement, .. } => *replacement = Some(new_replacement),
+            Self::Regex { regex, replacement, replacement_template, escaped, .. } => {
+                // Prepared here rather than in `replacement_for`, which runs for every hit.
+                *replacement_template = (!*escaped).then(|| prepare_replacement_template(regex, &new_replacement));
                 *replacement = Some(new_replacement);
-                self
             }
         }
+        self
     }
 
     pub async fn detect(&self, reader: &mut (dyn Read + Send)) -> Result<Option<MatchPositionHint>> {
@@ -319,18 +327,7 @@ impl SearchQuery {
                 replacement.clone().map(Cow::from)
             }
 
-            SearchQuery::Regex { regex, replacement: Some(replacement), escaped: false, .. } => {
-                static TEXT_REPLACEMENT_SPECIAL_CHARACTERS_REGEX: LazyLock<Regex> =
-                    LazyLock::new(|| Regex::new(r"\\\\|\\n|\\t").expect("static regex is valid"));
-                let replacement =
-                    TEXT_REPLACEMENT_SPECIAL_CHARACTERS_REGEX.replace_all(replacement, |c: &Captures<str>| {
-                        match c.get(0).expect("capture group 0 always exists").as_str() {
-                            r"\\" => "\\",
-                            r"\n" => "\n",
-                            r"\t" => "\t",
-                            x => unreachable!("Unexpected escape sequence: {}", x),
-                        }
-                    });
+            SearchQuery::Regex { regex, replacement_template: Some(replacement), escaped: false, .. } => {
                 let captures = regex
                     .captures_from_pos(line, hit.start)
                     .ok()
@@ -340,14 +337,14 @@ impl SearchQuery {
                     // The pattern is not guaranteed to match the whole line, for instance when
                     // searching within a selection that starts or ends mid-line, so fall back to
                     // matching the hit on its own.
-                    return Some(regex.replace(line.get(hit)?, replacement));
+                    return Some(regex.replace(line.get(hit)?, replacement.as_str()));
                 };
                 let mut replaced = String::new();
-                captures.expand(&replacement, &mut replaced);
+                captures.expand(replacement, &mut replaced);
                 Some(Cow::Owned(replaced))
             }
 
-            SearchQuery::Regex { replacement: None, .. } => None,
+            SearchQuery::Regex { replacement_template: None, .. } => None,
         }
     }
 
@@ -636,10 +633,132 @@ async fn read_to_string(reader: &mut (dyn Read + Send)) -> Result<String> {
     }
 }
 
+/// Resolves the escape sequences supported in replacements and delimits capture references, so
+/// that `Captures::expand` can use the result for every hit as is.
+fn prepare_replacement_template(regex: &Regex, replacement: &str) -> String {
+    static TEXT_REPLACEMENT_SPECIAL_CHARACTERS_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\\\\|\\n|\\t").expect("static regex is valid"));
+    let replacement = TEXT_REPLACEMENT_SPECIAL_CHARACTERS_REGEX.replace_all(replacement, |c: &Captures<str>| {
+        match c.get(0).expect("capture group 0 always exists").as_str() {
+            r"\\" => "\\",
+            r"\n" => "\n",
+            r"\t" => "\t",
+            x => unreachable!("Unexpected escape sequence: {}", x),
+        }
+    });
+    delimit_capture_references(regex, &replacement).into_owned()
+}
+
+/// `fancy_regex` reads an unbraced capture reference up to the first character that is neither a
+/// Unicode alphanumeric nor `_`, so `$1ème` refers to a group named `1ème` and expands to nothing.
+/// Unless such a group exists, end the reference before its first non-ASCII character by rewriting
+/// it as `${1}ème`. Every other reference is left for `fancy_regex` to interpret.
+fn delimit_capture_references<'a>(regex: &Regex, replacement: &'a str) -> Cow<'a, str> {
+    let mut delimited = String::new();
+    let mut copied_len = 0;
+    let mut search_start = 0;
+    while let Some(offset) = replacement[search_start..].find('$') {
+        let name_start = search_start + offset + 1;
+        let rest = &replacement[name_start..];
+        if rest.starts_with('$') {
+            search_start = name_start + 1;
+            continue;
+        }
+        let name_len =
+            rest.find(|character: char| !(character.is_alphanumeric() || character == '_')).unwrap_or(rest.len());
+        let name_end = name_start + name_len;
+        search_start = name_end;
+        let name = &rest[..name_len];
+        let ascii_len = name.find(|character: char| !character.is_ascii()).unwrap_or(name_len);
+        if ascii_len == 0 || ascii_len == name_len {
+            continue;
+        }
+        // `Expander::check` looks up a single name, whereas `Regex::capture_names` lists every
+        // group. It allocates an error when the name is missing, so this must not run per hit.
+        let reference = &replacement[name_start - 1..name_end];
+        if Expander::default().check(reference, regex).is_ok() {
+            continue;
+        }
+        let ascii_end = name_start + ascii_len;
+        delimited.push_str(&replacement[copied_len..name_start]);
+        delimited.push('{');
+        delimited.push_str(&replacement[name_start..ascii_end]);
+        delimited.push('}');
+        copied_len = ascii_end;
+    }
+    if delimited.is_empty() {
+        Cow::Borrowed(replacement)
+    } else {
+        delimited.push_str(&replacement[copied_len..]);
+        Cow::Owned(delimited)
+    }
+}
+
 fn count_newlines(bytes: &[u8]) -> usize {
     bytes.iter().map(|&byte| usize::from(byte == b'\n')).sum()
 }
 
 fn invalid_data() -> anyhow::Error {
     anyhow::Error::from(io::Error::from(io::ErrorKind::InvalidData))
+}
+
+#[cfg(test)]
+mod tests {
+    use util::paths::PathMatcher;
+
+    use super::SearchQuery;
+
+    fn regex_query(pattern: &str, replacement: &str) -> SearchQuery {
+        SearchQuery::regex(
+            pattern,
+            false,
+            true,
+            false,
+            false,
+            PathMatcher::default(),
+            PathMatcher::default(),
+            false,
+            None,
+        )
+        .expect("valid regex")
+        .with_replacement(replacement.to_owned())
+    }
+
+    fn replace_first_hit(pattern: &str, replacement: &str, line: &str) -> Option<String> {
+        let query = regex_query(pattern, replacement);
+        let hit = query.search_str(line).into_iter().next()?;
+        query.replacement_for(line, hit).map(|replacement| replacement.into_owned())
+    }
+
+    #[test]
+    fn replacement_for_capture_reference_followed_by_non_ascii_text() {
+        assert_eq!(replace_first_hit(r"(\d+)e", "$1ème", "2e étage").as_deref(), Some("2ème"));
+        assert_eq!(replace_first_hit(r"(\d+)e", "${1}ème", "2e étage").as_deref(), Some("2ème"));
+        assert_eq!(replace_first_hit(r"(?<number>\d+)e", "$numberème", "2e étage").as_deref(), Some("2ème"));
+        assert_eq!(replace_first_hit(r"第(\d+)回", "第$1章", "第12回").as_deref(), Some("第12章"));
+        // A group whose name really continues with non-ASCII characters still resolves.
+        assert_eq!(replace_first_hit(r"(?<né>\d+)e", "$né!", "2e").as_deref(), Some("2!"));
+        // ASCII-only references and escaped dollars are untouched.
+        assert_eq!(replace_first_hit(r"(\d+)e", "$1x $$1", "2e").as_deref(), Some(" $1"));
+    }
+
+    #[test]
+    fn replacement_for_capture_reference_when_hit_does_not_match_in_line() {
+        // The lookbehind keeps the pattern from matching at the hit within the line, which
+        // exercises the fallback that matches the hit on its own.
+        let query = regex_query(r"(?<!x)(\d+)e", "$1ème");
+        let line = "x2e";
+        assert_eq!(query.replacement_for(line, 1..line.len()).as_deref(), Some("2ème"));
+    }
+
+    #[test]
+    fn with_replacement_prepares_the_replacement_again() {
+        let query = regex_query(r"(\d+)e", "$1ème");
+        assert_eq!(query.replacement(), Some("$1ème"));
+        assert_eq!(query.replacement_for("2e", 0..2).as_deref(), Some("2ème"));
+
+        let query = query.with_replacement(r"$1è\t".to_owned());
+        assert_eq!(query.replacement(), Some(r"$1è\t"));
+        assert_eq!(query.replacement_for("2e", 0..2).as_deref(), Some("2è\t"));
+    }
 }
