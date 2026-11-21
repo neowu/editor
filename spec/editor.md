@@ -21,9 +21,11 @@
   matches are cleared (search dismissed, or the query finds nothing).
 - Hovering a gutter row (after a short delay) shows a bookmark-icon button left
   of the line number. Clicking it copies the worktree-relative `path:line` to
-  the clipboard. If the newest selection
-  spans multiple lines and covers the clicked row, it copies `path:start-end`
-  instead (same format as `editor::CopyFileLocation`). After copying, the
+  the clipboard. If any selection covers the clicked row, it copies the
+  location of all selections instead (same as `editor::CopyFileLocation`):
+  line ranges joined by commas, e.g. `path:1,3,5-7`, with overlapping or
+  adjacent lines merged into one range. In a multibuffer each file gets its
+  own line. After copying, the
   button turns into a green check ("Copied!") for 2s, staying visible even
   after the mouse leaves, matching the shared copy-button feedback. The button is hidden for
   buffers without a worktree file, on rows with a run indicator, on the left

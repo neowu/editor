@@ -369,25 +369,24 @@ impl Editor {
     }
 
     pub fn copy_file_location(&mut self, _: &CopyFileLocation, _: &mut Window, cx: &mut Context<Self>) {
-        let selection = self.selections.newest::<Point>(&self.display_snapshot(cx));
-        if let Some(file_location) = self.file_location(selection.range(), selection.head(), cx) {
+        let selections = self.selections.all::<Point>(&self.display_snapshot(cx));
+        if let Some(file_location) = self.file_location(selections.iter().map(|s| (s.range(), s.head())), cx) {
             cx.write_to_clipboard(ClipboardItem::new_string(file_location));
         }
     }
 
-    /// Copies `path:line` for the clicked gutter row, or `path:start-end` when the
-    /// newest selection spans multiple lines and covers that row.
+    /// Copies `path:line` for the clicked gutter row, or the location of all
+    /// selections when one of them covers that row.
     pub(super) fn copy_file_location_at_row(&mut self, row: DisplayRow, cx: &mut Context<Self>) {
         let display_snapshot = self.display_snapshot(cx);
         let point = display_snapshot.display_point_to_point(row.as_display_point(), Bias::Left);
-        let selection = self.selections.newest::<Point>(&display_snapshot);
-        let range = selection.range();
-        let range = if range.start.row != range.end.row && (range.start.row..=range.end.row).contains(&point.row) {
-            range
+        let selections = self.selections.all::<Point>(&display_snapshot);
+        let file_location = if selections.iter().any(|s| (s.start.row..=s.end.row).contains(&point.row)) {
+            self.file_location(selections.iter().map(|s| (s.range(), s.head())), cx)
         } else {
-            point..point
+            self.file_location([(point..point, point)], cx)
         };
-        if let Some(file_location) = self.file_location(range, point, cx) {
+        if let Some(file_location) = file_location {
             cx.write_to_clipboard(ClipboardItem::new_string(file_location));
             self.gutter_copied_row = (
                 Some(row),
@@ -404,27 +403,29 @@ impl Editor {
         }
     }
 
-    fn file_location(&self, range: Range<Point>, cursor: Point, cx: &App) -> Option<String> {
+    /// `ranges` are `(selection range, cursor)` pairs in buffer order.
+    fn file_location(&self, ranges: impl IntoIterator<Item = (Range<Point>, Point)>, cx: &App) -> Option<String> {
         let multi_buffer_snapshot = self.buffer.read(cx).snapshot(cx);
-        let (buffer, range) = multi_buffer_snapshot.range_to_buffer_range(range).or_else(|| {
-            // A range that spans multiple buffers has no single location,
-            // so fall back to the buffer the cursor is in.
-            let (buffer, point) = multi_buffer_snapshot.point_to_buffer_point(cursor)?;
-            Some((buffer, point..point))
-        })?;
+        let mut lines = Vec::new();
+        for (range, cursor) in ranges {
+            let Some((buffer, range)) = multi_buffer_snapshot.range_to_buffer_range(range).or_else(|| {
+                // A range that spans multiple buffers has no single location,
+                // so fall back to the buffer the cursor is in.
+                let (buffer, point) = multi_buffer_snapshot.point_to_buffer_point(cursor)?;
+                Some((buffer, point..point))
+            }) else {
+                continue;
+            };
+            let Some(file) = buffer.file() else {
+                continue;
+            };
 
-        let start_line = range.start.row + 1;
-        let end_line = range.end.row + 1;
-
-        let end_line = if range.end.column == 0 && end_line > start_line { end_line - 1 } else { end_line };
-
-        let path = buffer.file()?.path().display();
-
-        Some(if start_line == end_line {
-            format!("{path}:{start_line}")
-        } else {
-            format!("{path}:{start_line}-{end_line}")
-        })
+            let start_line = range.start.row + 1;
+            let end_line = range.end.row + 1;
+            let end_line = if range.end.column == 0 && end_line > start_line { end_line - 1 } else { end_line };
+            lines.push((file.path().display(), start_line, end_line));
+        }
+        (!lines.is_empty()).then(|| format_file_locations(&lines))
     }
 
     pub fn open_selections_in_multibuffer(
@@ -654,3 +655,73 @@ impl Editor {
 }
 
 pub(super) const GUTTER_COPIED_STATE_DURATION: Duration = Duration::from_secs(2);
+
+/// Formats `(path, start_line, end_line)` entries as `path:1,3,5-7`, one line per
+/// run of entries sharing a path. Overlapping or adjacent line ranges are merged.
+fn format_file_locations(lines: &[(&str, u32, u32)]) -> String {
+    let mut text = String::new();
+    let mut ix = 0;
+    while ix < lines.len() {
+        let (path, mut start, mut end) = lines[ix];
+        if !text.is_empty() {
+            text.push('\n');
+        }
+        text.push_str(path);
+        let mut separator = ':';
+        loop {
+            ix += 1;
+            let next = lines.get(ix).filter(|next| next.0 == path);
+            if let Some(&(_, next_start, next_end)) = next
+                && next_start <= end + 1
+            {
+                start = start.min(next_start);
+                end = end.max(next_end);
+                continue;
+            }
+            text.push(separator);
+            separator = ',';
+            text.push_str(&start.to_string());
+            if end > start {
+                text.push('-');
+                text.push_str(&end.to_string());
+            }
+            let Some(&(_, next_start, next_end)) = next else {
+                break;
+            };
+            (start, end) = (next_start, next_end);
+        }
+    }
+    text
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_file_locations_single() {
+        assert_eq!(format_file_locations(&[("a.rs", 3, 3)]), "a.rs:3");
+        assert_eq!(format_file_locations(&[("a.rs", 3, 7)]), "a.rs:3-7");
+    }
+
+    #[test]
+    fn format_file_locations_multiple_selections() {
+        assert_eq!(format_file_locations(&[("a.rs", 1, 1), ("a.rs", 3, 3), ("a.rs", 5, 5)]), "a.rs:1,3,5");
+        assert_eq!(format_file_locations(&[("a.rs", 1, 2), ("a.rs", 5, 5), ("a.rs", 8, 10)]), "a.rs:1-2,5,8-10");
+    }
+
+    #[test]
+    fn format_file_locations_merges_adjacent_and_overlapping() {
+        assert_eq!(format_file_locations(&[("a.rs", 1, 1), ("a.rs", 2, 2), ("a.rs", 3, 3)]), "a.rs:1-3");
+        assert_eq!(format_file_locations(&[("a.rs", 1, 4), ("a.rs", 4, 4), ("a.rs", 6, 6)]), "a.rs:1-4,6");
+        assert_eq!(format_file_locations(&[("a.rs", 2, 2), ("a.rs", 2, 2)]), "a.rs:2");
+    }
+
+    #[test]
+    fn format_file_locations_multiple_files() {
+        assert_eq!(
+            format_file_locations(&[("a.rs", 1, 1), ("a.rs", 3, 3), ("b.rs", 2, 4), ("b.rs", 5, 5), ("a.rs", 9, 9)]),
+            "a.rs:1,3\nb.rs:2-5\na.rs:9"
+        );
+    }
+}
