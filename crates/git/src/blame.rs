@@ -154,7 +154,9 @@ async fn run_git_blame(git: &GitBinary, path: &RepoPath, source: BlameSource<'_>
 
     let wait_for_status = async { child.status().await.context("waiting for git blame process") };
 
-    let ((), entries, stderr, status) = try_join!(write_stdin, read_stdout, read_stderr, wait_for_status)?;
+    // Git closes stdin when it exits early, so its status is checked before the write error.
+    let (write_result, entries, stderr, status) =
+        try_join!(async { anyhow::Ok(write_stdin.await) }, read_stdout, read_stderr, wait_for_status)?;
 
     if !status.success() {
         let trimmed = stderr.trim();
@@ -163,6 +165,7 @@ async fn run_git_blame(git: &GitBinary, path: &RepoPath, source: BlameSource<'_>
         }
         anyhow::bail!("git blame process failed: {stderr}");
     }
+    write_result.context("writing contents to git blame")?;
 
     Ok(entries)
 }
