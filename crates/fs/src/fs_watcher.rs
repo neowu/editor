@@ -302,6 +302,9 @@ impl WatchKey {
         // FSEvents can report NFD while a config/LSP supplies NFC, so normalize
         // before folding case.
         use unicode_normalization::UnicodeNormalization as _;
+        if lossy.is_ascii() {
+            return lossy.to_ascii_lowercase();
+        }
         lossy.chars().nfc().collect::<String>().to_lowercase()
     }
 
@@ -858,6 +861,16 @@ mod tests {
         let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
         assert!(future.as_mut().poll(&mut cx).is_pending());
         assert!(future.as_mut().poll(&mut cx).is_ready());
+    }
+
+    #[test]
+    fn folded_path_lowercases_ascii_and_normalizes_unicode() {
+        let folded = |path: &str| WatchKey::folded_path(SanitizedPath::new(path));
+        assert_eq!(folded("/Root/Dir/File.TXT"), "/root/dir/file.txt");
+        // Trailing separators and `.` components are dropped on the ASCII path too.
+        assert_eq!(folded("/Root/./Dir/"), "/root/dir");
+        assert_eq!(folded("/Root/CAFE\u{301}"), "/root/caf\u{e9}");
+        assert_eq!(folded("/Root/\u{c9}COLE"), "/root/\u{e9}cole");
     }
 
     #[test]
