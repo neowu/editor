@@ -978,6 +978,10 @@ impl Platform for MacPlatform {
         }
     }
 
+    fn mark_cursor_visible(&self) {
+        self.0.lock().cursor_visible.store(true, Ordering::Relaxed);
+    }
+
     fn is_cursor_visible(&self) -> bool {
         self.0.lock().cursor_visible.load(Ordering::Relaxed)
     }

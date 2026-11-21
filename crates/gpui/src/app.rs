@@ -220,13 +220,6 @@ impl Application {
         self
     }
 
-    /// Configures when the application should automatically quit.
-    /// By default, [`QuitMode::Explicit`] is used.
-    pub fn with_quit_mode(self, mode: QuitMode) -> Self {
-        self.0.borrow_mut().quit_mode = mode;
-        self
-    }
-
     /// Start the application. The provided callback will be called once the
     /// app is fully launched.
     ///
@@ -298,32 +291,6 @@ type QuitHandler = (Box<dyn FnOnce(&mut App) -> LocalBoxFuture<'static, ()> + 's
 type ReleaseListener = Box<dyn FnOnce(&mut dyn Any, &mut App) + 'static>;
 type NewEntityListener = Box<dyn FnMut(AnyEntity, &mut Option<&mut Window>, &mut App) + 'static>;
 
-/// Defines when the application should automatically quit.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum QuitMode {
-    /// Quit automatically when the last window is closed.
-    LastWindowClosed,
-    /// Quit only when requested via [`App::quit`].
-    #[default]
-    Explicit,
-}
-
-/// Controls when GPUI hides the mouse cursor in response to keyboard input.
-///
-/// Restoration on mouse motion is handled by the platform layer; this enum
-/// only describes the policy for *triggering* a hide.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-pub enum CursorHideMode {
-    /// Never hide the cursor automatically.
-    Never,
-    /// Hide on character-producing key presses (typing).
-    OnTyping,
-    /// Hide on character-producing key presses, *and* when a key binding
-    /// resolves to an action that consumes the keystroke.
-    #[default]
-    OnTypingAndAction,
-}
-
 /// Contains the state of the full application, and passed as a reference to a variety of callbacks.
 /// Other [Context] derefs to this type.
 /// You need a reference to an `App` to access the state of a [Entity].
@@ -392,11 +359,9 @@ pub struct App {
     pub(crate) current_window_by_entity: FxHashMap<EntityId, WindowId>,
 
     pub(crate) window_update_stack: Vec<WindowId>,
-    pub(crate) cursor_hide_mode: CursorHideMode,
     /// Origin of the shared clock that phase-locks synced repeating animations.
     pub(crate) synced_animation_epoch: Instant,
     pending_updates: usize,
-    quit_mode: QuitMode,
     quitting: bool,
 }
 
@@ -456,9 +421,7 @@ impl App {
                 layout_id_buffer: Vec::default(),
                 propagate_event: true,
                 ui_snapshots: false,
-                quit_mode: QuitMode::default(),
                 quitting: false,
-                cursor_hide_mode: CursorHideMode::default(),
                 synced_animation_epoch,
 
                 element_arena: Rc::new(RefCell::new(Arena::new(1024 * 1024))),
@@ -601,23 +564,15 @@ impl App {
         self.platform.quit();
     }
 
-    /// Returns the current policy for hiding the cursor in response to
-    /// keyboard input.
-    pub const fn cursor_hide_mode(&self) -> CursorHideMode {
-        self.cursor_hide_mode
-    }
-
-    /// Sets the policy controlling when GPUI hides the cursor in response
-    /// to keyboard input.
-    pub const fn set_cursor_hide_mode(&mut self, mode: CursorHideMode) {
-        self.cursor_hide_mode = mode;
+    /// Marks the cursor visible again, as a mouse event from the platform
+    /// does. For mouse input injected past the platform.
+    pub fn mark_cursor_visible(&self) {
+        self.platform.mark_cursor_visible();
     }
 
     /// Returns whether the cursor is currently visible according to the
     /// platform. This will report `false` after a keyboard input has hidden
     /// the cursor and the user has not yet moved the mouse to restore it.
-    ///
-    /// See [`App::set_cursor_hide_mode`].
     pub fn is_cursor_visible(&self) -> bool {
         self.platform.is_cursor_visible()
     }
@@ -1729,7 +1684,7 @@ impl App {
                         }
                     }
 
-                    if cx.quit_mode == QuitMode::LastWindowClosed && cx.windows.is_empty() {
+                    if cx.windows.is_empty() {
                         cx.quit();
                     }
                 } else {

@@ -210,6 +210,9 @@ pub trait Platform: 'static {
     /// this application's windows.
     fn hide_cursor_until_mouse_moves(&self);
 
+    /// Clears the hidden state set by [`Self::hide_cursor_until_mouse_moves`].
+    fn mark_cursor_visible(&self);
+
     /// Returns whether the mouse cursor is currently visible.
     fn is_cursor_visible(&self) -> bool;
 

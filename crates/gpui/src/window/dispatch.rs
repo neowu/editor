@@ -13,7 +13,6 @@ use super::InputModality;
 use super::Window;
 use crate::Action;
 use crate::App;
-use crate::CursorHideMode;
 use crate::DispatchActionListener;
 use crate::DispatchNodeId;
 use crate::InputPreference;
@@ -250,9 +249,7 @@ impl Window {
         } else if let Some(key_down_event) = event.downcast_ref::<KeyDownEvent>() {
             self.pending_modifier.saw_other_input = true;
             keystroke = Some(key_down_event.keystroke.clone());
-            if key_down_event.keystroke.key_char.is_some()
-                && matches!(cx.cursor_hide_mode, CursorHideMode::OnTyping | CursorHideMode::OnTypingAndAction)
-            {
+            if key_down_event.keystroke.key_char.is_some() {
                 cx.platform.hide_cursor_until_mouse_moves();
             }
         }
@@ -529,10 +526,7 @@ impl Window {
     pub(super) fn dispatch_action_on_node(&mut self, node_id: DispatchNodeId, action: &dyn Action, cx: &mut App) {
         self.dispatch_action_on_node_inner(node_id, action, cx);
 
-        if !cx.propagate_event
-            && cx.cursor_hide_mode == CursorHideMode::OnTypingAndAction
-            && self.last_input_was_keyboard()
-        {
+        if !cx.propagate_event && self.last_input_was_keyboard() {
             cx.platform.hide_cursor_until_mouse_moves();
         }
     }

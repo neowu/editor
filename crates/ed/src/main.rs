@@ -46,7 +46,6 @@ use gpui::App;
 use gpui::AppContext as _;
 use gpui::Application;
 use gpui::AsyncApp;
-use gpui::QuitMode;
 use gpui::Task;
 use gpui::TaskExt as _;
 use gpui::UpdateGlobal as _;
@@ -66,7 +65,7 @@ use workspace::restore_workspace;
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn build_application() -> Application {
-    Application::with_platform(Rc::new(gpui_macos::MacPlatform::new(false))).with_quit_mode(QuitMode::LastWindowClosed)
+    Application::with_platform(Rc::new(gpui_macos::MacPlatform::new(false)))
 }
 
 #[expect(clippy::print_stderr, reason = "fatal startup error, the log may not be visible")]
@@ -98,7 +97,7 @@ fn files_not_created_on_launch(errors: FxHashMap<io::ErrorKind, Vec<&Path>>) {
         .collect::<Vec<_>>().join("\n\n");
 
     eprintln!("{message}: {error_details}");
-    build_application().with_quit_mode(QuitMode::Explicit).run(move |cx| {
+    build_application().run(move |cx| {
         if let Ok(window) = cx.open_window(gpui::WindowOptions::default(), |_, cx| cx.new(|_| gpui::Empty)) {
             window
                 .update(cx, |_, window, cx| {

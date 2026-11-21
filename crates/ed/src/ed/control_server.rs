@@ -24,7 +24,6 @@ use gpui::AnyWindowHandle;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::Bounds;
-use gpui::CursorHideMode;
 use gpui::DurationSummary;
 use gpui::ElementId;
 use gpui::Entity;
@@ -333,20 +332,19 @@ async fn settle(window: AnyWindowHandle, cx: &mut AsyncApp) -> Result<()> {
 }
 
 /// Dispatch in its own update, then draw, so the next event sees focus and key
-/// contexts changed by this one. Typing doesn't hide the cursor: only a real
-/// mouse move shows it again, so injected mouse input would see it hidden.
+/// contexts changed by this one.
 fn dispatch_keystroke(window: AnyWindowHandle, keystroke: Keystroke, cx: &mut AsyncApp) -> Result<()> {
     window.update(cx, |_, window, cx| {
-        let cursor_hide_mode = cx.cursor_hide_mode();
-        cx.set_cursor_hide_mode(CursorHideMode::Never);
         window.dispatch_keystroke(keystroke, cx);
-        cx.set_cursor_hide_mode(cursor_hide_mode);
     })?;
     window.update(cx, |_, window, cx| window.draw_if_dirty(cx))
 }
 
+/// Mouse and scroll events only: like the platform's, they show the cursor
+/// that typing hid, so hover features see it.
 fn dispatch_event(window: AnyWindowHandle, event: PlatformInput, cx: &mut AsyncApp) -> Result<()> {
     window.update(cx, |_, window, cx| {
+        cx.mark_cursor_visible();
         window.dispatch_event(event, cx);
     })?;
     window.update(cx, |_, window, cx| window.draw_if_dirty(cx))

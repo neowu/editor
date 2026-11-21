@@ -185,8 +185,7 @@ fn frontmost_window_display(cx: &mut App) -> Option<Rc<dyn PlatformDisplay>> {
     window.update(cx, |_, window, cx| window.display(cx)).ok().flatten()
 }
 
-pub(crate) fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
-    cx.set_cursor_hide_mode(gpui::CursorHideMode::OnTypingAndAction);
+pub(crate) fn initialize_workspace(app_state: Arc<AppState>, cx: &App) {
     init_app_appearance(cx);
 
     cx.observe_new(|_: &mut Workspace, window, cx| {
