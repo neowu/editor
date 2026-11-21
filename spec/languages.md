@@ -171,6 +171,10 @@
   in the order they were sent, through one queue. Notifications are serialized
   lazily but never overtake an earlier request, so e.g. a formatting request
   always sees the document version from the `didChange` sent before it.
+- A language server message that offers no actions is not shown again while a
+  notification with the same server, level and message is still visible.
+- A completion request tells each server about a trigger character only if
+  that server registered it; other servers get an invoked completion.
 - A failed LSP request is logged once, by `LspStore::request_lsp`, and only
   when it is a fault: no answer (timeout, dead connection, malformed response)
   or a JSON-RPC protocol error (parse error, invalid request, method not found,

@@ -43,6 +43,9 @@ repository's `$PATH`; if none is found, the repository is not opened.
   Git Blame" menu toggle are removed. The `editor::BlameHover` cursor popover
   is removed too. The only blame UI is the gutter (`git::Blame`, menu entry
   "Git Blame").
+- Diff bases for buffers opened together load in one git process. A base
+  that fails to load affects only its own buffer: on open that diff fails,
+  on reload the buffer keeps its current base.
 - The diff base is always HEAD: gutter hunks, file status colours and
   `git::Diff` show working changes. The `git.diff_base` setting, the
   `git::DiffHead`/`git::ToggleDiffBase` actions and the "Diff Against Default
@@ -248,7 +251,8 @@ blobs with no language server, so they are not mixed into editor panes.
   constants, so the list reads the same in Editor and Git History mode.
 - In a file history graph (View History / File History), the sidebar reveals
   that file in each selected commit's changed files (folders expanded, row
-  highlighted, scrolled into view once the files load).
+  highlighted, scrolled into view once the files load). Opening a commit from
+  it opens the commit view at that file.
 
 ## Commit view
 
