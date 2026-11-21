@@ -406,8 +406,6 @@ impl GitStore {
                     });
 
                     let recalculation = this.update(cx, |this, cx| {
-                        this.loading_diffs.remove(&(buffer_id, diff_kind));
-
                         let git_store = cx.weak_entity();
                         let diff_state = this
                             .diffs
@@ -435,6 +433,11 @@ impl GitStore {
                     Ok(buffer_diff)
                 }
                 .await;
+                // Remove the entry on failure too, so the next call retries the load.
+                this.update(cx, |this, _| {
+                    this.loading_diffs.remove(&(buffer_id, diff_kind));
+                })
+                .ok();
                 result.map_err(Arc::new)
             })
             .shared();
