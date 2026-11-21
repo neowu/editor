@@ -282,11 +282,7 @@ impl RenderedLine {
             return self.source_end;
         }
 
-        let mapping = match self.source_mappings.binary_search_by_key(&rendered_index, |probe| probe.rendered_index) {
-            Ok(ix) => &self.source_mappings[ix],
-            Err(ix) => &self.source_mappings[ix - 1],
-        };
-        mapping.source_index + (rendered_index - mapping.rendered_index)
+        source_index_for_rendered_index(&self.source_mappings, self.source_end, rendered_index)
     }
 
     /// Returns the source index for use as an exclusive range end at a word/selection boundary.
@@ -298,12 +294,8 @@ impl RenderedLine {
             return self.source_end;
         }
 
-        let ix = match self.source_mappings.binary_search_by_key(&rendered_index, |probe| probe.rendered_index) {
-            Ok(ix) => ix,
-            Err(ix) => {
-                return self.source_mappings[ix - 1].source_index
-                    + (rendered_index - self.source_mappings[ix - 1].rendered_index);
-            }
+        let Ok(ix) = self.source_mappings.binary_search_by_key(&rendered_index, |probe| probe.rendered_index) else {
+            return self.source_index_for_rendered_index(rendered_index);
         };
 
         // Exact match at the start of a segment. Check if there's a gap from the previous segment.
@@ -389,11 +381,50 @@ pub(crate) fn rendered_index_for_source_index(
         return rendered_len;
     }
 
-    let mapping = match mappings.binary_search_by_key(&source_index, |probe| probe.source_index) {
-        Ok(ix) => &mappings[ix],
-        Err(ix) => &mappings[ix - 1],
+    let mapping_ix = mappings.partition_point(|mapping| mapping.source_index <= source_index).saturating_sub(1);
+    let Some(mapping) = mappings.get(mapping_ix) else {
+        return 0;
     };
-    (mapping.rendered_index + (source_index - mapping.source_index)).min(rendered_len)
+    let segment_end = mappings.get(mapping_ix + 1).map_or(rendered_len, |next_mapping| next_mapping.rendered_index);
+    (mapping.rendered_index + source_index.saturating_sub(mapping.source_index)).min(segment_end)
+}
+
+/// Returns the source index for a rendered index below the line's rendered length.
+///
+/// Rendered text can be longer than its source, so the result is kept within the source of
+/// the segment containing the index.
+fn source_index_for_rendered_index(mappings: &[SourceMapping], source_end: usize, rendered_index: usize) -> usize {
+    let mapping_ix = match mappings.binary_search_by_key(&rendered_index, |probe| probe.rendered_index) {
+        Ok(ix) => ix,
+        Err(ix) => ix - 1,
+    };
+    let mapping = &mappings[mapping_ix];
+    let segment_source_end = mappings.get(mapping_ix + 1).map_or(source_end, |next_mapping| next_mapping.source_index);
+    (mapping.source_index + (rendered_index - mapping.rendered_index)).min(segment_source_end)
+}
+
+/// Records where `text`, rendered from `source_range`, starts in a line.
+///
+/// Within a mapping, a rendered index and its source index advance together. Text longer than
+/// its source, such as dashes substituted for a run of hyphens, would run out of source that
+/// way, so each of its characters gets a mapping of its own.
+pub(crate) fn push_source_mappings(
+    mappings: &mut Vec<SourceMapping>,
+    rendered_start: usize,
+    text: &str,
+    source_range: &Range<usize>,
+) {
+    mappings.push(SourceMapping { rendered_index: rendered_start, source_index: source_range.start });
+    if text.len() > source_range.len() {
+        let mut previous_source_index = source_range.start;
+        for (char_index, _) in text.char_indices().skip(1) {
+            let source_index = source_range.start + char_index * source_range.len() / text.len();
+            if source_index > previous_source_index {
+                mappings.push(SourceMapping { rendered_index: rendered_start + char_index, source_index });
+                previous_source_index = source_index;
+            }
+        }
+    }
 }
 
 pub(crate) fn source_range_for_rendered(mappings: &[SourceMapping], rendered: &Range<usize>) -> Option<Range<usize>> {
@@ -640,8 +671,9 @@ impl RenderedText {
 
             let line_rendered_start =
                 line.source_mappings.first().expect("rendered lines have source mappings").rendered_index;
-            let rendered_index_in_line = line.rendered_index_for_source_index(source_index) - line_rendered_start;
             let text = line.layout.text();
+            let rendered_index_in_line =
+                text.floor_char_boundary(line.rendered_index_for_source_index(source_index) - line_rendered_start);
 
             let scope = line.language.as_ref().map(language::Language::default_scope);
             let classifier = CharClassifier::new(scope);
@@ -713,8 +745,11 @@ impl RenderedText {
                 line.rendered_index_for_source_index(line.source_end)
             } else {
                 line.rendered_index_for_source_index(range.end)
-            }
-            .min(text.len());
+            };
+            // A source index can map into the middle of a rendered character: rendered text
+            // can differ from its source, and a selection can outlive the source it was made in.
+            let end = text.floor_char_boundary(end);
+            let start = text.floor_char_boundary(start).min(end);
 
             accumulator.push_str(&text[start..end]);
             accumulator.push('\n');
@@ -734,5 +769,64 @@ impl RenderedText {
 
     pub(crate) fn footnote_ref_for_source_index(&self, source_index: usize) -> Option<&RenderedFootnoteRef> {
         self.footnote_refs.iter().find(|fref| fref.source_range.contains(&source_index))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mappings(segments: &[(usize, &str, Range<usize>)]) -> Vec<SourceMapping> {
+        let mut mappings = Vec::new();
+        for (rendered_start, text, source_range) in segments {
+            push_source_mappings(&mut mappings, *rendered_start, text, source_range);
+        }
+        mappings
+    }
+
+    #[test]
+    fn source_index_in_hidden_syntax_maps_to_the_previous_segment_end() {
+        // "[link](dest) x": "link" renders at 0..4 from source 1..5, " x" at 4..6 from 12..14.
+        let mappings = mappings(&[(0, "link", 1..5), (4, " x", 12..14)]);
+        // Before the first mapping.
+        assert_eq!(rendered_index_for_source_index(&mappings, 14, 6, 0), 0);
+        assert_eq!(rendered_index_for_source_index(&mappings, 14, 6, 3), 2);
+        // Inside the hidden destination: clamped to the end of "link", not past it.
+        assert_eq!(rendered_index_for_source_index(&mappings, 14, 6, 9), 4);
+        assert_eq!(rendered_index_for_source_index(&mappings, 14, 6, 13), 5);
+        assert_eq!(rendered_index_for_source_index(&mappings, 14, 6, 14), 6);
+        assert_eq!(rendered_index_for_source_index(&[], 14, 6, 3), 0);
+    }
+
+    #[test]
+    fn text_longer_than_its_source_maps_within_its_source() {
+        // "----" (source 2..6) renders as two en dashes, three bytes each.
+        let text = "\u{2013}\u{2013}";
+        let mappings = mappings(&[(0, "a ", 0..2), (2, text, 2..6), (8, " b", 6..8)]);
+        let rendered_len = 10;
+        for rendered_index in 0..rendered_len {
+            let source_index = source_index_for_rendered_index(&mappings, 8, rendered_index);
+            assert!(source_index <= 8, "{rendered_index} -> {source_index}");
+            if (2..8).contains(&rendered_index) {
+                assert!((2..=6).contains(&source_index), "{rendered_index} -> {source_index}");
+            }
+        }
+        // Every source index of the hyphens lands inside the dashes.
+        for source_index in 2..6 {
+            let rendered_index = rendered_index_for_source_index(&mappings, 8, rendered_len, source_index);
+            assert!((2..=8).contains(&rendered_index), "{source_index} -> {rendered_index}");
+        }
+        assert_eq!(rendered_index_for_source_index(&mappings, 8, rendered_len, 6), 8);
+    }
+
+    #[test]
+    fn push_source_mappings_adds_one_mapping_for_text_no_longer_than_its_source() {
+        let mut mappings = Vec::new();
+        push_source_mappings(&mut mappings, 3, "abc", &(10..13));
+        push_source_mappings(&mut mappings, 6, "\u{e9}", &(20..26));
+        assert_eq!(
+            mappings.iter().map(|mapping| (mapping.rendered_index, mapping.source_index)).collect::<Vec<_>>(),
+            [(3, 10), (6, 20)]
+        );
     }
 }

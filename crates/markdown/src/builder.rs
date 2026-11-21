@@ -48,6 +48,7 @@ use super::ensure_highlight_contrast;
 use super::mem;
 use super::merge_highlight_backgrounds;
 use super::rendered_index_for_source_index;
+use super::rendered_text::push_source_mappings;
 use super::source_range_for_rendered;
 
 pub(crate) struct MetadataCellStyle {
@@ -416,9 +417,7 @@ impl MarkdownElementBuilder {
         source_range: Range<usize>,
         highlights: Option<&ResolvedHighlights>,
     ) {
-        self.pending_line
-            .source_mappings
-            .push(SourceMapping { rendered_index: self.pending_line.text.len(), source_index: source_range.start });
+        push_source_mappings(&mut self.pending_line.source_mappings, self.pending_line.text.len(), text, &source_range);
         self.pending_line.text.push_str(text);
         self.current_source_index = source_range.end;
 
