@@ -131,8 +131,9 @@ impl Tab {
         DynamicSpacing::Base32.px(cx) + DynamicSpacing::Base04.px(cx)
     }
 
-    pub fn pill_height(cx: &App) -> Pixels {
-        DynamicSpacing::Base24.px(cx)
+    /// A pill tab's height: the top-row buttons' (`workspace::TOP_ROW_BUTTON_SIZE`).
+    pub const fn pill_height() -> Pixels {
+        px(26.)
     }
 }
 
@@ -195,8 +196,8 @@ impl RenderOnce for Tab {
                     h_flex()
                         .group("")
                         .relative()
-                        .h(Tab::pill_height(cx))
-                        .rounded_full()
+                        .h(Tab::pill_height())
+                        .rounded_sm()
                         .hover(|s| s.bg(hover_bg))
                         .px(DynamicSpacing::Base08.px(cx))
                         .gap(DynamicSpacing::Base04.rems())

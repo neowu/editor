@@ -3090,13 +3090,18 @@ impl Pane {
     }
 }
 
-/// Size of a top-row icon button's square target. The window header and the
-/// tab bar ends share it, so both sides of the window's top row match.
-pub const TOP_ROW_BUTTON_SIZE: Pixels = px(28.);
+/// Height of every standalone control on the window's top row, and the side
+/// of its square icon buttons: the header's text buttons and mode switch
+/// track, the tab bar ends, and pill tabs all share it.
+pub const TOP_ROW_BUTTON_SIZE: Pixels = px(26.);
 
-/// An icon button for the window's top row: a 16px icon in a 28px square.
+/// An icon button for the window's top row: a 16px icon in a 26px square.
 pub fn top_row_icon_button(id: impl Into<ElementId>, icon: IconName) -> IconButton {
-    IconButton::new(id, icon).icon_size(IconSize::Medium).size(ButtonSize::Medium).width(TOP_ROW_BUTTON_SIZE)
+    IconButton::new(id, icon)
+        .icon_size(IconSize::Medium)
+        .size(ButtonSize::Medium)
+        .width(TOP_ROW_BUTTON_SIZE)
+        .height(TOP_ROW_BUTTON_SIZE.into())
 }
 
 /// The preview and Zoom buttons, shared by every pane tab bar so they look and

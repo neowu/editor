@@ -10,7 +10,6 @@ use gpui::IntoElement as _;
 use gpui::ParentElement as _;
 use project::git_store::Repository;
 use ui::PopoverMenu;
-use ui::TintColor;
 use ui::Tooltip;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
@@ -62,13 +61,15 @@ fn worktree_display_label(
     }
 }
 
-/// A text button in the window header: the top-row height, the tab label's
+/// A text button in the window header: the mode switch track's height, the tab label's
 /// size, and a muted 14px leading icon, so the project name, worktree and
-/// branch read as one row with the header's icon buttons.
+/// branch read as one row with the header's icon buttons. While its menu is
+/// open it is filled with an accent label, like the mode switch's shown mode.
 pub(crate) fn header_text_button(id: &'static str, label: impl Into<SharedString>) -> Button {
     Button::new(id, label)
         .size(ButtonSize::Medium)
-        .selected_style(ButtonStyle::Tinted(TintColor::Accent))
+        .height(workspace::TOP_ROW_BUTTON_SIZE.into())
+        .selected_style(ButtonStyle::Filled)
         .tab_index(0_isize)
 }
 

@@ -84,19 +84,24 @@ because it hurt readability; an opaque window is also cheaper to composite.
   menus open downward. The switch groups its icon buttons on a faint, borderless
   track (2px inset) so the modes read as one control as more are added; the
   shown mode's button is filled with its icon in the accent colour. The
-  buttons keep the top-row width and 16px icon but are 22px high, so the 26px
-  track sits on the row's centre line with clear space above and below; a
-  track of full-height buttons filled the row and nearly touched the card
-  below. An outlined switch looked heavier.
+  buttons keep the top-row width and 16px icon but are 22px high, so the
+  track is 26px like every other top-row control and sits on the row's centre
+  line with clear space above and below. An outlined switch looked heavier.
+  Every standalone control on the top row is 26px high
+  (`workspace::pane::TOP_ROW_BUTTON_SIZE`): header text buttons, the switch's
+  track, icon buttons and pill tabs. Mixed 24/26/28px fills stood proud of
+  each other.
   Every header text button (project, worktree, branch) shares one
-  style (`title_bar::worktree_branch::header_text_button`): 28px high like the
-  icon buttons, the tab label's size and regular weight (semibold was too
-  loud), with a 14px leading icon. The project name is full contrast; worktree
+  style (`title_bar::worktree_branch::header_text_button`): the tab label's
+  size and regular weight (semibold was too loud), with a 14px leading icon. The project name is full contrast; worktree
   and branch are muted, so the row reads as a breadcrumb. The branch icon keeps
-  its change-status colour. While its menu is open, each gets the accent tint
-  and an accent label.
+  its change-status colour. While its menu is open, each gets the same
+  neutral fill as the switch's shown mode and an accent label; the accent tint
+  (the theme's info background) read as a dark slab on the chrome.
+  Segmented toggles (`ToggleButtonGroup`, e.g. the branch picker's Branches /
+  Stashes) mark the selected segment the same way.
   Every top-row icon button (Go Back / Go Forward, the switch, and the tab bar
-  ends' New File, preview and Zoom) is a 16px icon in a 28px square (the
+  ends' New File, preview and Zoom) is a 16px icon in a 26px square (the
   switch's are shorter, above)
   (`workspace::pane::top_row_icon_button`), 4px apart, so both ends of the row
   match; the header's controls are 8px from the project name and from each
@@ -375,7 +380,9 @@ because it hurt readability; an opaque window is also cheaper to composite.
   on hover. A filled hover chip plus a "Close" tooltip outweighed the tab
   title.
 - The terminal panel's panes use pill tabs instead: the whole pane, tab bar
-  included, is one card, and tabs are rounded buttons inside its top edge.
+  included, is one card, and tabs are buttons inside its top edge, with the buttons'
+  corner radius and top-row height; full capsules were the only ones in the
+  chrome.
   Pills have no fill: the active pill gets full-contrast text, inactive ones are muted, and
   any pill shows `ghost_element_hover` on hover. A plain terminal icon is
   accented only on the active pill of the focused pane, and the active label

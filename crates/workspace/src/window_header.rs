@@ -27,7 +27,6 @@ use ui::Tab;
 use ui::Tooltip;
 use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
-use ui::prelude::ButtonSize;
 use ui::prelude::ButtonStyle;
 use ui::prelude::Clickable as _;
 use ui::prelude::Color;
@@ -237,10 +236,10 @@ const fn tab_bars_are_titlebar(mode: WorkspaceMode) -> bool {
 /// Inset of the mode switch's buttons within its track.
 const MODE_SWITCH_PADDING: Pixels = px(2.);
 
-/// Size of the mode switch's buttons: shorter (22px) than a top-row button so
-/// the filled track clears the row's edges, and the card below, instead of
-/// filling the row. They keep the top-row width and icon.
-const MODE_SWITCH_BUTTON_SIZE: ButtonSize = ButtonSize::Default;
+/// Height of the mode switch's buttons: shorter than a top-row button by the
+/// track's inset, so the track is as high as the row's other controls. They
+/// keep the top-row width and icon.
+const MODE_SWITCH_BUTTON_HEIGHT: Pixels = px(22.);
 
 /// The modes the switch offers, in key order (`cmd-1`, `cmd-2`, `cmd-3`):
 /// Git History needs a repository, Terminal a project that runs terminals.
@@ -278,7 +277,7 @@ fn render_mode_switch(state: WindowHeaderState, modes: &[WorkspaceMode], cx: &Ap
         let shown = mode == state.mode;
         let tooltip_action = action.boxed_clone();
         top_row_icon_button(id, icon)
-            .size(MODE_SWITCH_BUTTON_SIZE)
+            .height(MODE_SWITCH_BUTTON_HEIGHT.into())
             .icon_color(if shown { Color::Accent } else { Color::Muted })
             .when(shown, |this| this.style(ButtonStyle::Filled))
             .when_some(mode_indicator(mode, state.terminal_running), |this, color| {
@@ -455,7 +454,7 @@ mod tests {
     use gpui::px;
     use ui::utils::TRAFFIC_LIGHT_PADDING;
 
-    use super::MODE_SWITCH_BUTTON_SIZE;
+    use super::MODE_SWITCH_BUTTON_HEIGHT;
     use super::MODE_SWITCH_PADDING;
     use super::TAB_BAR_START_OFFSET;
     use super::mode_indicator;
@@ -496,14 +495,13 @@ mod tests {
     }
 
     #[test]
-    fn mode_switch_track_clears_top_row() {
+    fn top_row_controls_share_one_height() {
         use crate::pane::TOP_ROW_BUTTON_SIZE;
-        let track = MODE_SWITCH_BUTTON_SIZE.rems().to_pixels(px(16.)) + MODE_SWITCH_PADDING * 2.;
-        // Shorter than a 32px track of top-row buttons, leaving at least 4px
-        // clear above and below in the 36px top row.
-        assert_eq!(track, px(26.));
-        assert!(track < TOP_ROW_BUTTON_SIZE + MODE_SWITCH_PADDING * 2.);
-        assert!((px(36.) - track) / 2. >= px(4.));
+        // The switch's track and pill tabs are as high as a top-row button,
+        // leaving at least 4px clear above and below in the 36px top row.
+        assert_eq!(MODE_SWITCH_BUTTON_HEIGHT + MODE_SWITCH_PADDING * 2., TOP_ROW_BUTTON_SIZE);
+        assert_eq!(ui::Tab::pill_height(), TOP_ROW_BUTTON_SIZE);
+        assert!((px(36.) - TOP_ROW_BUTTON_SIZE) / 2. >= px(4.));
     }
 
     #[test]

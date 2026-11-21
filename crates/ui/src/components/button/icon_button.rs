@@ -89,6 +89,12 @@ impl IconButton {
         self
     }
 
+    /// Overrides the height given by the button's size.
+    pub fn height(mut self, height: DefiniteLength) -> Self {
+        self.base = self.base.height(height);
+        self
+    }
+
     /// Sets the icon color used while the button is hovered.
     pub const fn hover_color(mut self, color: Color) -> Self {
         self.hover_color = Some(color);

@@ -6,7 +6,6 @@ use gpui::relative;
 
 use crate::ButtonLike;
 use crate::ButtonLikeRounding;
-use crate::TintColor;
 use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::ButtonCommon as _;
@@ -292,7 +291,7 @@ impl<T: ButtonBuilder, const COLS: usize, const ROWS: usize> RenderOnce for Togg
                     ))
                     .when_some(self.tab_index, |this, tab_index| this.tab_index(tab_index + entry_index.cast_signed()))
                     .when(entry_index == self.selected_index || selected, |this| {
-                        this.toggle_state(true).selected_style(ButtonStyle::Tinted(TintColor::Accent))
+                        this.toggle_state(true).selected_style(ButtonStyle::Filled)
                     })
                     .when(self.style == ToggleButtonGroupStyle::Filled, |button| button.style(ButtonStyle::Filled))
                     .when(self.size == ToggleButtonGroupSize::Medium, |button| button.size(ButtonSize::Medium))
