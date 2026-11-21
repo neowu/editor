@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::collections::BTreeSet;
 use std::ops::Range;
 use std::rc::Rc;
 use std::slice;
@@ -29,6 +30,7 @@ use language::ToOffset as _;
 use language::Transaction;
 use language::language_settings::COMPLETIONS;
 use lsp::CompletionContext;
+use lsp::CompletionTriggerKind;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::request::ResolveCompletionItem;
 use rustc_hash::FxHashSet;
@@ -37,6 +39,7 @@ use util::ResultExt as _;
 
 use super::LanguageServerToQuery;
 use super::LspStore;
+use super::capabilities::completion_trigger_characters_for_buffer;
 use super::capabilities::lsp_command_allowed_for_buffer;
 use crate::Completion;
 use crate::CompletionDisplayOptions;
@@ -269,6 +272,17 @@ pub fn ensure_uniform_list_compatible_label(label: &mut CodeLabel) {
     label.text = new_text;
 }
 
+/// Falls back to an invoked completion when the server did not register the trigger character.
+fn completion_context_for_triggers(mut context: CompletionContext, triggers: &BTreeSet<String>) -> CompletionContext {
+    if context.trigger_kind == CompletionTriggerKind::TRIGGER_CHARACTER
+        && !context.trigger_character.as_ref().is_some_and(|trigger| triggers.contains(trigger))
+    {
+        context.trigger_kind = CompletionTriggerKind::INVOKED;
+        context.trigger_character = None;
+    }
+    context
+}
+
 impl LspStore {
     #[inline(never)]
     pub fn completions(
@@ -302,6 +316,20 @@ impl LspStore {
                 this.update(cx, |lsp_store, cx| {
                     for server_id in server_ids {
                         let lsp_adapter = lsp_store.language_server_adapter_for_id(server_id);
+                        // Servers register different trigger characters, so each one only sees
+                        // a trigger character it registered itself.
+                        let context = match &lsp_adapter {
+                            Some(adapter) => completion_context_for_triggers(
+                                context.clone(),
+                                &completion_trigger_characters_for_buffer(
+                                    &lsp_store.local,
+                                    server_id,
+                                    adapter,
+                                    buffer.read(cx),
+                                ),
+                            ),
+                            None => context.clone(),
+                        };
                         let lsp_timeout = lsp_timeout
                             .map(|lsp_timeout| cx.background_executor().timer(lsp_timeout));
                         let mut timeout = cx.background_spawn(async move {
@@ -318,7 +346,7 @@ impl LspStore {
                             LanguageServerToQuery::Other(server_id),
                             GetCompletions {
                                 position,
-                                context: context.clone(),
+                                context,
                             },
                             cx,
                         ).fuse();
@@ -668,5 +696,26 @@ impl LspStore {
                 Ok(None)
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn completion_context_keeps_only_registered_trigger_characters() {
+        let triggers = BTreeSet::from([".".to_owned(), ":".to_owned()]);
+        let triggered = |character: &str| CompletionContext {
+            trigger_kind: CompletionTriggerKind::TRIGGER_CHARACTER,
+            trigger_character: Some(character.to_owned()),
+        };
+        let invoked = CompletionContext { trigger_kind: CompletionTriggerKind::INVOKED, trigger_character: None };
+
+        assert_eq!(completion_context_for_triggers(triggered("."), &triggers), triggered("."));
+        // Another server's trigger character (e.g. a letter registered by Emmet).
+        assert_eq!(completion_context_for_triggers(triggered("a"), &triggers), invoked);
+        assert_eq!(completion_context_for_triggers(triggered("."), &BTreeSet::new()), invoked);
+        assert_eq!(completion_context_for_triggers(invoked.clone(), &triggers), invoked);
     }
 }
