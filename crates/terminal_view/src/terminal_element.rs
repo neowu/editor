@@ -55,6 +55,7 @@ use gpui::relative;
 use gpui::size;
 use itertools::Itertools as _;
 use language::CursorShape as EditorCursorShape;
+use rustc_hash::FxHashMap;
 use terminal::Cell;
 use terminal::Color;
 use terminal::Content;
@@ -422,6 +423,9 @@ impl TerminalElement {
     ) -> (Vec<LayoutRect>, Vec<BatchedTextRun>, Vec<BlockElementLayoutRect>) {
         let start_time = Instant::now();
         let theme = cx.theme();
+        // A grid repeats few color pairs, and each contrast check costs several `powf` calls
+        // (dozens when the color needs adjusting).
+        let mut contrast_cache = FxHashMap::default();
 
         // Pre-allocate with estimated capacity to reduce reallocations
         let estimated_cells = grid.size_hint().0;
@@ -500,6 +504,7 @@ impl TerminalElement {
                             text_style,
                             hyperlink,
                             minimum_contrast,
+                            &mut contrast_cache,
                         );
 
                         let cell_point = LayoutPoint::new(display_line, (point.column as u32).cast_signed());
@@ -812,13 +817,14 @@ impl TerminalElement {
         text_style: &TextStyle,
         hyperlink: Option<(HighlightStyle, &Range)>,
         minimum_contrast: f32,
+        contrast_cache: &mut FxHashMap<(Hsla, Hsla), Hsla>,
     ) -> TextRun {
         let skip_contrast = Self::is_app_chosen_exact_color(fg);
         let mut fg = convert_color(&fg, colors);
         let bg = convert_color(&bg, colors);
 
         if !skip_contrast && !Self::is_decorative_character(cell.character()) {
-            fg = ensure_minimum_contrast(fg, bg, minimum_contrast);
+            fg = cached_minimum_contrast(contrast_cache, fg, bg, minimum_contrast);
         }
 
         // Use a dim multiplier that stays close to the existing Alacritty look.
@@ -1715,5 +1721,44 @@ pub fn convert_color(fg: &Color, theme: &Theme) -> Hsla {
         Color::Spec(rgb) => terminal::rgba_color(rgb.r, rgb.g, rgb.b),
         // 8 bit, indexed colors
         Color::Indexed(i) => terminal::get_color_at_index(*i as usize, theme),
+    }
+}
+
+/// `ensure_minimum_contrast`, computed once per color pair of a grid.
+fn cached_minimum_contrast(
+    cache: &mut FxHashMap<(Hsla, Hsla), Hsla>,
+    fg: Hsla,
+    bg: Hsla,
+    minimum_contrast: f32,
+) -> Hsla {
+    if minimum_contrast <= 0.0 {
+        return fg;
+    }
+    *cache.entry((fg, bg)).or_insert_with(|| ensure_minimum_contrast(fg, bg, minimum_contrast))
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::hsla;
+
+    use super::*;
+
+    #[test]
+    fn cached_minimum_contrast_matches_uncached_per_color_pair() {
+        let gray = hsla(0., 0., 0.35, 1.);
+        let white = hsla(0., 0., 1., 1.);
+        let black = hsla(0., 0., 0., 1.);
+        let pairs = [(gray, black), (white, black), (gray, white), (black, black)];
+        for minimum_contrast in [0.0, 45.0, 90.0] {
+            let mut cache = FxHashMap::default();
+            for (fg, bg) in pairs.iter().chain(pairs.iter().rev()) {
+                let expected = ensure_minimum_contrast(*fg, *bg, minimum_contrast);
+                assert_eq!(cached_minimum_contrast(&mut cache, *fg, *bg, minimum_contrast), expected);
+                assert_eq!(cache.get(&(*fg, *bg)), (minimum_contrast > 0.0).then_some(&expected));
+            }
+        }
+        // A hit returns the stored color without recomputing.
+        let mut cache = FxHashMap::from_iter([((gray, black), white)]);
+        assert_eq!(cached_minimum_contrast(&mut cache, gray, black, 45.0), white);
     }
 }
