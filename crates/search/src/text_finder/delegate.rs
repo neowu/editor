@@ -299,6 +299,14 @@ impl InProgressSearch {
 }
 
 impl Delegate {
+    fn clear_results(&mut self) {
+        self.matches.clear();
+        self.entries.clear();
+        self.unique_files.clear();
+        self.collapsed_paths.clear();
+        self.selected_index = 0;
+    }
+
     pub(super) fn hook_up_any_ongoing_search(&mut self, picker: gpui::WeakEntity<Picker<Delegate>>, cx: &App) {
         let cancel_flag = Arc::clone(&self.cancel_flag);
         let text_finder_turning_into_project_search = Arc::clone(&self.text_finder_turning_into_project_search);
@@ -932,11 +940,7 @@ impl PickerDelegate for Delegate {
             if query.is_empty() && imported_from_project_search {
                 return Task::ready(());
             }
-            self.matches.clear();
-            self.entries.clear();
-            self.unique_files.clear();
-            self.collapsed_paths.clear();
-            self.selected_index = 0;
+            self.clear_results();
             self.active_query = None;
             self.prepend_selected_matches();
             self.rebuild_entries();
@@ -1139,11 +1143,7 @@ async fn stream_results_to_picker(
                 let delegate = &mut picker.delegate;
 
                 if clear_existing {
-                    delegate.matches.clear();
-                    delegate.entries.clear();
-                    delegate.unique_files.clear();
-                    delegate.collapsed_paths.clear();
-                    delegate.selected_index = 0;
+                    delegate.clear_results();
                     clear_existing = false;
                 }
 
@@ -1171,6 +1171,20 @@ async fn stream_results_to_picker(
 
         yield_now().await;
     }
+
+    // An empty stream never enters the loop above, leaving the previous results
+    // visible. Clear them unless this search was cancelled.
+    if clear_existing && !cancel_flag.load(Ordering::SeqCst) {
+        picker
+            .update(cx, |picker, cx| {
+                picker.delegate.clear_results();
+                picker.delegate.prepend_selected_matches();
+                picker.delegate.rebuild_entries();
+                cx.notify();
+            })
+            .log_err();
+    }
+
     None
 }
 
