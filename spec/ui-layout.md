@@ -254,8 +254,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
   if needed; a closed file reopens in the last active center pane. Moving focus
   from one pane to another records where the user was in the pane they left,
   so going back returns there. `workspace::GoBack` / `workspace::GoForward`
-  are workspace actions bound only to `cmd-[` / `cmd-]`, so they work wherever
-  focus is in the window. The Go Back / Go Forward buttons sit
+  are workspace actions bound only to `cmd-[` / `cmd-]`, and no other context
+  binds those keys, so they work wherever focus is in the window. The Go Back / Go Forward buttons sit
   only in the window header (see above), not on tab bars.
   The `tab_bar.show_nav_history_buttons` and `reveal_if_open`
   settings are removed. The terminal panel keeps its own panes and history.
@@ -329,7 +329,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
     output in front) it shows and focuses a shell: the active tab if it is
     one, else the first shell in the active terminal pane, then in the other
     panes, else a new shell.
-- Zoom (`workspace::ToggleZoom`, `` cmd-` ``, also `shift-escape`) expands the
+- Zoom (`workspace::ToggleZoom`, `shift-escape`; `` cmd-` `` is left to macOS
+  window cycling) expands the
   focused pane. In the terminal dock that is the focused terminal pane alone,
   not every split, as zooming an editor pane hides the other panes.
 - `cmd-1`…`cmd-9` don't activate panes, and the image viewer and branch/stash

@@ -670,6 +670,12 @@ impl WorkspaceMode {
     pub const fn has_docks(self) -> bool {
         matches!(self, WorkspaceMode::Editor)
     }
+
+    /// Whether the finder opens here. It finds files, symbols and tabs of
+    /// Editor mode, so the other modes ignore it and keep their focus.
+    pub const fn has_finder(self) -> bool {
+        matches!(self, WorkspaceMode::Editor)
+    }
 }
 
 /// Whether the status bar is drawn: only in Editor mode, and not while
@@ -2885,6 +2891,13 @@ mod tests {
         assert!(!WorkspaceMode::GitHistory.opens_in_history_pane(true));
         assert!(!WorkspaceMode::Editor.opens_in_history_pane(false));
         assert!(!WorkspaceMode::Editor.opens_in_history_pane(true));
+    }
+
+    #[test]
+    fn has_finder() {
+        assert!(WorkspaceMode::Editor.has_finder());
+        assert!(!WorkspaceMode::GitHistory.has_finder());
+        assert!(!WorkspaceMode::Terminal.has_finder());
     }
 
     #[test]

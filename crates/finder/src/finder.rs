@@ -171,6 +171,9 @@ pub fn init(cx: &mut App) {
 impl Finder {
     fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
         workspace.register_action(|workspace, action: &workspace::ToggleFinder, window, cx| {
+            if !workspace.mode().has_finder() {
+                return;
+            }
             let Some(finder) = workspace.active_modal::<Self>(cx) else {
                 let seed_query = Self::seed_query(workspace, window, cx);
                 Self::open(workspace, action.separate_history, action.include_ignored, seed_query, window, cx).detach();

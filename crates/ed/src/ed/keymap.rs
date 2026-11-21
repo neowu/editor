@@ -233,6 +233,7 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("cmd-down", "editor::MoveToStartOfNextExcerpt");
     k.bind("cmd-shift-up", "editor::SelectToStartOfExcerpt");
     k.bind("cmd-shift-down", "editor::SelectToStartOfNextExcerpt");
+    k.bind("shift-enter", "editor::ExpandExcerpts");
 
     k.group(Some("Editor && mode == auto_height"));
     k.bind("ctrl-enter", "editor::Newline");
@@ -264,10 +265,7 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("cmd-enter", "search::ReplaceAll");
 
     k.group(Some("BufferSearchBar && !in_replace > Editor"));
-    k.bind("ctrl-enter", "editor::Newline");
     k.bind("shift-enter", "search::SelectPreviousMatch");
-
-    k.group(Some("BufferSearchBar && !in_replace > Editor"));
     k.bind("up", "search::PreviousHistoryQuery");
     k.bind("down", "search::NextHistoryQuery");
 
@@ -292,9 +290,6 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("enter", "search::ReplaceNext");
     k.bind("cmd-enter", "search::ReplaceAll");
 
-    k.group(Some("ProjectSearchBar && !in_replace > Editor"));
-    k.bind("ctrl-enter", "editor::Newline");
-
     k.group(Some("ProjectSearchView"));
     k.bind("escape", "project_search::ToggleFocus");
     k.bind("cmd-shift-j", "project_search::ToggleFilters");
@@ -311,7 +306,6 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("cmd-}", "pane::ActivateNextItem");
     k.bind("ctrl-shift-pageup", "pane::SwapItemLeft");
     k.bind("ctrl-shift-pagedown", "pane::SwapItemRight");
-    k.bind_input("cmd-w", "pane::CloseActiveItem", json!({"close_pinned": false}));
     k.bind_input("alt-cmd-t", "pane::CloseOtherItems", json!({"close_pinned": false}));
     k.bind("ctrl-alt-cmd-w", "workspace::CloseInactiveTabsAndPanes");
     k.bind("cmd-f", "project_search::ToggleFocus");
@@ -325,8 +319,6 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("alt-cmd-x", "search::ToggleRegex");
 
     k.group(Some("Editor"));
-    k.bind("cmd-[", "editor::Outdent");
-    k.bind("cmd-]", "editor::Indent");
     k.bind_input("cmd-ctrl-p", "editor::AddSelectionAbove", json!({"skip_soft_wrap": false}));
     k.bind_input("cmd-alt-up", "editor::AddSelectionAbove", json!({"skip_soft_wrap": true}));
     k.bind_input("cmd-ctrl-n", "editor::AddSelectionBelow", json!({"skip_soft_wrap": false}));
@@ -385,7 +377,6 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind_input("ctrl-8", "pane::ActivateItem", json!(7));
     k.bind_input("ctrl-9", "pane::ActivateItem", json!(8));
     k.bind("ctrl-0", "pane::ActivateLastItem");
-    k.bind("cmd-shift-f", "pane::DeploySearch");
 
     k.group(Some("Workspace"));
     k.bind("f6", "workspace::FocusNextPart");
@@ -400,11 +391,10 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("cmd-s", "workspace::Save");
     k.bind("alt-shift-enter", "toast::RunAction");
     k.bind("cmd-shift-s", "workspace::SaveAs");
-    k.bind("cmd-shift-n", "workspace::NewWindow");
+    k.bind("cmd-n", "workspace::NewWindow");
     k.bind("cmd-1", "mode::Editor");
     k.bind("cmd-2", "mode::GitHistory");
     k.bind("cmd-3", "mode::Terminal");
-    k.bind("cmd-`", "workspace::ToggleZoom");
     k.bind("cmd-b", "workspace::CycleLeftDock");
     k.bind("cmd-r", "workspace::CycleRightDock");
     k.bind("cmd-j", "terminal_panel::ToggleShell");
@@ -424,7 +414,7 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("ctrl-alt-w", "workspace::CloseActiveDock");
 
     k.group(Some("Workspace && !Terminal"));
-    k.bind("cmd-n", "workspace::NewFile");
+    k.bind("cmd-t", "workspace::NewFile");
 
     k.group(Some("Editor"));
     k.bind("cmd-u", "editor::UndoSelection");
@@ -470,7 +460,6 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("pagedown", "editor::ContextMenuLast");
 
     k.group(Some("Editor && mode == full"));
-    k.bind("shift-enter", "editor::ExpandExcerpts");
     k.bind("cmd-shift-e", "pane::RevealInProjectPanel");
     k.bind("cmd-f8", "editor::GoToHunk");
     k.bind("cmd-shift-f8", "editor::GoToPreviousHunk");
@@ -494,7 +483,6 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("cmd-left", "project_panel::CollapseAllEntries");
     k.bind("right", "project_panel::ExpandSelectedEntry");
     k.bind("cmd-right", "project_panel::ExpandAllEntries");
-    k.bind("cmd-n", "project_panel::NewFile");
     k.bind("cmd-d", "project_panel::Duplicate");
     k.bind("alt-cmd-n", "project_panel::NewDirectory");
     k.bind("cmd-x", "project_panel::Cut");
@@ -523,14 +511,10 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("space", "project_panel::Open");
 
     k.group(Some("GitPanel && ChangesList && !GitBranchSelector"));
-    k.bind("up", "menu::SelectPrevious");
-    k.bind("down", "menu::SelectNext");
     k.bind("shift-up", "menu::SelectPrevious");
     k.bind("shift-down", "menu::SelectNext");
     k.bind("enter", "menu::Confirm");
     k.bind("escape", "menu::Cancel");
-
-    k.group(Some("GitPanel && ChangesList && !GitBranchSelector"));
     k.bind("up", "git_panel::PreviousEntry");
     k.bind("down", "git_panel::NextEntry");
     k.bind("cmd-up", "git_panel::FirstEntry");
@@ -623,7 +607,7 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("cmd-f", "buffer_search::Deploy");
     k.bind("cmd-a", "editor::SelectAll");
     k.bind("cmd-k", "terminal::Clear");
-    k.bind("cmd-n", "workspace::NewTerminal");
+    k.bind("cmd-t", "workspace::NewTerminal");
     k.bind_input("cmd-backspace", "terminal::SendKeystroke", json!("ctrl-u"));
     k.bind_input("alt-delete", "terminal::SendText", json!("\u{001b}d"));
     k.bind_input("cmd-delete", "terminal::SendKeystroke", json!("ctrl-k"));
@@ -692,7 +676,6 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("cmd-+", "image_viewer::ZoomIn");
     k.bind("cmd--", "image_viewer::ZoomOut");
     k.bind("cmd-0", "image_viewer::ResetZoom");
-    // k.bind("cmd-k r", "editor::RevealInFileManager");
     k.bind("cmd-shift-0", "image_viewer::FitToView");
     k.group(Some("WorktreePicker || (WorktreePicker > Picker > Editor)"));
     k.bind("cmd-shift-backspace", "worktree_picker::DeleteWorktree");
@@ -751,6 +734,53 @@ mod tests {
     #[test]
     fn all_bindings_build() {
         assert!(test_keymap().len() > 500);
+    }
+
+    #[test]
+    fn each_key_is_bound_once_per_context() {
+        let mut seen = FxHashMap::default();
+        for binding in test_keymap() {
+            let key = (context(&binding), keystrokes(&binding));
+            if let Some(previous) = seen.insert(key.clone(), binding.action().name()) {
+                panic!("{key:?} bound to both {previous} and {}", binding.action().name());
+            }
+        }
+    }
+
+    #[test]
+    fn new_tab_and_new_window_bindings() {
+        let keymap = test_keymap();
+        for (keys, expected) in [
+            ("cmd-n", vec![(Some("Workspace"), "workspace::NewWindow")]),
+            (
+                "cmd-t",
+                vec![
+                    (Some("Workspace && !Terminal"), "workspace::NewFile"),
+                    (Some("Terminal"), "workspace::NewTerminal"),
+                ],
+            ),
+            ("cmd-shift-n", vec![]),
+        ] {
+            let bound: Vec<_> = keymap
+                .iter()
+                .filter(|binding| keystrokes(binding) == keys)
+                .map(|binding| (context(binding), binding.action().name()))
+                .collect();
+            let expected: Vec<_> =
+                expected.into_iter().map(|(context, action)| (context.map(str::to_owned), action)).collect();
+            assert_eq!(bound, expected, "{keys}");
+        }
+    }
+
+    #[test]
+    fn expand_excerpts_is_multibuffer_only() {
+        let keymap = test_keymap();
+        let contexts: Vec<_> = keymap
+            .iter()
+            .filter(|binding| binding.action().name() == "editor::ExpandExcerpts")
+            .filter_map(context)
+            .collect();
+        assert_eq!(contexts, ["Editor && multibuffer"]);
     }
 
     #[test]

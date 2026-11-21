@@ -3,7 +3,9 @@
 - One finder modal (`cmd-p`) searches files, project symbols, or open tabs.
   A bar at its bottom shows the three modes with their keys (`cmd-1/2/3`,
   also clickable). There is no separate symbol picker or tab switcher, and no
-  `cmd-t` / `ctrl-tab`.
+  `ctrl-tab` (`cmd-t` opens a new tab).
+- The finder belongs to Editor mode: in Git History and Terminal mode `cmd-p`
+  (and Go to File) does nothing and focus stays where it is.
 - Switching mode keeps the query and the window's frame: every mode has the
   same width, a results area fixed at the picker's max height (it doesn't
   shrink to fit), and one-line rows (a symbol's location sits beside its

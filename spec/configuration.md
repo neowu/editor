@@ -184,8 +184,11 @@ migrator, or Vim/Helix mode.
   are built once at startup.
 - Keybindings should be simple single keystrokes. There is no UI for pending
   multi-stroke input (no which-key popup or status bar indicator).
+- `cmd-t` opens a new tab (an untitled file, or a terminal when a terminal is
+  focused) and `cmd-n` a new window, in every context: the project panel has no
+  new-file key.
 - Personal bindings sit in their normal context groups: global `cmd-[`/`cmd-]`
-  navigate backward/forward (Editor `cmd-[`/`cmd-]` still outdent/indent),
+  navigate backward/forward (the editor indents only with `tab`/`shift-tab`),
   Editor `f1` opens documentation and `cmd-shift-u` toggles case, and Terminal
   `shift-enter` sends Escape followed by carriage return.
 - JSON schemas are not generated: nothing derives `JsonSchema` and `schemars`
