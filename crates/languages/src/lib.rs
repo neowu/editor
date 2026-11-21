@@ -186,6 +186,47 @@ mod tests {
         }
     }
 
+    /// The highlight captures applied to each source snippet, in query match order.
+    fn typescript_captures(dir: &str, source: &str) -> Vec<(String, String)> {
+        use tree_sitter::StreamingIterator as _;
+
+        let (_, grammar) =
+            typescript::grammars().into_iter().find(|(grammar_dir, _)| *grammar_dir == dir).expect("grammar exists");
+        let highlights = load_queries(dir).highlights.expect("highlights query");
+        let query = tree_sitter::Query::new(&grammar, &highlights).expect("highlights query compiles");
+        let mut parser = tree_sitter::Parser::new();
+        parser.set_language(&grammar).expect("grammar loads");
+        let tree = parser.parse(source, None).expect("source parses");
+        let mut cursor = tree_sitter::QueryCursor::new();
+        let mut captures = cursor.captures(&query, tree.root_node(), source.as_bytes());
+        let mut result = Vec::new();
+        while let Some((query_match, capture_ix)) = captures.next() {
+            let capture = query_match.captures()[*capture_ix];
+            result.push((
+                source[capture.node.byte_range()].to_owned(),
+                query.capture_names()[capture.index as usize].to_owned(),
+            ));
+        }
+        result
+    }
+
+    #[test]
+    fn typescript_types_are_highlighted_by_part_not_as_whole_annotations() {
+        let source = "const f = (a: Foo<string>): void => { return; };\nfunction g(this: Bar): this {}\n";
+        for dir in ["typescript", "tsx"] {
+            let captures = typescript_captures(dir, source);
+            let has = |text: &str, name: &str| captures.iter().any(|(t, n)| t == text && n == name);
+            // No capture spans a whole annotation or arrow function.
+            assert!(!captures.iter().any(|(text, _)| text.contains(' ')), "{dir}: {captures:?}");
+            assert!(has("Foo", "type"), "{dir}: {captures:?}");
+            assert!(has("string", "type.builtin"), "{dir}: {captures:?}");
+            assert!(has("this", "type.builtin"), "{dir}: {captures:?}");
+            // The last capture for `void` in a type position wins over the keyword rule.
+            let void = captures.iter().rfind(|(text, _)| text == "void").expect("void captured");
+            assert_eq!(void.1, "type.builtin", "{dir}: {captures:?}");
+        }
+    }
+
     #[test]
     fn queries_compile_against_each_language_grammar() {
         let definitions = [
