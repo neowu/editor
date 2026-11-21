@@ -14,6 +14,7 @@ use futures::StreamExt as _;
 use gpui::BackgroundExecutor;
 use gpui::Task;
 use parking_lot::Mutex;
+use rustc_hash::FxHashMap;
 use util::ResultExt as _;
 use util::paths::SanitizedPath;
 
@@ -498,7 +499,7 @@ enum Coverage {
 /// The registered watch paths for one backend, keyed by [`WatchKey`] so that
 /// add (dedup), remove, and dispatch share a single notion of path identity.
 #[derive(Default)]
-struct WatchPaths(HashMap<WatchKey, PathRegistrationState>);
+struct WatchPaths(FxHashMap<WatchKey, PathRegistrationState>);
 
 impl WatchPaths {
     fn contains(&self, key: &WatchKey) -> bool {
