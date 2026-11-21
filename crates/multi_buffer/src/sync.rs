@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::mem;
 
 use gpui::App;
 use language::OffsetRangeExt as _;
@@ -15,6 +16,7 @@ use text::TextSummary;
 
 use super::BufferState;
 use super::BufferStateSnapshot;
+use super::BufferStatus;
 use super::DiffChangeKind;
 use super::DiffState;
 use super::DiffTransform;
@@ -31,11 +33,17 @@ use super::find_diff_state;
 
 impl MultiBuffer {
     pub(super) fn sync(&self, cx: &App) {
-        let changed = self.buffer_changed_since_sync.replace(false);
-        if !changed {
+        let changed_buffer_ids = mem::take(&mut *self.changed_buffers.borrow_mut());
+        if changed_buffer_ids.is_empty() {
             return;
         }
-        let edits = Self::sync_from_buffer_changes(&mut self.snapshot.borrow_mut(), &self.buffers, &self.diffs, cx);
+        let edits = Self::sync_from_buffer_changes(
+            &mut self.snapshot.borrow_mut(),
+            &self.buffers,
+            &self.diffs,
+            &changed_buffer_ids,
+            cx,
+        );
         if !edits.is_empty() {
             self.subscriptions.publish(edits);
         }
@@ -43,11 +51,11 @@ impl MultiBuffer {
 
     pub(super) fn sync_mut(&mut self, cx: &App) -> &mut MultiBufferSnapshot {
         let snapshot = self.snapshot.get_mut();
-        let changed = self.buffer_changed_since_sync.replace(false);
-        if !changed {
+        let changed_buffer_ids = mem::take(&mut *self.changed_buffers.borrow_mut());
+        if changed_buffer_ids.is_empty() {
             return snapshot;
         }
-        let edits = Self::sync_from_buffer_changes(snapshot, &self.buffers, &self.diffs, cx);
+        let edits = Self::sync_from_buffer_changes(snapshot, &self.buffers, &self.diffs, &changed_buffer_ids, cx);
 
         if !edits.is_empty() {
             self.subscriptions.publish(edits);
@@ -60,6 +68,7 @@ impl MultiBuffer {
         snapshot: &mut MultiBufferSnapshot,
         buffers: &BTreeMap<BufferId, BufferState>,
         diffs: &FxHashMap<BufferId, DiffState>,
+        changed_buffer_ids: &FxHashSet<BufferId>,
         cx: &App,
     ) -> Vec<Edit<MultiBufferOffset>> {
         let MultiBufferSnapshot {
@@ -70,9 +79,6 @@ impl MultiBuffer {
             diff_transforms: _,
             non_text_state_update_count,
             edit_count,
-            is_dirty,
-            has_deleted_file,
-            has_conflict,
             has_inverted_diff: _,
             singleton: _,
             trailing_excerpt_update_count: _,
@@ -81,13 +87,10 @@ impl MultiBuffer {
             use_extended_diff_range: _,
             show_headers: _,
         } = snapshot;
-        *is_dirty = false;
-        *has_deleted_file = false;
-        *has_conflict = false;
 
         if !diffs.is_empty() {
             let mut diffs_to_add = Vec::new();
-            for (id, diff) in diffs {
+            for (id, diff) in changed_buffer_ids.iter().filter_map(|id| diffs.get_key_value(id)) {
                 if find_diff_state(buffer_diff, *id).is_none_or(|existing_diff| {
                     if existing_diff.main_buffer.is_none() {
                         return false;
@@ -97,7 +100,7 @@ impl MultiBuffer {
                         || base_text.version().changed_since(existing_diff.base_text().version())
                 }) {
                     if diffs_to_add.capacity() == 0 {
-                        diffs_to_add.reserve(diffs.len());
+                        diffs_to_add.reserve(changed_buffer_ids.len());
                     }
                     diffs_to_add.push(sum_tree::Edit::Insert(diff.snapshot(*id, cx)));
                 }
@@ -108,7 +111,7 @@ impl MultiBuffer {
         let mut paths_to_edit = Vec::new();
         let mut non_text_state_updated = false;
         let mut edited = false;
-        for buffer_state in buffers.values() {
+        for buffer_state in changed_buffer_ids.iter().filter_map(|buffer_id| buffers.get(buffer_id)) {
             let buffer = buffer_state.buffer.read(cx);
             let last_snapshot = buffer_snapshots.get(&buffer.buffer_id()).expect("each buffer should have a snapshot");
             let current_version = buffer.version();
@@ -117,7 +120,7 @@ impl MultiBuffer {
             let buffer_edited = current_version.changed_since(last_snapshot.buffer_snapshot.version());
             let buffer_non_text_state_updated =
                 non_text_state_update_count > last_snapshot.buffer_snapshot.non_text_state_update_count();
-            if buffer_edited || buffer_non_text_state_updated {
+            if buffer_edited || buffer_non_text_state_updated || BufferStatus::new(buffer) != last_snapshot.status {
                 paths_to_edit.push((
                     last_snapshot.path_key.clone(),
                     last_snapshot.path_key_index,
@@ -128,9 +131,6 @@ impl MultiBuffer {
 
             edited |= buffer_edited;
             non_text_state_updated |= buffer_non_text_state_updated;
-            *is_dirty |= buffer.is_dirty();
-            *has_deleted_file |= buffer.file().is_some_and(|file| file.disk_state().is_deleted());
-            *has_conflict |= buffer.has_conflict();
         }
         if edited {
             *edit_count += 1;
@@ -152,7 +152,12 @@ impl MultiBuffer {
 
             buffer_snapshots.insert(
                 buffer_id,
-                BufferStateSnapshot { path_key: path.clone(), path_key_index, buffer_snapshot: buffer.snapshot() },
+                BufferStateSnapshot {
+                    path_key: path.clone(),
+                    path_key_index,
+                    buffer_snapshot: buffer.snapshot(),
+                    status: BufferStatus::new(buffer),
+                },
             );
 
             if let Some(prev_version) = &prev_version {

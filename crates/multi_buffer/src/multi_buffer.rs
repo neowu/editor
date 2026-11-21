@@ -16,7 +16,6 @@ mod transaction;
 
 use std::any::type_name;
 use std::borrow::Cow;
-use std::cell::Cell;
 use std::cell::OnceCell;
 use std::cell::Ref;
 use std::cell::RefCell;
@@ -137,7 +136,9 @@ pub struct MultiBuffer {
     title: Option<String>,
     /// The writing capability of the multi-buffer.
     capability: Capability,
-    buffer_changed_since_sync: Rc<Cell<bool>>,
+    /// Ids of the buffers that changed or were added since the last sync. Buffers add their ids
+    /// through [`Buffer::record_changes`].
+    changed_buffers: Rc<RefCell<FxHashSet<BufferId>>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -351,6 +352,76 @@ struct BufferStateSnapshot {
     pub(crate) path_key: PathKey,
     path_key_index: PathKeyIndex,
     buffer_snapshot: BufferSnapshot,
+    status: BufferStatus,
+}
+
+/// Buffer flags that `MultiBufferSnapshot` aggregates across its buffers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct BufferStatus {
+    is_dirty: bool,
+    has_deleted_file: bool,
+    has_conflict: bool,
+}
+
+impl BufferStatus {
+    fn new(buffer: &Buffer) -> Self {
+        Self {
+            is_dirty: buffer.is_dirty(),
+            has_deleted_file: buffer.file().is_some_and(|file| file.disk_state().is_deleted()),
+            has_conflict: buffer.has_conflict(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct BufferStatusCounts {
+    dirty: usize,
+    deleted_file: usize,
+    conflict: usize,
+}
+
+impl BufferStatusCounts {
+    fn add(&mut self, status: BufferStatus) {
+        self.dirty += usize::from(status.is_dirty);
+        self.deleted_file += usize::from(status.has_deleted_file);
+        self.conflict += usize::from(status.has_conflict);
+    }
+
+    fn remove(&mut self, status: BufferStatus) {
+        self.dirty -= usize::from(status.is_dirty);
+        self.deleted_file -= usize::from(status.has_deleted_file);
+        self.conflict -= usize::from(status.has_conflict);
+    }
+}
+
+/// Buffer state snapshots by buffer id, with counts of the buffers that have each status flag.
+#[derive(Clone, Debug, Default)]
+struct BufferStateSnapshots {
+    snapshots: TreeMap<BufferId, BufferStateSnapshot>,
+    status_counts: BufferStatusCounts,
+}
+
+impl ops::Deref for BufferStateSnapshots {
+    type Target = TreeMap<BufferId, BufferStateSnapshot>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.snapshots
+    }
+}
+
+impl BufferStateSnapshots {
+    fn insert(&mut self, buffer_id: BufferId, buffer_state: BufferStateSnapshot) {
+        self.status_counts.add(buffer_state.status);
+        if let Some(old_buffer_state) = self.snapshots.insert_or_replace(buffer_id, buffer_state) {
+            self.status_counts.remove(old_buffer_state.status);
+        }
+    }
+
+    fn remove(&mut self, buffer_id: BufferId) {
+        if let Some(buffer_state) = self.snapshots.remove(&buffer_id) {
+            self.status_counts.remove(buffer_state.status);
+        }
+    }
 }
 
 impl fmt::Debug for BufferStateSnapshot {
@@ -366,15 +437,12 @@ impl fmt::Debug for BufferStateSnapshot {
 #[derive(Clone, Default)]
 pub struct MultiBufferSnapshot {
     excerpts: SumTree<Excerpt>,
-    buffers: TreeMap<BufferId, BufferStateSnapshot>,
+    buffers: BufferStateSnapshots,
     path_keys: Arc<IndexSet<PathKey, FxBuildHasher>>,
     diffs: SumTree<DiffStateSnapshot>,
     diff_transforms: SumTree<DiffTransform>,
     non_text_state_update_count: usize,
     edit_count: usize,
-    is_dirty: bool,
-    has_deleted_file: bool,
-    has_conflict: bool,
     has_inverted_diff: bool,
     singleton: bool,
     trailing_excerpt_update_count: usize,
@@ -664,17 +732,17 @@ impl MultiBuffer {
             singleton: false,
             capability,
             title: None,
-            buffer_changed_since_sync: Rc::default(),
+            changed_buffers: Rc::default(),
             history: History::default(),
         }
     }
 
     pub fn clone(&self, new_cx: &mut Context<Self>) -> Self {
         let mut buffers = BTreeMap::default();
-        let buffer_changed_since_sync = Rc::new(Cell::new(false));
+        let changed_buffers = Rc::new(RefCell::new(self.changed_buffers.borrow().clone()));
         for (buffer_id, buffer_state) in &self.buffers {
             buffer_state.buffer.update(new_cx, |buffer, _| {
-                buffer.record_changes(Rc::downgrade(&buffer_changed_since_sync));
+                buffer.record_changes(Rc::downgrade(&changed_buffers));
             });
             buffers.insert(
                 *buffer_id,
@@ -700,7 +768,7 @@ impl MultiBuffer {
             capability: self.capability,
             history: self.history.clone(),
             title: self.title.clone(),
-            buffer_changed_since_sync,
+            changed_buffers,
         }
     }
 
@@ -1116,9 +1184,6 @@ impl MultiBuffer {
             diff_transforms: _,
             non_text_state_update_count: _,
             edit_count: _,
-            is_dirty,
-            has_deleted_file,
-            has_conflict,
             has_inverted_diff,
             singleton: _,
             trailing_excerpt_update_count,
@@ -1132,12 +1197,9 @@ impl MultiBuffer {
         let start = ExcerptDimension(MultiBufferOffset::ZERO);
         let prev_len = ExcerptDimension(excerpts.summary().text.len);
         *excerpts = SumTree::default();
-        *buffers = TreeMap::default();
+        *buffers = BufferStateSnapshots::default();
         *diffs = SumTree::default();
         *trailing_excerpt_update_count += 1;
-        *is_dirty = false;
-        *has_deleted_file = false;
-        *has_conflict = false;
         *has_inverted_diff = false;
 
         let edits = Self::sync_diff_transforms(
@@ -2862,15 +2924,15 @@ impl MultiBufferSnapshot {
     }
 
     pub const fn is_dirty(&self) -> bool {
-        self.is_dirty
+        self.buffers.status_counts.dirty > 0
     }
 
     pub const fn has_deleted_file(&self) -> bool {
-        self.has_deleted_file
+        self.buffers.status_counts.deleted_file > 0
     }
 
     pub const fn has_conflict(&self) -> bool {
-        self.has_conflict
+        self.buffers.status_counts.conflict > 0
     }
 
     pub fn path_for_buffer(&self, buffer_id: BufferId) -> Option<&PathKey> {
@@ -3356,5 +3418,35 @@ where
 
     fn add_summary(&mut self, summary: &'a ExcerptSummary, (): ()) {
         MultiBufferDimension::add_mb_text_summary(&mut self.0, &summary.text);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BufferStatus;
+    use super::BufferStatusCounts;
+
+    #[test]
+    fn buffer_status_counts_add_and_remove() {
+        let clean = BufferStatus { is_dirty: false, has_deleted_file: false, has_conflict: false };
+        let dirty = BufferStatus { is_dirty: true, ..clean };
+        let conflicted = BufferStatus { is_dirty: true, has_conflict: true, ..clean };
+        let deleted = BufferStatus { has_deleted_file: true, ..clean };
+
+        let mut counts = BufferStatusCounts::default();
+        for status in [clean, dirty, conflicted, deleted] {
+            counts.add(status);
+        }
+        assert_eq!(counts, BufferStatusCounts { dirty: 2, deleted_file: 1, conflict: 1 });
+
+        // Replacing a buffer's status adds the new one and removes the old one.
+        counts.add(clean);
+        counts.remove(conflicted);
+        assert_eq!(counts, BufferStatusCounts { dirty: 1, deleted_file: 1, conflict: 0 });
+
+        for status in [clean, clean, dirty, deleted] {
+            counts.remove(status);
+        }
+        assert_eq!(counts, BufferStatusCounts::default());
     }
 }

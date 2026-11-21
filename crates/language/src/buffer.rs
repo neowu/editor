@@ -4,6 +4,7 @@ pub mod row_chunk;
 
 use std::any::Any;
 use std::cell::Cell;
+use std::cell::RefCell;
 use std::cmp;
 use std::cmp::Ordering;
 use std::cmp::Reverse;
@@ -45,6 +46,7 @@ pub use lsp::DiagnosticSeverity;
 use lsp::LanguageServerId;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use sum_tree::TreeMap;
 pub use text::Anchor;
@@ -169,7 +171,7 @@ pub struct Buffer {
     /// Memoize calls to has_changes_since(saved_version).
     /// The contents of a cell are (self.version, has_changes) at the time of a last call.
     has_unsaved_edits: Cell<(clock::Global, bool)>,
-    change_bits: Vec<rc::Weak<Cell<bool>>>,
+    changed_buffer_sets: Vec<rc::Weak<RefCell<FxHashSet<BufferId>>>>,
     _subscriptions: Vec<gpui::Subscription>,
     resolved_settings: Option<Arc<LanguageSettings>>,
     tree_sitter_data: Arc<TreeSitterData>,
@@ -669,7 +671,7 @@ impl Buffer {
             completion_triggers: BTreeSet::default(),
             completion_triggers_per_language_server: FxHashMap::default(),
             has_conflict: false,
-            change_bits: Vec::default(),
+            changed_buffer_sets: Vec::default(),
             _subscriptions: Vec::new(),
             resolved_settings: None,
             encoding: encoding_rs::UTF_8,
@@ -858,6 +860,7 @@ impl Buffer {
             self.capability = capability;
             // Multibuffers resnapshot on this, so their per-excerpt edit filter sees the new capability.
             self.non_text_state_update_count += 1;
+            self.was_changed();
             cx.emit(BufferEvent::CapabilityChanged);
             cx.notify();
         }
@@ -980,6 +983,7 @@ impl Buffer {
         self.has_unsaved_edits.set((self.saved_version.clone(), false));
         self.text.set_line_ending(line_ending);
         self.saved_mtime = mtime;
+        self.was_changed();
         cx.emit(BufferEvent::Reloaded);
         cx.notify();
     }
@@ -1685,23 +1689,26 @@ impl Buffer {
         self.text.subscribe()
     }
 
-    /// Adds a bit to the list of bits that are set when the buffer's text changes.
+    /// Registers a set that receives this buffer's id whenever the buffer changes.
     ///
-    /// This allows downstream code to check if the buffer's text has changed without
-    /// waiting for an effect cycle, which would be required if using eents.
-    pub fn record_changes(&mut self, bit: rc::Weak<Cell<bool>>) {
-        if let Err(ix) = self.change_bits.binary_search_by_key(&rc::Weak::as_ptr(&bit), rc::Weak::as_ptr) {
-            self.change_bits.insert(ix, bit);
+    /// This allows downstream code to check if the buffer has changed without
+    /// waiting for an effect cycle, which would be required if using events.
+    pub fn record_changes(&mut self, changed_buffers: rc::Weak<RefCell<FxHashSet<BufferId>>>) {
+        if let Err(ix) =
+            self.changed_buffer_sets.binary_search_by_key(&rc::Weak::as_ptr(&changed_buffers), rc::Weak::as_ptr)
+        {
+            self.changed_buffer_sets.insert(ix, changed_buffers);
         }
     }
 
-    /// Set the change bit for all "listeners".
+    /// Inserts this buffer's id into every set registered with [`Buffer::record_changes`].
     fn was_changed(&mut self) {
-        self.change_bits.retain(|change_bit| {
-            change_bit
+        let buffer_id = self.buffer_id();
+        self.changed_buffer_sets.retain(|changed_buffers| {
+            changed_buffers
                 .upgrade()
-                .inspect(|bit| {
-                    _ = bit.replace(true);
+                .inspect(|changed_buffers| {
+                    changed_buffers.borrow_mut().insert(buffer_id);
                 })
                 .is_some()
         });

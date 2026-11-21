@@ -23,6 +23,7 @@ use util::rel_path::RelPath;
 use crate::Anchor;
 use crate::BufferState;
 use crate::BufferStateSnapshot;
+use crate::BufferStatus;
 use crate::DiffChangeKind;
 use crate::Event;
 use crate::Excerpt;
@@ -387,7 +388,7 @@ impl MultiBuffer {
         {
             let old_buffer_id = excerpt.buffer_id;
             self.buffers.remove(&old_buffer_id);
-            snapshot.buffers.remove(&old_buffer_id);
+            snapshot.buffers.remove(old_buffer_id);
             remove_diff_state(&mut snapshot.diffs, old_buffer_id);
             self.diffs.remove(&old_buffer_id);
             let before = cursor.position.1;
@@ -548,13 +549,14 @@ impl MultiBuffer {
                 path_key: path_key.clone(),
                 path_key_index,
                 buffer_snapshot: buffer_snapshot.clone(),
+                status: BufferStatus::new(buffer.read(cx)),
             },
         );
 
         self.buffers.entry(buffer_id).or_insert_with(|| {
-            self.buffer_changed_since_sync.replace(true);
+            self.changed_buffers.borrow_mut().insert(buffer_id);
             buffer.update(cx, |buffer, _| {
-                buffer.record_changes(Rc::downgrade(&self.buffer_changed_since_sync));
+                buffer.record_changes(Rc::downgrade(&self.changed_buffers));
             });
             BufferState {
                 _subscriptions: [
@@ -672,7 +674,7 @@ impl MultiBuffer {
         }
 
         for buffer_id in &removed_buffer_ids {
-            snapshot.buffers.remove(buffer_id);
+            snapshot.buffers.remove(*buffer_id);
             remove_diff_state(&mut snapshot.diffs, *buffer_id);
             self.buffers.remove(buffer_id);
             self.diffs.remove(buffer_id);
@@ -726,7 +728,7 @@ impl MultiBuffer {
         new_excerpts.append(suffix, ());
 
         if let Some(buffer_id) = buffer_id {
-            snapshot.buffers.remove(&buffer_id);
+            snapshot.buffers.remove(buffer_id);
             remove_diff_state(&mut snapshot.diffs, buffer_id);
             self.buffers.remove(&buffer_id);
             self.diffs.remove(&buffer_id);
