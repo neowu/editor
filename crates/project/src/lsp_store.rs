@@ -2756,6 +2756,16 @@ impl LanguageServerPromptRequest {
         let id = NEXT_PROMPT_REQUEST_ID.fetch_add(1, atomic::Ordering::AcqRel);
         LanguageServerPromptRequest { id, level, message, actions, lsp_name, response_channel }
     }
+    /// Whether showing this prompt would repeat `visible`: both offer no actions and have the
+    /// same server, level and message.
+    pub fn repeats(&self, visible: &Self) -> bool {
+        self.actions.is_empty()
+            && visible.actions.is_empty()
+            && self.level == visible.level
+            && self.lsp_name == visible.lsp_name
+            && self.message == visible.message
+    }
+
     pub async fn respond(self, index: usize) -> Option<()> {
         if let Some(response) = self.actions.into_iter().nth(index) {
             self.response_channel.send(response).await.ok()
@@ -2930,6 +2940,35 @@ pub(crate) fn collapse_newlines(text: &str, separator: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prompt_repeats_only_an_actionless_prompt_with_the_same_server_level_and_message() {
+        let prompt = |level, message: &str, lsp_name: &str, actions: &[&str]| {
+            let actions = actions
+                .iter()
+                .map(|title| MessageActionItem {
+                    title: (*title).to_owned(),
+                    properties: std::collections::HashMap::default(),
+                })
+                .collect();
+            LanguageServerPromptRequest::new(
+                level,
+                message.to_owned(),
+                actions,
+                lsp_name.to_owned(),
+                async_channel::bounded(1).0,
+            )
+        };
+        let visible = prompt(PromptLevel::Warning, "theme not found", "json", &[]);
+        assert!(prompt(PromptLevel::Warning, "theme not found", "json", &[]).repeats(&visible));
+        assert!(!prompt(PromptLevel::Critical, "theme not found", "json", &[]).repeats(&visible));
+        assert!(!prompt(PromptLevel::Warning, "other", "json", &[]).repeats(&visible));
+        assert!(!prompt(PromptLevel::Warning, "theme not found", "yaml", &[]).repeats(&visible));
+        // Prompts that ask for a choice stay independent.
+        assert!(!prompt(PromptLevel::Warning, "theme not found", "json", &["Retry"]).repeats(&visible));
+        let visible_with_action = prompt(PromptLevel::Warning, "theme not found", "json", &["Retry"]);
+        assert!(!prompt(PromptLevel::Warning, "theme not found", "json", &[]).repeats(&visible_with_action));
+    }
 
     #[test]
     fn only_unanswered_or_rejected_lsp_requests_are_logged() {

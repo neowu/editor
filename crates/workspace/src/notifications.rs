@@ -9,7 +9,6 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use anyhow::Context as _;
-use gpui::AnyEntity;
 use gpui::AnyView;
 use gpui::App;
 use gpui::AppContext as _;
@@ -146,26 +145,6 @@ impl Workspace {
             })
             .detach();
 
-            if let Ok(prompt) = AnyEntity::from(notification.clone()).downcast::<LanguageServerPrompt>() {
-                let is_prompt_without_actions =
-                    prompt.read(cx).request.as_ref().is_some_and(|request| request.actions.is_empty());
-
-                if is_prompt_without_actions {
-                    let task = cx.spawn({
-                        let id = id.clone();
-                        async move |this, cx| {
-                            cx.background_executor().timer(LSP_PROMPT_DISMISS_TIMEOUT).await;
-                            this.update(cx, |workspace, cx| {
-                                workspace.dismiss_notification(&id, cx);
-                            })
-                            .ok();
-                        }
-                    });
-                    prompt.update(cx, |prompt, _| {
-                        prompt.dismiss_task = Some(task);
-                    });
-                }
-            }
             notification.into()
         });
     }
@@ -187,6 +166,26 @@ impl Workspace {
         self.dismiss_notification(id, cx);
         self.notifications.push((id.clone(), build_notification(cx)));
         cx.notify();
+    }
+
+    /// Shows a language server prompt, unless a visible prompt already says the same thing. The
+    /// visible prompt and its dismissal timer are left alone.
+    pub(crate) fn show_language_server_prompt(
+        &mut self,
+        request: &project::LanguageServerPromptRequest,
+        cx: &mut Context<Self>,
+    ) {
+        if self.notifications.iter().any(|(_, view)| {
+            view.clone()
+                .downcast::<LanguageServerPrompt>()
+                .is_ok_and(|prompt| prompt.read(cx).request.as_ref().is_some_and(|visible| request.repeats(visible)))
+        }) {
+            return;
+        }
+
+        self.show_notification(NotificationId::composite::<LanguageServerPrompt>(request.id), cx, |cx| {
+            cx.new(|cx| LanguageServerPrompt::new(request.clone(), cx))
+        });
     }
 
     pub fn show_error<E: WorkspaceError + 'static>(&mut self, err: E, cx: &mut Context<Self>) {
@@ -269,15 +268,21 @@ impl Focusable for LanguageServerPrompt {
 impl Notification for LanguageServerPrompt {}
 
 impl LanguageServerPrompt {
-    pub fn new(request: project::LanguageServerPromptRequest, cx: &mut App) -> Self {
+    pub fn new(request: project::LanguageServerPromptRequest, cx: &mut Context<Self>) -> Self {
         let markdown = cx.new(|cx| Markdown::new(request.message.clone().into(), None, None, cx));
+        let dismiss_task = request.actions.is_empty().then(|| {
+            cx.spawn(async move |prompt, cx| {
+                cx.background_executor().timer(LSP_PROMPT_DISMISS_TIMEOUT).await;
+                prompt.update(cx, |prompt, cx| prompt.dismiss_notification(cx)).ok();
+            })
+        });
 
         Self {
             focus_handle: cx.focus_handle(),
             request: Some(request),
             scroll_handle: ScrollHandle::new(),
             markdown,
-            dismiss_task: None,
+            dismiss_task,
         }
     }
 
