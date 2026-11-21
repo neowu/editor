@@ -8,10 +8,12 @@ use git::repository;
 mod buffer_git_state;
 mod commit_graph;
 mod conflict_set;
+mod diff_base_load;
 pub mod diff_buffer_list;
 mod diffs;
 pub mod git_traversal;
 pub mod pending_op;
+use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::collections::VecDeque;
@@ -19,6 +21,8 @@ use std::future::Future;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
+use std::rc::Rc;
+use std::rc::Weak;
 use std::sync::Arc;
 use std::sync::atomic;
 use std::sync::atomic::AtomicU64;
@@ -43,6 +47,9 @@ pub use conflict_set::ConflictRegion;
 pub use conflict_set::ConflictSet;
 pub use conflict_set::ConflictSetSnapshot;
 pub use conflict_set::ConflictSetUpdate;
+use diff_base_load::DiffBaseLoad;
+use diff_base_load::DiffBaseLoadKind;
+use diff_base_load::load_revision_groups;
 use file_content::decode_text;
 use file_content::encode_text;
 use fs::Fs;
@@ -373,6 +380,8 @@ pub struct Repository {
     active_jobs: FxHashMap<JobId, JobInfo>,
     pending_ops: SumTree<PendingOps>,
     job_id: JobId,
+    // The most recent diff base load job's loads, and `job_id` just after that job was queued.
+    pending_diff_base_loads: (JobId, Weak<RefCell<Vec<DiffBaseLoad>>>),
     repository_state: Shared<Task<Result<RepositoryState, String>>>,
     initial_graph_data: FxHashMap<(LogSource, LogOrder), InitialGitGraphData>,
     commit_data_handler: CommitDataHandlerState,
@@ -1590,6 +1599,8 @@ impl Repository {
             .shared();
         self.job_sender.close_channel();
         self._worker_task = Task::ready(());
+        // Loads queued on the old worker are canceled with it, so later loads need a new job.
+        self.pending_diff_base_loads = Default::default();
         self.active_jobs.clear();
         cx.notify();
 
@@ -1654,6 +1665,7 @@ impl Repository {
             paths_needing_status_update: Vec::default(),
             job_sender: mpsc::unbounded().0,
             job_id: 0,
+            pending_diff_base_loads: Default::default(),
             active_jobs: FxHashMap::default(),
             initial_graph_data: FxHashMap::default(),
             commit_data: FxHashMap::default(),
@@ -1734,20 +1746,30 @@ impl Repository {
 
             let buffer_diff_base_changes = cx
                 .background_spawn(async move {
-                    let mut revisions = Vec::new();
+                    let mut revision_groups = Vec::new();
                     for (_, repo_path, is_symlink, current_index_text, current_head_text) in &repo_diff_state_updates {
+                        let mut revisions = Vec::new();
                         if current_index_text.is_some() && !*is_symlink {
                             revisions.push(format!(":{}", repo_path.as_unix_str()));
                         }
                         if current_head_text.is_some() && !*is_symlink {
                             revisions.push(format!("HEAD:{}", repo_path.as_unix_str()));
                         }
+                        revision_groups.push(revisions);
                     }
-
-                    let mut loaded_revisions = backend.load_revisions(revisions).await.log_err().into_iter().flatten();
+                    let loaded_groups =
+                        load_revision_groups(|revisions| backend.load_revisions(revisions), revision_groups).await;
 
                     let mut changes = Vec::new();
-                    for (buffer, _, is_symlink, current_index_text, current_head_text) in &repo_diff_state_updates {
+                    for ((buffer, _, is_symlink, current_index_text, current_head_text), loaded_revisions) in
+                        repo_diff_state_updates.iter().zip(loaded_groups)
+                    {
+                        // A buffer whose texts fail to load keeps its current diff bases.
+                        let Some(loaded_revisions) = loaded_revisions.log_err() else {
+                            changes.push((buffer.clone(), None));
+                            continue;
+                        };
+                        let mut loaded_revisions = loaded_revisions.into_iter();
                         let index_text = (current_index_text.is_some() && !*is_symlink)
                             .then(|| loaded_revisions.next().flatten())
                             .flatten()
@@ -2913,34 +2935,44 @@ impl Repository {
     }
 
     fn load_staged_text(&mut self, repo_path: RepoPath, cx: &App) -> Task<Result<Option<String>>> {
-        let rx = self.send_job(None, move |state, _| async move {
-            {
-                let RepositoryState { backend, .. } = state;
-                backend.load_index_text(repo_path).await.map(decode_git_text).transpose()
-            }
-        });
-        cx.spawn(|_: &mut AsyncApp| async move { rx.await? })
+        let (result_tx, result_rx) = oneshot::channel();
+        self.queue_diff_base_load(DiffBaseLoad { repo_path, kind: DiffBaseLoadKind::Staged(result_tx) });
+        cx.spawn(|_: &mut AsyncApp| async move { result_rx.await? })
     }
 
     fn load_committed_text(&mut self, repo_path: RepoPath, cx: &App) -> Task<Result<DiffBasesChange>> {
-        let rx = self.send_job(None, move |state, _| async move {
-            {
-                let RepositoryState { backend, .. } = state;
-                let revisions =
-                    vec![format!("HEAD:{}", repo_path.as_unix_str()), format!(":{}", repo_path.as_unix_str())];
-                let mut loaded_revisions = backend.load_revisions(revisions).await?.into_iter();
-                let committed_text = loaded_revisions.next().flatten().map(decode_git_text).transpose()?;
-                let staged_text = loaded_revisions.next().flatten().map(decode_git_text).transpose()?;
-                let diff_bases_change = if committed_text == staged_text {
-                    DiffBasesChange::Both(committed_text)
-                } else {
-                    DiffBasesChange::Each { index: staged_text, head: committed_text }
-                };
-                anyhow::Ok(diff_bases_change)
-            }
-        });
+        let (result_tx, result_rx) = oneshot::channel();
+        self.queue_diff_base_load(DiffBaseLoad { repo_path, kind: DiffBaseLoadKind::Committed(result_tx) });
+        cx.spawn(|_: &mut AsyncApp| async move { result_rx.await? })
+    }
 
-        cx.spawn(|_: &mut AsyncApp| async move { rx.await? })
+    fn queue_diff_base_load(&mut self, load: DiffBaseLoad) {
+        // Joining only the most recently queued job keeps loads ordered with other git jobs.
+        let (next_job_id, loads) = &self.pending_diff_base_loads;
+        if *next_job_id == self.job_id
+            && let Some(loads) = loads.upgrade()
+        {
+            loads.borrow_mut().push(load);
+            return;
+        }
+        // The job owns the only `Rc`, so its loads are canceled if it's dropped without running,
+        // and no load can join once it starts.
+        let loads = Rc::new(RefCell::new(vec![load]));
+        let pending_loads = Rc::downgrade(&loads);
+        drop(self.send_job(None, move |state, cx| async move {
+            let loads = Rc::into_inner(loads).map_or_default(RefCell::into_inner);
+            let RepositoryState { backend, .. } = state;
+            // A batch can hold many texts, so decode them off the main thread.
+            cx.background_spawn(async move {
+                let groups = loads.iter().map(DiffBaseLoad::revisions).collect();
+                let results = load_revision_groups(|revisions| backend.load_revisions(revisions), groups).await;
+                for (load, texts) in loads.into_iter().zip(results) {
+                    load.finish(texts);
+                }
+            })
+            .await;
+        }));
+        self.pending_diff_base_loads = (self.job_id, pending_loads);
     }
 
     pub fn load_commit_template_text(&mut self) -> oneshot::Receiver<Result<Option<GitCommitTemplate>>> {

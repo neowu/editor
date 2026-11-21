@@ -1468,11 +1468,13 @@ impl GitRepository for RealGitRepository {
                     );
                 }
 
+                // `git` blocks once an unread stderr pipe fills, for example with one ambiguity
+                // warning per `HEAD` lookup when `refs/tags/HEAD` exists.
                 let mut process = git
                     .build_command(&["cat-file", "--batch"])
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
+                    .stderr(Stdio::null())
                     .kill_on_drop(true)
                     .spawn()?;
 
