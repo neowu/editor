@@ -66,8 +66,8 @@ Directions the fork deliberately doesn't follow, even in kept crates:
 
 ## Status
 
-- Last reviewed upstream commit: `a57e2fdc` (2026-11-16). The next pass
-  starts at `git log --reverse a57e2fdc..upstream/main`.
+- Last reviewed upstream commit: `2f808b3c` (2026-11-21). The next pass
+  starts at `git log --reverse 2f808b3c..upstream/main`.
 - Renderer series, partly taken: #66806 and #66807 are ported. Still open:
   #66809 (path rendering without MSAA or an intermediate texture) with
   #66811 (depth buffer to cut overdraw), the main Metal win; they trade
@@ -80,5 +80,16 @@ Directions the fork deliberately doesn't follow, even in kept crates:
   (mouse-wheel zoom in terminals and diffs), #66450 (hide the edit prediction
   status bar button), git UI polish (#66260, #66187, #66226), #63909, #65474,
   #66144, #66384, #66330/#66137 (JetBrains keymap).
+- Correctness fixes from the `a57e2fdc..2f808b3c` pass that apply but are
+  not ported yet: #67116 (retry branch diffs after a failed load), #67110
+  (blame broken pipe on large untracked files), #67024 (bare-repository
+  check requires `HEAD` and `config` to be files), #67104 (markdown
+  selection inside a character), #67130 (empty content masks stay empty when
+  snapped), #66821 (regex replacement before non-ASCII text), #67147 (text
+  finder clears on no results), #67021 (duplicate language server
+  notifications), #66936 (per-server completion trigger characters), #67125
+  (whitespace-only project panel names), #64462 (TypeScript/TSX type
+  highlighting), #67042 (file-history graph reveals the file in the commit
+  view).
 - Watch: #66487 (parallel LSP loads), reverted upstream as #66517. Revisit
   if it lands again.

@@ -200,6 +200,9 @@
 - Multibuffers filter edits per excerpt by each buffer's capability; a
   capability change counts as a non-text state update, so multibuffers
   resnapshot and stop editing that buffer immediately.
+- A multibuffer syncs only the buffers that reported a change since its last
+  sync, so every buffer mutation that affects dirty, conflict, deleted-file or
+  capability state must mark the buffer as changed (`Buffer::was_changed`).
 - Diagnostics have one per-editor switch, `editor::ToggleDiagnostics`, which turns underlines,
   inline messages, problem navigation and LSP pulls on or off together. Inline
   messages always show while diagnostics are on: there is no
