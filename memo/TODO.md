@@ -1,3 +1,4 @@
+# macos
 - no support for hard click touchpad (lookup), add or put right click menu
 
 # support to open in restricted mode? like not starting LSP?

@@ -1228,8 +1228,10 @@ pub struct ClientInfo {
     pub version: Option<String>,
 }
 
+// Braces matter: a unit struct (de)serializes as `null`, not the `{}` LSP requires.
+#[allow(clippy::empty_structs_with_brackets)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Deserialize, Serialize)]
-pub struct InitializedParams;
+pub struct InitializedParams {}
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 pub struct GenericRegistrationOptions {
@@ -2822,6 +2824,14 @@ mod tests {
     {
         let value = serde_json::from_str::<T>(json).unwrap();
         assert_eq!(&value, expected);
+    }
+
+    #[test]
+    fn empty_params_serialize_as_objects() {
+        // tsgo rejects `"params": null` for `initialized`.
+        test_serialization(&super::InitializedParams {}, "{}");
+        test_serialization(&crate::FoldingProviderOptions {}, "{}");
+        test_serialization(&crate::ColorProviderOptions {}, "{}");
     }
 
     #[test]

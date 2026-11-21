@@ -11,9 +11,11 @@ use crate::WorkDoneProgressParams;
 
 pub type DocumentColorClientCapabilities = DynamicRegistrationClientCapabilities;
 
+// Braces matter: a unit struct (de)serializes as `null`, not the `{}` LSP requires.
+#[allow(clippy::empty_structs_with_brackets)]
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ColorProviderOptions;
+pub struct ColorProviderOptions {}
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

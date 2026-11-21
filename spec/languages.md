@@ -89,6 +89,28 @@
   ends with the adapter's label is the definition. Symbols in the current
   file's directory win; any ambiguity yields nothing (then the editor falls
   back to references).
+- Language server command override: `<worktree root>/.ed/lsp.json` maps a
+  server name (`terraform-ls`, `tsgo`, `biome`, `ty`, `ruff`, ...) to the full
+  argv that starts it, e.g.
+  `{"terraform-ls": ["container", "machine", "run", "-i", "--", "terraform-ls", "serve"]}`.
+  This is how a server runs somewhere else (a container, another host) as
+  long as paths match the host's.
+  - It replaces only the launch: the adapter still supplies initialization
+    options, settings and quirks, so the command must be that server (any
+    build or location), not a different implementation.
+  - A listed server skips the adapter's own lookup entirely (`PATH`,
+    `node_modules/.bin`, `.venv`, `npx`, `uvx`); there is no fallback, and a
+    command that fails to start is reported as the server's failure. Unlisted
+    servers are unchanged.
+  - The command runs without a shell in the worktree root with the project's
+    shell environment; a bare program name is resolved on the shell `PATH`.
+  - An overridden server is sent a null `processId`, since the editor's pid
+    means nothing where the server runs and servers that watch their parent
+    (tsgo) would exit.
+  - The file is read each time a server starts and isn't watched: restart the
+    server after editing it. A missing file means no overrides; an invalid one
+    fails every server start in that worktree. It is not validated against
+    trust: opening a project runs the commands its `.ed/lsp.json` names.
 - rust-analyzer's check runs `cargo clippy`. Clippy's Cargo-group lints
   (`wildcard_dependencies`, etc.) have no span and are reported at line 1 of
   the clippy config, once per crate and target. rust-analyzer drops

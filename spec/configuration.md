@@ -85,6 +85,8 @@ migrator, or Vim/Helix mode.
   created, or rewritten. There are no settings profiles or project overrides.
   Changing persistent preferences requires editing the built-in settings and
   rebuilding. Existing settings controls affect only the running session.
+  The one per-project config file is `.ed/lsp.json`, which overrides language
+  server commands (see `languages.md`).
 - Built-in preferences preserve the applicable values from the personal Zed
   configuration, including per-language values and Rust language-server options.
   Entries for removed features are omitted. Preferences that never varied are

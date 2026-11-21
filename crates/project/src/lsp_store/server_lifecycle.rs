@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 use std::collections::btree_map as std_collections_btree_map;
 use std::collections::btree_map;
 use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
@@ -256,6 +257,20 @@ impl LspAdapterDelegate for LocalLspAdapterDelegate {
     }
 }
 
+/// Per-project language server command overrides, relative to the worktree root.
+const LSP_OVERRIDES_PATH: &str = ".ed/lsp.json";
+
+/// The command (program and arguments) `.ed/lsp.json` gives for `server`, if any.
+/// The file maps server names to their full argv.
+fn command_override(json: &str, server: &str) -> Result<Option<(String, Vec<OsString>)>> {
+    let mut overrides: FxHashMap<String, Vec<String>> =
+        serde_json::from_str(json).with_context(|| format!("invalid {LSP_OVERRIDES_PATH}"))?;
+    let Some(argv) = overrides.remove(server) else { return Ok(None) };
+    let mut argv = argv.into_iter();
+    let program = argv.next().with_context(|| format!("empty command for {server} in {LSP_OVERRIDES_PATH}"))?;
+    Ok(Some((program, argv.map(Into::into).collect())))
+}
+
 pub(super) fn include_text(server: &lsp::LanguageServer) -> Option<bool> {
     match server.capabilities().text_document_sync.as_ref()? {
         lsp::TextDocumentSyncCapability::Options(opts) => match opts.save.as_ref()? {
@@ -349,10 +364,10 @@ impl LocalLspStore {
             let stderr_capture = Arc::clone(&stderr_capture);
             let pending_workspace_folders = Arc::clone(&pending_workspace_folders);
             async move |cx| {
-                let binary = binary.await?;
+                let (binary, overridden) = binary.await?;
 
                 let code_action_kinds = adapter.code_action_kinds();
-                lsp::LanguageServer::new(
+                let server = lsp::LanguageServer::new(
                     stderr_capture,
                     server_id,
                     server_name,
@@ -361,7 +376,8 @@ impl LocalLspStore {
                     code_action_kinds,
                     Some(pending_workspace_folders),
                     cx,
-                )
+                )?;
+                anyhow::Ok((server, overridden))
             }
         });
 
@@ -374,7 +390,7 @@ impl LocalLspStore {
             let pending_workspace_folders = Arc::clone(&pending_workspace_folders);
             cx.spawn(async move |cx| {
                 let result = async {
-                    let language_server = pending_server.await?;
+                    let (language_server, overridden) = pending_server.await?;
 
                     let workspace_config =
                         Self::workspace_configuration_for_adapter(Arc::clone(&adapter.adapter), &delegate, None, cx)
@@ -386,6 +402,11 @@ impl LocalLspStore {
                     let initialization_params = cx.update(|cx| {
                         let mut params = language_server.default_initialize_params();
                         params.initialization_options = initialization_options;
+                        // An overridden command may run where our pid doesn't exist (a container,
+                        // another host); servers that watch their parent would exit.
+                        if overridden {
+                            params.process_id = None;
+                        }
                         adapter.adapter.prepare_initialize_params(params, cx)
                     })?;
 
@@ -482,16 +503,30 @@ impl LocalLspStore {
         server_id
     }
 
+    /// Resolves the command to start `adapter`'s server and whether it comes from
+    /// `.ed/lsp.json`, which replaces the adapter's own lookup entirely.
     fn get_language_server_binary(
         &self,
         adapter: Arc<CachedLspAdapter>,
-        delegate: Arc<dyn LspAdapterDelegate>,
+        delegate: Arc<LocalLspAdapterDelegate>,
         cx: &App,
-    ) -> Task<Result<LanguageServerBinary>> {
+    ) -> Task<Result<(LanguageServerBinary, bool)>> {
         cx.spawn(async move |cx| {
-            let mut binary = adapter.find_binary(&delegate, cx).await?;
+            let overrides = delegate.fs.load(&delegate.worktree_root_path().join(LSP_OVERRIDES_PATH)).await.ok();
+            let command = match &overrides {
+                Some(json) => command_override(json, &adapter.name().0)?,
+                None => None,
+            };
+            let overridden = command.is_some();
+            let mut binary = if let Some((program, arguments)) = command {
+                let path = delegate.which(program.as_ref()).await.unwrap_or_else(|| program.into());
+                LanguageServerBinary { path, arguments, env: None }
+            } else {
+                let delegate = Arc::clone(&delegate) as Arc<dyn LspAdapterDelegate>;
+                adapter.find_binary(&delegate, cx).await?
+            };
             log::info!(
-                "found user-installed language server for {}. path: {:?}, arguments: {:?}",
+                "language server command for {}. path: {:?}, arguments: {:?}, overridden: {overridden}",
                 adapter.name(),
                 binary.path,
                 binary.arguments
@@ -500,7 +535,7 @@ impl LocalLspStore {
             let mut shell_env = delegate.shell_env().await;
             shell_env.extend(binary.env.take().unwrap_or_default());
             binary.env = Some(shell_env);
-            Ok(binary)
+            Ok((binary, overridden))
         })
     }
 
@@ -1868,5 +1903,35 @@ impl LspStore {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::command_override;
+
+    #[test]
+    fn command_override_returns_the_servers_argv() {
+        let json = r#"{"terraform-ls": ["container", "machine", "run", "-i", "--", "terraform-ls", "serve"], "ruff": ["ruff"]}"#;
+        let (program, arguments) = command_override(json, "terraform-ls").unwrap().unwrap();
+        assert_eq!(program, "container");
+        assert_eq!(arguments, ["machine", "run", "-i", "--", "terraform-ls", "serve"]);
+
+        let (program, arguments) = command_override(json, "ruff").unwrap().unwrap();
+        assert_eq!(program, "ruff");
+        assert!(arguments.is_empty());
+    }
+
+    #[test]
+    fn command_override_is_none_for_unlisted_servers() {
+        assert_eq!(command_override(r#"{"ruff": ["ruff"]}"#, "ty").unwrap(), None);
+        assert_eq!(command_override("{}", "ty").unwrap(), None);
+    }
+
+    #[test]
+    fn command_override_rejects_invalid_files_and_empty_commands() {
+        command_override("not json", "ty").unwrap_err();
+        command_override(r#"{"ty": "uvx ty server"}"#, "ty").unwrap_err();
+        command_override(r#"{"ty": []}"#, "ty").unwrap_err();
     }
 }

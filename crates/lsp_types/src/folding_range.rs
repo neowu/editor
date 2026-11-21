@@ -47,8 +47,10 @@ impl From<bool> for FoldingRangeProviderCapability {
     }
 }
 
+// Braces matter: a unit struct (de)serializes as `null`, not the `{}` LSP requires.
+#[allow(clippy::empty_structs_with_brackets)]
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-pub struct FoldingProviderOptions;
+pub struct FoldingProviderOptions {}
 
 #[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
