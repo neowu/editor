@@ -318,6 +318,10 @@ struct RemovedEntriesGeneration {
 }
 
 impl RemovedEntries {
+    fn is_empty(&self) -> bool {
+        self.current.is_empty() && self.previous.is_empty()
+    }
+
     fn insert(&mut self, entry: &Entry) {
         self.current.insert(entry);
     }
@@ -337,6 +341,10 @@ impl RemovedEntries {
 }
 
 impl RemovedEntriesGeneration {
+    fn is_empty(&self) -> bool {
+        self.by_inode.is_empty() && self.by_path.is_empty()
+    }
+
     fn insert(&mut self, entry: &Entry) {
         self.by_path.insert(Arc::clone(&entry.path), entry.clone());
         match self.by_inode.entry(entry.inode) {
@@ -3445,21 +3453,20 @@ impl BackgroundScanner {
     }
 
     async fn scan_dir(&self, job: &ScanJob) -> Result<()> {
+        if self.settings.is_path_excluded(&job.path) {
+            log::error!("skipping excluded directory {:?}", job.path);
+            return Ok(());
+        }
+        log::trace!("scanning directory {:?}", job.path);
         let root_abs_path;
         let root_char_bag;
         {
             let snapshot = &self.state.lock().await.snapshot;
-            if self.settings.is_path_excluded(&job.path) {
-                log::error!("skipping excluded directory {:?}", job.path);
-                return Ok(());
-            }
-            log::trace!("scanning directory {:?}", job.path);
             root_abs_path = Arc::clone(snapshot.abs_path());
             root_char_bag = snapshot.root_char_bag;
         }
 
         let parent_is_hidden = self.settings.is_path_hidden(&job.path);
-        let next_entry_id = Arc::clone(&self.next_entry_id);
         let mut ignore_stack = job.ignore_stack.clone();
         let mut new_ignore = None;
         let mut root_canonical_path = None;
@@ -3517,6 +3524,9 @@ impl BackgroundScanner {
             .collect::<Vec<_>>()
             .await;
 
+        // Siblings sorted by name are in `RelPath` order, which leaves little
+        // sorting for `populate_dir` to do while it holds the lock.
+        child_paths.sort_unstable_by(|a, b| a.file_name().cmp(&b.file_name()));
         // Ensure that .git and .gitignore are processed first.
         swap_to_front(&mut child_paths, GITIGNORE);
         swap_to_front(&mut child_paths, DOT_GIT);
@@ -3528,7 +3538,12 @@ impl BackgroundScanner {
             ignore_stack.global_ignore_root = Some(Arc::clone(&job.abs_path));
         }
 
-        for child_abs_path in child_paths {
+        // Other workers take ids at the same time, so taking one per child as
+        // it's read would interleave this directory's ids with theirs.
+        // Contiguous ids let `populate_dir` insert into `entries_by_id` in
+        // one place.
+        let first_child_id = self.next_entry_id.fetch_add(child_paths.len(), SeqCst);
+        for (child_index, child_abs_path) in child_paths.into_iter().enumerate() {
             let child_abs_path: Arc<Path> = child_abs_path.into();
             let child_name = child_abs_path.file_name().expect("child path has a file name");
             let Some(child_path) =
@@ -3577,7 +3592,7 @@ impl BackgroundScanner {
             let mut child_entry = Entry::new(
                 Arc::clone(&child_path),
                 &child_metadata,
-                ProjectEntryId::new(&next_entry_id),
+                ProjectEntryId::from_usize(first_child_id + child_index),
                 root_char_bag,
                 None,
             );
@@ -3655,10 +3670,16 @@ impl BackgroundScanner {
         }
 
         let mut state = self.state.lock().await;
+        // Ids are only reused from removed entries and from children loaded
+        // earlier. The initial scan has neither, so it skips the lookups.
+        let may_reuse_entry_ids =
+            !state.removed_entries.is_empty() || state.snapshot.child_entries(&job.path).next().is_some();
         // Identify any subdirectories that should not be scanned.
         let mut job_ix = 0;
         for entry in &mut new_entries {
-            state.reuse_entry_id(entry);
+            if may_reuse_entry_ids {
+                state.reuse_entry_id(entry);
+            }
             if entry.is_dir() {
                 if !self.should_scan_directory(&state, entry, ignore_stack.repo_root.is_some()) {
                     log::debug!("defer scanning directory {:?}", entry.path);
@@ -4939,7 +4960,41 @@ fn is_rebase_state_dir(path_in_git_dir: &Path) -> bool {
 mod rebase_state_dir_tests {
     use std::path::Path;
 
+    use super::CharBag;
+    use super::Entry;
+    use super::EntryKind;
+    use super::ProjectEntryId;
+    use super::RelPath;
+    use super::RemovedEntries;
     use super::is_rebase_state_dir;
+
+    #[test]
+    fn removed_entries_is_empty_until_both_generations_drain() {
+        let entry = Entry {
+            id: ProjectEntryId::from_usize(1),
+            kind: EntryKind::File,
+            path: RelPath::new_test("a").into_owned().into(),
+            inode: 7,
+            mtime: None,
+            size: 0,
+            canonical_path: None,
+            is_ignored: false,
+            is_hidden: false,
+            is_always_included: false,
+            is_external: false,
+            char_bag: CharBag::default(),
+            is_fifo: false,
+            is_writable: true,
+        };
+        let mut removed = RemovedEntries::default();
+        assert!(removed.is_empty());
+        removed.insert(&entry);
+        assert!(!removed.is_empty());
+        drop(removed.rotate());
+        assert!(!removed.is_empty());
+        drop(removed.rotate());
+        assert!(removed.is_empty());
+    }
 
     #[test]
     fn is_rebase_state_dir_works() {
