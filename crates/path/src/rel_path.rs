@@ -270,7 +270,19 @@ impl PartialOrd for RelPath {
 
 impl Ord for RelPath {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.components().cmp(other.components())
+        // Ranking `/` below every other byte orders paths by component.
+        const CHUNK: usize = 16;
+        let rank = |byte: u8| if byte == b'/' { 0 } else { u16::from(byte) + 1 };
+        let (a, b) = (self.0.as_bytes(), other.0.as_bytes());
+        let len = a.len().min(b.len());
+        let mut offset = 0;
+        while offset + CHUNK <= len && a[offset..offset + CHUNK] == b[offset..offset + CHUNK] {
+            offset += CHUNK;
+        }
+        match a[offset..len].iter().zip(&b[offset..len]).position(|(a, b)| a != b) {
+            Some(ix) => rank(a[offset + ix]).cmp(&rank(b[offset + ix])),
+            None => a.len().cmp(&b.len()),
+        }
     }
 }
 
@@ -543,5 +555,54 @@ impl<'de> serde::Deserialize<'de> for RelPathBuf {
         let path = String::deserialize(deserializer)?;
         let rel_path = RelPath::new(Path::new(&path)).map_err(de::Error::custom)?;
         Ok(rel_path.into_owned())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RelPath;
+
+    #[test]
+    fn cmp_matches_component_order() {
+        let paths = [
+            "",
+            "a",
+            "A",
+            "ab",
+            "a b",
+            "a-b",
+            "a.b",
+            "a!",
+            "a~",
+            "a\0",
+            "a\0b",
+            "ä",
+            "a/b",
+            "a/b/c",
+            "a/b.c",
+            "a/bc",
+            "a.b/c",
+            "a-b/c",
+            "a b/c",
+            "ab/c",
+            "a/b/c/d",
+            "a/ä",
+            "a/\0b",
+            "\0a/b",
+            "\0a/\0b/c",
+            "日本/語",
+            "x/a.b/c",
+            "x/a/b",
+        ];
+        // Long prefixes make `cmp` compare 16-byte chunks.
+        for prefix in ["", "abcdefghijklmn/", "abcdefghijklmno/", "abcdefghijklmnopqrstuvwxyz01234/"] {
+            for a in paths {
+                for b in paths {
+                    let (a, b) = (format!("{prefix}{a}"), format!("{prefix}{b}"));
+                    let (a, b) = (RelPath::from_str(&a), RelPath::from_str(&b));
+                    assert_eq!(a.cmp(b), a.components().cmp(b.components()), "{a:?} vs {b:?}");
+                }
+            }
+        }
     }
 }
