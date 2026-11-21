@@ -1606,7 +1606,13 @@ impl BufferSnapshot {
     where
         D: TextDimension,
     {
-        self.text_summary_for_range(0..self.offset_for_anchor(anchor))
+        if anchor.is_min() {
+            D::zero(())
+        } else if anchor.is_max() {
+            D::from_text_summary(&self.visible_text.summary())
+        } else {
+            self.text_summary_for_range(0..self.offset_for_anchor(anchor))
+        }
     }
 
     pub fn offset_for_anchor(&self, anchor: &Anchor) -> usize {
@@ -2451,6 +2457,20 @@ mod tests {
         let mut buffer = Buffer::new(BufferId::new(1).unwrap(), text);
         buffer.set_group_interval(Duration::ZERO);
         buffer
+    }
+
+    #[test]
+    fn summary_for_min_max_and_inner_anchors() {
+        let buffer = buffer("ab\ncdé\nf");
+        let snapshot = buffer.snapshot();
+        let id = snapshot.buffer_id;
+        let end = snapshot.len();
+        assert_eq!(snapshot.summary_for_anchor::<usize>(&Anchor::min_for_buffer(id)), 0);
+        assert_eq!(snapshot.summary_for_anchor::<Point>(&Anchor::min_for_buffer(id)), Point::zero());
+        assert_eq!(snapshot.summary_for_anchor::<usize>(&Anchor::max_for_buffer(id)), end);
+        assert_eq!(snapshot.summary_for_anchor::<Point>(&Anchor::max_for_buffer(id)), Point::new(2, 1));
+        assert_eq!(snapshot.summary_for_anchor::<Point>(&snapshot.anchor_before(4)), Point::new(1, 1));
+        assert_eq!(snapshot.summary_for_anchor::<usize>(&snapshot.anchor_after(end)), end);
     }
 
     #[test]
