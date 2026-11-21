@@ -1772,7 +1772,7 @@ impl Window {
         }
         let draw_start = self.frame_stats.is_some().then(Instant::now);
         let shaped_before = self.frame_stats.is_some().then(|| self.text_system().shaped_line_count());
-        let phase_times = if cx.mode.skip_drawing() { None } else { self.draw_roots(cx) };
+        let phase_times = self.draw_roots(cx);
         self.dirty_views.clear();
         self.next_frame.window_active = self.active.get();
 

@@ -324,19 +324,6 @@ pub enum CursorHideMode {
     OnTypingAndAction,
 }
 
-pub(crate) enum GpuiMode {
-    Production,
-}
-
-impl GpuiMode {
-    #[inline]
-    pub(crate) const fn skip_drawing(&self) -> bool {
-        match self {
-            GpuiMode::Production => false,
-        }
-    }
-}
-
 /// Contains the state of the full application, and passed as a reference to a variety of callbacks.
 /// Other [Context] derefs to this type.
 /// You need a reference to an `App` to access the state of a [Entity].
@@ -405,7 +392,6 @@ pub struct App {
     pub(crate) current_window_by_entity: FxHashMap<EntityId, WindowId>,
 
     pub(crate) window_update_stack: Vec<WindowId>,
-    pub(crate) mode: GpuiMode,
     pub(crate) cursor_hide_mode: CursorHideMode,
     /// Origin of the shared clock that phase-locks synced repeating animations.
     pub(crate) synced_animation_epoch: Instant,
@@ -432,7 +418,6 @@ impl App {
                 this: Weak::clone(this),
                 platform: Rc::clone(&platform),
                 text_system,
-                mode: GpuiMode::Production,
                 actions: Rc::new(ActionRegistry::default()),
                 pending_updates: 0,
                 active_drag: None,

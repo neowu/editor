@@ -651,6 +651,16 @@ mod tests {
     use super::log_file_for_data_dir;
 
     #[test]
+    #[ignore = "requires ED_CONTROL_SOCKET from edctl launch --fresh"]
+    fn fresh_window_paints_its_root() -> anyhow::Result<()> {
+        let socket = std::env::var_os(control::SOCKET_ENV).expect("set ED_CONTROL_SOCKET to the fresh instance");
+        let client = super::Client { socket: socket.into(), window: None };
+        let tree: control::Tree = client.request(control::Command::Tree)?;
+        assert!(tree.elements.iter().any(|element| element.bounds.width > 0. && element.bounds.height > 0.));
+        Ok(())
+    }
+
+    #[test]
     fn log_file_lives_in_data_dir_state() {
         assert_eq!(
             log_file_for_data_dir(Path::new("/tmp/ed-control-data-1")),
