@@ -8,9 +8,5 @@
 # run
 - support run http script (shell script is supported) in markdown? or just something like httpie or curl is good enough
 
-# keyboard shortcuts
-- rethink cmd+N, and "+" icon really needed
-- make cmd+T to open terminal as others?
-
 # git history
 select multiple revision, merge the file change into one?

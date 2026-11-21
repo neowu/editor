@@ -324,9 +324,13 @@ view) offers:
   is selected.
 - Refresh (`git_graph::Refresh`, `cmd-r` in the graph) is for changes the
   file watcher misses, e.g. a repository on a network or VM-shared mount
-  changed from another machine. It rescans the worktrees (like
-  `workspace::ReloadProjectFiles`), then drops the cached commits and
-  reloads them. The button spins while commits load.
+  changed from another machine, and for what the remotes got since the last
+  fetch. It rescans the worktrees (like `workspace::ReloadProjectFiles`) and
+  runs `git fetch --all` side by side, then drops the cached commits and
+  reloads them once. The button spins meanwhile. A failed fetch (offline, no
+  access) shows the git error toast and the local reload still happens; a
+  successful one is silent. Trade-off: the reload waits for the fetch, so
+  Refresh is as slow as the network.
 - The search row is hidden until opened with `cmd-f` (or the Search button),
   like buffer search.
   `escape` hides it and clears

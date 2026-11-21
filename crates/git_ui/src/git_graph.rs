@@ -16,12 +16,14 @@ use editor::actions::Cancel;
 use editor::actions::SelectAll;
 use git::Oid;
 use git::repository::Branch;
+use git::repository::FetchOptions;
 use git::repository::InitialGraphCommitData;
 use git::repository::LogOrder;
 use git::repository::LogSource;
 use git::repository::RepoPath;
 use git::repository::SearchCommitArgs;
 use git::repository::commit_hash_search_query;
+use git_ui_core::notifications::show_error_toast;
 use gpui::Action as _;
 use gpui::Anchor;
 use gpui::AnyElement;
@@ -1223,18 +1225,31 @@ impl GitGraph {
         self.previous_newest_sha = None;
     }
 
-    /// Rescans the project and then
-    /// reloads the commits from git, for changes the file watcher missed, as
-    /// on a virtiofs mount inside a VM.
+    /// Rescans the project and fetches every remote, then reloads the commits
+    /// from git: for changes the file watcher missed (as on a virtiofs mount
+    /// inside a VM) and for what the remotes got since the last fetch. A failed
+    /// fetch only shows a toast, so Refresh still works offline.
     fn refresh(&mut self, _: &Refresh, _window: &mut Window, cx: &mut Context<Self>) {
         let Some(workspace) = self.workspace.upgrade() else {
             return;
         };
+        // Both start now and run side by side; the reload waits for both.
         let rescan = workspace.read(cx).project().read(cx).worktree_store().read(cx).rescan_worktrees(cx);
+        let fetch = self
+            .get_repository(cx)
+            .map(|repository| repository.update(cx, |repository, cx| repository.fetch(FetchOptions::All, cx)));
         self.refreshing = Some(cx.spawn(async move |this, cx| {
             rescan.await.log_err();
+            let fetch_error = match fetch {
+                Some(fetch) => fetch.await.map_err(anyhow::Error::from).flatten().err(),
+                None => None,
+            };
             this.update(cx, |this, cx| {
                 this.refreshing = None;
+                if let Some(error) = fetch_error {
+                    log::error!("Error while fetching {error:?}");
+                    show_error_toast(workspace, "fetch", error, cx);
+                }
                 if let Some(repository) = this.get_repository(cx) {
                     let data_source = this.data_source();
                     let log_order = this.log_order;
