@@ -2169,12 +2169,12 @@ impl GitGraph {
             return;
         };
 
-        CommitView::open(
+        // A file history opens each commit at the file it follows.
+        CommitView::open_revealing(
             commit_entry.data.sha.to_string(),
             repository.downgrade(),
             self.workspace.clone(),
-            None,
-            None,
+            history_reveal_path(&self.log_source),
             window,
             cx,
         );
