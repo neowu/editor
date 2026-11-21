@@ -715,8 +715,16 @@ impl RenderOnce for ButtonLike {
                 }
             })
             .when(!self.disabled, |this| {
-                let hovered_style = style.hovered(self.layer, cx);
-                let hover_background = self.hover_background.unwrap_or(hovered_style.background);
+                // A button showing its selected style keeps that fill on hover: a
+                // second, brighter fill on top of it is one state too many.
+                let shows_selected_style = self.selected && self.selected_style.is_some();
+                let hover_background = self.hover_background.unwrap_or_else(|| {
+                    if shows_selected_style {
+                        style.enabled(self.layer, cx).background
+                    } else {
+                        style.hovered(self.layer, cx).background
+                    }
+                });
                 let focus_color = |refinement: StyleRefinement| refinement.bg(hover_background);
 
                 this.cursor(self.cursor_style)

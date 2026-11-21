@@ -31,6 +31,7 @@ use util::paths::FILE_ROW_COLUMN_DELIMITER;
 use workspace::StatusItemView;
 use workspace::Workspace;
 use workspace::item::ItemHandle;
+use workspace::status_item_color;
 
 #[derive(Copy, Clone, Debug, Default, PartialOrd, PartialEq)]
 pub(crate) struct SelectionStats {
@@ -170,10 +171,15 @@ impl Render for CursorPosition {
             write_selection_stats(self.selected_count, &mut text);
 
             let context = self.context.clone();
+            let open = self
+                .workspace
+                .upgrade()
+                .is_some_and(|workspace| workspace.read(cx).active_modal::<crate::GoToLine>(cx).is_some());
 
             el.child(
                 Button::new("go-to-line-column", text)
                     .label_size(LabelSize::Small)
+                    .color(status_item_color(open))
                     .tab_index(0_isize)
                     .on_click(cx.listener(|this, _, window, cx| {
                         if let Some(workspace) = this.workspace.upgrade() {

@@ -222,6 +222,16 @@ impl VisibleOnHover for IconButton {
     }
 }
 
+/// A selected icon button's icon colour: a tinted selected style's tint, else
+/// the given colour or the accent. A neutral selected style (e.g. `Filled`)
+/// has no colour of its own, so it must not reset the icon to the default.
+fn selected_icon_color(selected_style: Option<ButtonStyle>, selected_icon_color: Option<Color>) -> Color {
+    match selected_style {
+        Some(ButtonStyle::Tinted(tint)) => tint.into(),
+        _ => selected_icon_color.unwrap_or(Color::Selected),
+    }
+}
+
 impl RenderOnce for IconButton {
     #[allow(refining_impl_trait)]
     fn render(self, window: &mut Window, cx: &mut App) -> ButtonLike {
@@ -232,12 +242,8 @@ impl RenderOnce for IconButton {
 
         let icon_color = if is_disabled {
             Color::Disabled
-        } else if let Some(selected_style) = self.selected_style
-            && is_selected
-        {
-            selected_style.into()
         } else if is_selected {
-            self.selected_icon_color.unwrap_or(Color::Selected)
+            selected_icon_color(self.selected_style, self.selected_icon_color)
         } else {
             let base_color = self.icon_color.color(cx);
             Color::Custom(base_color.opacity(self.alpha.unwrap_or(1.0)))
@@ -264,5 +270,21 @@ impl RenderOnce for IconButton {
                     .into_any_element(),
                 None => icon_element.into_any_element(),
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::selected_icon_color;
+    use crate::ButtonStyle;
+    use crate::Color;
+    use crate::TintColor;
+
+    #[test]
+    fn selected_icon_color_works() {
+        assert_eq!(selected_icon_color(None, None), Color::Selected);
+        assert_eq!(selected_icon_color(None, Some(Color::Error)), Color::Error);
+        assert_eq!(selected_icon_color(Some(ButtonStyle::Filled), None), Color::Selected);
+        assert_eq!(selected_icon_color(Some(ButtonStyle::Tinted(TintColor::Warning)), None), Color::Warning);
     }
 }

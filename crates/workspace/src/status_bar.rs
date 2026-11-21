@@ -37,8 +37,9 @@ trait StatusItemViewHandle: Send {
     fn set_active_pane_item(&self, active_pane_item: Option<&dyn ItemHandle>, window: &mut Window, cx: &mut App);
 }
 
-/// The colour of a status bar button that opens a pane item: accent while
-/// that item is the active one, so every such button reads the same way.
+/// The colour of a status bar button that opens a pane item or a modal:
+/// accent while that item is the active one or the modal is open, so every
+/// such button reads the same way.
 pub const fn status_item_color(active: bool) -> Color {
     if active { Color::Accent } else { Color::Default }
 }

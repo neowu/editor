@@ -36,7 +36,9 @@ use ui::prelude::FluentBuilder as _;
 use ui::prelude::IconName;
 use ui::prelude::InteractiveElement as _;
 use ui::prelude::ParentElement as _;
+use ui::prelude::SelectableButton as _;
 use ui::prelude::Styled as _;
+use ui::prelude::Toggleable as _;
 use ui::prelude::h_flex;
 use ui::prelude::px;
 use ui::utils::TRAFFIC_LIGHT_PADDING;
@@ -278,8 +280,9 @@ fn render_mode_switch(state: WindowHeaderState, modes: &[WorkspaceMode], cx: &Ap
         let tooltip_action = action.boxed_clone();
         top_row_icon_button(id, icon)
             .height(MODE_SWITCH_BUTTON_HEIGHT.into())
-            .icon_color(if shown { Color::Accent } else { Color::Muted })
-            .when(shown, |this| this.style(ButtonStyle::Filled))
+            .icon_color(Color::Muted)
+            .toggle_state(shown)
+            .selected_style(ButtonStyle::Filled)
             .when_some(mode_indicator(mode, state.terminal_running), |this, color| {
                 this.indicator(Indicator::dot().color(color))
             })

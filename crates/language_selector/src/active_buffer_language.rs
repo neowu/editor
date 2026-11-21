@@ -20,6 +20,7 @@ use ui::Tooltip;
 use workspace::StatusItemView;
 use workspace::Workspace;
 use workspace::item::ItemHandle;
+use workspace::status_item_color;
 
 use crate::LanguageSelector;
 use crate::Toggle;
@@ -63,10 +64,15 @@ impl ActiveBufferLanguage {
 
 impl Render for ActiveBufferLanguage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let open = self
+            .workspace
+            .upgrade()
+            .is_some_and(|workspace| workspace.read(cx).active_modal::<LanguageSelector>(cx).is_some());
         div().when_some(self.active_language.clone(), |el, active_language_text| {
             el.child(
                 Button::new("change-language", active_language_text)
                     .label_size(LabelSize::Small)
+                    .color(status_item_color(open))
                     .tab_index(0_isize)
                     .on_click(cx.listener(|this, _, window, cx| {
                         if let Some(workspace) = this.workspace.upgrade() {

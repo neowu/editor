@@ -14,7 +14,6 @@ use ui::Tooltip;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonSize;
-use ui::prelude::ButtonStyle;
 use ui::prelude::Color;
 use ui::prelude::FluentBuilder as _;
 use ui::prelude::Icon;
@@ -22,7 +21,6 @@ use ui::prelude::IconName;
 use ui::prelude::IconSize;
 use ui::prelude::Label;
 use ui::prelude::LabelCommon as _;
-use ui::prelude::SelectableButton as _;
 use ui::prelude::SharedString;
 use ui::prelude::h_flex;
 
@@ -64,13 +62,9 @@ fn worktree_display_label(
 /// A text button in the window header: the mode switch track's height, the tab label's
 /// size, and a muted 14px leading icon, so the project name, worktree and
 /// branch read as one row with the header's icon buttons. While its menu is
-/// open it is filled with an accent label, like the mode switch's shown mode.
+/// open its label is accent, with no fill: a fill only ever means hover.
 pub(crate) fn header_text_button(id: &'static str, label: impl Into<SharedString>) -> Button {
-    Button::new(id, label)
-        .size(ButtonSize::Medium)
-        .height(workspace::TOP_ROW_BUTTON_SIZE.into())
-        .selected_style(ButtonStyle::Filled)
-        .tab_index(0_isize)
+    Button::new(id, label).size(ButtonSize::Medium).height(workspace::TOP_ROW_BUTTON_SIZE.into()).tab_index(0_isize)
 }
 
 impl TitleBar {

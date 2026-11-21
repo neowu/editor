@@ -19,6 +19,7 @@ use ui::Tooltip;
 use workspace::StatusItemView;
 use workspace::Workspace;
 use workspace::item::ItemHandle;
+use workspace::status_item_color;
 
 use crate::EncodingSelector;
 use crate::Toggle;
@@ -73,9 +74,15 @@ impl Render for ActiveBufferEncoding {
         let (disabled, tooltip_text) =
             if self.is_dirty { (true, "Save file to change encoding") } else { (false, "Reopen with Encoding") };
 
+        let open = self
+            .workspace
+            .upgrade()
+            .is_some_and(|workspace| workspace.read(cx).active_modal::<EncodingSelector>(cx).is_some());
+
         div().child(
             Button::new("change-encoding", text)
                 .label_size(LabelSize::Small)
+                .color(status_item_color(open))
                 .tab_index(0_isize)
                 .on_click(cx.listener(move |this, _, window, cx| {
                     if disabled {

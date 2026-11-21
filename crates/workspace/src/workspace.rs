@@ -984,6 +984,8 @@ impl Workspace {
             status_bar.add_left_item(left_dock_buttons, window, cx);
             status_bar.add_right_item(right_dock_buttons, window, cx);
             status_bar.add_right_item(bottom_dock_buttons, window, cx);
+            // Buttons that open a modal are accent while it is open.
+            cx.observe(&modal_layer, |_, _, cx| cx.notify()).detach();
             status_bar
         });
 

@@ -95,11 +95,15 @@ because it hurt readability; an opaque window is also cheaper to composite.
   style (`title_bar::worktree_branch::header_text_button`): the tab label's
   size and regular weight (semibold was too loud), with a 14px leading icon. The project name is full contrast; worktree
   and branch are muted, so the row reads as a breadcrumb. The branch icon keeps
-  its change-status colour. While its menu is open, each gets the same
-  neutral fill as the switch's shown mode and an accent label; the accent tint
-  (the theme's info background) read as a dark slab on the chrome.
-  Segmented toggles (`ToggleButtonGroup`, e.g. the branch picker's Branches /
-  Stashes) mark the selected segment the same way.
+  its change-status colour. While its menu is open, each gets an accent
+  label and no fill, like the status bar's buttons: on a lone button a fill
+  only ever means hover, and a fill for "open" plus a brighter one for hover
+  was one state too many.
+  Segmented controls (the switch, and `ToggleButtonGroup`, e.g. the branch
+  picker's Branches / Stashes) do fill the selected segment, with a neutral
+  fill and accent content; the accent tint (the theme's info background) read
+  as a dark slab. A button showing its selected style keeps that fill on
+  hover instead of brightening (`ButtonLike`).
   Every top-row icon button (Go Back / Go Forward, the switch, and the tab bar
   ends' New File, preview and Zoom) is a 16px icon in a 26px square (the
   switch's are shorter, above)
@@ -350,7 +354,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
   panel buttons have none either.
 - Status bar buttons that open a pane item (project search, project
   diagnostics, Git History's graph) turn accent while that item is the active
-  tab (`status_item_color`). Diagnostics keeps its error/warning icon colours
+  tab (`status_item_color`), and so do those that open a modal (cursor
+  position, language, encoding) while it is open. Diagnostics keeps its error/warning icon colours
   and its counts stay default (the icons already carry colour); only its check
   icon takes the accent.
 - Docks always have a fixed size in pixels (width for left/right, height for
