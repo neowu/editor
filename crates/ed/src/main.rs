@@ -28,7 +28,6 @@ use std::sync::Arc;
 use anyhow::Result;
 use assets::Assets;
 use clap::Parser;
-use ed::build_window_options;
 use ed::initialize_keymap;
 use ed::initialize_workspace;
 use ed::open_listener::OpenListener;
@@ -227,7 +226,7 @@ fn main() {
 
         ed::init(cx);
 
-        let app_state = Arc::new(AppState { languages, fs: Arc::clone(&fs), build_window_options });
+        let app_state = Arc::new(AppState { languages, fs: Arc::clone(&fs) });
         AppState::set_global(Arc::clone(&app_state), cx);
 
         // Every workspace shares one set of action handlers, collected here from each crate.

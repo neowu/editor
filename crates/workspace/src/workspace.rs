@@ -70,7 +70,6 @@ use gpui::AsyncApp;
 use gpui::Bounds;
 use gpui::Context;
 use gpui::DEFAULT_WINDOW_SIZE;
-use gpui::DisplayId;
 use gpui::Entity;
 use gpui::EntityId;
 use gpui::EventEmitter;
@@ -81,6 +80,7 @@ use gpui::KeyContext;
 use gpui::Keystroke;
 use gpui::ManagedView;
 use gpui::PathPromptOptions;
+use gpui::PlatformDisplay;
 use gpui::Point;
 use gpui::PromptLevel;
 use gpui::Render;
@@ -89,9 +89,11 @@ use gpui::StyleRefinement;
 use gpui::Subscription;
 use gpui::Task;
 use gpui::TaskExt as _;
+use gpui::TitlebarOptions;
 use gpui::WeakEntity;
 use gpui::WindowBounds;
 use gpui::WindowHandle;
+use gpui::WindowKind;
 use gpui::WindowOptions;
 use gpui::actions;
 use gpui::point;
@@ -176,8 +178,8 @@ use ui::prelude::Styled as _;
 use ui::prelude::div;
 use ui::prelude::h_flex;
 use ui::prelude::px;
+use ui::utils::TRAFFIC_LIGHT_POSITION;
 use util::ResultExt as _;
-use uuid::Uuid;
 
 use crate::docks::adjust_active_dock_size_by_px;
 use crate::docks::adjust_open_docks_size_by_px;
@@ -628,7 +630,6 @@ pub struct AppState {
     pub languages: Arc<LanguageRegistry>,
 
     pub fs: Arc<dyn fs::Fs>,
-    pub build_window_options: fn(Option<Uuid>, &mut App) -> WindowOptions,
 }
 
 struct GlobalAppState(Arc<AppState>);
@@ -1202,7 +1203,7 @@ impl Workspace {
                 })?;
                 (window, workspace)
             } else {
-                let options = cx.update(|cx| (app_state.build_window_options)(None, cx));
+                let options = cx.update(build_window_options);
                 let window = cx.open_window(options, {
                     let app_state = Arc::clone(&app_state);
                     let project_handle = project_handle.clone();
@@ -2691,17 +2692,46 @@ impl Render for Workspace {
     }
 }
 
-/// Bounds every new window opens with on the display `display_id` (the
-/// main display when `None`): the environment override, else the
-/// display's whole visible area. Sized directly rather than zoomed, since
-/// macOS zooms a not-yet-shown window against the wrong screen. Windows don't
-/// remember their bounds.
-pub fn new_window_bounds(display_id: Option<DisplayId>, cx: &App) -> WindowBounds {
-    let display = display_id.and_then(|id| cx.find_display(id)).or_else(|| cx.main_display());
-    WindowBounds::Windowed(window_bounds_or_fill(
-        window_bounds_env_override(),
-        display.map(|display| display.visible_bounds()),
-    ))
+/// Options every workspace window opens with, on the display of the frontmost
+/// window (the main display when there is none). Bounds are the environment
+/// override, else the display's whole visible area: sized directly rather than
+/// zoomed, since macOS zooms a not-yet-shown window against the wrong screen.
+/// Windows don't remember their bounds.
+fn build_window_options(cx: &mut App) -> WindowOptions {
+    let display = frontmost_window_display(cx).or_else(|| cx.main_display());
+
+    WindowOptions {
+        titlebar: Some(TitlebarOptions {
+            title: None,
+            appears_transparent: true,
+            traffic_light_position: Some(point(px(TRAFFIC_LIGHT_POSITION.0), px(TRAFFIC_LIGHT_POSITION.1))),
+        }),
+        window_bounds: Some(WindowBounds::Windowed(window_bounds_or_fill(
+            window_bounds_env_override(),
+            display.as_ref().map(|display| display.visible_bounds()),
+        ))),
+        focus: false,
+        show: false,
+        kind: WindowKind::Normal,
+        is_movable: true,
+        // ed draws its own titlebar and moves the window via [`Window::start_window_move`],
+        // so on macOS AppKit should not own titlebar dragging. This avoids the titlebar
+        // click delay from AppKit's drag disambiguation (first observed on macOS 27) while
+        // keeping the window movable and the Window-menu tiling items enabled. No-op on
+        // other platforms.
+        app_owns_titlebar_drag: true,
+        display_id: display.map(|display| display.id()),
+        window_background: cx.theme().window_background_appearance(),
+        window_min_size: Some(Size { width: px(360.0), height: px(240.0) }),
+        ..Default::default()
+    }
+}
+
+/// The display of ed's frontmost window. Unlike the active window, this
+/// doesn't need ed to be the active app.
+fn frontmost_window_display(cx: &mut App) -> Option<Rc<dyn PlatformDisplay>> {
+    let window = cx.window_stack()?.into_iter().next()?;
+    window.update(cx, |_, window, cx| window.display(cx)).ok().flatten()
 }
 
 /// `env_override`, else the display's `visible` area, else the default size.

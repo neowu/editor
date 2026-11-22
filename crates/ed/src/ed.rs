@@ -3,7 +3,6 @@ use diagnostics::items::DiagnosticIndicator;
 use go_to_line::cursor_position::CursorPosition;
 use search::search_status_button::SearchButton;
 use ui::font;
-use ui::utils::TRAFFIC_LIGHT_POSITION;
 mod app_menus;
 pub(crate) mod control_server;
 pub(crate) mod cpu_usage;
@@ -16,7 +15,6 @@ pub(crate) mod open_listener;
 
 use std::borrow::Cow;
 use std::collections::VecDeque;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use actions::About;
@@ -46,7 +44,6 @@ use gpui::Image;
 use gpui::ImageFormat;
 use gpui::ParentElement as _;
 use gpui::PathPromptOptions;
-use gpui::PlatformDisplay;
 use gpui::SharedString;
 use gpui::Size;
 use gpui::Task;
@@ -84,7 +81,6 @@ use ui::prelude::Styled as _;
 use ui::prelude::VisualContext as _;
 use ui::prelude::v_flex;
 use util::ResultExt as _;
-use uuid::Uuid;
 use workspace::AppState;
 use workspace::CloseIntent;
 use workspace::CloseProject;
@@ -144,43 +140,6 @@ pub(crate) fn init(cx: &mut App) {
     cx.on_action(|_: &About, cx| {
         open_about_window(cx);
     });
-}
-
-pub(crate) fn build_window_options(display_uuid: Option<Uuid>, cx: &mut App) -> WindowOptions {
-    let display = display_uuid
-        .and_then(|uuid| cx.displays().into_iter().find(|display| display.uuid().ok() == Some(uuid)))
-        .or_else(|| frontmost_window_display(cx))
-        .or_else(|| cx.main_display());
-
-    WindowOptions {
-        titlebar: Some(TitlebarOptions {
-            title: None,
-            appears_transparent: true,
-            traffic_light_position: Some(point(px(TRAFFIC_LIGHT_POSITION.0), px(TRAFFIC_LIGHT_POSITION.1))),
-        }),
-        window_bounds: Some(workspace::new_window_bounds(display.as_ref().map(|display| display.id()), cx)),
-        focus: false,
-        show: false,
-        kind: WindowKind::Normal,
-        is_movable: true,
-        // ed draws its own titlebar and moves the window via [`Window::start_window_move`],
-        // so on macOS AppKit should not own titlebar dragging. This avoids the titlebar
-        // click delay from AppKit's drag disambiguation (first observed on macOS 27) while
-        // keeping the window movable and the Window-menu tiling items enabled. No-op on
-        // other platforms.
-        app_owns_titlebar_drag: true,
-        display_id: display.map(|display| display.id()),
-        window_background: cx.theme().window_background_appearance(),
-        window_min_size: Some(gpui::Size { width: px(360.0), height: px(240.0) }),
-        ..Default::default()
-    }
-}
-
-/// The display of ed's frontmost window. Unlike the active window, this
-/// doesn't need ed to be the active app.
-fn frontmost_window_display(cx: &mut App) -> Option<Rc<dyn PlatformDisplay>> {
-    let window = cx.window_stack()?.into_iter().next()?;
-    window.update(cx, |_, window, cx| window.display(cx)).ok().flatten()
 }
 
 pub(crate) fn initialize_workspace(app_state: Arc<AppState>, workspace_actions: &mut WorkspaceActions, cx: &mut App) {

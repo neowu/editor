@@ -767,7 +767,6 @@ dependencies = [
  "ui",
  "url",
  "util",
- "uuid",
  "workspace",
 ]
 
@@ -4613,7 +4612,6 @@ dependencies = [
  "ui",
  "url",
  "util",
- "uuid",
 ]
 
 [[package]]

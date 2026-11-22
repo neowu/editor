@@ -56,7 +56,6 @@ ui.workspace = true
 url.workspace = true
 percent-encoding.workspace = true
 util.workspace = true
-uuid.workspace = true
 workspace.workspace = true
 
 [dev-dependencies]
