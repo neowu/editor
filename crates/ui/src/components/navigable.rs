@@ -23,9 +23,7 @@ pub struct Navigable {
 /// An entry of [Navigable] that can be navigated to.
 #[derive(Clone)]
 pub struct NavigableEntry {
-    #[allow(missing_docs)]
     pub focus_handle: FocusHandle,
-    #[allow(missing_docs)]
     pub scroll_anchor: Option<ScrollAnchor>,
 }
 

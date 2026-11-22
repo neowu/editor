@@ -217,7 +217,6 @@ pub trait Platform: 'static {
     fn write_to_find_pasteboard(&self, item: ClipboardItem);
 
     fn keyboard_layout(&self) -> Box<dyn PlatformKeyboardLayout>;
-    fn keyboard_mapper(&self) -> Rc<dyn PlatformKeyboardMapper>;
 }
 
 /// A handle to a platform's display, e.g. a monitor or laptop screen.
@@ -289,7 +288,6 @@ impl Debug for DisplayId {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
-#[expect(missing_docs)]
 pub struct RequestFrameOptions {
     /// Whether a presentation is required.
     pub require_presentation: bool,
@@ -297,7 +295,6 @@ pub struct RequestFrameOptions {
     pub force_render: bool,
 }
 
-#[expect(missing_docs)]
 pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
     fn bounds(&self) -> Bounds<Pixels>;
     fn is_maximized(&self) -> bool;
@@ -396,7 +393,6 @@ pub trait PlatformDispatcher: Send + Sync {
     fn dispatch_after(&self, duration: Duration, runnable: RunnableVariant);
 }
 
-#[expect(missing_docs)]
 pub trait PlatformTextSystem: Send + Sync {
     fn add_fonts(&self, fonts: Vec<Cow<'static, [u8]>>) -> Result<()>;
     /// Get all available font names.
@@ -427,7 +423,6 @@ pub trait PlatformTextSystem: Send + Sync {
     }
 }
 
-#[expect(missing_docs)]
 #[derive(Default)]
 pub struct NoopTextSystem;
 
@@ -531,7 +526,6 @@ impl PlatformTextSystem for NoopTextSystem {
 }
 
 #[derive(PartialEq, Eq, Hash, Clone)]
-#[expect(missing_docs)]
 pub enum AtlasKey {
     Glyph(RenderGlyphParams),
     Svg(RenderSvgParams),
@@ -573,7 +567,6 @@ impl From<RenderImageParams> for AtlasKey {
     }
 }
 
-#[expect(missing_docs)]
 pub trait PlatformAtlas {
     /// The builder runs with the atlas locked and must not re-enter the same atlas.
     fn get_or_insert_with<'a>(
@@ -673,7 +666,6 @@ impl<T> AtlasTextureList<T> {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[repr(C)]
-#[expect(missing_docs)]
 pub struct AtlasTile {
     /// The texture this tile belongs to.
     pub texture_id: AtlasTextureId,
@@ -687,7 +679,6 @@ pub struct AtlasTile {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(C)]
-#[expect(missing_docs)]
 pub struct AtlasTextureId {
     // We use u32 instead of usize for Metal Shader Language compatibility
     /// The index of this texture in the atlas.
@@ -698,7 +689,6 @@ pub struct AtlasTextureId {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(C)]
-#[expect(missing_docs)]
 pub enum AtlasTextureKind {
     Monochrome = 0,
     Polychrome = 1,
@@ -706,7 +696,6 @@ pub enum AtlasTextureKind {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
-#[expect(missing_docs)]
 pub struct TileId(pub u32);
 
 impl From<etagere::AllocId> for TileId {
@@ -721,13 +710,11 @@ impl From<TileId> for etagere::AllocId {
     }
 }
 
-#[expect(missing_docs)]
 pub struct PlatformInputHandler {
     cx: AsyncWindowContext,
     handler: Box<dyn InputHandler>,
 }
 
-#[expect(missing_docs)]
 impl PlatformInputHandler {
     pub fn new(cx: AsyncWindowContext, handler: Box<dyn InputHandler>) -> Self {
         Self { cx, handler }
@@ -1029,7 +1016,6 @@ pub struct WindowOptions {
 
 /// The variables that can be configured when creating a new window.
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub struct WindowParams {
     pub bounds: Bounds<Pixels>,
 

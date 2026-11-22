@@ -24,7 +24,6 @@ use gpui::AnyWindowHandle;
 use gpui::BackgroundExecutor;
 use gpui::ClipboardItem;
 use gpui::CursorStyle;
-use gpui::DummyKeyboardMapper;
 use gpui::ForegroundExecutor;
 use gpui::KeyContext;
 use gpui::Keymap;
@@ -35,7 +34,6 @@ use gpui::PathPromptOptions;
 use gpui::Platform;
 use gpui::PlatformDisplay;
 use gpui::PlatformKeyboardLayout;
-use gpui::PlatformKeyboardMapper;
 use gpui::PlatformTextSystem;
 use gpui::PlatformWindow;
 use gpui::Result;
@@ -854,10 +852,6 @@ impl Platform for MacPlatform {
 
     fn keyboard_layout(&self) -> Box<dyn PlatformKeyboardLayout> {
         Box::new(MacKeyboardLayout::new())
-    }
-
-    fn keyboard_mapper(&self) -> Rc<dyn PlatformKeyboardMapper> {
-        Rc::new(DummyKeyboardMapper)
     }
 
     fn app_path(&self) -> Result<PathBuf> {

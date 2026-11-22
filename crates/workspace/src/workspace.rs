@@ -1383,12 +1383,7 @@ impl Workspace {
     }
 
     fn send_keystrokes(&mut self, action: &SendKeystrokes, window: &mut Window, cx: &mut Context<Self>) {
-        let keystrokes: Vec<Keystroke> = action
-            .0
-            .split(' ')
-            .filter_map(|k| Keystroke::parse(k).log_err())
-            .map(|k| cx.keyboard_mapper().map_key_equivalent(k, false).inner().clone())
-            .collect();
+        let keystrokes: Vec<Keystroke> = action.0.split(' ').filter_map(|k| Keystroke::parse(k).log_err()).collect();
         drop(self.send_keystrokes_impl(keystrokes, window, cx));
     }
 

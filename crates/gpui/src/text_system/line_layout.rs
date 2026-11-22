@@ -705,7 +705,6 @@ fn apply_force_width_to_layout(layout: &mut LineLayout, force_width: Pixels) {
 
 /// A run of text with a single font.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
-#[expect(missing_docs)]
 pub struct FontRun {
     pub len: usize,
     pub font_id: FontId,

@@ -3,7 +3,6 @@ use std::rc::Rc;
 
 use gpui::Action;
 use gpui::App;
-use gpui::DummyKeyboardMapper;
 use gpui::KeyBinding;
 use gpui::KeyBindingContextPredicate;
 use serde_json::Value;
@@ -44,15 +43,9 @@ impl Keymap<'_> {
 
     fn push(&mut self, keystrokes: &str, action: &str, input: Option<Value>) {
         let action_input = input.as_ref().map(|input| input.to_string().into());
-        let binding = KeyBinding::load(
-            keystrokes,
-            (self.build_action)(action, input),
-            self.context.clone(),
-            false,
-            action_input,
-            &DummyKeyboardMapper,
-        )
-        .unwrap_or_else(|error| panic!("invalid built-in keystrokes {keystrokes}: {error}"));
+        let binding =
+            KeyBinding::load(keystrokes, (self.build_action)(action, input), self.context.clone(), action_input)
+                .unwrap_or_else(|error| panic!("invalid built-in keystrokes {keystrokes}: {error}"));
         self.bindings.push(binding);
     }
 }

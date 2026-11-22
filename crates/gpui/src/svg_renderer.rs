@@ -66,7 +66,6 @@ fn select_emoji_font(ch: char, fonts: &[ID], db: &Database, families: &[&str]) -
 pub const SMOOTH_SVG_SCALE_FACTOR: f32 = 2.;
 
 #[derive(Clone, PartialEq, Hash, Eq)]
-#[expect(missing_docs)]
 pub struct RenderSvgParams {
     pub path: SharedString,
     pub size: Size<DevicePixels>,

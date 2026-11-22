@@ -39,7 +39,6 @@ impl AssetSource for () {
 pub struct ImageId(pub usize);
 
 #[derive(PartialEq, Eq, Hash, Clone)]
-#[expect(missing_docs)]
 pub struct RenderImageParams {
     pub image_id: ImageId,
     pub frame_index: usize,

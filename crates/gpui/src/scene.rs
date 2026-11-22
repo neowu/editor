@@ -26,11 +26,6 @@ use crate::Transformation;
 use crate::bounds_tree::BoundsTree;
 use crate::point;
 
-#[allow(non_camel_case_types, unused)]
-#[expect(missing_docs)]
-pub type PathVertex_ScaledPixels = PathVertex<ScaledPixels>;
-
-#[expect(missing_docs)]
 pub type DrawOrder = u32;
 
 /// A boolean stored as a `u32` so that GPU-facing structs contain no
@@ -48,7 +43,6 @@ impl From<bool> for PaddedBool32 {
 }
 
 #[derive(Default)]
-#[expect(missing_docs)]
 pub struct Scene {
     pub(crate) paint_operations: Vec<PaintOperation>,
     primitive_bounds: BoundsTree<ScaledPixels>,
@@ -62,7 +56,6 @@ pub struct Scene {
     animations: Vec<SpriteAnimation>,
 }
 
-#[expect(missing_docs)]
 impl Scene {
     pub fn clear(&mut self) {
         self.paint_operations.clear();
@@ -239,7 +232,6 @@ pub(crate) enum PaintOperation {
 }
 
 #[derive(Clone)]
-#[expect(missing_docs)]
 pub enum Primitive {
     Shadow(Shadow),
     Quad(Quad),
@@ -249,7 +241,6 @@ pub enum Primitive {
     PolychromeSprite(PolychromeSprite),
 }
 
-#[expect(missing_docs)]
 impl Primitive {
     pub const fn bounds(&self) -> &Bounds<ScaledPixels> {
         match self {
@@ -397,7 +388,6 @@ impl Iterator for BatchIterator<'_> {
 }
 
 #[derive(Debug)]
-#[allow(missing_docs)]
 pub enum PrimitiveBatch {
     Shadows(Range<usize>),
     Quads(Range<usize>),
@@ -408,7 +398,6 @@ pub enum PrimitiveBatch {
 }
 
 impl PrimitiveBatch {
-    #[expect(missing_docs)]
     pub fn label(&self) -> String {
         match self {
             Self::Shadows(range) => format!("shadows ({})", range.len()),
@@ -427,7 +416,6 @@ impl PrimitiveBatch {
 
 #[derive(Default, Debug, Copy, Clone)]
 #[repr(C)]
-#[expect(missing_docs)]
 pub struct Quad {
     pub order: DrawOrder,
     pub border_style: BorderStyle,
@@ -447,7 +435,6 @@ impl From<Quad> for Primitive {
 
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
-#[expect(missing_docs)]
 pub struct Underline {
     pub order: DrawOrder,
     pub pad: u32, // align to 8 bytes
@@ -466,7 +453,6 @@ impl From<Underline> for Primitive {
 
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
-#[expect(missing_docs)]
 pub struct Shadow {
     pub order: DrawOrder,
     pub blur_radius: ScaledPixels,
@@ -591,7 +577,6 @@ impl Default for TransformationMatrix {
 
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
-#[expect(missing_docs)]
 pub struct MonochromeSprite {
     pub order: DrawOrder,
     /// One more than the index of the sprite's [`SpriteAnimation`] in its scene, or 0 for none.
@@ -630,7 +615,6 @@ impl From<MonochromeSprite> for Primitive {
 
 #[derive(Copy, Clone, Debug)]
 #[repr(C)]
-#[expect(missing_docs)]
 pub struct PolychromeSprite {
     pub order: DrawOrder,
     pub pad: u32,
@@ -649,12 +633,10 @@ impl From<PolychromeSprite> for Primitive {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-#[expect(missing_docs)]
 pub struct PathId(pub usize);
 
 /// A line made up of a series of vertices and control points.
 #[derive(Clone, Debug)]
-#[expect(missing_docs)]
 pub struct Path<P: Clone + Debug + Default + PartialEq> {
     pub id: PathId,
     pub order: DrawOrder,
@@ -747,8 +729,6 @@ impl<T> Path<T>
 where
     T: Clone + Debug + Default + PartialEq + PartialOrd + Add<T, Output = T> + Sub<Output = T>,
 {
-    #[allow(unused)]
-    #[expect(missing_docs)]
     pub fn clipped_bounds(&self) -> Bounds<T> {
         self.bounds.intersect(&self.content_mask.bounds)
     }
@@ -762,14 +742,12 @@ impl From<Path<ScaledPixels>> for Primitive {
 
 #[derive(Clone, Debug)]
 #[repr(C)]
-#[expect(missing_docs)]
 pub struct PathVertex<P: Clone + Debug + Default + PartialEq> {
     pub xy_position: Point<P>,
     pub st_position: Point<f32>,
     pub content_mask: ContentMask<P>,
 }
 
-#[expect(missing_docs)]
 impl PathVertex<Pixels> {
     pub fn scale(&self, factor: f32) -> PathVertex<ScaledPixels> {
         PathVertex {

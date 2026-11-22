@@ -118,7 +118,6 @@ pub enum ScrollStrategy {
 }
 
 #[derive(Clone, Copy, Debug)]
-#[allow(missing_docs)]
 pub struct DeferredScrollToItem {
     /// The item index to scroll to.
     pub item_index: usize,
@@ -130,7 +129,6 @@ pub struct DeferredScrollToItem {
 }
 
 #[derive(Clone, Debug, Default)]
-#[allow(missing_docs)]
 pub struct UniformListScrollState {
     pub base_handle: ScrollHandle,
     pub deferred_scroll_to_item: Option<DeferredScrollToItem>,

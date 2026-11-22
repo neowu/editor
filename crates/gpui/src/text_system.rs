@@ -769,7 +769,6 @@ pub struct GlyphId(pub u32);
 /// font, size, subpixel positioning, and scale factor. It's used to look up
 /// cached raster bounds and sprite atlas entries.
 #[derive(Clone, Debug, PartialEq)]
-#[expect(missing_docs)]
 pub struct RenderGlyphParams {
     pub font_id: FontId,
     pub glyph_id: GlyphId,

@@ -38,7 +38,6 @@ pub(super) struct PendingInput {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-#[expect(missing_docs)]
 pub struct DispatchEventResult {
     pub propagate: bool,
     pub default_prevented: bool,

@@ -86,7 +86,6 @@ use crate::Pixels;
 use crate::Platform;
 use crate::PlatformDisplay;
 use crate::PlatformKeyboardLayout;
-use crate::PlatformKeyboardMapper;
 use crate::Point;
 use crate::Render;
 use crate::RenderImage;
@@ -307,7 +306,6 @@ pub struct App {
     pub(crate) focus_handles: Arc<RwLock<FocusMap>>,
     pub(crate) keymap: Rc<RefCell<Keymap>>,
     pub(crate) keyboard_layout: Box<dyn PlatformKeyboardLayout>,
-    pub(crate) keyboard_mapper: Rc<dyn PlatformKeyboardMapper>,
     pub(crate) global_action_listeners:
         HashMap<TypeId, Vec<Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Self)>>, TypeIdHashBuilder>,
     pending_effects: VecDeque<Effect>,
@@ -371,7 +369,6 @@ impl App {
         let text_system = Arc::new(TextSystem::new(platform.text_system()));
         let entities = EntityMap::new();
         let keyboard_layout = platform.keyboard_layout();
-        let keyboard_mapper = platform.keyboard_mapper();
 
         let app = Rc::new_cyclic(|this| AppCell {
             app: RefCell::new(App {
@@ -395,7 +392,6 @@ impl App {
                 focus_handles: Arc::new(RwLock::new(FocusMap::default())),
                 keymap: Rc::new(RefCell::new(Keymap::default())),
                 keyboard_layout,
-                keyboard_mapper,
                 global_action_listeners: HashMap::default(),
                 pending_effects: VecDeque::new(),
                 pending_notifications: FxHashSet::default(),
@@ -522,11 +518,6 @@ impl App {
     /// The keyboard layout the app was launched with; later changes are not tracked.
     pub fn keyboard_layout(&self) -> &dyn PlatformKeyboardLayout {
         self.keyboard_layout.as_ref()
-    }
-
-    /// Get the current keyboard mapper.
-    pub fn keyboard_mapper(&self) -> &Rc<dyn PlatformKeyboardMapper> {
-        &self.keyboard_mapper
     }
 
     /// Gracefully quit the application via the platform's standard routine.

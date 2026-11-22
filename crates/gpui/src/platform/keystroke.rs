@@ -14,8 +14,6 @@ use std::result;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::PlatformKeyboardMapper;
-
 /// This is a helper trait so that we can simplify the implementation of some functions.
 pub trait AsKeystroke {
     /// Returns the GPUI representation of the keystroke.
@@ -222,15 +220,6 @@ impl Keystroke {
 }
 
 impl KeybindingKeystroke {
-    /// Create a new keybinding keystroke from the given keystroke using the given keyboard mapper.
-    pub fn new_with_mapper(
-        inner: Keystroke,
-        use_key_equivalents: bool,
-        keyboard_mapper: &dyn PlatformKeyboardMapper,
-    ) -> Self {
-        keyboard_mapper.map_key_equivalent(inner, use_key_equivalents)
-    }
-
     /// Create a new keybinding keystroke from the given keystroke, without any platform-specific mapping.
     pub const fn from_keystroke(keystroke: Keystroke) -> Self {
         KeybindingKeystroke { inner: keystroke }

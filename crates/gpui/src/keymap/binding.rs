@@ -8,12 +8,10 @@ use smallvec::SmallVec;
 
 use crate::Action;
 use crate::AsKeystroke;
-use crate::DummyKeyboardMapper;
 use crate::InvalidKeystrokeError;
 use crate::KeyBindingContextPredicate;
 use crate::KeybindingKeystroke;
 use crate::Keystroke;
-use crate::PlatformKeyboardMapper;
 use crate::SharedString;
 
 /// A keybinding and its associated metadata, from the keymap.
@@ -43,8 +41,7 @@ impl KeyBinding {
     pub fn new<A: Action>(keystrokes: &str, action: A, context: Option<&str>) -> Self {
         let context_predicate = context
             .map(|context| KeyBindingContextPredicate::parse(context).expect("invalid keybinding context").into());
-        Self::load(keystrokes, Box::new(action), context_predicate, false, None, &DummyKeyboardMapper)
-            .expect("invalid keybinding keystrokes")
+        Self::load(keystrokes, Box::new(action), context_predicate, None).expect("invalid keybinding keystrokes")
     }
 
     /// Load a keybinding from the given raw data.
@@ -52,16 +49,11 @@ impl KeyBinding {
         keystrokes: &str,
         action: Box<dyn Action>,
         context_predicate: Option<Rc<KeyBindingContextPredicate>>,
-        use_key_equivalents: bool,
         action_input: Option<SharedString>,
-        keyboard_mapper: &dyn PlatformKeyboardMapper,
     ) -> result::Result<Self, InvalidKeystrokeError> {
         let keystrokes: SmallVec<[KeybindingKeystroke; 2]> = keystrokes
             .split_whitespace()
-            .map(|source| {
-                let keystroke = Keystroke::parse(source)?;
-                Ok(KeybindingKeystroke::new_with_mapper(keystroke, use_key_equivalents, keyboard_mapper))
-            })
+            .map(|source| Ok(KeybindingKeystroke::from_keystroke(Keystroke::parse(source)?)))
             .collect::<result::Result<_, _>>()?;
 
         Ok(Self { keystrokes, action, context_predicate, meta: None, action_input })
@@ -124,3 +116,25 @@ impl Debug for KeyBinding {
 /// associated with the binding, such as the source of the binding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct KeyBindingMetaIndex(pub u32);
+
+#[cfg(test)]
+#[allow(unreachable_pub, reason = "actions! emits pub structs")]
+mod tests {
+    use super::*;
+
+    actions!(binding_test, [First]);
+
+    #[test]
+    fn load_parses_each_keystroke_unmapped() {
+        let binding = KeyBinding::load("cmd-k  ctrl-]", Box::new(First), None, Some("1".into())).unwrap();
+        let keystrokes: Vec<_> = binding.keystrokes().iter().map(|k| k.inner().clone()).collect();
+        assert_eq!(keystrokes, [Keystroke::parse("cmd-k").unwrap(), Keystroke::parse("ctrl-]").unwrap()]);
+        assert_eq!(binding.action_input.as_deref(), Some("1"));
+        assert!(binding.action().partial_eq(&First));
+    }
+
+    #[test]
+    fn load_rejects_invalid_keystrokes() {
+        KeyBinding::load("cmd-k a-b", Box::new(First), None, None).unwrap_err();
+    }
+}
