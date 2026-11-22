@@ -96,7 +96,6 @@ use ui::utils::merge_highlight_backgrounds;
 use workspace::item::Item as _;
 use workspace::item::ItemBufferKind;
 
-use crate::BUFFER_HEADER_PADDING;
 use crate::CodeActionSource;
 use crate::ConflictsOurs;
 use crate::ConflictsOursMarker;
@@ -2223,7 +2222,8 @@ impl Element for EditorElement {
                             }
                             None => full_height,
                         };
-                        let header_bottom_padding = BUFFER_HEADER_PADDING.to_pixels(window.rem_size());
+                        let card_height = header::buffer_header_card_height(line_height, window.rem_size());
+                        let header_bottom_padding = (full_height - card_height) / 2.;
                         offset - header_bottom_padding
                     } else {
                         Pixels::ZERO

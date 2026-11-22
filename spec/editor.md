@@ -96,6 +96,12 @@
 - No sticky scroll: enclosing outline items are never pinned to the top of
   the editor (removed with its `sticky_scroll` setting). Multibuffer sticky
   buffer headers are a separate feature and remain.
+- A multibuffer header block is 2 editor rows, but its card is a fixed 28px
+  (UI rems, `buffer_header_card_height`) centred in it, so it stays lighter
+  than the 36px tab row and separates files with whitespace. It follows the
+  UI font, not the buffer font, and is clamped to the block.
+- Gutter expand-excerpt buttons are line-number dim at rest and take the
+  default text colour on hover.
 - A multibuffer header's "Open File" button (or its addon label, e.g. "Open
   Revision") only shows while the header is hovered, on every header alike,
   with no key binding. Opening from a multibuffer is mouse-only (header

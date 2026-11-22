@@ -203,6 +203,15 @@ pub(crate) fn header_jump_data(
     JumpData::MultiBufferPoint { anchor: jump_anchor, position: jump_position, line_offset_from_top }
 }
 
+/// Height of the header's card, centred in the header block's `FILE_HEADER_HEIGHT` rows.
+/// Sized in UI rems so it stays in the tab pills' family rather than growing with the buffer
+/// font, and clamped so it never outgrows the block.
+pub(crate) fn buffer_header_card_height(line_height: Pixels, rem_size: Pixels) -> Pixels {
+    let block_height = FILE_HEADER_HEIGHT as f32 * line_height;
+    let min_padding = BUFFER_HEADER_PADDING.to_pixels(rem_size);
+    rems_from_px(28_f32).to_pixels(rem_size).min(block_height - min_padding * 2.)
+}
+
 pub(crate) fn render_buffer_header(
     editor: &Entity<Editor>,
     for_excerpt: &ExcerptBoundaryInfo,
@@ -267,7 +276,9 @@ pub(crate) fn render_buffer_header(
     let show_open_file_button = can_open_excerpts && relative_path.is_some() && header_hovered;
     let open_file_label = editor_read.addons.values().find_map(|addon| addon.open_file_label()).unwrap_or("Open File");
 
-    let header = div()
+    let card_height = buffer_header_card_height(window.line_height(), window.rem_size());
+
+    let header = h_flex()
         .id(("buffer-header", buffer_id.as_u64()))
         .on_hover(move |hovered, _window, cx| {
             header_hovered_state.update(cx, |state, cx| {
@@ -277,13 +288,14 @@ pub(crate) fn render_buffer_header(
                 }
             });
         })
-        .p(BUFFER_HEADER_PADDING)
+        .px(BUFFER_HEADER_PADDING)
         .w_full()
         .h(FILE_HEADER_HEIGHT as f32 * window.line_height())
         .child(
             h_flex()
                 .group("buffer-header-group")
-                .size_full()
+                .w_full()
+                .h(card_height)
                 .flex_basis(Length::Definite(DefiniteLength::Fraction(0.667)))
                 .pl_1()
                 .pr_2()
@@ -313,7 +325,7 @@ pub(crate) fn render_buffer_header(
                     let editor = editor.clone();
                     let buffer_id = for_excerpt.buffer_id();
                     let toggle_chevron_icon = FileIcons::get_chevron_icon(!is_folded, cx).map(Icon::from_path);
-                    let button_size = rems_from_px(28_f32);
+                    let button_size = rems_from_px(20_f32);
 
                     header.child(
                         div().hover(|style| style.bg(colors.element_selected)).rounded_xs().child(
@@ -603,4 +615,22 @@ pub(super) fn file_status_label_color(file_status: Option<FileStatus>) -> Color 
             Color::Default
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::px;
+
+    use super::*;
+
+    #[test]
+    fn card_height_is_fixed_and_clamped() {
+        // Fixed in UI rems, whatever the buffer line height.
+        assert_eq!(buffer_header_card_height(px(24.), px(16.)), px(28.));
+        assert_eq!(buffer_header_card_height(px(40.), px(16.)), px(28.));
+        // Scales with the UI font size.
+        assert_eq!(buffer_header_card_height(px(40.), px(32.)), px(56.));
+        // Clamped to the block, less the minimum padding on each side.
+        assert_eq!(buffer_header_card_height(px(12.), px(16.)), px(16.));
+    }
 }
