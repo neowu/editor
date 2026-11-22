@@ -10,6 +10,7 @@ use ui::Disableable as _;
 use ui::Divider;
 use ui::DocumentationAside;
 use ui::DocumentationSide;
+use ui::ErasedEditor;
 use ui::FluentBuilder as _;
 use ui::InteractiveElement as _;
 use ui::IntoElement;
@@ -38,7 +39,6 @@ use ui::prelude::Toggleable as _;
 use ui::rems_from_px;
 use ui::utils::WithRemSize;
 use ui::v_flex;
-use ui_input::ErasedEditor;
 
 use crate::ElementContainer;
 use crate::Picker;

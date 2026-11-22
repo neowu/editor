@@ -1,20 +1,14 @@
-//! This crate provides UI components that can be used for form-like scenarios, such as a input and number field.
-//!
-//! It can't be located in the `ui` crate because it depends on `editor`.
-//!
-mod input_field;
+//! Type-erased editor handle so crates below `editor` (e.g. `picker`) can host a text input.
 
 use std::any::Any;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
+use gpui::AnyElement;
+use gpui::App;
 use gpui::FocusHandle;
 use gpui::Subscription;
-#[allow(clippy::wildcard_imports)]
-pub use input_field::*;
-use ui::AnyElement;
-use ui::App;
-use ui::Window;
+use gpui::Window;
 
 pub trait ErasedEditor: 'static {
     fn text(&self, cx: &App) -> String;

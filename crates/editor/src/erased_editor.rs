@@ -14,9 +14,9 @@ use gpui::Window;
 use gpui::prelude::Element as _;
 use gpui::relative;
 use theme::ActiveTheme as _;
+use ui::ErasedEditor;
 use ui::font;
 use ui::prelude::rems;
-use ui_input::ErasedEditor;
 
 use super::Editor;
 use super::EditorEvent;
@@ -35,7 +35,7 @@ impl Editor {
 #[derive(Clone)]
 pub(super) struct ErasedEditorImpl(Entity<Editor>);
 
-impl ui_input::ErasedEditor for ErasedEditorImpl {
+impl ui::ErasedEditor for ErasedEditorImpl {
     fn text(&self, cx: &App) -> String {
         self.0.read(cx).text(cx)
     }
@@ -104,14 +104,14 @@ impl ui_input::ErasedEditor for ErasedEditorImpl {
 
     fn subscribe(
         &self,
-        mut callback: Box<dyn FnMut(ui_input::ErasedEditorEvent, &mut Window, &mut App) + 'static>,
+        mut callback: Box<dyn FnMut(ui::ErasedEditorEvent, &mut Window, &mut App) + 'static>,
         window: &mut Window,
         cx: &mut App,
     ) -> Subscription {
         window.subscribe(&self.0, cx, move |_, event: &EditorEvent, window, cx| {
             let event = match event {
-                EditorEvent::BufferEdited => ui_input::ErasedEditorEvent::BufferEdited,
-                EditorEvent::Blurred => ui_input::ErasedEditorEvent::Blurred,
+                EditorEvent::BufferEdited => ui::ErasedEditorEvent::BufferEdited,
+                EditorEvent::Blurred => ui::ErasedEditorEvent::Blurred,
                 _ => return,
             };
             (callback)(event, window, cx);

@@ -657,7 +657,7 @@ pub fn init(cx: &mut App) {
         })
         .detach_and_log_err(cx);
     });
-    _ = ui_input::ERASED_EDITOR_FACTORY
+    _ = ui::ERASED_EDITOR_FACTORY
         .set(|window, cx| cx.new(|cx| Editor::single_line(window, cx)).update(cx, |editor, cx| editor.erased(cx)));
 }
 

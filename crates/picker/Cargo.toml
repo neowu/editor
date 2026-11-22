@@ -14,7 +14,6 @@ language.workspace = true
 project.workspace = true
 serde.workspace = true
 ui.workspace = true
-ui_input.workspace = true
 workspace.workspace = true
 
 [lints]

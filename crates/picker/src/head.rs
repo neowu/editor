@@ -9,10 +9,10 @@ use gpui::prelude::Context;
 use gpui::prelude::InteractiveElement as _;
 use gpui::prelude::IntoElement;
 use gpui::prelude::Render;
+use ui::ErasedEditor;
+use ui::ErasedEditorEvent;
 use ui::prelude::Window;
 use ui::prelude::div;
-use ui_input::ErasedEditor;
-use ui_input::ErasedEditorEvent;
 
 /// The head of a [`Picker`](crate::Picker).
 pub(crate) enum Head {
@@ -30,7 +30,7 @@ impl Head {
         window: &mut Window,
         cx: &mut Context<V>,
     ) -> Self {
-        let editor = (ui_input::ERASED_EDITOR_FACTORY.get().expect("editor factory is initialized"))(window, cx);
+        let editor = (ui::ERASED_EDITOR_FACTORY.get().expect("editor factory is initialized"))(window, cx);
         Self::with_editor(editor, placeholder_text, edit_handler, window, cx)
     }
 

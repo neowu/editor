@@ -816,7 +816,6 @@ dependencies = [
  "text",
  "theme",
  "ui",
- "ui_input",
  "unicode-script",
  "unicode-segmentation",
  "url",
@@ -1301,7 +1300,6 @@ dependencies = [
  "time",
  "time_format",
  "ui",
- "ui_input",
  "url",
  "util",
  "watch",
@@ -2750,7 +2748,6 @@ dependencies = [
  "project",
  "serde",
  "ui",
- "ui_input",
  "workspace",
 ]
 
@@ -4106,14 +4103,6 @@ dependencies = [
  "smallvec",
  "strum",
  "theme",
-]
-
-[[package]]
-name = "ui_input"
-version = "0.1.0"
-dependencies = [
- "gpui",
- "ui",
 ]
 
 [[package]]

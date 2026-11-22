@@ -45,6 +45,7 @@ use serde::Deserialize;
 use ui::Checkbox;
 use ui::Divider;
 use ui::DocumentationAside;
+use ui::ErasedEditorEvent;
 use ui::KeyBinding;
 use ui::Tooltip;
 use ui::prelude::ActiveTheme as _;
@@ -55,7 +56,6 @@ use ui::prelude::Rems;
 use ui::prelude::SharedString;
 use ui::prelude::h_flex;
 use ui::prelude::px;
-use ui_input::ErasedEditorEvent;
 use workspace::ModalView;
 
 mod head;
@@ -67,7 +67,7 @@ mod shape;
 
 pub use language::HighlightedText;
 pub use language::HighlightedTextBuilder;
-pub use ui_input::ErasedEditor;
+pub use ui::ErasedEditor;
 
 pub const DEFAULT_MODAL_WIDTH: Rems = Rems(34.0);
 pub const DEFAULT_MODAL_MAX_HEIGHT: Rems = Rems(24.0);

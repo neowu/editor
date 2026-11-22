@@ -74,7 +74,6 @@ time_format = { path = "crates/time_format" }
 title_bar = { path = "crates/title_bar" }
 trash = { path = "crates/trash" }
 ui = { path = "crates/ui" }
-ui_input = { path = "crates/ui_input" }
 util = { path = "crates/util" }
 watch = { path = "crates/watch" }
 workspace = { path = "crates/workspace" }

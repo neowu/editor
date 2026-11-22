@@ -55,6 +55,9 @@ ed (binary: wires everything, opens windows)
 - `ui` components are almost all `RenderOnce`: plain values built during a
   parent's `render`, holding no state between frames. Stateful widgets are
   views in feature crates.
+- `ui` sits below `editor`. Crates that need a text input without depending
+  on `editor` (`picker`) use `ui::ErasedEditor`, created through
+  `ui::ERASED_EDITOR_FACTORY`, which `editor` registers at init.
 - `ed` (`initialize_workspace`) is the only place that knows every piece: it
   adds the panels, status bar items and pane toolbars to each new
   `Workspace` via `observe_new`.

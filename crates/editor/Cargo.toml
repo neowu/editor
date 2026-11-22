@@ -47,7 +47,6 @@ task.workspace = true
 text.workspace = true
 theme.workspace = true
 ui.workspace = true
-ui_input.workspace = true
 unicode-script = "0.5.7"
 unicode-segmentation.workspace = true
 url.workspace = true
