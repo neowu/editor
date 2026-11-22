@@ -53,6 +53,12 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
   contexts. Mutating commands return once the window has stayed clean for a
   few frames (at most 1s). `click`/`scroll` target `--id`, `--text`, or `--at`;
   ambiguous matches fail and list candidates for `--nth`.
+- `bindings [keystrokes]` reports the key contexts from the window root to the
+  focused element and, for the keystrokes, every binding in the keymap with
+  its context predicate and whether it matches those contexts, latest in the
+  keymap first (of the matching ones the deepest context wins, then the
+  earliest listed). It replaces an in-app key context view: troubleshoot
+  keybindings with it.
 - `wait` polls `tree` for an element or text to appear or disappear, or for
   focus to move to an id.
 - `state` lists the editor panes and, separately, the Git History and

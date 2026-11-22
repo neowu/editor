@@ -83,6 +83,11 @@ pub enum Command {
     Actions {
         available: bool,
     },
+    /// Key contexts of the focused element and the bindings for the keystrokes
+    /// (keymap syntax, may be empty). Returns [`Bindings`].
+    Bindings {
+        keystrokes: String,
+    },
     /// Dispatch an action to the focused element.
     Action {
         name: String,
@@ -217,6 +222,24 @@ pub struct Element {
 pub struct Text {
     pub text: String,
     pub bounds: Rect,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Bindings {
+    /// Key contexts from the window root to the focused element.
+    pub contexts: Vec<String>,
+    /// Bindings for the keystrokes in any context, latest in the keymap first. Of the
+    /// matching ones, the deepest context wins, then the earliest listed.
+    pub bindings: Vec<Binding>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Binding {
+    pub action: String,
+    /// The binding's context predicate; unset when it applies everywhere.
+    pub context: Option<String>,
+    /// Whether the predicate matches the focused element's contexts.
+    pub matches: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -380,5 +403,14 @@ mod tests {
         let command: Command =
             serde_json::from_str(r#"{"method":"screenshot","params":{"path":"/tmp/a.png","no_settle":true}}"#).unwrap();
         assert!(matches!(command, Command::Screenshot { no_settle: true, .. }));
+    }
+
+    #[test]
+    fn bindings_command_round_trips() {
+        let json = serde_json::to_string(&Command::Bindings { keystrokes: "cmd-k cmd-s".into() }).unwrap();
+        assert_eq!(json, r#"{"method":"bindings","params":{"keystrokes":"cmd-k cmd-s"}}"#);
+        assert!(
+            matches!(serde_json::from_str(&json).unwrap(), Command::Bindings { keystrokes } if keystrokes == "cmd-k cmd-s")
+        );
     }
 }

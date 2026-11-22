@@ -255,14 +255,7 @@ impl Window {
         }
 
         let Some(keystroke) = keystroke else {
-            self.finish_dispatch_key_event(
-                event,
-                None,
-                InputPreference::KeyBindings,
-                dispatch_path,
-                self.context_stack(),
-                cx,
-            );
+            self.finish_dispatch_key_event(event, &dispatch_path, cx);
             return;
         };
 
@@ -273,11 +266,8 @@ impl Window {
             currently_pending = PendingInput::default();
         }
 
-        let match_result = self.rendered_frame.dispatch_tree.dispatch_key(
-            currently_pending.keystrokes,
-            keystroke.clone(),
-            &dispatch_path,
-        );
+        let match_result =
+            self.rendered_frame.dispatch_tree.dispatch_key(currently_pending.keystrokes, keystroke, &dispatch_path);
 
         if !match_result.to_replay.is_empty() {
             self.replay_pending_input(match_result.to_replay, cx);
@@ -322,27 +312,13 @@ impl Window {
             for binding in match_result.bindings {
                 self.dispatch_action_on_node(node_id, binding.action.as_ref(), cx);
                 if !cx.propagate_event {
-                    self.dispatch_keystroke_observers(
-                        &keystroke,
-                        input_preference,
-                        Some(binding.action.as_ref()),
-                        match_result.context_stack,
-                        cx,
-                    );
                     self.pending_input_changed(cx);
                     return;
                 }
             }
         }
 
-        self.finish_dispatch_key_event(
-            event,
-            Some(&keystroke),
-            input_preference,
-            dispatch_path,
-            match_result.context_stack,
-            cx,
-        );
+        self.finish_dispatch_key_event(event, &dispatch_path, cx);
         self.pending_input_changed(cx);
     }
 
@@ -372,25 +348,15 @@ impl Window {
     fn finish_dispatch_key_event(
         &mut self,
         event: &dyn Any,
-        recognized_keystroke: Option<&Keystroke>,
-        input_preference: InputPreference,
-        dispatch_path: SmallVec<[DispatchNodeId; 32]>,
-        context_stack: Vec<KeyContext>,
+        dispatch_path: &SmallVec<[DispatchNodeId; 32]>,
         cx: &mut App,
     ) {
-        self.dispatch_key_down_up_event(event, &dispatch_path, cx);
+        self.dispatch_key_down_up_event(event, dispatch_path, cx);
         if !cx.propagate_event {
             return;
         }
 
-        self.dispatch_modifiers_changed_event(event, &dispatch_path, cx);
-        if !cx.propagate_event {
-            return;
-        }
-
-        if let Some(keystroke) = recognized_keystroke {
-            self.dispatch_keystroke_observers(keystroke, input_preference, None, context_stack, cx);
-        }
+        self.dispatch_modifiers_changed_event(event, dispatch_path, cx);
     }
 
     pub(crate) fn pending_input_changed(&mut self, cx: &mut App) {
@@ -493,13 +459,6 @@ impl Window {
             for binding in replay.bindings {
                 self.dispatch_action_on_node(node_id, binding.action.as_ref(), cx);
                 if !cx.propagate_event {
-                    self.dispatch_keystroke_observers(
-                        &replay.keystroke,
-                        InputPreference::KeyBindings,
-                        Some(binding.action.as_ref()),
-                        Vec::default(),
-                        cx,
-                    );
                     continue 'replay;
                 }
             }
@@ -508,7 +467,7 @@ impl Window {
             if !cx.propagate_event {
                 continue 'replay;
             }
-            if let Some(input) = replay.keystroke.key_char.clone()
+            if let Some(input) = replay.keystroke.key_char
                 && let Some(mut input_handler) = self.platform_window.take_input_handler()
             {
                 input_handler.dispatch_input(&input, self, cx);

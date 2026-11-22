@@ -59,12 +59,9 @@ use crate::FrameStats;
 use crate::Global;
 use crate::GlobalElementId;
 use crate::InputHandler;
-use crate::InputPreference;
 use crate::IsZero as _;
 use crate::KeyContext;
 use crate::KeyEvent;
-use crate::Keystroke;
-use crate::KeystrokeEvent;
 use crate::LayoutId;
 use crate::LineLayoutIndex;
 use crate::Modifiers;
@@ -1340,28 +1337,6 @@ impl Window {
                     window.dispatch_action_on_node(node_id, action.as_ref(), cx);
                 })
                 .log_err();
-        });
-    }
-
-    pub(crate) fn dispatch_keystroke_observers(
-        &mut self,
-        keystroke: &Keystroke,
-        input_preference: InputPreference,
-        action: Option<&dyn Action>,
-        context_stack: Vec<KeyContext>,
-        cx: &mut App,
-    ) {
-        cx.keystroke_observers.clone().retain(move |callback| {
-            (callback)(
-                &KeystrokeEvent {
-                    keystroke: keystroke.clone(),
-                    input_preference,
-                    action: action.map(|x| x.boxed_clone()),
-                    context_stack: context_stack.clone(),
-                },
-                self,
-                cx,
-            )
         });
     }
 

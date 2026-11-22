@@ -76,7 +76,6 @@ use crate::FocusMap;
 use crate::ForegroundExecutor;
 use crate::Global;
 use crate::KeyBinding;
-use crate::KeyContext;
 use crate::Keymap;
 use crate::Keystroke;
 use crate::LayoutId;
@@ -286,7 +285,6 @@ fn read_displays(platform: &dyn Platform) -> FxHashMap<DisplayId, Option<Duratio
 }
 
 type Listener = Box<dyn FnMut(&dyn Any, &mut App) -> bool + 'static>;
-pub(crate) type KeystrokeObserver = Box<dyn FnMut(&KeystrokeEvent, &mut Window, &mut App) -> bool + 'static>;
 type QuitHandler = (Box<dyn FnOnce(&mut App) -> LocalBoxFuture<'static, ()> + 'static>, &'static Location<'static>);
 type ReleaseListener = Box<dyn FnOnce(&mut dyn Any, &mut App) + 'static>;
 type NewEntityListener = Box<dyn FnMut(AnyEntity, &mut Option<&mut Window>, &mut App) + 'static>;
@@ -317,7 +315,6 @@ pub struct App {
 
     pub(crate) observers: SubscriberSet<EntityId, Handler>,
     pub(crate) event_listeners: SubscriberSet<EntityId, (TypeId, Listener)>,
-    pub(crate) keystroke_observers: SingleSubscriberSet<KeystrokeObserver>,
     /// The connected displays, as of the platform's last display change
     /// notification.
     displays: FxHashMap<DisplayId, Option<Duration>>,
@@ -410,7 +407,6 @@ impl App {
                 current_window_by_entity: FxHashMap::default(),
                 event_listeners: SubscriberSet::new(),
                 release_listeners: SubscriberSet::new(),
-                keystroke_observers: SingleSubscriberSet::new(),
                 displays: read_displays(platform.as_ref()),
                 system_sleep_observers: SingleSubscriberSet::new(),
                 system_wake_observers: SingleSubscriberSet::new(),
@@ -1330,30 +1326,6 @@ impl App {
         })
     }
 
-    /// Register a callback to be invoked after a keystroke is resolved in any window,
-    /// including the action that handled it, if any. Keystrokes consumed by an
-    /// interceptor or raw keyboard event handler are not observed.
-    /// Standalone modifiers are observed on release.
-    pub fn observe_keystrokes(
-        &mut self,
-        mut f: impl FnMut(&KeystrokeEvent, &mut Window, &mut App) + 'static,
-    ) -> Subscription {
-        fn inner(
-            keystroke_observers: &SingleSubscriberSet<KeystrokeObserver>,
-            handler: KeystrokeObserver,
-        ) -> Subscription {
-            keystroke_observers.insert(handler)
-        }
-
-        inner(
-            &self.keystroke_observers,
-            Box::new(move |event, window, cx| {
-                f(event, window, cx);
-                true
-            }),
-        )
-    }
-
     /// Register key bindings.
     pub fn bind_keys(&mut self, bindings: impl IntoIterator<Item = KeyBinding>) {
         self.keymap.borrow_mut().add_bindings(bindings);
@@ -1906,28 +1878,6 @@ pub enum InputPreference {
     CharacterInput,
     /// Dispatch key bindings normally, if any match.
     KeyBindings,
-}
-
-/// A keystroke event, and potentially the associated action.
-#[derive(Debug)]
-pub struct KeystrokeEvent {
-    /// The keystroke that occurred.
-    pub keystroke: Keystroke,
-
-    /// Whether this keystroke should prefer character input or key bindings.
-    /// This is [`InputPreference::CharacterInput`] when the platform prefers text for the key
-    /// (e.g. AltGr on Windows) and the focused input accepts text. Interceptors still receive
-    /// these keystrokes and can consume them.
-    ///
-    /// If the keystroke is part of a multi-stroke binding, it still waits as pending input
-    /// even when this is [`InputPreference::CharacterInput`].
-    pub input_preference: InputPreference,
-
-    /// The action that was resolved for the keystroke, if any.
-    pub action: Option<Box<dyn Action>>,
-
-    /// The context stack at the time.
-    pub context_stack: Vec<KeyContext>,
 }
 
 /// A mutable reference to an entity owned by GPUI.

@@ -29,6 +29,8 @@ use gpui::ElementId;
 use gpui::Entity;
 use gpui::Focusable as _;
 use gpui::FrameStatsSummary;
+use gpui::KeyBinding;
+use gpui::KeyContext;
 use gpui::Keystroke;
 use gpui::Modifiers;
 use gpui::MouseButton;
@@ -177,6 +179,13 @@ async fn handle_request(
             names.dedup();
             serde_json::to_value(names)?
         }
+        Command::Bindings { keystrokes } => {
+            let keystrokes = parse_keystrokes(&keystrokes)?;
+            window.update(cx, |_, window, cx| {
+                window.draw_if_dirty(cx);
+                serde_json::to_value(bindings(&cx.all_bindings_for_input(&keystrokes), &window.context_stack()))
+            })??
+        }
         Command::Action { name, args } => {
             window.update(cx, |_, window, cx| -> Result<()> {
                 let action = cx.build_action(&name, args).map_err(|error| anyhow::anyhow!("{error}"))?;
@@ -187,13 +196,7 @@ async fn handle_request(
             Value::Null
         }
         Command::Keys { keystrokes } => {
-            let keystrokes = keystrokes
-                .split_whitespace()
-                .map(|keystroke| {
-                    Keystroke::parse(keystroke).with_context(|| format!("invalid keystroke {keystroke:?}"))
-                })
-                .collect::<Result<Vec<Keystroke>>>()?;
-            for keystroke in keystrokes {
+            for keystroke in parse_keystrokes(&keystrokes)? {
                 dispatch_keystroke(window, keystroke, cx)?;
             }
             settle(window, cx).await?;
@@ -262,6 +265,30 @@ async fn handle_request(
         }
     };
     Ok(value)
+}
+
+fn parse_keystrokes(keystrokes: &str) -> Result<Vec<Keystroke>> {
+    keystrokes
+        .split_whitespace()
+        .map(|keystroke| Keystroke::parse(keystroke).with_context(|| format!("invalid keystroke {keystroke:?}")))
+        .collect()
+}
+
+fn bindings(bindings: &[KeyBinding], contexts: &[KeyContext]) -> control::Bindings {
+    control::Bindings {
+        contexts: contexts.iter().map(|context| format!("{context:?}")).collect(),
+        bindings: bindings
+            .iter()
+            .map(|binding| {
+                let predicate = binding.predicate();
+                control::Binding {
+                    action: binding.action().name().to_owned(),
+                    matches: predicate.as_ref().is_none_or(|predicate| predicate.depth_of(contexts).is_some()),
+                    context: predicate.map(|predicate| predicate.to_string()),
+                }
+            })
+            .collect(),
+    }
 }
 
 fn frame_times(summary: &FrameStatsSummary) -> control::FrameTimes {
@@ -600,9 +627,43 @@ const fn dock_position_name(position: DockPosition) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use gpui::KeyBinding;
+    use gpui::KeyContext;
     use workspace::dock::DockPosition;
 
+    use super::bindings;
     use super::dock_position_name;
+    use super::parse_keystrokes;
+
+    #[test]
+    fn parse_keystrokes_works() {
+        let keystrokes = parse_keystrokes("cmd-k  enter").unwrap();
+        assert_eq!(keystrokes.iter().map(gpui::Keystroke::unparse).collect::<Vec<_>>(), ["cmd-k", "enter"]);
+        assert!(parse_keystrokes("").unwrap().is_empty());
+    }
+
+    #[test]
+    fn bindings_reports_context_matches() {
+        let keymap = [
+            KeyBinding::new("enter", actions::menu::Confirm, None),
+            KeyBinding::new("enter", actions::menu::Cancel, Some("Editor && mode == full")),
+            KeyBinding::new("enter", actions::menu::Restart, Some("Terminal")),
+        ];
+        let mut editor = KeyContext::new_with_defaults();
+        editor.add("Editor");
+        editor.set("mode", "full");
+        let contexts = [KeyContext::parse("Workspace").unwrap(), editor];
+
+        let result = bindings(&keymap, &contexts);
+        assert_eq!(result.contexts.len(), 2);
+        assert!(result.contexts[1].contains("Editor"));
+        let summary: Vec<_> =
+            result.bindings.iter().map(|b| (b.action.as_str(), b.context.is_some(), b.matches)).collect();
+        assert_eq!(
+            summary,
+            [("menu::Confirm", false, true), ("menu::Cancel", true, true), ("menu::Restart", true, false)]
+        );
+    }
 
     #[test]
     fn dock_position_name_works() {

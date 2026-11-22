@@ -68,18 +68,6 @@ pub mod editor {
     );
 }
 
-pub mod dev {
-    use gpui::actions;
-
-    actions!(
-        dev,
-        [
-            /// Opens the key context view for debugging keybindings.
-            OpenKeyContextView
-        ]
-    );
-}
-
 pub mod workspace {
     use gpui::actions;
 

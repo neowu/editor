@@ -13,7 +13,6 @@ use gpui_util::Deferred;
 use super::App;
 use super::AsyncWindowContext;
 use super::Entity;
-use super::KeystrokeEvent;
 use crate::AnyView;
 use crate::AnyWindowHandle;
 use crate::AppContext;
@@ -26,9 +25,7 @@ use crate::FocusHandle;
 use crate::FocusOutEvent;
 use crate::Focusable;
 use crate::Global;
-use crate::KeystrokeObserver;
 use crate::Reservation;
-use crate::SingleSubscriberSet;
 use crate::Subscription;
 use crate::Task;
 use crate::WeakEntity;
@@ -376,32 +373,6 @@ impl<'a, T: 'static> Context<'a, T> {
         window
             .activation_observers
             .insert(Box::new(move |window, cx| view.update(cx, |view, cx| callback(view, window, cx)).is_ok()))
-    }
-
-    /// Registers a callback for [`App::observe_keystrokes`] that updates this entity.
-    pub fn observe_keystrokes(
-        &mut self,
-        mut f: impl FnMut(&mut T, &KeystrokeEvent, &mut Window, &mut Context<T>) + 'static,
-    ) -> Subscription {
-        fn inner(
-            keystroke_observers: &SingleSubscriberSet<KeystrokeObserver>,
-            handler: KeystrokeObserver,
-        ) -> Subscription {
-            keystroke_observers.insert(handler)
-        }
-
-        let view = self.weak_entity();
-        inner(
-            &self.keystroke_observers,
-            Box::new(move |event, window, cx| {
-                if let Some(view) = view.upgrade() {
-                    view.update(cx, |view, cx| f(view, event, window, cx));
-                    true
-                } else {
-                    false
-                }
-            }),
-        )
     }
 
     /// Register a callback to be invoked when the window's pending input changes.

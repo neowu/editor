@@ -31,7 +31,6 @@ mod serialization;
 
 mod status_bar;
 pub mod tasks;
-mod theme_preview;
 mod toast_layer;
 mod toolbar;
 mod window_header;
@@ -580,7 +579,6 @@ pub struct OpenTerminal {
 }
 
 pub fn init(app_state: Arc<AppState>, cx: &mut App) {
-    theme_preview::init(cx);
     toast_layer::init(cx);
     persistence::init(Arc::clone(&app_state.fs), cx);
 

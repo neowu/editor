@@ -97,6 +97,9 @@ enum CliCommand {
         #[arg(long)]
         available: bool,
     },
+    /// Key contexts of the focused element and, for the given keystrokes, every
+    /// binding with whether its context matches, as JSON.
+    Bindings { keystrokes: Vec<String> },
     /// Dispatch an action to the focused element, e.g. `finder::Toggle`.
     Action {
         name: String,
@@ -285,6 +288,9 @@ fn run(cli: Cli) -> Result<()> {
             for name in names {
                 println!("{name}");
             }
+        }
+        CliCommand::Bindings { keystrokes } => {
+            print_json(&client.request::<Value>(Command::Bindings { keystrokes: keystrokes.join(" ") })?)?;
         }
         CliCommand::Action { name, args } => {
             let args = args.map(|args| serde_json::from_str(&args)).transpose().context("invalid action arguments")?;

@@ -6,7 +6,6 @@ use theme::ActiveTheme as _;
 use crate::font;
 
 mod apca_contrast;
-mod color_contrast;
 mod constants;
 mod control_characters;
 mod corner_solver;
@@ -17,8 +16,6 @@ mod with_rem_size;
 
 #[allow(clippy::wildcard_imports)]
 pub use apca_contrast::*;
-#[allow(clippy::wildcard_imports)]
-pub use color_contrast::*;
 #[allow(clippy::wildcard_imports)]
 pub use constants::*;
 #[allow(clippy::wildcard_imports)]
