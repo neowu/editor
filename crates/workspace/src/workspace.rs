@@ -1917,7 +1917,6 @@ impl Workspace {
     pub fn key_context(&self, cx: &App) -> KeyContext {
         let mut context = KeyContext::new_with_defaults();
         context.add("Workspace");
-        context.set("keyboard_layout", cx.keyboard_layout().name().to_owned());
         if self.left_dock.read(cx).is_open()
             && let Some(active_panel) = self.left_dock.read(cx).active_panel()
         {

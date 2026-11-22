@@ -1,5 +1,4 @@
 mod app_menu;
-mod keyboard;
 mod keystroke;
 
 use std::borrow::Cow;
@@ -28,8 +27,6 @@ use image::Frame;
 use image::Rgba;
 use image::codecs::gif::GifDecoder;
 use image::codecs::webp::WebPDecoder;
-#[allow(clippy::wildcard_imports)]
-pub use keyboard::*;
 #[allow(clippy::wildcard_imports)]
 pub use keystroke::*;
 use raw_window_handle::HasDisplayHandle;
@@ -215,8 +212,6 @@ pub trait Platform: 'static {
     fn read_from_find_pasteboard(&self) -> Option<ClipboardItem>;
 
     fn write_to_find_pasteboard(&self, item: ClipboardItem);
-
-    fn keyboard_layout(&self) -> Box<dyn PlatformKeyboardLayout>;
 }
 
 /// A handle to a platform's display, e.g. a monitor or laptop screen.

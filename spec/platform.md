@@ -265,10 +265,10 @@ from the installed app only resolve the panic location itself.
   paths holds none.
 - A sprite larger than the 16,384 px atlas limit in either dimension is not
   rendered and allocates no atlas page.
-- The keyboard layout is read once per run: key translation and
-  `App::keyboard_layout` use the layout in effect at launch, and there is no
-  layout-change notification. Switching layouts needs a restart for shortcuts
-  to follow the new layout. Input methods are unaffected.
+- The keyboard layout is read once per run: key translation uses the layout in
+  effect at launch, and there is no layout-change notification. Switching
+  layouts needs a restart for shortcuts to follow the new layout. Input methods
+  are unaffected. The layout is not exposed to the app or to key contexts.
 - GPUI's platform traits carry only what macOS implements: no anchored popup
   window kind, jump list, async clipboard read, missing-glyph reporting, font
   prewarming, GPU specs, or timer-resolution hook.

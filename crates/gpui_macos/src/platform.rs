@@ -33,7 +33,6 @@ use gpui::OsMenu;
 use gpui::PathPromptOptions;
 use gpui::Platform;
 use gpui::PlatformDisplay;
-use gpui::PlatformKeyboardLayout;
 use gpui::PlatformTextSystem;
 use gpui::PlatformWindow;
 use gpui::Result;
@@ -72,7 +71,6 @@ use parking_lot::Mutex;
 
 use crate::AppleDispatcher;
 use crate::MacDisplay;
-use crate::MacKeyboardLayout;
 use crate::MacWindow;
 use crate::events::key_to_menu_equivalent;
 use crate::ns::NSInteger;
@@ -850,10 +848,6 @@ impl Platform for MacPlatform {
         self.ensure_system_power_observers();
     }
 
-    fn keyboard_layout(&self) -> Box<dyn PlatformKeyboardLayout> {
-        Box::new(MacKeyboardLayout::new())
-    }
-
     fn app_path(&self) -> Result<PathBuf> {
         unsafe {
             let bundle: id = msg_send![class!(NSBundle), mainBundle];
@@ -1227,8 +1221,6 @@ unsafe extern "C" {
     ) -> u32;
     pub(super) fn LMGetKbdType() -> u16;
     pub(super) static kTISPropertyUnicodeKeyLayoutData: *const CFString;
-    pub(super) static kTISPropertyInputSourceID: *const CFString;
-    pub(super) static kTISPropertyLocalizedName: *const CFString;
     pub(super) static kTISPropertyInputSourceIsASCIICapable: *const CFString;
     pub(super) static kTISPropertyInputSourceType: *const CFString;
     pub(super) static kTISTypeKeyboardInputMode: *const CFString;

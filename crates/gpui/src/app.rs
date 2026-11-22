@@ -85,7 +85,6 @@ use crate::PathPromptOptions;
 use crate::Pixels;
 use crate::Platform;
 use crate::PlatformDisplay;
-use crate::PlatformKeyboardLayout;
 use crate::Point;
 use crate::Render;
 use crate::RenderImage;
@@ -305,7 +304,6 @@ pub struct App {
     pub(crate) window_handles: FxHashMap<WindowId, AnyWindowHandle>,
     pub(crate) focus_handles: Arc<RwLock<FocusMap>>,
     pub(crate) keymap: Rc<RefCell<Keymap>>,
-    pub(crate) keyboard_layout: Box<dyn PlatformKeyboardLayout>,
     pub(crate) global_action_listeners:
         HashMap<TypeId, Vec<Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Self)>>, TypeIdHashBuilder>,
     pending_effects: VecDeque<Effect>,
@@ -368,7 +366,6 @@ impl App {
 
         let text_system = Arc::new(TextSystem::new(platform.text_system()));
         let entities = EntityMap::new();
-        let keyboard_layout = platform.keyboard_layout();
 
         let app = Rc::new_cyclic(|this| AppCell {
             app: RefCell::new(App {
@@ -391,7 +388,6 @@ impl App {
                 window_handles: FxHashMap::default(),
                 focus_handles: Arc::new(RwLock::new(FocusMap::default())),
                 keymap: Rc::new(RefCell::new(Keymap::default())),
-                keyboard_layout,
                 global_action_listeners: HashMap::default(),
                 pending_effects: VecDeque::new(),
                 pending_notifications: FxHashSet::default(),
@@ -513,11 +509,6 @@ impl App {
         }
 
         self.quitting = false;
-    }
-
-    /// The keyboard layout the app was launched with; later changes are not tracked.
-    pub fn keyboard_layout(&self) -> &dyn PlatformKeyboardLayout {
-        self.keyboard_layout.as_ref()
     }
 
     /// Gracefully quit the application via the platform's standard routine.
