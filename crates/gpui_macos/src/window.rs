@@ -896,9 +896,7 @@ impl MacWindowState {
                 return;
             }
         }
-        let Some(layer) = self.renderer.layer() else {
-            return;
-        };
+        let layer = self.renderer.layer();
         let main_thread = MainThreadMarker::new().expect("macOS windows require the main thread");
         let window_state = Arc::downgrade(window_state);
         let source = MetalFrameSource::new(layer, main_thread, move |update| {
@@ -1147,13 +1145,7 @@ impl MacWindow {
                 cursor_style: CursorStyle::Arrow,
                 cursor_visible,
                 metal_frames: Rc::clone(&metal_frames),
-                renderer: renderer::new_renderer(
-                    renderer_context,
-                    native_window.cast::<c_void>(),
-                    native_view.cast::<c_void>(),
-                    bounds.size.map(|pixels| pixels.as_f32()),
-                    false,
-                ),
+                renderer: renderer::Renderer::new(renderer_context, false),
                 request_frame_callback: None,
                 event_callback: None,
                 activate_callback: None,
@@ -1327,7 +1319,6 @@ impl MacWindow {
 impl Drop for MacWindow {
     fn drop(&mut self) {
         let mut this = self.0.lock();
-        this.renderer.destroy();
         let window = this.native_window;
         let sheet_parent = this.sheet_parent.take();
         this.metal_frames.replace(None);
@@ -2588,9 +2579,7 @@ fn update_window_scale_factor(window_state: &Arc<Mutex<MacWindowState>>) {
     let scale_factor = lock.scale_factor();
     let size = lock.content_size();
     let drawable_size = size.to_device_pixels(scale_factor);
-    if let Some(layer) = lock.renderer.layer() {
-        layer.setContentsScale(scale_factor as f64);
-    }
+    lock.renderer.layer().setContentsScale(scale_factor as f64);
 
     lock.renderer.update_drawable_size(drawable_size);
 

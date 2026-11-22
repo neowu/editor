@@ -34,6 +34,9 @@ use parking_lot::Mutex;
 type Device = ProtocolObject<dyn MTLDevice>;
 type Texture = ProtocolObject<dyn MTLTexture>;
 
+// Max texture size on all modern Apple GPUs. Anything bigger than that crashes in validateWithDevice.
+const MAX_ATLAS_SIZE: Size<DevicePixels> = Size { width: DevicePixels(0x4000), height: DevicePixels(0x4000) };
+
 pub struct MetalAtlas(Mutex<AtlasState<MetalAtlasTextures>>);
 
 impl MetalAtlas {
@@ -112,6 +115,10 @@ impl AtlasBackend for MetalAtlasTextures {
 
 impl MetalAtlasTextures {
     fn allocate(&mut self, size: Size<DevicePixels>, texture_kind: AtlasTextureKind) -> Option<AtlasTile> {
+        // No page can hold such a tile, and a page pushed for it would stay allocated.
+        if size.width > MAX_ATLAS_SIZE.width || size.height > MAX_ATLAS_SIZE.height {
+            return None;
+        }
         {
             let textures = match texture_kind {
                 AtlasTextureKind::Monochrome => &mut self.monochrome_textures,
@@ -129,8 +136,6 @@ impl MetalAtlasTextures {
 
     fn push_texture(&mut self, min_size: Size<DevicePixels>, kind: AtlasTextureKind) -> &mut MetalAtlasTexture {
         const DEFAULT_ATLAS_SIZE: Size<DevicePixels> = Size { width: DevicePixels(1024), height: DevicePixels(1024) };
-        // Max texture size on all modern Apple GPUs. Anything bigger than that crashes in validateWithDevice.
-        const MAX_ATLAS_SIZE: Size<DevicePixels> = Size { width: DevicePixels(0x4000), height: DevicePixels(0x4000) };
         let size = min_size.min(&MAX_ATLAS_SIZE).max(&DEFAULT_ATLAS_SIZE);
         let texture_descriptor = MTLTextureDescriptor::new();
         unsafe {
@@ -258,3 +263,35 @@ fn point_from_etagere(value: etagere::Point) -> Point<DevicePixels> {
 struct AssertSend<T>(T);
 
 unsafe impl<T> Send for AssertSend<T> {}
+
+#[cfg(test)]
+mod tests {
+    use gpui::AtlasTextureKind;
+    use gpui::AtlasTextureList;
+    use gpui::DevicePixels;
+    use gpui::Size;
+    use objc2_metal::MTLCreateSystemDefaultDevice;
+
+    use super::MetalAtlasTextures;
+
+    #[test]
+    fn oversize_tiles_do_not_allocate_a_page() {
+        let mut textures = MetalAtlasTextures {
+            device: MTLCreateSystemDefaultDevice().expect("metal device"),
+            supports_shared_storage: false,
+            monochrome_textures: AtlasTextureList::default(),
+            polychrome_textures: AtlasTextureList::default(),
+        };
+
+        let wide = Size { width: DevicePixels(0x4001), height: DevicePixels(8) };
+        let tall = Size { width: DevicePixels(8), height: DevicePixels(0x4001) };
+        assert!(textures.allocate(wide, AtlasTextureKind::Polychrome).is_none());
+        assert!(textures.allocate(tall, AtlasTextureKind::Monochrome).is_none());
+        assert!(textures.polychrome_textures.textures.is_empty());
+        assert!(textures.monochrome_textures.textures.is_empty());
+
+        let small = Size { width: DevicePixels(8), height: DevicePixels(8) };
+        assert!(textures.allocate(small, AtlasTextureKind::Polychrome).is_some());
+        assert_eq!(textures.polychrome_textures.textures.len(), 1);
+    }
+}

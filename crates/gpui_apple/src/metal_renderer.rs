@@ -95,16 +95,6 @@ const MAX_INSTANCE_BUFFER_SIZE: usize = 256 * 1024 * 1024;
 pub type Context = Arc<Mutex<InstanceBufferPool>>;
 pub type Renderer = MetalRenderer;
 
-pub fn new_renderer(
-    context: self::Context,
-    _native_window: *mut c_void,
-    _native_view: *mut c_void,
-    _bounds: gpui::Size<f32>,
-    transparent: bool,
-) -> Renderer {
-    MetalRenderer::new(context, transparent)
-}
-
 pub struct InstanceBufferPool {
     buffer_size: usize,
     buffers: Vec<Retained<Buffer>>,
@@ -161,12 +151,11 @@ enum DisplayLinkMode {
 
 pub struct MetalRenderer {
     device: Retained<Device>,
-    layer: Option<Retained<CAMetalLayer>>,
+    layer: Retained<CAMetalLayer>,
     is_apple_gpu: bool,
     is_unified_memory: bool,
     presents_with_transaction: bool,
     display_link_mode: DisplayLinkMode,
-    /// For headless rendering, tracks whether output should be opaque.
     opaque: bool,
     command_queue: Retained<ProtocolObject<dyn MTLCommandQueue>>,
     paths_rasterization_pipeline_state: Retained<RenderPipelineState>,
@@ -194,14 +183,6 @@ pub struct PathRasterizationVertex {
 }
 
 impl MetalRenderer {
-    /// Creates a new MetalRenderer with a CAMetalLayer for window-based rendering.
-    pub fn new(instance_buffer_pool: Arc<Mutex<InstanceBufferPool>>, transparent: bool) -> Self {
-        let device = Self::create_device();
-        let layer = CAMetalLayer::new();
-        Self::configure_layer(&layer, &device, transparent);
-        Self::new_internal(device, Some(layer), !transparent, instance_buffer_pool)
-    }
-
     fn configure_layer(layer: &CAMetalLayer, device: &Device, transparent: bool) {
         layer.setDevice(Some(device));
         layer.setPixelFormat(MTLPixelFormat::BGRA8Unorm);
@@ -240,12 +221,12 @@ impl MetalRenderer {
         })
     }
 
-    fn new_internal(
-        device: Retained<Device>,
-        layer: Option<Retained<CAMetalLayer>>,
-        opaque: bool,
-        instance_buffer_pool: Arc<Mutex<InstanceBufferPool>>,
-    ) -> Self {
+    pub fn new(instance_buffer_pool: Arc<Mutex<InstanceBufferPool>>, transparent: bool) -> Self {
+        let device = Self::create_device();
+        let layer = CAMetalLayer::new();
+        Self::configure_layer(&layer, &device, transparent);
+        let opaque = !transparent;
+
         #[cfg(feature = "runtime_shaders")]
         let library = device
             .newLibraryWithSource_options_error(&NSString::from_str(SHADERS_SOURCE_FILE), None)
@@ -379,12 +360,12 @@ impl MetalRenderer {
         }
     }
 
-    pub fn layer(&self) -> Option<&CAMetalLayer> {
-        self.layer.as_deref()
+    pub fn layer(&self) -> &CAMetalLayer {
+        &self.layer
     }
 
     pub fn layer_ptr(&self) -> *mut CAMetalLayer {
-        self.layer.as_ref().map_or(ptr::null_mut(), |l| Retained::as_ptr(l).cast_mut())
+        Retained::as_ptr(&self.layer).cast_mut()
     }
 
     pub const fn sprite_atlas(&self) -> &Arc<MetalAtlas> {
@@ -426,33 +407,36 @@ impl MetalRenderer {
 
     pub fn set_presents_with_transaction(&mut self, presents_with_transaction: bool) {
         self.presents_with_transaction = presents_with_transaction;
-        if let Some(layer) = &self.layer {
-            layer.setPresentsWithTransaction(presents_with_transaction);
-        }
+        self.layer.setPresentsWithTransaction(presents_with_transaction);
     }
 
     pub fn update_drawable_size(&mut self, size: Size<DevicePixels>) {
-        if let Some(layer) = &self.layer {
-            layer.setDrawableSize(CGSize::new(size.width.0 as f64, size.height.0 as f64));
+        self.layer.setDrawableSize(CGSize::new(size.width.0 as f64, size.height.0 as f64));
+        // The drawable size is set again on every resize callback and scale
+        // change, often to the size it already has.
+        if !self.path_intermediate_textures_match(size) {
+            self.path_intermediate_texture = None;
+            self.path_intermediate_msaa_texture = None;
         }
-        self.update_path_intermediate_textures(size);
     }
 
-    fn update_path_intermediate_textures(&mut self, size: Size<DevicePixels>) {
-        // We are uncertain when this happens, but sometimes size can be 0 here. Most likely before
-        // the layout pass on window creation. Zero-sized texture creation causes SIGABRT.
+    fn path_intermediate_textures_match(&self, size: Size<DevicePixels>) -> bool {
+        self.path_intermediate_texture.as_ref().is_some_and(|texture| {
+            texture.width() == size.width.0 as usize && texture.height() == size.height.0 as usize
+        })
+    }
+
+    /// Path targets are window-sized, so they are allocated by the first
+    /// frame that draws paths rather than with the drawable.
+    fn ensure_path_intermediate_textures(&mut self, size: Size<DevicePixels>) {
+        if self.path_intermediate_textures_match(size) {
+            return;
+        }
+        // Zero-sized texture creation causes SIGABRT.
         // https://github.com/zed-industries/zed/issues/36229
         if size.width.0 <= 0 || size.height.0 <= 0 {
             self.path_intermediate_texture = None;
             self.path_intermediate_msaa_texture = None;
-            return;
-        }
-
-        // The drawable size is set again on every resize callback and scale
-        // change, often to the size it already has.
-        if self.path_intermediate_texture.as_ref().is_some_and(|texture| {
-            texture.width() == size.width.0 as usize && texture.height() == size.height.0 as usize
-        }) {
             return;
         }
 
@@ -485,22 +469,10 @@ impl MetalRenderer {
 
     pub fn update_transparency(&mut self, transparent: bool) {
         self.opaque = !transparent;
-        if let Some(layer) = &self.layer {
-            layer.setOpaque(!transparent);
-        }
-    }
-
-    pub const fn destroy(&self) {
-        // nothing to do
+        self.layer.setOpaque(!transparent);
     }
 
     pub fn draw(&mut self, scene: &Scene) {
-        let layer = if let Some(l) = &self.layer {
-            l.clone()
-        } else {
-            log::error!("draw() called on headless renderer - use render_scene_to_image() instead");
-            return;
-        };
         let drawable = match &mut self.display_link_mode {
             DisplayLinkMode::Attached { drawable } => {
                 let Some(drawable) = drawable.take() else {
@@ -510,8 +482,8 @@ impl MetalRenderer {
                 drawable
             }
             DisplayLinkMode::Detached => {
-                let Some(drawable) = layer.nextDrawable() else {
-                    log::error!("failed to retrieve next drawable, drawable size: {:?}", layer.drawableSize());
+                let Some(drawable) = self.layer.nextDrawable() else {
+                    log::error!("failed to retrieve next drawable, drawable size: {:?}", self.layer.drawableSize());
                     return;
                 };
                 drawable
@@ -541,9 +513,8 @@ impl MetalRenderer {
     }
 
     /// Render `scene` offscreen at the layer's drawable size and read it back.
-    pub fn render_to_image(&self, scene: &Scene) -> Result<RgbaImage> {
-        let layer = self.layer.as_ref().context("headless renderer has no drawable size")?;
-        let drawable_size = layer.drawableSize();
+    pub fn render_to_image(&mut self, scene: &Scene) -> Result<RgbaImage> {
+        let drawable_size = self.layer.drawableSize();
         let width = drawable_size.width.ceil() as usize;
         let height = drawable_size.height.ceil() as usize;
         anyhow::ensure!(width > 0 && height > 0, "window has no drawable area");
@@ -594,11 +565,14 @@ impl MetalRenderer {
     }
 
     fn render_frame(
-        &self,
+        &mut self,
         scene: &Scene,
         texture: &Texture,
         viewport_size: Size<DevicePixels>,
     ) -> Result<Retained<CommandBuffer>> {
+        if !scene.paths.is_empty() {
+            self.ensure_path_intermediate_textures(viewport_size);
+        }
         let mut writer = InstanceBufferWriter::new(&self.device, &self.instance_buffer_pool, self.is_unified_memory);
         let instance_bindings = write_instances(scene, &mut writer).with_context(|| {
             format!(
@@ -1383,35 +1357,43 @@ mod tests {
     use super::MetalRenderer;
 
     #[test]
-    fn path_intermediate_textures_are_reused_until_resize() {
+    fn path_intermediate_textures_are_allocated_on_demand_and_reused_until_resize() {
         let mut renderer = MetalRenderer::new(Arc::default(), false);
         let initial_size = size(DevicePixels(64), DevicePixels(64));
         renderer.update_drawable_size(initial_size);
+        assert!(renderer.path_intermediate_texture.is_none());
+
+        // A frame without paths allocates nothing.
+        renderer.render_to_image(&Scene::default()).expect("rendered image");
+        assert!(renderer.path_intermediate_texture.is_none());
+        assert!(renderer.path_intermediate_msaa_texture.is_none());
+
+        renderer.ensure_path_intermediate_textures(initial_size);
         let initial = renderer.path_intermediate_texture.clone().expect("path intermediate texture");
+        assert_eq!((initial.width(), initial.height()), (64, 64));
+        if let Some(msaa) = &renderer.path_intermediate_msaa_texture {
+            assert_eq!((msaa.width(), msaa.height()), (64, 64));
+        }
 
         renderer.update_drawable_size(initial_size);
+        renderer.ensure_path_intermediate_textures(initial_size);
         let reused = renderer.path_intermediate_texture.as_ref().expect("reused texture");
         assert_eq!(Retained::as_ptr(&initial), Retained::as_ptr(reused));
 
+        // A resize releases targets of the old size.
         renderer.update_drawable_size(size(DevicePixels(128), DevicePixels(64)));
-        let resized = renderer.path_intermediate_texture.as_ref().expect("resized texture");
-        assert_eq!((resized.width(), resized.height()), (128, 64));
-        assert_ne!(Retained::as_ptr(&initial), Retained::as_ptr(resized));
-        if let Some(msaa) = &renderer.path_intermediate_msaa_texture {
-            assert_eq!((msaa.width(), msaa.height()), (128, 64));
-        }
-
-        renderer.update_drawable_size(size(DevicePixels(0), DevicePixels(64)));
         assert!(renderer.path_intermediate_texture.is_none());
         assert!(renderer.path_intermediate_msaa_texture.is_none());
+
+        renderer.ensure_path_intermediate_textures(size(DevicePixels(0), DevicePixels(64)));
+        assert!(renderer.path_intermediate_texture.is_none());
     }
 
     #[test]
     fn display_link_mode_consumes_and_clears_drawables() {
         let mut renderer = MetalRenderer::new(Arc::default(), false);
         renderer.update_drawable_size(size(DevicePixels(64), DevicePixels(64)));
-        let drawable =
-            renderer.layer().and_then(objc2_quartz_core::CAMetalLayer::nextDrawable).expect("window renderer drawable");
+        let drawable = renderer.layer().nextDrawable().expect("window renderer drawable");
 
         renderer.set_display_link_attached(true);
         assert!(matches!(renderer.display_link_mode, DisplayLinkMode::Attached { drawable: None }));

@@ -251,6 +251,11 @@ from the installed app only resolve the panic location itself.
 - Glyphs are always rasterized as grayscale coverage masks (monochrome atlas)
   or colour emoji (polychrome atlas). There is no subpixel/LCD text pipeline
   and no text rendering mode setting.
+- The window-sized path render targets are allocated by the first frame that
+  draws paths and released when the drawable size changes, so a window without
+  paths holds none.
+- A sprite larger than the 16,384 px atlas limit in either dimension is not
+  rendered and allocates no atlas page.
 - GPUI's platform traits carry only what macOS implements: no anchored popup
   window kind, jump list, async clipboard read, missing-glyph reporting, font
   prewarming, GPU specs, or timer-resolution hook.
