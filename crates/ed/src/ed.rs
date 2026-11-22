@@ -185,13 +185,17 @@ fn frontmost_window_display(cx: &mut App) -> Option<Rc<dyn PlatformDisplay>> {
     window.update(cx, |_, window, cx| window.display(cx)).ok().flatten()
 }
 
-pub(crate) fn initialize_workspace(app_state: Arc<AppState>, cx: &App) {
-    init_app_appearance(cx);
+pub(crate) fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
+    sync_theme_appearance(cx.window_appearance(), cx);
 
     cx.observe_new(|_: &mut Workspace, window, cx| {
         let Some(window) = window else {
             return;
         };
+
+        // The OS appearance may have flipped while no window was open to report it.
+        sync_theme_appearance(window.appearance(), cx);
+        window.observe_appearance(|window, cx| sync_theme_appearance(window.appearance(), cx)).detach();
 
         // The window's workspace can be replaced, so look up the current root
         // when the window is asked to close.
@@ -687,14 +691,20 @@ fn open_log_file(workspace: &Workspace, window: &Window, cx: &Context<Workspace>
     .detach();
 }
 
-fn init_app_appearance(cx: &App) {
-    // Force the native window chrome (border + titlebar) to match the constant theme, so the
-    // dark theme doesn't render a light window border when the system is in light mode.
-    let appearance = match cx.theme().appearance() {
-        theme::Appearance::Light => gpui::WindowAppearance::Light,
-        theme::Appearance::Dark => gpui::WindowAppearance::Dark,
-    };
-    cx.set_window_appearance(Some(appearance));
+/// The theme appearance for an OS window appearance.
+const fn theme_appearance(appearance: gpui::WindowAppearance) -> theme::Appearance {
+    match appearance {
+        gpui::WindowAppearance::Light => theme::Appearance::Light,
+        gpui::WindowAppearance::Dark => theme::Appearance::Dark,
+    }
+}
+
+/// Makes the theme follow the OS light/dark appearance, repainting every window when it flips.
+/// The native window chrome isn't overridden, so it follows the OS too.
+fn sync_theme_appearance(appearance: gpui::WindowAppearance, cx: &mut App) {
+    if theme::built_in::set_appearance(theme_appearance(appearance)) {
+        cx.refresh_windows();
+    }
 }
 
 /// The keymap and menus are built-in and static: they're built once at startup, against the
@@ -760,4 +770,18 @@ fn open_bundled_file(
             .await
     })
     .detach_and_log_err(cx);
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::WindowAppearance;
+    use theme::Appearance;
+
+    use super::theme_appearance;
+
+    #[test]
+    fn theme_appearance_follows_window_appearance() {
+        assert_eq!(theme_appearance(WindowAppearance::Light), Appearance::Light);
+        assert_eq!(theme_appearance(WindowAppearance::Dark), Appearance::Dark);
+    }
 }

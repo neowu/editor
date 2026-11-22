@@ -6,6 +6,8 @@ use super::BufferId;
 use super::Context;
 use super::Editor;
 use super::EditorStyle;
+use super::HighlightKey;
+use super::MinimapRowCache;
 use super::MinimapVisibility;
 use super::Pixels;
 use super::Point;
@@ -52,7 +54,24 @@ impl Editor {
                 self.inlay_hint_visibility_changed(cx);
             }
         }
+        let theme_changed = self.style.as_ref().is_some_and(|old| !std::ptr::eq(old.syntax, style.syntax));
         self.style = Some(style);
+        if theme_changed {
+            // Laid-out minimap rows and marker quads hold the old colours.
+            self.minimap_rows = MinimapRowCache::default();
+            self.scrollbar_marker_state.dirty = true;
+            cx.defer_in(window, Self::refresh_theme_colors);
+        }
+    }
+
+    /// Re-resolves the colours stored outside the per-frame style, after the theme switched.
+    fn refresh_theme_colors(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.refresh_semantic_tokens(None, true, cx);
+        self.refresh_document_symbols(None, cx);
+        self.clear_highlights(HighlightKey::MatchingBracket, cx);
+        let snapshot = self.snapshot(window, cx);
+        self.refresh_matching_bracket_highlights(&snapshot, cx);
+        self.refresh_spell_check(cx);
     }
 
     pub fn set_show_wrap_guides(&mut self, show_wrap_guides: bool, cx: &mut Context<Self>) {

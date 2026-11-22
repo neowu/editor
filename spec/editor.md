@@ -84,7 +84,8 @@
   display snapshot would produce the same chunks (`same_chunks_as`: buffer
   edit/non-text counts, display map layer versions, highlights by content), so
   scrolling or a cursor blink only lays out rows that come into view. The
-  theme is fixed at compile time, so it isn't part of that check.
+  theme isn't part of that check: the editor drops the cache when it is
+  styled with another theme.
 - The horizontal scrollbar matches the `ui` scrollbars (project panel): no
   track, a thin rounded thumb inset in a 14px hitbox.
   It auto-shows while scrolling or when the buffer has markers (git hunks,

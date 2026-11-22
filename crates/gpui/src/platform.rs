@@ -1171,20 +1171,10 @@ pub enum WindowAppearance {
     #[default]
     Light,
 
-    /// A light appearance with vibrant colors.
-    ///
-    /// On macOS, this corresponds to the `NSAppearanceNameVibrantLight` appearance.
-    VibrantLight,
-
     /// A dark appearance.
     ///
     /// On macOS, this corresponds to the `darkAqua` appearance.
     Dark,
-
-    /// A dark appearance with vibrant colors.
-    ///
-    /// On macOS, this corresponds to the `NSAppearanceNameVibrantDark` appearance.
-    VibrantDark,
 }
 
 /// The appearance of the background of the window itself, when there is

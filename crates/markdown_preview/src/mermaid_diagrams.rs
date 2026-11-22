@@ -92,6 +92,8 @@ pub(crate) struct MermaidDiagrams {
     /// The preview's temporary font zoom (cmd +/-) the diagrams are rendered
     /// at; see [`preview_zoom`].
     zoom: f32,
+    /// The theme appearance the diagrams are rendered for.
+    light: bool,
 }
 
 /// Per-diagram view state, keyed by source offset in [`MermaidDiagrams::views`].
@@ -119,6 +121,7 @@ impl MermaidDiagrams {
             order: Vec::new(),
             views: FxHashMap::default(),
             zoom: preview_zoom(cx),
+            light: cx.theme().appearance().is_light(),
         }
     }
 
@@ -145,9 +148,11 @@ impl MermaidDiagrams {
         }
     }
 
-    fn set_zoom(&mut self, zoom: f32, cx: &Context<Self>) {
-        if self.zoom != zoom {
+    /// Re-renders the diagrams when the zoom or theme appearance they were rendered for changed.
+    fn set_zoom_and_appearance(&mut self, zoom: f32, light: bool, cx: &Context<Self>) {
+        if self.zoom != zoom || self.light != light {
             self.zoom = zoom;
+            self.light = light;
             self.rerender_all(cx);
         }
     }
@@ -215,7 +220,7 @@ impl MermaidDiagrams {
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let source_offset = block.source_offset;
-        self.set_zoom(preview_zoom(cx), cx);
+        self.set_zoom_and_appearance(preview_zoom(cx), cx.theme().appearance().is_light(), cx);
         // The diagrams may lag behind the rendered parse for a frame; render
         // anything that doesn't match as a plain code block.
         let contents =

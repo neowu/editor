@@ -92,8 +92,6 @@ use crate::set_active_window_cursor_style;
 use crate::window_appearance;
 use crate::window_appearance::NSAppearanceNameAqua;
 use crate::window_appearance::NSAppearanceNameDarkAqua;
-use crate::window_appearance::NSAppearanceNameVibrantDark;
-use crate::window_appearance::NSAppearanceNameVibrantLight;
 
 #[allow(non_upper_case_globals)]
 const NSUTF8StringEncoding: NSUInteger = 4;
@@ -701,8 +699,6 @@ impl Platform for MacPlatform {
                     let name: id = match appearance {
                         WindowAppearance::Light => NSAppearanceNameAqua,
                         WindowAppearance::Dark => NSAppearanceNameDarkAqua,
-                        WindowAppearance::VibrantLight => NSAppearanceNameVibrantLight,
-                        WindowAppearance::VibrantDark => NSAppearanceNameVibrantDark,
                     };
                     msg_send![class!(NSAppearance), appearanceNamed: name]
                 }

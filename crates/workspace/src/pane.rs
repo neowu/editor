@@ -3902,7 +3902,7 @@ mod tests {
 
     #[test]
     fn card_corner_mask_style_works() {
-        let colors = built_in::theme_colors();
+        let colors = built_in::theme().colors().clone();
         let style = Pane::card_corner_mask_style(&colors)(StyleRefinement::default());
 
         assert_eq!(style.border_color, Some(colors.editor_background));
@@ -3964,7 +3964,7 @@ mod tests {
 
     #[test]
     fn drop_target_style_works() {
-        let colors = built_in::theme_colors();
+        let colors = built_in::theme().colors().clone();
         let style = Pane::drop_target_style(&colors)(StyleRefinement::default().rounded(px(8.)));
 
         assert_eq!(style.border_color, Some(colors.drop_target_border()));

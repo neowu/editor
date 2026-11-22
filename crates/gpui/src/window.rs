@@ -686,6 +686,7 @@ pub struct Window {
     scale_factor: f32,
     pub(crate) bounds_observers: SingleSubscriberSet<AnyObserver>,
     appearance: WindowAppearance,
+    pub(crate) appearance_observers: SingleSubscriberSet<AnyObserver>,
     active: Rc<Cell<bool>>,
     visibility: WindowVisibility,
     pub(crate) needs_present: Rc<Cell<bool>>,
@@ -1044,7 +1045,7 @@ impl Window {
                 // synchronously invoke this callback while App is already borrowed.
                 foreground_executor
                     .spawn(async move {
-                        handle.update(&mut cx, |_, window, _| window.appearance_changed()).log_err();
+                        handle.update(&mut cx, |_, window, cx| window.appearance_changed(cx)).log_err();
                     })
                     .detach();
             }
@@ -1137,6 +1138,7 @@ impl Window {
             scale_factor,
             bounds_observers: SingleSubscriberSet::new(),
             appearance,
+            appearance_observers: SingleSubscriberSet::new(),
             active,
             visibility,
             needs_present,
@@ -1568,8 +1570,20 @@ impl Window {
         self.platform_window.is_simple_fullscreen()
     }
 
-    pub(crate) fn appearance_changed(&mut self) {
-        self.appearance = self.platform_window.appearance();
+    pub(crate) fn appearance_changed(&mut self, cx: &mut App) {
+        let appearance = self.platform_window.appearance();
+        if appearance != self.appearance {
+            self.appearance = appearance;
+            self.appearance_observers.clone().retain(|callback| callback(self, cx));
+        }
+    }
+
+    /// Registers a callback to be invoked when the window's light/dark appearance changes.
+    pub fn observe_appearance(&self, mut callback: impl FnMut(&mut Window, &mut App) + 'static) -> Subscription {
+        self.appearance_observers.insert(Box::new(move |window, cx| {
+            callback(window, cx);
+            true
+        }))
     }
 
     /// Returns the appearance of the current window.

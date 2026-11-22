@@ -781,11 +781,11 @@ impl Default for EditorStyle {
         Self {
             background: Hsla::default(),
             border: Hsla::default(),
-            cursor_colors: built_in::cursor_colors(),
+            cursor_colors: built_in::theme().cursor_colors(),
             text: TextStyle::default(),
             scrollbar_width: Pixels::default(),
             syntax: SyntaxTheme::empty(),
-            status: built_in::status_colors(),
+            status: built_in::theme().status().clone(),
             inlay_hints_style: HighlightStyle::default(),
             unnecessary_code_fade: Default::default(),
             show_underlines: true,

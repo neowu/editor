@@ -731,7 +731,7 @@ impl App {
                     let root_view = build_root_view(&mut window, cx);
                     cx.window_update_stack.pop();
                     window.root.replace(root_view.into());
-                    window.defer(cx, |window: &mut Window, _| window.appearance_changed());
+                    window.defer(cx, |window: &mut Window, cx| window.appearance_changed(cx));
 
                     // allow a window to draw at least once before returning
                     // this didn't cause any issues on non windows platforms as it seems we always won the race to on_request_frame

@@ -10,30 +10,60 @@ because it hurt readability; an opaque window is also cheaper to composite.
 
 ## Theme
 
-- The theme is constant: Nord (dark), built in Rust in `theme::built_in`, so
-  there is no theme JSON, no light/dark default palette, no refinement or
-  fallback derivation, and no `theme_settings` crate. To change colours, edit
+- There are two themes, Nord (dark) and Nord Light, both built in Rust in
+  `theme::built_in`, so there is no theme JSON, no refinement or fallback
+  derivation, and no `theme_settings` crate. To change colours, edit
   `theme::built_in` and rebuild.
+- The theme follows the OS light/dark appearance and nothing else: there is no
+  setting or toggle. `ed` syncs it at startup, when a workspace window opens,
+  and when a window reports an appearance change
+  (`Window::observe_appearance`), then refreshes every window. Native window
+  chrome is not overridden, so it follows the OS too.
 - `theme::built_in` is the single origin of every colour, in three layers:
-  the Nord palette (the only raw hex values), role constants derived from it
-  by formula (`shade` scales RGB channels, `mix` flattens a translucent colour
-  onto a surface, alpha via `Hsla::alpha`), and theme fields that reference
-  roles only. No theme field holds a colour from outside the palette (except
-  the macOS traffic lights).
-- The theme is one lazily built `static`: `built_in::theme()` and `cx.theme()`
-  return `&'static Theme`. There is no theme global, no `theme::init`, and no
-  `Arc` around the theme, the syntax theme or the accents (a fixed array);
-  holders keep a `&'static SyntaxTheme`. Tests cannot install another theme.
-- Terminal bright / dim ANSI colours are the normal colour shaded +20% / -30%.
+  raw hex values (the Nord palette, plus the light inks), a `Palette` of role
+  colours per appearance derived from them by formula (`shade` scales RGB
+  channels, `mix` flattens a translucent colour onto a surface, alpha via
+  `Hsla::alpha`), and theme fields that reference roles only, through
+  constructors shared by both appearances. No theme field holds a colour from
+  outside the palette (except the macOS traffic lights).
+- Both appearances follow the same rules. The card is the far end of the
+  lightness scale from the text, with the chrome one step in: darker than the
+  chrome when dark, lighter when light. Popups are the lightest surface.
+  Borders, hovers and selected fills step from the chrome towards the text.
+- Light inks: the pastel Nord accents are too pale for text on a light
+  surface, and shading them only greys them, so the light palette has its own
+  accents, the Nord hues deepened to at least 4.5:1 contrast on the light
+  card. Fills behind text (search matches) keep the pastel Nord accents in
+  both appearances.
+- Each theme is one lazily built `static`: `built_in::theme_for(appearance)`
+  returns it, and `built_in::theme()` / `cx.theme()` return the active one as
+  `&'static Theme`, picked by one process-wide atomic flag
+  (`built_in::set_appearance`). There is no theme global, no `theme::init`,
+  and no `Arc` around the theme, the syntax theme or the accents (a fixed
+  array). Tests cannot install another theme.
+- Both syntax themes list the same captures in the same order, so a
+  `HighlightId` means the same capture in either and grammar highlight maps
+  are resolved once, never on a switch. A `&'static SyntaxTheme` held across
+  frames is the theme of one appearance, so holders re-read it when rendering.
+- Colours resolved outside rendering are refreshed lazily, by whoever holds
+  them noticing the switch when it next renders, not by a theme-changed event:
+  an editor styled with another theme drops its minimap rows and scrollbar
+  markers and re-resolves semantic tokens, LSP document symbols, the matching
+  bracket and spell-check highlights; mermaid diagrams re-render. Accepted
+  gaps, which keep the old colours until their next update: tree-sitter
+  outlines and search excerpts in the outline panel, the commit details ref
+  colour, the highlights tree view, and an open diagnostic hover.
+- `WindowAppearance` is `Light` or `Dark` only. macOS vibrant and
+  high-contrast appearances map onto them by name.
+- Terminal bright / dim ANSI colours are the normal colour shaded away from /
+  towards the card: +20% / -30% when dark, -20% / +35% when light. Light ANSI
+  white and bright white are greys that stay readable on the light card.
 - `StatusColors` only has the fields the UI reads; unused `_background` /
   `_border` variants and `predictive` are gone.
 - There are no Vim/Helix theme colours (`vim_*`).
 - There is no theme registry, theme picker, light/dark mode toggle, `Settings`
   app-menu submenu, or theme settings (`theme`, `markdown_preview.theme`,
   `theme_overrides`, `experimental.theme_overrides`).
-- The theme never changes at runtime, so nothing observes theme changes and the
-  OS light/dark appearance is not tracked. Native window chrome is forced to the
-  theme's appearance.
 
 ## Fonts
 
@@ -53,9 +83,10 @@ because it hurt readability; an opaque window is also cheaper to composite.
 
 - The chrome is the theme's `panel_background`; `background`, the title bar
   colours and `status_bar_background` are set to it.
-- Cards are darker than the chrome: the editor, gutter, toolbar, terminal and
-  active-tab backgrounds are one role, the chrome shaded -33% (about 5 points
-  of HSL lightness lower). The active line is translucent, so it follows the
+- Cards contrast with the chrome: the editor, gutter, toolbar, terminal and
+  active-tab backgrounds are one role, darker than the chrome in the dark
+  theme (the chrome shaded -33%, about 5 points of HSL lightness lower) and
+  lighter in the light theme. The active line is translucent, so it follows the
   card.
 - Each pane is its own card: its tab bar sits on the chrome, and everything
   below the tab bar is the card (`editor_background` fill, 10px radius, no
