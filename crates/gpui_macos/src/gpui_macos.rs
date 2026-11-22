@@ -2,22 +2,23 @@
 //!
 //! macOS screens have a y axis that goes up from the bottom of the screen and
 //! an origin at the bottom left of the main display.
+//!
+//! Scenes are rendered directly with Metal, and text is shaped and rasterized
+//! with Core Text.
 
+mod dispatcher;
 mod display;
 mod display_link;
 mod events;
+mod font;
 mod keyboard;
+mod metal_atlas;
+mod metal_renderer;
 mod ns;
+mod open_type;
 mod pasteboard;
-
-use gpui_apple::metal_renderer as renderer;
-
-pub mod metal_renderer {
-    pub use gpui_apple::metal_renderer::PathRasterizationVertex;
-    pub use gpui_apple::metal_renderer::PathSprite;
-}
-
 mod platform;
+mod text_system;
 mod window;
 mod window_appearance;
 
@@ -26,9 +27,10 @@ use std::ffi::c_char;
 use std::ffi::c_void;
 use std::ops::Range;
 
+pub(crate) use dispatcher::AppleDispatcher;
 pub(crate) use display::MacDisplay;
-pub(crate) use gpui_apple::AppleDispatcher;
 pub(crate) use keyboard::MacKeyboardLayout;
+use metal_renderer as renderer;
 use ns::NSNotFound;
 use ns::NSUInteger;
 use ns::id;

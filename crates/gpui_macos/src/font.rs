@@ -63,9 +63,9 @@ const STRETCH_NORMAL: f32 = 1.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct FontProperties {
-    pub style: FontStyle,
-    pub weight: f32,
-    pub stretch: f32,
+    pub(crate) style: FontStyle,
+    pub(crate) weight: f32,
+    pub(crate) stretch: f32,
 }
 
 pub(crate) fn family_fonts(family_name: &str) -> Result<Vec<CFRetained<CTFont>>> {

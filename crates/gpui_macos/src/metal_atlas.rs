@@ -37,7 +37,7 @@ type Texture = ProtocolObject<dyn MTLTexture>;
 // Max texture size on all modern Apple GPUs. Anything bigger than that crashes in validateWithDevice.
 const MAX_ATLAS_SIZE: Size<DevicePixels> = Size { width: DevicePixels(0x4000), height: DevicePixels(0x4000) };
 
-pub struct MetalAtlas(Mutex<AtlasState<MetalAtlasTextures>>);
+pub(crate) struct MetalAtlas(Mutex<AtlasState<MetalAtlasTextures>>);
 
 impl MetalAtlas {
     pub(crate) fn new(device: Retained<Device>, supports_shared_storage: bool) -> Self {

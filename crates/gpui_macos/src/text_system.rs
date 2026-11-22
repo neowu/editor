@@ -71,7 +71,7 @@ use crate::font::SyncFont;
 use crate::open_type::apply_features_and_fallbacks;
 
 /// Apple text system using CoreText for font shaping.
-pub struct AppleTextSystem(RwLock<AppleTextSystemState>);
+pub(crate) struct AppleTextSystem(RwLock<AppleTextSystemState>);
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct FontKey {
@@ -91,7 +91,7 @@ struct AppleTextSystemState {
 
 impl AppleTextSystem {
     /// Create a new AppleTextSystem.
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self(RwLock::new(AppleTextSystemState {
             memory_fonts: Vec::new(),
             fonts: Vec::new(),

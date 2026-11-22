@@ -8,16 +8,18 @@ path = "src/gpui_macos.rs"
 
 [dependencies]
 anyhow.workspace = true
-block2.workspace = true
+async-task.workspace = true
+block2 = "0.6"
+derive_more.workspace = true
 dispatch2 = { workspace = true, features = ["block2", "objc2"] }
+etagere.workspace = true
 futures.workspace = true
 gpui.workspace = true
-gpui_apple.workspace = true
 gpui_util.workspace = true
 image.workspace = true
 itertools.workspace = true
 log.workspace = true
-objc2.workspace = true
+objc2 = "0.6.5"
 objc2-app-kit = {
   version = "0.3.2",
   default-features = false,
@@ -46,18 +48,49 @@ objc2-app-kit = {
     "objc2-quartz-core",
   ]
 }
-objc2-core-foundation = { workspace = true, features = ["CFBase", "CFData", "CFNumber", "CFRunLoop", "CFString", "CFUUID", "std"] }
-objc2-core-graphics = { workspace = true, features = ["CGDirectDisplay", "CGError", "CGRemoteOperation"] }
-objc2-foundation = { workspace = true, features = ["NSKeyedArchiver", "NSRunLoop"] }
-objc2-quartz-core = { workspace = true, features = ["CAMetalDisplayLink", "objc2-metal"] }
+objc2-core-foundation = { workspace = true, features = ["CFArray", "CFAttributedString", "CFBase", "CFCGTypes", "CFData", "CFDictionary", "CFLocale", "CFNumber", "CFPreferences", "CFRunLoop", "CFString", "CFUUID", "std"] }
+objc2-core-graphics = { version = "0.3.2", default-features = false, features = ["CGBitmapContext", "CGColorSpace", "CGContext", "CGDataProvider", "CGDirectDisplay", "CGError", "CGFont", "CGImage", "CGRemoteOperation", "std"] }
+objc2-core-text = { version = "0.3.2", default-features = false, features = ["CTFont", "CTFontCollection", "CTFontDescriptor", "CTFontTraits", "CTLine", "CTRun", "CTStringAttributes", "objc2-core-graphics", "std"] }
+objc2-foundation = { workspace = true, features = ["NSArray", "NSError", "NSKeyedArchiver", "NSNotification", "NSOperation", "NSProcessInfo", "NSRange", "NSRunLoop", "NSString", "NSThread", "block2"] }
+objc2-metal = {
+  version = "0.3.2",
+  default-features = false,
+  features = [
+    "MTLAllocation",
+    "MTLBlitCommandEncoder",
+    "MTLBuffer",
+    "MTLCommandBuffer",
+    "MTLCommandEncoder",
+    "MTLCommandQueue",
+    "MTLDevice",
+    "MTLDrawable",
+    "MTLLibrary",
+    "MTLPixelFormat",
+    "MTLRenderCommandEncoder",
+    "MTLRenderPass",
+    "MTLRenderPipeline",
+    "MTLResource",
+    "MTLTexture",
+    "MTLTypes",
+    "block2",
+    "dispatch2",
+    "std",
+  ]
+}
+objc2-quartz-core = { version = "0.3.2", default-features = false, features = ["CALayer", "CAMetalDisplayLink", "CAMetalLayer", "objc2-core-foundation", "objc2-core-graphics", "objc2-metal", "std"] }
 parking_lot.workspace = true
 raw-window-handle.workspace = true
+rustc-hash.workspace = true
 smallvec.workspace = true
 strum.workspace = true
 uuid.workspace = true
 
+[build-dependencies]
+cbindgen = { version = "0.29", default-features = false }
+
 [features]
-runtime_shaders = ["gpui_apple/runtime_shaders"]
+default = ["runtime_shaders"]
+runtime_shaders = []
 
 [lints]
 workspace = true

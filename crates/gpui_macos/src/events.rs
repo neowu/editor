@@ -1,5 +1,9 @@
 use std::borrow::Cow;
 use std::ffi::c_void;
+use std::ptr;
+use std::sync::OnceLock;
+use std::sync::atomic::AtomicPtr;
+use std::sync::atomic::Ordering;
 
 use gpui::Capslock;
 use gpui::KeyDownEvent;
@@ -571,14 +575,23 @@ fn parse_keystroke(native_event: &NSEvent) -> Keystroke {
             // * Russian          7 | 7    | cmd-7 | cmd-&        (shift-7 is . but when cmd is down, should use cmd layout)
             // * German QWERTZ    ; | ö    | cmd-ö | cmd-Ö        (ed's shift special case only applies to a-z)
             //
-            let mut chars_ignoring_modifiers = chars_for_modified_key(native_event.keyCode(), NO_MOD);
-            let mut chars_with_shift = chars_for_modified_key(native_event.keyCode(), SHIFT_MOD);
-            let always_use_cmd_layout = always_use_command_layout();
+            let code = native_event.keyCode();
+            let mut chars_ignoring_modifiers = chars_for_modified_key(code, NO_MOD);
+            let mut chars_with_shift = chars_for_modified_key(code, SHIFT_MOD);
+
+            if !control && !command && !function {
+                key_char = Some(match (shift, alt) {
+                    (false, false) => chars_ignoring_modifiers.clone(),
+                    (true, false) => chars_with_shift.clone(),
+                    (false, true) => chars_for_modified_key(code, OPTION_MOD),
+                    (true, true) => chars_for_modified_key(code, SHIFT_MOD | OPTION_MOD),
+                });
+            }
 
             // Handle Dvorak+QWERTY / Russian / Armenian
-            if command || always_use_cmd_layout {
-                let chars_with_cmd = chars_for_modified_key(native_event.keyCode(), CMD_MOD);
-                let chars_with_both = chars_for_modified_key(native_event.keyCode(), CMD_MOD | SHIFT_MOD);
+            if command || always_use_command_layout() {
+                let chars_with_cmd = chars_for_modified_key(code, CMD_MOD);
+                let chars_with_both = chars_for_modified_key(code, CMD_MOD | SHIFT_MOD);
 
                 // We don't do this in the case that the shifted command key generates
                 // the same character as the unshifted command key (Norwegian, e.g.)
@@ -591,18 +604,6 @@ fn parse_keystroke(native_event: &NSEvent) -> Keystroke {
                     chars_with_shift = chars_with_cmd.to_ascii_uppercase();
                 }
                 chars_ignoring_modifiers = chars_with_cmd;
-            }
-
-            if !control && !command && !function {
-                let mut mods = NO_MOD;
-                if shift {
-                    mods |= SHIFT_MOD;
-                }
-                if alt {
-                    mods |= OPTION_MOD;
-                }
-
-                key_char = Some(chars_for_modified_key(native_event.keyCode(), mods));
             }
 
             if shift && chars_ignoring_modifiers.chars().all(|c| c.is_ascii_lowercase()) {
@@ -620,11 +621,38 @@ fn parse_keystroke(native_event: &NSEvent) -> Keystroke {
 }
 
 fn always_use_command_layout() -> bool {
-    if chars_for_modified_key(0, NO_MOD).is_ascii() {
-        return false;
-    }
+    static ALWAYS: OnceLock<bool> = OnceLock::new();
+    *ALWAYS
+        .get_or_init(|| !chars_for_modified_key(0, NO_MOD).is_ascii() && chars_for_modified_key(0, CMD_MOD).is_ascii())
+}
 
-    chars_for_modified_key(0, CMD_MOD).is_ascii()
+/// The `UCKeyboardLayout` of the keyboard layout in use when a key was first translated.
+///
+/// It is read once: fetching the current input source costs far more than a translation, so a
+/// layout switched to while the app runs is not picked up.
+fn keyboard_layout_data() -> *const c_void {
+    static LAYOUT: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
+    let layout = LAYOUT.load(Ordering::Relaxed);
+    if !layout.is_null() {
+        return layout;
+    }
+    // The input source is never released, which keeps its layout data alive.
+    let keyboard = unsafe { TISCopyCurrentKeyboardLayoutInputSource() };
+    if keyboard.is_null() {
+        return ptr::null();
+    }
+    let layout_data = unsafe {
+        TISGetInputSourceProperty(keyboard, kTISPropertyUnicodeKeyLayoutData.cast::<c_void>()) as *const CFData
+    };
+    if layout_data.is_null() {
+        unsafe {
+            let _: () = msg_send![keyboard, release];
+        }
+        return ptr::null();
+    }
+    let layout = unsafe { (*layout_data).byte_ptr() }.cast::<c_void>().cast_mut();
+    LAYOUT.store(layout, Ordering::Relaxed);
+    layout
 }
 
 const NO_MOD: u32 = 0;
@@ -648,24 +676,14 @@ fn chars_for_modified_key(code: CGKeyCode, modifiers: u32) -> String {
     let mut buffer: [u16; BUFFER_SIZE] = [0; BUFFER_SIZE];
     let mut buffer_size: usize = 0;
 
-    let keyboard = unsafe { TISCopyCurrentKeyboardLayoutInputSource() };
-    if keyboard.is_null() {
+    let keyboard_layout = keyboard_layout_data();
+    if keyboard_layout.is_null() {
         return String::new();
     }
-    let layout_data = unsafe {
-        TISGetInputSourceProperty(keyboard, kTISPropertyUnicodeKeyLayoutData.cast::<c_void>()) as *const CFData
-    };
-    if layout_data.is_null() {
-        unsafe {
-            let _: () = msg_send![keyboard, release];
-        }
-        return String::new();
-    }
-    let keyboard_layout = unsafe { (*layout_data).byte_ptr() };
 
     unsafe {
         UCKeyTranslate(
-            keyboard_layout.cast::<c_void>(),
+            keyboard_layout,
             code,
             kUCKeyActionDown,
             modifiers,
@@ -678,7 +696,7 @@ fn chars_for_modified_key(code: CGKeyCode, modifiers: u32) -> String {
         );
         if dead_key_state != 0 {
             UCKeyTranslate(
-                keyboard_layout.cast::<c_void>(),
+                keyboard_layout,
                 CG_SPACE_KEY,
                 kUCKeyActionDown,
                 modifiers,
@@ -690,14 +708,30 @@ fn chars_for_modified_key(code: CGKeyCode, modifiers: u32) -> String {
                 buffer.as_mut_ptr(),
             );
         }
-        let _: () = msg_send![keyboard, release];
     }
     String::from_utf16(&buffer[..buffer_size]).unwrap_or_default()
 }
 
 #[cfg(test)]
 mod tests {
+    use super::NO_MOD;
+    use super::SHIFT_MOD;
+    use super::always_use_command_layout;
+    use super::chars_for_modified_key;
     use super::key_to_menu_equivalent;
+    use super::keyboard_layout_data;
+
+    #[test]
+    fn key_translation_reuses_the_launch_layout() {
+        let layout = keyboard_layout_data();
+        assert!(!layout.is_null());
+        assert_eq!(keyboard_layout_data(), layout);
+
+        // Key code 49 is the space bar on every layout.
+        assert_eq!(chars_for_modified_key(49, NO_MOD), " ");
+        assert_eq!(chars_for_modified_key(49, SHIFT_MOD), " ");
+        assert_eq!(always_use_command_layout(), always_use_command_layout());
+    }
 
     #[test]
     fn menu_equivalents_use_appkit_delete_characters() {

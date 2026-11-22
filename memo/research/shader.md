@@ -1,10 +1,10 @@
-# Shaders (gpui_apple / Metal)
+# Shaders (gpui_macos / Metal)
 
-## Build pipeline (`crates/gpui_apple/build.rs`)
+## Build pipeline (`crates/gpui_macos/build.rs`)
 
 1. **cbindgen → `scene.h`**: exports gpui's Rust structs (`Quad`, `Shadow`, `MonochromeSprite`, …) as C structs so the Metal shader reads instance buffers with exactly the layout Rust writes.
 2. **Compile**, one of two ways:
-   - `runtime_shaders` (**default**, `crates/gpui_apple/Cargo.toml`): joins `scene.h` + `src/shaders.metal` into one source, embeds it in the binary, and compiles it at renderer startup via `newLibraryWithSource` (`metal_renderer.rs`).
+   - `runtime_shaders` (**default**, `crates/gpui_macos/Cargo.toml`): joins `scene.h` + `src/shaders.metal` into one source, embeds it in the binary, and compiles it at renderer startup via `newLibraryWithSource` (`metal_renderer.rs`).
    - Offline: `xcrun metal` + `metallib`, embeds the `.metallib`. Needs the Xcode Metal toolchain; Command Line Tools alone don't include it.
 
 ## Pipelines (all in use — don't delete)

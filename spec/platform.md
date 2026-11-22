@@ -6,7 +6,8 @@ macOS is the only supported editor host. Both Apple Silicon and Intel
 Macs remain supported. Only the latest macOS is targeted; the minimum is 27.2
 and code does not gate on OS version at runtime. The minimum lives in source:
 `crates/ed/build.rs` (`MACOSX_DEPLOYMENT_TARGET` for the binary), `Info.plist`
-(`LSMinimumSystemVersion`), and the Metal shader build in `gpui_apple/build.rs`. `gpui_apple` builds only for
+(`LSMinimumSystemVersion`), and the Metal shader build in `gpui_macos/build.rs`. `gpui_macos` is the only
+platform crate (windowing, input, Metal rendering, Core Text) and builds only for
 macOS; iOS is not supported. There is no other build target: the headless
 remote server is removed (see `collaboration-and-telemetry.md`).
 
@@ -256,10 +257,14 @@ from the installed app only resolve the panic location itself.
   paths holds none.
 - A sprite larger than the 16,384 px atlas limit in either dimension is not
   rendered and allocates no atlas page.
+- The keyboard layout is read once per run: key translation and
+  `App::keyboard_layout` use the layout in effect at launch, and there is no
+  layout-change notification. Switching layouts needs a restart for shortcuts
+  to follow the new layout. Input methods are unaffected.
 - GPUI's platform traits carry only what macOS implements: no anchored popup
   window kind, jump list, async clipboard read, missing-glyph reporting, font
   prewarming, GPU specs, or timer-resolution hook.
-- The Metal renderer and sprite atlas (`gpui_apple`) use `objc2-metal` and
+- The Metal renderer and sprite atlas (`gpui_macos`) use `objc2-metal` and
   `objc2-quartz-core`'s `CAMetalLayer`; the `metal` (metal-rs) crate is not a
   dependency.
 - `gpui_macos` declares its `NSApplication`/`NSWindow`/`NSPanel`/`NSView`
@@ -274,7 +279,7 @@ from the installed app only resolve the panic location itself.
   messages to nil, so raw sends must use exact types (e.g. `bool` for `BOOL`,
   `NSUInteger` not `u32`, `*const c_void` for `void *`, a value type instead of
   `()` for non-void methods) and guard receivers that may be nil.
-- Text uses Core Text directly (`gpui_apple`); `font-kit` is not a dependency
+- Text uses Core Text directly (`gpui_macos`); `font-kit` is not a dependency
   and text rendering is not behind a cargo feature. Fonts come from the system
   font collection, plus any registered with `add_fonts`. Face selection within a
   family follows CSS font matching (stretch, then style, then weight), with

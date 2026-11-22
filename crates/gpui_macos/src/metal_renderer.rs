@@ -92,10 +92,10 @@ const PATH_SAMPLE_COUNT: u32 = 4;
 const INSTANCE_BUFFER_ALIGNMENT: usize = 256;
 const MAX_INSTANCE_BUFFER_SIZE: usize = 256 * 1024 * 1024;
 
-pub type Context = Arc<Mutex<InstanceBufferPool>>;
-pub type Renderer = MetalRenderer;
+pub(crate) type Context = Arc<Mutex<InstanceBufferPool>>;
+pub(crate) type Renderer = MetalRenderer;
 
-pub struct InstanceBufferPool {
+pub(crate) struct InstanceBufferPool {
     buffer_size: usize,
     buffers: Vec<Retained<Buffer>>,
 }
@@ -149,7 +149,7 @@ enum DisplayLinkMode {
     Attached { drawable: Option<Retained<ProtocolObject<dyn CAMetalDrawable>>> },
 }
 
-pub struct MetalRenderer {
+pub(crate) struct MetalRenderer {
     device: Retained<Device>,
     layer: Retained<CAMetalLayer>,
     is_apple_gpu: bool,
@@ -175,11 +175,11 @@ pub struct MetalRenderer {
 }
 
 #[repr(C)]
-pub struct PathRasterizationVertex {
-    pub xy_position: Point<ScaledPixels>,
-    pub st_position: Point<f32>,
-    pub color: Background,
-    pub bounds: Bounds<ScaledPixels>,
+pub(crate) struct PathRasterizationVertex {
+    pub(crate) xy_position: Point<ScaledPixels>,
+    pub(crate) st_position: Point<f32>,
+    pub(crate) color: Background,
+    pub(crate) bounds: Bounds<ScaledPixels>,
 }
 
 impl MetalRenderer {
@@ -221,7 +221,7 @@ impl MetalRenderer {
         })
     }
 
-    pub fn new(instance_buffer_pool: Arc<Mutex<InstanceBufferPool>>, transparent: bool) -> Self {
+    pub(crate) fn new(instance_buffer_pool: Arc<Mutex<InstanceBufferPool>>, transparent: bool) -> Self {
         let device = Self::create_device();
         let layer = CAMetalLayer::new();
         Self::configure_layer(&layer, &device, transparent);
@@ -360,15 +360,15 @@ impl MetalRenderer {
         }
     }
 
-    pub fn layer(&self) -> &CAMetalLayer {
+    pub(crate) fn layer(&self) -> &CAMetalLayer {
         &self.layer
     }
 
-    pub fn layer_ptr(&self) -> *mut CAMetalLayer {
+    pub(crate) fn layer_ptr(&self) -> *mut CAMetalLayer {
         Retained::as_ptr(&self.layer).cast_mut()
     }
 
-    pub const fn sprite_atlas(&self) -> &Arc<MetalAtlas> {
+    pub(crate) const fn sprite_atlas(&self) -> &Arc<MetalAtlas> {
         &self.sprite_atlas
     }
 
@@ -384,7 +384,7 @@ impl MetalRenderer {
     ///
     /// This is a setter rather than a guard scoped to one frame because the
     /// window releases its lock on the renderer while GPUI draws.
-    pub fn set_frame_drawable(
+    pub(crate) fn set_frame_drawable(
         &mut self,
         drawable: Option<Retained<ProtocolObject<dyn CAMetalDrawable>>>,
     ) -> Option<Retained<ProtocolObject<dyn CAMetalDrawable>>> {
@@ -400,17 +400,17 @@ impl MetalRenderer {
 
     /// Record whether a `CAMetalDisplayLink` drives the layer. While one
     /// does, frames are drawn only into the drawables it hands out.
-    pub fn set_display_link_attached(&mut self, attached: bool) {
+    pub(crate) fn set_display_link_attached(&mut self, attached: bool) {
         self.display_link_mode =
             if attached { DisplayLinkMode::Attached { drawable: None } } else { DisplayLinkMode::Detached };
     }
 
-    pub fn set_presents_with_transaction(&mut self, presents_with_transaction: bool) {
+    pub(crate) fn set_presents_with_transaction(&mut self, presents_with_transaction: bool) {
         self.presents_with_transaction = presents_with_transaction;
         self.layer.setPresentsWithTransaction(presents_with_transaction);
     }
 
-    pub fn update_drawable_size(&mut self, size: Size<DevicePixels>) {
+    pub(crate) fn update_drawable_size(&mut self, size: Size<DevicePixels>) {
         self.layer.setDrawableSize(CGSize::new(size.width.0 as f64, size.height.0 as f64));
         // The drawable size is set again on every resize callback and scale
         // change, often to the size it already has.
@@ -467,12 +467,12 @@ impl MetalRenderer {
         }
     }
 
-    pub fn update_transparency(&mut self, transparent: bool) {
+    pub(crate) fn update_transparency(&mut self, transparent: bool) {
         self.opaque = !transparent;
         self.layer.setOpaque(!transparent);
     }
 
-    pub fn draw(&mut self, scene: &Scene) {
+    pub(crate) fn draw(&mut self, scene: &Scene) {
         let drawable = match &mut self.display_link_mode {
             DisplayLinkMode::Attached { drawable } => {
                 let Some(drawable) = drawable.take() else {
@@ -513,7 +513,7 @@ impl MetalRenderer {
     }
 
     /// Render `scene` offscreen at the layer's drawable size and read it back.
-    pub fn render_to_image(&mut self, scene: &Scene) -> Result<RgbaImage> {
+    pub(crate) fn render_to_image(&mut self, scene: &Scene) -> Result<RgbaImage> {
         let drawable_size = self.layer.drawableSize();
         let width = drawable_size.width.ceil() as usize;
         let height = drawable_size.height.ceil() as usize;
@@ -1339,8 +1339,8 @@ enum PathRasterizationInputIndex {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[repr(C)]
-pub struct PathSprite {
-    pub bounds: Bounds<ScaledPixels>,
+pub(crate) struct PathSprite {
+    pub(crate) bounds: Bounds<ScaledPixels>,
 }
 
 #[cfg(test)]

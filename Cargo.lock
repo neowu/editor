@@ -722,7 +722,7 @@ dependencies = [
 
 [[package]]
 name = "ed"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "activity_indicator",
  "anyhow",
@@ -777,7 +777,7 @@ dependencies = [
 
 [[package]]
 name = "ed_actions"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "gpui",
  "serde",
@@ -1420,7 +1420,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gpui_apple"
+name = "gpui_macos"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1432,30 +1432,6 @@ dependencies = [
  "etagere",
  "futures",
  "gpui",
- "image",
- "log",
- "objc2",
- "objc2-core-foundation",
- "objc2-core-graphics",
- "objc2-core-text",
- "objc2-foundation",
- "objc2-metal",
- "objc2-quartz-core",
- "parking_lot 0.13.0",
- "rustc-hash",
- "smallvec",
-]
-
-[[package]]
-name = "gpui_macos"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "block2",
- "dispatch2",
- "futures",
- "gpui",
- "gpui_apple",
  "gpui_util",
  "image",
  "itertools",
@@ -1464,10 +1440,13 @@ dependencies = [
  "objc2-app-kit",
  "objc2-core-foundation",
  "objc2-core-graphics",
+ "objc2-core-text",
  "objc2-foundation",
+ "objc2-metal",
  "objc2-quartz-core",
  "parking_lot 0.13.0",
  "raw-window-handle",
+ "rustc-hash",
  "smallvec",
  "strum",
  "uuid",
@@ -4748,7 +4727,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "framework_lint",
 ]

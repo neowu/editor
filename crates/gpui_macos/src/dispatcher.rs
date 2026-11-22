@@ -12,10 +12,10 @@ use gpui::Priority;
 use gpui::RunnableMeta;
 use objc2_foundation::NSThread;
 
-pub struct AppleDispatcher;
+pub(crate) struct AppleDispatcher;
 
 impl AppleDispatcher {
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self
     }
 }

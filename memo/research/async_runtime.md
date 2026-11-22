@@ -16,7 +16,7 @@ tokio was rejected.
 | Layer | What runs it | Crate |
 |---|---|---|
 | Task spawn / wake | `async_task::Builder` + `RunnableMeta` (`crates/gpui/src/executor.rs`) | async-task |
-| Scheduling | GCD: global queues (3 priorities), main queue, `dispatch_after` for timers (`crates/gpui_apple/src/dispatcher.rs`) | dispatch2 |
+| Scheduling | GCD: global queues (3 priorities), main queue, `dispatch_after` for timers (`crates/gpui_macos/src/dispatcher.rs`) | dispatch2 |
 | Child processes | `smol::process` behind `util::command` / `util::process`; piped stdio in lsp, git, fs (git clone), terminal | async-process, async-io |
 | File IO | `smol::fs` (19 call sites, all in `fs`) and `smol::unblock` (4) | async-fs, blocking |
 | Sockets | `smol::net::unix` in `ed/control_server.rs` only | async-net, async-io |

@@ -203,11 +203,6 @@ define_class!(
             open_urls(self, app, urls);
         }
 
-        #[unsafe(method(onKeyboardLayoutChange:))]
-        fn on_keyboard_layout_change_(&self, notification: id) {
-            on_keyboard_layout_change(self, notification);
-        }
-
         #[unsafe(method(onScreenParametersChange:))]
         fn on_screen_parameters_change_(&self, notification: id) {
             on_screen_parameters_change(self, notification);
@@ -238,7 +233,6 @@ pub(crate) struct MacPlatformState {
     general_pasteboard: Option<Pasteboard>,
     find_pasteboard: Option<Pasteboard>,
     reopen: Option<Box<dyn FnMut()>>,
-    on_keyboard_layout_change: Option<Box<dyn FnMut()>>,
     on_displays_changed: Option<Box<dyn FnMut()>>,
     on_system_sleep: Option<Box<dyn FnMut()>>,
     on_system_wake: Option<Box<dyn FnMut()>>,
@@ -254,7 +248,6 @@ pub(crate) struct MacPlatformState {
     finish_launching: Option<Box<dyn FnOnce()>>,
     dock_menu: Option<id>,
     menus: Option<Vec<OwnedMenu>>,
-    keyboard_layout_id: String,
     /// Mirrors `[NSCursor setHiddenUntilMouseMoves:]` state, which AppKit doesn't expose.
     cursor_visible: Arc<AtomicBool>,
 }
@@ -298,9 +291,7 @@ impl MacPlatform {
         let marker = MainThreadMarker::new().expect("Mac platform not created on main thread");
         let dispatcher = Arc::new(AppleDispatcher::new());
 
-        let text_system = Arc::new(gpui_apple::AppleTextSystem::new());
-
-        let keyboard_layout = MacKeyboardLayout::new();
+        let text_system = Arc::new(crate::text_system::AppleTextSystem::new());
 
         let state = Mutex::new(MacPlatformState {
             headless,
@@ -321,13 +312,11 @@ impl MacPlatform {
             open_urls: None,
             finish_launching: None,
             dock_menu: None,
-            on_keyboard_layout_change: None,
             on_displays_changed: None,
             on_system_sleep: None,
             on_system_wake: None,
             system_power_observers_registered: false,
             menus: None,
-            keyboard_layout_id: keyboard_layout.id().to_owned(),
             cursor_visible: Arc::new(AtomicBool::new(true)),
         });
         Self(state, marker)
@@ -880,10 +869,6 @@ impl Platform for MacPlatform {
         self.0.lock().reopen = Some(callback);
     }
 
-    fn on_keyboard_layout_change(&self, callback: Box<dyn FnMut()>) {
-        self.0.lock().on_keyboard_layout_change = Some(callback);
-    }
-
     fn on_app_menu_action(&self, callback: Box<dyn FnMut(&dyn Action)>) {
         self.0.lock().menu_command = Some(callback);
     }
@@ -1079,13 +1064,6 @@ fn did_finish_launching(this: &AnyObject, _: id) {
         let _: bool = msg_send![app, setActivationPolicy: native_activation_policy(policy)];
 
         let notification_center: *mut AnyObject = msg_send![class!(NSNotificationCenter), defaultCenter];
-        let name = ns_string("NSTextInputContextKeyboardSelectionDidChangeNotification");
-        let _: () = msg_send![notification_center, addObserver: this,
-            selector: sel!(onKeyboardLayoutChange:),
-            name: name,
-            object: nil
-        ];
-
         // Posted when a display is connected, disconnected, rearranged, or
         // changes mode, which includes its refresh rate.
         let _: () = msg_send![notification_center, addObserver: this,
@@ -1153,23 +1131,6 @@ fn will_terminate(this: &AnyObject, _: id) {
         drop(lock);
         callback();
         platform.0.lock().quit.get_or_insert(callback);
-    }
-}
-
-fn on_keyboard_layout_change(this: &AnyObject, _: id) {
-    let platform = unsafe { get_mac_platform(this) };
-    let mut lock = platform.0.lock();
-    let keyboard_layout = MacKeyboardLayout::new();
-    // The notification also fires when an input method (e.g. Pinyin) toggles or the input
-    // context changes without the layout changing, so only react to a real layout change.
-    if keyboard_layout.id() == lock.keyboard_layout_id {
-        return;
-    }
-    keyboard_layout.id().clone_into(&mut lock.keyboard_layout_id);
-    if let Some(mut callback) = lock.on_keyboard_layout_change.take() {
-        drop(lock);
-        callback();
-        platform.0.lock().on_keyboard_layout_change.get_or_insert(callback);
     }
 }
 

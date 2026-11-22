@@ -318,7 +318,6 @@ pub struct App {
     pub(crate) observers: SubscriberSet<EntityId, Handler>,
     pub(crate) event_listeners: SubscriberSet<EntityId, (TypeId, Listener)>,
     pub(crate) keystroke_observers: SingleSubscriberSet<KeystrokeObserver>,
-    pub(crate) keyboard_layout_observers: SingleSubscriberSet<Handler>,
     /// The connected displays, as of the platform's last display change
     /// notification.
     displays: FxHashMap<DisplayId, Option<Duration>>,
@@ -412,7 +411,6 @@ impl App {
                 event_listeners: SubscriberSet::new(),
                 release_listeners: SubscriberSet::new(),
                 keystroke_observers: SingleSubscriberSet::new(),
-                keyboard_layout_observers: SingleSubscriberSet::new(),
                 displays: read_displays(platform.as_ref()),
                 system_sleep_observers: SingleSubscriberSet::new(),
                 system_wake_observers: SingleSubscriberSet::new(),
@@ -430,18 +428,6 @@ impl App {
         });
 
         init_app_menus(platform.as_ref(), &app.borrow());
-
-        platform.on_keyboard_layout_change(Box::new({
-            let app = Rc::downgrade(&app);
-            move || {
-                if let Some(app) = app.upgrade() {
-                    let cx = &mut app.borrow_mut();
-                    cx.keyboard_layout = cx.platform.keyboard_layout();
-                    cx.keyboard_mapper = cx.platform.keyboard_mapper();
-                    cx.keyboard_layout_observers.clone().retain(move |callback| (callback)(cx));
-                }
-            }
-        }));
 
         platform.on_displays_changed(Box::new({
             let app = Rc::downgrade(&app);
@@ -538,7 +524,7 @@ impl App {
         self.quitting = false;
     }
 
-    /// Get the id of the current keyboard layout.
+    /// The keyboard layout the app was launched with; later changes are not tracked.
     pub fn keyboard_layout(&self) -> &dyn PlatformKeyboardLayout {
         self.keyboard_layout.as_ref()
     }
@@ -546,17 +532,6 @@ impl App {
     /// Get the current keyboard mapper.
     pub fn keyboard_mapper(&self) -> &Rc<dyn PlatformKeyboardMapper> {
         &self.keyboard_mapper
-    }
-
-    /// Invokes a handler when the current keyboard layout changes.
-    pub fn on_keyboard_layout_change<F>(&self, mut callback: F) -> Subscription
-    where
-        F: 'static + FnMut(&mut App),
-    {
-        self.keyboard_layout_observers.insert(Box::new(move |cx| {
-            callback(cx);
-            true
-        }))
     }
 
     /// Gracefully quit the application via the platform's standard routine.
