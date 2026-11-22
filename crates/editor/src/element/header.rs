@@ -10,12 +10,10 @@ use gpui::App;
 use gpui::AvailableSpace;
 use gpui::ClickEvent;
 use gpui::ClipboardItem;
-use gpui::DefiniteLength;
 use gpui::Entity;
 use gpui::Focusable as _;
 use gpui::Hitbox;
 use gpui::IntoElement;
-use gpui::Length;
 use gpui::Modifiers;
 use gpui::MouseButton;
 use gpui::ParentElement as _;
@@ -296,7 +294,6 @@ pub(crate) fn render_buffer_header(
                 .group("buffer-header-group")
                 .w_full()
                 .h(card_height)
-                .flex_basis(Length::Definite(DefiniteLength::Fraction(0.667)))
                 .pl_1()
                 .pr_2()
                 .rounded_sm()
