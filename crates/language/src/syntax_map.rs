@@ -270,16 +270,6 @@ pub struct SyntaxLayer<'a> {
     pub(crate) offset: (usize, tree_sitter::Point),
 }
 
-/// A layer of syntax highlighting. Like [SyntaxLayer], but holding
-/// owned data instead of references.
-#[derive(Clone)]
-pub struct OwnedSyntaxLayer {
-    /// The language for this layer.
-    pub language: Arc<Language>,
-    tree: tree_sitter::Tree,
-    pub offset: (usize, tree_sitter::Point),
-}
-
 #[derive(Debug, Clone)]
 struct SyntaxLayerSummary {
     min_depth: usize,
@@ -1810,19 +1800,7 @@ fn insert_newlines_between_ranges(
     }
 }
 
-impl OwnedSyntaxLayer {
-    /// Returns the root syntax node for this layer.
-    pub fn node(&self) -> Node<'_> {
-        self.tree.root_node_with_offset(self.offset.0, self.offset.1)
-    }
-}
-
 impl<'a> SyntaxLayer<'a> {
-    /// Returns an owned version of this layer.
-    pub fn to_owned(&self) -> OwnedSyntaxLayer {
-        OwnedSyntaxLayer { tree: self.tree.clone(), offset: self.offset, language: Arc::clone(self.language) }
-    }
-
     /// Returns the root node for this layer.
     pub fn node(&self) -> Node<'a> {
         self.tree.root_node_with_offset(self.offset.0, self.offset.1)

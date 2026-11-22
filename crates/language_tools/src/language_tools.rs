@@ -1,13 +1,9 @@
-mod highlights_tree_view;
 pub mod lsp_button;
 pub mod lsp_log_view;
-mod syntax_tree_view;
 
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Entity;
-pub use highlights_tree_view::HighlightsTreeToolbarItemView;
-pub use syntax_tree_view::SyntaxTreeToolbarItemView;
 use ui::Context;
 use ui::Window;
 use workspace::Item;
@@ -16,9 +12,7 @@ use workspace::SplitDirection;
 use workspace::Workspace;
 
 pub fn init(cx: &mut App) {
-    highlights_tree_view::init(cx);
     lsp_log_view::init(cx);
-    syntax_tree_view::init(cx);
 }
 
 fn get_or_create_tool<T>(

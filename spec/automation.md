@@ -59,6 +59,14 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
   keymap first (of the matching ones the deepest context wins, then the
   earliest listed). It replaces an in-app key context view: troubleshoot
   keybindings with it.
+- `syntax-tree` and `highlights` report on the buffer under the active
+  editor's newest cursor (a multibuffer shows several), optionally limited to
+  `--rows` (zero-based, inclusive). `syntax-tree` lists each syntax layer
+  (the base language and its injections) with its nodes; `highlights` lists
+  grammar captures, semantic tokens and the editor's text highlights with the
+  theme key and style each resolved to. Captures the theme has no style for
+  are left out. They replace the in-app syntax tree and highlights tree
+  views: troubleshoot grammars, queries and theming with them.
 - `wait` polls `tree` for an element or text to appear or disappear, or for
   focus to move to an id.
 - `state` lists the editor panes and, separately, the Git History and

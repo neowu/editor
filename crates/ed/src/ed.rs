@@ -9,6 +9,7 @@ mod app_menus;
 pub(crate) mod control_server;
 pub(crate) mod cpu_usage;
 mod keymap;
+pub(crate) mod syntax_inspect;
 
 pub(crate) mod mac_only_instance;
 
@@ -457,10 +458,6 @@ fn initialize_pane(workspace: &Workspace, pane: &Entity<Pane>, window: &mut Wind
             toolbar.add_item(project_search_bar, window, cx);
             let lsp_log_item = cx.new(|_| LspLogToolbarItemView::new());
             toolbar.add_item(lsp_log_item, window, cx);
-            let syntax_tree_item = cx.new(|_| language_tools::SyntaxTreeToolbarItemView::new());
-            toolbar.add_item(syntax_tree_item, window, cx);
-            let highlights_tree_item = cx.new(|_| language_tools::HighlightsTreeToolbarItemView::new());
-            toolbar.add_item(highlights_tree_item, window, cx);
             let project_diff_toolbar = cx.new(|cx| ProjectDiffToolbar::new(workspace, cx));
             toolbar.add_item(project_diff_toolbar, window, cx);
             let staged_diff_toolbar = cx.new(|cx| StagedDiffToolbar::new(workspace, cx));

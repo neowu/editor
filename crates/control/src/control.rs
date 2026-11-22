@@ -88,6 +88,17 @@ pub enum Command {
     Bindings {
         keystrokes: String,
     },
+    /// Syntax layers of the buffer under the active editor's cursor, with the nodes
+    /// touching the rows (zero-based, inclusive; all rows when unset). Returns
+    /// `Vec<SyntaxLayer>`.
+    SyntaxTree {
+        rows: Option<(u32, u32)>,
+    },
+    /// Syntax captures, semantic tokens and text highlights of the same buffer and
+    /// rows, ordered by position. Returns `Vec<Highlight>`.
+    Highlights {
+        rows: Option<(u32, u32)>,
+    },
     /// Dispatch an action to the focused element.
     Action {
         name: String,
@@ -243,6 +254,47 @@ pub struct Binding {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyntaxLayer {
+    pub language: String,
+    /// In document order, parents before children.
+    pub nodes: Vec<SyntaxNode>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyntaxNode {
+    pub depth: u32,
+    /// The field of the parent this node fills.
+    pub field: Option<String>,
+    pub kind: String,
+    /// Unset for anonymous nodes such as punctuation and keywords.
+    pub named: bool,
+    pub start: Position,
+    pub end: Position,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Highlight {
+    pub start: Position,
+    pub end: Position,
+    pub kind: HighlightKind,
+    /// The grammar capture, the semantic token type with its modifiers, or the
+    /// editor's highlight key.
+    pub name: String,
+    /// The theme's syntax style the capture or token resolved to.
+    pub theme_key: Option<String>,
+    /// Colour as `#rrggbb[aa]` (`bg` prefixed for a background) and font styles.
+    pub style: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HighlightKind {
+    Syntax,
+    Semantic,
+    Text,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct State {
     pub window: u64,
     /// The window's bounds, relative to its display.
@@ -322,7 +374,7 @@ pub struct Selection {
     pub reversed: bool,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Position {
     pub row: u32,
     pub column: u32,
@@ -412,5 +464,35 @@ mod tests {
         assert!(
             matches!(serde_json::from_str(&json).unwrap(), Command::Bindings { keystrokes } if keystrokes == "cmd-k cmd-s")
         );
+    }
+
+    #[test]
+    fn syntax_commands_round_trip() {
+        let json = serde_json::to_string(&Command::SyntaxTree { rows: Some((2, 5)) }).unwrap();
+        assert_eq!(json, r#"{"method":"syntax_tree","params":{"rows":[2,5]}}"#);
+        assert!(matches!(serde_json::from_str(&json).unwrap(), Command::SyntaxTree { rows: Some((2, 5)) }));
+        let json = serde_json::to_string(&Command::Highlights { rows: None }).unwrap();
+        assert_eq!(json, r#"{"method":"highlights","params":{"rows":null}}"#);
+        assert!(matches!(serde_json::from_str(&json).unwrap(), Command::Highlights { rows: None }));
+    }
+
+    #[test]
+    fn highlights_order_by_position_then_kind() {
+        let highlight = |row, kind| Highlight {
+            start: Position { row, column: 0 },
+            end: Position { row, column: 3 },
+            kind,
+            name: String::new(),
+            theme_key: None,
+            style: String::new(),
+        };
+        let mut highlights = [
+            highlight(1, HighlightKind::Syntax),
+            highlight(0, HighlightKind::Text),
+            highlight(0, HighlightKind::Syntax),
+        ];
+        highlights.sort();
+        let order: Vec<_> = highlights.iter().map(|highlight| (highlight.start.row, highlight.kind)).collect();
+        assert_eq!(order, [(0, HighlightKind::Syntax), (0, HighlightKind::Text), (1, HighlightKind::Syntax)]);
     }
 }

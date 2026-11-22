@@ -59,5 +59,8 @@ util.workspace = true
 uuid.workspace = true
 workspace.workspace = true
 
+[dev-dependencies]
+tree-sitter-rust.workspace = true
+
 [lints]
 workspace = true

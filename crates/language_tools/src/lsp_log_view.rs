@@ -24,7 +24,6 @@ use gpui::Styled as _;
 use gpui::Subscription;
 use gpui::WeakEntity;
 use gpui::Window;
-use gpui::actions;
 use gpui::div;
 use itertools::Itertools as _;
 use language::LanguageServerId;
@@ -165,29 +164,12 @@ impl LogMenuItem {
     }
 }
 
-actions!(
-    dev,
-    [
-        /// Opens the language server protocol logs viewer.
-        OpenLanguageServerLogs
-    ]
-);
-
 pub fn init(cx: &mut App) {
     let log_store = log_store::init(cx);
 
     cx.observe_new(move |workspace: &mut Workspace, _, cx| {
         log_store.update(cx, |store, cx| {
             store.add_project(workspace.project(), cx);
-        });
-
-        let log_store = log_store.clone();
-        workspace.register_action(move |workspace, _: &OpenLanguageServerLogs, window, cx| {
-            let log_store = log_store.clone();
-            let project = workspace.project().clone();
-            get_or_create_tool(workspace, SplitDirection::Right, window, cx, move |window, cx| {
-                LspLogView::new(project, log_store, window, cx)
-            });
         });
     })
     .detach();

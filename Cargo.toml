@@ -170,6 +170,7 @@ time = {
   ]
 }
 tree-sitter = "0.27.1"
+tree-sitter-rust = "0.24.2"
 unicase = "2.6"
 unicode-segmentation = "1.10"
 url = "2.2"

@@ -23,15 +23,19 @@ use clap::Subcommand;
 use control::Command;
 use control::Durations;
 use control::Element;
+use control::Highlight;
+use control::HighlightKind;
 use control::LanguageServerState;
 use control::Modifiers;
 use control::MouseButton;
 use control::MouseCommand;
 use control::MouseKind;
 use control::Perf;
+use control::Position;
 use control::Rect;
 use control::Request;
 use control::State;
+use control::SyntaxLayer;
 use control::Text;
 use control::Tree;
 use control::WindowInfo;
@@ -100,6 +104,21 @@ enum CliCommand {
     /// Key contexts of the focused element and, for the given keystrokes, every
     /// binding with whether its context matches, as JSON.
     Bindings { keystrokes: Vec<String> },
+    /// Syntax nodes of the buffer under the active editor's cursor, per syntax layer.
+    SyntaxTree {
+        #[command(flatten)]
+        rows: RowArgs,
+        #[arg(long)]
+        json: bool,
+    },
+    /// Syntax captures, semantic tokens and text highlights of the buffer under the
+    /// active editor's cursor, with the theme style each resolved to.
+    Highlights {
+        #[command(flatten)]
+        rows: RowArgs,
+        #[arg(long)]
+        json: bool,
+    },
     /// Dispatch an action to the focused element, e.g. `finder::Toggle`.
     Action {
         name: String,
@@ -230,6 +249,23 @@ impl From<ModifierArgs> for Modifiers {
     }
 }
 
+#[derive(Args, Clone, Copy)]
+struct RowArgs {
+    /// Only what touches these zero-based rows, `ROW` or `FIRST:LAST`.
+    #[arg(long, value_parser = parse_rows)]
+    rows: Option<(u32, u32)>,
+}
+
+fn parse_rows(value: &str) -> Result<(u32, u32), String> {
+    let (first, last) = value.split_once(':').unwrap_or((value, value));
+    let first = first.trim().parse().map_err(|err| format!("invalid row: {err}"))?;
+    let last = last.trim().parse().map_err(|err| format!("invalid row: {err}"))?;
+    if first > last {
+        return Err("expected FIRST <= LAST".into());
+    }
+    Ok((first, last))
+}
+
 fn parse_point(value: &str) -> Result<(f32, f32), String> {
     let (x, y) = value.split_once(',').ok_or("expected X,Y")?;
     Ok((
@@ -291,6 +327,14 @@ fn run(cli: Cli) -> Result<()> {
         }
         CliCommand::Bindings { keystrokes } => {
             print_json(&client.request::<Value>(Command::Bindings { keystrokes: keystrokes.join(" ") })?)?;
+        }
+        CliCommand::SyntaxTree { rows, json } => {
+            let layers: Vec<SyntaxLayer> = client.request(Command::SyntaxTree { rows: rows.rows })?;
+            if json { print_json(&layers)? } else { print!("{}", format_syntax_layers(&layers)) }
+        }
+        CliCommand::Highlights { rows, json } => {
+            let highlights: Vec<Highlight> = client.request(Command::Highlights { rows: rows.rows })?;
+            if json { print_json(&highlights)? } else { print!("{}", format_highlights(&highlights)) }
         }
         CliCommand::Action { name, args } => {
             let args = args.map(|args| serde_json::from_str(&args)).transpose().context("invalid action arguments")?;
@@ -500,6 +544,48 @@ fn print_tree(tree: &Tree) {
     }
 }
 
+fn format_span(start: Position, end: Position) -> String {
+    format!("[{}:{}-{}:{}]", start.row, start.column, end.row, end.column)
+}
+
+#[expect(clippy::use_debug, reason = "quotes and escapes anonymous node kinds")]
+fn format_syntax_layers(layers: &[SyntaxLayer]) -> String {
+    let mut out = String::new();
+    for layer in layers {
+        writeln!(out, "layer {}", layer.language).ok();
+        for node in &layer.nodes {
+            write!(out, "{:indent$}", "", indent = 2 * (node.depth as usize + 1)).ok();
+            if let Some(field) = &node.field {
+                write!(out, "{field}: ").ok();
+            }
+            if node.named {
+                out.push_str(&node.kind);
+            } else {
+                write!(out, "{:?}", node.kind).ok();
+            }
+            writeln!(out, " {}", format_span(node.start, node.end)).ok();
+        }
+    }
+    out
+}
+
+fn format_highlights(highlights: &[Highlight]) -> String {
+    let mut out = String::new();
+    for highlight in highlights {
+        let kind = match highlight.kind {
+            HighlightKind::Syntax => "syntax",
+            HighlightKind::Semantic => "semantic",
+            HighlightKind::Text => "text",
+        };
+        write!(out, "{} {kind} {}", format_span(highlight.start, highlight.end), highlight.name).ok();
+        if let Some(theme_key) = &highlight.theme_key {
+            write!(out, " -> {theme_key}").ok();
+        }
+        writeln!(out, " {}", highlight.style).ok();
+    }
+    out
+}
+
 fn format_perf(perf: &Perf) -> String {
     let cpu = &perf.cpu;
     let frames = &perf.frames;
@@ -651,10 +737,70 @@ mod tests {
     use control::CpuUsage;
     use control::Durations;
     use control::FrameTimes;
+    use control::Highlight;
+    use control::HighlightKind;
     use control::Perf;
+    use control::Position;
+    use control::SyntaxLayer;
+    use control::SyntaxNode;
 
+    use super::format_highlights;
     use super::format_perf;
+    use super::format_syntax_layers;
     use super::log_file_for_data_dir;
+    use super::parse_rows;
+
+    #[test]
+    fn parse_rows_accepts_a_row_or_a_range() {
+        assert_eq!(parse_rows("3"), Ok((3, 3)));
+        assert_eq!(parse_rows("3:7"), Ok((3, 7)));
+        parse_rows("7:3").unwrap_err();
+        parse_rows("a").unwrap_err();
+    }
+
+    #[test]
+    fn format_syntax_layers_indents_and_quotes_anonymous_nodes() {
+        let node = |depth, field: Option<&str>, kind: &str, named| SyntaxNode {
+            depth,
+            field: field.map(str::to_owned),
+            kind: kind.to_owned(),
+            named,
+            start: Position { row: 0, column: depth },
+            end: Position { row: 1, column: 2 },
+        };
+        let layers = [SyntaxLayer {
+            language: "Rust".into(),
+            nodes: vec![
+                node(0, None, "source_file", true),
+                node(1, Some("name"), "identifier", true),
+                node(1, None, "\"", false),
+            ],
+        }];
+        assert_eq!(
+            format_syntax_layers(&layers),
+            "layer Rust\n  source_file [0:0-1:2]\n    name: identifier [0:1-1:2]\n    \"\\\"\" [0:1-1:2]\n"
+        );
+    }
+
+    #[test]
+    fn format_highlights_shows_the_theme_key_when_resolved() {
+        let highlight = |kind, name: &str, theme_key: Option<&str>| Highlight {
+            start: Position { row: 2, column: 4 },
+            end: Position { row: 2, column: 8 },
+            kind,
+            name: name.to_owned(),
+            theme_key: theme_key.map(str::to_owned),
+            style: "#88c0d0".into(),
+        };
+        let highlights = [
+            highlight(HighlightKind::Syntax, "function.definition", Some("function")),
+            highlight(HighlightKind::Text, "MatchingBracket", None),
+        ];
+        assert_eq!(
+            format_highlights(&highlights),
+            "[2:4-2:8] syntax function.definition -> function #88c0d0\n[2:4-2:8] text MatchingBracket #88c0d0\n"
+        );
+    }
 
     #[test]
     #[ignore = "requires ED_CONTROL_SOCKET from edctl launch --fresh"]

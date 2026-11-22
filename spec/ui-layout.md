@@ -52,7 +52,7 @@ because it hurt readability; an opaque window is also cheaper to composite.
   bracket and spell-check highlights; mermaid diagrams re-render. Accepted
   gaps, which keep the old colours until their next update: tree-sitter
   outlines and search excerpts in the outline panel, the commit details ref
-  colour, the highlights tree view, and an open diagnostic hover.
+  colour, and an open diagnostic hover.
 - `WindowAppearance` is `Light` or `Dark` only. macOS vibrant and
   high-contrast appearances map onto them by name.
 - Terminal bright / dim ANSI colours are the normal colour shaded away from /

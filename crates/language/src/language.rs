@@ -132,7 +132,6 @@ pub use runnable::RunnableResolver;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use serde_json::Value;
-pub use syntax_map::OwnedSyntaxLayer;
 use syntax_map::QueryCursorHandle;
 pub use syntax_map::SyntaxLayer;
 use syntax_map::TextProvider;

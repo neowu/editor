@@ -56,6 +56,7 @@ use workspace::dock::DockPosition;
 use workspace::item::ItemHandle;
 
 use crate::ed::cpu_usage::CpuSample;
+use crate::ed::syntax_inspect;
 
 const SETTLE_TIMEOUT: Duration = Duration::from_secs(1);
 const SETTLE_TICK: Duration = Duration::from_millis(16);
@@ -186,6 +187,12 @@ async fn handle_request(
                 serde_json::to_value(bindings(&cx.all_bindings_for_input(&keystrokes), &window.context_stack()))
             })??
         }
+        Command::SyntaxTree { rows } => window.update(cx, |_, window, cx| {
+            anyhow::Ok(serde_json::to_value(syntax_inspect::syntax_tree(window, rows, cx)?)?)
+        })??,
+        Command::Highlights { rows } => window.update(cx, |_, window, cx| {
+            anyhow::Ok(serde_json::to_value(syntax_inspect::highlights(window, rows, cx)?)?)
+        })??,
         Command::Action { name, args } => {
             window.update(cx, |_, window, cx| -> Result<()> {
                 let action = cx.build_action(&name, args).map_err(|error| anyhow::anyhow!("{error}"))?;
