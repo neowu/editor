@@ -245,18 +245,33 @@ from the installed app only resolve the panic location itself.
   (`core-foundation`, `core-graphics`, `core-text`, `foreign-types`) are not
   dependencies. Carbon text-input-source calls (`TIS*`, `UCKeyTranslate`) have
   no objc2 bindings and are declared locally.
-- Frames are paced by a per-window `CAMetalDisplayLink` on the window's
-  `CAMetalLayer`, scheduled in the main run loop's common modes so it keeps
-  firing during live resize. The renderer draws into the drawable each update
-  hands out and never calls `nextDrawable` while a link is attached, because
+- A window presents through its own swap chain, not a `CAMetalLayer`: the
+  renderer draws each frame into an `IOSurface`-backed Metal texture and sets
+  it as the contents of the view's plain `CALayer` in the current Core
+  Animation transaction. There is one presentation path, so a frame AppKit
+  asks for synchronously (activation, `displayLayer:` during resize) lands
+  with that transaction like any other. `CAMetalLayer` is not used because its
+  drawable pool is not ours to bound (4-5 window-sized drawables under a
+  `CAMetalDisplayLink` whatever `maximumDrawableCount` says), that link
+  schedules each frame ~41 ms (five refreshes at 120 Hz) ahead, and
   `nextDrawable` blocks ~33 ms per frame on base M-series Macs on macOS 26+.
-  The OS picks the rate (`preferredFrameRateRange` is left at its default).
+- The swap chain holds at most 3 window-sized surfaces (~29 MB each for a
+  full-screen Retina window), allocated as frames need them and released when
+  the drawable size changes. The compositor lets go of a replaced surface
+  ~11 ms later, so only sustained 120 Hz drawing needs the third; otherwise a
+  window holds 2. When the compositor still holds every surface at a refresh,
+  that frame is skipped and drawn on a later one. Surfaces are tagged Display
+  P3.
+- Frames are paced by a per-window `CADisplayLink` from the view
+  (`displayLinkWithTarget:selector:`), scheduled in the main run loop's common
+  modes so it keeps firing during live resize; each callback targets the next
+  refresh. The OS picks the rate (`preferredFrameRateRange` is left at its
+  default). The deprecated `CVDisplayLink` is not used.
 - An idle window does no per-refresh work: the link pauses after an update in
   which GPUI neither drew, presented, nor asked for another frame, and GPUI's
-  `frame_waker`/`schedule_frame` resume it. Synchronous draws (activation,
-  `displayLayer:`) and occlusion detach the link; it is recreated afterwards,
-  on screen changes, and invalidated when the window is dropped. Neither
-  `CADisplayLink` nor the deprecated `CVDisplayLink` is used.
+  `frame_waker`/`schedule_frame` resume it. Occlusion detaches the link; it is
+  recreated when the window is visible again and on screen changes, and
+  invalidated when the window is dropped.
 - Glyphs are always rasterized as grayscale coverage masks (monochrome atlas)
   or colour emoji (polychrome atlas). There is no subpixel/LCD text pipeline
   and no text rendering mode setting.
@@ -272,9 +287,9 @@ from the installed app only resolve the panic location itself.
 - GPUI's platform traits carry only what macOS implements: no anchored popup
   window kind, jump list, async clipboard read, missing-glyph reporting, font
   prewarming, GPU specs, or timer-resolution hook.
-- The Metal renderer and sprite atlas (`gpui_macos`) use `objc2-metal` and
-  `objc2-quartz-core`'s `CAMetalLayer`; the `metal` (metal-rs) crate is not a
-  dependency.
+- The Metal renderer and sprite atlas (`gpui_macos`) use `objc2-metal`,
+  `objc2-io-surface` and `objc2-quartz-core`; the `metal` (metal-rs) crate is
+  not a dependency.
 - `gpui_macos` declares its `NSApplication`/`NSWindow`/`NSPanel`/`NSView`
   subclasses with `objc2::define_class!`. Window, panel and view share one
   typed ivar holding a strong `Arc` to the window state; it is installed right

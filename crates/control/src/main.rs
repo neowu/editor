@@ -195,6 +195,8 @@ enum CliCommand {
         #[arg(long, default_value_t = 120.)]
         timeout: f32,
     },
+    /// Resize the window's content area, in logical pixels.
+    Resize { width: f32, height: f32 },
     /// Wait until the window stops redrawing.
     Settle,
     /// Start measuring CPU usage and frame times from now.
@@ -369,6 +371,9 @@ fn run(cli: Cli) -> Result<()> {
         }
         CliCommand::Wait { target, focused, gone, timeout } => client.wait(&target, focused, gone, timeout)?,
         CliCommand::WaitLsp { server, timeout } => client.wait_lsp(server.as_deref(), timeout)?,
+        CliCommand::Resize { width, height } => {
+            client.request::<Value>(Command::Resize { width, height })?;
+        }
         CliCommand::Settle => {
             client.request::<Value>(Command::Settle)?;
         }

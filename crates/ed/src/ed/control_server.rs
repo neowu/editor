@@ -45,6 +45,7 @@ use gpui::TouchPhase;
 use gpui::Window;
 use gpui::point;
 use gpui::px;
+use gpui::size;
 use language::Point;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
@@ -251,6 +252,11 @@ async fn handle_request(
             }
             let image = window.update(cx, |_, window, _| window.capture_image())??;
             image.save(&path).with_context(|| format!("failed to write {}", path.display()))?;
+            Value::Null
+        }
+        Command::Resize { width, height } => {
+            window.update(cx, |_, window, _| window.resize(size(px(width), px(height))))?;
+            settle(window, cx).await?;
             Value::Null
         }
         Command::Settle => {

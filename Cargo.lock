@@ -1438,6 +1438,7 @@ dependencies = [
  "objc2-core-graphics",
  "objc2-core-text",
  "objc2-foundation",
+ "objc2-io-surface",
  "objc2-metal",
  "objc2-quartz-core",
  "parking_lot 0.13.0",
@@ -2555,6 +2556,7 @@ dependencies = [
  "dispatch2",
  "objc2",
  "objc2-foundation",
+ "objc2-io-surface",
 ]
 
 [[package]]
@@ -2568,7 +2570,6 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-core-graphics",
  "objc2-foundation",
- "objc2-metal",
 ]
 
 [[package]]

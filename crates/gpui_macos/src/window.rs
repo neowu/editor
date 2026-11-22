@@ -96,7 +96,6 @@ use objc2_core_graphics::CGDirectDisplayID;
 use objc2_foundation::NSCoder;
 use objc2_foundation::NSKeyedUnarchiver;
 use objc2_quartz_core::CALayerDelegate;
-use objc2_quartz_core::CAMetalDisplayLinkUpdate;
 use parking_lot::Mutex;
 use raw_window_handle as rwh;
 
@@ -886,9 +885,8 @@ impl MacWindowState {
         }
     }
 
-    /// Attaches a new `CAMetalDisplayLink` to the window's layer. `window_state`
-    /// is the handle this state lives in; the link holds it weakly to deliver
-    /// frames.
+    /// Attaches a new display link to the window's view. `window_state` is the
+    /// handle this state lives in; the link holds it weakly to deliver frames.
     fn start_display_link(&mut self, window_state: &Arc<Mutex<Self>>) {
         self.stop_display_link();
         unsafe {
@@ -896,25 +894,19 @@ impl MacWindowState {
                 return;
             }
         }
-        let layer = self.renderer.layer();
         let main_thread = MainThreadMarker::new().expect("macOS windows require the main thread");
         let window_state = Arc::downgrade(window_state);
-        let source = MetalFrameSource::new(layer, main_thread, move |update| {
+        let view = unsafe { self.native_view.as_ref() };
+        let source = MetalFrameSource::new(view, main_thread, move || {
             if let Some(window_state) = window_state.upgrade() {
-                metal_frame(&window_state, update);
+                metal_frame(&window_state);
             }
         });
         self.metal_frames.replace(Some(source));
-        self.renderer.set_display_link_attached(true);
     }
 
-    /// Detaches the link rather than pausing it, so that a synchronous draw
-    /// can use the layer's `nextDrawable`.
-    fn stop_display_link(&mut self) {
-        if self.metal_frames.is_attached() {
-            self.metal_frames.replace(None);
-            self.renderer.set_display_link_attached(false);
-        }
+    fn stop_display_link(&self) {
+        self.metal_frames.replace(None);
     }
 
     fn is_maximized(&self) -> bool {
@@ -2661,15 +2653,9 @@ fn window_did_change_key_status(this: &AnyObject, selector: Sel, _: id) {
 
         if lock.activated_least_once {
             if let Some(mut callback) = lock.request_frame_callback.take() {
-                lock.renderer.set_presents_with_transaction(true);
-                lock.stop_display_link();
                 drop(lock);
                 callback(RequestFrameOptions::default());
-
-                let mut lock = window_state.lock();
-                lock.request_frame_callback = Some(callback);
-                lock.renderer.set_presents_with_transaction(false);
-                lock.start_display_link(&window_state);
+                window_state.lock().request_frame_callback = Some(callback);
             }
         } else {
             lock.activated_least_once = true;
@@ -2776,34 +2762,31 @@ fn display_layer(this: &AnyObject, _: id) {
     let window_state = unsafe { get_window_state(this) };
     let mut lock = window_state.lock();
     if let Some(mut callback) = lock.request_frame_callback.take() {
-        lock.renderer.set_presents_with_transaction(true);
-        lock.stop_display_link();
         drop(lock);
         callback(RequestFrameOptions::default());
-
-        let mut lock = window_state.lock();
-        lock.request_frame_callback = Some(callback);
-        lock.renderer.set_presents_with_transaction(false);
-        lock.start_display_link(&window_state);
+        window_state.lock().request_frame_callback = Some(callback);
     }
 }
 
-fn metal_frame(window_state: &Arc<Mutex<MacWindowState>>, update: &CAMetalDisplayLinkUpdate) {
+fn metal_frame(window_state: &Arc<Mutex<MacWindowState>>) {
     let mut lock = window_state.lock();
+    // The compositor still holds every surface: draw on a later refresh.
+    if !lock.renderer.can_draw() {
+        return;
+    }
     let metal_frames = Rc::clone(&lock.metal_frames);
     let Some(mut callback) = lock.request_frame_callback.take() else {
         return;
     };
-    lock.renderer.set_frame_drawable(Some(update.drawable()));
+    // A frame AppKit asked for synchronously is not this update's.
+    lock.renderer.take_presented();
     drop(lock);
     metal_frames.begin_frame();
     callback(RequestFrameOptions::default());
     let mut lock = window_state.lock();
     lock.request_frame_callback = Some(callback);
-    // A frame with nothing to draw leaves its drawable unused; releasing it
-    // lets the link hand it out again.
-    let used_drawable = lock.renderer.set_frame_drawable(None).is_none();
-    metal_frames.end_frame(used_drawable);
+    let presented = lock.renderer.take_presented();
+    metal_frames.end_frame(presented);
 }
 
 fn valid_attributes_for_marked_text(_: &AnyObject) -> id {

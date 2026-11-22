@@ -128,6 +128,11 @@ pub enum Command {
         #[serde(default)]
         no_settle: bool,
     },
+    /// Resize the window's content area, in logical pixels.
+    Resize {
+        width: f32,
+        height: f32,
+    },
     /// Wait until the window stops redrawing (or a timeout passes).
     Settle,
     /// Start measuring CPU usage and the window's frame times from now.
@@ -455,6 +460,16 @@ mod tests {
         let command: Command =
             serde_json::from_str(r#"{"method":"screenshot","params":{"path":"/tmp/a.png","no_settle":true}}"#).unwrap();
         assert!(matches!(command, Command::Screenshot { no_settle: true, .. }));
+    }
+
+    #[test]
+    fn resize_command_round_trips() {
+        let json = serde_json::to_string(&Command::Resize { width: 1200., height: 800. }).unwrap();
+        assert_eq!(json, r#"{"method":"resize","params":{"width":1200.0,"height":800.0}}"#);
+        assert!(matches!(
+            serde_json::from_str(&json).unwrap(),
+            Command::Resize { width, height } if width == 1200. && height == 800.
+        ));
     }
 
     #[test]

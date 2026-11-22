@@ -26,12 +26,23 @@ use gpui::point;
 use gpui::size;
 use image::RgbaImage;
 use objc2::rc::Retained;
+use objc2::runtime::AnyObject;
 use objc2::runtime::ProtocolObject;
-use objc2_core_foundation::CGSize;
+use objc2_core_foundation::CFDictionary;
+use objc2_core_foundation::CFNumber;
+use objc2_core_foundation::CFRetained;
+use objc2_core_foundation::CFString;
+use objc2_core_foundation::CFType;
 use objc2_core_graphics::CGColorSpace;
 use objc2_core_graphics::kCGColorSpaceDisplayP3;
 use objc2_foundation::NSRange;
 use objc2_foundation::NSString;
+use objc2_io_surface::IOSurfaceRef;
+use objc2_io_surface::kIOSurfaceBytesPerElement;
+use objc2_io_surface::kIOSurfaceColorSpace;
+use objc2_io_surface::kIOSurfaceHeight;
+use objc2_io_surface::kIOSurfacePixelFormat;
+use objc2_io_surface::kIOSurfaceWidth;
 use objc2_metal::MTLBlendFactor;
 use objc2_metal::MTLBlendOperation;
 use objc2_metal::MTLBlitCommandEncoder as _;
@@ -43,7 +54,6 @@ use objc2_metal::MTLCommandQueue;
 use objc2_metal::MTLCopyAllDevices;
 use objc2_metal::MTLCreateSystemDefaultDevice;
 use objc2_metal::MTLDevice;
-use objc2_metal::MTLDrawable as _;
 use objc2_metal::MTLGPUFamily;
 use objc2_metal::MTLLibrary;
 use objc2_metal::MTLLoadAction;
@@ -64,8 +74,8 @@ use objc2_metal::MTLTextureType;
 use objc2_metal::MTLTextureUsage;
 use objc2_metal::MTLViewport;
 use objc2_quartz_core::CAAutoresizingMask;
-use objc2_quartz_core::CAMetalDrawable;
-use objc2_quartz_core::CAMetalLayer;
+use objc2_quartz_core::CALayer;
+use objc2_quartz_core::CATransaction;
 use parking_lot::Mutex;
 
 use crate::metal_atlas::MetalAtlas;
@@ -91,6 +101,10 @@ const PATH_SAMPLE_COUNT: u32 = 4;
 /// Metal requires the offset a buffer is bound at to be 256-byte aligned.
 const INSTANCE_BUFFER_ALIGNMENT: usize = 256;
 const MAX_INSTANCE_BUFFER_SIZE: usize = 256 * 1024 * 1024;
+/// The compositor lets go of a replaced surface about 11 ms later, after the
+/// next refresh at 120 Hz, so sustained 120 Hz drawing cycles through three.
+/// A window drawing at 60 Hz or less allocates only two.
+const MAX_SURFACES: usize = 3;
 
 pub(crate) type Context = Arc<Mutex<InstanceBufferPool>>;
 pub(crate) type Renderer = MetalRenderer;
@@ -144,18 +158,25 @@ impl InstanceBufferPool {
     }
 }
 
-enum DisplayLinkMode {
-    Detached,
-    Attached { drawable: Option<Retained<ProtocolObject<dyn CAMetalDrawable>>> },
+/// A window-sized render target the layer can show.
+struct Surface {
+    surface: CFRetained<IOSurfaceRef>,
+    texture: Retained<Texture>,
 }
 
 pub(crate) struct MetalRenderer {
     device: Retained<Device>,
-    layer: Retained<CAMetalLayer>,
+    layer: Retained<CALayer>,
+    drawable_size: Size<DevicePixels>,
+    /// The swap chain: surfaces are allocated as frames need them, up to
+    /// [`MAX_SURFACES`], and reused until the drawable size changes.
+    surfaces: Vec<Surface>,
+    /// The surface the layer shows.
+    front: Option<usize>,
+    /// Whether a frame was shown since [`Self::take_presented`].
+    presented: bool,
     is_apple_gpu: bool,
     is_unified_memory: bool,
-    presents_with_transaction: bool,
-    display_link_mode: DisplayLinkMode,
     opaque: bool,
     command_queue: Retained<ProtocolObject<dyn MTLCommandQueue>>,
     paths_rasterization_pipeline_state: Retained<RenderPipelineState>,
@@ -183,19 +204,8 @@ pub(crate) struct PathRasterizationVertex {
 }
 
 impl MetalRenderer {
-    fn configure_layer(layer: &CAMetalLayer, device: &Device, transparent: bool) {
-        layer.setDevice(Some(device));
-        layer.setPixelFormat(MTLPixelFormat::BGRA8Unorm);
-        // Tag output as Display P3: color values (authored as sRGB hex) are deliberately
-        // interpreted as P3, matching the untagged look on Mac panels. Neutrals are unchanged,
-        // saturated colors render more vivid than sRGB; macOS converts to each monitor's
-        // profile so the look is consistent across displays and screenshots.
-        layer.setColorspace(CGColorSpace::with_name(Some(unsafe { kCGColorSpaceDisplayP3 })).as_deref());
-        // Support direct-to-display rendering if the window is not transparent
-        // https://developer.apple.com/documentation/metal/managing-your-game-window-for-metal-in-macos
+    fn configure_layer(layer: &CALayer, transparent: bool) {
         layer.setOpaque(!transparent);
-        layer.setMaximumDrawableCount(3);
-        layer.setAllowsNextDrawableTimeout(false);
         layer.setNeedsDisplayOnBoundsChange(true);
         layer.setAutoresizingMask(CAAutoresizingMask::LayerWidthSizable | CAAutoresizingMask::LayerHeightSizable);
     }
@@ -223,8 +233,8 @@ impl MetalRenderer {
 
     pub(crate) fn new(instance_buffer_pool: Arc<Mutex<InstanceBufferPool>>, transparent: bool) -> Self {
         let device = Self::create_device();
-        let layer = CAMetalLayer::new();
-        Self::configure_layer(&layer, &device, transparent);
+        let layer = CALayer::new();
+        Self::configure_layer(&layer, transparent);
         let opaque = !transparent;
 
         #[cfg(feature = "runtime_shaders")]
@@ -338,8 +348,10 @@ impl MetalRenderer {
         Self {
             device,
             layer,
-            presents_with_transaction: false,
-            display_link_mode: DisplayLinkMode::Detached,
+            drawable_size: Size::default(),
+            surfaces: Vec::new(),
+            front: None,
+            presented: false,
             is_apple_gpu,
             is_unified_memory,
             opaque,
@@ -360,11 +372,11 @@ impl MetalRenderer {
         }
     }
 
-    pub(crate) fn layer(&self) -> &CAMetalLayer {
+    pub(crate) fn layer(&self) -> &CALayer {
         &self.layer
     }
 
-    pub(crate) fn layer_ptr(&self) -> *mut CAMetalLayer {
+    pub(crate) fn layer_ptr(&self) -> *mut CALayer {
         Retained::as_ptr(&self.layer).cast_mut()
     }
 
@@ -372,52 +384,97 @@ impl MetalRenderer {
         &self.sprite_atlas
     }
 
-    /// Draw the next frame into `drawable` instead of asking the layer for one.
-    ///
-    /// A `CAMetalDisplayLink` hands out each frame's drawable early enough for
-    /// the frame to reach the display on time; `nextDrawable` would instead
-    /// wait for the compositor to release one. Pass `None` once the frame is
-    /// done, so a drawable the frame did not use goes back to the layer.
-    ///
-    /// Returns the drawable this replaces: after a frame, `Some` means the
-    /// frame neither drew nor presented.
-    ///
-    /// This is a setter rather than a guard scoped to one frame because the
-    /// window releases its lock on the renderer while GPUI draws.
-    pub(crate) fn set_frame_drawable(
-        &mut self,
-        drawable: Option<Retained<ProtocolObject<dyn CAMetalDrawable>>>,
-    ) -> Option<Retained<ProtocolObject<dyn CAMetalDrawable>>> {
-        match &mut self.display_link_mode {
-            DisplayLinkMode::Attached { drawable: current } => mem::replace(current, drawable),
-            DisplayLinkMode::Detached => {
-                // Only a live link hands out drawables, and a link is detached
-                // only after it has been invalidated.
-                None
-            }
-        }
-    }
-
-    /// Record whether a `CAMetalDisplayLink` drives the layer. While one
-    /// does, frames are drawn only into the drawables it hands out.
-    pub(crate) fn set_display_link_attached(&mut self, attached: bool) {
-        self.display_link_mode =
-            if attached { DisplayLinkMode::Attached { drawable: None } } else { DisplayLinkMode::Detached };
-    }
-
-    pub(crate) fn set_presents_with_transaction(&mut self, presents_with_transaction: bool) {
-        self.presents_with_transaction = presents_with_transaction;
-        self.layer.setPresentsWithTransaction(presents_with_transaction);
-    }
-
     pub(crate) fn update_drawable_size(&mut self, size: Size<DevicePixels>) {
-        self.layer.setDrawableSize(CGSize::new(size.width.0 as f64, size.height.0 as f64));
         // The drawable size is set again on every resize callback and scale
         // change, often to the size it already has.
-        if !self.path_intermediate_textures_match(size) {
-            self.path_intermediate_texture = None;
-            self.path_intermediate_msaa_texture = None;
+        if size == self.drawable_size {
+            return;
         }
+        self.drawable_size = size;
+        // The layer keeps the surface it shows until the next frame replaces it.
+        self.surfaces.clear();
+        self.front = None;
+        self.path_intermediate_texture = None;
+        self.path_intermediate_msaa_texture = None;
+    }
+
+    /// Whether a frame can be drawn without growing past [`MAX_SURFACES`]:
+    /// when the compositor still holds every surface, the frame is skipped
+    /// and drawn on a later refresh instead.
+    pub(crate) fn can_draw(&self) -> bool {
+        self.surfaces.len() < MAX_SURFACES || self.free_surface().is_some()
+    }
+
+    /// Whether a frame was shown since the last call.
+    pub(crate) const fn take_presented(&mut self) -> bool {
+        mem::replace(&mut self.presented, false)
+    }
+
+    fn free_surface(&self) -> Option<usize> {
+        (0..self.surfaces.len()).find(|&ix| Some(ix) != self.front && !self.surfaces[ix].surface.is_in_use())
+    }
+
+    fn acquire_surface(&mut self) -> Result<usize> {
+        if let Some(ix) = self.free_surface() {
+            return Ok(ix);
+        }
+        let surface = self.new_surface()?;
+        if self.surfaces.len() < MAX_SURFACES {
+            self.surfaces.push(surface);
+            return Ok(self.surfaces.len() - 1);
+        }
+        // Only a draw that did not check `can_draw` gets here (AppKit asking
+        // for a frame synchronously). The compositor keeps the replaced
+        // surface alive until it is done with it.
+        let ix = if self.front == Some(0) { 1 } else { 0 };
+        self.surfaces[ix] = surface;
+        Ok(ix)
+    }
+
+    fn new_surface(&self) -> Result<Surface> {
+        let Size { width, height } = self.drawable_size;
+        // Zero-sized texture creation causes SIGABRT.
+        // https://github.com/zed-industries/zed/issues/36229
+        anyhow::ensure!(width.0 > 0 && height.0 > 0, "window has no drawable area");
+        let keys = unsafe { [kIOSurfaceWidth, kIOSurfaceHeight, kIOSurfaceBytesPerElement, kIOSurfacePixelFormat] };
+        let values = [
+            CFNumber::new_i32(width.0),
+            CFNumber::new_i32(height.0),
+            CFNumber::new_i32(4),
+            CFNumber::new_i32(i32::from_be_bytes(*b"BGRA")),
+        ];
+        let properties: CFRetained<CFDictionary<CFString, CFNumber>> =
+            CFDictionary::from_slices(&keys, &[&*values[0], &*values[1], &*values[2], &*values[3]]);
+        let surface = unsafe { IOSurfaceRef::new(properties.as_opaque()) }.context("failed to create a surface")?;
+        // Tag output as Display P3: color values (authored as sRGB hex) are deliberately
+        // interpreted as P3, matching the untagged look on Mac panels. Neutrals are unchanged,
+        // saturated colors render more vivid than sRGB; macOS converts to each monitor's
+        // profile so the look is consistent across displays and screenshots.
+        if let Some(color_space) = CGColorSpace::with_name(Some(unsafe { kCGColorSpaceDisplayP3 }))
+            && let Some(properties) = color_space.property_list()
+        {
+            unsafe {
+                surface.set_value(kIOSurfaceColorSpace, &properties);
+            }
+        }
+
+        let texture_descriptor = MTLTextureDescriptor::new();
+        unsafe {
+            texture_descriptor.setWidth(width.0 as usize);
+            texture_descriptor.setHeight(height.0 as usize);
+        }
+        texture_descriptor.setPixelFormat(MTLPixelFormat::BGRA8Unorm);
+        texture_descriptor.setStorageMode(if self.is_unified_memory {
+            MTLStorageMode::Shared
+        } else {
+            MTLStorageMode::Managed
+        });
+        texture_descriptor.setUsage(MTLTextureUsage::RenderTarget);
+        let texture = self
+            .device
+            .newTextureWithDescriptor_iosurface_plane(&texture_descriptor, &surface, 0)
+            .context("failed to create a surface texture")?;
+        Ok(Surface { surface, texture })
     }
 
     fn path_intermediate_textures_match(&self, size: Size<DevicePixels>) -> bool {
@@ -472,53 +529,46 @@ impl MetalRenderer {
         self.layer.setOpaque(!transparent);
     }
 
+    /// Draws `scene` into a free surface and shows it with the current
+    /// Core Animation transaction, so a frame drawn for a resize lands with it.
     pub(crate) fn draw(&mut self, scene: &Scene) {
-        let drawable = match &mut self.display_link_mode {
-            DisplayLinkMode::Attached { drawable } => {
-                let Some(drawable) = drawable.take() else {
-                    log::error!("skipped a frame drawn outside its display link's update");
-                    return;
-                };
-                drawable
-            }
-            DisplayLinkMode::Detached => {
-                let Some(drawable) = self.layer.nextDrawable() else {
-                    log::error!("failed to retrieve next drawable, drawable size: {:?}", self.layer.drawableSize());
-                    return;
-                };
-                drawable
+        let ix = match self.acquire_surface() {
+            Ok(ix) => ix,
+            Err(error) => {
+                log::error!("failed to acquire a surface, drawable size: {:?}: {error:#}", self.drawable_size);
+                return;
             }
         };
-        // A display link's drawable was sized when the link handed it out,
-        // which can be before a resize the layer has since taken.
-        let texture = drawable.texture();
-        let viewport_size: Size<DevicePixels> = size(texture.width().into(), texture.height().into());
-
-        let command_buffer = match self.render_frame(scene, &texture, viewport_size) {
+        let texture = self.surfaces[ix].texture.clone();
+        let command_buffer = match self.render_frame(scene, &texture, self.drawable_size) {
             Ok(command_buffer) => command_buffer,
             Err(error) => {
                 log::error!("failed to render: {error:#}");
                 return;
             }
         };
+        command_buffer.commit();
+        // The compositor may read the surface as soon as the layer shows it.
+        command_buffer.waitUntilScheduled();
 
-        if self.presents_with_transaction {
-            command_buffer.commit();
-            command_buffer.waitUntilScheduled();
-            drawable.present();
-        } else {
-            command_buffer.presentDrawable(ProtocolObject::from_ref(&*drawable));
-            command_buffer.commit();
+        let contents: &CFType = &self.surfaces[ix].surface;
+        let contents: &AnyObject = contents.as_ref();
+        CATransaction::begin();
+        CATransaction::setDisableActions(true);
+        unsafe {
+            self.layer.setContents(Some(contents));
         }
+        CATransaction::commit();
+        self.front = Some(ix);
+        self.presented = true;
     }
 
-    /// Render `scene` offscreen at the layer's drawable size and read it back.
+    /// Render `scene` offscreen at the drawable size and read it back.
     pub(crate) fn render_to_image(&mut self, scene: &Scene) -> Result<RgbaImage> {
-        let drawable_size = self.layer.drawableSize();
-        let width = drawable_size.width.ceil() as usize;
-        let height = drawable_size.height.ceil() as usize;
-        anyhow::ensure!(width > 0 && height > 0, "window has no drawable area");
-        let viewport_size: Size<DevicePixels> = size(i32::try_from(width)?.into(), i32::try_from(height)?.into());
+        let viewport_size = self.drawable_size;
+        anyhow::ensure!(viewport_size.width.0 > 0 && viewport_size.height.0 > 0, "window has no drawable area");
+        let width = viewport_size.width.0 as usize;
+        let height = viewport_size.height.0 as usize;
 
         let texture_descriptor = MTLTextureDescriptor::new();
         unsafe {
@@ -1353,7 +1403,7 @@ mod tests {
     use objc2::rc::Retained;
     use objc2_metal::MTLTexture as _;
 
-    use super::DisplayLinkMode;
+    use super::MAX_SURFACES;
     use super::MetalRenderer;
 
     #[test]
@@ -1390,26 +1440,42 @@ mod tests {
     }
 
     #[test]
-    fn display_link_mode_consumes_and_clears_drawables() {
+    fn surfaces_are_allocated_on_demand_and_released_on_resize() {
         let mut renderer = MetalRenderer::new(Arc::default(), false);
-        renderer.update_drawable_size(size(DevicePixels(64), DevicePixels(64)));
-        let drawable = renderer.layer().nextDrawable().expect("window renderer drawable");
-
-        renderer.set_display_link_attached(true);
-        assert!(matches!(renderer.display_link_mode, DisplayLinkMode::Attached { drawable: None }));
-        assert!(renderer.set_frame_drawable(Some(drawable.clone())).is_none());
-        assert!(matches!(renderer.display_link_mode, DisplayLinkMode::Attached { drawable: Some(_) }));
+        assert!(renderer.can_draw());
+        // Without a drawable size there is nothing to draw into.
         renderer.draw(&Scene::default());
-        assert!(matches!(renderer.display_link_mode, DisplayLinkMode::Attached { drawable: None }));
+        assert!(renderer.surfaces.is_empty());
+        assert!(!renderer.take_presented());
 
-        // A frame that drew consumed its drawable; one that didn't hands it back.
-        assert!(renderer.set_frame_drawable(Some(drawable.clone())).is_none());
-        assert!(renderer.set_frame_drawable(None).is_some());
-
-        renderer.set_frame_drawable(Some(drawable));
-        renderer.set_display_link_attached(false);
-        assert!(matches!(renderer.display_link_mode, DisplayLinkMode::Detached));
-        // Detached, the renderer asks the layer for its own drawable again.
+        let drawable_size = size(DevicePixels(64), DevicePixels(32));
+        renderer.update_drawable_size(drawable_size);
         renderer.draw(&Scene::default());
+        assert_eq!(renderer.surfaces.len(), 1);
+        assert_eq!(renderer.front, Some(0));
+        let texture = &renderer.surfaces[0].texture;
+        assert_eq!((texture.width(), texture.height()), (64, 32));
+        assert!(renderer.take_presented());
+        assert!(!renderer.take_presented(), "reported once");
+
+        // The surface on screen is never drawn into, so the next frame takes another.
+        renderer.draw(&Scene::default());
+        assert_eq!(renderer.surfaces.len(), 2);
+        assert_eq!(renderer.front, Some(1));
+
+        // However many frames follow, the pool stays within its bound.
+        for _ in 0..8 {
+            renderer.draw(&Scene::default());
+            assert!(renderer.surfaces.len() <= MAX_SURFACES);
+            assert!(renderer.front.is_some_and(|front| front < renderer.surfaces.len()));
+        }
+
+        // Setting the same size keeps the pool; a new size releases it.
+        renderer.update_drawable_size(drawable_size);
+        assert!(!renderer.surfaces.is_empty());
+        renderer.update_drawable_size(size(DevicePixels(32), DevicePixels(32)));
+        assert!(renderer.surfaces.is_empty());
+        assert_eq!(renderer.front, None);
+        assert!(renderer.can_draw());
     }
 }

@@ -1,11 +1,10 @@
-//! Frame pacing for macOS windows: each window is paced by a
-//! `CAMetalDisplayLink` on its layer ([`MetalFrameSource`]), which hands out
-//! the drawable each frame renders into.
+//! Frame pacing for macOS windows: each window is paced by its view's
+//! `CADisplayLink` ([`MetalFrameSource`]), which follows the display the
+//! window is on.
 
 use std::cell::Cell;
 use std::cell::RefCell;
 
-use objc2::AnyThread as _;
 use objc2::DefinedClass as _;
 use objc2::MainThreadMarker;
 use objc2::MainThreadOnly;
@@ -13,22 +12,20 @@ use objc2::Message as _;
 use objc2::define_class;
 use objc2::msg_send;
 use objc2::rc::Retained;
+use objc2::runtime::AnyObject;
 use objc2::runtime::NSObject;
 use objc2::runtime::NSObjectProtocol;
-use objc2::runtime::ProtocolObject;
+use objc2::sel;
 use objc2_foundation::NSRunLoop;
 use objc2_foundation::NSRunLoopCommonModes;
-use objc2_quartz_core::CAMetalDisplayLink;
-use objc2_quartz_core::CAMetalDisplayLinkDelegate;
-use objc2_quartz_core::CAMetalDisplayLinkUpdate;
-use objc2_quartz_core::CAMetalLayer;
+use objc2_quartz_core::CADisplayLink;
 
-/// A window's `CAMetalDisplayLink`, shared with GPUI's frame waker so that a
-/// wake reaches the current link without taking the window's lock.
+/// A window's display link, shared with GPUI's frame waker so that a wake
+/// reaches the current link without taking the window's lock.
 ///
 /// The link pauses after any update in which GPUI neither drew, presented,
-/// nor asked for another frame, so an idle window acquires no drawables. GPUI
-/// decides when frames are needed (including presenting after high-rate
+/// nor asked for another frame, so an idle window does no per-refresh work.
+/// GPUI decides when frames are needed (including presenting after high-rate
 /// input); this only stops the link between those decisions.
 #[derive(Default)]
 pub(crate) struct MetalFrames {
@@ -40,10 +37,6 @@ pub(crate) struct MetalFrames {
 impl MetalFrames {
     pub(crate) fn replace(&self, source: Option<MetalFrameSource>) {
         *self.source.borrow_mut() = source;
-    }
-
-    pub(crate) fn is_attached(&self) -> bool {
-        self.source.borrow().is_some()
     }
 
     pub(crate) fn wake(&self) {
@@ -60,10 +53,10 @@ impl MetalFrames {
         self.woken.set(false);
     }
 
-    /// Ends an update, pausing the link if GPUI neither used its drawable nor
-    /// asked for another frame while it ran. Returns whether it paused.
-    pub(crate) fn end_frame(&self, used_drawable: bool) -> bool {
-        let pause = !used_drawable && !self.woken.get();
+    /// Ends an update, pausing the link if GPUI neither showed a frame nor
+    /// asked for another while it ran. Returns whether it paused.
+    pub(crate) fn end_frame(&self, presented: bool) -> bool {
+        let pause = !presented && !self.woken.get();
         if pause && let Some(source) = self.source.borrow().as_ref() {
             source.set_paused(true);
         }
@@ -71,60 +64,53 @@ impl MetalFrames {
     }
 }
 
-struct MetalDisplayLinkDelegateIvars {
-    callback: Box<dyn Fn(&CAMetalDisplayLinkUpdate)>,
+struct DisplayLinkTargetIvars {
+    callback: Box<dyn Fn()>,
 }
 
 define_class!(
     // SAFETY: `NSObject` has no subclassing requirements.
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
-    #[ivars = MetalDisplayLinkDelegateIvars]
-    struct MetalDisplayLinkDelegate;
+    #[ivars = DisplayLinkTargetIvars]
+    struct DisplayLinkTarget;
 
-    unsafe impl NSObjectProtocol for MetalDisplayLinkDelegate {}
+    unsafe impl NSObjectProtocol for DisplayLinkTarget {}
 
-    unsafe impl CAMetalDisplayLinkDelegate for MetalDisplayLinkDelegate {
-        #[unsafe(method(metalDisplayLink:needsUpdate:))]
-        fn needs_update(&self, _link: &CAMetalDisplayLink, update: &CAMetalDisplayLinkUpdate) {
-            // The callback may destroy its frame source, releasing our owner's retain.
-            let delegate = self.retain();
-            (delegate.ivars().callback)(update);
+    impl DisplayLinkTarget {
+        #[unsafe(method(tick:))]
+        fn tick(&self, _link: &CADisplayLink) {
+            // The callback may destroy its frame source, releasing the link's retain.
+            let target = self.retain();
+            (target.ivars().callback)();
         }
     }
 );
 
-impl MetalDisplayLinkDelegate {
-    fn new(main_thread: MainThreadMarker, callback: impl Fn(&CAMetalDisplayLinkUpdate) + 'static) -> Retained<Self> {
-        let this = Self::alloc(main_thread).set_ivars(MetalDisplayLinkDelegateIvars { callback: Box::new(callback) });
+impl DisplayLinkTarget {
+    fn new(main_thread: MainThreadMarker, callback: impl Fn() + 'static) -> Retained<Self> {
+        let this = Self::alloc(main_thread).set_ivars(DisplayLinkTargetIvars { callback: Box::new(callback) });
         // SAFETY: `NSObject`'s `init` is its designated initializer.
         unsafe { msg_send![super(this), init] }
     }
 }
 
-/// A main-run-loop source of Metal drawables for one layer (macOS 14+).
+/// A main-run-loop source of frame callbacks for one view (macOS 14+).
 ///
-/// The link hands out each frame's drawable early enough for the frame to
-/// reach the display on time, where `nextDrawable` would wait for the
-/// compositor to release one. Callbacks run on the main run loop because GPUI
-/// renders on the foreground thread.
+/// Each callback targets the next refresh of the view's display. Callbacks
+/// run on the main run loop because GPUI renders on the foreground thread.
 pub(crate) struct MetalFrameSource {
-    link: Retained<CAMetalDisplayLink>,
-    // The link holds its delegate weakly.
-    _delegate: Retained<MetalDisplayLinkDelegate>,
+    link: Retained<CADisplayLink>,
     _main_thread: MainThreadMarker,
 }
 
 impl MetalFrameSource {
-    /// Starts delivering updates for `layer`.
-    pub(crate) fn new(
-        layer: &CAMetalLayer,
-        main_thread: MainThreadMarker,
-        callback: impl Fn(&CAMetalDisplayLinkUpdate) + 'static,
-    ) -> Self {
-        let delegate = MetalDisplayLinkDelegate::new(main_thread, callback);
-        let link = CAMetalDisplayLink::initWithMetalLayer(CAMetalDisplayLink::alloc(), layer);
-        link.setDelegate(Some(ProtocolObject::from_ref(&*delegate)));
+    /// Starts delivering updates for `view`, an `NSView`.
+    pub(crate) fn new(view: &AnyObject, main_thread: MainThreadMarker, callback: impl Fn() + 'static) -> Self {
+        let target = DisplayLinkTarget::new(main_thread, callback);
+        // SAFETY: `view` is an `NSView` and `tick:` takes the link.
+        let link: Retained<CADisplayLink> =
+            unsafe { msg_send![view, displayLinkWithTarget: &*target, selector: sel!(tick:)] };
         // The default frame rate range follows the display and system power
         // policy (Low Power Mode, thermal state), so it is left alone.
         // Common modes keep frames coming during live resize and other tracking loops.
@@ -133,10 +119,10 @@ impl MetalFrameSource {
         unsafe {
             link.addToRunLoop_forMode(&NSRunLoop::mainRunLoop(), NSRunLoopCommonModes);
         }
-        Self { link, _delegate: delegate, _main_thread: main_thread }
+        Self { link, _main_thread: main_thread }
     }
 
-    /// A paused link delivers no updates and acquires no drawables.
+    /// A paused link delivers no updates.
     pub(crate) fn set_paused(&self, paused: bool) {
         self.link.setPaused(paused);
     }
@@ -144,6 +130,7 @@ impl MetalFrameSource {
 
 impl Drop for MetalFrameSource {
     fn drop(&mut self) {
+        // The link retains its target until invalidated.
         self.link.invalidate();
     }
 }
@@ -155,10 +142,8 @@ mod tests {
     #[test]
     fn metal_frames_pause_only_when_gpui_neither_draws_nor_asks_again() {
         let frames = MetalFrames::default();
-        assert!(!frames.is_attached());
-
         frames.begin_frame();
-        assert!(!frames.end_frame(true), "a frame that drew keeps the link running");
+        assert!(!frames.end_frame(true), "a frame that was shown keeps the link running");
 
         frames.begin_frame();
         frames.wake();
