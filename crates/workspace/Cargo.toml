@@ -7,10 +7,10 @@ edition.workspace = true
 path = "src/workspace.rs"
 
 [dependencies]
+actions.workspace = true
 async_macos.workspace = true
 anyhow.workspace = true
 dirs.workspace = true
-ed_actions.workspace = true
 fs.workspace = true
 futures.workspace = true
 gpui.workspace = true
@@ -19,7 +19,6 @@ itertools.workspace = true
 language.workspace = true
 log.workspace = true
 markdown.workspace = true
-menu.workspace = true
 parking_lot.workspace = true
 paths.workspace = true
 project.workspace = true

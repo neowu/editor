@@ -1,13 +1,11 @@
 [package]
-name = "menu"
-version = "0.1.0"
+name = "actions"
+version.workspace = true
 edition.workspace = true
-
-[lib]
-path = "src/menu.rs"
 
 [dependencies]
 gpui.workspace = true
+serde.workspace = true
 
 [lints]
 workspace = true

@@ -11,11 +11,12 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
+use actions::command_palette::Toggle;
+use actions::editor::RevealInFileManager;
+use actions::menu;
+use actions::workspace::CopyPath;
+use actions::workspace::CopyRelativePath;
 use anyhow::Result;
-use ed_actions::command_palette::Toggle;
-use ed_actions::editor::RevealInFileManager;
-use ed_actions::workspace::CopyPath;
-use ed_actions::workspace::CopyRelativePath;
 use gpui::Action;
 use gpui::AnyElement;
 use gpui::AnyView;

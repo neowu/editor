@@ -7,8 +7,8 @@ mod registrar;
 use std::any::TypeId;
 use std::sync::Arc;
 
-use ed_actions::workspace::CopyPath;
-use ed_actions::workspace::CopyRelativePath;
+use actions::workspace::CopyPath;
+use actions::workspace::CopyRelativePath;
 use editor::DiffStyleControls;
 use editor::Editor;
 use editor::MultiBufferOffset;
@@ -115,11 +115,11 @@ use crate::search_bar::should_navigate_history;
 
 const MAX_BUFFER_SEARCH_HISTORY_SIZE: usize = 50;
 
-pub use ed_actions::buffer_search::Deploy;
-pub use ed_actions::buffer_search::DeployReplace;
-pub use ed_actions::buffer_search::Dismiss;
-pub use ed_actions::buffer_search::FocusEditor;
-pub use ed_actions::buffer_search::UseSelectionForFind;
+pub use actions::buffer_search::Deploy;
+pub use actions::buffer_search::DeployReplace;
+pub use actions::buffer_search::Dismiss;
+pub use actions::buffer_search::FocusEditor;
+pub use actions::buffer_search::UseSelectionForFind;
 
 pub enum Event {
     UpdateLocation,

@@ -1,5 +1,6 @@
+use actions::menu;
+use actions::project_panel::ToggleFocus;
 use diagnostics::items::DiagnosticIndicator;
-use ed_actions::project_panel::ToggleFocus;
 use go_to_line::cursor_position::CursorPosition;
 use search::search_status_button::SearchButton;
 use ui::font;
@@ -18,11 +19,11 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use actions::About;
+use actions::OpenBrowser;
+use actions::Quit;
 use anyhow::Context as _;
 use app_menus::app_menus;
-use ed_actions::About;
-use ed_actions::OpenBrowser;
-use ed_actions::Quit;
 use editor::Editor;
 use editor::MultiBuffer;
 use git_ui::branch_diff::BranchDiffToolbar;
@@ -353,25 +354,25 @@ fn register_actions(app_state: Arc<AppState>, workspace: &mut Workspace, _: &mut
                 cx,
             );
         })
-        .register_action(|_, _: &ed_actions::IncreaseUiFontSize, _window, cx| {
+        .register_action(|_, _: &actions::IncreaseUiFontSize, _window, cx| {
             font::adjust_ui_font_size(cx, |size| size + px(1.0));
         })
-        .register_action(|_, _: &ed_actions::DecreaseUiFontSize, _window, cx| {
+        .register_action(|_, _: &actions::DecreaseUiFontSize, _window, cx| {
             font::adjust_ui_font_size(cx, |size| size - px(1.0));
         })
-        .register_action(|_, _: &ed_actions::ResetUiFontSize, _window, cx| {
+        .register_action(|_, _: &actions::ResetUiFontSize, _window, cx| {
             font::reset_ui_font_size(cx);
         })
-        .register_action(|_, _: &ed_actions::IncreaseBufferFontSize, _window, cx| {
+        .register_action(|_, _: &actions::IncreaseBufferFontSize, _window, cx| {
             font::adjust_buffer_font_size(cx, |size| size + px(1.0));
         })
-        .register_action(|_, _: &ed_actions::DecreaseBufferFontSize, _window, cx| {
+        .register_action(|_, _: &actions::DecreaseBufferFontSize, _window, cx| {
             font::adjust_buffer_font_size(cx, |size| size - px(1.0));
         })
-        .register_action(|_, _: &ed_actions::ResetBufferFontSize, _window, cx| {
+        .register_action(|_, _: &actions::ResetBufferFontSize, _window, cx| {
             font::reset_buffer_font_size(cx);
         })
-        .register_action(|_, _: &ed_actions::ResetAllZoom, _window, cx| {
+        .register_action(|_, _: &actions::ResetAllZoom, _window, cx| {
             font::reset_ui_font_size(cx);
             font::reset_buffer_font_size(cx);
         })

@@ -1,7 +1,7 @@
-use ed_actions::Quit;
-use ed_actions::command_palette;
-use ed_actions::git_panel;
-use ed_actions::project_panel;
+use ::actions::Quit;
+use ::actions::command_palette;
+use ::actions::git_panel;
+use ::actions::project_panel;
 use editor::actions;
 use gpui::App;
 use gpui::Menu;
@@ -12,10 +12,10 @@ use terminal_view::terminal_panel;
 
 pub(super) fn app_menus(_cx: &mut App) -> Vec<Menu> {
     let mut view_items = vec![
-        MenuItem::action("Zoom In", ed_actions::IncreaseBufferFontSize),
-        MenuItem::action("Zoom Out", ed_actions::DecreaseBufferFontSize),
-        MenuItem::action("Reset Zoom", ed_actions::ResetBufferFontSize),
-        MenuItem::action("Reset All Zoom", ed_actions::ResetAllZoom),
+        MenuItem::action("Zoom In", ::actions::IncreaseBufferFontSize),
+        MenuItem::action("Zoom Out", ::actions::DecreaseBufferFontSize),
+        MenuItem::action("Reset Zoom", ::actions::ResetBufferFontSize),
+        MenuItem::action("Reset All Zoom", ::actions::ResetAllZoom),
         MenuItem::separator(),
         MenuItem::action("Cycle Left Dock", workspace::CycleLeftDock),
         MenuItem::action("Cycle Right Dock", workspace::CycleRightDock),
@@ -51,7 +51,7 @@ pub(super) fn app_menus(_cx: &mut App) -> Vec<Menu> {
             name: "ed".into(),
             disabled: false,
             items: vec![
-                MenuItem::action("About ed", ed_actions::About),
+                MenuItem::action("About ed", ::actions::About),
                 MenuItem::separator(),
                 MenuItem::os_submenu("Services", gpui::SystemMenuType::Services),
                 MenuItem::separator(),
@@ -70,7 +70,7 @@ pub(super) fn app_menus(_cx: &mut App) -> Vec<Menu> {
                 MenuItem::action("New Window", workspace::NewWindow),
                 MenuItem::separator(),
                 MenuItem::action("Open…", workspace::Open::default()),
-                MenuItem::action("Open Recent…", ed_actions::OpenRecent::default()),
+                MenuItem::action("Open Recent…", ::actions::OpenRecent::default()),
                 MenuItem::separator(),
                 MenuItem::action("Add Folder to Project…", workspace::AddFolderToProject),
                 MenuItem::separator(),

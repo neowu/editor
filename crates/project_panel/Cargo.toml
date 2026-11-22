@@ -7,8 +7,8 @@ edition.workspace = true
 path = "src/project_panel.rs"
 
 [dependencies]
+actions.workspace = true
 anyhow.workspace = true
-ed_actions.workspace = true
 editor.workspace = true
 file_icons.workspace = true
 fs.workspace = true
@@ -22,7 +22,6 @@ language.workspace = true
 log.workspace = true
 markdown.workspace = true
 markdown_preview.workspace = true
-menu.workspace = true
 notifications.workspace = true
 project.workspace = true
 rustc-hash.workspace = true

@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use ed_actions::workspace::CopyPath;
-use ed_actions::workspace::CopyRelativePath;
+use ::actions::workspace::CopyPath;
+use ::actions::workspace::CopyRelativePath;
 use file_icons::FileIcons;
 use git::status::FileStatus;
 use gpui::Action as _;

@@ -7,7 +7,7 @@ edition.workspace = true
 path = "src/notifications.rs"
 
 [dependencies]
-ed_actions.workspace = true
+actions.workspace = true
 gpui.workspace = true
 ui.workspace = true
 workspace.workspace = true

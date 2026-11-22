@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
 
+use actions::menu;
 use anyhow::Context as _;
 use gpui::AnyView;
 use gpui::App;
@@ -455,6 +456,7 @@ pub mod simple_message_notification {
     use std::time::Duration;
     use std::time::Instant;
 
+    use actions::menu;
     use gpui::AnyElement;
     use gpui::DismissEvent;
     use gpui::EventEmitter;

@@ -2,6 +2,7 @@ use core::cmp;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use actions::menu;
 use futures::channel::oneshot;
 use fuzzy::StringMatch;
 use fuzzy::StringMatchCandidate;

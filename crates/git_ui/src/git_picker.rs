@@ -2,10 +2,11 @@ use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use ed_actions::git::Branch;
-use ed_actions::git::CheckoutBranch;
-use ed_actions::git::Switch;
-use ed_actions::git::ViewStash;
+use actions::git::Branch;
+use actions::git::CheckoutBranch;
+use actions::git::Switch;
+use actions::git::ViewStash;
+use actions::menu;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Context;

@@ -1,7 +1,8 @@
 use std::time::Duration;
 
+use actions::git::Worktree;
+use actions::menu;
 use anyhow::anyhow;
-use ed_actions::git::Worktree;
 use editor::Editor;
 use editor::actions::DiffClipboardWithSelectionData;
 use git_ui_core::worktree_picker::WorktreePicker;
@@ -12,6 +13,8 @@ use workspace::notifications::NotificationId;
 mod blame_ui;
 pub mod clone;
 
+use actions::menu::Cancel;
+use actions::menu::Confirm;
 use git::Oid;
 use git::repository::Branch;
 use git::repository::CommitDetails;
@@ -35,8 +38,6 @@ use gpui::Task;
 use gpui::TaskExt as _;
 use gpui::WeakEntity;
 use gpui::Window;
-use menu::Cancel;
-use menu::Confirm;
 use notifications::status_toast::StatusToast;
 use project::git_store::Repository;
 use project_diff::ProjectDiff;
@@ -159,10 +160,10 @@ pub fn init(cx: &mut App) {
         git_panel::register(workspace);
         git_picker::register(workspace);
 
-        workspace.register_action(|workspace, action: &ed_actions::CreateWorktree, window, cx| {
+        workspace.register_action(|workspace, action: &actions::CreateWorktree, window, cx| {
             worktree_service::handle_create_worktree(workspace, action, window, None, cx);
         });
-        workspace.register_action(|workspace, action: &ed_actions::SwitchWorktree, window, cx| {
+        workspace.register_action(|workspace, action: &actions::SwitchWorktree, window, cx| {
             worktree_service::handle_switch_worktree(workspace, action, window, None, cx);
         });
 
@@ -175,7 +176,7 @@ pub fn init(cx: &mut App) {
             });
         });
 
-        workspace.register_action(|workspace, action: &ed_actions::OpenWorktreeInNewWindow, window, cx| {
+        workspace.register_action(|workspace, action: &actions::OpenWorktreeInNewWindow, window, cx| {
             let path = action.path.clone();
             workspace.open_workspace_for_paths(OpenMode::NewWindow, vec![path], window, cx).detach_and_log_err(cx);
         });

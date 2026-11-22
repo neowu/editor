@@ -1,9 +1,9 @@
-use ed_actions::git_panel::ToggleFocus;
+use actions::git_panel::ToggleFocus;
+use actions::menu;
 use git::repository::RepoPath;
 use gpui::Entity;
 use gpui::ScrollStrategy;
 use itertools::Itertools as _;
-use menu;
 use project::ProjectPath;
 use project::git_store::Repository;
 use rustc_hash::FxHashSet;

@@ -12,7 +12,9 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::vec::IntoIter;
 
-use ed_actions::search::NewSearchInDirectory;
+use actions::menu;
+use actions::menu::Confirm;
+use actions::search::NewSearchInDirectory;
 use editor::Anchor;
 use editor::EXCERPT_CONTEXT_LINES;
 use editor::Editor;
@@ -64,7 +66,6 @@ use gpui::actions;
 use gpui::div;
 use itertools::Itertools as _;
 use language::Buffer;
-use menu::Confirm;
 use multi_buffer;
 use project::Project;
 use project::ProjectPath;

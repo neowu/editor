@@ -150,7 +150,7 @@ or UNC prefixes. There is no path-style abstraction; code uses
   open-URL prompt or `OpenZedUrl` action, and terminal links don't match
   `zed://`. The app only accepts paths and `file://` URLs.
   Dock-menu items dispatch their actions directly through AppKit, not via URLs.
-- Branding is `ed` everywhere (crates `ed`/`ed_actions`, UI text,
+- Branding is `ed` everywhere (crates `ed`/`actions`, UI text,
   `TERM_PROGRAM=ed`, pasteboard types).
   Environment variables use the `ED_` prefix (task variables like `$ED_FILE`,
   `ED_WINDOW_SIZE`, ...) and the project folder is `.ed`; upstream

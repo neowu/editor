@@ -3,6 +3,8 @@ use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
 
+use actions::menu::SelectNext;
+use actions::menu::SelectPrevious;
 use editor::Anchor;
 use editor::Editor;
 use editor::HighlightKey;
@@ -43,8 +45,6 @@ use gpui::uniform_list;
 use language::BufferId;
 use language::Point;
 use language::ToOffset as _;
-use menu::SelectNext;
-use menu::SelectPrevious;
 use theme::ActiveTheme as _;
 use theme::SyntaxTheme;
 use ui::ButtonLike;

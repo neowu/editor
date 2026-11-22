@@ -6,7 +6,8 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use ed_actions::command_palette::Toggle;
+use actions::command_palette::Toggle;
+use actions::menu;
 use fuzzy::StringMatch;
 use fuzzy::StringMatchCandidate;
 use gpui::Action;

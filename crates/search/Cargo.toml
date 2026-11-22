@@ -7,10 +7,10 @@ edition.workspace = true
 path = "src/search.rs"
 
 [dependencies]
+actions.workspace = true
 async_macos.workspace = true
 anyhow.workspace = true
 bitflags.workspace = true
-ed_actions.workspace = true
 editor.workspace = true
 file_icons.workspace = true
 futures.workspace = true
@@ -18,7 +18,6 @@ gpui.workspace = true
 itertools.workspace = true
 language.workspace = true
 log.workspace = true
-menu.workspace = true
 multi_buffer.workspace = true
 picker.workspace = true
 project.workspace = true

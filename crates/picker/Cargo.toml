@@ -7,11 +7,10 @@ edition.workspace = true
 path = "src/picker.rs"
 
 [dependencies]
+actions.workspace = true
 anyhow.workspace = true
-ed_actions.workspace = true
 gpui.workspace = true
 language.workspace = true
-menu.workspace = true
 project.workspace = true
 serde.workspace = true
 ui.workspace = true

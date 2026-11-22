@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use ed_actions::toast;
+use actions::toast;
 use gpui::AppContext as _;
 use gpui::DismissEvent;
 use gpui::Entity;

@@ -7,11 +7,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+use actions::DecreaseBufferFontSize;
+use actions::IncreaseBufferFontSize;
+use actions::ResetBufferFontSize;
 use anyhow::Context as _;
 use anyhow::Result;
-use ed_actions::DecreaseBufferFontSize;
-use ed_actions::IncreaseBufferFontSize;
-use ed_actions::ResetBufferFontSize;
 use editor::Editor;
 use editor::EditorEvent;
 use editor::MAX_TAB_TITLE_LEN;

@@ -1,4 +1,4 @@
-use ed_actions::dev::OpenKeyContextView;
+use actions::dev::OpenKeyContextView;
 use gpui::Action;
 use gpui::App;
 use gpui::AppContext as _;

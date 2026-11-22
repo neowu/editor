@@ -6,6 +6,7 @@ use std::iter;
 use std::ops::Range;
 use std::sync::Arc;
 
+use actions::menu::SelectLast;
 use anyhow::Result;
 use editor::MultiBufferOffset;
 use fs::TrashId;
@@ -14,7 +15,6 @@ use gpui::PromptLevel;
 use gpui::Task;
 use gpui::TaskExt as _;
 use gpui::Window;
-use menu::SelectLast;
 use notifications::status_toast::StatusToast;
 use project::ProjectPath;
 use project::WorktreeId;

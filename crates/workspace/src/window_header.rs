@@ -4,9 +4,9 @@
 //! the start of the top-left tab bar. Above a sidebar narrower than the header,
 //! the header overhangs it and the top-left tab bar starts after the header.
 
-use ed_actions::mode::Editor;
-use ed_actions::mode::GitHistory;
-use ed_actions::mode::Terminal;
+use actions::mode::Editor;
+use actions::mode::GitHistory;
+use actions::mode::Terminal;
 use gpui::AnyElement;
 use gpui::App;
 use gpui::Context;

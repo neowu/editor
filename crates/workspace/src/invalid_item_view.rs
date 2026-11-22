@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use ed_actions::workspace::OpenWithSystem;
+use actions::workspace::OpenWithSystem;
 use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;

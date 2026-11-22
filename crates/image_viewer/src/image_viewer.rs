@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use actions::menu;
 use workspace::item::ItemBufferKind;
 use workspace::item::ItemEvent;
 mod image_info;

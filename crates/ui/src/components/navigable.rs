@@ -1,3 +1,4 @@
+use actions::menu;
 use gpui::AnyElement;
 use gpui::FocusHandle;
 use gpui::ScrollAnchor;

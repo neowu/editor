@@ -6,9 +6,10 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
+use actions::editor::MoveDown;
+use actions::editor::MoveUp;
+use actions::menu;
 use anyhow::Result;
-use ed_actions::editor::MoveDown;
-use ed_actions::editor::MoveUp;
 use gpui::Action;
 use gpui::AnyElement;
 use gpui::App;

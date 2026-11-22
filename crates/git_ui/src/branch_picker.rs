@@ -2,6 +2,7 @@ use core::cmp;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use actions::menu;
 use editor::Editor;
 use fuzzy::StringMatchCandidate;
 use git::repository::Branch;
@@ -107,16 +108,11 @@ actions!(
     ]
 );
 
-pub fn switch(
-    workspace: &mut Workspace,
-    _: &ed_actions::git::Switch,
-    window: &mut Window,
-    cx: &mut Context<Workspace>,
-) {
-    open(workspace, &ed_actions::git::Branch, window, cx);
+pub fn switch(workspace: &mut Workspace, _: &actions::git::Switch, window: &mut Window, cx: &mut Context<Workspace>) {
+    open(workspace, &actions::git::Branch, window, cx);
 }
 
-pub fn open(workspace: &mut Workspace, _: &ed_actions::git::Branch, window: &mut Window, cx: &mut Context<Workspace>) {
+pub fn open(workspace: &mut Workspace, _: &actions::git::Branch, window: &mut Window, cx: &mut Context<Workspace>) {
     let workspace_handle = workspace.weak_handle();
     let repository = workspace.project().read(cx).active_repository(cx);
 

@@ -4,8 +4,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use ed_actions::OpenRecent;
-use ed_actions::git_graph::Open;
+use actions::OpenRecent;
+use actions::git_graph::Open;
+use actions::menu;
 use fs::Fs;
 use fuzzy::StringMatch;
 use fuzzy::StringMatchCandidate;

@@ -8,6 +8,7 @@ version = "2.2.0"
 edition = "2024"
 
 [workspace.dependencies]
+actions = { path = "crates/actions" }
 activity_indicator = { path = "crates/activity_indicator" }
 assets = { path = "crates/assets" }
 async_macos = { path = "crates/async_macos" }
@@ -17,7 +18,6 @@ command_palette = { path = "crates/command_palette" }
 control = { path = "crates/control" }
 derive_refineable = { path = "crates/refineable/derive_refineable" }
 diagnostics = { path = "crates/diagnostics" }
-ed_actions = { path = "crates/ed_actions" }
 editor = { path = "crates/editor" }
 encoding_selector = { path = "crates/encoding_selector" }
 file_content = { path = "crates/file_content" }
@@ -47,7 +47,6 @@ lsp_locations = { path = "crates/lsp_locations" }
 lsp_types = { path = "crates/lsp_types" }
 markdown = { path = "crates/markdown" }
 markdown_preview = { path = "crates/markdown_preview" }
-menu = { path = "crates/menu" }
 mermaid = { path = "crates/mermaid" }
 multi_buffer = { path = "crates/multi_buffer" }
 notifications = { path = "crates/notifications" }

@@ -212,8 +212,7 @@ fn main() {
     });
 
     app.run(move |cx| {
-        menu::init();
-        ed_actions::init();
+        actions::init();
 
         initialize_keymap(cx);
 

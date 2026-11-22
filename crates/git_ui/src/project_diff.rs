@@ -2,10 +2,10 @@ use std::any::Any;
 use std::any::TypeId;
 use std::sync::Arc;
 
+use actions::git as git_actions;
 use anyhow::Context as _;
 use anyhow::Result;
 use buffer_diff::DiffHunkSecondaryStatus;
-use ed_actions::git as git_actions;
 use editor::DefaultDiffHunkRenderer;
 use editor::Editor;
 use editor::EditorEvent;

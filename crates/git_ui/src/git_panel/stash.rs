@@ -1,3 +1,4 @@
+use actions::menu;
 use editor::Editor;
 use git::StashAll;
 use git::StashApply;
@@ -11,7 +12,6 @@ use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::WeakEntity;
-use menu;
 use ui::prelude::App;
 use ui::prelude::Context;
 use ui::prelude::Headline;

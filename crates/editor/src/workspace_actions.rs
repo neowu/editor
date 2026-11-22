@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+use ::actions::editor::RevealInFileManager;
+use ::actions::workspace::CopyPath;
+use ::actions::workspace::CopyRelativePath;
 use anyhow::Result;
-use ed_actions::editor::RevealInFileManager;
-use ed_actions::workspace::CopyPath;
-use ed_actions::workspace::CopyRelativePath;
 use gpui::Action as _;
 use gpui::App;
 use gpui::AppContext as _;

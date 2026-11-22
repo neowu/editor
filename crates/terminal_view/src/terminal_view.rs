@@ -1,3 +1,4 @@
+use actions::menu;
 use workspace::item::ItemBufferKind;
 pub mod terminal_element;
 mod terminal_mode;

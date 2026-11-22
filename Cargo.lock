@@ -3,6 +3,14 @@
 version = 4
 
 [[package]]
+name = "actions"
+version = "2.2.0"
+dependencies = [
+ "gpui",
+ "serde",
+]
+
+[[package]]
 name = "activity_indicator"
 version = "0.1.0"
 dependencies = [
@@ -465,11 +473,10 @@ checksum = "1d07550c9036bf2ae0c684c4297d503f838287c83c53686d05370d0e139ae570"
 name = "command_palette"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "async-channel",
- "ed_actions",
  "fuzzy",
  "gpui",
- "menu",
  "picker",
  "ui",
  "util",
@@ -724,6 +731,7 @@ dependencies = [
 name = "ed"
 version = "2.2.0"
 dependencies = [
+ "actions",
  "activity_indicator",
  "anyhow",
  "assets",
@@ -732,7 +740,6 @@ dependencies = [
  "command_palette",
  "control",
  "diagnostics",
- "ed_actions",
  "editor",
  "encoding_selector",
  "finder",
@@ -753,7 +760,6 @@ dependencies = [
  "lsp_command_selector",
  "lsp_locations",
  "markdown_preview",
- "menu",
  "mimalloc",
  "outline_panel",
  "paths",
@@ -776,17 +782,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "ed_actions"
-version = "2.2.0"
-dependencies = [
- "gpui",
- "serde",
-]
-
-[[package]]
 name = "editor"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "aho-corasick",
  "anyhow",
  "async_macos",
@@ -794,7 +793,6 @@ dependencies = [
  "buffer_diff",
  "clock",
  "convert_case 0.12.0",
- "ed_actions",
  "emojis",
  "file_icons",
  "futures",
@@ -991,15 +989,14 @@ checksum = "1c66915cc5391097de7a2b0b972e8505aa33c0df401fd3a6811dbdb32881ba48"
 name = "finder"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
- "ed_actions",
  "editor",
  "file_icons",
  "futures",
  "fuzzy",
  "gpui",
  "language",
- "menu",
  "open_path_prompt",
  "ordered-float",
  "picker",
@@ -1284,12 +1281,12 @@ dependencies = [
 name = "git_ui"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
  "async-channel",
  "async_macos",
  "buffer_diff",
  "clock",
- "ed_actions",
  "editor",
  "file_icons",
  "futures",
@@ -1303,7 +1300,6 @@ dependencies = [
  "log",
  "lsp",
  "markdown",
- "menu",
  "multi_buffer",
  "notifications",
  "picker",
@@ -1328,9 +1324,9 @@ dependencies = [
 name = "git_ui_core"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
  "buffer_diff",
- "ed_actions",
  "editor",
  "fs",
  "futures",
@@ -1339,7 +1335,6 @@ dependencies = [
  "gpui",
  "language",
  "log",
- "menu",
  "notifications",
  "picker",
  "project",
@@ -1369,10 +1364,10 @@ dependencies = [
 name = "go_to_line"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "editor",
  "gpui",
  "language",
- "menu",
  "text",
  "theme",
  "ui",
@@ -1727,12 +1722,12 @@ dependencies = [
 name = "image_viewer"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
  "editor",
  "file_icons",
  "gpui",
  "language",
- "menu",
  "project",
  "serde",
  "serde_json",
@@ -1942,14 +1937,13 @@ dependencies = [
 name = "language_tools"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
- "ed_actions",
  "editor",
  "gpui",
  "itertools",
  "language",
  "lsp",
- "menu",
  "path",
  "project",
  "rustc-hash",
@@ -2257,8 +2251,8 @@ dependencies = [
 name = "markdown_preview"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
- "ed_actions",
  "editor",
  "gpui",
  "language",
@@ -2290,13 +2284,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b0ca1155a9ecc25aa12e8313a119f32edf0255fea2f44839c4ac0a12b2ac157"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "menu"
-version = "0.1.0"
-dependencies = [
- "gpui",
 ]
 
 [[package]]
@@ -2411,7 +2398,7 @@ dependencies = [
 name = "notifications"
 version = "0.1.0"
 dependencies = [
- "ed_actions",
+ "actions",
  "gpui",
  "ui",
  "workspace",
@@ -2654,9 +2641,9 @@ dependencies = [
 name = "outline_panel"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
  "async-channel",
- "ed_actions",
  "editor",
  "file_icons",
  "fuzzy",
@@ -2665,7 +2652,6 @@ dependencies = [
  "indexmap",
  "language",
  "log",
- "menu",
  "project",
  "rustc-hash",
  "search",
@@ -2772,11 +2758,10 @@ dependencies = [
 name = "picker"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
- "ed_actions",
  "gpui",
  "language",
- "menu",
  "project",
  "serde",
  "ui",
@@ -2969,8 +2954,8 @@ dependencies = [
 name = "project_panel"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
- "ed_actions",
  "editor",
  "file_icons",
  "fs",
@@ -2984,7 +2969,6 @@ dependencies = [
  "log",
  "markdown",
  "markdown_preview",
- "menu",
  "notifications",
  "project",
  "rustc-hash",
@@ -3076,11 +3060,10 @@ dependencies = [
 name = "recent_projects"
 version = "0.1.0"
 dependencies = [
- "ed_actions",
+ "actions",
  "fs",
  "fuzzy",
  "gpui",
- "menu",
  "picker",
  "project",
  "ui",
@@ -3313,10 +3296,10 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 name = "search"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
  "async_macos",
  "bitflags",
- "ed_actions",
  "editor",
  "file_icons",
  "futures",
@@ -3324,7 +3307,6 @@ dependencies = [
  "itertools",
  "language",
  "log",
- "menu",
  "multi_buffer",
  "picker",
  "project",
@@ -3762,6 +3744,7 @@ dependencies = [
 name = "terminal_view"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
  "dirs 7.0.0",
  "editor",
@@ -3770,7 +3753,6 @@ dependencies = [
  "itertools",
  "language",
  "log",
- "menu",
  "project",
  "regex",
  "rustc-hash",
@@ -3914,7 +3896,7 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 name = "title_bar"
 version = "0.1.0"
 dependencies = [
- "ed_actions",
+ "actions",
  "git",
  "git_ui_core",
  "gpui",
@@ -4151,12 +4133,12 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 name = "ui"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "gpui",
  "gpui_util",
  "icons",
  "itertools",
  "log",
- "menu",
  "serde",
  "smallvec",
  "strum",
@@ -4656,10 +4638,10 @@ dependencies = [
 name = "workspace"
 version = "0.1.0"
 dependencies = [
+ "actions",
  "anyhow",
  "async_macos",
  "dirs 7.0.0",
- "ed_actions",
  "fs",
  "futures",
  "gpui",
@@ -4668,7 +4650,6 @@ dependencies = [
  "language",
  "log",
  "markdown",
- "menu",
  "parking_lot 0.13.0",
  "paths",
  "project",

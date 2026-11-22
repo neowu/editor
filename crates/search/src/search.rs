@@ -1,10 +1,10 @@
+pub use actions::search::FocusSearch;
+pub use actions::search::SelectNextMatch;
+pub use actions::search::SelectPreviousMatch;
+pub use actions::search::ToggleCaseSensitive;
+pub use actions::search::ToggleIncludeIgnored;
 use bitflags::bitflags;
 pub use buffer_search::BufferSearchBar;
-pub use ed_actions::search::FocusSearch;
-pub use ed_actions::search::SelectNextMatch;
-pub use ed_actions::search::SelectPreviousMatch;
-pub use ed_actions::search::ToggleCaseSensitive;
-pub use ed_actions::search::ToggleIncludeIgnored;
 pub use editor::HighlightKey;
 use gpui::Action;
 use gpui::App;
@@ -35,7 +35,6 @@ pub mod search_status_button;
 pub mod text_finder;
 
 pub fn init(cx: &mut App) {
-    menu::init();
     buffer_search::init(cx);
     project_search::init(cx);
     text_finder::init(cx);

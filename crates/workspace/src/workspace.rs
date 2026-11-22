@@ -1,8 +1,9 @@
 use std::mem;
 use std::sync::atomic::Ordering;
 
-use ed_actions::mode::Editor;
-use ed_actions::mode::Terminal;
+use actions::menu;
+use actions::mode::Editor;
+use actions::mode::Terminal;
 use ui::font;
 pub mod dock;
 mod docks;
@@ -2814,8 +2815,8 @@ fn hidden_by_zoom(zoomed: bool, zoomed_position: Option<DockPosition>, position:
 
 #[cfg(test)]
 mod tests {
-    use ed_actions::mode::Editor;
-    use ed_actions::mode::GitHistory;
+    use actions::mode::Editor;
+    use actions::mode::GitHistory;
 
     use super::WorkspaceMode;
 

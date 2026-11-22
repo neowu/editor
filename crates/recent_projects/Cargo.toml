@@ -7,11 +7,10 @@ edition.workspace = true
 path = "src/recent_projects.rs"
 
 [dependencies]
-ed_actions.workspace = true
+actions.workspace = true
 fs.workspace = true
 fuzzy.workspace = true
 gpui.workspace = true
-menu.workspace = true
 picker.workspace = true
 project.workspace = true
 ui.workspace = true

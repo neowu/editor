@@ -345,3 +345,34 @@ pub mod git_panel {
         ]
     );
 }
+
+pub mod menu {
+    use gpui::actions;
+
+    actions!(
+        menu,
+        [
+            /// Cancels the current menu operation.
+            Cancel,
+            /// Confirms the selected menu item.
+            Confirm,
+            /// Performs secondary confirmation action.
+            SecondaryConfirm,
+            /// Selects the previous item in the menu.
+            SelectPrevious,
+            /// Selects the next item in the menu.
+            SelectNext,
+            /// Selects the first item in the menu.
+            SelectFirst,
+            /// Selects the last item in the menu.
+            SelectLast,
+            /// Enters a submenu (navigates to child menu).
+            SelectChild,
+            /// Exits a submenu (navigates to parent menu).
+            SelectParent,
+            /// Restarts the menu from the beginning.
+            Restart,
+            EndSlot,
+        ]
+    );
+}

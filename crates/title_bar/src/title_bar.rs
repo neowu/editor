@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
 
-use ed_actions::git::SelectRepo;
+use actions::git::SelectRepo;
 use project::git_store::Repository;
 mod application_menu;
 mod worktree_branch;
@@ -271,7 +271,7 @@ impl TitleBar {
                     .when(!is_project_selected, |s| s.color(Color::Muted)),
                 move |_window, cx| {
                     let title = if has_choices { "Switch Folder" } else { "Recent Projects" };
-                    Tooltip::for_action(title, &ed_actions::OpenRecent::default(), cx)
+                    Tooltip::for_action(title, &actions::OpenRecent::default(), cx)
                 },
             )
             .anchor(gpui::Anchor::TopLeft)

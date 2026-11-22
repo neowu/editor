@@ -1,3 +1,4 @@
+use actions::menu;
 use editor::actions::ToggleGoToLine;
 pub mod cursor_position;
 

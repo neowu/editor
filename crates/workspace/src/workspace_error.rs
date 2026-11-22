@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use ed_actions::OpenBrowser;
+use actions::OpenBrowser;
 use gpui::Action;
 use gpui::SharedString;
 use ui::IconName;

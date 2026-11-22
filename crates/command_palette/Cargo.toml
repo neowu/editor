@@ -7,11 +7,10 @@ edition.workspace = true
 path = "src/command_palette.rs"
 
 [dependencies]
+actions.workspace = true
 async-channel.workspace = true
-ed_actions.workspace = true
 fuzzy.workspace = true
 gpui.workspace = true
-menu.workspace = true
 picker.workspace = true
 ui.workspace = true
 util.workspace = true

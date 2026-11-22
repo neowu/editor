@@ -11,7 +11,8 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use ed_actions::search::ToggleIncludeIgnored;
+use actions::menu;
+use actions::search::ToggleIncludeIgnored;
 use editor::Editor;
 use file_icons::FileIcons;
 use futures::future::join_all;

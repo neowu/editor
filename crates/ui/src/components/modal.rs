@@ -1,3 +1,4 @@
+use actions::menu;
 use gpui::Action as _;
 use gpui::AnyElement;
 use gpui::App;

@@ -5,6 +5,13 @@ use std::rc::Rc;
 use std::time::Duration;
 use std::time::Instant;
 
+use actions::menu;
+use actions::menu::SelectChild;
+use actions::menu::SelectFirst;
+use actions::menu::SelectLast;
+use actions::menu::SelectNext;
+use actions::menu::SelectParent;
+use actions::menu::SelectPrevious;
 use gpui::Action;
 use gpui::Anchor;
 use gpui::AnchoredPositionMode;
@@ -39,12 +46,6 @@ use gpui::prelude::StatefulInteractiveElement as _;
 use gpui::prelude::Styled as _;
 use gpui::px;
 use gpui::relative;
-use menu::SelectChild;
-use menu::SelectFirst;
-use menu::SelectLast;
-use menu::SelectNext;
-use menu::SelectParent;
-use menu::SelectPrevious;
 use theme::built_in::BUFFER_LINE_HEIGHT;
 
 use crate::KeyBinding;

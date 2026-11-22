@@ -2,7 +2,8 @@ use core::cmp;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use ed_actions::git::ViewStash;
+use actions::git::ViewStash;
+use actions::menu;
 use fuzzy::StringMatchCandidate;
 use git::stash::StashEntry;
 use gpui::Action as _;

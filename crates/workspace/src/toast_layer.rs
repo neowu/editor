@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::time::Duration;
 use std::time::Instant;
 
-use ed_actions::toast;
+use actions::toast;
 use gpui::AnyView;
 use gpui::DismissEvent;
 use gpui::Entity;
