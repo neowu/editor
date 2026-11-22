@@ -2,7 +2,6 @@ use std::ffi::OsStr;
 
 use actions::git::SelectRepo;
 use project::git_store::Repository;
-mod application_menu;
 mod worktree_branch;
 
 use std::path::Path;
@@ -36,7 +35,6 @@ use ui::prelude::SharedString;
 use ui::prelude::h_flex;
 use workspace::Workspace;
 
-use crate::application_menu::ApplicationMenu;
 use crate::worktree_branch::header_text_button;
 
 const MAX_PROJECT_NAME_LENGTH: usize = 40;
@@ -64,7 +62,7 @@ pub fn init(cx: &mut App) {
         let Some(window) = window else {
             return;
         };
-        let item = cx.new(|cx| TitleBar::new(workspace, window, cx));
+        let item = cx.new(|cx| TitleBar::new(workspace, cx));
         // The project menu is the only folder and repository switcher.
         let title_bar = item.downgrade();
         workspace.register_action(move |_, _: &ToggleProjectMenu, window, cx| {
@@ -93,22 +91,17 @@ pub struct TitleBar {
     project: Entity<Project>,
 
     workspace: WeakEntity<Workspace>,
-    application_menu: Option<Entity<ApplicationMenu>>,
     project_menu_handle: PopoverMenuHandle<recent_projects::RecentProjects>,
     _subscriptions: Vec<Subscription>,
 }
 
 impl Render for TitleBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let show_project_items = !self.application_menu.as_ref().is_some_and(|menu| menu.read(cx).all_menus_shown());
-        let active = show_project_items.then(|| ActiveRepository::of(&self.project, cx));
-
-        h_flex().h_full().children(self.application_menu.clone()).when_some(active, |title_bar, active| {
-            let worktree_and_branch = active
-                .repository
-                .and_then(|repository| self.render_worktree_and_branch(repository, active.linked_worktree_name, cx));
-            title_bar.child(self.render_project_name(active.project_name, window, cx)).children(worktree_and_branch)
-        })
+        let active = ActiveRepository::of(&self.project, cx);
+        let worktree_and_branch = active
+            .repository
+            .and_then(|repository| self.render_worktree_and_branch(repository, active.linked_worktree_name, cx));
+        h_flex().h_full().child(self.render_project_name(active.project_name, window, cx)).children(worktree_and_branch)
     }
 }
 
@@ -193,12 +186,9 @@ fn visible_worktrees_in_repository(project: &Entity<Project>, repository: &Repos
 }
 
 impl TitleBar {
-    pub fn new(workspace: &Workspace, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(workspace: &Workspace, cx: &mut Context<Self>) -> Self {
         let project = workspace.project().clone();
         let git_store = project.read(cx).git_store().clone();
-
-        let application_menu =
-            option_env!("ED_USE_CROSS_PLATFORM_MENU").is_some().then(|| cx.new(|cx| ApplicationMenu::new(window, cx)));
 
         let mut subscriptions = Vec::new();
         subscriptions.push(cx.subscribe(&git_store, move |_, _, event, cx| match event {
@@ -219,7 +209,6 @@ impl TitleBar {
         }
 
         Self {
-            application_menu,
             workspace: workspace.weak_handle(),
             project,
             project_menu_handle: PopoverMenuHandle::default(),

@@ -81,7 +81,6 @@ use crate::Keystroke;
 use crate::LayoutId;
 use crate::Menu;
 use crate::MenuItem;
-use crate::OwnedMenu;
 use crate::PathPromptOptions;
 use crate::Pixels;
 use crate::Platform;
@@ -1394,16 +1393,6 @@ impl App {
         ))
     }
 
-    pub(crate) fn clear_pending_keystrokes(&mut self) {
-        for window in self.windows() {
-            window
-                .update(self, |_, window, cx| {
-                    window.clear_pending_keystrokes(cx);
-                })
-                .ok();
-        }
-    }
-
     /// Checks if the given action is bound in the current context, as defined by the app's current focus,
     /// the bindings in the element tree, and any global action listeners.
     pub fn is_action_available(&mut self, action: &dyn Action) -> bool {
@@ -1421,22 +1410,9 @@ impl App {
         self.platform.set_menus(menus, &self.keymap.borrow());
     }
 
-    /// Gets the menu bar for this application.
-    pub fn get_menus(&self) -> Option<Vec<OwnedMenu>> {
-        self.platform.get_menus()
-    }
-
     /// Sets the right click menu for the app icon in the dock.
     pub fn set_dock_menu(&self, menus: Vec<MenuItem>) {
         self.platform.set_dock_menu(menus, &self.keymap.borrow());
-    }
-
-    /// Adds given path to the bottom of the list of recent paths for the application.
-    /// The list is usually shown on the application icon's context menu in the dock,
-    /// and allows to open the recent files via that context menu.
-    /// If the path is already in the list, it will be moved to the bottom of the list.
-    pub fn add_recent_document(&self, path: &Path) {
-        self.platform.add_recent_document(path);
     }
 
     /// Dispatch an action to the currently active window or global action handler

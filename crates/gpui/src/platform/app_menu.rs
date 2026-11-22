@@ -32,15 +32,6 @@ impl Menu {
         self.disabled = disabled;
         self
     }
-
-    /// Create an OwnedMenu from this Menu.
-    pub fn owned(self) -> OwnedMenu {
-        OwnedMenu {
-            name: self.name.to_string().into(),
-            items: self.items.into_iter().map(MenuItem::owned).collect(),
-            disabled: self.disabled,
-        }
-    }
 }
 
 /// OS menus are menus that are recognized by the operating system
@@ -52,13 +43,6 @@ pub struct OsMenu {
 
     /// The type of menu.
     pub menu_type: SystemMenuType,
-}
-
-impl OsMenu {
-    /// Create an OwnedOsMenu from this OsMenu.
-    pub fn owned(self) -> OwnedOsMenu {
-        OwnedOsMenu { name: self.name.to_string().into(), menu_type: self.menu_type }
-    }
 }
 
 /// The type of system menu.
@@ -131,18 +115,6 @@ impl MenuItem {
         }
     }
 
-    /// Create an OwnedMenuItem from this MenuItem.
-    pub fn owned(self) -> OwnedMenuItem {
-        match self {
-            MenuItem::Separator => OwnedMenuItem::Separator,
-            MenuItem::Submenu(submenu) => OwnedMenuItem::Submenu(submenu.owned()),
-            MenuItem::Action { name, action, os_action, checked, disabled } => {
-                OwnedMenuItem::Action { name: name.into(), action, os_action, checked, disabled }
-            }
-            MenuItem::SystemMenu(os_menu) => OwnedMenuItem::SystemMenu(os_menu.owned()),
-        }
-    }
-
     /// Set whether this menu item is checked.
     ///
     /// Only for [`MenuItem::Action`], otherwise, will be ignored.
@@ -191,79 +163,6 @@ impl MenuItem {
     }
 }
 
-/// OS menus are menus that are recognized by the operating system
-/// This allows the operating system to provide specialized items for
-/// these menus.
-#[derive(Clone)]
-pub struct OwnedOsMenu {
-    /// The name of the menu.
-    pub name: SharedString,
-
-    /// The type of menu.
-    pub menu_type: SystemMenuType,
-}
-
-/// A menu of the application, either a main menu or a submenu.
-#[derive(Clone)]
-pub struct OwnedMenu {
-    /// The name of the menu.
-    pub name: SharedString,
-
-    /// The items in the menu.
-    pub items: Vec<OwnedMenuItem>,
-
-    /// Whether this menu is disabled.
-    pub disabled: bool,
-}
-
-/// The different kinds of items that can be in a menu.
-pub enum OwnedMenuItem {
-    /// A separator between items.
-    Separator,
-
-    /// A submenu.
-    Submenu(OwnedMenu),
-
-    /// A menu, managed by the system (for example, the Services menu on macOS).
-    SystemMenu(OwnedOsMenu),
-
-    /// An action that can be performed.
-    Action {
-        /// The name of this menu item.
-        name: String,
-
-        /// The action to perform when this menu item is selected.
-        action: Box<dyn Action>,
-
-        /// The OS Action that corresponds to this action, if any
-        /// See [`OsAction`] for more information.
-        os_action: Option<OsAction>,
-
-        /// Whether this action is checked.
-        checked: bool,
-
-        /// Whether this action is disabled.
-        disabled: bool,
-    },
-}
-
-impl Clone for OwnedMenuItem {
-    fn clone(&self) -> Self {
-        match self {
-            OwnedMenuItem::Separator => OwnedMenuItem::Separator,
-            OwnedMenuItem::Submenu(submenu) => OwnedMenuItem::Submenu(submenu.clone()),
-            OwnedMenuItem::Action { name, action, os_action, checked, disabled } => OwnedMenuItem::Action {
-                name: name.clone(),
-                action: action.boxed_clone(),
-                os_action: *os_action,
-                checked: *checked,
-                disabled: *disabled,
-            },
-            OwnedMenuItem::SystemMenu(os_menu) => OwnedMenuItem::SystemMenu(os_menu.clone()),
-        }
-    }
-}
-
 // TODO: As part of the global selections refactor, these should
 // be moved to GPUI-provided actions that make this association
 // without leaking the platform details to GPUI users
@@ -293,15 +192,6 @@ pub enum OsAction {
 }
 
 pub(crate) fn init_app_menus(platform: &dyn Platform, cx: &App) {
-    platform.on_will_open_app_menu(Box::new({
-        let cx = cx.to_async();
-        move || {
-            if let Some(app) = cx.app.upgrade() {
-                app.borrow_mut().update(|x| x.clear_pending_keystrokes());
-            }
-        }
-    }));
-
     platform.on_validate_app_menu_command(Box::new({
         let cx = cx.to_async();
         move |action| cx.app.upgrade().is_some_and(|app| app.borrow_mut().update(|cx| cx.is_action_available(action)))

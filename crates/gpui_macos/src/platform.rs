@@ -31,7 +31,6 @@ use gpui::Keymap;
 use gpui::Menu;
 use gpui::MenuItem;
 use gpui::OsMenu;
-use gpui::OwnedMenu;
 use gpui::PathPromptOptions;
 use gpui::Platform;
 use gpui::PlatformDisplay;
@@ -186,11 +185,6 @@ define_class!(
             validate_menu_item(self, item)
         }
 
-        #[unsafe(method(menuWillOpen:))]
-        fn menu_will_open_(&self, menu: id) {
-            menu_will_open(self, menu);
-        }
-
         #[unsafe(method(applicationDockMenu:))]
         fn application_dock_menu(&self, app: id) -> id {
             handle_dock_menu(self, app)
@@ -240,12 +234,10 @@ pub(crate) struct MacPlatformState {
     menu_command: Option<Box<dyn FnMut(&dyn Action)>>,
     #[allow(clippy::type_complexity)]
     validate_menu_command: Option<Box<dyn FnMut(&dyn Action) -> bool>>,
-    will_open_menu: Option<Box<dyn FnMut()>>,
     menu_actions: Vec<Box<dyn Action>>,
     open_urls: Option<Box<dyn FnMut(Vec<String>)>>,
     finish_launching: Option<Box<dyn FnOnce()>>,
     dock_menu: Option<id>,
-    menus: Option<Vec<OwnedMenu>>,
     /// Mirrors `[NSCursor setHiddenUntilMouseMoves:]` state, which AppKit doesn't expose.
     cursor_visible: Arc<AtomicBool>,
 }
@@ -305,7 +297,6 @@ impl MacPlatform {
             quit: None,
             menu_command: None,
             validate_menu_command: None,
-            will_open_menu: None,
             menu_actions: Vec::default(),
             open_urls: None,
             finish_launching: None,
@@ -314,31 +305,22 @@ impl MacPlatform {
             on_system_sleep: None,
             on_system_wake: None,
             system_power_observers_registered: false,
-            menus: None,
             cursor_visible: Arc::new(AtomicBool::new(true)),
         });
         Self(state, marker)
     }
 
-    unsafe fn create_menu_bar(
-        &self,
-        menus: &Vec<Menu>,
-        delegate: id,
-        actions: &mut Vec<Box<dyn Action>>,
-        keymap: &Keymap,
-    ) -> id {
+    unsafe fn create_menu_bar(&self, menus: &Vec<Menu>, actions: &mut Vec<Box<dyn Action>>, keymap: &Keymap) -> id {
         unsafe {
             let application_menu = new_autoreleased(class!(NSMenu));
-            let _: () = msg_send![application_menu, setDelegate: delegate];
 
             for menu_config in menus {
                 let menu = new_autoreleased(class!(NSMenu));
                 let menu_title = ns_string(&menu_config.name);
                 let _: () = msg_send![menu, setTitle: menu_title];
-                let _: () = msg_send![menu, setDelegate: delegate];
 
                 for item_config in &menu_config.items {
-                    let menu_item = Self::create_menu_item(item_config, delegate, actions, keymap);
+                    let menu_item = Self::create_menu_item(item_config, actions, keymap);
                     let _: () = msg_send![menu, addItem: menu_item];
                 }
 
@@ -360,15 +342,13 @@ impl MacPlatform {
     unsafe fn create_dock_menu(
         &self,
         menu_items: Vec<MenuItem>,
-        delegate: id,
         actions: &mut Vec<Box<dyn Action>>,
         keymap: &Keymap,
     ) -> id {
         unsafe {
             let dock_menu: id = msg_send![class!(NSMenu), new];
-            let _: () = msg_send![dock_menu, setDelegate: delegate];
             for item_config in menu_items {
-                let menu_item = Self::create_menu_item(&item_config, delegate, actions, keymap);
+                let menu_item = Self::create_menu_item(&item_config, actions, keymap);
                 let _: () = msg_send![dock_menu, addItem: menu_item];
             }
 
@@ -376,12 +356,7 @@ impl MacPlatform {
         }
     }
 
-    unsafe fn create_menu_item(
-        item: &MenuItem,
-        delegate: id,
-        actions: &mut Vec<Box<dyn Action>>,
-        keymap: &Keymap,
-    ) -> id {
+    unsafe fn create_menu_item(item: &MenuItem, actions: &mut Vec<Box<dyn Action>>, keymap: &Keymap) -> id {
         static DEFAULT_CONTEXT: OnceLock<Vec<KeyContext>> = OnceLock::new();
 
         unsafe {
@@ -463,9 +438,8 @@ impl MacPlatform {
                 MenuItem::Submenu(Menu { name, items, disabled }) => {
                     let item = new_autoreleased(class!(NSMenuItem));
                     let submenu = new_autoreleased(class!(NSMenu));
-                    let _: () = msg_send![submenu, setDelegate: delegate];
                     for item in items {
-                        let menu_item = Self::create_menu_item(item, delegate, actions, keymap);
+                        let menu_item = Self::create_menu_item(item, actions, keymap);
                         let _: () = msg_send![submenu, addItem: menu_item];
                     }
                     let _: () = msg_send![item, setSubmenu: submenu];
@@ -476,7 +450,6 @@ impl MacPlatform {
                 MenuItem::SystemMenu(OsMenu { name, menu_type }) => {
                     let item = new_autoreleased(class!(NSMenuItem));
                     let submenu = new_autoreleased(class!(NSMenu));
-                    let _: () = msg_send![submenu, setDelegate: delegate];
                     let _: () = msg_send![item, setSubmenu: submenu];
                     let _: () = msg_send![item, setTitle: ns_string(name)];
 
@@ -865,10 +838,6 @@ impl Platform for MacPlatform {
         self.0.lock().menu_command = Some(callback);
     }
 
-    fn on_will_open_app_menu(&self, callback: Box<dyn FnMut()>) {
-        self.0.lock().will_open_menu = Some(callback);
-    }
-
     fn on_validate_app_menu_command(&self, callback: Box<dyn FnMut(&dyn Action) -> bool>) {
         self.0.lock().validate_menu_command = Some(callback);
     }
@@ -904,35 +873,19 @@ impl Platform for MacPlatform {
             let app: id = msg_send![GPUIApplication::class(), sharedApplication];
             let mut state = self.0.lock();
             let actions = &mut state.menu_actions;
-            let menu = self.create_menu_bar(&menus, msg_send![app, delegate], actions, keymap);
+            let menu = self.create_menu_bar(&menus, actions, keymap);
             drop(state);
             let _: () = msg_send![app, setMainMenu: menu];
         }
-        self.0.lock().menus = Some(menus.into_iter().map(|menu| menu.owned()).collect());
-    }
-
-    fn get_menus(&self) -> Option<Vec<OwnedMenu>> {
-        self.0.lock().menus.clone()
     }
 
     fn set_dock_menu(&self, menu: Vec<MenuItem>, keymap: &Keymap) {
         unsafe {
-            let app: id = msg_send![GPUIApplication::class(), sharedApplication];
             let mut state = self.0.lock();
             let actions = &mut state.menu_actions;
-            let new = self.create_dock_menu(menu, msg_send![app, delegate], actions, keymap);
+            let new = self.create_dock_menu(menu, actions, keymap);
             if let Some(old) = state.dock_menu.replace(new) {
                 let _: () = msg_send![old, release];
-            }
-        }
-    }
-
-    fn add_recent_document(&self, path: &Path) {
-        if let Some(path_str) = path.to_str() {
-            unsafe {
-                let document_controller: id = msg_send![class!(NSDocumentController), sharedDocumentController];
-                let url: id = msg_send![class!(NSURL), fileURLWithPath: ns_string(path_str)];
-                let _: () = msg_send![document_controller, noteNewRecentDocumentURL:url];
             }
         }
     }
@@ -1249,18 +1202,6 @@ fn validate_menu_item(this: &AnyObject, item: id) -> bool {
             platform.0.lock().validate_menu_command.get_or_insert(callback);
         }
         result
-    }
-}
-
-fn menu_will_open(this: &AnyObject, _: id) {
-    unsafe {
-        let platform = get_mac_platform(this);
-        let mut lock = platform.0.lock();
-        if let Some(mut callback) = lock.will_open_menu.take() {
-            drop(lock);
-            callback();
-            platform.0.lock().will_open_menu.get_or_insert(callback);
-        }
     }
 }
 

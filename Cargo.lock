@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "actions"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "gpui",
  "serde",
@@ -729,7 +729,7 @@ dependencies = [
 
 [[package]]
 name = "ed"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "actions",
  "activity_indicator",
@@ -3900,8 +3900,6 @@ dependencies = [
  "gpui",
  "project",
  "recent_projects",
- "serde",
- "smallvec",
  "ui",
  "util",
  "workspace",
@@ -4705,7 +4703,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "2.2.0"
+version = "2.3.0"
 dependencies = [
  "framework_lint",
 ]

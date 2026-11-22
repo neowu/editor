@@ -189,14 +189,8 @@ pub trait Platform: 'static {
     fn on_system_wake(&self, callback: Box<dyn FnMut()>);
 
     fn set_menus(&self, menus: Vec<Menu>, keymap: &Keymap);
-    fn get_menus(&self) -> Option<Vec<OwnedMenu>> {
-        None
-    }
-
     fn set_dock_menu(&self, menu: Vec<MenuItem>, keymap: &Keymap);
-    fn add_recent_document(&self, _path: &Path) {}
     fn on_app_menu_action(&self, callback: Box<dyn FnMut(&dyn Action)>);
-    fn on_will_open_app_menu(&self, callback: Box<dyn FnMut()>);
     fn on_validate_app_menu_command(&self, callback: Box<dyn FnMut(&dyn Action) -> bool>);
 
     fn app_path(&self) -> Result<PathBuf>;

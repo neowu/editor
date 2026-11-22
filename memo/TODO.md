@@ -19,6 +19,5 @@ select multiple revision, merge the file change into one?
 # merge
 Picker modals → one crate: language_selector, encoding_selector, lsp_command_selector, go_to_line, command_palette, open_path_prompt, recent_projects (about 4.5k total, each used by one crate).
 Previews → one crate: svg_preview, image_viewer, markdown_preview (about 3.9k).
-Action definitions: menu (37 lines) into ed_actions; both have the same 16 dependents.
 LSP UI: lsp_locations, activity_indicator, diagnostics, possibly with language_tools.
 Tiny single-consumer crates into their consumer: assets (31 lines), icons, time_format, trash, refineable.

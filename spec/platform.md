@@ -33,7 +33,12 @@ or UNC prefixes. There is no path-style abstraction; code uses
 - Closing the last window quits the app (it never lingers windowless in the
   Dock); the last workspace stays flagged open for restore. There is no
   `on_last_window_closed` setting.
-- The native menu bar has no Help menu.
+- The native menu bar has no Help menu. It is the only app menu: there is no
+  in-window (client-side) menu bar, and gpui keeps no readable copy of the
+  menus after installing them. Opening a menu does not cancel a pending
+  multi-stroke keybinding.
+- Opened folders are not reported to macOS as recent documents (no recents in
+  the Dock icon's menu); Open Recent is the in-app project list only.
 - No `ed` CLI binary (`edctl` is only for automation, see `automation.md`). Files and folders open through macOS (Finder, `open -a
   ed`, Apple Events) or as arguments to the app binary itself. There is no
   `--wait`, environment/cwd forwarding, open-mode flags (`-a`/`-n`/`-e`), or
