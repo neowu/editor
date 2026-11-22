@@ -141,14 +141,12 @@ parking_lot = "0.13"
 percent-encoding = "2.3"
 proc-macro2 = "1.0.93"
 quote = "1.0.9"
-rand = { version = "0.10", default-features = false, features = ["std", "std_rng", "sys_rng"] }
 raw-window-handle = "0.6"
 regex = { version = "1.5", default-features = false, features = ["perf", "std"] }
 rust-embed = { version = "8.11", features = ["compression", "include-exclude"] }
 rustc-hash = "2"
 serde = { version = "1", features = ["rc"] }
 serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
-sha2 = "0.11"
 shellexpand = "3.1"
 shlex = "2.0"
 slotmap = "1.0.6"

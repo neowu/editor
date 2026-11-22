@@ -96,7 +96,6 @@ use self::dimension::ExcerptOffset;
 pub use self::dimension::MBTextSummary;
 pub use self::dimension::MultiBufferDimension;
 pub use self::dimension::MultiBufferOffset;
-pub use self::dimension::MultiBufferOffsetUniformSampler;
 pub use self::dimension::MultiBufferOffsetUtf16;
 pub use self::dimension::MultiBufferPoint;
 pub use self::dimension::MultiBufferRow;

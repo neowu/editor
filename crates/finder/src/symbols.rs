@@ -243,7 +243,7 @@ impl PickerDelegate for SymbolsDelegate {
                 }
                 path.display().to_owned().into()
             }
-            SymbolLocation::OutsideProject { abs_path, signature: _ } => abs_path.to_string_lossy(),
+            SymbolLocation::OutsideProject { abs_path } => abs_path.to_string_lossy(),
         };
         let label = symbol.label.text.clone();
         let line_number = symbol.range.start.0.row + 1;

@@ -34,7 +34,6 @@ use std::cmp::Reverse;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::VecDeque;
-use std::convert::TryInto as _;
 use std::iter;
 use std::mem;
 use std::ops::Range;
@@ -128,8 +127,6 @@ pub use lsp_store::inlay_hints::CacheInlayHints;
 pub use lsp_store::inlay_hints::CacheInlayHintsTask;
 pub use lsp_store::inlay_hints::InvalidationStrategy;
 use parking_lot::Mutex;
-use rand::prelude::RngExt as _;
-use rand::prelude::StdRng;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 pub use semantic_tokens::BufferSemanticToken;
@@ -142,8 +139,6 @@ use server_lifecycle::LanguageServerStartMode;
 pub use server_lifecycle::LocalLspAdapterDelegate;
 use server_lifecycle::include_text;
 use server_lifecycle::subscribe_to_binary_statuses;
-use sha2::Digest as _;
-use sha2::Sha256;
 use snippet::Snippet;
 use sum_tree::Dimensions;
 use text::Anchor;
@@ -849,7 +844,6 @@ enum ChunkFetch {
 pub struct LspStore {
     local: LocalLspStore,
     last_formatting_failure: Option<String>,
-    nonce: u128,
     buffer_store: Entity<BufferStore>,
     worktree_store: Entity<WorktreeStore>,
     pub languages: Arc<LanguageRegistry>,
@@ -1027,7 +1021,7 @@ struct CoreSymbol {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SymbolLocation {
     InProject(ProjectPath),
-    OutsideProject { abs_path: Arc<Path>, signature: [u8; 32] },
+    OutsideProject { abs_path: Arc<Path> },
 }
 
 impl SymbolLocation {
@@ -1115,7 +1109,6 @@ impl LspStore {
             worktree_store,
             languages: Arc::clone(&languages),
             language_server_statuses: BTreeMap::default(),
-            nonce: rand::make_rng::<StdRng>().random(),
             diagnostic_summaries: FxHashMap::default(),
             lsp_server_capabilities: FxHashMap::default(),
             semantic_token_config: SemanticTokenConfig::new(),
@@ -2162,10 +2155,7 @@ impl LspStore {
                                     let worktree_id = tree.read(cx).id();
                                     SymbolLocation::InProject(ProjectPath { worktree_id, path: rel_path })
                                 } else {
-                                    SymbolLocation::OutsideProject {
-                                        signature: this.symbol_signature(&abs_path),
-                                        abs_path: abs_path.into(),
-                                    }
+                                    SymbolLocation::OutsideProject { abs_path: abs_path.into() }
                                 };
 
                                 Some(CoreSymbol {
@@ -2381,7 +2371,7 @@ impl LspStore {
                 SymbolLocation::InProject(project_path) => {
                     self.worktree_store.read(cx).absolutize(project_path, cx).context("no such worktree")
                 }
-                SymbolLocation::OutsideProject { abs_path, signature: _ } => Ok(abs_path.to_path_buf()),
+                SymbolLocation::OutsideProject { abs_path } => Ok(abs_path.to_path_buf()),
             };
             let symbol_abs_path = match symbol_abs_path {
                 Ok(abs_path) => abs_path,
@@ -2540,13 +2530,6 @@ impl LspStore {
 
     pub fn language_server_for_id(&self, id: LanguageServerId) -> Option<Arc<LanguageServer>> {
         self.local.language_server_for_id(id)
-    }
-
-    fn symbol_signature(&self, abs_path: &Path) -> [u8; 32] {
-        let mut hasher = Sha256::new();
-        hasher.update(abs_path.to_string_lossy().as_bytes());
-        hasher.update(self.nonce.to_be_bytes());
-        hasher.finalize().as_slice().try_into().expect("sha256 digest is 32 bytes")
     }
 
     pub fn environment_for_buffer(

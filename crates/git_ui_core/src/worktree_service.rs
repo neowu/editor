@@ -405,7 +405,6 @@ fn start_worktree_creations(
     existing_worktree_names: &[String],
     existing_worktree_paths: &FxHashSet<PathBuf>,
     base_ref: Option<String>,
-    rng: &mut impl rand::Rng,
     cx: &mut gpui::App,
 ) -> anyhow::Result<(Vec<(Entity<Repository>, PathBuf, Receiver<anyhow::Result<()>>)>, Vec<(PathBuf, PathBuf)>)> {
     let mut creation_infos = Vec::new();
@@ -414,7 +413,8 @@ fn start_worktree_creations(
 
     let worktree_name = worktree_name.unwrap_or_else(|| {
         let existing_refs: Vec<&str> = existing_worktree_names.iter().map(String::as_str).collect();
-        worktree_names::generate_worktree_name(&existing_refs, rng).unwrap_or_else(|| "worktree".to_owned())
+        worktree_names::generate_worktree_name(&existing_refs, worktree_names::random_seed())
+            .unwrap_or_else(|| "worktree".to_owned())
     });
 
     for repo in git_repos {
@@ -736,8 +736,6 @@ async fn do_create_worktree(
         }
     }
 
-    let mut rng = rand::rng();
-
     let base_ref = resolve_worktree_branch_target(&branch_target);
 
     let (creation_infos, path_remapping) = cx.update(|_, cx| {
@@ -747,7 +745,6 @@ async fn do_create_worktree(
             &existing_worktree_names,
             &existing_worktree_paths,
             base_ref,
-            &mut rng,
             cx,
         )
     })??;

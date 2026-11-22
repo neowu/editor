@@ -16,7 +16,6 @@ indexmap.workspace = true
 itertools.workspace = true
 language.workspace = true
 log.workspace = true
-rand.workspace = true
 rope.workspace = true
 rustc-hash.workspace = true
 serde.workspace = true

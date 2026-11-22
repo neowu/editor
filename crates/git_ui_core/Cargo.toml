@@ -21,7 +21,6 @@ log.workspace = true
 notifications.workspace = true
 picker.workspace = true
 project.workspace = true
-rand = { workspace = true, features = ["thread_rng"] }
 rustc-hash.workspace = true
 terminal.workspace = true
 ui.workspace = true

@@ -7,16 +7,10 @@ use std::ops::Sub;
 use std::ops::SubAssign;
 use std::str;
 
-use anyhow::Result;
 use language::OffsetUtf16;
 use language::Point;
 use language::PointUtf16;
 use language::TextDimension;
-use rand::distr::uniform;
-use rand::distr::uniform::SampleBorrow;
-use rand::distr::uniform::SampleUniform;
-use rand::distr::uniform::UniformSampler;
-use rand::distr::uniform::UniformUsize;
 use rope::DimensionPair;
 use text::TextSummary;
 
@@ -94,45 +88,6 @@ impl fmt::Display for MultiBufferOffset {
     }
 }
 
-impl SampleUniform for MultiBufferOffset {
-    type Sampler = MultiBufferOffsetUniformSampler;
-}
-
-pub struct MultiBufferOffsetUniformSampler {
-    sampler: UniformUsize,
-}
-
-impl UniformSampler for MultiBufferOffsetUniformSampler {
-    type X = MultiBufferOffset;
-
-    fn new<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, uniform::Error>
-    where
-        B1: SampleBorrow<Self::X> + Sized,
-        B2: SampleBorrow<Self::X> + Sized,
-    {
-        let low = *low_b.borrow();
-        let high = *high_b.borrow();
-        let sampler = UniformUsize::new(low.0, high.0);
-        sampler.map(|sampler| MultiBufferOffsetUniformSampler { sampler })
-    }
-
-    #[inline] // if the range is constant, this helps LLVM to do the
-    // calculations at compile-time.
-    fn new_inclusive<B1, B2>(low_b: B1, high_b: B2) -> Result<Self, uniform::Error>
-    where
-        B1: SampleBorrow<Self::X> + Sized,
-        B2: SampleBorrow<Self::X> + Sized,
-    {
-        let low = *low_b.borrow();
-        let high = *high_b.borrow();
-        let sampler = UniformUsize::new_inclusive(low.0, high.0);
-        sampler.map(|sampler| MultiBufferOffsetUniformSampler { sampler })
-    }
-
-    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Self::X {
-        MultiBufferOffset(self.sampler.sample(rng))
-    }
-}
 impl MultiBufferDimension for MultiBufferOffset {
     type TextDimension = usize;
     fn from_summary(summary: &MBTextSummary) -> Self {
