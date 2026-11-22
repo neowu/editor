@@ -530,24 +530,7 @@ impl Window {
     fn dispatch_action_on_node_inner(&mut self, node_id: DispatchNodeId, action: &dyn Action, cx: &mut App) {
         let dispatch_path = self.rendered_frame.dispatch_tree.dispatch_path(node_id);
 
-        // Capture phase for global actions.
         cx.propagate_event = true;
-        if let Some(mut global_listeners) = cx.global_action_listeners.remove(&action.as_any().type_id()) {
-            for listener in &global_listeners {
-                listener(action.as_any(), DispatchPhase::Capture, cx);
-                if !cx.propagate_event {
-                    break;
-                }
-            }
-
-            global_listeners.extend(cx.global_action_listeners.remove(&action.as_any().type_id()).unwrap_or_default());
-
-            cx.global_action_listeners.insert(action.as_any().type_id(), global_listeners);
-        }
-
-        if !cx.propagate_event {
-            return;
-        }
 
         // Capture phase for window actions.
         for node_id in &dispatch_path {
@@ -563,20 +546,10 @@ impl Window {
             }
         }
 
-        // Bubble phase for global actions.
-        if let Some(mut global_listeners) = cx.global_action_listeners.remove(&action.as_any().type_id()) {
-            for listener in global_listeners.iter().rev() {
-                cx.propagate_event = false; // Actions stop propagation by default during the bubble phase
-
-                listener(action.as_any(), DispatchPhase::Bubble, cx);
-                if !cx.propagate_event {
-                    break;
-                }
-            }
-
-            global_listeners.extend(cx.global_action_listeners.remove(&action.as_any().type_id()).unwrap_or_default());
-
-            cx.global_action_listeners.insert(action.as_any().type_id(), global_listeners);
+        // Global listener runs last.
+        if let Some(listener) = cx.global_action_listeners.get(&action.as_any().type_id()).cloned() {
+            cx.propagate_event = false; // Actions stop propagation by default during the bubble phase
+            listener(action.as_any(), cx);
         }
     }
 

@@ -68,7 +68,6 @@ use crate::BackgroundExecutor;
 use crate::Bounds;
 use crate::ClipboardItem;
 use crate::CursorStyle;
-use crate::DispatchPhase;
 use crate::DisplayId;
 use crate::EventEmitter;
 use crate::FocusHandle;
@@ -304,8 +303,8 @@ pub struct App {
     pub(crate) window_handles: FxHashMap<WindowId, AnyWindowHandle>,
     pub(crate) focus_handles: Arc<RwLock<FocusMap>>,
     pub(crate) keymap: Rc<RefCell<Keymap>>,
-    pub(crate) global_action_listeners:
-        HashMap<TypeId, Vec<Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Self)>>, TypeIdHashBuilder>,
+    /// One listener per action type; registering again replaces the previous one.
+    pub(crate) global_action_listeners: HashMap<TypeId, Rc<dyn Fn(&dyn Any, &mut Self)>, TypeIdHashBuilder>,
     pending_effects: VecDeque<Effect>,
 
     pub(crate) observers: SubscriberSet<EntityId, Handler>,
@@ -1308,16 +1307,14 @@ impl App {
         self.pending_effects.push_back(Effect::RefreshWindows);
     }
 
-    /// Register a global handler for actions invoked via the keyboard. These handlers are run at
-    /// the end of the bubble phase for actions, and so will only be invoked if there are no other
-    /// handlers or if they called `cx.propagate()`.
+    /// Register the global handler for an action type, replacing any previous one. It runs after
+    /// the window's bubble phase, so only if there are no other handlers or they called
+    /// `cx.propagate()`.
     pub fn on_action<A: Action>(&mut self, listener: impl Fn(&A, &mut Self) + 'static) -> &mut Self {
-        self.global_action_listeners.entry(TypeId::of::<A>()).or_default().push(Rc::new(move |action, phase, cx| {
-            if phase == DispatchPhase::Bubble {
-                let action = action.downcast_ref().expect("actions are keyed by their type id");
-                listener(action, cx);
-            }
-        }));
+        self.global_action_listeners.insert(
+            TypeId::of::<A>(),
+            Rc::new(move |action, cx| listener(action.downcast_ref().expect("actions are keyed by their type id"), cx)),
+        );
         self
     }
 
@@ -1409,35 +1406,8 @@ impl App {
 
     fn dispatch_global_action(&mut self, action: &dyn Action) {
         self.propagate_event = true;
-
-        if let Some(mut global_listeners) = self.global_action_listeners.remove(&action.as_any().type_id()) {
-            for listener in &global_listeners {
-                listener(action.as_any(), DispatchPhase::Capture, self);
-                if !self.propagate_event {
-                    break;
-                }
-            }
-
-            global_listeners
-                .extend(self.global_action_listeners.remove(&action.as_any().type_id()).unwrap_or_default());
-
-            self.global_action_listeners.insert(action.as_any().type_id(), global_listeners);
-        }
-
-        if self.propagate_event
-            && let Some(mut global_listeners) = self.global_action_listeners.remove(&action.as_any().type_id())
-        {
-            for listener in global_listeners.iter().rev() {
-                listener(action.as_any(), DispatchPhase::Bubble, self);
-                if !self.propagate_event {
-                    break;
-                }
-            }
-
-            global_listeners
-                .extend(self.global_action_listeners.remove(&action.as_any().type_id()).unwrap_or_default());
-
-            self.global_action_listeners.insert(action.as_any().type_id(), global_listeners);
+        if let Some(listener) = self.global_action_listeners.get(&action.as_any().type_id()).cloned() {
+            listener(action.as_any(), self);
         }
     }
 

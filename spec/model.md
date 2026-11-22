@@ -95,7 +95,8 @@ Read the code for details; this only records the shape and the rules.
   work with no window open (quit, about, open, new window from the menu) are
   app-level `cx.on_action` handlers instead; those get no window or
   workspace, run after everything in the focus tree, and are always
-  reported as available.
+  reported as available. There is one handler per action type (a second
+  registration replaces the first) and no capture phase for them.
 - Editor actions are one table, collected at startup like workspace actions:
   `main` creates an `ActionTable<Editor>`, passes it to the crates that add
   editor actions (`go_to_line`, `lsp_locations`), and calls
