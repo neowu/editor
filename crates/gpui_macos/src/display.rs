@@ -26,7 +26,6 @@ use crate::ns::NSPoint;
 use crate::ns::NSRect;
 use crate::ns::NSUInteger;
 use crate::ns::array_iter;
-use crate::ns::array_object_at;
 use crate::ns::id;
 use crate::ns::nil;
 use crate::ns_string;
@@ -40,22 +39,6 @@ impl MacDisplay {
     /// Get the screen with the given [`DisplayId`].
     pub(crate) fn find_by_id(id: DisplayId) -> Option<Self> {
         Self::all().find(|screen| screen.id() == id)
-    }
-
-    /// Get the primary screen - the one with the menu bar, and whose bottom left
-    /// corner is at the origin of the AppKit coordinate system.
-    pub(crate) fn primary() -> Self {
-        // Instead of iterating through all active systems displays via `all()` we use the first
-        // NSScreen and gets its CGDirectDisplayID, because we can't be sure that `CGGetActiveDisplayList`
-        // will always return a list of active displays (machine might be sleeping).
-        //
-        // The following is what Chromium does too:
-        //
-        // https://chromium.googlesource.com/chromium/src/+/66.0.3359.158/ui/display/mac/screen_mac.mm#56
-        unsafe {
-            let screens: id = msg_send![class!(NSScreen), screens];
-            Self::for_screen(array_object_at(screens, 0))
-        }
     }
 
     /// The screen the user is working on: the one under the mouse cursor,

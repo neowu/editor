@@ -632,10 +632,6 @@ impl Platform for MacPlatform {
         }
     }
 
-    fn primary_display(&self) -> Option<Rc<dyn PlatformDisplay>> {
-        Some(Rc::new(MacDisplay::primary()))
-    }
-
     fn main_display(&self) -> Option<Rc<dyn PlatformDisplay>> {
         MacDisplay::main().map(|display| Rc::new(display) as Rc<_>)
     }

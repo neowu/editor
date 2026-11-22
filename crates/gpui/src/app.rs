@@ -773,15 +773,10 @@ impl App {
         self.platform.displays()
     }
 
-    /// Returns the primary display that will be used for new windows.
-    pub fn primary_display(&self) -> Option<Rc<dyn PlatformDisplay>> {
-        self.platform.primary_display()
-    }
-
-    /// Returns the display the user is working on (see
-    /// [`Platform::main_display`]), falling back to the primary display.
+    /// Returns the display the user is working on, where new windows open
+    /// (see [`Platform::main_display`]).
     pub fn main_display(&self) -> Option<Rc<dyn PlatformDisplay>> {
-        self.platform.main_display().or_else(|| self.primary_display())
+        self.platform.main_display()
     }
 
     /// Returns the display with the given ID, if one exists.

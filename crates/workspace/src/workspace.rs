@@ -2670,12 +2670,12 @@ impl Render for Workspace {
 }
 
 /// Bounds every new window opens with on the display `display_id` (the
-/// primary display when `None`): the environment override, else the
+/// main display when `None`): the environment override, else the
 /// display's whole visible area. Sized directly rather than zoomed, since
 /// macOS zooms a not-yet-shown window against the wrong screen. Windows don't
 /// remember their bounds.
 pub fn new_window_bounds(display_id: Option<DisplayId>, cx: &App) -> WindowBounds {
-    let display = display_id.and_then(|id| cx.find_display(id)).or_else(|| cx.primary_display());
+    let display = display_id.and_then(|id| cx.find_display(id)).or_else(|| cx.main_display());
     WindowBounds::Windowed(window_bounds_or_fill(
         window_bounds_env_override(),
         display.map(|display| display.visible_bounds()),

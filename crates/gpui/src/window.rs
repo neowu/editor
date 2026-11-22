@@ -781,7 +781,7 @@ fn default_bounds(display_id: Option<DisplayId>, cx: &mut App) -> WindowBounds {
 
     const CASCADE_OFFSET: f32 = 25.0;
 
-    let display = display_id.map_or_else(|| cx.primary_display(), |id| cx.find_display(id));
+    let display = display_id.map_or_else(|| cx.main_display(), |id| cx.find_display(id));
 
     let default_placement = || Bounds::new(point(px(0.), px(0.)), DEFAULT_WINDOW_SIZE);
 

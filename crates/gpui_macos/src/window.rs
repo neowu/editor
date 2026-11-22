@@ -1067,7 +1067,8 @@ impl MacWindow {
                 WindowKind::Floating | WindowKind::Dialog => true,
             };
 
-            let display = display_id.and_then(MacDisplay::find_by_id).unwrap_or_else(MacDisplay::primary);
+            let target_display =
+                display_id.and_then(MacDisplay::find_by_id).or_else(MacDisplay::main).map(|display| display.0);
 
             let mut target_screen = nil;
             let mut screen_frame = None;
@@ -1078,7 +1079,7 @@ impl MacWindow {
                     continue;
                 };
                 let frame: NSRect = msg_send![screen, frame];
-                if display_id == display.0 {
+                if Some(display_id) == target_display {
                     screen_frame = Some(frame);
                     target_screen = screen;
                 }
@@ -1093,7 +1094,7 @@ impl MacWindow {
             let window_rect = NSRect::new(
                 NSPoint::new(
                     screen_frame.origin.x + bounds.origin.x.as_f32() as f64,
-                    screen_frame.origin.y + (display.bounds().size.height - bounds.origin.y).as_f32() as f64,
+                    screen_frame.origin.y + screen_frame.size.height - bounds.origin.y.as_f32() as f64,
                 ),
                 NSSize::new(bounds.size.width.as_f32() as f64, bounds.size.height.as_f32() as f64),
             );

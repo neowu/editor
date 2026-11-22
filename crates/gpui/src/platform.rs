@@ -141,12 +141,9 @@ pub trait Platform: 'static {
     fn unhide_other_apps(&self);
 
     fn displays(&self) -> Vec<Rc<dyn PlatformDisplay>>;
-    fn primary_display(&self) -> Option<Rc<dyn PlatformDisplay>>;
     /// The display the user is working on, where new windows open: on macOS
     /// the screen under the mouse cursor, else `NSScreen.mainScreen`.
-    fn main_display(&self) -> Option<Rc<dyn PlatformDisplay>> {
-        self.primary_display()
-    }
+    fn main_display(&self) -> Option<Rc<dyn PlatformDisplay>>;
     /// Registers the callback invoked when displays may have been added or
     /// removed, or a display's properties may have changed. GPUI rereads
     /// [`Self::displays`] to find out what changed, so calls may be spurious.
