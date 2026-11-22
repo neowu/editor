@@ -1,6 +1,5 @@
 use std::cmp;
 use std::iter;
-use std::ops::Range;
 
 use base64::engine::general_purpose::STANDARD;
 use convert_case::Case;
@@ -16,10 +15,8 @@ use language::Selection;
 use language::SelectionGoal;
 use multi_buffer::Anchor;
 use multi_buffer::MultiBufferOffset;
-use multi_buffer::MultiBufferRow;
 use multi_buffer::ToOffset as _;
 use multi_buffer::ToPoint as _;
-use rustc_hash::FxHashMap;
 
 use super::Editor;
 use super::SelectionEffects;
@@ -37,8 +34,6 @@ use crate::actions::ConvertToSnakeCase;
 use crate::actions::ConvertToTitleCase;
 use crate::actions::ConvertToUpperCamelCase;
 use crate::actions::ConvertToUpperCase;
-use crate::actions::RotateSelectionsBackward;
-use crate::actions::RotateSelectionsForward;
 use crate::actions::ToggleCase;
 use crate::actions::WrapSelectionsInTag;
 use crate::scroll::Autoscroll;
@@ -224,156 +219,6 @@ impl Editor {
                 editor.edit(edits, cx);
             });
         }
-    }
-
-    pub fn rotate_selections_forward(
-        &mut self,
-        _: &RotateSelectionsForward,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.rotate_selections(window, cx, false);
-    }
-
-    pub fn rotate_selections_backward(
-        &mut self,
-        _: &RotateSelectionsBackward,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.rotate_selections(window, cx, true);
-    }
-
-    fn rotate_selections(&mut self, window: &mut Window, cx: &mut Context<Self>, reverse: bool) {
-        if self.read_only(cx) {
-            return;
-        }
-        let display_snapshot = self.display_snapshot(cx);
-        let selections = self.selections.all::<MultiBufferOffset>(&display_snapshot);
-
-        if selections.len() < 2 {
-            return;
-        }
-
-        let (edits, new_selections) = {
-            let buffer = self.buffer.read(cx).read(cx);
-            let has_selections = selections.iter().any(|s| !s.is_empty());
-            if has_selections {
-                let mut selected_texts: Vec<String> = selections
-                    .iter()
-                    .map(|selection| buffer.text_for_range(selection.start..selection.end).collect())
-                    .collect();
-
-                if reverse {
-                    selected_texts.rotate_left(1);
-                } else {
-                    selected_texts.rotate_right(1);
-                }
-
-                let mut offset_delta: i64 = 0;
-                let mut new_selections = Vec::new();
-                let edits: Vec<_> = selections
-                    .iter()
-                    .zip(selected_texts.iter())
-                    .map(|(selection, new_text)| {
-                        let old_len = ((selection.end.0 - selection.start.0) as u64).cast_signed();
-                        let new_len = (new_text.len() as u64).cast_signed();
-                        let adjusted_start =
-                            MultiBufferOffset(((selection.start.0 as u64).cast_signed() + offset_delta) as usize);
-                        let adjusted_end =
-                            MultiBufferOffset(((adjusted_start.0 as u64).cast_signed() + new_len) as usize);
-
-                        new_selections.push(Selection {
-                            id: selection.id,
-                            start: adjusted_start,
-                            end: adjusted_end,
-                            reversed: selection.reversed,
-                            goal: selection.goal,
-                        });
-
-                        offset_delta += new_len - old_len;
-                        (selection.start..selection.end, new_text.clone())
-                    })
-                    .collect();
-                (edits, new_selections)
-            } else {
-                let mut all_rows: Vec<u32> =
-                    selections.iter().map(|selection| buffer.offset_to_point(selection.start).row).collect();
-                all_rows.sort_unstable();
-                all_rows.dedup();
-
-                if all_rows.len() < 2 {
-                    return;
-                }
-
-                let line_ranges: Vec<Range<MultiBufferOffset>> = all_rows
-                    .iter()
-                    .map(|&row| {
-                        let start = Point::new(row, 0);
-                        let end = Point::new(row, buffer.line_len(MultiBufferRow(row)));
-                        buffer.point_to_offset(start)..buffer.point_to_offset(end)
-                    })
-                    .collect();
-
-                let mut line_texts: Vec<String> =
-                    line_ranges.iter().map(|range| buffer.text_for_range(range.clone()).collect()).collect();
-
-                if reverse {
-                    line_texts.rotate_left(1);
-                } else {
-                    line_texts.rotate_right(1);
-                }
-
-                let edits = line_ranges
-                    .iter()
-                    .zip(line_texts.iter())
-                    .map(|(range, new_text)| (range.clone(), new_text.clone()))
-                    .collect();
-
-                let num_rows = all_rows.len();
-                let row_to_index: FxHashMap<u32, usize> =
-                    all_rows.iter().enumerate().map(|(i, &row)| (row, i)).collect();
-
-                let mut old_line_end = 0;
-                let mut new_line_end = 0;
-                let mut new_line_starts = Vec::new();
-                for (range, text) in line_ranges.iter().zip(&line_texts) {
-                    let line_start = new_line_end + (range.start.0 - old_line_end);
-                    new_line_starts.push(line_start);
-                    old_line_end = range.end.0;
-                    new_line_end = line_start + text.len();
-                }
-
-                let new_selections = selections
-                    .iter()
-                    .map(|selection| {
-                        let point = buffer.offset_to_point(selection.start);
-                        let old_index = row_to_index[&point.row];
-                        let new_index =
-                            if reverse { (old_index + num_rows - 1) % num_rows } else { (old_index + 1) % num_rows };
-                        let new_offset = MultiBufferOffset(new_line_starts[new_index] + point.column as usize);
-                        Selection {
-                            id: selection.id,
-                            start: new_offset,
-                            end: new_offset,
-                            reversed: selection.reversed,
-                            goal: selection.goal,
-                        }
-                    })
-                    .collect();
-
-                (edits, new_selections)
-            }
-        };
-
-        self.transact(window, cx, |this, window, cx| {
-            this.buffer.update(cx, |buffer, cx| {
-                buffer.edit(edits, None, cx);
-            });
-            this.change_selections(SelectionEffects::default(), window, cx, |s| {
-                s.select(new_selections);
-            });
-        });
     }
 
     pub fn convert_to_upper_case(&mut self, _: &ConvertToUpperCase, window: &mut Window, cx: &mut Context<Self>) {

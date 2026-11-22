@@ -715,16 +715,10 @@ actions!(
         Rename,
         /// Restarts the language server for the current file.
         RestartLanguageServer,
-        /// Reverses the order of selected lines.
-        ReverseLines,
         /// Reloads the file from disk.
         ReloadFile,
         /// Rewraps text to fit within the preferred line length.
         Rewrap,
-        /// Rotates selections or lines backward.
-        RotateSelectionsBackward,
-        /// Rotates selections or lines forward.
-        RotateSelectionsForward,
         /// Scrolls the cursor to the bottom of the viewport.
         ScrollCursorBottom,
         /// Scrolls the cursor to the center of the viewport.
@@ -795,8 +789,6 @@ actions!(
         ShowCharacterPalette,
         /// Shows word completions.
         ShowWordCompletions,
-        /// Randomly shuffles selected lines.
-        ShuffleLines,
         /// Sorts selected lines by length.
         SortLinesByLength,
         /// Sorts selected lines case-insensitively.

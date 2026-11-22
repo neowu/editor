@@ -22,7 +22,6 @@ use multi_buffer::MultiBufferRow;
 use multi_buffer::MultiBufferSnapshot;
 use multi_buffer::ToOffset;
 use multi_buffer::ToPoint as _;
-use rand::seq::SliceRandom as _;
 use rustc_hash::FxHashSet;
 use text::Bias;
 
@@ -47,9 +46,7 @@ use crate::actions::JoinLines;
 use crate::actions::MoveLineDown;
 use crate::actions::MoveLineUp;
 use crate::actions::Outdent;
-use crate::actions::ReverseLines;
 use crate::actions::SelectAll;
-use crate::actions::ShuffleLines;
 use crate::actions::SortLinesByLength;
 use crate::actions::SortLinesCaseInsensitive;
 use crate::actions::SortLinesCaseSensitive;
@@ -691,14 +688,6 @@ impl Editor {
             let mut seen = FxHashSet::default();
             lines.retain(|line| seen.insert(*line));
         });
-    }
-
-    pub fn reverse_lines(&mut self, _: &ReverseLines, window: &mut Window, cx: &mut Context<Self>) {
-        self.manipulate_immutable_lines(window, cx, |lines| lines.reverse());
-    }
-
-    pub fn shuffle_lines(&mut self, _: &ShuffleLines, window: &mut Window, cx: &mut Context<Self>) {
-        self.manipulate_immutable_lines(window, cx, |lines| lines.shuffle(&mut rand::rng()));
     }
 
     fn manipulate_lines<M>(&mut self, window: &mut Window, cx: &mut Context<Self>, mut manipulate: M)
