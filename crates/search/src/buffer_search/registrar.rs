@@ -1,5 +1,7 @@
+use std::sync::LazyLock;
+
 use gpui::Action;
-use gpui::App;
+use gpui::ActionTable;
 use gpui::Context;
 use gpui::Div;
 use gpui::Entity;
@@ -17,44 +19,32 @@ pub trait SearchActionsRegistrar {
 
 type SearchBarActionCallback<A> = fn(&mut BufferSearchBar, &A, &mut Window, &mut Context<BufferSearchBar>);
 
-pub(super) struct PaneDivRegistrar {
-    div: Option<Div>,
-    pane: Entity<Pane>,
-}
+/// The search actions for a pane outside the workspace's active-pane handling (terminal panel,
+/// terminal and git history modes), acting on the search bar in that pane's toolbar.
+static PANE_ACTIONS: LazyLock<ActionTable<Pane>> = LazyLock::new(|| {
+    let mut table = ActionTable::default();
+    BufferSearchBar::register(&mut table);
+    table
+});
 
-impl PaneDivRegistrar {
-    pub(super) const fn new(div: Div, pane: Entity<Pane>) -> Self {
-        Self { div: Some(div), pane }
-    }
-
-    pub(super) fn into_div(self) -> Div {
-        self.div.expect("div is only taken by into_div")
-    }
-}
-
-impl SearchActionsRegistrar for PaneDivRegistrar {
+impl SearchActionsRegistrar for ActionTable<Pane> {
     fn register_handler<A: Action>(&mut self, callback: impl ActionExecutor<A>) {
-        let pane = self.pane.clone();
-        self.div = self.div.take().map(|div| {
-            div.on_action(move |action: &A, window: &mut Window, cx: &mut App| {
-                let search_bar = pane.read(cx).toolbar().read(cx).item_of_type::<BufferSearchBar>();
-                let should_notify = search_bar.is_some_and(|search_bar| {
-                    search_bar.update(cx, |search_bar, cx| callback.execute(search_bar, action, window, cx))
-                });
-                if should_notify {
-                    pane.update(cx, |_, cx| cx.notify());
-                } else {
-                    cx.propagate();
-                }
-            })
+        self.add(move |pane, action: &A, window, cx| {
+            let search_bar = pane.toolbar().read(cx).item_of_type::<BufferSearchBar>();
+            let handled = search_bar.is_some_and(|search_bar| {
+                search_bar.update(cx, |search_bar, cx| callback.execute(search_bar, action, window, cx))
+            });
+            if handled {
+                cx.notify();
+            } else {
+                cx.propagate();
+            }
         });
     }
 }
 
 pub fn register_pane_search_actions(div: Div, pane: Entity<Pane>) -> Div {
-    let mut registrar = PaneDivRegistrar::new(div, pane);
-    BufferSearchBar::register(&mut registrar);
-    registrar.into_div()
+    div.action_table(&pane, &PANE_ACTIONS)
 }
 
 /// Registers the actions on every workspace, acting on its active pane.
@@ -172,5 +162,28 @@ impl<A: Action> ActionExecutor<A> for WithResultsOrExternalQuery<A> {
         } else {
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use super::*;
+
+    #[test]
+    fn pane_actions_cover_every_registered_search_action() {
+        struct Count(usize);
+        impl SearchActionsRegistrar for Count {
+            fn register_handler<A: Action>(&mut self, _: impl ActionExecutor<A>) {
+                self.0 += 1;
+            }
+        }
+        let mut count = Count(0);
+        BufferSearchBar::register(&mut count);
+
+        assert_eq!(PANE_ACTIONS.action_types().len(), count.0);
+        assert!(PANE_ACTIONS.action_types().contains(&TypeId::of::<crate::buffer_search::Deploy>()));
+        assert!(PANE_ACTIONS.conditional().all(|conditional| !conditional));
     }
 }

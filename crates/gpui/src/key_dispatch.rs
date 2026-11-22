@@ -1,7 +1,7 @@
 //! KeyDispatch is where GPUI deals with binding actions to key events.
 //!
-//! A view declares a key context (`.key_context("Editor")`) and action handlers
-//! (`.on_action(cx.listener(Editor::undo))`) on its root element. The keybindings
+//! A view declares a key context (`.key_context("Editor")`) and attaches its action handlers
+//! (`.action_table(&cx.entity(), &ACTIONS)`) on its root element. The keybindings
 //! themselves are managed independently by calling cx.bind_keys().
 //! (Though mostly when developing ed itself, you just need to add a new line to
 //!  crates/ed/src/ed/keymap.rs).
@@ -62,7 +62,6 @@ pub(crate) struct DispatchTree {
 #[derive(Default)]
 pub(crate) struct DispatchNode {
     pub key_listeners: Vec<KeyListener>,
-    pub action_listeners: Vec<DispatchActionListener>,
     pub action_tables: Vec<DispatchActionTable>,
     pub modifiers_changed_listeners: Vec<ModifiersChangedListener>,
     pub context: Option<KeyContext>,
@@ -103,12 +102,6 @@ pub(crate) struct DispatchResult {
 
 type KeyListener = Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>;
 type ModifiersChangedListener = Rc<dyn Fn(&ModifiersChangedEvent, &mut Window, &mut App)>;
-
-#[derive(Clone)]
-pub(crate) struct DispatchActionListener {
-    pub(crate) action_type: TypeId,
-    pub(crate) listener: Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>,
-}
 
 impl DispatchTree {
     pub(crate) fn new(keymap: Rc<RefCell<Keymap>>, action_registry: Rc<ActionRegistry>) -> Self {
@@ -226,7 +219,6 @@ impl DispatchTree {
 
         let target = self.active_node();
         target.key_listeners = mem::take(&mut source.key_listeners);
-        target.action_listeners = mem::take(&mut source.action_listeners);
         target.action_tables = mem::take(&mut source.action_tables);
         target.modifiers_changed_listeners = mem::take(&mut source.modifiers_changed_listeners);
     }
@@ -289,14 +281,6 @@ impl DispatchTree {
         self.active_node().modifiers_changed_listeners.push(listener);
     }
 
-    pub(crate) fn on_action(
-        &mut self,
-        action_type: TypeId,
-        listener: Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>,
-    ) {
-        self.active_node().action_listeners.push(DispatchActionListener { action_type, listener });
-    }
-
     pub(crate) fn on_action_table(&mut self, table: DispatchActionTable) {
         self.active_node().action_tables.push(table);
     }
@@ -318,7 +302,7 @@ impl DispatchTree {
         false
     }
 
-    /// `applies` says whether a table handler currently applies to its view; listeners always do.
+    /// `applies` says whether a table handler currently applies to its view.
     pub(crate) fn available_actions(
         &self,
         target: DispatchNodeId,
@@ -337,9 +321,6 @@ impl DispatchTree {
         };
         for node_id in self.dispatch_path(target) {
             let node = &self.nodes[node_id.0];
-            for listener in &node.action_listeners {
-                insert(&listener.action_type, &mut || true);
-            }
             for table in &node.action_tables {
                 for (ix, action_type) in table.action_types().iter().enumerate() {
                     insert(action_type, &mut || applies(table, ix));
@@ -349,7 +330,7 @@ impl DispatchTree {
         actions
     }
 
-    /// `applies` says whether a table handler currently applies to its view; listeners always do.
+    /// `applies` says whether a table handler currently applies to its view.
     pub(crate) fn is_action_available(
         &self,
         action: &dyn Action,
@@ -359,9 +340,19 @@ impl DispatchTree {
         let action_type = action.as_any().type_id();
         self.dispatch_path(target).into_iter().any(|node_id| {
             let node = &self.nodes[node_id.0];
-            node.action_listeners.iter().any(|listener| listener.action_type == action_type)
-                || node.action_tables.iter().any(|table| table.handlers_for(action_type).any(|ix| applies(table, ix)))
+            node.action_tables.iter().any(|table| table.handlers_for(action_type).any(|ix| applies(table, ix)))
         })
+    }
+
+    /// Whether `matches` holds for any table attached on the path to `target`.
+    pub(crate) fn any_table(
+        &self,
+        target: DispatchNodeId,
+        mut matches: impl FnMut(&DispatchActionTable) -> bool,
+    ) -> bool {
+        self.dispatch_path(target)
+            .into_iter()
+            .any(|node_id| self.nodes[node_id.0].action_tables.iter().any(&mut matches))
     }
 
     /// Returns key bindings that invoke an action on the currently focused element. Bindings are
@@ -548,7 +539,7 @@ mod tests {
     use crate::ActionTable;
     use crate::Context;
     use crate::EntityMap;
-    actions!(dispatch_test, [Listed, Tabled, Conditional, Unhandled]);
+    actions!(dispatch_test, [Tabled, Conditional, Unhandled]);
 
     fn noop<A: Action>(_: &mut (), _: &A, _: &mut Window, _: &mut Context<()>) {}
 
@@ -576,11 +567,9 @@ mod tests {
         let mut tree = tree();
 
         let node = tree.push_node();
-        tree.on_action(TypeId::of::<Listed>(), Rc::new(|_, _, _, _| {}));
         tree.on_action_table(table());
         tree.pop_node();
 
-        assert!(tree.is_action_available(&Listed, node, |_, _| false));
         assert!(tree.is_action_available(&Tabled, node, only_tabled));
         assert!(!tree.is_action_available(&Unhandled, node, |_, _| true));
     }
@@ -597,14 +586,13 @@ mod tests {
     }
 
     #[test]
-    fn available_actions_lists_listeners_and_applicable_table_handlers() {
+    fn available_actions_lists_applicable_table_handlers_once() {
         let mut tree = tree();
         tree.push_node();
-        tree.on_action(TypeId::of::<Listed>(), Rc::new(|_, _, _, _| {}));
-        let child = tree.push_node();
         tree.on_action_table(table());
+        let child = tree.push_node();
         // A handler that applies on any node of the path makes the action available once.
-        tree.on_action(TypeId::of::<Tabled>(), Rc::new(|_, _, _, _| {}));
+        tree.on_action_table(table());
         tree.pop_node();
         tree.pop_node();
 
@@ -613,14 +601,28 @@ mod tests {
             names.sort_unstable();
             names
         };
-        assert_eq!(
-            names(tree.available_actions(child, only_tabled)),
-            ["dispatch_test::Listed", "dispatch_test::Tabled"]
-        );
+        assert_eq!(names(tree.available_actions(child, only_tabled)), ["dispatch_test::Tabled"]);
         assert_eq!(
             names(tree.available_actions(child, |_, _| true)),
-            ["dispatch_test::Conditional", "dispatch_test::Listed", "dispatch_test::Tabled"]
+            ["dispatch_test::Conditional", "dispatch_test::Tabled"]
         );
+    }
+
+    #[test]
+    fn any_table_visits_the_tables_on_the_path() {
+        let mut tree = tree();
+        let parent = tree.push_node();
+        tree.on_action_table(table());
+        let child = tree.push_node();
+        tree.pop_node();
+        tree.pop_node();
+        let sibling = tree.push_node();
+        tree.pop_node();
+
+        assert!(tree.any_table(child, |_| true));
+        assert!(tree.any_table(parent, |_| true));
+        assert!(!tree.any_table(child, |_| false));
+        assert!(!tree.any_table(sibling, |_| true));
     }
 
     #[test]

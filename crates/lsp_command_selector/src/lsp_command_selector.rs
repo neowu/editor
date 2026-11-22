@@ -107,11 +107,18 @@ impl LspCommandSelector {
     }
 }
 
+static LSP_COMMAND_SELECTOR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<LspCommandSelector>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<LspCommandSelector>::default();
+        t.add(LspCommandSelector::toggle_arguments_focus);
+        t
+    });
+
 impl Render for LspCommandSelector {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .key_context("LspCommandSelector")
-            .on_action(cx.listener(Self::toggle_arguments_focus))
+            .action_table(&cx.entity(), &LSP_COMMAND_SELECTOR_ACTIONS)
             .child(self.picker.clone())
     }
 }

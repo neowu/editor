@@ -54,6 +54,24 @@ impl<D: PickerDelegate> Render for Picker<D> {
 }
 
 impl<D: PickerDelegate> Picker<D> {
+    pub(crate) fn add_actions(t: &mut gpui::ActionTable<Self>) {
+        t.add(Self::select_next);
+        t.add(Self::select_previous);
+        t.add(Self::editor_move_down);
+        t.add(Self::editor_move_up);
+        t.add(Self::select_first);
+        t.add(Self::select_last);
+        t.add(Self::select_child);
+        t.add(Self::select_parent);
+        t.add(Self::cancel);
+        t.add(Self::confirm);
+        t.add(Self::secondary_confirm);
+        t.add(Self::confirm_completion);
+        t.add(Self::confirm_input);
+        t.add(Self::toggle_multi_select);
+        t.add(Self::multi_select_next);
+    }
+
     fn render_editor(&self, editor: &Arc<dyn ErasedEditor>, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
         if let Some(custom) = self.delegate.render_editor(editor, window, cx) {
             return custom;
@@ -122,21 +140,7 @@ impl<D: PickerDelegate> Picker<D> {
                 .top_0()
                 .left_0(),
             )
-            .on_action(cx.listener(Self::select_next))
-            .on_action(cx.listener(Self::select_previous))
-            .on_action(cx.listener(Self::editor_move_down))
-            .on_action(cx.listener(Self::editor_move_up))
-            .on_action(cx.listener(Self::select_first))
-            .on_action(cx.listener(Self::select_last))
-            .on_action(cx.listener(Self::select_child))
-            .on_action(cx.listener(Self::select_parent))
-            .on_action(cx.listener(Self::cancel))
-            .on_action(cx.listener(Self::confirm))
-            .on_action(cx.listener(Self::secondary_confirm))
-            .on_action(cx.listener(Self::confirm_completion))
-            .on_action(cx.listener(Self::confirm_input))
-            .on_action(cx.listener(Self::toggle_multi_select))
-            .on_action(cx.listener(Self::multi_select_next))
+            .action_table(&cx.entity(), self.actions)
             .children(match &self.head {
                 Head::Editor(editor) => (editor_position == PickerEditorPosition::Start).then(|| {
                     let editor = Arc::clone(editor);

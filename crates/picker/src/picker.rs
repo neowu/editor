@@ -148,6 +148,8 @@ pub struct Picker<D: PickerDelegate> {
     /// Bounds tracking for items (for aside positioning) - maps item index to bounds.
     item_bounds: Rc<RefCell<HashMap<usize, Bounds<Pixels>>>>,
     reopenable: bool,
+    /// Shared by every picker with this delegate type.
+    pub(crate) actions: &'static gpui::ActionTable<Self>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -421,6 +423,7 @@ impl<D: PickerDelegate> Picker<D> {
             show_scrollbar: false,
             presentation: Presentation::Modal,
             picker_bounds: Rc::new(Cell::new(None)),
+            actions: gpui::ActionTable::shared(Self::add_actions),
             item_bounds: Rc::new(RefCell::new(HashMap::default())),
             reopenable: true,
         };

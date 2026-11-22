@@ -100,7 +100,6 @@ pub use gpui_shared_string::*;
 pub use input::*;
 #[allow(clippy::wildcard_imports)]
 pub use interactive::*;
-use key_dispatch::DispatchActionListener;
 use key_dispatch::DispatchNodeId;
 use key_dispatch::DispatchTree;
 use key_dispatch::Replay;

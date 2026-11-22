@@ -1460,6 +1460,16 @@ impl Focusable for SplittableEditor {
     }
 }
 
+static SPLITTABLE_EDITOR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<SplittableEditor>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<SplittableEditor>::default();
+        t.add(SplittableEditor::toggle_split);
+        t.add(SplittableEditor::activate_pane_left);
+        t.add(SplittableEditor::activate_pane_right);
+        t.add_capture(SplittableEditor::toggle_soft_wrap);
+        t
+    });
+
 impl Render for SplittableEditor {
     fn render(&mut self, _window: &mut ui::Window, cx: &mut ui::Context<Self>) -> impl ui::IntoElement {
         let is_split = self.lhs.is_some();
@@ -1475,10 +1485,7 @@ impl Render for SplittableEditor {
 
         div()
             .id("splittable-editor")
-            .on_action(cx.listener(Self::toggle_split))
-            .on_action(cx.listener(Self::activate_pane_left))
-            .on_action(cx.listener(Self::activate_pane_right))
-            .capture_action(cx.listener(Self::toggle_soft_wrap))
+            .action_table(&cx.entity(), &SPLITTABLE_EDITOR_ACTIONS)
             .size_full()
             .child(inner)
             .child(

@@ -621,17 +621,23 @@ impl Focusable for ImageView {
     }
 }
 
+static IMAGE_VIEW_ACTIONS: std::sync::LazyLock<gpui::ActionTable<ImageView>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<ImageView>::default();
+    t.add(ImageView::zoom_in);
+    t.add(ImageView::zoom_out);
+    t.add(ImageView::reset_zoom);
+    t.add(ImageView::fit_to_view);
+    t.add(ImageView::zoom_to_actual_size);
+    t.add(ImageView::reveal_in_file_manager);
+    t
+});
+
 impl Render for ImageView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .track_focus(&self.focus_handle(cx))
             .key_context("ImageViewer")
-            .on_action(cx.listener(Self::zoom_in))
-            .on_action(cx.listener(Self::zoom_out))
-            .on_action(cx.listener(Self::reset_zoom))
-            .on_action(cx.listener(Self::fit_to_view))
-            .on_action(cx.listener(Self::zoom_to_actual_size))
-            .on_action(cx.listener(Self::reveal_in_file_manager))
+            .action_table(&cx.entity(), &IMAGE_VIEW_ACTIONS)
             .size_full()
             .relative()
             .bg(cx.theme().colors().editor_background)
@@ -782,6 +788,14 @@ impl Default for ImageViewToolbarControls {
     }
 }
 
+static IMAGE_VIEW_TOOLBAR_CONTROLS_ACTIONS: std::sync::LazyLock<gpui::ActionTable<ImageViewToolbarControls>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<ImageViewToolbarControls>::default();
+        t.add(|_, _: &menu::Confirm, window, cx| window.blur(cx));
+        t.add(|this, _: &menu::Cancel, _, cx| this.cancel_edit(cx));
+        t
+    });
+
 impl Render for ImageViewToolbarControls {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(image_view) = self.image_view.as_ref().and_then(|v| v.upgrade()) else {
@@ -828,14 +842,7 @@ impl Render for ImageViewToolbarControls {
                         }
                     })
                     .child(editor.clone())
-                    .on_action::<menu::Confirm>({
-                        move |_: &menu::Confirm, window, cx| {
-                            window.blur(cx);
-                        }
-                    })
-                    .on_action(cx.listener(|this, _: &menu::Cancel, _, cx| {
-                        this.cancel_edit(cx);
-                    }))
+                    .action_table(&cx.entity(), &IMAGE_VIEW_TOOLBAR_CONTROLS_ACTIONS)
                     .into_any_element()
             } else {
                 let zoom_level = image_view.read(cx).zoom_level;

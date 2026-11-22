@@ -1138,6 +1138,67 @@ impl StickyCandidate for StickyProjectPanelCandidate {
     }
 }
 
+static PROJECT_PANEL_ACTIONS: std::sync::LazyLock<gpui::ActionTable<ProjectPanel>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<ProjectPanel>::default();
+    t.add(ProjectPanel::scroll_up);
+    t.add(ProjectPanel::scroll_down);
+    t.add(ProjectPanel::scroll_cursor_center);
+    t.add(ProjectPanel::scroll_cursor_top);
+    t.add(ProjectPanel::scroll_cursor_bottom);
+    t.add(ProjectPanel::select_next);
+    t.add(ProjectPanel::select_previous);
+    t.add(ProjectPanel::select_first);
+    t.add(ProjectPanel::select_last);
+    t.add(ProjectPanel::select_parent);
+    t.add(ProjectPanel::select_next_git_entry);
+    t.add(ProjectPanel::select_prev_git_entry);
+    t.add(ProjectPanel::select_next_diagnostic);
+    t.add(ProjectPanel::select_prev_diagnostic);
+    t.add(ProjectPanel::select_next_directory);
+    t.add(ProjectPanel::select_prev_directory);
+    t.add(ProjectPanel::expand_selected_entry);
+    t.add(ProjectPanel::collapse_selected_entry);
+    t.add(ProjectPanel::collapse_all_entries);
+    t.add(ProjectPanel::expand_all_entries);
+    t.add(ProjectPanel::collapse_selected_entry_and_children);
+    t.add(ProjectPanel::expand_selected_entry_and_children);
+    t.add(ProjectPanel::open);
+    t.add(ProjectPanel::open_permanent);
+    t.add(ProjectPanel::open_split_vertical);
+    t.add(ProjectPanel::open_split_horizontal);
+    t.add(ProjectPanel::open_markdown_preview);
+    t.add(ProjectPanel::open_svg_preview);
+    // Without a selection the workspace decides, from the active editor's file.
+    t.add_if(|panel, _| panel.selection.is_some(), ProjectPanel::file_history);
+    t.add(ProjectPanel::new_file);
+    t.add(ProjectPanel::undo);
+    t.add(ProjectPanel::redo);
+    t.add(ProjectPanel::reveal_in_finder);
+    t.add(ProjectPanel::confirm);
+    t.add(ProjectPanel::cancel);
+    t.add(ProjectPanel::copy_path);
+    t.add(ProjectPanel::copy_relative_path);
+    t.add(ProjectPanel::new_search_in_directory);
+    t.add(ProjectPanel::unfold_directory);
+    t.add(ProjectPanel::fold_directory);
+    t.add(ProjectPanel::remove_from_project);
+    t.add(ProjectPanel::compare_marked_files);
+    t.add(ProjectPanel::open_context_menu);
+    t.add(ProjectPanel::new_directory);
+    t.add(ProjectPanel::rename);
+    t.add(ProjectPanel::delete);
+    t.add(ProjectPanel::cut);
+    t.add(ProjectPanel::copy);
+    t.add(ProjectPanel::paste);
+    t.add(ProjectPanel::duplicate);
+    t.add(ProjectPanel::restore_file);
+    t.add(ProjectPanel::add_to_gitignore);
+    t.add(ProjectPanel::add_to_git_info_exclude);
+    t.add(ProjectPanel::open_system);
+    t.add(ProjectPanel::open_in_terminal);
+    t
+});
+
 impl Render for ProjectPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if !cx.has_active_drag() {
@@ -1232,65 +1293,7 @@ impl Render for ProjectPanel {
                     this.refresh_drag_cursor_style(event.modifiers, window, cx);
                 }))
                 .key_context(self.dispatch_context(window, cx))
-                .on_action(cx.listener(Self::scroll_up))
-                .on_action(cx.listener(Self::scroll_down))
-                .on_action(cx.listener(Self::scroll_cursor_center))
-                .on_action(cx.listener(Self::scroll_cursor_top))
-                .on_action(cx.listener(Self::scroll_cursor_bottom))
-                .on_action(cx.listener(Self::select_next))
-                .on_action(cx.listener(Self::select_previous))
-                .on_action(cx.listener(Self::select_first))
-                .on_action(cx.listener(Self::select_last))
-                .on_action(cx.listener(Self::select_parent))
-                .on_action(cx.listener(Self::select_next_git_entry))
-                .on_action(cx.listener(Self::select_prev_git_entry))
-                .on_action(cx.listener(Self::select_next_diagnostic))
-                .on_action(cx.listener(Self::select_prev_diagnostic))
-                .on_action(cx.listener(Self::select_next_directory))
-                .on_action(cx.listener(Self::select_prev_directory))
-                .on_action(cx.listener(Self::expand_selected_entry))
-                .on_action(cx.listener(Self::collapse_selected_entry))
-                .on_action(cx.listener(Self::collapse_all_entries))
-                .on_action(cx.listener(Self::expand_all_entries))
-                .on_action(cx.listener(Self::collapse_selected_entry_and_children))
-                .on_action(cx.listener(Self::expand_selected_entry_and_children))
-                .on_action(cx.listener(Self::open))
-                .on_action(cx.listener(Self::open_permanent))
-                .on_action(cx.listener(Self::open_split_vertical))
-                .on_action(cx.listener(Self::open_split_horizontal))
-                .on_action(cx.listener(Self::open_markdown_preview))
-                .on_action(cx.listener(Self::open_svg_preview))
-                // Without a selection the workspace decides, from the active editor's file.
-                .when(self.selection.is_some(), |el| el.on_action(cx.listener(Self::file_history)))
-                .on_action(cx.listener(Self::confirm))
-                .on_action(cx.listener(Self::cancel))
-                .on_action(cx.listener(Self::copy_path))
-                .on_action(cx.listener(Self::copy_relative_path))
-                .on_action(cx.listener(Self::new_search_in_directory))
-                .on_action(cx.listener(Self::unfold_directory))
-                .on_action(cx.listener(Self::fold_directory))
-                .on_action(cx.listener(Self::remove_from_project))
-                .on_action(cx.listener(Self::compare_marked_files))
-                .on_action(cx.listener(Self::open_context_menu))
-                .map(|el| {
-                    el.on_action(cx.listener(Self::new_file))
-                        .on_action(cx.listener(Self::new_directory))
-                        .on_action(cx.listener(Self::rename))
-                        .on_action(cx.listener(Self::delete))
-                        .on_action(cx.listener(Self::cut))
-                        .on_action(cx.listener(Self::copy))
-                        .on_action(cx.listener(Self::paste))
-                        .on_action(cx.listener(Self::duplicate))
-                        .on_action(cx.listener(Self::restore_file))
-                        .on_action(cx.listener(Self::add_to_gitignore))
-                        .on_action(cx.listener(Self::add_to_git_info_exclude))
-                        .map(|el| el.on_action(cx.listener(Self::undo)).on_action(cx.listener(Self::redo)))
-                })
-                .map(|el| {
-                    el.on_action(cx.listener(Self::reveal_in_finder))
-                        .on_action(cx.listener(Self::open_system))
-                        .on_action(cx.listener(Self::open_in_terminal))
-                })
+                .action_table(&cx.entity(), &PROJECT_PANEL_ACTIONS)
                 .track_focus(&self.focus_handle(cx))
                 .child(
                     v_flex()
@@ -1634,5 +1637,23 @@ impl Render for DraggedProjectEntryView {
                 },
             ),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use super::*;
+
+    fn conditional<V: 'static>(table: &gpui::ActionTable<V>) -> Vec<TypeId> {
+        let types = table.action_types().iter().zip(table.conditional());
+        types.filter_map(|(action_type, conditional)| conditional.then_some(*action_type)).collect()
+    }
+
+    #[test]
+    fn only_file_history_is_conditional() {
+        assert_eq!(conditional(&PROJECT_PANEL_ACTIONS), [TypeId::of::<git::FileHistory>()]);
+        assert!(PROJECT_PANEL_ACTIONS.action_types().is_sorted_by(|a, b| a < b), "action handled twice");
     }
 }

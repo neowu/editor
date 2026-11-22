@@ -1149,6 +1149,15 @@ pub struct GitGraph {
     refreshing: Option<Task<()>>,
 }
 
+static GIT_GRAPH_RENAME_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GitGraph>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<GitGraph>::default();
+    t.add(GitGraph::confirm_search);
+    t.add(|this, _: &Cancel, window, cx| {
+        this.hide_search(window, cx);
+    });
+    t
+});
+
 impl GitGraph {
     fn invalidate_state(&mut self, cx: &mut Context<Self>) {
         self.graph_data.clear();
@@ -2380,10 +2389,7 @@ impl GitGraph {
                     .border_color(color.border_variant)
                     .rounded_md()
                     .bg(color.toolbar_background)
-                    .on_action(cx.listener(Self::confirm_search))
-                    .on_action(cx.listener(|this, _: &Cancel, window, cx| {
-                        this.hide_search(window, cx);
-                    }))
+                    .action_table(&cx.entity(), &GIT_GRAPH_RENAME_ACTIONS)
                     .child(self.search_state.editor.clone())
                     .child({
                         let focus_handle = query_focus_handle.clone();
@@ -3142,6 +3148,53 @@ impl GitGraph {
     }
 }
 
+static GIT_GRAPH_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GitGraph>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<GitGraph>::default();
+    t.add(|this, _: &OpenCommitView, window, cx| {
+        this.open_selected_commit_view(window, cx);
+    });
+    t.add(GitGraph::copy_selected_commit_sha);
+    t.add(GitGraph::copy_selected_commit_tag);
+    t.add(|this, _: &FocusSearch, window, cx| this.show_search(window, cx));
+    t.add(GitGraph::refresh);
+    t.add(GitGraph::select_first);
+    t.add(GitGraph::select_prev);
+    t.add(GitGraph::select_next);
+    t.add(GitGraph::select_last);
+    t.add(GitGraph::scroll_up);
+    t.add(GitGraph::scroll_down);
+    t.add(GitGraph::confirm);
+    t.add(GitGraph::toggle_changed_files_view);
+    t.add(GitGraph::focus_next_tab_stop);
+    t.add(GitGraph::focus_previous_tab_stop);
+    t.add(|this, _: &SelectNextMatch, _window, cx| {
+        this.select_next_match(cx);
+    });
+    t.add(|this, _: &SelectPreviousMatch, _window, cx| {
+        this.select_previous_match(cx);
+    });
+    t.add(|this, _: &ToggleCaseSensitive, _window, cx| {
+        this.search_state.case_sensitive = !this.search_state.case_sensitive;
+        this.search_state.state.next_state();
+        cx.emit(ItemEvent::Edit);
+        cx.notify();
+    });
+    t
+});
+
+static GIT_GRAPH_SEARCH_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GitGraph>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<GitGraph>::default();
+    t.add(|this, _: &buffer_search::Deploy, window, cx| {
+        this.show_search(window, cx);
+        cx.stop_propagation();
+    });
+    t.add(|this, _: &buffer_search::Dismiss, window, cx| {
+        this.hide_search(window, cx);
+        cx.stop_propagation();
+    });
+    t
+});
+
 impl Render for GitGraph {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // This happens when we changed branches, we should refresh our search as well
@@ -3425,35 +3478,7 @@ impl Render for GitGraph {
             .track_focus(&self.focus_handle)
             .size_full()
             .bg(cx.theme().colors().editor_background)
-            .on_action(cx.listener(|this, _: &OpenCommitView, window, cx| {
-                this.open_selected_commit_view(window, cx);
-            }))
-            .on_action(cx.listener(Self::copy_selected_commit_sha))
-            .on_action(cx.listener(Self::copy_selected_commit_tag))
-            .on_action(cx.listener(|this, _: &FocusSearch, window, cx| this.show_search(window, cx)))
-            .on_action(cx.listener(Self::refresh))
-            .on_action(cx.listener(Self::select_first))
-            .on_action(cx.listener(Self::select_prev))
-            .on_action(cx.listener(Self::select_next))
-            .on_action(cx.listener(Self::select_last))
-            .on_action(cx.listener(Self::scroll_up))
-            .on_action(cx.listener(Self::scroll_down))
-            .on_action(cx.listener(Self::confirm))
-            .on_action(cx.listener(Self::toggle_changed_files_view))
-            .on_action(cx.listener(Self::focus_next_tab_stop))
-            .on_action(cx.listener(Self::focus_previous_tab_stop))
-            .on_action(cx.listener(|this, _: &SelectNextMatch, _window, cx| {
-                this.select_next_match(cx);
-            }))
-            .on_action(cx.listener(|this, _: &SelectPreviousMatch, _window, cx| {
-                this.select_previous_match(cx);
-            }))
-            .on_action(cx.listener(|this, _: &ToggleCaseSensitive, _window, cx| {
-                this.search_state.case_sensitive = !this.search_state.case_sensitive;
-                this.search_state.state.next_state();
-                cx.emit(ItemEvent::Edit);
-                cx.notify();
-            }))
+            .action_table(&cx.entity(), &GIT_GRAPH_ACTIONS)
             .child(
                 v_flex()
                     .size_full()
@@ -3473,14 +3498,7 @@ impl Render for GitGraph {
                 )
                 .with_priority(1)
             }))
-            .on_action(cx.listener(|this, _: &buffer_search::Deploy, window, cx| {
-                this.show_search(window, cx);
-                cx.stop_propagation();
-            }))
-            .on_action(cx.listener(|this, _: &buffer_search::Dismiss, window, cx| {
-                this.hide_search(window, cx);
-                cx.stop_propagation();
-            }))
+            .action_table(&cx.entity(), &GIT_GRAPH_SEARCH_ACTIONS)
     }
 }
 

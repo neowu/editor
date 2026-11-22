@@ -1069,19 +1069,24 @@ impl ContextMenu {
         cx.notify();
     }
 
+    /// The first enabled entry that runs `action`.
+    fn entry_for_action(&self, action: &dyn Action) -> Option<usize> {
+        self.items.iter().position(|item| {
+            if let ContextMenuItem::Entry(ContextMenuEntry { action: Some(entry_action), disabled: false, .. }) = item {
+                entry_action.partial_eq(action)
+            } else {
+                false
+            }
+        })
+    }
+
     pub fn on_action_dispatch(&mut self, dispatched: &dyn Action, window: &mut Window, cx: &mut Context<Self>) {
         if self.clicked {
             cx.propagate();
             return;
         }
 
-        if let Some(ix) = self.items.iter().position(|item| {
-            if let ContextMenuItem::Entry(ContextMenuEntry { action: Some(action), disabled: false, .. }) = item {
-                action.partial_eq(dispatched)
-            } else {
-                false
-            }
-        }) {
+        if let Some(ix) = self.entry_for_action(dispatched) {
             self.select_index(ix, window, cx);
             self.delayed = true;
             cx.notify();
@@ -1620,6 +1625,25 @@ impl ContextMenu {
     }
 }
 
+static CONTEXT_MENU_ACTIONS: std::sync::LazyLock<gpui::ActionTable<ContextMenu>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<ContextMenu>::default();
+    t.add(ContextMenu::select_first);
+    t.add(ContextMenu::handle_select_last);
+    t.add(ContextMenu::select_next);
+    t.add(ContextMenu::select_previous);
+    t.add(ContextMenu::select_submenu_child);
+    t.add(ContextMenu::select_submenu_parent);
+    t.add(ContextMenu::confirm);
+    t.add(ContextMenu::secondary_confirm);
+    t.add(ContextMenu::cancel);
+    // The actions of the menu's own entries select and run the entry.
+    t.set_fallback(
+        |menu, dispatched, _| !menu.delayed && menu.entry_for_action(dispatched).is_some(),
+        ContextMenu::on_action_dispatch,
+    );
+    t
+});
+
 impl Render for ContextMenu {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let ui_font_size = font::ui_font_size(cx);
@@ -1690,15 +1714,7 @@ impl Render for ContextMenu {
                         .overflow_y_scroll()
                         .track_focus(&self.focus_handle(cx))
                         .key_context(self.key_context.as_ref())
-                        .on_action(cx.listener(ContextMenu::select_first))
-                        .on_action(cx.listener(ContextMenu::handle_select_last))
-                        .on_action(cx.listener(ContextMenu::select_next))
-                        .on_action(cx.listener(ContextMenu::select_previous))
-                        .on_action(cx.listener(ContextMenu::select_submenu_child))
-                        .on_action(cx.listener(ContextMenu::select_submenu_parent))
-                        .on_action(cx.listener(ContextMenu::confirm))
-                        .on_action(cx.listener(ContextMenu::secondary_confirm))
-                        .on_action(cx.listener(ContextMenu::cancel))
+                        .action_table(&cx.entity(), &CONTEXT_MENU_ACTIONS)
                         .on_hover(cx.listener(|this, hovered: &bool, _, cx| {
                             if *hovered {
                                 this.hover_target = HoverTarget::MainMenu;
@@ -1734,19 +1750,6 @@ impl Render for ContextMenu {
 
                             this.cancel(&menu::Cancel, window, cx);
                         }))
-                        .when(!self.delayed, |mut el| {
-                            for item in &self.items {
-                                if let ContextMenuItem::Entry(ContextMenuEntry {
-                                    action: Some(action),
-                                    disabled: false,
-                                    ..
-                                }) = item
-                                {
-                                    el = el.on_boxed_action(&**action, cx.listener(ContextMenu::on_action_dispatch));
-                                }
-                            }
-                            el
-                        })
                         .child(List::new().children(
                             self.items.iter().enumerate().map(|(ix, item)| self.render_menu_item(ix, item, window, cx)),
                         )),
@@ -1797,5 +1800,22 @@ impl Render for ContextMenu {
                 .children(aside.map(|(_, aside)| render_aside(aside, cx)))
                 .child(render_menu(cx, window))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use super::*;
+
+    #[test]
+    fn actions_handle_navigation_once_and_leave_entry_actions_to_the_fallback() {
+        let types = CONTEXT_MENU_ACTIONS.action_types();
+
+        assert_eq!(types.len(), 9);
+        assert!(types.is_sorted_by(|a, b| a < b), "action handled twice");
+        assert!(types.contains(&TypeId::of::<menu::Confirm>()));
+        assert!(CONTEXT_MENU_ACTIONS.conditional().all(|conditional| !conditional));
     }
 }

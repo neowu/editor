@@ -465,6 +465,18 @@ impl Focusable for Finder {
     }
 }
 
+static FINDER_ACTIONS: std::sync::LazyLock<gpui::ActionTable<Finder>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<Finder>::default();
+    t.add(Finder::handle_select_prev);
+    t.add(Finder::handle_toggle_ignored);
+    t.add(Finder::open_without_dismiss);
+    t.add(Finder::handle_close_selected_tab);
+    t.add(|this, _: &ShowFiles, window, cx| this.set_mode(Mode::Files, window, cx));
+    t.add(|this, _: &ShowSymbols, window, cx| this.set_mode(Mode::Symbols, window, cx));
+    t.add(|this, _: &ShowTabs, window, cx| this.set_mode(Mode::Tabs, window, cx));
+    t
+});
+
 impl Render for Finder {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let key_context = self.picker.read(cx).delegate.key_context(window, cx);
@@ -473,13 +485,7 @@ impl Render for Finder {
             .key_context(key_context)
             .elevation_3(cx)
             .on_modifiers_changed(cx.listener(Self::handle_modifiers_changed))
-            .on_action(cx.listener(Self::handle_select_prev))
-            .on_action(cx.listener(Self::handle_toggle_ignored))
-            .on_action(cx.listener(Self::open_without_dismiss))
-            .on_action(cx.listener(Self::handle_close_selected_tab))
-            .on_action(cx.listener(|this, _: &ShowFiles, window, cx| this.set_mode(Mode::Files, window, cx)))
-            .on_action(cx.listener(|this, _: &ShowSymbols, window, cx| this.set_mode(Mode::Symbols, window, cx)))
-            .on_action(cx.listener(|this, _: &ShowTabs, window, cx| this.set_mode(Mode::Tabs, window, cx)))
+            .action_table(&cx.entity(), &FINDER_ACTIONS)
             .map(|this| match self.mode {
                 Mode::Files => this.child(self.picker.clone()),
                 Mode::Symbols => this.children(self.symbols.clone()),

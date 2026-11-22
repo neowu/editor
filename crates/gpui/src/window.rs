@@ -1713,7 +1713,9 @@ impl Window {
     /// Determine whether the given action is available along the dispatch path to the currently focused element.
     pub fn is_action_available(&self, action: &dyn Action, cx: &App) -> bool {
         let node_id = self.focus_node_id_in_rendered_frame(self.focused(cx).map(|handle| handle.id));
-        self.rendered_frame.dispatch_tree.is_action_available(action, node_id, |table, ix| table.applies(ix, cx))
+        let tree = &self.rendered_frame.dispatch_tree;
+        tree.is_action_available(action, node_id, |table, ix| table.applies(ix, cx))
+            || tree.any_table(node_id, |table| table.fallback_matches(action, cx))
     }
 
     /// The position of the mouse relative to the window.
@@ -2932,22 +2934,6 @@ impl Window {
     pub fn on_window_should_close(&self, cx: &App, f: impl Fn(&mut Window, &mut App) -> bool + 'static) {
         let mut cx = self.to_async(cx);
         self.platform_window.on_should_close(Box::new(move || cx.update(|window, cx| f(window, cx)).unwrap_or(true)));
-    }
-
-    /// Register an action listener on this node for the next frame. The type of action
-    /// is determined by the first parameter of the given listener. When the next frame is rendered
-    /// the listener will be cleared.
-    ///
-    /// This is a fairly low-level method, so prefer using action handlers on elements unless you have
-    /// a specific need to register a listener yourself.
-    ///
-    /// This method should only be called as part of the paint phase of element drawing.
-    pub fn on_action(
-        &mut self,
-        action_type: TypeId,
-        listener: impl Fn(&dyn Any, DispatchPhase, &mut Window, &mut App) + 'static,
-    ) {
-        self.next_frame.dispatch_tree.on_action(action_type, Rc::new(listener));
     }
 
     /// Attach `table` to the current dispatch node for the next frame, with `entity` as the view

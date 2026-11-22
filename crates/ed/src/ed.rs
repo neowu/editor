@@ -423,17 +423,19 @@ fn open_about_window(cx: &mut App) {
         }
     }
 
+    static ABOUT_WINDOW_ACTIONS: std::sync::LazyLock<gpui::ActionTable<AboutWindow>> = std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<AboutWindow>::default();
+        t.add(|_, _: &menu::Cancel, window, _| window.remove_window());
+        t.add(|_, _: &menu::Confirm, window, _| window.remove_window());
+        t
+    });
+
     impl Render for AboutWindow {
         fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
             v_flex()
                 .id("about-window")
                 .track_focus(&self.ok_focus_handle)
-                .on_action(cx.listener(|_, _: &menu::Cancel, window, _cx| {
-                    window.remove_window();
-                }))
-                .on_action(cx.listener(|_, _: &menu::Confirm, window, _cx| {
-                    window.remove_window();
-                }))
+                .action_table(&cx.entity(), &ABOUT_WINDOW_ACTIONS)
                 .size_full()
                 .bg(cx.theme().colors().editor_background)
                 .text_color(cx.theme().colors().text)

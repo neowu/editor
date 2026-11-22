@@ -446,12 +446,19 @@ impl Focusable for RenameBranchModal {
     }
 }
 
+static RENAME_BRANCH_MODAL_ACTIONS: std::sync::LazyLock<gpui::ActionTable<RenameBranchModal>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<RenameBranchModal>::default();
+        t.add(RenameBranchModal::cancel);
+        t.add(RenameBranchModal::confirm);
+        t
+    });
+
 impl Render for RenameBranchModal {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .key_context("RenameBranchModal")
-            .on_action(cx.listener(Self::cancel))
-            .on_action(cx.listener(Self::confirm))
+            .action_table(&cx.entity(), &RENAME_BRANCH_MODAL_ACTIONS)
             .elevation_2(cx)
             .w(rems(34.))
             .child(
@@ -543,13 +550,20 @@ impl Focusable for CreateTagModal {
     }
 }
 
+static CREATE_TAG_MODAL_ACTIONS: std::sync::LazyLock<gpui::ActionTable<CreateTagModal>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<CreateTagModal>::default();
+        t.add(CreateTagModal::cancel);
+        t.add(CreateTagModal::confirm);
+        t
+    });
+
 impl Render for CreateTagModal {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let title = format!("Create Tag at {}", self.tag_target_commit_label());
         v_flex()
             .key_context("CreateTagModal")
-            .on_action(cx.listener(Self::cancel))
-            .on_action(cx.listener(Self::confirm))
+            .action_table(&cx.entity(), &CREATE_TAG_MODAL_ACTIONS)
             .elevation_2(cx)
             .w(rems(34.))
             .child(
@@ -763,6 +777,14 @@ impl Focusable for RefPickerModal {
     }
 }
 
+static REF_PICKER_MODAL_ACTIONS: std::sync::LazyLock<gpui::ActionTable<RefPickerModal>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<RefPickerModal>::default();
+        t.add(RefPickerModal::cancel);
+        t.add(RefPickerModal::confirm);
+        t
+    });
+
 impl Render for RefPickerModal {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let has_commit_details = self.commit_details.is_some();
@@ -795,8 +817,7 @@ impl Render for RefPickerModal {
 
         v_flex()
             .key_context("RefPickerModal")
-            .on_action(cx.listener(Self::cancel))
-            .on_action(cx.listener(Self::confirm))
+            .action_table(&cx.entity(), &REF_PICKER_MODAL_ACTIONS)
             .elevation_2(cx)
             .w(rems(34.))
             .child(
@@ -1244,6 +1265,22 @@ impl Focusable for GitCloneModal {
     }
 }
 
+static GIT_CLONE_MODAL_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GitCloneModal>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<GitCloneModal>::default();
+        t.add(|_, _: &menu::Cancel, _, cx| {
+            cx.emit(DismissEvent);
+        });
+        t.add(|this, _: &menu::Confirm, window, cx| {
+            let repo = this.repo_input.read(cx).text(cx);
+            this.panel.update(cx, |panel, cx| {
+                panel.git_clone(repo, window, cx);
+            });
+            cx.emit(DismissEvent);
+        });
+        t
+    });
+
 impl Render for GitCloneModal {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
@@ -1280,16 +1317,7 @@ impl Render for GitCloneModal {
                             }),
                     ),
             )
-            .on_action(cx.listener(|_, _: &menu::Cancel, _, cx| {
-                cx.emit(DismissEvent);
-            }))
-            .on_action(cx.listener(|this, _: &menu::Confirm, window, cx| {
-                let repo = this.repo_input.read(cx).text(cx);
-                this.panel.update(cx, |panel, cx| {
-                    panel.git_clone(repo, window, cx);
-                });
-                cx.emit(DismissEvent);
-            }))
+            .action_table(&cx.entity(), &GIT_CLONE_MODAL_ACTIONS)
     }
 }
 

@@ -98,12 +98,19 @@ impl Focusable for StashMessageModal {
     }
 }
 
+static STASH_MESSAGE_MODAL_ACTIONS: std::sync::LazyLock<gpui::ActionTable<StashMessageModal>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<StashMessageModal>::default();
+        t.add(StashMessageModal::cancel);
+        t.add(StashMessageModal::confirm);
+        t
+    });
+
 impl Render for StashMessageModal {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .key_context("StashMessageModal")
-            .on_action(cx.listener(Self::cancel))
-            .on_action(cx.listener(Self::confirm))
+            .action_table(&cx.entity(), &STASH_MESSAGE_MODAL_ACTIONS)
             .elevation_2(cx)
             .w(rems(34.))
             .child(

@@ -952,6 +952,13 @@ fn render_landing_action_button<A: Action>(
         })
 }
 
+static PROJECT_SEARCH_VIEW_ACTIONS: std::sync::LazyLock<gpui::ActionTable<ProjectSearchView>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<ProjectSearchView>::default();
+        t.add(ProjectSearchView::open_text_finder);
+        t
+    });
+
 impl Render for ProjectSearchView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let mut key_context = KeyContext::default();
@@ -960,7 +967,7 @@ impl Render for ProjectSearchView {
         if self.has_matches() {
             div()
                 .key_context(key_context)
-                .on_action(cx.listener(Self::open_text_finder))
+                .action_table(&cx.entity(), &PROJECT_SEARCH_VIEW_ACTIONS)
                 .flex_1()
                 .size_full()
                 .track_focus(&self.focus_handle(cx))
@@ -992,7 +999,7 @@ impl Render for ProjectSearchView {
 
             h_flex()
                 .key_context(key_context)
-                .on_action(cx.listener(Self::open_text_finder))
+                .action_table(&cx.entity(), &PROJECT_SEARCH_VIEW_ACTIONS)
                 .size_full()
                 .items_center()
                 .justify_center()
@@ -2514,6 +2521,63 @@ impl ProjectSearchBar {
     }
 }
 
+static PROJECT_SEARCH_BAR_QUERY_ACTIONS: std::sync::LazyLock<gpui::ActionTable<ProjectSearchBar>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<ProjectSearchBar>::default();
+        t.add(|this, action, window, cx| this.confirm(action, window, cx));
+        t.add(|this, action, window, cx| this.previous_history_query(action, window, cx));
+        t.add(|this, action, window, cx| this.next_history_query(action, window, cx));
+        t
+    });
+
+static PROJECT_SEARCH_BAR_FILTER_ACTIONS: std::sync::LazyLock<gpui::ActionTable<ProjectSearchBar>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<ProjectSearchBar>::default();
+        t.add(|this, action, window, cx| this.previous_history_query(action, window, cx));
+        t.add(|this, action, window, cx| this.next_history_query(action, window, cx));
+        t
+    });
+
+static PROJECT_SEARCH_BAR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<ProjectSearchBar>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<ProjectSearchBar>::default();
+        t.add(|this, _: &ToggleFocus, window, cx| this.move_focus_to_results(window, cx));
+        t.add(|this, _: &ToggleFilters, window, cx| {
+            this.toggle_filters(window, cx);
+        });
+        t.add_capture(ProjectSearchBar::tab);
+        t.add_capture(ProjectSearchBar::backtab);
+        t.add_capture(ProjectSearchBar::toggle_fold_all);
+        t.add_capture(ProjectSearchBar::fold_all);
+        t.add_capture(ProjectSearchBar::unfold_all);
+        t.add(|this, action, window, cx| this.confirm(action, window, cx));
+        t.add(|this, action, window, cx| {
+            this.toggle_replace(action, window, cx);
+        });
+        t.add(|this, _: &ToggleWholeWord, window, cx| {
+            this.toggle_search_option(SearchOptions::WHOLE_WORD, window, cx);
+        });
+        t.add(|this, _: &ToggleCaseSensitive, window, cx| {
+            this.toggle_search_option(SearchOptions::CASE_SENSITIVE, window, cx);
+        });
+        t.add(|this, action, window, cx| {
+            this.replace_next(action, window, cx);
+        });
+        t.add(|this, action, window, cx| {
+            this.replace_all(action, window, cx);
+        });
+        t.add_if(
+            |bar, cx| bar.active_project_search.as_ref().is_some_and(|search| search.read(cx).filters_enabled),
+            |this, _: &ToggleIncludeIgnored, window, cx| {
+                this.toggle_search_option(SearchOptions::INCLUDE_IGNORED, window, cx);
+            },
+        );
+        t.add(ProjectSearchBar::select_next_match);
+        t.add(ProjectSearchBar::select_prev_match);
+        t.add(ProjectSearchBar::open_text_finder);
+        t
+    });
+
 impl Render for ProjectSearchBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(search) = self.active_project_search.clone() else {
@@ -2567,9 +2631,7 @@ impl Render for ProjectSearchBar {
         let query_focus = search.query_editor.focus_handle(cx);
 
         let query_column = input_base_styles(InputPanel::Query)
-            .on_action(cx.listener(|this, action, window, cx| this.confirm(action, window, cx)))
-            .on_action(cx.listener(|this, action, window, cx| this.previous_history_query(action, window, cx)))
-            .on_action(cx.listener(|this, action, window, cx| this.next_history_query(action, window, cx)))
+            .action_table(&cx.entity(), &PROJECT_SEARCH_BAR_QUERY_ACTIONS)
             .child(div().flex_1().py_1().child(render_text_input(&search.query_editor, color_override, cx)))
             .child(
                 h_flex()
@@ -2713,12 +2775,10 @@ impl Render for ProjectSearchBar {
 
         let filter_line = search.filters_enabled.then(|| {
             let include = input_base_styles(InputPanel::Include)
-                .on_action(cx.listener(|this, action, window, cx| this.previous_history_query(action, window, cx)))
-                .on_action(cx.listener(|this, action, window, cx| this.next_history_query(action, window, cx)))
+                .action_table(&cx.entity(), &PROJECT_SEARCH_BAR_FILTER_ACTIONS)
                 .child(render_text_input(&search.included_files_editor, None, cx));
             let exclude = input_base_styles(InputPanel::Exclude)
-                .on_action(cx.listener(|this, action, window, cx| this.previous_history_query(action, window, cx)))
-                .on_action(cx.listener(|this, action, window, cx| this.next_history_query(action, window, cx)))
+                .action_table(&cx.entity(), &PROJECT_SEARCH_BAR_FILTER_ACTIONS)
                 .child(render_text_input(&search.excluded_files_editor, None, cx));
             let mode_column = h_flex()
                 .gap_1()
@@ -2766,39 +2826,7 @@ impl Render for ProjectSearchBar {
             .gap_2()
             .w_full()
             .key_context(key_context)
-            .on_action(cx.listener(|this, _: &ToggleFocus, window, cx| this.move_focus_to_results(window, cx)))
-            .on_action(cx.listener(|this, _: &ToggleFilters, window, cx| {
-                this.toggle_filters(window, cx);
-            }))
-            .capture_action(cx.listener(Self::tab))
-            .capture_action(cx.listener(Self::backtab))
-            .capture_action(cx.listener(Self::toggle_fold_all))
-            .capture_action(cx.listener(Self::fold_all))
-            .capture_action(cx.listener(Self::unfold_all))
-            .on_action(cx.listener(|this, action, window, cx| this.confirm(action, window, cx)))
-            .on_action(cx.listener(|this, action, window, cx| {
-                this.toggle_replace(action, window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &ToggleWholeWord, window, cx| {
-                this.toggle_search_option(SearchOptions::WHOLE_WORD, window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &ToggleCaseSensitive, window, cx| {
-                this.toggle_search_option(SearchOptions::CASE_SENSITIVE, window, cx);
-            }))
-            .on_action(cx.listener(|this, action, window, cx| {
-                this.replace_next(action, window, cx);
-            }))
-            .on_action(cx.listener(|this, action, window, cx| {
-                this.replace_all(action, window, cx);
-            }))
-            .when(search.filters_enabled, |this| {
-                this.on_action(cx.listener(|this, _: &ToggleIncludeIgnored, window, cx| {
-                    this.toggle_search_option(SearchOptions::INCLUDE_IGNORED, window, cx);
-                }))
-            })
-            .on_action(cx.listener(Self::select_next_match))
-            .on_action(cx.listener(Self::select_prev_match))
-            .on_action(cx.listener(Self::open_text_finder))
+            .action_table(&cx.entity(), &PROJECT_SEARCH_BAR_ACTIONS)
             .child(search_line)
             .children(query_error_line)
             .children(replace_line)

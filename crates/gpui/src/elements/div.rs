@@ -33,7 +33,6 @@ use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 
 use super::ImageCacheProvider;
-use crate::Action;
 use crate::ActionTable;
 use crate::AnyDrag;
 use crate::AnyElement;
@@ -347,64 +346,6 @@ impl Interactivity {
                 cx.propagate();
             }
         }));
-    }
-
-    /// Bind the given callback to an action dispatch during the capture phase.
-    /// The imperative API equivalent to [`InteractiveElement::capture_action`].
-    ///
-    /// See [`Context::listener`](crate::Context::listener) to get access to a view's state from this callback.
-    pub fn capture_action<A: Action>(&mut self, listener: impl Fn(&A, &mut Window, &mut App) + 'static) {
-        self.action_listeners.push((
-            TypeId::of::<A>(),
-            Box::new(move |action, phase, window, cx| {
-                let action = action.downcast_ref().expect("actions are keyed by their type id");
-                if phase == DispatchPhase::Capture {
-                    (listener)(action, window, cx);
-                } else {
-                    cx.propagate();
-                }
-            }),
-        ));
-    }
-
-    /// Bind the given callback to an action dispatch during the bubble phase.
-    /// The imperative API equivalent to [`InteractiveElement::on_action`].
-    ///
-    /// See [`Context::listener`](crate::Context::listener) to get access to a view's state from this callback.
-    #[track_caller]
-    #[inline(always)]
-    pub fn on_action<A: Action>(&mut self, listener: impl Fn(&A, &mut Window, &mut App) + 'static) {
-        self.action_listeners.push((
-            TypeId::of::<A>(),
-            Box::new(move |action, phase, window, cx| {
-                let action = action.downcast_ref().expect("actions are keyed by their type id");
-                if phase == DispatchPhase::Bubble {
-                    (listener)(action, window, cx);
-                }
-            }),
-        ));
-    }
-
-    /// Bind the given callback to an action dispatch, based on a dynamic action parameter
-    /// instead of a type parameter. Useful for component libraries that want to expose
-    /// action bindings to their users.
-    /// The imperative API equivalent to [`InteractiveElement::on_boxed_action`].
-    ///
-    /// See [`Context::listener`](crate::Context::listener) to get access to a view's state from this callback.
-    pub fn on_boxed_action(
-        &mut self,
-        action: &dyn Action,
-        listener: impl Fn(&dyn Action, &mut Window, &mut App) + 'static,
-    ) {
-        let action = action.boxed_clone();
-        self.action_listeners.push((
-            (*action).type_id(),
-            Box::new(move |_, phase, window, cx| {
-                if phase == DispatchPhase::Bubble {
-                    (listener)(&*action, window, cx);
-                }
-            }),
-        ));
     }
 
     /// Attach `table`, with `entity` as the view its handlers run on.
@@ -1350,7 +1291,6 @@ impl Interactivity {
         let key_down_listeners = mem::take(&mut self.key_down_listeners);
         let key_up_listeners = mem::take(&mut self.key_up_listeners);
         let modifiers_changed_listeners = mem::take(&mut self.modifiers_changed_listeners);
-        let action_listeners = mem::take(&mut self.action_listeners);
         if let Some(context) = self.key_context.clone() {
             window.set_key_context(context);
         }
@@ -1371,10 +1311,6 @@ impl Interactivity {
             window.on_modifiers_changed(move |event: &ModifiersChangedEvent, window, cx| {
                 listener(event, window, cx);
             });
-        }
-
-        for (action_type, listener) in action_listeners {
-            window.on_action(action_type, listener);
         }
 
         for table in mem::take(&mut self.action_tables) {
@@ -1822,43 +1758,8 @@ pub trait InteractiveElement: Sized {
         self.interactivity().capture_pinch(listener);
         self
     }
-    /// Capture the given action, before normal action dispatch can fire.
-    /// The fluent API equivalent to [`Interactivity::capture_action`].
-    ///
-    /// See [`Context::listener`](crate::Context::listener) to get access to a view's state from this callback.
-    fn capture_action<A: Action>(mut self, listener: impl Fn(&A, &mut Window, &mut App) + 'static) -> Self {
-        self.interactivity().capture_action(listener);
-        self
-    }
-
-    /// Bind the given callback to an action dispatch during the bubble phase.
-    /// The fluent API equivalent to [`Interactivity::on_action`].
-    ///
-    /// See [`Context::listener`](crate::Context::listener) to get access to a view's state from this callback.
-    #[track_caller]
-    #[inline(always)]
-    fn on_action<A: Action>(mut self, listener: impl Fn(&A, &mut Window, &mut App) + 'static) -> Self {
-        self.interactivity().on_action(listener);
-        self
-    }
-
-    /// Bind the given callback to an action dispatch, based on a dynamic action parameter
-    /// instead of a type parameter. Useful for component libraries that want to expose
-    /// action bindings to their users.
-    /// The fluent API equivalent to [`Interactivity::on_boxed_action`].
-    ///
-    /// See [`Context::listener`](crate::Context::listener) to get access to a view's state from this callback.
-    fn on_boxed_action(
-        mut self,
-        action: &dyn Action,
-        listener: impl Fn(&dyn Action, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        self.interactivity().on_boxed_action(action, listener);
-        self
-    }
-
-    /// Attach a view's action table: handlers built once instead of one listener per action per
-    /// frame. Within an element, `on_action` listeners run before tables.
+    /// Attach a view's action table: its handlers are built once, and attaching costs one push
+    /// per frame. This is how a view handles actions.
     /// The fluent API equivalent to [`Interactivity::action_table`].
     fn action_table<V: 'static>(mut self, entity: &Entity<V>, table: &'static ActionTable<V>) -> Self {
         self.interactivity().action_table(entity, table);
@@ -2243,8 +2144,6 @@ pub(crate) type KeyUpListener = Box<dyn Fn(&KeyUpEvent, DispatchPhase, &mut Wind
 
 pub(crate) type ModifiersChangedListener = Box<dyn Fn(&ModifiersChangedEvent, &mut Window, &mut App) + 'static>;
 
-pub(crate) type ActionListener = Box<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App) + 'static>;
-
 /// Construct a new [`Div`] element.
 pub fn div() -> Div {
     Div {
@@ -2560,7 +2459,6 @@ pub struct Interactivity {
     pub(crate) key_down_listeners: Vec<KeyDownListener>,
     pub(crate) key_up_listeners: Vec<KeyUpListener>,
     pub(crate) modifiers_changed_listeners: Vec<ModifiersChangedListener>,
-    pub(crate) action_listeners: Vec<(TypeId, ActionListener)>,
     pub(crate) action_tables: Vec<DispatchActionTable>,
     pub(crate) drop_listeners: Vec<(TypeId, DropListener)>,
     pub(crate) can_drop_predicate: Option<CanDropPredicate>,

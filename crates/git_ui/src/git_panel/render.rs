@@ -309,6 +309,72 @@ pub(super) struct GitPanelContextMenu {
     _subscription: Subscription,
 }
 
+/// Around the commit editor: vertical movement stops there instead of reaching the panel.
+static COMMIT_EDITOR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GitPanel>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<GitPanel>::default();
+    t.add(|_, _: &MoveUp, _, _| {});
+    t.add(|_, _: &MoveDown, _, _| {});
+    t
+});
+
+static GIT_PANEL_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GitPanel>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<GitPanel>::default();
+    t.add(GitPanel::stage_range);
+    t.add(GitPanel::on_commit);
+    t.add(GitPanel::toggle_skip_hooks);
+    t.add(GitPanel::on_amend);
+    t.add(GitPanel::toggle_signoff_enabled);
+    t.add(GitPanel::stage_all);
+    t.add(GitPanel::unstage_all);
+    t.add(GitPanel::stage_selected);
+    t.add(GitPanel::unstage_selected);
+    t.add(GitPanel::stage_section);
+    t.add(GitPanel::unstage_section);
+    t.add(GitPanel::restore_tracked_files);
+    t.add(GitPanel::revert_selected);
+    t.add(GitPanel::add_to_gitignore);
+    t.add(GitPanel::add_to_git_info_exclude);
+    t.add(GitPanel::clean_all);
+    t.add(GitPanel::stash_all);
+    t.add(GitPanel::stash_tracked);
+    t.add(GitPanel::stash_staged);
+    t.add(GitPanel::stash_pop);
+    t.add(GitPanel::toggle_staged_for_selected);
+    t.add(GitPanel::cancel);
+    t.add(GitPanel::collapse_selected_entry);
+    t.add(GitPanel::expand_selected_entry);
+    t.add(GitPanel::select_first);
+    t.add(GitPanel::select_next);
+    t.add(GitPanel::select_previous);
+    t.add(GitPanel::select_last);
+    t.add(GitPanel::first_entry);
+    t.add(GitPanel::next_entry);
+    t.add(GitPanel::previous_entry);
+    t.add(GitPanel::last_entry);
+    t.add(GitPanel::close_panel);
+    t.add(GitPanel::open_diff);
+    t.add(GitPanel::open_solo_diff);
+    t.add(GitPanel::view_file);
+    t.add(GitPanel::view_file_history);
+    t.add(GitPanel::copy_path);
+    t.add(GitPanel::copy_relative_path);
+    t.add(GitPanel::view_unstaged_changes);
+    t.add(GitPanel::view_staged_changes);
+    t.add(GitPanel::focus_changes_list);
+    t.add(GitPanel::focus_editor);
+    t.add(GitPanel::toggle_commit_editor);
+    t.add(GitPanel::set_sort_by_path);
+    t.add(GitPanel::set_sort_by_name);
+    t.add(GitPanel::set_group_by_none);
+    t.add(GitPanel::set_group_by_status);
+    t.add(GitPanel::set_group_by_staging);
+    t.add(GitPanel::toggle_tree_view);
+    t.add(GitPanel::increase_font_size);
+    t.add(GitPanel::decrease_font_size);
+    t.add(GitPanel::reset_font_size);
+    t
+});
+
 impl Render for GitPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let has_entries = !self.entries.is_empty();
@@ -317,61 +383,7 @@ impl Render for GitPanel {
             .id("git_panel")
             .key_context(self.dispatch_context(window, cx))
             .track_focus(&self.focus_handle)
-            .map(|this| {
-                this.on_action(cx.listener(Self::toggle_staged_for_selected))
-                    .on_action(cx.listener(Self::stage_range))
-                    .on_action(cx.listener(GitPanel::on_commit))
-                    .on_action(cx.listener(GitPanel::toggle_skip_hooks))
-                    .on_action(cx.listener(GitPanel::on_amend))
-                    .on_action(cx.listener(GitPanel::toggle_signoff_enabled))
-                    .on_action(cx.listener(Self::stage_all))
-                    .on_action(cx.listener(Self::unstage_all))
-                    .on_action(cx.listener(Self::stage_selected))
-                    .on_action(cx.listener(Self::unstage_selected))
-                    .on_action(cx.listener(Self::stage_section))
-                    .on_action(cx.listener(Self::unstage_section))
-                    .on_action(cx.listener(Self::restore_tracked_files))
-                    .on_action(cx.listener(Self::revert_selected))
-                    .on_action(cx.listener(Self::add_to_gitignore))
-                    .on_action(cx.listener(Self::add_to_git_info_exclude))
-                    .on_action(cx.listener(Self::clean_all))
-                    .on_action(cx.listener(Self::stash_all))
-                    .on_action(cx.listener(Self::stash_tracked))
-                    .on_action(cx.listener(Self::stash_staged))
-                    .on_action(cx.listener(Self::stash_pop))
-            })
-            .on_action(cx.listener(Self::cancel))
-            .on_action(cx.listener(Self::collapse_selected_entry))
-            .on_action(cx.listener(Self::expand_selected_entry))
-            .on_action(cx.listener(Self::select_first))
-            .on_action(cx.listener(Self::select_next))
-            .on_action(cx.listener(Self::select_previous))
-            .on_action(cx.listener(Self::select_last))
-            .on_action(cx.listener(Self::first_entry))
-            .on_action(cx.listener(Self::next_entry))
-            .on_action(cx.listener(Self::previous_entry))
-            .on_action(cx.listener(Self::last_entry))
-            .on_action(cx.listener(Self::close_panel))
-            .on_action(cx.listener(Self::open_diff))
-            .on_action(cx.listener(Self::open_solo_diff))
-            .on_action(cx.listener(Self::view_file))
-            .on_action(cx.listener(Self::view_file_history))
-            .on_action(cx.listener(Self::copy_path))
-            .on_action(cx.listener(Self::copy_relative_path))
-            .on_action(cx.listener(Self::view_unstaged_changes))
-            .on_action(cx.listener(Self::view_staged_changes))
-            .on_action(cx.listener(Self::focus_changes_list))
-            .on_action(cx.listener(Self::focus_editor))
-            .on_action(cx.listener(Self::toggle_commit_editor))
-            .on_action(cx.listener(Self::set_sort_by_path))
-            .on_action(cx.listener(Self::set_sort_by_name))
-            .on_action(cx.listener(Self::set_group_by_none))
-            .on_action(cx.listener(Self::set_group_by_status))
-            .on_action(cx.listener(Self::set_group_by_staging))
-            .on_action(cx.listener(Self::toggle_tree_view))
-            .on_action(cx.listener(Self::increase_font_size))
-            .on_action(cx.listener(Self::decrease_font_size))
-            .on_action(cx.listener(Self::reset_font_size))
+            .action_table(&cx.entity(), &GIT_PANEL_ACTIONS)
             .size_full()
             .overflow_hidden()
             .bg(cx.theme().colors().panel_background)
@@ -836,12 +848,7 @@ impl GitPanel {
                                         .h_full()
                                         .flex_grow_1()
                                         .cursor_text()
-                                        .on_action(|&MoveUp, _, cx| {
-                                            cx.stop_propagation();
-                                        })
-                                        .on_action(|&MoveDown, _, cx| {
-                                            cx.stop_propagation();
-                                        })
+                                        .action_table(&cx.entity(), &COMMIT_EDITOR_ACTIONS)
                                         .child(EditorElement::new(&self.commit_editor, panel_editor_style)),
                                 )
                                 .child(vertical_buttons),

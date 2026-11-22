@@ -522,12 +522,17 @@ impl EventEmitter<Event> for ActivityIndicator {}
 
 const MAX_MESSAGE_LEN: usize = 50;
 
+static ACTIVITY_INDICATOR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<ActivityIndicator>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<ActivityIndicator>::default();
+        t.add(ActivityIndicator::show_error_message);
+        t.add(ActivityIndicator::dismiss_message);
+        t
+    });
+
 impl Render for ActivityIndicator {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let result = h_flex()
-            .id("activity-indicator")
-            .on_action(cx.listener(Self::show_error_message))
-            .on_action(cx.listener(Self::dismiss_message));
+        let result = h_flex().id("activity-indicator").action_table(&cx.entity(), &ACTIVITY_INDICATOR_ACTIONS);
 
         let Some(content) = self.content_to_render(cx) else {
             return result;

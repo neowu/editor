@@ -1357,13 +1357,19 @@ impl Item for CommitView {
     }
 }
 
+static COMMIT_VIEW_ACTIONS: std::sync::LazyLock<gpui::ActionTable<CommitView>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<CommitView>::default();
+    t.add(CommitView::open_file_at_head_action);
+    t
+});
+
 impl Render for CommitView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let is_stash = self.stash.is_some();
 
         v_flex()
             .key_context(if is_stash { "StashDiff" } else { "CommitDiff" })
-            .on_action(cx.listener(Self::open_file_at_head_action))
+            .action_table(&cx.entity(), &COMMIT_VIEW_ACTIONS)
             .size_full()
             .bg(cx.theme().colors().editor_background)
             .when(!self.editor.read(cx).rhs_editor().read(cx).is_empty(cx), |this| {

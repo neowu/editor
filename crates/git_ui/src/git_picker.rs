@@ -384,6 +384,40 @@ impl Focusable for GitPicker {
     }
 }
 
+static GIT_PICKER_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GitPicker>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<GitPicker>::default();
+    t.add(|_, _: &menu::Cancel, _, cx| {
+        cx.emit(DismissEvent);
+    });
+    t.add(|this, _: &pane::ActivateNextItem, window, cx| {
+        this.activate_next_tab(window, cx);
+    });
+    t.add(|this, _: &pane::ActivatePreviousItem, window, cx| {
+        this.activate_previous_tab(window, cx);
+    });
+    t.add(|this, _: &ActivateBranchesTab, window, cx| {
+        this.tab = GitPickerTab::Branches;
+        this.ensure_active_picker(window, cx);
+        this.focus_active_picker(window, cx);
+        cx.notify();
+    });
+    t.add(|this, _: &ActivateStashTab, window, cx| {
+        this.tab = GitPickerTab::Stashes;
+        this.ensure_active_picker(window, cx);
+        this.focus_active_picker(window, cx);
+        cx.notify();
+    });
+    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_delete_branch);
+    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_force_delete_branch);
+    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_show_all_branches);
+    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_show_local_branches);
+    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_show_remote_branches);
+    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_cycle_branch_filter);
+    t.add_if(|picker, _| picker.tab == GitPickerTab::Stashes, GitPicker::handle_drop_stash);
+    t.add_if(|picker, _| picker.tab == GitPickerTab::Stashes, GitPicker::handle_show_stash);
+    t
+});
+
 impl Render for GitPicker {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
@@ -416,39 +450,8 @@ impl Render for GitPicker {
             .on_mouse_down(MouseButton::Left, |_, _, cx| {
                 cx.stop_propagation();
             })
-            .on_action(cx.listener(|_, _: &menu::Cancel, _, cx| {
-                cx.emit(DismissEvent);
-            }))
-            .on_action(cx.listener(|this, _: &pane::ActivateNextItem, window, cx| {
-                this.activate_next_tab(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &pane::ActivatePreviousItem, window, cx| {
-                this.activate_previous_tab(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &ActivateBranchesTab, window, cx| {
-                this.tab = GitPickerTab::Branches;
-                this.ensure_active_picker(window, cx);
-                this.focus_active_picker(window, cx);
-                cx.notify();
-            }))
-            .on_action(cx.listener(|this, _: &ActivateStashTab, window, cx| {
-                this.tab = GitPickerTab::Stashes;
-                this.ensure_active_picker(window, cx);
-                this.focus_active_picker(window, cx);
-                cx.notify();
-            }))
+            .action_table(&cx.entity(), &GIT_PICKER_ACTIONS)
             .on_modifiers_changed(cx.listener(Self::handle_modifiers_changed))
-            .when(self.tab == GitPickerTab::Branches, |el| {
-                el.on_action(cx.listener(Self::handle_delete_branch))
-                    .on_action(cx.listener(Self::handle_force_delete_branch))
-                    .on_action(cx.listener(Self::handle_show_all_branches))
-                    .on_action(cx.listener(Self::handle_show_local_branches))
-                    .on_action(cx.listener(Self::handle_show_remote_branches))
-                    .on_action(cx.listener(Self::handle_cycle_branch_filter))
-            })
-            .when(self.tab == GitPickerTab::Stashes, |el| {
-                el.on_action(cx.listener(Self::handle_drop_stash)).on_action(cx.listener(Self::handle_show_stash))
-            })
             .child(self.render_tab_bar(cx))
             .child(self.render_active_picker(window, cx))
     }
@@ -491,4 +494,27 @@ pub fn register(workspace_actions: &mut WorkspaceActions) {
     workspace_actions.register_action(|workspace, _: &ViewStash, window, cx| {
         open_with_tab(workspace, GitPickerTab::Stashes, window, cx);
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use super::*;
+
+    fn conditional<V: 'static>(table: &gpui::ActionTable<V>) -> Vec<TypeId> {
+        let types = table.action_types().iter().zip(table.conditional());
+        types.filter_map(|(action_type, conditional)| conditional.then_some(*action_type)).collect()
+    }
+
+    #[test]
+    fn tab_specific_actions_are_conditional() {
+        let conditional = conditional(&GIT_PICKER_ACTIONS);
+
+        assert_eq!(conditional.len(), 8);
+        assert!(conditional.contains(&TypeId::of::<DeleteBranch>()));
+        assert!(conditional.contains(&TypeId::of::<DropStashItem>()));
+        assert!(!conditional.contains(&TypeId::of::<ActivateStashTab>()));
+        assert!(GIT_PICKER_ACTIONS.action_types().is_sorted_by(|a, b| a < b), "action handled twice");
+    }
 }

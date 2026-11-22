@@ -222,14 +222,20 @@ impl Focusable for StashList {
     }
 }
 
+static STASH_LIST_ACTIONS: std::sync::LazyLock<gpui::ActionTable<StashList>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<StashList>::default();
+    t.add(StashList::handle_drop_stash);
+    t.add(StashList::handle_show_stash);
+    t
+});
+
 impl Render for StashList {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .key_context("StashList")
             .w(self.width)
             .on_modifiers_changed(cx.listener(Self::handle_modifiers_changed))
-            .on_action(cx.listener(Self::handle_drop_stash))
-            .on_action(cx.listener(Self::handle_show_stash))
+            .action_table(&cx.entity(), &STASH_LIST_ACTIONS)
             .child(self.picker.clone())
     }
 }

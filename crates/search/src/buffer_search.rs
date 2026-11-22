@@ -159,6 +159,40 @@ pub struct BufferSearchBar {
 
 impl EventEmitter<Event> for BufferSearchBar {}
 impl EventEmitter<workspace::ToolbarItemEvent> for BufferSearchBar {}
+static BUFFER_SEARCH_BAR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<BufferSearchBar>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<BufferSearchBar>::default();
+        t.add_capture(BufferSearchBar::tab);
+        t.add_capture(BufferSearchBar::backtab);
+        t.add_capture(BufferSearchBar::toggle_fold_all);
+        t.add_capture(BufferSearchBar::fold_all);
+        t.add_capture(BufferSearchBar::unfold_all);
+        t.add_capture(BufferSearchBar::toggle_soft_wrap);
+        t.add(BufferSearchBar::previous_history_query);
+        t.add(BufferSearchBar::next_history_query);
+        t.add(BufferSearchBar::dismiss);
+        t.add(BufferSearchBar::select_next_match);
+        t.add(BufferSearchBar::select_prev_match);
+        t.add(|this, _: &CopyPath, window, cx| {
+            if let Some(active_searchable_item) = &mut this.active_searchable_item {
+                active_searchable_item.relay_action(Box::new(CopyPath), window, cx);
+            }
+        });
+        t.add(|this, _: &CopyRelativePath, window, cx| {
+            if let Some(active_searchable_item) = &mut this.active_searchable_item {
+                active_searchable_item.relay_action(Box::new(CopyRelativePath), window, cx);
+            }
+        });
+        t.add_if(|bar, cx| bar.supported_options(cx).replacement, BufferSearchBar::toggle_replace);
+        t.add_if(|bar, cx| bar.supported_options(cx).replacement, BufferSearchBar::replace_next);
+        t.add_if(|bar, cx| bar.supported_options(cx).replacement, BufferSearchBar::replace_all);
+        t.add_if(|bar, cx| bar.supported_options(cx).case, BufferSearchBar::toggle_case_sensitive);
+        t.add_if(|bar, cx| bar.supported_options(cx).word, BufferSearchBar::toggle_whole_word);
+        t.add_if(|bar, cx| bar.supported_options(cx).regex, BufferSearchBar::toggle_regex);
+        t.add_if(|bar, cx| bar.supported_options(cx).selection, BufferSearchBar::toggle_selection);
+        t
+    });
+
 impl Render for BufferSearchBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let focus_handle = self.focus_handle(cx);
@@ -398,36 +432,7 @@ impl Render for BufferSearchBar {
             .w_full()
             .track_scroll(&self.scroll_handle)
             .key_context(key_context)
-            .capture_action(cx.listener(Self::tab))
-            .capture_action(cx.listener(Self::backtab))
-            .capture_action(cx.listener(Self::toggle_fold_all))
-            .capture_action(cx.listener(Self::fold_all))
-            .capture_action(cx.listener(Self::unfold_all))
-            .capture_action(cx.listener(Self::toggle_soft_wrap))
-            .on_action(cx.listener(Self::previous_history_query))
-            .on_action(cx.listener(Self::next_history_query))
-            .on_action(cx.listener(Self::dismiss))
-            .on_action(cx.listener(Self::select_next_match))
-            .on_action(cx.listener(Self::select_prev_match))
-            .on_action(cx.listener(|this, _: &CopyPath, window, cx| {
-                if let Some(active_searchable_item) = &mut this.active_searchable_item {
-                    active_searchable_item.relay_action(Box::new(CopyPath), window, cx);
-                }
-            }))
-            .on_action(cx.listener(|this, _: &CopyRelativePath, window, cx| {
-                if let Some(active_searchable_item) = &mut this.active_searchable_item {
-                    active_searchable_item.relay_action(Box::new(CopyRelativePath), window, cx);
-                }
-            }))
-            .when(replacement, |this| {
-                this.on_action(cx.listener(Self::toggle_replace))
-                    .on_action(cx.listener(Self::replace_next))
-                    .on_action(cx.listener(Self::replace_all))
-            })
-            .when(case, |this| this.on_action(cx.listener(Self::toggle_case_sensitive)))
-            .when(word, |this| this.on_action(cx.listener(Self::toggle_whole_word)))
-            .when(regex, |this| this.on_action(cx.listener(Self::toggle_regex)))
-            .when(selection, |this| this.on_action(cx.listener(Self::toggle_selection)))
+            .action_table(&cx.entity(), &BUFFER_SEARCH_BAR_ACTIONS)
             .child(search_line)
             .children(query_error_line)
             .children(replace_line)
@@ -788,7 +793,7 @@ impl BufferSearchBar {
         if self.has_diff_style_controls() { ToolbarItemLocation::PrimaryLeft } else { ToolbarItemLocation::Secondary }
     }
 
-    fn supported_options(&self, cx: &Context<Self>) -> searchable::SearchOptions {
+    fn supported_options(&self, cx: &App) -> searchable::SearchOptions {
         self.active_searchable_item.as_ref().map_or_default(|item| item.supported_options(cx))
     }
 

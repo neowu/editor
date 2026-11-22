@@ -264,6 +264,24 @@ impl Focusable for WorktreePicker {
 impl ModalView for WorktreePicker {}
 impl EventEmitter<DismissEvent> for WorktreePicker {}
 
+static WORKTREE_PICKER_ACTIONS: std::sync::LazyLock<gpui::ActionTable<WorktreePicker>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<WorktreePicker>::default();
+        t.add(|this, _: &DeleteWorktree, window, cx| {
+            this.picker.update(cx, |picker, cx| {
+                let ix = picker.delegate.selected_index;
+                picker.delegate.delete_worktree(ix, false, window, cx);
+            });
+        });
+        t.add(|this, _: &ForceDeleteWorktree, window, cx| {
+            this.picker.update(cx, |picker, cx| {
+                let ix = picker.delegate.selected_index;
+                picker.delegate.delete_worktree(ix, true, window, cx);
+            });
+        });
+        t
+    });
+
 impl Render for WorktreePicker {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
@@ -274,18 +292,7 @@ impl Render for WorktreePicker {
             .on_mouse_down_out(cx.listener(|_, _, _, cx| {
                 cx.emit(DismissEvent);
             }))
-            .on_action(cx.listener(|this, _: &DeleteWorktree, window, cx| {
-                this.picker.update(cx, |picker, cx| {
-                    let ix = picker.delegate.selected_index;
-                    picker.delegate.delete_worktree(ix, false, window, cx);
-                });
-            }))
-            .on_action(cx.listener(|this, _: &ForceDeleteWorktree, window, cx| {
-                this.picker.update(cx, |picker, cx| {
-                    let ix = picker.delegate.selected_index;
-                    picker.delegate.delete_worktree(ix, true, window, cx);
-                });
-            }))
+            .action_table(&cx.entity(), &WORKTREE_PICKER_ACTIONS)
     }
 }
 

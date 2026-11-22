@@ -19,7 +19,6 @@ use editor::MultiBufferOffset;
 use editor::SelectionEffects;
 use editor::items::open_resolved_target;
 use editor::scroll::Autoscroll;
-use gpui::Action;
 use gpui::AnyElement;
 use gpui::AnyView;
 use gpui::App;
@@ -127,7 +126,6 @@ const MAX_CONTENT_WIDTH: Pixels = px(1200.);
 
 pub struct MarkdownPreviewView {
     workspace: WeakEntity<Workspace>,
-    self_handle: WeakEntity<Self>,
     active_editor: Option<EditorState>,
     focus_handle: FocusHandle,
     markdown: Entity<Markdown>,
@@ -318,7 +316,6 @@ impl MarkdownPreviewView {
                 active_editor: None,
                 focus_handle: cx.focus_handle(),
                 workspace: workspace.clone(),
-                self_handle: cx.weak_entity(),
                 _markdown_subscription: cx.observe(&markdown, |this: &mut Self, markdown: Entity<Markdown>, cx| {
                     this.mermaid_diagrams.update(cx, |diagrams, cx| diagrams.sync(&markdown, cx));
                     this.sync_active_root_block(cx);
@@ -1207,7 +1204,6 @@ impl Item for MarkdownPreviewView {
     }
 
     fn tab_content(&self, params: TabContentParams, _window: &Window, cx: &App) -> AnyElement {
-        let preview = self.self_handle.clone();
         let editor = self.active_editor.as_ref().map(|editor_state| editor_state.editor.read(cx));
         let max_title_len = params.max_title_len.unwrap_or(MAX_TAB_TITLE_LEN);
 
@@ -1228,13 +1224,6 @@ impl Item for MarkdownPreviewView {
             .gap_1()
             .when(!params.selected, |tab| tab.track_focus(&self.focus_handle))
             .when(params.truncate_title_middle, |this| this.w_full().min_w_0().overflow_hidden())
-            .on_action(move |action: &CloseAndReturnToEditor, window, cx| {
-                preview
-                    .update(cx, |preview, cx| {
-                        preview.close_and_return_to_editor(action, window, cx);
-                    })
-                    .ok();
-            })
             .child(
                 Label::new(title)
                     .single_line()
@@ -1274,14 +1263,6 @@ impl Item for MarkdownPreviewView {
 
     fn tab_tooltip_text(&self, cx: &App) -> Option<SharedString> {
         self.active_editor.as_ref()?.editor.read(cx).tab_tooltip_text(cx)
-    }
-
-    fn tab_extra_context_menu_actions(
-        &self,
-        _: &mut Window,
-        _: &mut Context<Self>,
-    ) -> Vec<(SharedString, Box<dyn Action>)> {
-        vec![("Show Source".into(), Box::new(CloseAndReturnToEditor))]
     }
 
     fn added_to_workspace(&mut self, workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Self>) {
@@ -1362,6 +1343,24 @@ impl Item for MarkdownPreviewView {
     }
 }
 
+static MARKDOWN_PREVIEW_VIEW_ACTIONS: std::sync::LazyLock<gpui::ActionTable<MarkdownPreviewView>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<MarkdownPreviewView>::default();
+        t.add(MarkdownPreviewView::scroll_page_up);
+        t.add(MarkdownPreviewView::scroll_page_down);
+        t.add(MarkdownPreviewView::scroll_up);
+        t.add(MarkdownPreviewView::scroll_down);
+        t.add(MarkdownPreviewView::scroll_up_by_item);
+        t.add(MarkdownPreviewView::scroll_down_by_item);
+        t.add(MarkdownPreviewView::scroll_to_top);
+        t.add(MarkdownPreviewView::scroll_to_bottom);
+        t.add(MarkdownPreviewView::close_and_return_to_editor);
+        t.add(MarkdownPreviewView::increase_font_size);
+        t.add(MarkdownPreviewView::decrease_font_size);
+        t.add(MarkdownPreviewView::reset_font_size);
+        t
+    });
+
 impl Render for MarkdownPreviewView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let bg_color = cx.theme().colors().editor_background;
@@ -1377,18 +1376,7 @@ impl Render for MarkdownPreviewView {
                     cx.notify();
                 }
             }))
-            .on_action(cx.listener(MarkdownPreviewView::scroll_page_up))
-            .on_action(cx.listener(MarkdownPreviewView::scroll_page_down))
-            .on_action(cx.listener(MarkdownPreviewView::scroll_up))
-            .on_action(cx.listener(MarkdownPreviewView::scroll_down))
-            .on_action(cx.listener(MarkdownPreviewView::scroll_up_by_item))
-            .on_action(cx.listener(MarkdownPreviewView::scroll_down_by_item))
-            .on_action(cx.listener(MarkdownPreviewView::scroll_to_top))
-            .on_action(cx.listener(MarkdownPreviewView::scroll_to_bottom))
-            .on_action(cx.listener(MarkdownPreviewView::close_and_return_to_editor))
-            .on_action(cx.listener(MarkdownPreviewView::increase_font_size))
-            .on_action(cx.listener(MarkdownPreviewView::decrease_font_size))
-            .on_action(cx.listener(MarkdownPreviewView::reset_font_size))
+            .action_table(&cx.entity(), &MARKDOWN_PREVIEW_VIEW_ACTIONS)
             .w_full()
             .flex_1()
             .min_h_0()

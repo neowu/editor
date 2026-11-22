@@ -4335,6 +4335,34 @@ impl EventEmitter<Event> for OutlinePanel {}
 
 impl EventEmitter<PanelEvent> for OutlinePanel {}
 
+static OUTLINE_PANEL_ACTIONS: std::sync::LazyLock<gpui::ActionTable<OutlinePanel>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<OutlinePanel>::default();
+    t.add(OutlinePanel::open_selected_entry);
+    t.add(OutlinePanel::cancel);
+    t.add(OutlinePanel::scroll_up);
+    t.add(OutlinePanel::scroll_down);
+    t.add(OutlinePanel::select_next);
+    t.add(OutlinePanel::scroll_cursor_center);
+    t.add(OutlinePanel::scroll_cursor_top);
+    t.add(OutlinePanel::scroll_cursor_bottom);
+    t.add(OutlinePanel::select_previous);
+    t.add(OutlinePanel::select_first);
+    t.add(OutlinePanel::select_last);
+    t.add(OutlinePanel::select_parent);
+    t.add(OutlinePanel::expand_selected_entry);
+    t.add(OutlinePanel::collapse_selected_entry);
+    t.add(OutlinePanel::expand_all_entries);
+    t.add(OutlinePanel::collapse_all_entries);
+    t.add(OutlinePanel::copy_path);
+    t.add(OutlinePanel::copy_relative_path);
+    t.add(OutlinePanel::toggle_active_editor_pin);
+    t.add(OutlinePanel::unfold_directory);
+    t.add(OutlinePanel::fold_directory);
+    t.add(OutlinePanel::reveal_in_finder);
+    t.add(OutlinePanel::open_in_terminal);
+    t
+});
+
 impl Render for OutlinePanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let query = self.query(cx);
@@ -4353,29 +4381,7 @@ impl Render for OutlinePanel {
             .overflow_hidden()
             .relative()
             .key_context(self.dispatch_context(window, cx))
-            .on_action(cx.listener(Self::open_selected_entry))
-            .on_action(cx.listener(Self::cancel))
-            .on_action(cx.listener(Self::scroll_up))
-            .on_action(cx.listener(Self::scroll_down))
-            .on_action(cx.listener(Self::select_next))
-            .on_action(cx.listener(Self::scroll_cursor_center))
-            .on_action(cx.listener(Self::scroll_cursor_top))
-            .on_action(cx.listener(Self::scroll_cursor_bottom))
-            .on_action(cx.listener(Self::select_previous))
-            .on_action(cx.listener(Self::select_first))
-            .on_action(cx.listener(Self::select_last))
-            .on_action(cx.listener(Self::select_parent))
-            .on_action(cx.listener(Self::expand_selected_entry))
-            .on_action(cx.listener(Self::collapse_selected_entry))
-            .on_action(cx.listener(Self::expand_all_entries))
-            .on_action(cx.listener(Self::collapse_all_entries))
-            .on_action(cx.listener(Self::copy_path))
-            .on_action(cx.listener(Self::copy_relative_path))
-            .on_action(cx.listener(Self::toggle_active_editor_pin))
-            .on_action(cx.listener(Self::unfold_directory))
-            .on_action(cx.listener(Self::fold_directory))
-            .on_action(cx.listener(Self::reveal_in_finder))
-            .on_action(cx.listener(Self::open_in_terminal))
+            .action_table(&cx.entity(), &OUTLINE_PANEL_ACTIONS)
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(move |outline_panel, event: &MouseDownEvent, window, cx| {

@@ -291,6 +291,14 @@ impl GoToLine {
     }
 }
 
+static GO_TO_LINE_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GoToLine>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<GoToLine>::default();
+    t.add_capture(GoToLine::accept_placeholder);
+    t.add(GoToLine::cancel);
+    t.add(GoToLine::confirm);
+    t
+});
+
 impl Render for GoToLine {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let help_text = if let Some(offset) = self.relative_line_from_query(cx) {
@@ -312,9 +320,7 @@ impl Render for GoToLine {
             .w(rems(24.))
             .elevation_2(cx)
             .key_context("GoToLine")
-            .capture_action(cx.listener(Self::accept_placeholder))
-            .on_action(cx.listener(Self::cancel))
-            .on_action(cx.listener(Self::confirm))
+            .action_table(&cx.entity(), &GO_TO_LINE_ACTIONS)
             .child(
                 div()
                     .border_b_1()

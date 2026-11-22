@@ -1,4 +1,3 @@
-use std::any::TypeId;
 use std::cell::RefCell;
 
 use gpui::Div;
@@ -1675,24 +1674,9 @@ impl Element for MarkdownElement {
         // Painting a child leaves its dispatch node active, so the actions go on
         // this element's node before the blocks paint.
         let markdown = self.renderer.markdown.clone();
-        window.on_action(TypeId::of::<crate::Copy>(), {
-            let entity = markdown.clone();
-            let text = self.list_state.is_none().then(|| Rc::clone(&layout.text));
-            move |_, phase, window, cx| {
-                if phase == DispatchPhase::Bubble {
-                    let text = text.as_ref().map(|text| text.borrow().clone());
-                    entity.update(cx, |this, cx| this.copy(text.as_ref(), window, cx));
-                }
-            }
-        });
-        window.on_action(TypeId::of::<crate::CopyAsMarkdown>(), {
-            let entity = markdown.clone();
-            move |_, phase, window, cx| {
-                if phase == DispatchPhase::Bubble {
-                    entity.update(cx, move |this, cx| this.copy_as_markdown(window, cx));
-                }
-            }
-        });
+        let text = self.list_state.is_none().then(|| Rc::clone(&layout.text));
+        markdown.update(cx, |markdown, _| markdown.set_painted_text(text));
+        window.on_action_table(&markdown, &crate::ACTIONS);
 
         let was_hovering_clickable = Rc::new(Cell::new(false));
         self.paint_mouse_listeners(hitbox, &layout.text, &was_hovering_clickable, window, cx);

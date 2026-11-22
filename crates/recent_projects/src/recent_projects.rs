@@ -420,13 +420,20 @@ impl Focusable for RecentProjects {
     }
 }
 
+static RECENT_PROJECTS_ACTIONS: std::sync::LazyLock<gpui::ActionTable<RecentProjects>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<RecentProjects>::default();
+        t.add(RecentProjects::handle_toggle_open_menu);
+        t.add(RecentProjects::handle_remove_selected);
+        t.add(RecentProjects::handle_add_to_workspace);
+        t
+    });
+
 impl Render for RecentProjects {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .key_context("RecentProjects")
-            .on_action(cx.listener(Self::handle_toggle_open_menu))
-            .on_action(cx.listener(Self::handle_remove_selected))
-            .on_action(cx.listener(Self::handle_add_to_workspace))
+            .action_table(&cx.entity(), &RECENT_PROJECTS_ACTIONS)
             .child(self.picker.clone())
     }
 }

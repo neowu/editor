@@ -17,7 +17,6 @@ use crate::AnyView;
 use crate::AnyWindowHandle;
 use crate::AppContext;
 use crate::AsyncApp;
-use crate::DispatchPhase;
 use crate::Effect;
 use crate::EntityId;
 use crate::EventEmitter;
@@ -545,23 +544,6 @@ impl<'a, T: 'static> Context<'a, T> {
         );
         self.defer(move |_| activate());
         subscription
-    }
-
-    /// Register a callback to be invoked when the given Action type is dispatched to the window.
-    pub fn on_action(
-        &mut self,
-        action_type: TypeId,
-        window: &mut Window,
-        listener: impl Fn(&mut T, &dyn Any, DispatchPhase, &mut Window, &mut Context<T>) + 'static,
-    ) {
-        let handle = self.weak_entity();
-        window.on_action(action_type, move |action, phase, window, cx| {
-            handle
-                .update(cx, |view, cx| {
-                    listener(view, action, phase, window, cx);
-                })
-                .ok();
-        });
     }
 
     /// Move focus to the current view, assuming it implements [`Focusable`].

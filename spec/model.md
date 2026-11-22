@@ -28,18 +28,38 @@ Read the code for details; this only records the shape and the rules.
 - Views render independently: a parent embeds a child view (`Entity<V>` /
   `AnyView`), and only notified views re-render.
 - Actions dispatch along the focus tree from the focused element up to the
-  window root. A view that handles an action registers it on its root element
-  (`.on_action`).
-- A view with many actions keeps them in a `gpui::ActionTable<V>` held in a
-  `static`: handlers are built once per app, not per view or per frame. Each
-  frame the view attaches the table to its dispatch node together with its
+  window root.
+- A view handles actions one way: a `gpui::ActionTable<V>` held in a
+  `static`. Handlers are built once per app, not per view or per frame. Each
+  frame the view attaches the table to a dispatch node together with its
   entity (`.action_table` on an element, `Window::on_action_table` in a
   custom element's paint), which costs one push however many actions the
-  table holds. Handlers are `Send + Sync` and hold no per-view state; they
-  get the view as an argument and find what they need through it. Tables are
-  bubble-phase only; on a node, `.on_action` listeners run before tables,
-  tables in attach order, and handlers for the same action in registration
-  order.
+  table holds. Handlers are `Send + Sync` and hold no per-view or per-render
+  state; they get the view as an argument and find what they need through
+  it. Elements have no typed `.on_action` / `.capture_action`.
+- A view that handles different actions at different nodes (the project
+  search bar's query and filter inputs, a terminal's tab and its rename
+  editor) has one table per node. A node outside the view's own render (an
+  item's tab, drawn by the pane) attaches the table with the view's entity.
+- A generic view cannot name a `static` per instantiation. It takes its
+  table from `ActionTable::shared` once, when it is created, and keeps the
+  reference (`Picker<D>`).
+- A handler added with `add_capture` runs in the capture phase, before the
+  nodes below the one its table is attached to, and the action keeps
+  propagating unless the handler stops it. A view embedding an editor uses
+  it to take an action before that editor does (Tab in the search bars and
+  the go-to-line input). On a node, tables run in attach order and handlers
+  for the same action in registration order.
+- A table may have one fallback (`set_fallback`): a handler for any action
+  a predicate on the view accepts, tried in the bubble phase after the
+  table's typed handlers. It is for a view whose actions are data: a context
+  menu handles the actions of its enabled entries this way. Such an action
+  is reported as available when asked about, but is not in the list of
+  available actions, which has no fixed set to draw from.
+- There is no per-frame listener API at all: no `Window::on_action`, no
+  `on_action` / `capture_action` / `on_boxed_action` on elements. State a
+  handler needs from the last frame is kept on the view by paint (the
+  markdown element stores the text it painted for copy).
 - A table handler may carry a condition on the view (`add_if`). While it is
   false the handler behaves as if it were not registered: the keystroke
   falls through to other handlers and bindings, and the action is not
@@ -96,14 +116,16 @@ Read the code for details; this only records the shape and the rules.
   menu asking for the pane's preview actions. Their condition therefore
   reads only the pane, which keeps whether its active item has a preview
   from its last render.
-- A view uses one mechanism: a table (`Editor`, `Workspace`, `Pane`) or
-  per-frame `.on_action` listeners (every other view). A table is for views
-  that render on every editor frame: the editor and its ancestors. Views
-  that render only when they change (cached panels, pickers, modals) keep
-  listeners, as do views that need capture-phase handlers. A table private
-  to one view is a `static` in its module (`Pane`).
+- A table private to one view is a `static` in its module (`Pane`, the
+  panels, pickers and modals). What used to be a listener attached only
+  under some render-time condition is a conditional entry (the buffer search
+  options the active item supports, the git picker's per-tab actions, the
+  project panel's file history).
+- The search actions of a pane outside the workspace's active-pane handling
+  (terminal panel, terminal and Git History modes) are one `ActionTable<Pane>`
+  attached with that pane; its handlers run inside the pane's update.
   Behaviour for one editor instance belongs to the view embedding it, as a
-  capture-phase listener there (Tab in the go-to-line input), not to the
+  capture-phase handler there (Tab in the go-to-line input), not to the
   editor.
 
 ## Crate layering

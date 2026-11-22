@@ -969,6 +969,46 @@ fn regex_search_for_query(query: &SearchQuery) -> Option<Search> {
     }
 }
 
+/// On the tab itself, which is a dispatch node of its own outside the terminal's.
+static TERMINAL_TAB_ACTIONS: std::sync::LazyLock<gpui::ActionTable<TerminalView>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<TerminalView>::default();
+    t.add(TerminalView::rename_terminal);
+    t
+});
+
+/// Around the tab's rename editor.
+static TERMINAL_TAB_RENAME_ACTIONS: std::sync::LazyLock<gpui::ActionTable<TerminalView>> =
+    std::sync::LazyLock::new(|| {
+        let mut t = gpui::ActionTable::<TerminalView>::default();
+        t.add(|this, _: &menu::Confirm, window, cx| this.finish_renaming(true, window, cx));
+        t.add(|this, _: &menu::Cancel, window, cx| this.finish_renaming(false, window, cx));
+        t
+    });
+
+static TERMINAL_VIEW_ACTIONS: std::sync::LazyLock<gpui::ActionTable<TerminalView>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<TerminalView>::default();
+    t.add(TerminalView::send_text);
+    t.add(TerminalView::send_keystroke);
+    t.add(TerminalView::copy);
+    t.add(TerminalView::editor_copy);
+    t.add(TerminalView::paste);
+    t.add(TerminalView::editor_paste);
+    t.add(TerminalView::paste_text);
+    t.add(TerminalView::clear);
+    t.add(TerminalView::scroll_line_up);
+    t.add(TerminalView::scroll_line_down);
+    t.add(TerminalView::scroll_page_up);
+    t.add(TerminalView::scroll_page_down);
+    t.add(TerminalView::scroll_to_top);
+    t.add(TerminalView::scroll_to_bottom);
+    t.add(TerminalView::toggle_vi_mode);
+    t.add(TerminalView::show_character_palette);
+    t.add(TerminalView::select_all);
+    t.add(TerminalView::rerun_task);
+    t.add(TerminalView::rename_terminal);
+    t
+});
+
 impl Render for TerminalView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // TODO: this should be moved out of render
@@ -997,25 +1037,7 @@ impl Render for TerminalView {
             .relative()
             .track_focus(&self.focus_handle(cx))
             .key_context(self.dispatch_context(cx))
-            .on_action(cx.listener(TerminalView::send_text))
-            .on_action(cx.listener(TerminalView::send_keystroke))
-            .on_action(cx.listener(TerminalView::copy))
-            .on_action(cx.listener(TerminalView::editor_copy))
-            .on_action(cx.listener(TerminalView::paste))
-            .on_action(cx.listener(TerminalView::editor_paste))
-            .on_action(cx.listener(TerminalView::paste_text))
-            .on_action(cx.listener(TerminalView::clear))
-            .on_action(cx.listener(TerminalView::scroll_line_up))
-            .on_action(cx.listener(TerminalView::scroll_line_down))
-            .on_action(cx.listener(TerminalView::scroll_page_up))
-            .on_action(cx.listener(TerminalView::scroll_page_down))
-            .on_action(cx.listener(TerminalView::scroll_to_top))
-            .on_action(cx.listener(TerminalView::scroll_to_bottom))
-            .on_action(cx.listener(TerminalView::toggle_vi_mode))
-            .on_action(cx.listener(TerminalView::show_character_palette))
-            .on_action(cx.listener(TerminalView::select_all))
-            .on_action(cx.listener(TerminalView::rerun_task))
-            .on_action(cx.listener(TerminalView::rename_terminal))
+            .action_table(&cx.entity(), &TERMINAL_VIEW_ACTIONS)
             .on_key_down(cx.listener(Self::key_down))
             .on_mouse_down(
                 MouseButton::Right,
@@ -1117,14 +1139,12 @@ impl Item for TerminalView {
             None => (IconName::Terminal, params.icon_color(), None),
         };
 
-        let self_handle = self.self_handle.clone();
+        let view = self.self_handle.upgrade();
         h_flex()
             .gap_1()
             .group("term-tab-icon")
             .when(!params.selected, |this| this.track_focus(&self.focus_handle))
-            .on_action(move |action: &RenameTerminal, window, cx| {
-                self_handle.update(cx, |this, cx| this.rename_terminal(action, window, cx)).ok();
-            })
+            .when_some(view.as_ref(), |this, view| this.action_table(view, &TERMINAL_TAB_ACTIONS))
             .child(
                 h_flex()
                     .group("term-tab-icon")
@@ -1146,9 +1166,7 @@ impl Item for TerminalView {
                             .color(params.text_color())
                             .when(self.is_renaming(), |this| this.alpha(0.)),
                     )
-                    .when_some(self.rename_editor.clone(), |this, editor| {
-                        let self_handle = self.self_handle.clone();
-                        let self_handle_cancel = self.self_handle.clone();
+                    .when_some(self.rename_editor.clone().zip(view), |this, (editor, view)| {
                         this.child(
                             div()
                                 .absolute()
@@ -1156,14 +1174,7 @@ impl Item for TerminalView {
                                 .left_0()
                                 .size_full()
                                 .child(editor)
-                                .on_action(move |_: &menu::Confirm, window, cx| {
-                                    self_handle.update(cx, |this, cx| this.finish_renaming(true, window, cx)).ok();
-                                })
-                                .on_action(move |_: &menu::Cancel, window, cx| {
-                                    self_handle_cancel
-                                        .update(cx, |this, cx| this.finish_renaming(false, window, cx))
-                                        .ok();
-                                }),
+                                .action_table(&view, &TERMINAL_TAB_RENAME_ACTIONS),
                         )
                     }),
             )

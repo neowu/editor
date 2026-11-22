@@ -150,6 +150,29 @@ fn saved_active_tab(is_terminal: &[bool], active_item: usize) -> usize {
     is_terminal.iter().take(active_item).filter(|terminal| **terminal).count()
 }
 
+static TERMINAL_MODE_ACTIONS: std::sync::LazyLock<gpui::ActionTable<Workspace>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<Workspace>::default();
+    t.add(|workspace: &mut Workspace, _: &ActivatePaneLeft, window, cx| {
+        workspace.activate_terminal_pane_in_direction(SplitDirection::Left, window, cx);
+    });
+    t.add(|workspace: &mut Workspace, _: &ActivatePaneRight, window, cx| {
+        workspace.activate_terminal_pane_in_direction(SplitDirection::Right, window, cx);
+    });
+    t.add(|workspace: &mut Workspace, _: &ActivatePaneUp, window, cx| {
+        workspace.activate_terminal_pane_in_direction(SplitDirection::Up, window, cx);
+    });
+    t.add(|workspace: &mut Workspace, _: &ActivatePaneDown, window, cx| {
+        workspace.activate_terminal_pane_in_direction(SplitDirection::Down, window, cx);
+    });
+    t.add(|workspace: &mut Workspace, _: &ActivateNextPane, window, cx| {
+        workspace.activate_terminal_pane_by_offset(true, window, cx);
+    });
+    t.add(|workspace: &mut Workspace, _: &ActivatePreviousPane, window, cx| {
+        workspace.activate_terminal_pane_by_offset(false, window, cx);
+    });
+    t
+});
+
 impl Workspace {
     pub(super) fn render_terminal_mode(&self, window: &mut Window, cx: &mut Context<Workspace>) -> Div {
         let pane = self.active_terminal_pane.clone();
@@ -167,24 +190,7 @@ impl Workspace {
             .min_h_0()
             .size_full()
             .child(panes)
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ActivatePaneLeft, window, cx| {
-                workspace.activate_terminal_pane_in_direction(SplitDirection::Left, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ActivatePaneRight, window, cx| {
-                workspace.activate_terminal_pane_in_direction(SplitDirection::Right, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ActivatePaneUp, window, cx| {
-                workspace.activate_terminal_pane_in_direction(SplitDirection::Up, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ActivatePaneDown, window, cx| {
-                workspace.activate_terminal_pane_in_direction(SplitDirection::Down, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ActivateNextPane, window, cx| {
-                workspace.activate_terminal_pane_by_offset(true, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ActivatePreviousPane, window, cx| {
-                workspace.activate_terminal_pane_by_offset(false, window, cx);
-            }));
+            .action_table(&cx.entity(), &TERMINAL_MODE_ACTIONS);
         let content = match cx.try_global::<PaneSearchBarCallbacks>() {
             Some(callbacks) => (callbacks.wrap_div_with_search_actions)(div().size_full().flex().child(content), pane),
             None => div().size_full().flex().child(content),

@@ -440,29 +440,35 @@ impl Focusable for BranchList {
     }
 }
 
+static BRANCH_LIST_ACTIONS: std::sync::LazyLock<gpui::ActionTable<BranchList>> = std::sync::LazyLock::new(|| {
+    let mut t = gpui::ActionTable::<BranchList>::default();
+    t.add(BranchList::handle_delete);
+    t.add(BranchList::handle_force_delete);
+    t.add(|this, _: &branch_picker::ShowAllBranches, window, cx| {
+        this.set_branch_filter(BranchFilter::All, window, cx);
+    });
+    t.add(|this, _: &branch_picker::ShowLocalBranches, window, cx| {
+        this.set_branch_filter(BranchFilter::Local, window, cx);
+    });
+    t.add(|this, _: &branch_picker::ShowRemoteBranches, window, cx| {
+        this.set_branch_filter(BranchFilter::Remote, window, cx);
+    });
+    t.add(|this, _: &branch_picker::CycleBranchFilter, window, cx| {
+        this.cycle_branch_filter(window, cx);
+    });
+    t.add(|this, _: &branch_picker::ToggleFilterMenu, window, cx| {
+        let menu_handle = this.picker.read(cx).delegate.branch_filter_menu_handle.clone();
+        menu_handle.toggle(window, cx);
+    });
+    t
+});
+
 impl Render for BranchList {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .key_context("GitBranchSelector")
             .on_modifiers_changed(cx.listener(Self::handle_modifiers_changed))
-            .on_action(cx.listener(Self::handle_delete))
-            .on_action(cx.listener(Self::handle_force_delete))
-            .on_action(cx.listener(|this, _: &branch_picker::ShowAllBranches, window, cx| {
-                this.set_branch_filter(BranchFilter::All, window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &branch_picker::ShowLocalBranches, window, cx| {
-                this.set_branch_filter(BranchFilter::Local, window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &branch_picker::ShowRemoteBranches, window, cx| {
-                this.set_branch_filter(BranchFilter::Remote, window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &branch_picker::CycleBranchFilter, window, cx| {
-                this.cycle_branch_filter(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &branch_picker::ToggleFilterMenu, window, cx| {
-                let menu_handle = this.picker.read(cx).delegate.branch_filter_menu_handle.clone();
-                menu_handle.toggle(window, cx);
-            }))
+            .action_table(&cx.entity(), &BRANCH_LIST_ACTIONS)
             .child(self.picker.clone())
             .when(!self.embedded, |this| {
                 this.on_mouse_down_out({

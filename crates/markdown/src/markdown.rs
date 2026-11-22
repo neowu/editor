@@ -11,6 +11,7 @@ mod style;
 
 use std::borrow::Cow;
 use std::cell::Cell;
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::hash::Hash as _;
 use std::hash::Hasher as _;
@@ -19,6 +20,7 @@ use std::ops::Range;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::LazyLock;
 
 use base64::Engine as _;
 use builder::MarkdownElementBuilder;
@@ -152,7 +154,20 @@ pub struct Markdown {
     context_menu_selected_markdown: Option<SharedString>,
     search_highlights: Rc<[Range<usize>]>,
     active_search_highlight: Option<usize>,
+    /// The text as last painted, for copying; none while the element is virtualized.
+    painted_text: Option<Rc<RefCell<RenderedText>>>,
 }
+
+/// Attached by the element's paint.
+pub(crate) static ACTIONS: LazyLock<gpui::ActionTable<Markdown>> = LazyLock::new(|| {
+    let mut table = gpui::ActionTable::default();
+    table.add(|this: &mut Markdown, _: &Copy, window, cx| {
+        let text = this.painted_text.as_ref().map(|text| text.borrow().clone());
+        this.copy(text.as_ref(), window, cx);
+    });
+    table.add(|this: &mut Markdown, _: &CopyAsMarkdown, window, cx| this.copy_as_markdown(window, cx));
+    table
+});
 
 #[derive(Clone, Copy, Default)]
 pub struct MarkdownOptions {
@@ -305,6 +320,7 @@ impl Markdown {
             context_menu_selected_markdown: None,
             search_highlights: Rc::default(),
             active_search_highlight: None,
+            painted_text: None,
         };
         this.parse(cx);
         this
@@ -501,6 +517,10 @@ impl Markdown {
             Some(rendered_text) => rendered_text.text_for_range(range),
             None => self.parsed_markdown.text_for_range(range),
         }
+    }
+
+    pub(crate) fn set_painted_text(&mut self, text: Option<Rc<RefCell<RenderedText>>>) {
+        self.painted_text = text;
     }
 
     fn copy(&self, rendered_text: Option<&RenderedText>, _: &mut Window, cx: &Context<Self>) {
@@ -1145,6 +1165,17 @@ mod tests {
     use super::ParsedMarkdown;
     use super::parse_markdown_with_options;
     use super::render_blocks;
+
+    #[test]
+    fn actions_handle_both_copies_once() {
+        use std::any::TypeId;
+
+        let mut expected = [TypeId::of::<super::Copy>(), TypeId::of::<super::CopyAsMarkdown>()];
+        expected.sort();
+
+        assert_eq!(super::ACTIONS.action_types(), expected);
+        assert!(super::ACTIONS.conditional().all(|conditional| !conditional));
+    }
 
     fn parse(source: &str) -> ParsedMarkdown {
         let parsed = parse_markdown_with_options(source, MarkdownOptions::default());
