@@ -2948,6 +2948,17 @@ impl Window {
         self.next_frame.dispatch_tree.on_action(action_type, Rc::new(listener));
     }
 
+    /// Register one bubble-phase listener for a sorted set of action types on the current
+    /// dispatch node. The listener receives the index of the dispatched action's type. Cheaper
+    /// than [`Self::on_action`] per action for elements that handle many actions every frame.
+    pub fn on_action_table(
+        &mut self,
+        action_types: &'static [TypeId],
+        listener: impl Fn(usize, &dyn Any, &mut Window, &mut App) + 'static,
+    ) {
+        self.next_frame.dispatch_tree.on_action_table(action_types, Rc::new(listener));
+    }
+
     /// Perform titlebar double-click action.
     /// This is macOS specific.
     pub fn titlebar_double_click(&self) {

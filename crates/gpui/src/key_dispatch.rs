@@ -62,6 +62,7 @@ pub(crate) struct DispatchTree {
 pub(crate) struct DispatchNode {
     pub key_listeners: Vec<KeyListener>,
     pub action_listeners: Vec<DispatchActionListener>,
+    pub action_tables: Vec<DispatchActionTable>,
     pub modifiers_changed_listeners: Vec<ModifiersChangedListener>,
     pub context: Option<KeyContext>,
     pub focus_id: Option<FocusId>,
@@ -106,6 +107,15 @@ type ModifiersChangedListener = Rc<dyn Fn(&ModifiersChangedEvent, &mut Window, &
 pub(crate) struct DispatchActionListener {
     pub(crate) action_type: TypeId,
     pub(crate) listener: Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>,
+}
+
+/// One bubble-phase listener for a fixed set of action types, so an element with many actions
+/// registers once per frame instead of once per action.
+#[derive(Clone)]
+pub(crate) struct DispatchActionTable {
+    /// Sorted; the listener receives the index of the dispatched action's type.
+    pub(crate) action_types: &'static [TypeId],
+    pub(crate) listener: Rc<dyn Fn(usize, &dyn Any, &mut Window, &mut App)>,
 }
 
 impl DispatchTree {
@@ -225,6 +235,7 @@ impl DispatchTree {
         let target = self.active_node();
         target.key_listeners = mem::take(&mut source.key_listeners);
         target.action_listeners = mem::take(&mut source.action_listeners);
+        target.action_tables = mem::take(&mut source.action_tables);
         target.modifiers_changed_listeners = mem::take(&mut source.modifiers_changed_listeners);
     }
 
@@ -294,6 +305,15 @@ impl DispatchTree {
         self.active_node().action_listeners.push(DispatchActionListener { action_type, listener });
     }
 
+    pub(crate) fn on_action_table(
+        &mut self,
+        action_types: &'static [TypeId],
+        listener: Rc<dyn Fn(usize, &dyn Any, &mut Window, &mut App)>,
+    ) {
+        debug_assert!(action_types.is_sorted(), "action table types must be sorted");
+        self.active_node().action_tables.push(DispatchActionTable { action_types, listener });
+    }
+
     pub(crate) fn focus_contains(&self, parent: FocusId, child: FocusId) -> bool {
         if parent == child {
             return true;
@@ -315,7 +335,8 @@ impl DispatchTree {
         let mut actions = Vec::<Box<dyn Action>>::new();
         for node_id in self.dispatch_path(target) {
             let node = &self.nodes[node_id.0];
-            for DispatchActionListener { action_type, .. } in &node.action_listeners {
+            let table_types = node.action_tables.iter().flat_map(|table| table.action_types);
+            for action_type in node.action_listeners.iter().map(|listener| &listener.action_type).chain(table_types) {
                 if let Err(ix) = actions.binary_search_by_key(action_type, |a| a.as_any().type_id()) {
                     // Intentionally silence these errors without logging.
                     // If an action cannot be built by default, it's not available.
@@ -332,7 +353,10 @@ impl DispatchTree {
     pub(crate) fn is_action_available(&self, action: &dyn Action, target: DispatchNodeId) -> bool {
         for node_id in self.dispatch_path(target) {
             let node = &self.nodes[node_id.0];
-            if node.action_listeners.iter().any(|listener| listener.action_type == action.as_any().type_id()) {
+            let action_type = action.as_any().type_id();
+            if node.action_listeners.iter().any(|listener| listener.action_type == action_type)
+                || node.action_tables.iter().any(|table| table.action_types.binary_search(&action_type).is_ok())
+            {
                 return true;
             }
         }
@@ -513,5 +537,43 @@ impl DispatchTree {
 
     pub(crate) fn active_node_id(&self) -> Option<DispatchNodeId> {
         self.node_stack.last().copied()
+    }
+}
+
+#[cfg(test)]
+#[allow(unreachable_pub, reason = "actions! emits pub structs")]
+mod tests {
+    use std::sync::LazyLock;
+
+    use super::*;
+    actions!(dispatch_test, [Listed, Tabled, Unhandled]);
+
+    #[test]
+    fn action_tables_make_their_actions_available() {
+        static TYPES: LazyLock<[TypeId; 1]> = LazyLock::new(|| [TypeId::of::<Tabled>()]);
+        let mut tree = DispatchTree::new(Rc::default(), Rc::new(ActionRegistry::default()));
+
+        let node = tree.push_node();
+        tree.on_action(TypeId::of::<Listed>(), Rc::new(|_, _, _, _| {}));
+        tree.on_action_table(&*TYPES, Rc::new(|_, _, _, _| {}));
+        tree.pop_node();
+
+        assert!(tree.is_action_available(&Listed, node));
+        assert!(tree.is_action_available(&Tabled, node));
+        assert!(!tree.is_action_available(&Unhandled, node));
+    }
+
+    #[test]
+    fn moved_nodes_keep_their_action_tables() {
+        static TYPES: LazyLock<[TypeId; 1]> = LazyLock::new(|| [TypeId::of::<Tabled>()]);
+        let mut source = DispatchNode::default();
+        source.action_tables.push(DispatchActionTable { action_types: &*TYPES, listener: Rc::new(|_, _, _, _| {}) });
+        let mut tree = DispatchTree::new(Rc::default(), Rc::new(ActionRegistry::default()));
+
+        tree.move_node(&mut source);
+        let node = tree.active_node_id().expect("node was pushed");
+
+        assert!(source.action_tables.is_empty());
+        assert!(tree.is_action_available(&Tabled, node));
     }
 }

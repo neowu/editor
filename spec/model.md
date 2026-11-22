@@ -30,6 +30,14 @@ Read the code for details; this only records the shape and the rules.
   window root. A view that handles an action registers it on its root element
   (`.on_action`); `Workspace::register_action` adds a handler to the
   workspace root, so it works wherever focus is in the window.
+- An element that handles many actions every frame registers them as a
+  table (`Window::on_action_table`): a static, sorted list of action types
+  and one bubble-phase listener that gets the matching index. The editor
+  keeps its unconditional actions in two static tables (all editors, and
+  editors that are not read-only), so painting an editor does not allocate
+  one listener per action. Actions that depend on editor state (multibuffer,
+  blame, minimap, LSP) are still registered one by one, so they stay
+  unavailable where they do not apply.
 
 ## Crate layering
 

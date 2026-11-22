@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::fmt::Debug;
 use std::mem;
+use std::rc::Rc;
 use std::time::Duration;
 
 use gpui_util::ResultExt as _;
@@ -534,6 +535,21 @@ impl Window {
                 if action_type == any_action.type_id() {
                     cx.propagate_event = false; // Actions stop propagation by default during the bubble phase
                     listener(any_action, DispatchPhase::Bubble, self, cx);
+
+                    if !cx.propagate_event {
+                        return;
+                    }
+                }
+            }
+
+            let any_action = action.as_any();
+            let mut table_ix = 0;
+            while let Some(table) = self.rendered_frame.dispatch_tree.node(*node_id).action_tables.get(table_ix) {
+                table_ix += 1;
+                if let Ok(action_ix) = table.action_types.binary_search(&any_action.type_id()) {
+                    let listener = Rc::clone(&table.listener);
+                    cx.propagate_event = false;
+                    listener(action_ix, any_action, self, cx);
 
                     if !cx.propagate_event {
                         return;
