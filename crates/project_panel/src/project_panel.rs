@@ -1,13 +1,13 @@
 use actions::menu;
 use actions::search as search_actions;
-use actions::workspace::CopyPath;
-use actions::workspace::CopyRelativePath;
 use editor::actions::MoveToBeginningOfLine;
 use editor::actions::MoveToEndOfLine;
 use ui::utils as ui_utils;
 use util::paths;
 use util::paths::SortMode;
 use util::paths::SortOrder;
+use workspace::CopyPath;
+use workspace::CopyRelativePath;
 
 mod clipboard;
 mod drag;
@@ -32,9 +32,6 @@ use actions::menu::SelectFirst;
 use actions::menu::SelectLast;
 use actions::menu::SelectNext;
 use actions::menu::SelectPrevious;
-use actions::project_panel::Toggle;
-use actions::project_panel::ToggleFocus;
-use actions::workspace::OpenWithSystem;
 use anyhow::Context as _;
 use anyhow::Result;
 use editor::Editor;
@@ -56,7 +53,6 @@ use gpui::Entity;
 use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;
-use gpui::InteractiveElement as _;
 use gpui::KeyContext;
 use gpui::Modifiers;
 use gpui::Pixels;
@@ -104,9 +100,11 @@ use util::ResultExt as _;
 use util::markdown::MarkdownInlineCode;
 use util::rel_path::RelPath;
 use workspace::OpenInTerminal;
+use workspace::OpenWithSystem;
 use workspace::SelectedEntry;
 use workspace::SplitDirection;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
 use workspace::dock::PanelEvent;
@@ -402,6 +400,10 @@ struct SelectPrevDiagnostic {
 actions!(
     project_panel,
     [
+        /// Toggles the project panel.
+        Toggle,
+        /// Toggles focus on the project panel.
+        ToggleFocus,
         /// Expands the selected entry in the project tree.
         ExpandSelectedEntry,
         /// Collapses the selected entry in the project tree.
@@ -526,114 +528,80 @@ impl FoldedAncestors {
     }
 }
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(|workspace: &mut Workspace, _, _| {
-        workspace.register_action(|workspace, _: &ToggleFocus, window, cx| {
-            workspace.toggle_panel_focus::<ProjectPanel>(window, cx);
-        });
-        workspace.register_action(|workspace, _: &Toggle, window, cx| {
-            if !workspace.toggle_panel_focus::<ProjectPanel>(window, cx) {
-                workspace.close_panel::<ProjectPanel>(window, cx);
-            }
-        });
+pub fn init(workspace_actions: &mut WorkspaceActions) {
+    workspace_actions.register_action(|workspace, _: &ToggleFocus, window, cx| {
+        workspace.toggle_panel_focus::<ProjectPanel>(window, cx);
+    });
+    workspace_actions.register_action(|workspace, _: &Toggle, window, cx| {
+        if !workspace.toggle_panel_focus::<ProjectPanel>(window, cx) {
+            workspace.close_panel::<ProjectPanel>(window, cx);
+        }
+    });
 
-        workspace.register_action(|workspace, _: &ToggleHideGitIgnore, window, cx| {
-            if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
-                panel.update(cx, |panel, cx| {
-                    panel.hide_gitignore = !panel.hide_gitignore;
-                    panel.update_visible_entries(None, false, false, window, cx);
-                    cx.notify();
-                });
-            }
-        });
+    workspace_actions.register_action(|workspace, _: &ToggleHideGitIgnore, window, cx| {
+        if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
+            panel.update(cx, |panel, cx| {
+                panel.hide_gitignore = !panel.hide_gitignore;
+                panel.update_visible_entries(None, false, false, window, cx);
+                cx.notify();
+            });
+        }
+    });
 
-        workspace.register_action(|workspace, _: &ToggleHideHidden, window, cx| {
-            if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
-                panel.update(cx, |panel, cx| {
-                    panel.hide_hidden = !panel.hide_hidden;
-                    panel.update_visible_entries(None, false, false, window, cx);
-                    cx.notify();
-                });
-            }
-        });
+    workspace_actions.register_action(|workspace, _: &ToggleHideHidden, window, cx| {
+        if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
+            panel.update(cx, |panel, cx| {
+                panel.hide_hidden = !panel.hide_hidden;
+                panel.update_visible_entries(None, false, false, window, cx);
+                cx.notify();
+            });
+        }
+    });
 
-        workspace.register_action(|workspace, action: &CollapseAllEntries, window, cx| {
-            if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
-                panel.update(cx, |panel, cx| {
-                    panel.collapse_all_entries(action, window, cx);
-                });
-            }
-        });
+    workspace_actions.register_action(|workspace, action: &CollapseAllEntries, window, cx| {
+        if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
+            panel.update(cx, |panel, cx| {
+                panel.collapse_all_entries(action, window, cx);
+            });
+        }
+    });
 
-        workspace.register_action(|workspace, action: &ExpandAllEntries, window, cx| {
-            if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
-                panel.update(cx, |panel, cx| {
-                    panel.expand_all_entries(action, window, cx);
-                });
-            }
-        });
+    workspace_actions.register_action(|workspace, action: &ExpandAllEntries, window, cx| {
+        if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
+            panel.update(cx, |panel, cx| {
+                panel.expand_all_entries(action, window, cx);
+            });
+        }
+    });
 
-        workspace.register_action(|workspace, action: &Rename, window, cx| {
-            workspace.open_panel::<ProjectPanel>(window, cx);
-            if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
-                panel.update(cx, |panel, cx| {
-                    if let Some(first_marked) = panel.marked_entries.first() {
-                        let first_marked = *first_marked;
-                        panel.marked_entries.clear();
-                        panel.selection = Some(first_marked);
-                    }
-                    panel.rename(action, window, cx);
-                });
-            }
-        });
+    workspace_actions.register_action(|workspace, action: &Rename, window, cx| {
+        workspace.open_panel::<ProjectPanel>(window, cx);
+        if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
+            panel.update(cx, |panel, cx| {
+                if let Some(first_marked) = panel.marked_entries.first() {
+                    let first_marked = *first_marked;
+                    panel.marked_entries.clear();
+                    panel.selection = Some(first_marked);
+                }
+                panel.rename(action, window, cx);
+            });
+        }
+    });
 
-        workspace.register_action(|workspace, action: &Duplicate, window, cx| {
-            workspace.open_panel::<ProjectPanel>(window, cx);
-            if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
-                panel.update(cx, |panel, cx| {
-                    panel.duplicate(action, window, cx);
-                });
-            }
-        });
+    workspace_actions.register_action(|workspace, action: &Duplicate, window, cx| {
+        workspace.open_panel::<ProjectPanel>(window, cx);
+        if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
+            panel.update(cx, |panel, cx| {
+                panel.duplicate(action, window, cx);
+            });
+        }
+    });
 
-        workspace.register_action(|workspace, action: &Delete, window, cx| {
-            if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
-                panel.update(cx, |panel, cx| panel.delete(action, window, cx));
-            }
-        });
-
-        // Forwards `git::FileHistory` to the file history opener installed by
-        // `git_ui` when the project panel is the focused source of selection.
-        // Lives here (and not in `git_ui`) so that `git_ui` does not need to
-        // depend on `project_panel`, which would create a dependency cycle.
-        workspace.register_action_renderer(|div, workspace, window, cx| {
-            let Some(panel) = workspace.panel::<ProjectPanel>(cx) else {
-                return div;
-            };
-            if !panel.read(cx).focus_handle(cx).contains_focused(window, cx) {
-                return div;
-            }
-            if panel.read(cx).selected_entry_project_path(cx).is_none() {
-                return div;
-            }
-            let workspace = workspace.weak_handle();
-            div.capture_action(move |_: &git::FileHistory, window, cx| {
-                workspace
-                    .update(cx, |workspace, cx| {
-                        let Some(panel) = workspace.panel::<ProjectPanel>(cx) else {
-                            return;
-                        };
-                        let Some(project_path) = panel.read(cx).selected_entry_project_path(cx) else {
-                            return;
-                        };
-                        git_ui_core::open_file_history(workspace, &project_path, window, cx);
-                    })
-                    .log_err();
-                cx.stop_propagation();
-            })
-        });
-    })
-    .detach();
+    workspace_actions.register_action(|workspace, action: &Delete, window, cx| {
+        if let Some(panel) = workspace.panel::<ProjectPanel>(cx) {
+            panel.update(cx, |panel, cx| panel.delete(action, window, cx));
+        }
+    });
 }
 
 #[derive(Debug)]
@@ -2444,6 +2412,22 @@ impl ProjectPanel {
     pub fn selected_entry<'a>(&self, cx: &'a App) -> Option<(&'a Worktree, &'a project::Entry)> {
         let (worktree, entry) = self.selected_entry_handle(cx)?;
         Some((worktree.read(cx), entry))
+    }
+
+    /// Opens the history of the selected entry through the opener `git_ui` installs (it cannot
+    /// be called directly: `git_ui` depends on this crate's siblings, not the other way round).
+    fn file_history(&mut self, _: &git::FileHistory, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(project_path) = self.selected_entry_project_path(cx) else {
+            cx.propagate();
+            return;
+        };
+        let workspace = self.workspace.clone();
+        // Deferred: the opener updates the workspace, which may read this panel.
+        window.defer(cx, move |window, cx| {
+            workspace
+                .update(cx, |workspace, cx| git_ui_core::open_file_history(workspace, &project_path, window, cx))
+                .log_err();
+        });
     }
 
     pub fn selected_entry_project_path(&self, cx: &App) -> Option<ProjectPath> {

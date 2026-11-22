@@ -43,6 +43,7 @@ use ui::prelude::v_flex;
 use util::ResultExt as _;
 use workspace::ModalView;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 
 actions!(
     language_selector,
@@ -52,8 +53,8 @@ actions!(
     ]
 );
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(LanguageSelector::register).detach();
+pub fn init(workspace_actions: &mut WorkspaceActions) {
+    LanguageSelector::register(workspace_actions);
 }
 
 pub struct LanguageSelector {
@@ -61,8 +62,8 @@ pub struct LanguageSelector {
 }
 
 impl LanguageSelector {
-    fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
-        workspace.register_action(move |workspace, _: &Toggle, window, cx| {
+    fn register(workspace_actions: &mut WorkspaceActions) {
+        workspace_actions.register_action(move |workspace, _: &Toggle, window, cx| {
             Self::toggle(workspace, window, cx);
         });
     }

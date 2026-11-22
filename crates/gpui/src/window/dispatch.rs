@@ -1,7 +1,6 @@
 use std::any::Any;
 use std::fmt::Debug;
 use std::mem;
-use std::rc::Rc;
 use std::time::Duration;
 
 use gpui_util::ResultExt as _;
@@ -546,10 +545,18 @@ impl Window {
             let mut table_ix = 0;
             while let Some(table) = self.rendered_frame.dispatch_tree.node(*node_id).action_tables.get(table_ix) {
                 table_ix += 1;
-                if let Ok(action_ix) = table.action_types.binary_search(&any_action.type_id()) {
-                    let listener = Rc::clone(&table.listener);
+                let handlers = table.handlers_for(any_action.type_id());
+                if handlers.is_empty() {
+                    continue;
+                }
+                let table = table.clone();
+                for ix in handlers {
+                    // A handler that does not apply behaves as if it were not registered.
+                    if !table.applies(ix, cx) {
+                        continue;
+                    }
                     cx.propagate_event = false;
-                    listener(action_ix, any_action, self, cx);
+                    table.dispatch(ix, any_action, self, cx);
 
                     if !cx.propagate_event {
                         return;
@@ -589,7 +596,8 @@ impl Window {
     /// Returns all available actions for the focused element.
     pub fn available_actions(&self, cx: &App) -> Vec<Box<dyn Action>> {
         let node_id = self.focus_node_id_in_rendered_frame(self.focus);
-        let mut actions = self.rendered_frame.dispatch_tree.available_actions(node_id);
+        let mut actions =
+            self.rendered_frame.dispatch_tree.available_actions(node_id, |table, ix| table.applies(ix, cx));
         for action_type in cx.global_action_listeners.keys() {
             if let Err(ix) = actions.binary_search_by_key(action_type, |a| a.as_any().type_id()) {
                 let action = cx.actions.build_action_type(action_type).ok();

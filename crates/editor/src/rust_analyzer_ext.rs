@@ -4,7 +4,6 @@ use anyhow::Context as _;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Context;
-use gpui::Entity;
 use gpui::TaskExt as _;
 use gpui::Window;
 use language::Capability;
@@ -21,7 +20,6 @@ use crate::ExpandMacroRecursively;
 use crate::GoToParentModule;
 use crate::GotoDefinitionKind;
 use crate::OpenDocs;
-use crate::element::register_action;
 use crate::hover_links::HoverLink;
 use crate::lsp_ext::find_specific_language_server_in_selection;
 
@@ -29,20 +27,12 @@ fn is_rust_language(language: &Language) -> bool {
     language.name() == "Rust"
 }
 
-pub(crate) fn apply_related_actions(editor: &Entity<Editor>, window: &mut Window, cx: &App) {
-    if editor
-        .read(cx)
+pub(crate) fn has_rust_buffer(editor: &Editor, cx: &App) -> bool {
+    editor
         .buffer()
         .read(cx)
-        .all_buffers()
-        .into_iter()
-        .filter_map(|buffer| buffer.read(cx).language())
-        .any(|language| is_rust_language(language))
-    {
-        register_action(editor, window, go_to_parent_module);
-        register_action(editor, window, expand_macro_recursively);
-        register_action(editor, window, open_docs);
-    }
+        .all_buffers_iter()
+        .any(|buffer| buffer.read(cx).language().is_some_and(|language| is_rust_language(language)))
 }
 
 pub(crate) fn go_to_parent_module(

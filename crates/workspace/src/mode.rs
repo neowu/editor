@@ -16,6 +16,7 @@ use gpui::Render;
 use gpui::Subscription;
 use gpui::WeakEntity;
 use gpui::Window;
+use gpui::actions;
 use gpui::div;
 pub(crate) use terminal::TerminalLayout;
 pub use terminal::TerminalModeDelegate;
@@ -31,6 +32,21 @@ use crate::Pane;
 use crate::Workspace;
 use crate::WorkspaceMode;
 use crate::dock::Dock;
+
+actions!(
+    mode,
+    [
+        /// Switches the window to Editor mode.
+        Editor,
+        /// Switches the window to Git History mode for the active repository:
+        /// keeps the active history tab if it belongs to that repository,
+        /// otherwise shows the repository's graph.
+        GitHistory,
+        /// Switches the window to Terminal mode, starting a shell (or the
+        /// saved layout) when it has no terminals yet.
+        Terminal
+    ]
+);
 
 /// Renders one mode's content, everything above the status bar. The workspace draws only the shown mode's view, cached, so a
 /// mode is laid out only while shown and redraws of the shared chrome reuse it.

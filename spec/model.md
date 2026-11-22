@@ -22,22 +22,89 @@ Read the code for details; this only records the shape and the rules.
   `_subscriptions: Vec<Subscription>` field) or until the subscriber is
   dropped when `.detach()`ed. Dropping it unsubscribes.
 - `cx.observe_new::<T>(..)` runs a callback for every new `T`. This is how
-  crates that sit above `workspace` attach themselves to each `Workspace`
-  without `workspace` knowing them.
+  crates that sit above `workspace` attach per-window state (status bar
+  items, subscriptions) to each `Workspace` without `workspace` knowing them.
+  Workspace actions are not registered this way; see below.
 - Views render independently: a parent embeds a child view (`Entity<V>` /
   `AnyView`), and only notified views re-render.
 - Actions dispatch along the focus tree from the focused element up to the
   window root. A view that handles an action registers it on its root element
-  (`.on_action`); `Workspace::register_action` adds a handler to the
-  workspace root, so it works wherever focus is in the window.
-- An element that handles many actions every frame registers them as a
-  table (`Window::on_action_table`): a static, sorted list of action types
-  and one bubble-phase listener that gets the matching index. The editor
-  keeps its unconditional actions in two static tables (all editors, and
-  editors that are not read-only), so painting an editor does not allocate
-  one listener per action. Actions that depend on editor state (multibuffer,
-  blame, minimap, LSP) are still registered one by one, so they stay
-  unavailable where they do not apply.
+  (`.on_action`).
+- A view with many actions keeps them in a `gpui::ActionTable<V>` held in a
+  `static`: handlers are built once per app, not per view or per frame. Each
+  frame the view attaches the table to its dispatch node together with its
+  entity (`.action_table` on an element, `Window::on_action_table` in a
+  custom element's paint), which costs one push however many actions the
+  table holds. Handlers are `Send + Sync` and hold no per-view state; they
+  get the view as an argument and find what they need through it. Tables are
+  bubble-phase only; on a node, `.on_action` listeners run before tables,
+  tables in attach order, and handlers for the same action in registration
+  order.
+- A table handler may carry a condition on the view (`add_if`). While it is
+  false the handler behaves as if it were not registered: the keystroke
+  falls through to other handlers and bindings, and the action is not
+  reported as available. Conditions are evaluated when an action is
+  dispatched or availability is queried (command palette, macOS menu
+  validation, `edctl actions --available`), never per frame, so
+  availability reflects current state rather than the last painted frame.
+- Conditions read the view. Availability must therefore be queried outside
+  any update of a view on the focus path (the command palette defers its
+  query until the workspace update that opens it has finished); querying
+  inside one panics as a double lease.
+- Workspace actions, the ones that work wherever focus is in a window, are
+  collected once at startup. `main` creates a `WorkspaceActions`, passes it
+  to each crate's `init`, which adds its handlers with `register_action`,
+  and then calls `install`, which appends the workspace's own handlers and
+  stores the result for every workspace. There is no registration after
+  that. The crate that owns the behaviour registers the action. All
+  workspaces share the handlers, so a handler reaches per-window state
+  through its `workspace` argument (a panel, the status bar item, the title
+  bar). Handlers for the same action run in registration order, i.e. the
+  order of the `init` calls, and before the workspace's own.
+  `register_action_if` adds a condition on the workspace (a diffable active
+  file, an active repository, LSP commands for the active buffer). The
+  workspace registers nothing per frame.
+- Workspace conditions never ask where focus is. An action that acts on a
+  panel's selection (file history of the selected entry) is handled on that
+  panel's node, which gets it first while the panel holds focus. The project
+  panel attaches its file history listener only while it has a selection, so
+  without one the workspace entry alone decides availability and acts on the
+  active editor. Whether the selected entry is in a repository is not checked
+  per frame: in a non-Git folder the action stays listed and does nothing.
+- Workspace actions need a window and its workspace. Actions that must also
+  work with no window open (quit, about, open, new window from the menu) are
+  app-level `cx.on_action` handlers instead; those get no window or
+  workspace, run after everything in the focus tree, and are always
+  reported as available.
+- Editor actions are one table, collected at startup like workspace actions:
+  `main` creates an `ActionTable<Editor>`, passes it to the crates that add
+  editor actions (`go_to_line`, `lsp_locations`), and calls
+  `editor::install_actions`, which appends the editor's own. The editor
+  registers nothing per frame and has no per-instance action list. What an
+  action depends on (read-only, multibuffer, blame, minimap, LSP, a Rust
+  buffer, full mode) is a condition on its entry. A registered handler for an
+  action the editor also handles runs first and propagates to reach the
+  editor's.
+- Conditions are cheap reads. Where the exact check is costly (the blame
+  entry under the cursor) the condition is coarser (blame is on) and the
+  handler propagates when it has nothing to do.
+- Table handlers run inside the view's update. They use the view they are
+  given and defer anything that reads it through its handle (go-to-line
+  opening its modal). Code already holding the view asks it directly instead
+  of querying availability (the editor context menu).
+- The one availability query made inside an update is the editor's context
+  menu asking for the pane's preview actions. Their condition therefore
+  reads only the pane, which keeps whether its active item has a preview
+  from its last render.
+- A view uses one mechanism: a table (`Editor`, `Workspace`, `Pane`) or
+  per-frame `.on_action` listeners (every other view). A table is for views
+  that render on every editor frame: the editor and its ancestors. Views
+  that render only when they change (cached panels, pickers, modals) keep
+  listeners, as do views that need capture-phase handlers. A table private
+  to one view is a `static` in its module (`Pane`).
+  Behaviour for one editor instance belongs to the view embedding it, as a
+  capture-phase listener there (Tab in the go-to-line input), not to the
+  editor.
 
 ## Crate layering
 
@@ -66,6 +133,14 @@ ed (binary: wires everything, opens windows)
 - `ui` sits below `editor`. Crates that need a text input without depending
   on `editor` (`picker`) use `ui::ErasedEditor`, created through
   `ui::ERASED_EDITOR_FACTORY`, which `editor` registers at init.
+- An action type is declared in the crate that owns its behaviour, as long as
+  every crate that names it (to dispatch, bind a menu item or show a tooltip)
+  depends on that crate. The `actions` crate holds only the rest: actions
+  named by a crate that cannot depend on the owner (`menu` by `ui` and
+  `picker`; cursor movement by `picker` and `workspace`; the command palette
+  toggle by `workspace`; search and git graph actions by sibling crates) and
+  app-level ones. Moving a type between crates keeps its namespace, so
+  keymaps don't change.
 - `ed` (`initialize_workspace`) is the only place that knows every piece: it
   adds the panels, status bar items and pane toolbars to each new
   `Workspace` via `observe_new`.

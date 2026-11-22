@@ -103,6 +103,7 @@ use workspace::ToolbarItemEvent;
 use workspace::ToolbarItemLocation;
 use workspace::ToolbarItemView;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::WorkspaceMode;
 use workspace::item::ItemEvent;
 use workspace::item::TabTooltipContent;
@@ -120,19 +121,16 @@ use crate::revision_semantics::RevisionSemanticsProvider;
 
 actions!(git, [ApplyCurrentStash, PopCurrentStash, DropCurrentStash, OpenFileAtHead,]);
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(|workspace: &mut Workspace, _window, _cx| {
-        workspace.register_action(|workspace, _: &ApplyCurrentStash, window, cx| {
-            CommitView::apply_stash(workspace, window, cx);
-        });
-        workspace.register_action(|workspace, _: &DropCurrentStash, window, cx| {
-            CommitView::remove_stash(workspace, window, cx);
-        });
-        workspace.register_action(|workspace, _: &PopCurrentStash, window, cx| {
-            CommitView::pop_stash(workspace, window, cx);
-        });
-    })
-    .detach();
+pub fn init(workspace_actions: &mut WorkspaceActions) {
+    workspace_actions.register_action(|workspace, _: &ApplyCurrentStash, window, cx| {
+        CommitView::apply_stash(workspace, window, cx);
+    });
+    workspace_actions.register_action(|workspace, _: &DropCurrentStash, window, cx| {
+        CommitView::remove_stash(workspace, window, cx);
+    });
+    workspace_actions.register_action(|workspace, _: &PopCurrentStash, window, cx| {
+        CommitView::pop_stash(workspace, window, cx);
+    });
 }
 
 pub struct CommitView {

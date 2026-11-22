@@ -1,5 +1,4 @@
 use actions::menu;
-use actions::project_panel::ToggleFocus;
 use diagnostics::items::DiagnosticIndicator;
 use go_to_line::cursor_position::CursorPosition;
 use search::search_status_button::SearchButton;
@@ -65,16 +64,13 @@ use gpui::point;
 use gpui::px;
 use image_viewer::ImageInfo;
 use language::Capability;
-use language_tools::lsp_button;
 use language_tools::lsp_button::LspButton;
 use language_tools::lsp_log_view::LspLogToolbarItemView;
 use outline_panel::OutlinePanel;
 use project_panel::ProjectPanel;
 use search::project_search::ProjectSearchBar;
-use terminal_view::terminal_panel;
 use terminal_view::terminal_panel::TerminalPanel;
 use theme::ActiveTheme as _;
-use ui::PopoverMenuHandle;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonStyle;
@@ -93,11 +89,11 @@ use workspace::AppState;
 use workspace::CloseIntent;
 use workspace::CloseProject;
 use workspace::CloseWindow;
-use workspace::NewFile;
 use workspace::NewWindow;
 use workspace::OpenLog;
 use workspace::Pane;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::notifications::NotificationId;
 use workspace::notifications::simple_message_notification::MessageNotification;
 use workspace::open_new;
@@ -187,7 +183,7 @@ fn frontmost_window_display(cx: &mut App) -> Option<Rc<dyn PlatformDisplay>> {
     window.update(cx, |_, window, cx| window.display(cx)).ok().flatten()
 }
 
-pub(crate) fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
+pub(crate) fn initialize_workspace(app_state: Arc<AppState>, workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     sync_theme_appearance(cx.window_appearance(), cx);
 
     cx.observe_new(|_: &mut Workspace, window, cx| {
@@ -211,6 +207,8 @@ pub(crate) fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
         });
     })
     .detach();
+
+    register_actions(app_state, workspace_actions);
 
     cx.observe_new(move |workspace: &mut Workspace, window, cx| {
         let Some(window) = window else {
@@ -244,13 +242,7 @@ pub(crate) fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
         let active_buffer_language = cx.new(|_| language_selector::ActiveBufferLanguage::new(workspace));
         let image_info = cx.new(|_cx| ImageInfo::new(workspace));
 
-        let lsp_button_menu_handle = PopoverMenuHandle::default();
-        let lsp_button = cx.new(|cx| LspButton::new(workspace, lsp_button_menu_handle.clone(), window, cx));
-        workspace.register_action({
-            move |_, _: &lsp_button::ToggleMenu, window, cx| {
-                lsp_button_menu_handle.toggle(window, cx);
-            }
-        });
+        let lsp_button = cx.new(|cx| LspButton::new(workspace, window, cx));
 
         let cursor_position = cx.new(|_| CursorPosition::new(workspace));
         workspace.status_bar().update(cx, |status_bar, cx| {
@@ -266,7 +258,6 @@ pub(crate) fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
 
         let panels_task = initialize_panels(window, cx);
         workspace.set_panels_task(panels_task);
-        register_actions(Arc::clone(&app_state), workspace, window, cx);
 
         if !workspace.has_active_modal(window, cx) {
             workspace.focus_handle(cx).focus(window, cx);
@@ -308,141 +299,113 @@ fn initialize_panels(window: &Window, cx: &Context<Workspace>) -> Task<anyhow::R
     })
 }
 
-fn register_actions(app_state: Arc<AppState>, workspace: &mut Workspace, _: &mut Window, _cx: &mut Context<Workspace>) {
-    workspace
-        .register_action(|_, _: &Minimize, window, _| {
-            window.minimize_window();
-        })
-        .register_action(|_, _: &Zoom, window, _| {
-            window.zoom_window();
-        })
-        .register_action(|_, _: &ToggleFullScreen, window, _| {
-            window.toggle_fullscreen();
-        })
-        .register_action(|workspace, action: &OpenBrowser, _window, cx| {
-            // Parse and validate the URL to ensure it's properly formatted
-            match url::Url::parse(&action.url) {
-                Ok(parsed_url) => {
-                    // Use the parsed URL's string representation which is properly escaped
-                    cx.open_url(parsed_url.as_str());
+fn register_actions(app_state: Arc<AppState>, workspace_actions: &mut WorkspaceActions) {
+    workspace_actions.register_action(|_, _: &Minimize, window, _| {
+        window.minimize_window();
+    });
+    workspace_actions.register_action(|_, _: &Zoom, window, _| {
+        window.zoom_window();
+    });
+    workspace_actions.register_action(|_, _: &ToggleFullScreen, window, _| {
+        window.toggle_fullscreen();
+    });
+    workspace_actions.register_action(|workspace, action: &OpenBrowser, _window, cx| {
+        // Parse and validate the URL to ensure it's properly formatted
+        match url::Url::parse(&action.url) {
+            Ok(parsed_url) => {
+                // Use the parsed URL's string representation which is properly escaped
+                cx.open_url(parsed_url.as_str());
+            }
+            Err(e) => {
+                workspace.show_error(
+                    format!(
+                        "Opening this URL in a browser failed because the URL is invalid: {}\n\nError was: {e}",
+                        action.url
+                    ),
+                    cx,
+                );
+            }
+        }
+    });
+    workspace_actions.register_action(|workspace, action: &workspace::Open, window, cx| {
+        workspace::prompt_for_open_path_and_open(
+            workspace,
+            PathPromptOptions { files: true, directories: true, multiple: true, prompt: None },
+            action.create_new_window.unwrap_or(false),
+            window,
+            cx,
+        );
+    });
+    workspace_actions.register_action(|workspace, _: &workspace::OpenFiles, window, cx| {
+        workspace::prompt_for_open_path_and_open(
+            workspace,
+            PathPromptOptions { files: true, directories: true, multiple: true, prompt: None },
+            true,
+            window,
+            cx,
+        );
+    });
+    workspace_actions.register_action(|_, _: &actions::IncreaseUiFontSize, _window, cx| {
+        font::adjust_ui_font_size(cx, |size| size + px(1.0));
+    });
+    workspace_actions.register_action(|_, _: &actions::DecreaseUiFontSize, _window, cx| {
+        font::adjust_ui_font_size(cx, |size| size - px(1.0));
+    });
+    workspace_actions.register_action(|_, _: &actions::ResetUiFontSize, _window, cx| {
+        font::reset_ui_font_size(cx);
+    });
+    workspace_actions.register_action(|_, _: &actions::IncreaseBufferFontSize, _window, cx| {
+        font::adjust_buffer_font_size(cx, |size| size + px(1.0));
+    });
+    workspace_actions.register_action(|_, _: &actions::DecreaseBufferFontSize, _window, cx| {
+        font::adjust_buffer_font_size(cx, |size| size - px(1.0));
+    });
+    workspace_actions.register_action(|_, _: &actions::ResetBufferFontSize, _window, cx| {
+        font::reset_buffer_font_size(cx);
+    });
+    workspace_actions.register_action(|_, _: &actions::ResetAllZoom, _window, cx| {
+        font::reset_ui_font_size(cx);
+        font::reset_buffer_font_size(cx);
+    });
+    workspace_actions.register_action({
+        let app_state = Arc::clone(&app_state);
+        move |_, _: &NewWindow, _, cx| {
+            open_new(workspace::OpenOptions::default(), Arc::clone(&app_state), cx, |_, _, cx| {
+                cx.activate(true);
+            })
+            .detach();
+        }
+    });
+    workspace_actions.register_action({
+        move |workspace, _: &CloseProject, window, cx| {
+            let Some(window_handle) = window.window_handle().downcast::<Workspace>() else {
+                return;
+            };
+            let app_state = Arc::clone(workspace.app_state());
+            cx.spawn_in(window, async move |workspace, cx| {
+                let should_continue = workspace
+                    .update_in(cx, |workspace, window, cx| {
+                        workspace.prepare_to_close(CloseIntent::ReplaceWindow, window, cx)
+                    })?
+                    .await?;
+                if should_continue {
+                    cx.update(|_, cx| {
+                        Workspace::new_local(
+                            Vec::new(),
+                            app_state,
+                            Some(window_handle),
+                            None,
+                            workspace::OpenMode::Activate,
+                            cx,
+                        )
+                    })?
+                    .await?;
                 }
-                Err(e) => {
-                    workspace.show_error(
-                        format!(
-                            "Opening this URL in a browser failed because the URL is invalid: {}\n\nError was: {e}",
-                            action.url
-                        ),
-                        cx,
-                    );
-                }
-            }
-        })
-        .register_action(|workspace, action: &workspace::Open, window, cx| {
-            workspace::prompt_for_open_path_and_open(
-                workspace,
-                PathPromptOptions { files: true, directories: true, multiple: true, prompt: None },
-                action.create_new_window.unwrap_or(false),
-                window,
-                cx,
-            );
-        })
-        .register_action(|workspace, _: &workspace::OpenFiles, window, cx| {
-            workspace::prompt_for_open_path_and_open(
-                workspace,
-                PathPromptOptions { files: true, directories: true, multiple: true, prompt: None },
-                true,
-                window,
-                cx,
-            );
-        })
-        .register_action(|_, _: &actions::IncreaseUiFontSize, _window, cx| {
-            font::adjust_ui_font_size(cx, |size| size + px(1.0));
-        })
-        .register_action(|_, _: &actions::DecreaseUiFontSize, _window, cx| {
-            font::adjust_ui_font_size(cx, |size| size - px(1.0));
-        })
-        .register_action(|_, _: &actions::ResetUiFontSize, _window, cx| {
-            font::reset_ui_font_size(cx);
-        })
-        .register_action(|_, _: &actions::IncreaseBufferFontSize, _window, cx| {
-            font::adjust_buffer_font_size(cx, |size| size + px(1.0));
-        })
-        .register_action(|_, _: &actions::DecreaseBufferFontSize, _window, cx| {
-            font::adjust_buffer_font_size(cx, |size| size - px(1.0));
-        })
-        .register_action(|_, _: &actions::ResetBufferFontSize, _window, cx| {
-            font::reset_buffer_font_size(cx);
-        })
-        .register_action(|_, _: &actions::ResetAllZoom, _window, cx| {
-            font::reset_ui_font_size(cx);
-            font::reset_buffer_font_size(cx);
-        })
-        .register_action(
-            |workspace: &mut Workspace, _: &ToggleFocus, window: &mut Window, cx: &mut Context<Workspace>| {
-                workspace.toggle_panel_focus::<ProjectPanel>(window, cx);
-            },
-        )
-        .register_action(
-            |workspace: &mut Workspace,
-             _: &outline_panel::ToggleFocus,
-             window: &mut Window,
-             cx: &mut Context<Workspace>| {
-                workspace.toggle_panel_focus::<OutlinePanel>(window, cx);
-            },
-        )
-        .register_action(
-            |workspace: &mut Workspace,
-             _: &terminal_panel::ToggleFocus,
-             window: &mut Window,
-             cx: &mut Context<Workspace>| {
-                workspace.toggle_panel_focus::<TerminalPanel>(window, cx);
-            },
-        )
-        .register_action({
-            let app_state = Arc::clone(&app_state);
-            move |_, _: &NewWindow, _, cx| {
-                open_new(workspace::OpenOptions::default(), Arc::clone(&app_state), cx, |_, _, cx| {
-                    cx.activate(true);
-                })
-                .detach();
-            }
-        })
-        .register_action({
-            move |workspace, _: &CloseProject, window, cx| {
-                let Some(window_handle) = window.window_handle().downcast::<Workspace>() else {
-                    return;
-                };
-                let app_state = Arc::clone(workspace.app_state());
-                cx.spawn_in(window, async move |workspace, cx| {
-                    let should_continue = workspace
-                        .update_in(cx, |workspace, window, cx| {
-                            workspace.prepare_to_close(CloseIntent::ReplaceWindow, window, cx)
-                        })?
-                        .await?;
-                    if should_continue {
-                        cx.update(|_, cx| {
-                            Workspace::new_local(
-                                Vec::new(),
-                                app_state,
-                                Some(window_handle),
-                                None,
-                                workspace::OpenMode::Activate,
-                                cx,
-                            )
-                        })?
-                        .await?;
-                    }
-                    anyhow::Ok(())
-                })
-                .detach_and_log_err(cx);
-            }
-        })
-        .register_action(move |_, _: &NewFile, _, cx| {
-            open_new(workspace::OpenOptions::default(), Arc::clone(&app_state), cx, |workspace, window, cx| {
-                Editor::new_file(workspace, &NewFile, window, cx);
+                anyhow::Ok(())
             })
             .detach_and_log_err(cx);
-        });
+        }
+    });
 }
 
 fn initialize_pane(workspace: &Workspace, pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Workspace>) {

@@ -32,6 +32,7 @@ use smallvec::SmallVec;
 use crate::Action;
 use crate::ActionRegistry;
 use crate::App;
+use crate::DispatchActionTable;
 use crate::DispatchPhase;
 use crate::EntityId;
 use crate::FocusId;
@@ -107,15 +108,6 @@ type ModifiersChangedListener = Rc<dyn Fn(&ModifiersChangedEvent, &mut Window, &
 pub(crate) struct DispatchActionListener {
     pub(crate) action_type: TypeId,
     pub(crate) listener: Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>,
-}
-
-/// One bubble-phase listener for a fixed set of action types, so an element with many actions
-/// registers once per frame instead of once per action.
-#[derive(Clone)]
-pub(crate) struct DispatchActionTable {
-    /// Sorted; the listener receives the index of the dispatched action's type.
-    pub(crate) action_types: &'static [TypeId],
-    pub(crate) listener: Rc<dyn Fn(usize, &dyn Any, &mut Window, &mut App)>,
 }
 
 impl DispatchTree {
@@ -305,13 +297,8 @@ impl DispatchTree {
         self.active_node().action_listeners.push(DispatchActionListener { action_type, listener });
     }
 
-    pub(crate) fn on_action_table(
-        &mut self,
-        action_types: &'static [TypeId],
-        listener: Rc<dyn Fn(usize, &dyn Any, &mut Window, &mut App)>,
-    ) {
-        debug_assert!(action_types.is_sorted(), "action table types must be sorted");
-        self.active_node().action_tables.push(DispatchActionTable { action_types, listener });
+    pub(crate) fn on_action_table(&mut self, table: DispatchActionTable) {
+        self.active_node().action_tables.push(table);
     }
 
     pub(crate) fn focus_contains(&self, parent: FocusId, child: FocusId) -> bool {
@@ -331,36 +318,50 @@ impl DispatchTree {
         false
     }
 
-    pub(crate) fn available_actions(&self, target: DispatchNodeId) -> Vec<Box<dyn Action>> {
+    /// `applies` says whether a table handler currently applies to its view; listeners always do.
+    pub(crate) fn available_actions(
+        &self,
+        target: DispatchNodeId,
+        mut applies: impl FnMut(&DispatchActionTable, usize) -> bool,
+    ) -> Vec<Box<dyn Action>> {
         let mut actions = Vec::<Box<dyn Action>>::new();
+        let mut insert = |action_type: &TypeId, applies: &mut dyn FnMut() -> bool| {
+            if let Err(ix) = actions.binary_search_by_key(action_type, |a| a.as_any().type_id())
+                && applies()
+                // Intentionally silence these errors without logging.
+                // If an action cannot be built by default, it's not available.
+                && let Ok(action) = self.action_registry.build_action_type(action_type)
+            {
+                actions.insert(ix, action);
+            }
+        };
         for node_id in self.dispatch_path(target) {
             let node = &self.nodes[node_id.0];
-            let table_types = node.action_tables.iter().flat_map(|table| table.action_types);
-            for action_type in node.action_listeners.iter().map(|listener| &listener.action_type).chain(table_types) {
-                if let Err(ix) = actions.binary_search_by_key(action_type, |a| a.as_any().type_id()) {
-                    // Intentionally silence these errors without logging.
-                    // If an action cannot be built by default, it's not available.
-                    let action = self.action_registry.build_action_type(action_type).ok();
-                    if let Some(action) = action {
-                        actions.insert(ix, action);
-                    }
+            for listener in &node.action_listeners {
+                insert(&listener.action_type, &mut || true);
+            }
+            for table in &node.action_tables {
+                for (ix, action_type) in table.action_types().iter().enumerate() {
+                    insert(action_type, &mut || applies(table, ix));
                 }
             }
         }
         actions
     }
 
-    pub(crate) fn is_action_available(&self, action: &dyn Action, target: DispatchNodeId) -> bool {
-        for node_id in self.dispatch_path(target) {
+    /// `applies` says whether a table handler currently applies to its view; listeners always do.
+    pub(crate) fn is_action_available(
+        &self,
+        action: &dyn Action,
+        target: DispatchNodeId,
+        mut applies: impl FnMut(&DispatchActionTable, usize) -> bool,
+    ) -> bool {
+        let action_type = action.as_any().type_id();
+        self.dispatch_path(target).into_iter().any(|node_id| {
             let node = &self.nodes[node_id.0];
-            let action_type = action.as_any().type_id();
-            if node.action_listeners.iter().any(|listener| listener.action_type == action_type)
-                || node.action_tables.iter().any(|table| table.action_types.binary_search(&action_type).is_ok())
-            {
-                return true;
-            }
-        }
-        false
+            node.action_listeners.iter().any(|listener| listener.action_type == action_type)
+                || node.action_tables.iter().any(|table| table.handlers_for(action_type).any(|ix| applies(table, ix)))
+        })
     }
 
     /// Returns key bindings that invoke an action on the currently focused element. Bindings are
@@ -543,37 +544,95 @@ impl DispatchTree {
 #[cfg(test)]
 #[allow(unreachable_pub, reason = "actions! emits pub structs")]
 mod tests {
-    use std::sync::LazyLock;
-
     use super::*;
-    actions!(dispatch_test, [Listed, Tabled, Unhandled]);
+    use crate::ActionTable;
+    use crate::Context;
+    use crate::EntityMap;
+    actions!(dispatch_test, [Listed, Tabled, Conditional, Unhandled]);
+
+    fn noop<A: Action>(_: &mut (), _: &A, _: &mut Window, _: &mut Context<()>) {}
+
+    /// A table handling `Tabled` at index 0 or 1 and `Conditional` at the other.
+    fn table() -> DispatchActionTable {
+        let mut table = ActionTable::default();
+        table.add(noop::<Tabled>);
+        table.add_if(|(), _| false, noop::<Conditional>);
+        let mut entities = EntityMap::new();
+        let slot = entities.reserve::<()>();
+        DispatchActionTable::new(&entities.insert(slot, ()), Box::leak(Box::new(table)))
+    }
+
+    fn tree() -> DispatchTree {
+        DispatchTree::new(Rc::default(), Rc::new(ActionRegistry::default()))
+    }
+
+    /// Stands in for evaluating conditions, which needs an `App`: only `Tabled` applies.
+    fn only_tabled(table: &DispatchActionTable, ix: usize) -> bool {
+        table.action_types()[ix] == TypeId::of::<Tabled>()
+    }
 
     #[test]
     fn action_tables_make_their_actions_available() {
-        static TYPES: LazyLock<[TypeId; 1]> = LazyLock::new(|| [TypeId::of::<Tabled>()]);
-        let mut tree = DispatchTree::new(Rc::default(), Rc::new(ActionRegistry::default()));
+        let mut tree = tree();
 
         let node = tree.push_node();
         tree.on_action(TypeId::of::<Listed>(), Rc::new(|_, _, _, _| {}));
-        tree.on_action_table(&*TYPES, Rc::new(|_, _, _, _| {}));
+        tree.on_action_table(table());
         tree.pop_node();
 
-        assert!(tree.is_action_available(&Listed, node));
-        assert!(tree.is_action_available(&Tabled, node));
-        assert!(!tree.is_action_available(&Unhandled, node));
+        assert!(tree.is_action_available(&Listed, node, |_, _| false));
+        assert!(tree.is_action_available(&Tabled, node, only_tabled));
+        assert!(!tree.is_action_available(&Unhandled, node, |_, _| true));
+    }
+
+    #[test]
+    fn table_handlers_that_do_not_apply_are_unavailable() {
+        let mut tree = tree();
+        let node = tree.push_node();
+        tree.on_action_table(table());
+        tree.pop_node();
+
+        assert!(!tree.is_action_available(&Conditional, node, only_tabled));
+        assert!(tree.is_action_available(&Conditional, node, |_, _| true));
+    }
+
+    #[test]
+    fn available_actions_lists_listeners_and_applicable_table_handlers() {
+        let mut tree = tree();
+        tree.push_node();
+        tree.on_action(TypeId::of::<Listed>(), Rc::new(|_, _, _, _| {}));
+        let child = tree.push_node();
+        tree.on_action_table(table());
+        // A handler that applies on any node of the path makes the action available once.
+        tree.on_action(TypeId::of::<Tabled>(), Rc::new(|_, _, _, _| {}));
+        tree.pop_node();
+        tree.pop_node();
+
+        let names = |actions: Vec<Box<dyn Action>>| {
+            let mut names: Vec<_> = actions.iter().map(|action| action.name()).collect();
+            names.sort_unstable();
+            names
+        };
+        assert_eq!(
+            names(tree.available_actions(child, only_tabled)),
+            ["dispatch_test::Listed", "dispatch_test::Tabled"]
+        );
+        assert_eq!(
+            names(tree.available_actions(child, |_, _| true)),
+            ["dispatch_test::Conditional", "dispatch_test::Listed", "dispatch_test::Tabled"]
+        );
     }
 
     #[test]
     fn moved_nodes_keep_their_action_tables() {
-        static TYPES: LazyLock<[TypeId; 1]> = LazyLock::new(|| [TypeId::of::<Tabled>()]);
         let mut source = DispatchNode::default();
-        source.action_tables.push(DispatchActionTable { action_types: &*TYPES, listener: Rc::new(|_, _, _, _| {}) });
-        let mut tree = DispatchTree::new(Rc::default(), Rc::new(ActionRegistry::default()));
+        source.action_tables.push(table());
+        let mut tree = tree();
 
         tree.move_node(&mut source);
         let node = tree.active_node_id().expect("node was pushed");
 
         assert!(source.action_tables.is_empty());
-        assert!(tree.is_action_available(&Tabled, node));
+        assert!(tree.is_action_available(&Tabled, node, |_, _| true));
     }
 }

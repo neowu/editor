@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use actions::git::Worktree;
 use actions::menu;
 use anyhow::anyhow;
 use editor::Editor;
 use editor::actions::DiffClipboardWithSelectionData;
+use git::Worktree;
 use git_ui_core::worktree_picker::WorktreePicker;
 use git_ui_core::worktree_service;
 use workspace::Toast;
@@ -81,6 +81,7 @@ use util::ResultExt as _;
 use workspace::ModalView;
 use workspace::OpenMode;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::notifications::DetachAndPromptErr as _;
 use workspace::notifications::NotifyTaskExt as _;
 
@@ -114,10 +115,10 @@ pub mod stash_picker;
 pub mod text_diff_view;
 pub mod unstaged_diff;
 
-pub fn init(cx: &mut App) {
+pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     editor::set_blame_renderer(blame_ui::GitBlameRenderer, cx);
-    commit_view::init(cx);
-    git_graph::init(cx);
+    commit_view::init(workspace_actions);
+    git_graph::init(workspace_actions, cx);
 
     git_ui_core::set_branch_picker_builder(
         |workspace, repository, window, cx| {
@@ -152,204 +153,193 @@ pub fn init(cx: &mut App) {
     })
     .detach();
 
-    cx.observe_new(|workspace: &mut Workspace, _, cx| {
-        ProjectDiff::register(workspace, cx);
-        staged_diff::StagedDiff::register(workspace, cx);
-        unstaged_diff::UnstagedDiff::register(workspace, cx);
-        branch_diff::BranchDiff::register(workspace, cx);
-        git_panel::register(workspace);
-        git_picker::register(workspace);
+    ProjectDiff::register(workspace_actions, cx);
+    staged_diff::StagedDiff::register(cx);
+    unstaged_diff::UnstagedDiff::register(cx);
+    branch_diff::BranchDiff::register(workspace_actions, cx);
+    git_panel::register(workspace_actions);
+    git_picker::register(workspace_actions);
 
-        workspace.register_action(|workspace, action: &actions::CreateWorktree, window, cx| {
-            worktree_service::handle_create_worktree(workspace, action, window, None, cx);
-        });
-        workspace.register_action(|workspace, action: &actions::SwitchWorktree, window, cx| {
-            worktree_service::handle_switch_worktree(workspace, action, window, None, cx);
-        });
+    workspace_actions.register_action(|workspace, action: &git::CreateWorktree, window, cx| {
+        worktree_service::handle_create_worktree(workspace, action, window, None, cx);
+    });
+    workspace_actions.register_action(|workspace, action: &git::SwitchWorktree, window, cx| {
+        worktree_service::handle_switch_worktree(workspace, action, window, None, cx);
+    });
 
-        workspace.register_action(|workspace, _: &Worktree, window, cx| {
-            let focused_dock = workspace.focused_dock_position(window, cx);
-            let project = workspace.project().clone();
-            let workspace_handle = workspace.weak_handle();
-            workspace.toggle_modal(window, cx, |window, cx| {
-                WorktreePicker::new_modal(project, workspace_handle, focused_dock, window, cx)
-            });
+    workspace_actions.register_action(|workspace, _: &Worktree, window, cx| {
+        let focused_dock = workspace.focused_dock_position(window, cx);
+        let project = workspace.project().clone();
+        let workspace_handle = workspace.weak_handle();
+        workspace.toggle_modal(window, cx, |window, cx| {
+            WorktreePicker::new_modal(project, workspace_handle, focused_dock, window, cx)
         });
+    });
 
-        workspace.register_action(|workspace, action: &actions::OpenWorktreeInNewWindow, window, cx| {
-            let path = action.path.clone();
-            workspace.open_workspace_for_paths(OpenMode::NewWindow, vec![path], window, cx).detach_and_log_err(cx);
-        });
+    workspace_actions.register_action(|workspace, action: &git::OpenWorktreeInNewWindow, window, cx| {
+        let path = action.path.clone();
+        workspace.open_workspace_for_paths(OpenMode::NewWindow, vec![path], window, cx).detach_and_log_err(cx);
+    });
 
-        workspace.register_action(|workspace, _: &git::Fetch, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.fetch(true, window, cx);
-            });
+    workspace_actions.register_action(|workspace, _: &git::Fetch, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.fetch(true, window, cx);
         });
-        workspace.register_action(|workspace, _: &git::FetchFrom, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.fetch(false, window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, _: &git::FetchFrom, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.fetch(false, window, cx);
         });
-        workspace.register_action(|workspace, _: &git::Push, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.push(false, false, window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, _: &git::Push, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.push(false, false, window, cx);
         });
-        workspace.register_action(|workspace, _: &git::PushTo, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.push(false, true, window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, _: &git::PushTo, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.push(false, true, window, cx);
         });
-        workspace.register_action(|workspace, _: &git::ForcePush, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.push(true, false, window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, _: &git::ForcePush, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.push(true, false, window, cx);
         });
-        workspace.register_action(|workspace, _: &git::Pull, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.pull(window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, _: &git::Pull, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.pull(window, cx);
         });
+    });
 
-        workspace.register_action(|workspace, _: &git::RebaseContinue, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| panel.rebase(RebaseAction::Continue, window, cx));
-        });
-        workspace.register_action(|workspace, _: &git::RebaseAbort, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| panel.rebase(RebaseAction::Abort, window, cx));
-        });
+    workspace_actions.register_action(|workspace, _: &git::RebaseContinue, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| panel.rebase(RebaseAction::Continue, window, cx));
+    });
+    workspace_actions.register_action(|workspace, _: &git::RebaseAbort, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| panel.rebase(RebaseAction::Abort, window, cx));
+    });
 
-        workspace.register_action(|workspace, action: &git::StashAll, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.stash_all(action, window, cx);
-            });
+    workspace_actions.register_action(|workspace, action: &git::StashAll, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.stash_all(action, window, cx);
         });
-        workspace.register_action(|workspace, action: &git::StashStaged, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.stash_staged(action, window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, action: &git::StashStaged, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.stash_staged(action, window, cx);
         });
-        workspace.register_action(|workspace, action: &git::StashTracked, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.stash_tracked(action, window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, action: &git::StashTracked, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.stash_tracked(action, window, cx);
         });
-        workspace.register_action(|workspace, action: &git::StashPop, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.stash_pop(action, window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, action: &git::StashPop, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.stash_pop(action, window, cx);
         });
-        workspace.register_action(|workspace, action: &git::StashApply, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.stash_apply(action, window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, action: &git::StashApply, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.stash_apply(action, window, cx);
         });
-        workspace.register_action(|workspace, action: &git::StageAll, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.stage_all(action, window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, action: &git::StageAll, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.stage_all(action, window, cx);
         });
-        workspace.register_action(|workspace, action: &git::UnstageAll, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.unstage_all(action, window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, action: &git::UnstageAll, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.unstage_all(action, window, cx);
         });
-        workspace.register_action(|workspace, _: &git::Uncommit, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.uncommit(window, cx);
-            });
+    });
+    workspace_actions.register_action(|workspace, _: &git::Uncommit, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
+        panel.update(cx, |panel, cx| {
+            panel.uncommit(window, cx);
         });
-        workspace.register_action(|workspace, _action: &git::Init, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
-            panel.update(cx, |panel, cx| {
-                panel.git_init(window, cx);
-            });
-        });
-        workspace.register_action(|workspace, _action: &git::Clone, window, cx| {
-            let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
-                return;
-            };
+    });
+    workspace_actions.register_action(|workspace, _action: &git::Clone, window, cx| {
+        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+            return;
+        };
 
-            workspace.toggle_modal(window, cx, |window, cx| GitCloneModal::show(panel, window, cx));
-        });
-        workspace.register_action(|workspace, _: &git::OpenModifiedFiles, window, cx| {
-            open_modified_files(workspace, window, cx);
-        });
-        workspace.register_action_renderer(|div, workspace, _window, cx| {
-            div.when_some(file_diff_entry(workspace, cx), |div, (entry, repository)| {
-                let workspace = workspace.weak_handle();
-                div.on_action(move |_: &git::OpenFileDiff, window, cx| {
-                    open_file_diff(entry.clone(), repository.clone(), workspace.clone(), window, cx);
-                })
-            })
-        });
-        workspace.register_action(|workspace, _: &git::RenameBranch, window, cx| {
-            rename_current_branch(workspace, window, cx);
-        });
-        workspace.register_action(|workspace, _: &git::CreateTagAtHead, window, cx| {
-            create_tag_at_head(workspace, window, cx);
-        });
-        workspace.register_action(|workspace, _: &git::CopyBranchName, _, cx| {
-            copy_branch_name(workspace, cx);
-        });
-        workspace.register_action(show_ref_picker);
-        workspace.register_action(|workspace, action: &DiffClipboardWithSelectionData, window, cx| {
-            if let Some(task) = TextDiffView::open(action, workspace, window, cx) {
-                task.detach();
+        workspace.toggle_modal(window, cx, |window, cx| GitCloneModal::show(panel, window, cx));
+    });
+    workspace_actions.register_action(|workspace, _: &git::OpenModifiedFiles, window, cx| {
+        open_modified_files(workspace, window, cx);
+    });
+    workspace_actions.register_action_if(
+        |workspace, cx| file_diff_entry(workspace, cx).is_some(),
+        |workspace, _: &git::OpenFileDiff, window, cx| {
+            if let Some((entry, repository)) = file_diff_entry(workspace, cx) {
+                open_file_diff(entry, repository, workspace.weak_handle(), window, cx);
             }
-        });
-    })
-    .detach();
+        },
+    );
+    workspace_actions.register_action(|workspace, _: &git::RenameBranch, window, cx| {
+        rename_current_branch(workspace, window, cx);
+    });
+    workspace_actions.register_action(|workspace, _: &git::CreateTagAtHead, window, cx| {
+        create_tag_at_head(workspace, window, cx);
+    });
+    workspace_actions.register_action(|workspace, _: &git::CopyBranchName, _, cx| {
+        copy_branch_name(workspace, cx);
+    });
+    workspace_actions.register_action(show_ref_picker);
+    workspace_actions.register_action(|workspace, action: &DiffClipboardWithSelectionData, window, cx| {
+        if let Some(task) = TextDiffView::open(action, workspace, window, cx) {
+            task.detach();
+        }
+    });
 }
 
 fn open_file_diff(

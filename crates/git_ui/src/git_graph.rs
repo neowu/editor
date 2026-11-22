@@ -12,7 +12,6 @@ use actions::menu::SelectFirst;
 use actions::menu::SelectLast;
 use actions::menu::SelectNext;
 use actions::menu::SelectPrevious;
-use actions::mode::GitHistory;
 use actions::search::SelectNextMatch;
 use actions::search::SelectPreviousMatch;
 use actions::search::ToggleCaseSensitive;
@@ -145,11 +144,13 @@ use util::ResultExt as _;
 use workspace::ItemNavHistory;
 use workspace::ModalView;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::WorkspaceMode;
 use workspace::item::Item;
 use workspace::item::ItemEvent;
 use workspace::item::ItemHandle;
 use workspace::item::TabTooltipContent;
+use workspace::mode::GitHistory;
 
 use crate::branch_picker;
 use crate::commit_context_menu::CommitContextMenuData;
@@ -162,7 +163,6 @@ use crate::commit_details_panel::CommitDetailsPanel;
 use crate::commit_details_panel::render_ref_chip;
 use crate::commit_view::CommitView;
 use crate::commit_view::open_file_in_project;
-use crate::git_panel::GitPanel;
 
 const COMMIT_CIRCLE_RADIUS: Pixels = px(4.5);
 const COMMIT_CIRCLE_STROKE_WIDTH: Pixels = px(1.5);
@@ -762,7 +762,7 @@ impl GraphData {
     }
 }
 
-pub fn init(cx: &mut App) {
+pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     cx.observe_new(|workspace: &mut workspace::Workspace, window, cx| {
         // Git History follows the folder picked in the title bar while shown.
         if let Some(window) = window {
@@ -784,79 +784,49 @@ pub fn init(cx: &mut App) {
             })
             .detach();
         }
-
-        workspace.register_action(|workspace, _: &GitHistory, window, cx| {
-            show_active_repository_history(workspace, window, cx);
-        });
-        workspace.register_action_renderer(|div, workspace, window, cx| {
-            div.when_some(resolve_file_history_target(workspace, window, cx), |div, (repo_id, log_source)| {
-                let git_store = workspace.project().read(cx).git_store().clone();
-                let workspace = workspace.weak_handle();
-
-                div.on_action(move |_: &git::FileHistory, window, cx| {
-                    let git_store = git_store.clone();
-                    workspace
-                        .update(cx, |workspace, cx| {
-                            open_or_reuse_graph(workspace, repo_id, git_store, log_source.clone(), None, window, cx);
-                        })
-                        .ok();
-                })
-            })
-            .when(workspace.project().read(cx).active_repository(cx).is_some(), |div| {
-                let workspace = workspace.weak_handle();
-
-                div.on_action({
-                    let workspace = workspace.clone();
-                    move |_: &Open, window, cx| {
-                        workspace
-                            .update(cx, |workspace, cx| {
-                                let Some(repo) = workspace.project().read(cx).active_repository(cx) else {
-                                    return;
-                                };
-                                let selected_repo_id = repo.read(cx).id;
-
-                                let git_store = workspace.project().read(cx).git_store().clone();
-                                open_or_reuse_graph(
-                                    workspace,
-                                    selected_repo_id,
-                                    git_store,
-                                    LogSource::All,
-                                    None,
-                                    window,
-                                    cx,
-                                );
-                            })
-                            .ok();
-                    }
-                })
-                .on_action(move |action: &OpenAtCommit, window, cx| {
-                    let sha = action.sha.clone();
-                    let requested_repo_id = action.repo_id.map(RepositoryId);
-                    workspace
-                        .update(cx, |workspace, cx| {
-                            let active_repo_id =
-                                workspace.project().read(cx).active_repository(cx).map(|repo| repo.read(cx).id);
-                            let Some(selected_repo_id) = commit_graph_repo(requested_repo_id, active_repo_id) else {
-                                return;
-                            };
-
-                            let git_store = workspace.project().read(cx).git_store().clone();
-                            open_or_reuse_graph(
-                                workspace,
-                                selected_repo_id,
-                                git_store,
-                                LogSource::All,
-                                Some(sha),
-                                window,
-                                cx,
-                            );
-                        })
-                        .ok();
-                })
-            })
-        });
     })
     .detach();
+
+    workspace_actions.register_action(|workspace, _: &GitHistory, window, cx| {
+        show_active_repository_history(workspace, window, cx);
+    });
+    workspace_actions.register_action_if(
+        |workspace, cx| file_history_target(workspace, cx).is_some(),
+        |workspace, _: &git::FileHistory, window, cx| {
+            if let Some((repo_id, log_source)) = file_history_target(workspace, cx) {
+                let git_store = workspace.project().read(cx).git_store().clone();
+                open_or_reuse_graph(workspace, repo_id, git_store, log_source, None, window, cx);
+            }
+        },
+    );
+    workspace_actions.register_action_if(has_active_repository, |workspace, _: &Open, window, cx| {
+        let Some(repo) = workspace.project().read(cx).active_repository(cx) else {
+            return;
+        };
+        let selected_repo_id = repo.read(cx).id;
+        let git_store = workspace.project().read(cx).git_store().clone();
+        open_or_reuse_graph(workspace, selected_repo_id, git_store, LogSource::All, None, window, cx);
+    });
+    workspace_actions.register_action_if(has_active_repository, |workspace, action: &OpenAtCommit, window, cx| {
+        let active_repo_id = workspace.project().read(cx).active_repository(cx).map(|repo| repo.read(cx).id);
+        let Some(selected_repo_id) = commit_graph_repo(action.repo_id.map(RepositoryId), active_repo_id) else {
+            return;
+        };
+        let git_store = workspace.project().read(cx).git_store().clone();
+        open_or_reuse_graph(
+            workspace,
+            selected_repo_id,
+            git_store,
+            LogSource::All,
+            Some(action.sha.clone()),
+            window,
+            cx,
+        );
+    });
+}
+
+fn has_active_repository(workspace: &Workspace, cx: &App) -> bool {
+    workspace.project().read(cx).active_repository(cx).is_some()
 }
 
 /// Resolves a `git::FileHistory` target from a known project path (used by
@@ -873,14 +843,9 @@ pub fn resolve_file_history_target_from_project_path(
     Some((repo.read(cx).id, log_source))
 }
 
-fn resolve_file_history_target(workspace: &Workspace, window: &Window, cx: &App) -> Option<(RepositoryId, LogSource)> {
-    if let Some(panel) = workspace.panel::<GitPanel>(cx)
-        && panel.read(cx).focus_handle(cx).contains_focused(window, cx)
-        && let Some((repository, repo_path)) = panel.read(cx).selected_file_history_target()
-    {
-        return Some((repository.read(cx).id, LogSource::Path(repo_path)));
-    }
-
+/// The history `git::FileHistory` opens from the workspace: the file under the active editor's
+/// cursor. Panels with a selection of their own handle the action before it gets here.
+fn file_history_target(workspace: &Workspace, cx: &App) -> Option<(RepositoryId, LogSource)> {
     let editor = workspace.active_item_as::<Editor>(cx)?;
 
     let file = editor.read(cx).file_at(editor.read(cx).selections.newest_anchor().head(), cx)?;

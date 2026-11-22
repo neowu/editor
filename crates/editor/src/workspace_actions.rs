@@ -5,8 +5,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use ::actions::editor::RevealInFileManager;
-use ::actions::workspace::CopyPath;
-use ::actions::workspace::CopyRelativePath;
 use anyhow::Result;
 use gpui::Action as _;
 use gpui::App;
@@ -31,6 +29,8 @@ use project::ProjectItem as _;
 use project::ProjectTransaction;
 use rustc_hash::FxHashMap;
 use text::Bias;
+use workspace::CopyPath;
+use workspace::CopyRelativePath;
 use workspace::Item as _;
 use workspace::OpenInTerminal;
 use workspace::OpenTerminal;

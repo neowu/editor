@@ -202,8 +202,9 @@ pub(crate) fn deploy_context_menu(
                 .is_some()
         });
 
-        let format_selections = window.is_action_available(&FormatSelections, cx);
         let can_edit = !editor.read_only(cx);
+        // Not `is_action_available`: its condition would read this editor while it is updated.
+        let format_selections = can_edit && editor.can_format_selections(cx);
 
         let can_preview = window.is_action_available(&OpenPreview, cx);
 

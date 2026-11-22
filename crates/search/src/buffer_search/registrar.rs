@@ -6,7 +6,7 @@ use gpui::Entity;
 use gpui::InteractiveElement as _;
 use gpui::Window;
 use workspace::Pane;
-use workspace::Workspace;
+use workspace::WorkspaceActions;
 
 use crate::BufferSearchBar;
 
@@ -57,8 +57,8 @@ pub fn register_pane_search_actions(div: Div, pane: Entity<Pane>) -> Div {
     registrar.into_div()
 }
 
-/// Register actions for an active pane.
-impl SearchActionsRegistrar for Workspace {
+/// Registers the actions on every workspace, acting on its active pane.
+impl SearchActionsRegistrar for WorkspaceActions {
     fn register_handler<A: Action>(&mut self, callback: impl ActionExecutor<A>) {
         self.register_action(move |workspace, action: &A, window, cx| {
             if workspace.has_active_modal(window, cx) && !workspace.hide_modal(window, cx) {
@@ -87,7 +87,7 @@ impl SearchActionsRegistrar for Workspace {
 
 type DidHandleAction = bool;
 /// Potentially executes the underlying action if some preconditions are met (e.g. buffer search bar is visible).
-pub trait ActionExecutor<A: Action>: 'static + Clone {
+pub trait ActionExecutor<A: Action>: 'static + Clone + Send + Sync {
     fn execute(
         &self,
         search_bar: &mut BufferSearchBar,

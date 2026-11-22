@@ -49,9 +49,10 @@ use ui::prelude::v_flex;
 use util::ResultExt as _;
 use workspace::ModalView;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(CommandPalette::register).detach();
+pub fn init(workspace_actions: &mut WorkspaceActions) {
+    CommandPalette::register(workspace_actions);
 }
 
 impl ModalView for CommandPalette {}
@@ -88,8 +89,8 @@ pub fn normalize_action_query(input: &str) -> String {
 }
 
 impl CommandPalette {
-    fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
-        workspace.register_action(|workspace, _: &Toggle, window, cx| Self::toggle(workspace, "", window, cx));
+    fn register(workspace_actions: &mut WorkspaceActions) {
+        workspace_actions.register_action(|workspace, _: &Toggle, window, cx| Self::toggle(workspace, "", window, cx));
     }
 
     pub fn toggle(workspace: &mut Workspace, query: &str, window: &mut Window, cx: &mut Context<Workspace>) {
@@ -106,13 +107,30 @@ impl CommandPalette {
             return;
         };
 
-        workspace
-            .toggle_modal(window, cx, move |window, cx| CommandPalette::new(previous_focus_handle, query, window, cx));
+        // Availability conditions read the views on the focus path, this workspace included, so
+        // the actions are collected once this update has released it.
+        let query = query.to_owned();
+        let workspace = cx.weak_entity();
+        window.defer(cx, move |window, cx| {
+            let actions = window.available_actions(cx);
+            workspace
+                .update(cx, |workspace, cx| {
+                    workspace.toggle_modal(window, cx, move |window, cx| {
+                        CommandPalette::new(previous_focus_handle, actions, &query, window, cx)
+                    });
+                })
+                .ok();
+        });
     }
 
-    fn new(previous_focus_handle: FocusHandle, query: &str, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let mut commands: Vec<Command> = window
-            .available_actions(cx)
+    fn new(
+        previous_focus_handle: FocusHandle,
+        actions: Vec<Box<dyn Action>>,
+        query: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let mut commands: Vec<Command> = actions
             .into_iter()
             .map(|action| Command { name: SharedString::from(humanize_action_name(action.name())), action })
             .collect();

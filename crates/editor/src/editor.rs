@@ -328,6 +328,7 @@ use element::LineWithInvisibles;
 use element::MinimapRowCache;
 pub use element::PointForPosition;
 use element::PositionMap;
+pub use element::install_actions;
 use futures::FutureExt;
 use futures::future;
 use futures::future::Shared;
@@ -342,7 +343,7 @@ pub use git::blame::BlameRenderer;
 pub use git::blame::GitBlame;
 use git::blame::GlobalBlameRenderer;
 pub use git::set_blame_renderer;
-use gpui::Action;
+use gpui::Action as _;
 use gpui::AnyElement;
 use gpui::App;
 use gpui::AppContext;
@@ -352,7 +353,6 @@ use gpui::ClickEvent;
 use gpui::ClipboardEntry;
 use gpui::ClipboardItem;
 use gpui::Context;
-use gpui::DispatchPhase;
 use gpui::Entity;
 use gpui::EntityId;
 use gpui::EntityInputHandler;
@@ -553,6 +553,7 @@ use workspace::ItemNavHistory;
 use workspace::NavigationEntry;
 use workspace::Pane;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::item::ItemBufferKind;
 use workspace::item::ItemHandle;
 use workspace::notifications::NotifyResultExt;
@@ -618,19 +619,20 @@ impl Navigated {
     }
 }
 
-pub fn init(cx: &mut App) {
+pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     cx.set_global(GlobalBlameRenderer(Arc::new(())));
 
     workspace::register_project_item::<Editor>(cx);
     workspace::register_serializable_item::<Editor>(cx);
 
+    workspace_actions.register_action(Editor::new_file);
+    workspace_actions.register_action(Editor::new_file_split);
+    workspace_actions.register_action(Editor::new_file_vertical);
+    workspace_actions.register_action(Editor::new_file_horizontal);
+    workspace_actions.register_action(Editor::cancel_language_server_work);
+    workspace_actions.register_action(Editor::toggle_focus);
+
     cx.observe_new(|workspace: &mut Workspace, window: Option<&mut Window>, cx: &mut Context<Workspace>| {
-        workspace.register_action(Editor::new_file);
-        workspace.register_action(Editor::new_file_split);
-        workspace.register_action(Editor::new_file_vertical);
-        workspace.register_action(Editor::new_file_horizontal);
-        workspace.register_action(Editor::cancel_language_server_work);
-        workspace.register_action(Editor::toggle_focus);
         if let Some(window) = window {
             cx.subscribe_in(workspace.project(), window, |workspace, _, event, window, cx| {
                 if let project::Event::LanguageServerShowDocument(request) = event {
@@ -826,19 +828,6 @@ pub struct ContextMenuOptions {
 pub enum ContextMenuPlacement {
     Above,
     Below,
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Debug, Default)]
-struct EditorActionId(usize);
-
-impl EditorActionId {
-    pub(crate) const fn post_inc(&mut self) -> Self {
-        let answer = self.0;
-
-        *self = Self(answer + 1);
-
-        Self(answer)
-    }
 }
 
 type BackgroundHighlight = (Arc<dyn Fn(&usize, &Theme) -> Hsla + Send + Sync>, Arc<[Range<Anchor>]>);
@@ -1191,9 +1180,6 @@ pub struct Editor {
     gutter_dimensions: GutterDimensions,
     style: Option<EditorStyle>,
     text_style_refinement: Option<TextStyleRefinement>,
-    next_editor_action_id: EditorActionId,
-    #[allow(clippy::type_complexity)]
-    editor_actions: Rc<RefCell<BTreeMap<EditorActionId, Box<dyn Fn(&Editor, &mut Window, &mut Context<Self>)>>>>,
     use_autoclose: bool,
     use_auto_surround: bool,
     use_selection_highlight: bool,
@@ -2067,9 +2053,6 @@ impl Editor {
             expect_bounds_change: None,
             gutter_dimensions: GutterDimensions::default(),
             style: None,
-
-            next_editor_action_id: EditorActionId::default(),
-            editor_actions: Rc::default(),
 
             show_completions_on_input_override: None,
 
@@ -3321,56 +3304,6 @@ impl Editor {
         self.request_autoscroll(Autoscroll::newest(), cx);
         let position = self.selections.newest_display(&self.display_snapshot(cx)).start;
         mouse_context_menu::deploy_context_menu(self, None, position, window, cx);
-    }
-
-    pub fn register_action_renderer(
-        &mut self,
-        listener: impl Fn(&Editor, &mut Window, &mut Context<Editor>) + 'static,
-    ) -> Subscription {
-        let id = self.next_editor_action_id.post_inc();
-        self.editor_actions.borrow_mut().insert(id, Box::new(listener));
-
-        let editor_actions = Rc::clone(&self.editor_actions);
-        Subscription::new(move || {
-            editor_actions.borrow_mut().remove(&id);
-        })
-    }
-
-    pub fn register_action<A: Action>(
-        &mut self,
-        listener: impl Fn(&A, &mut Window, &mut App) + 'static,
-    ) -> Subscription {
-        self.register_action_erased(
-            TypeId::of::<A>(),
-            Arc::new(move |action, window, cx| {
-                listener(action.downcast_ref().expect("action type matches listener"), window, cx);
-            }),
-        )
-    }
-
-    #[allow(clippy::type_complexity)]
-    fn register_action_erased(
-        &mut self,
-        action_type: TypeId,
-        listener: Arc<dyn Fn(&dyn Any, &mut Window, &mut App)>,
-    ) -> Subscription {
-        let id = self.next_editor_action_id.post_inc();
-        self.editor_actions.borrow_mut().insert(
-            id,
-            Box::new(move |_, window, _| {
-                let listener = Arc::clone(&listener);
-                window.on_action(action_type, move |action, phase, window, cx| {
-                    if phase == DispatchPhase::Bubble {
-                        listener(action, window, cx);
-                    }
-                });
-            }),
-        );
-
-        let editor_actions = Rc::clone(&self.editor_actions);
-        Subscription::new(move || {
-            editor_actions.borrow_mut().remove(&id);
-        })
     }
 
     pub const fn file_header_size(&self) -> u32 {

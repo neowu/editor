@@ -1,7 +1,5 @@
 use ::actions::Quit;
 use ::actions::command_palette;
-use ::actions::git_panel;
-use ::actions::project_panel;
 use editor::actions;
 use gpui::App;
 use gpui::Menu;
@@ -40,7 +38,7 @@ pub(super) fn app_menus(_cx: &mut App) -> Vec<Menu> {
     ];
 
     view_items.extend([
-        MenuItem::action("Git Panel", git_panel::ToggleFocus),
+        MenuItem::action("Git Panel", git_ui::git_panel::ToggleFocus),
         MenuItem::separator(),
         MenuItem::action("Diagnostics", diagnostics::Deploy),
         MenuItem::separator(),

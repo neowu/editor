@@ -8,16 +8,16 @@ use std::mem;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
 
 use actions::command_palette::Toggle;
 use actions::editor::RevealInFileManager;
 use actions::menu;
-use actions::workspace::CopyPath;
-use actions::workspace::CopyRelativePath;
 use anyhow::Result;
 use gpui::Action;
+use gpui::ActionTable;
 use gpui::AnyElement;
 use gpui::AnyView;
 use gpui::App;
@@ -115,6 +115,8 @@ use util::markdown::MarkdownInlineCode;
 use util::truncate_and_remove_front;
 
 use crate::CloseWindow;
+use crate::CopyPath;
+use crate::CopyRelativePath;
 use crate::NewFile;
 use crate::Open;
 use crate::OpenInTerminal;
@@ -520,6 +522,9 @@ pub struct Pane {
     /// Every tab is read-only, so the tab menu leaves out entries about
     /// saving or editing.
     read_only_tabs: bool,
+    /// Whether the active item had a preview at the last render. The preview actions' condition
+    /// reads this, not the item: the editor asks for their availability while it is updated.
+    has_preview: bool,
     pinned_tab_count: usize,
     zoom_out_on_close: bool,
     /// If a certain project item wants to get recreated with specific data, it can persist its data before the recreation here.
@@ -672,6 +677,7 @@ impl Pane {
             close_pane_if_empty: true,
             empty_pane_hints: EmptyPaneHints::Files,
             read_only_tabs: false,
+            has_preview: false,
             pinned_tab_count: 0,
             zoom_out_on_close: true,
             project_item_restoration_data: FxHashMap::default(),
@@ -3242,6 +3248,113 @@ impl Render for TabBarView {
     }
 }
 
+/// The actions every pane handles, built once and attached by each pane's render.
+static ACTIONS: LazyLock<ActionTable<Pane>> = LazyLock::new(|| {
+    let mut table = ActionTable::default();
+    add_actions(&mut table);
+    table
+});
+
+fn add_actions(t: &mut ActionTable<Pane>) {
+    t.add_if(
+        |pane, _| pane.has_preview,
+        |pane, _: &preview::OpenPreview, window, cx| {
+            if let Some(item) = pane.active_item() {
+                pane.open_preview(item, false, window, cx);
+            }
+        },
+    );
+    t.add_if(
+        |pane, _| pane.has_preview,
+        |pane, _: &preview::OpenPreviewToTheSide, window, cx| {
+            if let Some(item) = pane.active_item() {
+                pane.open_preview(item, true, window, cx);
+            }
+        },
+    );
+    t.add(|pane, split: &SplitLeft, _, cx| pane.split(SplitDirection::Left, split.mode, cx));
+    t.add(|pane, split: &SplitUp, _, cx| pane.split(SplitDirection::Up, split.mode, cx));
+    t.add(|pane, split: &SplitHorizontal, _, cx| pane.split(SplitDirection::Down, split.mode, cx));
+    t.add(|pane, split: &SplitVertical, _, cx| pane.split(SplitDirection::Right, split.mode, cx));
+    t.add(|pane, split: &SplitRight, _, cx| pane.split(SplitDirection::Right, split.mode, cx));
+    t.add(|pane, split: &SplitDown, _, cx| pane.split(SplitDirection::Down, split.mode, cx));
+    t.add(|_, _: &JoinIntoNext, _, cx| cx.emit(Event::JoinIntoNext));
+    t.add(|_, _: &JoinAll, _, cx| cx.emit(Event::JoinAll));
+    t.add(Pane::toggle_zoom);
+    t.add(Pane::zoom_in);
+    t.add(Pane::zoom_out);
+    t.add(Pane::go_to_older_tag);
+    t.add(Pane::go_to_newer_tag);
+    t.add(|pane, action: &ActivateItem, window, cx| {
+        pane.activate_item(action.0.min(pane.items.len().saturating_sub(1)), true, true, window, cx);
+    });
+    t.add(Pane::alternate_file);
+    t.add(Pane::activate_last_item);
+    t.add(Pane::activate_previous_item);
+    t.add(Pane::activate_next_item);
+    t.add(Pane::swap_item_left);
+    t.add(Pane::swap_item_right);
+    t.add(Pane::toggle_pin_tab);
+    t.add(Pane::unpin_all_tabs);
+    t.add(|pane, _: &TogglePreviewTab, window, cx| {
+        if let Some(active_item_id) = pane.active_item().map(|i| i.item_id()) {
+            if pane.is_active_preview_item(active_item_id) {
+                pane.unpreview_item_if_preview(active_item_id);
+            } else {
+                pane.replace_preview_item_id(active_item_id, window, cx);
+            }
+        }
+    });
+    t.add(|pane, action: &CloseActiveItem, window, cx| {
+        pane.close_active_item(action, window, cx).detach_and_log_err(cx);
+    });
+    t.add(|pane, action: &CloseOtherItems, window, cx| {
+        pane.close_other_items(action, None, window, cx).detach_and_log_err(cx);
+    });
+    t.add(|pane, action: &CloseItemsToTheLeft, window, cx| {
+        pane.close_items_to_the_left_by_id(None, action, window, cx).detach_and_log_err(cx);
+    });
+    t.add(|pane, action: &CloseItemsToTheRight, window, cx| {
+        pane.close_items_to_the_right_by_id(None, action, window, cx).detach_and_log_err(cx);
+    });
+    t.add(|pane, action: &CloseAllItems, window, cx| {
+        pane.close_all_items(action, window, cx).detach_and_log_err(cx);
+    });
+    t.add(|pane, action: &CloseMultibufferItems, window, cx| {
+        pane.close_multibuffer_items(action, window, cx).detach_and_log_err(cx);
+    });
+    t.add(|pane, action: &RevealInProjectPanel, _, cx| {
+        let entry_id = action.entry_id.map(|id| ProjectEntryId::from_usize(id as usize));
+        let active_project_path = pane.active_item().and_then(|item| item.project_path(cx));
+
+        pane.project
+            .update(cx, |project, cx| {
+                let entry_id = entry_id.or_else(|| {
+                    active_project_path.as_ref().and_then(|path| project.entry_for_path(path, cx)).map(|entry| entry.id)
+                });
+                if let Some(entry_id) = entry_id
+                    && project.worktree_for_entry(entry_id, cx).is_some_and(|worktree| worktree.read(cx).is_visible())
+                {
+                    return cx.emit(project::Event::RevealInProjectPanel(entry_id));
+                }
+
+                // When no entry is found, which is the case when
+                // working with an unsaved buffer, or the worktree
+                // is not visible, for example, a file that doesn't
+                // belong to an open project, we can't reveal the
+                // entry but we still want to activate the project
+                // panel.
+                cx.emit(project::Event::ActivateProjectPanel);
+            })
+            .log_err();
+    });
+    t.add(|_, _: &menu::Cancel, window, cx| {
+        if !cx.stop_active_drag(window) {
+            cx.propagate();
+        }
+    });
+}
+
 impl Render for Pane {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let mut key_context = KeyContext::new_with_defaults();
@@ -3255,7 +3368,7 @@ impl Render for Pane {
             return div().track_focus(&self.focus_handle(cx));
         }
 
-        let has_preview = self.active_item().is_some_and(|item| preview::has_preview(item.as_ref(), cx));
+        self.has_preview = self.active_item().is_some_and(|item| preview::has_preview(item.as_ref(), cx));
 
         v_flex()
             .key_context(key_context)
@@ -3263,113 +3376,7 @@ impl Render for Pane {
             .size_full()
             .flex_none()
             .overflow_hidden()
-            .when(has_preview, |this| {
-                this.on_action(cx.listener(|pane, _: &preview::OpenPreview, window, cx| {
-                    if let Some(item) = pane.active_item() {
-                        pane.open_preview(item, false, window, cx);
-                    }
-                }))
-                .on_action(cx.listener(|pane, _: &preview::OpenPreviewToTheSide, window, cx| {
-                    if let Some(item) = pane.active_item() {
-                        pane.open_preview(item, true, window, cx);
-                    }
-                }))
-            })
-            .on_action(cx.listener(|pane, split: &SplitLeft, _, cx| pane.split(SplitDirection::Left, split.mode, cx)))
-            .on_action(cx.listener(|pane, split: &SplitUp, _, cx| pane.split(SplitDirection::Up, split.mode, cx)))
-            .on_action(
-                cx.listener(|pane, split: &SplitHorizontal, _, cx| pane.split(SplitDirection::Down, split.mode, cx)),
-            )
-            .on_action(
-                cx.listener(|pane, split: &SplitVertical, _, cx| pane.split(SplitDirection::Right, split.mode, cx)),
-            )
-            .on_action(cx.listener(|pane, split: &SplitRight, _, cx| pane.split(SplitDirection::Right, split.mode, cx)))
-            .on_action(cx.listener(|pane, split: &SplitDown, _, cx| pane.split(SplitDirection::Down, split.mode, cx)))
-            .on_action(cx.listener(|_, _: &JoinIntoNext, _, cx| {
-                cx.emit(Event::JoinIntoNext);
-            }))
-            .on_action(cx.listener(|_, _: &JoinAll, _, cx| {
-                cx.emit(Event::JoinAll);
-            }))
-            .on_action(cx.listener(Pane::toggle_zoom))
-            .on_action(cx.listener(Pane::zoom_in))
-            .on_action(cx.listener(Pane::zoom_out))
-            .on_action(cx.listener(Self::go_to_older_tag))
-            .on_action(cx.listener(Self::go_to_newer_tag))
-            .on_action(cx.listener(|pane: &mut Pane, action: &ActivateItem, window, cx| {
-                pane.activate_item(action.0.min(pane.items.len().saturating_sub(1)), true, true, window, cx);
-            }))
-            .on_action(cx.listener(Self::alternate_file))
-            .on_action(cx.listener(Self::activate_last_item))
-            .on_action(cx.listener(Self::activate_previous_item))
-            .on_action(cx.listener(Self::activate_next_item))
-            .on_action(cx.listener(Self::swap_item_left))
-            .on_action(cx.listener(Self::swap_item_right))
-            .on_action(cx.listener(Self::toggle_pin_tab))
-            .on_action(cx.listener(Self::unpin_all_tabs))
-            .on_action(cx.listener(|pane: &mut Pane, _: &TogglePreviewTab, window, cx| {
-                if let Some(active_item_id) = pane.active_item().map(|i| i.item_id()) {
-                    if pane.is_active_preview_item(active_item_id) {
-                        pane.unpreview_item_if_preview(active_item_id);
-                    } else {
-                        pane.replace_preview_item_id(active_item_id, window, cx);
-                    }
-                }
-            }))
-            .on_action(cx.listener(|pane: &mut Self, action: &CloseActiveItem, window, cx| {
-                pane.close_active_item(action, window, cx).detach_and_log_err(cx);
-            }))
-            .on_action(cx.listener(|pane: &mut Self, action: &CloseOtherItems, window, cx| {
-                pane.close_other_items(action, None, window, cx).detach_and_log_err(cx);
-            }))
-            .on_action(cx.listener(|pane: &mut Self, action: &CloseItemsToTheLeft, window, cx| {
-                pane.close_items_to_the_left_by_id(None, action, window, cx).detach_and_log_err(cx);
-            }))
-            .on_action(cx.listener(|pane: &mut Self, action: &CloseItemsToTheRight, window, cx| {
-                pane.close_items_to_the_right_by_id(None, action, window, cx).detach_and_log_err(cx);
-            }))
-            .on_action(cx.listener(|pane: &mut Self, action: &CloseAllItems, window, cx| {
-                pane.close_all_items(action, window, cx).detach_and_log_err(cx);
-            }))
-            .on_action(cx.listener(|pane: &mut Self, action: &CloseMultibufferItems, window, cx| {
-                pane.close_multibuffer_items(action, window, cx).detach_and_log_err(cx);
-            }))
-            .on_action(cx.listener(|pane: &mut Self, action: &RevealInProjectPanel, _window, cx| {
-                let entry_id = action.entry_id.map(|id| ProjectEntryId::from_usize(id as usize));
-                let active_project_path = pane.active_item().and_then(|item| item.project_path(cx));
-
-                pane.project
-                    .update(cx, |project, cx| {
-                        let entry_id = entry_id.or_else(|| {
-                            active_project_path
-                                .as_ref()
-                                .and_then(|path| project.entry_for_path(path, cx))
-                                .map(|entry| entry.id)
-                        });
-                        if let Some(entry_id) = entry_id
-                            && project
-                                .worktree_for_entry(entry_id, cx)
-                                .is_some_and(|worktree| worktree.read(cx).is_visible())
-                        {
-                            return cx.emit(project::Event::RevealInProjectPanel(entry_id));
-                        }
-
-                        // When no entry is found, which is the case when
-                        // working with an unsaved buffer, or the worktree
-                        // is not visible, for example, a file that doesn't
-                        // belong to an open project, we can't reveal the
-                        // entry but we still want to activate the project
-                        // panel.
-                        cx.emit(project::Event::ActivateProjectPanel);
-                    })
-                    .log_err();
-            }))
-            .on_action(cx.listener(|_, _: &menu::Cancel, window, cx| {
-                if cx.stop_active_drag(window) {
-                } else {
-                    cx.propagate();
-                }
-            }))
+            .action_table(&cx.entity(), &ACTIONS)
             // A top-row tab bar keeps the card gap from the window edge; the gap moves the window.
             .when(!pill_tabs && self.tab_bar_is_titlebar, |pane| {
                 pane.child(utils::window_drag_area(div().id("tab-bar-top-gap")).flex_none().w_full().h(crate::CARD_GAP))
@@ -3883,6 +3890,38 @@ mod tests {
         let empty: super::SplitDown = serde_json::from_str(r#"{"mode":"EmptyPane"}"#).unwrap();
         assert_eq!(empty.mode, super::SplitMode::EmptyPane);
         serde_json::from_str::<super::SplitDown>(r#"{"mode":"ClonePane"}"#).unwrap_err();
+    }
+
+    #[test]
+    fn actions_handle_each_action_once() {
+        let mut table = gpui::ActionTable::default();
+        super::add_actions(&mut table);
+
+        assert!(table.action_types().is_sorted_by(|a, b| a < b), "action handled twice");
+        assert_eq!(super::ACTIONS.action_types(), table.action_types());
+    }
+
+    #[test]
+    fn only_preview_actions_are_conditional() {
+        use std::any::TypeId;
+
+        use crate::preview::OpenPreview;
+        use crate::preview::OpenPreviewToTheSide;
+
+        let mut table = gpui::ActionTable::default();
+        super::add_actions(&mut table);
+        let conditional: Vec<TypeId> = table
+            .action_types()
+            .iter()
+            .zip(table.conditional())
+            .filter_map(|(action_type, conditional)| conditional.then_some(*action_type))
+            .collect();
+        let mut preview = [TypeId::of::<OpenPreview>(), TypeId::of::<OpenPreviewToTheSide>()];
+        preview.sort();
+
+        assert_eq!(conditional, preview);
+        assert!(table.action_types().contains(&TypeId::of::<super::CloseActiveItem>()));
+        assert!(table.action_types().contains(&TypeId::of::<actions::menu::Cancel>()));
     }
 
     #[test]

@@ -57,6 +57,7 @@ use workspace::AppState;
 use workspace::SessionWorkspace;
 use workspace::Toast;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::notifications::NotificationId;
 use workspace::restore_workspace;
 
@@ -229,23 +230,27 @@ fn main() {
         let app_state = Arc::new(AppState { languages, fs: Arc::clone(&fs), build_window_options });
         AppState::set_global(Arc::clone(&app_state), cx);
 
-        command_palette::init(cx);
+        // Every workspace shares one set of action handlers, collected here from each crate.
+        let mut workspace_actions = WorkspaceActions::default();
+        command_palette::init(&mut workspace_actions);
 
         recent_projects::init(cx);
 
-        editor::init(cx);
+        editor::init(&mut workspace_actions, cx);
         image_viewer::init(cx);
-        diagnostics::init(cx);
+        diagnostics::init(&mut workspace_actions, cx);
 
-        workspace::init(Arc::clone(&app_state), cx);
+        workspace::init(Arc::clone(&app_state), &mut workspace_actions, cx);
 
-        go_to_line::init(cx);
-        finder::init(cx);
-        project_panel::init(cx);
-        outline_panel::init(cx);
+        finder::init(&mut workspace_actions, cx);
+        project_panel::init(&mut workspace_actions);
+        outline_panel::init(&mut workspace_actions);
 
-        search::init(cx);
-        lsp_locations::init(cx);
+        search::init(&mut workspace_actions, cx);
+        let mut editor_actions = gpui::ActionTable::default();
+        go_to_line::init(&mut editor_actions);
+        lsp_locations::init(&mut editor_actions);
+        editor::install_actions(editor_actions);
         cx.set_global(workspace::PaneSearchBarCallbacks {
             setup_search_bar: |toolbar, window, cx| {
                 let search_bar = cx.new(|cx| search::BufferSearchBar::new(window, cx));
@@ -255,20 +260,21 @@ fn main() {
             },
             wrap_div_with_search_actions: buffer_search::register_pane_search_actions,
         });
-        terminal_view::init(cx);
-        encoding_selector::init(cx);
-        language_selector::init(cx);
-        lsp_command_selector::init(cx);
-        language_tools::init(cx);
+        terminal_view::init(&mut workspace_actions, cx);
+        encoding_selector::init(&mut workspace_actions);
+        language_selector::init(&mut workspace_actions);
+        lsp_command_selector::init(&mut workspace_actions);
+        language_tools::init(&mut workspace_actions, cx);
 
-        title_bar::init(cx);
-        git_ui::init(cx);
-        markdown_preview::init(cx);
-        svg_preview::init(cx);
+        title_bar::init(&mut workspace_actions, cx);
+        git_ui::init(&mut workspace_actions, cx);
+        markdown_preview::init(&mut workspace_actions, cx);
+        svg_preview::init(&mut workspace_actions, cx);
 
         app_state.languages.set_theme(cx.theme());
 
-        initialize_workspace(Arc::clone(&app_state), cx);
+        initialize_workspace(Arc::clone(&app_state), &mut workspace_actions, cx);
+        workspace_actions.install();
         control_server::init(cx);
 
         cx.activate(true);

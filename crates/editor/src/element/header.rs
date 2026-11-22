@@ -1,7 +1,5 @@
 use std::path::Path;
 
-use ::actions::workspace::CopyPath;
-use ::actions::workspace::CopyRelativePath;
 use file_icons::FileIcons;
 use git::status::FileStatus;
 use gpui::Action as _;
@@ -58,6 +56,8 @@ use ui::prelude::v_flex;
 use ui::right_click_menu;
 use ui::text_for_keystroke;
 use ui::utils::WithRemSize;
+use workspace::CopyPath;
+use workspace::CopyRelativePath;
 use workspace::OpenInTerminal;
 use workspace::OpenTerminal;
 use workspace::RevealInProjectPanel;

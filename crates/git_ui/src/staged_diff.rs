@@ -131,7 +131,7 @@ pub struct StagedDiff {
 }
 
 impl StagedDiff {
-    pub(crate) fn register(_workspace: &Workspace, cx: &mut Context<Workspace>) {
+    pub(crate) fn register(cx: &mut App) {
         workspace::register_serializable_item::<Self>(cx);
     }
 

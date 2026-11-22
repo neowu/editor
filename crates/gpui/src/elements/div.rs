@@ -34,6 +34,7 @@ use smallvec::SmallVec;
 
 use super::ImageCacheProvider;
 use crate::Action;
+use crate::ActionTable;
 use crate::AnyDrag;
 use crate::AnyElement;
 use crate::AnyTooltip;
@@ -41,6 +42,7 @@ use crate::AnyView;
 use crate::App;
 use crate::Bounds;
 use crate::ClickEvent;
+use crate::DispatchActionTable;
 use crate::DispatchPhase;
 use crate::Display;
 use crate::Element;
@@ -403,6 +405,12 @@ impl Interactivity {
                 }
             }),
         ));
+    }
+
+    /// Attach `table`, with `entity` as the view its handlers run on.
+    /// The imperative API equivalent to [`InteractiveElement::action_table`].
+    pub fn action_table<V: 'static>(&mut self, entity: &Entity<V>, table: &'static ActionTable<V>) {
+        self.action_tables.push(DispatchActionTable::new(entity, table));
     }
 
     /// Bind the given callback to key down events during the bubble phase.
@@ -1368,6 +1376,10 @@ impl Interactivity {
         for (action_type, listener) in action_listeners {
             window.on_action(action_type, listener);
         }
+
+        for table in mem::take(&mut self.action_tables) {
+            window.next_frame.dispatch_tree.on_action_table(table);
+        }
     }
 
     fn paint_hover_group_handler(&self, window: &mut Window, cx: &mut App) {
@@ -1842,6 +1854,14 @@ pub trait InteractiveElement: Sized {
         listener: impl Fn(&dyn Action, &mut Window, &mut App) + 'static,
     ) -> Self {
         self.interactivity().on_boxed_action(action, listener);
+        self
+    }
+
+    /// Attach a view's action table: handlers built once instead of one listener per action per
+    /// frame. Within an element, `on_action` listeners run before tables.
+    /// The fluent API equivalent to [`Interactivity::action_table`].
+    fn action_table<V: 'static>(mut self, entity: &Entity<V>, table: &'static ActionTable<V>) -> Self {
+        self.interactivity().action_table(entity, table);
         self
     }
 
@@ -2541,6 +2561,7 @@ pub struct Interactivity {
     pub(crate) key_up_listeners: Vec<KeyUpListener>,
     pub(crate) modifiers_changed_listeners: Vec<ModifiersChangedListener>,
     pub(crate) action_listeners: Vec<(TypeId, ActionListener)>,
+    pub(crate) action_tables: Vec<DispatchActionTable>,
     pub(crate) drop_listeners: Vec<(TypeId, DropListener)>,
     pub(crate) can_drop_predicate: Option<CanDropPredicate>,
     pub(crate) click_listeners: Vec<ClickListener>,

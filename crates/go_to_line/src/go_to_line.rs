@@ -11,6 +11,7 @@ use editor::ToPoint as _;
 use editor::actions::Tab;
 use editor::scroll::Autoscroll;
 use editor::scroll::ScrollOffset;
+use gpui::ActionTable;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::DismissEvent;
@@ -43,8 +44,8 @@ use util::paths::FILE_ROW_COLUMN_DELIMITER;
 use workspace::DismissDecision;
 use workspace::ModalView;
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(GoToLine::register).detach();
+pub fn init(editor_actions: &mut ActionTable<Editor>) {
+    editor_actions.add(GoToLine::toggle);
 }
 
 pub struct GoToLine {
@@ -75,26 +76,20 @@ impl EventEmitter<DismissEvent> for GoToLine {}
 struct GoToLineRowHighlights(!);
 
 impl GoToLine {
-    fn register(editor: &mut Editor, _window: Option<&mut Window>, cx: &mut Context<Editor>) {
-        let handle = cx.entity().downgrade();
-        editor
-            .register_action(move |_: &ToggleGoToLine, window, cx| {
-                let Some(editor_handle) = handle.upgrade() else {
-                    return;
-                };
-                let Some(workspace) = editor_handle.read(cx).workspace() else {
-                    return;
-                };
-                let editor = editor_handle.read(cx);
-                let Some(buffer) = editor.active_buffer(cx) else {
-                    return;
-                };
-                workspace.update(cx, |workspace, cx| {
-                    workspace
-                        .toggle_modal(window, cx, move |window, cx| GoToLine::new(editor_handle, buffer, window, cx));
-                });
-            })
-            .detach();
+    fn toggle(editor: &mut Editor, _: &ToggleGoToLine, window: &mut Window, cx: &mut Context<Editor>) {
+        let Some(workspace) = editor.workspace() else {
+            return;
+        };
+        let Some(buffer) = editor.active_buffer(cx) else {
+            return;
+        };
+        let editor = cx.entity();
+        // Deferred: the modal reads the editor, which is being updated here.
+        window.defer(cx, move |window, cx| {
+            workspace.update(cx, |workspace, cx| {
+                workspace.toggle_modal(window, cx, move |window, cx| GoToLine::new(editor, buffer, window, cx));
+            });
+        });
     }
 
     pub fn new(
@@ -127,23 +122,6 @@ impl GoToLine {
 
         let line_editor = cx.new(|cx| {
             let mut editor = Editor::single_line(window, cx);
-            let editor_handle = cx.entity().downgrade();
-            editor
-                .register_action::<Tab>({
-                    move |_, window, cx| {
-                        let Some(editor) = editor_handle.upgrade() else {
-                            return;
-                        };
-                        editor.update(cx, |editor, cx| {
-                            if let Some(placeholder_text) = editor.placeholder_text(cx)
-                                && editor.text(cx).is_empty()
-                            {
-                                editor.set_text(placeholder_text, window, cx);
-                            }
-                        });
-                    }
-                })
-                .detach();
             editor.set_placeholder_text(&format!("{line}{FILE_ROW_COLUMN_DELIMITER}{column}"), window, cx);
             editor
         });
@@ -160,6 +138,19 @@ impl GoToLine {
             current_line: line,
             _subscriptions: vec![line_editor_change, cx.on_release_in(window, Self::release)],
         }
+    }
+
+    /// Tab fills an empty input with the placeholder (the current position) and never reaches
+    /// the line editor.
+    fn accept_placeholder(&mut self, _: &Tab, window: &mut Window, cx: &mut Context<Self>) {
+        cx.stop_propagation();
+        self.line_editor.update(cx, |editor, cx| {
+            if let Some(placeholder_text) = editor.placeholder_text(cx)
+                && editor.text(cx).is_empty()
+            {
+                editor.set_text(placeholder_text, window, cx);
+            }
+        });
     }
 
     fn release(&mut self, window: &mut Window, cx: &mut App) {
@@ -321,6 +312,7 @@ impl Render for GoToLine {
             .w(rems(24.))
             .elevation_2(cx)
             .key_context("GoToLine")
+            .capture_action(cx.listener(Self::accept_placeholder))
             .on_action(cx.listener(Self::cancel))
             .on_action(cx.listener(Self::confirm))
             .child(
@@ -332,5 +324,21 @@ impl Render for GoToLine {
                     .child(self.line_editor.clone()),
             )
             .child(h_flex().px_2().py_1().gap_1().child(Label::new(help_text).color(Color::Muted)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use super::*;
+
+    #[test]
+    fn init_handles_toggle_on_every_editor() {
+        let mut table = ActionTable::default();
+        init(&mut table);
+
+        assert_eq!(table.action_types(), [TypeId::of::<ToggleGoToLine>()]);
+        assert_eq!(table.conditional().collect::<Vec<_>>(), [false]);
     }
 }

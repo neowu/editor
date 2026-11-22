@@ -34,6 +34,7 @@ use util::ResultExt as _;
 use workspace::ModalView;
 use workspace::Toast;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::notifications::NotificationId;
 
 actions!(
@@ -44,8 +45,8 @@ actions!(
     ]
 );
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(EncodingSelector::register).detach();
+pub fn init(workspace_actions: &mut WorkspaceActions) {
+    EncodingSelector::register(workspace_actions);
 }
 
 pub struct EncodingSelector {
@@ -53,8 +54,8 @@ pub struct EncodingSelector {
 }
 
 impl EncodingSelector {
-    fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
-        workspace.register_action(move |workspace, _: &Toggle, window, cx| {
+    fn register(workspace_actions: &mut WorkspaceActions) {
+        workspace_actions.register_action(move |workspace, _: &Toggle, window, cx| {
             Self::toggle(workspace, window, cx);
         });
     }

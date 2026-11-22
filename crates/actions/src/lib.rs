@@ -1,10 +1,8 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use gpui::Action;
 use gpui::actions;
 use serde::Deserialize;
-use serde::Serialize;
 
 // If the ed binary doesn't use anything in this crate, it will be optimized away
 // and the actions won't initialize. So we just provide an empty initialization function
@@ -68,93 +66,6 @@ pub mod editor {
     );
 }
 
-pub mod workspace {
-    use gpui::actions;
-
-    actions!(
-        workspace,
-        [
-            CopyPath,
-            CopyRelativePath,
-            /// Opens the selected file with the system's default application.
-            OpenWithSystem,
-        ]
-    );
-}
-
-/// Describes which ref to base a new git worktree on. The worktree is
-/// always created in a detached HEAD state; users can opt into creating
-/// a branch afterwards from the worktree itself.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "kind")]
-pub enum NewWorktreeBranchTarget {
-    /// Create a detached worktree from the current HEAD.
-    #[default]
-    CurrentBranch,
-    /// Create a detached worktree at the tip of an existing branch.
-    ExistingBranch { name: String },
-    /// Create a detached worktree at the tip of a remote-tracking branch.
-    RemoteBranch { remote_name: String, branch_name: String },
-}
-
-/// Creates a new git worktree and switches the workspace to it.
-/// Dispatched by the unified worktree picker when the user selects a "Create new worktree" entry.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Action)]
-#[action(namespace = git)]
-#[serde(deny_unknown_fields)]
-pub struct CreateWorktree {
-    /// When this is None, ed will randomly generate a worktree name.
-    pub worktree_name: Option<String>,
-    pub branch_target: NewWorktreeBranchTarget,
-}
-
-/// Switches the workspace to an existing linked worktree.
-/// Dispatched by the unified worktree picker when the user selects an existing worktree.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Action)]
-#[action(namespace = git)]
-#[serde(deny_unknown_fields)]
-pub struct SwitchWorktree {
-    pub path: PathBuf,
-    pub display_name: String,
-}
-
-/// Opens an existing worktree in a new window.
-/// Dispatched by the worktree picker's "Open in New Window" button.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Action)]
-#[action(namespace = git)]
-#[serde(deny_unknown_fields)]
-pub struct OpenWorktreeInNewWindow {
-    pub path: PathBuf,
-}
-
-pub mod git {
-    use gpui::actions;
-
-    actions!(
-        git,
-        [
-            /// Checks out a different git branch.
-            CheckoutBranch,
-            /// Switches to a different git branch.
-            Switch,
-            /// Selects a different repository.
-            SelectRepo,
-            /// Opens the git branch selector.
-            Branch,
-            /// Shows uncommitted changes across the project.
-            ViewUncommittedChanges,
-            /// Shows unstaged changes across the project.
-            ViewUnstagedChanges,
-            /// Shows staged changes across the project.
-            ViewStagedChanges,
-            /// Opens the git stash selector.
-            ViewStash,
-            /// Opens the git worktree selector.
-            Worktree
-        ]
-    );
-}
-
 pub mod git_graph {
     use gpui::actions;
 
@@ -164,38 +75,6 @@ pub mod git_graph {
             /// Switches the window to Git History mode and brings the active
             /// repository's graph to the front, even over its own commit tabs.
             Open
-        ]
-    );
-}
-
-/// Switching between the window's modes (`WorkspaceMode`).
-pub mod mode {
-    use gpui::actions;
-
-    actions!(
-        mode,
-        [
-            /// Switches the window to Editor mode.
-            Editor,
-            /// Switches the window to Git History mode for the active repository:
-            /// keeps the active history tab if it belongs to that repository,
-            /// otherwise shows the repository's graph.
-            GitHistory,
-            /// Switches the window to Terminal mode, starting a shell (or the
-            /// saved layout) when it has no terminals yet.
-            Terminal
-        ]
-    );
-}
-
-pub mod toast {
-    use gpui::actions;
-
-    actions!(
-        toast,
-        [
-            /// Runs the action associated with a toast notification.
-            RunAction
         ]
     );
 }
@@ -212,31 +91,6 @@ pub mod command_palette {
     );
 }
 
-pub mod text_finder {
-    use gpui::actions;
-
-    actions!(
-        text_finder,
-        [
-            /// Opens the Project Search Picker.
-            Toggle,
-        ]
-    );
-}
-
-pub mod project_panel {
-    use gpui::actions;
-
-    actions!(
-        project_panel,
-        [
-            /// Toggles the project panel.
-            Toggle,
-            /// Toggles focus on the project panel.
-            ToggleFocus
-        ]
-    );
-}
 pub mod search {
     use gpui::Action;
     use gpui::actions;
@@ -320,18 +174,6 @@ pub mod buffer_search {
 pub struct OpenRecent {
     #[serde(default)]
     pub create_new_window: Option<bool>,
-}
-
-pub mod git_panel {
-    use gpui::actions;
-
-    actions!(
-        git_panel,
-        [
-            /// Toggles focus on the git panel.
-            ToggleFocus,
-        ]
-    );
 }
 
 pub mod menu {

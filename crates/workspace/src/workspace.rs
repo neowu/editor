@@ -2,16 +2,17 @@ use std::mem;
 use std::sync::atomic::Ordering;
 
 use actions::menu;
-use actions::mode::Editor;
-use actions::mode::Terminal;
 use ui::font;
+
+use crate::mode::Editor;
+use crate::mode::Terminal;
 pub mod dock;
 mod docks;
 pub mod invalid_item_view;
 pub mod item;
 mod item_registry;
 mod modal_layer;
-mod mode;
+pub mod mode;
 mod navigation_history;
 pub mod notifications;
 mod open;
@@ -45,6 +46,7 @@ use std::process::ExitStatus;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::LazyLock;
+use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
@@ -59,6 +61,7 @@ use futures::FutureExt as _;
 use futures::channel::oneshot;
 use futures::future::Shared;
 use gpui::Action;
+use gpui::ActionTable;
 use gpui::AnyView;
 use gpui::AnyWeakView;
 use gpui::App;
@@ -245,9 +248,25 @@ impl Default for Open {
     }
 }
 
+pub mod toast {
+    use gpui::actions;
+
+    actions!(
+        toast,
+        [
+            /// Runs the action associated with a toast notification.
+            RunAction
+        ]
+    );
+}
+
 actions!(
     workspace,
     [
+        CopyPath,
+        CopyRelativePath,
+        /// Opens the selected file with the system's default application.
+        OpenWithSystem,
         /// Activates the next pane in the workspace.
         ActivateNextPane,
         /// Activates the previous pane in the workspace.
@@ -578,8 +597,8 @@ pub struct OpenTerminal {
     pub working_directory: PathBuf,
 }
 
-pub fn init(app_state: Arc<AppState>, cx: &mut App) {
-    toast_layer::init(cx);
+pub fn init(app_state: Arc<AppState>, workspace_actions: &mut WorkspaceActions, cx: &mut App) {
+    toast_layer::init(workspace_actions);
     persistence::init(Arc::clone(&app_state.fs), cx);
 
     cx.on_app_quit(flush_windows_serialization_on_quit).detach();
@@ -755,6 +774,43 @@ struct DispatchingKeystrokes {
     task: Option<Shared<Task<()>>>,
 }
 
+/// The action handlers every workspace shares, for actions that work wherever focus is in a
+/// window. Startup builds one value, handing it to each crate's `init` in turn, and installs it
+/// before the first window opens. A handler reaches per-window state through its workspace.
+#[derive(Default)]
+pub struct WorkspaceActions {
+    table: ActionTable<Workspace>,
+}
+
+static ACTIONS: OnceLock<WorkspaceActions> = OnceLock::new();
+
+impl WorkspaceActions {
+    /// Handles `A` on every workspace. Handlers for the same action run in registration order,
+    /// before the workspace's own.
+    pub fn register_action<A: Action>(
+        &mut self,
+        callback: impl Fn(&mut Workspace, &A, &mut Window, &mut Context<Workspace>) + Send + Sync + 'static,
+    ) {
+        self.table.add(callback);
+    }
+
+    /// Handles `A` on a workspace only while `condition` holds for it. While it does not, the
+    /// action is unavailable there and its keystroke falls through.
+    pub fn register_action_if<A: Action>(
+        &mut self,
+        condition: fn(&Workspace, &App) -> bool,
+        callback: impl Fn(&mut Workspace, &A, &mut Window, &mut Context<Workspace>) + Send + Sync + 'static,
+    ) {
+        self.table.add_if(condition, callback);
+    }
+
+    /// Adds the workspace's own handlers and makes this the set every workspace uses.
+    pub fn install(mut self) {
+        Workspace::add_built_in_actions(&mut self.table);
+        assert!(ACTIONS.set(self).is_ok(), "workspace actions are installed once");
+    }
+}
+
 /// Collects everything project-related for a certain window opened.
 /// In some way, is a counterpart of a window, as the [`WindowHandle`] could be downcast into `Workspace`.
 ///
@@ -763,8 +819,6 @@ struct DispatchingKeystrokes {
 /// that can be used to register a global action to be triggered from any place in the window.
 pub struct Workspace {
     weak_self: WeakEntity<Self>,
-    #[allow(clippy::type_complexity)]
-    workspace_actions: Vec<Box<dyn Fn(Div, &Workspace, &mut Window, &mut Context<Self>) -> Div>>,
     zoomed: Option<AnyWeakView>,
     previous_dock_drag_coordinates: Option<Point<Pixels>>,
     /// Open/close overlay state of each dock (left, bottom, right).
@@ -1068,7 +1122,6 @@ impl Workspace {
             pane_history_timestamp,
             nav_history,
             last_content_pane: center_pane.downgrade(),
-            workspace_actions: Vec::default(),
             // This data will be incorrect, but it will be overwritten by the time it needs to be used.
             bounds: Bounds::default(),
             on_prompt_for_new_path: None,
@@ -1299,6 +1352,10 @@ impl Workspace {
 
     pub const fn project(&self) -> &Entity<Project> {
         &self.project
+    }
+
+    pub const fn titlebar_item(&self) -> Option<&AnyView> {
+        self.titlebar_item.as_ref()
     }
 
     pub fn set_titlebar_item(&mut self, item: AnyView, _: &mut Window, cx: &mut Context<Self>) {
@@ -1938,337 +1995,309 @@ impl Workspace {
         context
     }
 
-    pub fn actions(&self, div: Div, window: &mut Window, cx: &mut Context<Self>) -> Div {
-        let active_item_is_read_only = self.active_item(cx).is_some_and(|item| !item.capability(cx).editable());
-
-        self.add_workspace_actions_listeners(div, window, cx)
-            .on_action(
-                cx.listener(|workspace, _: &GoBack, window, cx| workspace.go_back(window, cx).detach_and_log_err(cx)),
-            )
-            .on_action(cx.listener(|workspace, _: &GoForward, window, cx| {
-                workspace.go_forward(window, cx).detach_and_log_err(cx);
-            }))
-            .on_action(cx.listener(Self::close_inactive_items_and_panes))
-            .on_action(cx.listener(Self::close_all_items_and_panes))
-            .on_action(cx.listener(Self::close_item_in_all_panes))
-            .on_action(cx.listener(Self::save_all))
-            .on_action(cx.listener(Self::send_keystrokes))
-            .on_action(cx.listener(Self::add_folder_to_project))
-            .on_action(cx.listener(|workspace, _: &ReloadProjectFiles, window, cx| {
-                workspace.project.read(cx).worktree_store().read(cx).rescan_worktrees(cx).detach_and_prompt_err(
-                    "Failed to reload project files",
-                    window,
-                    cx,
-                    |_| None,
-                );
-            }))
-            .on_action(cx.listener(Self::activate_pane_at_index))
-            .on_action(cx.listener(Self::move_item_to_pane_at_index))
-            .on_action(cx.listener(Self::reopen_last_picker))
-            .when(!active_item_is_read_only, |this| {
-                this.on_action(cx.listener(|workspace, action: &Save, window, cx| {
-                    workspace
-                        .save_active_item(action.save_intent.unwrap_or(SaveIntent::Save), window, cx)
-                        .detach_and_prompt_err("Failed to save", window, cx, |_| None);
-                }))
-                .on_action(cx.listener(|workspace, _: &FormatAndSave, window, cx| {
-                    workspace.save_active_item(SaveIntent::FormatAndSave, window, cx).detach_and_prompt_err(
-                        "Failed to save",
-                        window,
-                        cx,
-                        |_| None,
-                    );
-                }))
-                .on_action(cx.listener(|workspace, _: &SaveWithoutFormat, window, cx| {
-                    workspace.save_active_item(SaveIntent::SaveWithoutFormat, window, cx).detach_and_prompt_err(
-                        "Failed to save",
-                        window,
-                        cx,
-                        |_| None,
-                    );
-                }))
-            })
-            .on_action(cx.listener(|workspace, _: &SaveAs, window, cx| {
-                workspace.save_active_item(SaveIntent::SaveAs, window, cx).detach_and_prompt_err(
-                    "Failed to save",
-                    window,
-                    cx,
-                    |_| None,
-                );
-            }))
-            .on_action(cx.listener(|workspace, _: &ActivatePreviousPane, window, cx| {
-                workspace.activate_previous_pane(window, cx);
-            }))
-            .on_action(
-                cx.listener(|workspace, _: &ActivateNextPane, window, cx| workspace.activate_next_pane(window, cx)),
-            )
-            .on_action(
-                cx.listener(|workspace, _: &ActivateLastPane, window, cx| workspace.activate_last_pane(window, cx)),
-            )
-            .on_action(cx.listener(|workspace, _: &FocusNextPart, window, cx| {
-                workspace.move_part_focus(true, window, cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &FocusPreviousPart, window, cx| {
-                workspace.move_part_focus(false, window, cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &ActivateNextWindow, _window, cx| workspace.activate_next_window(cx)))
-            .on_action(cx.listener(|workspace, _: &ActivatePreviousWindow, _window, cx| {
-                workspace.activate_previous_window(cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &ActivatePaneLeft, window, cx| {
-                workspace.activate_pane_in_direction(SplitDirection::Left, window, cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &ActivatePaneRight, window, cx| {
-                workspace.activate_pane_in_direction(SplitDirection::Right, window, cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &ActivatePaneUp, window, cx| {
-                workspace.activate_pane_in_direction(SplitDirection::Up, window, cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &ActivatePaneDown, window, cx| {
-                workspace.activate_pane_in_direction(SplitDirection::Down, window, cx);
-            }))
-            .on_action(cx.listener(|workspace, action: &MoveItemToPaneInDirection, window, cx| {
-                workspace.move_item_to_pane_in_direction(action, window, cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &SwapPaneLeft, _, cx| {
-                workspace.swap_pane_in_direction(SplitDirection::Left, cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &SwapPaneRight, _, cx| {
-                workspace.swap_pane_in_direction(SplitDirection::Right, cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &SwapPaneUp, _, cx| {
-                workspace.swap_pane_in_direction(SplitDirection::Up, cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &SwapPaneDown, _, cx| {
-                workspace.swap_pane_in_direction(SplitDirection::Down, cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &SwapPaneAdjacent, window, cx| {
-                const DIRECTION_PRIORITY: [SplitDirection; 4] =
-                    [SplitDirection::Down, SplitDirection::Up, SplitDirection::Right, SplitDirection::Left];
-                for dir in DIRECTION_PRIORITY {
-                    if workspace.find_pane_in_direction(dir, cx).is_some() {
-                        workspace.swap_pane_in_direction(dir, cx);
-                        workspace.activate_pane_in_direction(dir.opposite(), window, cx);
-                        break;
-                    }
+    /// Adds the actions every workspace handles itself.
+    fn add_built_in_actions(t: &mut ActionTable<Self>) {
+        t.add(|workspace, _: &GoBack, window, cx| workspace.go_back(window, cx).detach_and_log_err(cx));
+        t.add(|workspace, _: &GoForward, window, cx| {
+            workspace.go_forward(window, cx).detach_and_log_err(cx);
+        });
+        t.add(Self::close_window);
+        t.add(Self::close_inactive_items_and_panes);
+        t.add(Self::close_all_items_and_panes);
+        t.add(Self::close_item_in_all_panes);
+        t.add(Self::save_all);
+        t.add(Self::send_keystrokes);
+        t.add(Self::add_folder_to_project);
+        t.add(|workspace, _: &ReloadProjectFiles, window, cx| {
+            workspace.project.read(cx).worktree_store().read(cx).rescan_worktrees(cx).detach_and_prompt_err(
+                "Failed to reload project files",
+                window,
+                cx,
+                |_| None,
+            );
+        });
+        t.add(Self::activate_pane_at_index);
+        t.add(Self::move_item_to_pane_at_index);
+        t.add(Self::reopen_last_picker);
+        t.add_if(Self::active_item_is_editable, |workspace, action: &Save, window, cx| {
+            workspace
+                .save_active_item(action.save_intent.unwrap_or(SaveIntent::Save), window, cx)
+                .detach_and_prompt_err("Failed to save", window, cx, |_| None);
+        });
+        t.add_if(Self::active_item_is_editable, |workspace, _: &FormatAndSave, window, cx| {
+            workspace.save_active_item(SaveIntent::FormatAndSave, window, cx).detach_and_prompt_err(
+                "Failed to save",
+                window,
+                cx,
+                |_| None,
+            );
+        });
+        t.add_if(Self::active_item_is_editable, |workspace, _: &SaveWithoutFormat, window, cx| {
+            workspace.save_active_item(SaveIntent::SaveWithoutFormat, window, cx).detach_and_prompt_err(
+                "Failed to save",
+                window,
+                cx,
+                |_| None,
+            );
+        });
+        t.add(|workspace, _: &SaveAs, window, cx| {
+            workspace.save_active_item(SaveIntent::SaveAs, window, cx).detach_and_prompt_err(
+                "Failed to save",
+                window,
+                cx,
+                |_| None,
+            );
+        });
+        t.add(|workspace, _: &ActivatePreviousPane, window, cx| {
+            workspace.activate_previous_pane(window, cx);
+        });
+        t.add(|workspace, _: &ActivateNextPane, window, cx| workspace.activate_next_pane(window, cx));
+        t.add(|workspace, _: &ActivateLastPane, window, cx| workspace.activate_last_pane(window, cx));
+        t.add(|workspace, _: &FocusNextPart, window, cx| {
+            workspace.move_part_focus(true, window, cx);
+        });
+        t.add(|workspace, _: &FocusPreviousPart, window, cx| {
+            workspace.move_part_focus(false, window, cx);
+        });
+        t.add(|workspace, _: &ActivateNextWindow, _window, cx| workspace.activate_next_window(cx));
+        t.add(|workspace, _: &ActivatePreviousWindow, _window, cx| {
+            workspace.activate_previous_window(cx);
+        });
+        t.add(|workspace, _: &ActivatePaneLeft, window, cx| {
+            workspace.activate_pane_in_direction(SplitDirection::Left, window, cx);
+        });
+        t.add(|workspace, _: &ActivatePaneRight, window, cx| {
+            workspace.activate_pane_in_direction(SplitDirection::Right, window, cx);
+        });
+        t.add(|workspace, _: &ActivatePaneUp, window, cx| {
+            workspace.activate_pane_in_direction(SplitDirection::Up, window, cx);
+        });
+        t.add(|workspace, _: &ActivatePaneDown, window, cx| {
+            workspace.activate_pane_in_direction(SplitDirection::Down, window, cx);
+        });
+        t.add(|workspace, action: &MoveItemToPaneInDirection, window, cx| {
+            workspace.move_item_to_pane_in_direction(action, window, cx);
+        });
+        t.add(|workspace, _: &SwapPaneLeft, _, cx| {
+            workspace.swap_pane_in_direction(SplitDirection::Left, cx);
+        });
+        t.add(|workspace, _: &SwapPaneRight, _, cx| {
+            workspace.swap_pane_in_direction(SplitDirection::Right, cx);
+        });
+        t.add(|workspace, _: &SwapPaneUp, _, cx| {
+            workspace.swap_pane_in_direction(SplitDirection::Up, cx);
+        });
+        t.add(|workspace, _: &SwapPaneDown, _, cx| {
+            workspace.swap_pane_in_direction(SplitDirection::Down, cx);
+        });
+        t.add(|workspace, _: &SwapPaneAdjacent, window, cx| {
+            const DIRECTION_PRIORITY: [SplitDirection; 4] =
+                [SplitDirection::Down, SplitDirection::Up, SplitDirection::Right, SplitDirection::Left];
+            for dir in DIRECTION_PRIORITY {
+                if workspace.find_pane_in_direction(dir, cx).is_some() {
+                    workspace.swap_pane_in_direction(dir, cx);
+                    workspace.activate_pane_in_direction(dir.opposite(), window, cx);
+                    break;
                 }
-            }))
-            .on_action(cx.listener(|workspace, _: &MovePaneLeft, _, cx| {
-                workspace.move_pane_to_border(SplitDirection::Left, cx);
-            }))
-            .on_action(cx.listener(|workspace, _: &MovePaneRight, _, cx| {
-                workspace.move_pane_to_border(SplitDirection::Right, cx);
-            }))
-            .on_action(
-                cx.listener(|workspace, _: &MovePaneUp, _, cx| workspace.move_pane_to_border(SplitDirection::Up, cx)),
-            )
-            .on_action(cx.listener(|workspace, _: &MovePaneDown, _, cx| {
-                workspace.move_pane_to_border(SplitDirection::Down, cx);
-            }))
-            .on_action(cx.listener(|this, _: &ToggleLeftDock, window, cx| {
-                this.toggle_dock(DockPosition::Left, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ToggleRightDock, window, cx| {
-                workspace.toggle_dock(DockPosition::Right, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &CycleLeftDock, window, cx| {
-                workspace.cycle_dock(DockPosition::Left, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &CycleRightDock, window, cx| {
-                workspace.cycle_dock(DockPosition::Right, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ToggleBottomDock, window, cx| {
-                workspace.toggle_dock(DockPosition::Bottom, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &CloseActiveDock, window, cx| {
-                if !workspace.close_active_dock(window, cx) {
-                    cx.propagate();
-                }
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &Editor, window, cx| {
-                workspace.set_mode(WorkspaceMode::Editor, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &Terminal, window, cx| {
-                workspace.show_terminal_mode(true, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &CloseAllDocks, window, cx| {
-                workspace.close_all_docks(window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ClearAllNotifications, _, cx| {
-                workspace.clear_all_notifications(cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ClearNavigationHistory, window, cx| {
-                workspace.clear_navigation_history(window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &SuppressNotification, _, cx| {
-                if let Some((notification_id, _)) = workspace.notifications.pop() {
-                    workspace.suppress_notification(&notification_id, cx);
-                }
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ReopenClosedItem, window, cx| {
-                workspace.reopen_closed_item(window, cx).detach();
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ResetActiveDockSize, window, cx| {
-                if let Some(dock) = workspace.active_dock(window, cx).cloned() {
+            }
+        });
+        t.add(|workspace, _: &MovePaneLeft, _, cx| {
+            workspace.move_pane_to_border(SplitDirection::Left, cx);
+        });
+        t.add(|workspace, _: &MovePaneRight, _, cx| {
+            workspace.move_pane_to_border(SplitDirection::Right, cx);
+        });
+        t.add(|workspace, _: &MovePaneUp, _, cx| workspace.move_pane_to_border(SplitDirection::Up, cx));
+        t.add(|workspace, _: &MovePaneDown, _, cx| {
+            workspace.move_pane_to_border(SplitDirection::Down, cx);
+        });
+        t.add(|this, _: &ToggleLeftDock, window, cx| {
+            this.toggle_dock(DockPosition::Left, window, cx);
+        });
+        t.add(|workspace: &mut Workspace, _: &ToggleRightDock, window, cx| {
+            workspace.toggle_dock(DockPosition::Right, window, cx);
+        });
+        t.add(|workspace: &mut Workspace, _: &CycleLeftDock, window, cx| {
+            workspace.cycle_dock(DockPosition::Left, window, cx);
+        });
+        t.add(|workspace: &mut Workspace, _: &CycleRightDock, window, cx| {
+            workspace.cycle_dock(DockPosition::Right, window, cx);
+        });
+        t.add(|workspace: &mut Workspace, _: &ToggleBottomDock, window, cx| {
+            workspace.toggle_dock(DockPosition::Bottom, window, cx);
+        });
+        t.add(|workspace: &mut Workspace, _: &CloseActiveDock, window, cx| {
+            if !workspace.close_active_dock(window, cx) {
+                cx.propagate();
+            }
+        });
+        t.add(|workspace: &mut Workspace, _: &Editor, window, cx| {
+            workspace.set_mode(WorkspaceMode::Editor, window, cx);
+        });
+        t.add(|workspace: &mut Workspace, _: &Terminal, window, cx| {
+            workspace.show_terminal_mode(true, window, cx);
+        });
+        t.add(|workspace: &mut Workspace, _: &CloseAllDocks, window, cx| {
+            workspace.close_all_docks(window, cx);
+        });
+        t.add(|workspace: &mut Workspace, _: &ClearAllNotifications, _, cx| {
+            workspace.clear_all_notifications(cx);
+        });
+        t.add(|workspace: &mut Workspace, _: &ClearNavigationHistory, window, cx| {
+            workspace.clear_navigation_history(window, cx);
+        });
+        t.add(|workspace: &mut Workspace, _: &SuppressNotification, _, cx| {
+            if let Some((notification_id, _)) = workspace.notifications.pop() {
+                workspace.suppress_notification(&notification_id, cx);
+            }
+        });
+        t.add(|workspace: &mut Workspace, _: &ReopenClosedItem, window, cx| {
+            workspace.reopen_closed_item(window, cx).detach();
+        });
+        t.add(|workspace: &mut Workspace, _: &ResetActiveDockSize, window, cx| {
+            if let Some(dock) = workspace.active_dock(window, cx).cloned() {
+                dock.update(cx, |dock, cx| {
+                    dock.reset_panel_sizes(window, cx);
+                });
+            }
+        });
+        t.add(|workspace: &mut Workspace, _: &ResetOpenDocksSize, window, cx| {
+            if !workspace.mode.has_docks() {
+                return;
+            }
+            for dock in workspace.all_docks() {
+                if dock.read(cx).visible_panel().is_some() {
                     dock.update(cx, |dock, cx| {
                         dock.reset_panel_sizes(window, cx);
                     });
                 }
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ResetOpenDocksSize, window, cx| {
-                if !workspace.mode.has_docks() {
-                    return;
-                }
-                for dock in workspace.all_docks() {
-                    if dock.read(cx).visible_panel().is_some() {
-                        dock.update(cx, |dock, cx| {
-                            dock.reset_panel_sizes(window, cx);
-                        });
-                    }
-                }
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, _: &ResetPaneSizes, _window, cx| {
-                workspace.reset_pane_sizes(cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, act: &IncreaseActiveDockSize, window, cx| {
-                adjust_active_dock_size_by_px(px_with_ui_font_fallback(act.px, cx), workspace, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, act: &DecreaseActiveDockSize, window, cx| {
-                adjust_active_dock_size_by_px(px_with_ui_font_fallback(act.px, cx) * -1., workspace, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, act: &IncreaseOpenDocksSize, window, cx| {
-                adjust_open_docks_size_by_px(px_with_ui_font_fallback(act.px, cx), workspace, window, cx);
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, act: &DecreaseOpenDocksSize, window, cx| {
-                adjust_open_docks_size_by_px(px_with_ui_font_fallback(act.px, cx) * -1., workspace, window, cx);
-            }))
-            .on_action(cx.listener(Workspace::toggle_editor_zoom))
-            .on_action(cx.listener(|workspace: &mut Workspace, action: &pane::ActivateNextItem, window, cx| {
-                if let Some(active_dock) = workspace.active_dock(window, cx) {
-                    let dock = active_dock.read(cx);
-                    if let Some(active_panel) = dock.active_panel()
-                        && active_panel.pane(cx).is_none()
-                    {
-                        let mut recent_pane: Option<Entity<Pane>> = None;
-                        let mut recent_timestamp = 0;
-                        for pane_handle in workspace.panes() {
-                            let pane = pane_handle.read(cx);
-                            for entry in pane.activation_history() {
-                                if entry.timestamp > recent_timestamp {
-                                    recent_timestamp = entry.timestamp;
-                                    recent_pane = Some(pane_handle.clone());
-                                }
+            }
+        });
+        t.add(|workspace: &mut Workspace, _: &ResetPaneSizes, _window, cx| {
+            workspace.reset_pane_sizes(cx);
+        });
+        t.add(|workspace: &mut Workspace, act: &IncreaseActiveDockSize, window, cx| {
+            adjust_active_dock_size_by_px(px_with_ui_font_fallback(act.px, cx), workspace, window, cx);
+        });
+        t.add(|workspace: &mut Workspace, act: &DecreaseActiveDockSize, window, cx| {
+            adjust_active_dock_size_by_px(px_with_ui_font_fallback(act.px, cx) * -1., workspace, window, cx);
+        });
+        t.add(|workspace: &mut Workspace, act: &IncreaseOpenDocksSize, window, cx| {
+            adjust_open_docks_size_by_px(px_with_ui_font_fallback(act.px, cx), workspace, window, cx);
+        });
+        t.add(|workspace: &mut Workspace, act: &DecreaseOpenDocksSize, window, cx| {
+            adjust_open_docks_size_by_px(px_with_ui_font_fallback(act.px, cx) * -1., workspace, window, cx);
+        });
+        t.add(Workspace::toggle_editor_zoom);
+        t.add(|workspace: &mut Workspace, action: &pane::ActivateNextItem, window, cx| {
+            if let Some(active_dock) = workspace.active_dock(window, cx) {
+                let dock = active_dock.read(cx);
+                if let Some(active_panel) = dock.active_panel()
+                    && active_panel.pane(cx).is_none()
+                {
+                    let mut recent_pane: Option<Entity<Pane>> = None;
+                    let mut recent_timestamp = 0;
+                    for pane_handle in workspace.panes() {
+                        let pane = pane_handle.read(cx);
+                        for entry in pane.activation_history() {
+                            if entry.timestamp > recent_timestamp {
+                                recent_timestamp = entry.timestamp;
+                                recent_pane = Some(pane_handle.clone());
                             }
                         }
-
-                        if let Some(pane) = recent_pane {
-                            let wrap_around = action.wrap_around;
-                            pane.update(cx, |pane, cx| {
-                                let current_index = pane.active_item_index();
-                                let items_len = pane.items_len();
-                                if items_len > 0 {
-                                    let next_index = if current_index + 1 < items_len {
-                                        current_index + 1
-                                    } else if wrap_around {
-                                        0
-                                    } else {
-                                        return;
-                                    };
-                                    pane.activate_item(next_index, false, false, window, cx);
-                                }
-                            });
-                            return;
-                        }
                     }
-                }
-                cx.propagate();
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, action: &pane::ActivatePreviousItem, window, cx| {
-                if let Some(active_dock) = workspace.active_dock(window, cx) {
-                    let dock = active_dock.read(cx);
-                    if let Some(active_panel) = dock.active_panel()
-                        && active_panel.pane(cx).is_none()
-                    {
-                        let mut recent_pane: Option<Entity<Pane>> = None;
-                        let mut recent_timestamp = 0;
-                        for pane_handle in workspace.panes() {
-                            let pane = pane_handle.read(cx);
-                            for entry in pane.activation_history() {
-                                if entry.timestamp > recent_timestamp {
-                                    recent_timestamp = entry.timestamp;
-                                    recent_pane = Some(pane_handle.clone());
-                                }
+
+                    if let Some(pane) = recent_pane {
+                        let wrap_around = action.wrap_around;
+                        pane.update(cx, |pane, cx| {
+                            let current_index = pane.active_item_index();
+                            let items_len = pane.items_len();
+                            if items_len > 0 {
+                                let next_index = if current_index + 1 < items_len {
+                                    current_index + 1
+                                } else if wrap_around {
+                                    0
+                                } else {
+                                    return;
+                                };
+                                pane.activate_item(next_index, false, false, window, cx);
                             }
-                        }
-
-                        if let Some(pane) = recent_pane {
-                            let wrap_around = action.wrap_around;
-                            pane.update(cx, |pane, cx| {
-                                let current_index = pane.active_item_index();
-                                let items_len = pane.items_len();
-                                if items_len > 0 {
-                                    let prev_index = if current_index > 0 {
-                                        current_index - 1
-                                    } else if wrap_around {
-                                        items_len.saturating_sub(1)
-                                    } else {
-                                        return;
-                                    };
-                                    pane.activate_item(prev_index, false, false, window, cx);
-                                }
-                            });
-                            return;
-                        }
-                    }
-                }
-                cx.propagate();
-            }))
-            .on_action(cx.listener(|workspace: &mut Workspace, action: &pane::CloseActiveItem, window, cx| {
-                if let Some(active_dock) = workspace.active_dock(window, cx) {
-                    let dock = active_dock.read(cx);
-                    if let Some(active_panel) = dock.active_panel()
-                        && active_panel.pane(cx).is_none()
-                    {
-                        let active_pane = workspace.active_pane().clone();
-                        active_pane.update(cx, |pane, cx| {
-                            pane.close_active_item(action, window, cx).detach_and_log_err(cx);
                         });
                         return;
                     }
                 }
-                cx.propagate();
-            }))
-            .on_action(cx.listener(|workspace, _: &FocusCenterPane, window, cx| {
-                workspace.focus_center_pane(window, cx);
-            }))
-            .on_action(cx.listener(Workspace::cancel))
+            }
+            cx.propagate();
+        });
+        t.add(|workspace: &mut Workspace, action: &pane::ActivatePreviousItem, window, cx| {
+            if let Some(active_dock) = workspace.active_dock(window, cx) {
+                let dock = active_dock.read(cx);
+                if let Some(active_panel) = dock.active_panel()
+                    && active_panel.pane(cx).is_none()
+                {
+                    let mut recent_pane: Option<Entity<Pane>> = None;
+                    let mut recent_timestamp = 0;
+                    for pane_handle in workspace.panes() {
+                        let pane = pane_handle.read(cx);
+                        for entry in pane.activation_history() {
+                            if entry.timestamp > recent_timestamp {
+                                recent_timestamp = entry.timestamp;
+                                recent_pane = Some(pane_handle.clone());
+                            }
+                        }
+                    }
+
+                    if let Some(pane) = recent_pane {
+                        let wrap_around = action.wrap_around;
+                        pane.update(cx, |pane, cx| {
+                            let current_index = pane.active_item_index();
+                            let items_len = pane.items_len();
+                            if items_len > 0 {
+                                let prev_index = if current_index > 0 {
+                                    current_index - 1
+                                } else if wrap_around {
+                                    items_len.saturating_sub(1)
+                                } else {
+                                    return;
+                                };
+                                pane.activate_item(prev_index, false, false, window, cx);
+                            }
+                        });
+                        return;
+                    }
+                }
+            }
+            cx.propagate();
+        });
+        t.add(|workspace: &mut Workspace, action: &pane::CloseActiveItem, window, cx| {
+            if let Some(active_dock) = workspace.active_dock(window, cx) {
+                let dock = active_dock.read(cx);
+                if let Some(active_panel) = dock.active_panel()
+                    && active_panel.pane(cx).is_none()
+                {
+                    let active_pane = workspace.active_pane().clone();
+                    active_pane.update(cx, |pane, cx| {
+                        pane.close_active_item(action, window, cx).detach_and_log_err(cx);
+                    });
+                    return;
+                }
+            }
+            cx.propagate();
+        });
+        t.add(|workspace, _: &FocusCenterPane, window, cx| {
+            workspace.focus_center_pane(window, cx);
+        });
+        t.add(Workspace::cancel);
     }
 
-    pub fn register_action<A: Action>(
-        &mut self,
-        callback: impl Fn(&mut Self, &A, &mut Window, &mut Context<Self>) + 'static,
-    ) -> &mut Self {
-        let callback = Arc::new(callback);
-
-        self.workspace_actions.push(Box::new(move |div, _, _, cx| {
-            let callback = Arc::clone(&callback);
-            div.on_action(cx.listener(move |workspace, event, window, cx| (callback)(workspace, event, window, cx)))
-        }));
-        self
-    }
-    pub fn register_action_renderer(
-        &mut self,
-        callback: impl Fn(Div, &Workspace, &mut Window, &mut Context<Self>) -> Div + 'static,
-    ) -> &mut Self {
-        self.workspace_actions.push(Box::new(callback));
-        self
+    fn active_item_is_editable(&self, cx: &App) -> bool {
+        self.active_item(cx).is_none_or(|item| item.capability(cx).editable())
     }
 
-    fn add_workspace_actions_listeners(&self, mut div: Div, window: &mut Window, cx: &mut Context<Self>) -> Div {
-        for action in &self.workspace_actions {
-            div = (action)(div, self, window, cx);
-        }
-        div
+    /// Attaches the workspace's action handlers to its root element: one push per frame.
+    fn actions(&self, div: Div, cx: &Context<Self>) -> Div {
+        let actions = ACTIONS.get().expect("workspace actions are installed at startup");
+        div.action_table(&cx.entity(), &actions.table)
     }
 
     pub fn has_active_modal(&self, _: &mut Window, cx: &mut App) -> bool {
@@ -2593,13 +2622,12 @@ impl Render for Workspace {
             self.notifications.iter().map(|(_, notification)| notification.entity_id()).collect::<Vec<_>>();
         let key_context = self.key_context(cx);
         let root = self
-            .actions(h_flex(), window, cx)
+            .actions(h_flex(), cx)
             .key_context(key_context)
             .relative()
             .size_full()
             .font(ui_font.clone())
-            .text_color(colors.text)
-            .on_action(cx.listener(Self::close_window));
+            .text_color(colors.text);
 
         let content = div()
             .relative()
@@ -2807,10 +2835,9 @@ fn hidden_by_zoom(zoomed: bool, zoomed_position: Option<DockPosition>, position:
 
 #[cfg(test)]
 mod tests {
-    use actions::mode::Editor;
-    use actions::mode::GitHistory;
-
     use super::WorkspaceMode;
+    use crate::mode::Editor;
+    use crate::mode::GitHistory;
 
     #[test]
     fn mode_action_names() {
@@ -2819,6 +2846,40 @@ mod tests {
         // The built-in keymap binds `cmd-1` / `cmd-2` by these names.
         assert_eq!(Editor::name_for_type(), "mode::Editor");
         assert_eq!(GitHistory::name_for_type(), "mode::GitHistory");
+    }
+
+    #[test]
+    fn built_in_actions_handle_each_action_once() {
+        use std::any::TypeId;
+
+        use super::Save;
+        use super::Workspace;
+        use super::pane::CloseActiveItem;
+
+        let mut table = gpui::ActionTable::default();
+        Workspace::add_built_in_actions(&mut table);
+        let types = table.action_types();
+
+        assert!(types.is_sorted_by(|a, b| a < b), "action handled twice");
+        assert!(types.contains(&TypeId::of::<Save>()));
+        assert!(types.contains(&TypeId::of::<CloseActiveItem>()));
+        assert!(types.contains(&TypeId::of::<super::CloseWindow>()));
+        assert!(types.contains(&TypeId::of::<Editor>()));
+    }
+
+    #[test]
+    fn registering_adds_handlers_in_order() {
+        use std::any::TypeId;
+
+        use super::Save;
+        use super::WorkspaceActions;
+
+        let mut actions = WorkspaceActions::default();
+        actions.register_action(|_, _: &Save, _, _| {});
+        actions.register_action_if(|_, _| false, |_, _: &Save, _, _| {});
+
+        assert_eq!(actions.table.action_types(), [TypeId::of::<Save>(); 2]);
+        assert_eq!(actions.table.conditional().collect::<Vec<_>>(), [false, true]);
     }
 
     #[test]

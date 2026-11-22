@@ -5,10 +5,7 @@ use std::sync::Arc;
 
 use actions::editor::MoveDown;
 use actions::editor::MoveUp;
-use actions::git::ViewStash;
 use actions::menu;
-use actions::workspace::CopyPath;
-use actions::workspace::CopyRelativePath;
 use editor::EditorElement;
 use file_icons::FileIcons;
 use git::Amend;
@@ -25,6 +22,7 @@ use git::StashTracked;
 use git::ToggleStaged;
 use git::UnstageAll;
 use git::ViewFile;
+use git::ViewStash;
 use git::commit::ParsedCommitMessage;
 use git::repository::RebaseAction;
 use git::status::DiffStat;
@@ -107,6 +105,8 @@ use ui::prelude::px;
 use ui::prelude::relative;
 use ui::prelude::v_flex;
 use workspace::CARD_RADIUS;
+use workspace::CopyPath;
+use workspace::CopyRelativePath;
 use workspace::dock::Panel as _;
 
 use super::GitHeaderEntry;

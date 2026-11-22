@@ -1260,6 +1260,8 @@ impl Render for ProjectPanel {
                 .on_action(cx.listener(Self::open_split_horizontal))
                 .on_action(cx.listener(Self::open_markdown_preview))
                 .on_action(cx.listener(Self::open_svg_preview))
+                // Without a selection the workspace decides, from the active editor's file.
+                .when(self.selection.is_some(), |el| el.on_action(cx.listener(Self::file_history)))
                 .on_action(cx.listener(Self::confirm))
                 .on_action(cx.listener(Self::cancel))
                 .on_action(cx.listener(Self::copy_path))
@@ -1526,6 +1528,7 @@ impl Render for ProjectPanel {
                                     this.selection = None;
                                     this.marked_entries.clear();
                                     this.focus_handle(cx).focus(window, cx);
+                                    cx.notify();
                                 }))
                                 .on_mouse_down(
                                     MouseButton::Right,

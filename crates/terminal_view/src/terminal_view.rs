@@ -117,6 +117,7 @@ use workspace::DraggedTab;
 use workspace::NewTerminal;
 use workspace::Pane;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::item::Item;
 use workspace::item::ItemEvent;
 use workspace::item::TabContentParams;
@@ -168,8 +169,8 @@ actions!(
 #[action(namespace = terminal)]
 pub struct RenameTerminal;
 
-pub fn init(cx: &mut App) {
-    terminal_panel::init(cx);
+pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
+    terminal_panel::init(workspace_actions);
     terminal_mode::init(cx);
 }
 

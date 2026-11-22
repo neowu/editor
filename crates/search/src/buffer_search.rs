@@ -7,8 +7,6 @@ mod registrar;
 use std::any::TypeId;
 use std::sync::Arc;
 
-use actions::workspace::CopyPath;
-use actions::workspace::CopyRelativePath;
 use editor::DiffStyleControls;
 use editor::Editor;
 use editor::MultiBufferOffset;
@@ -71,10 +69,12 @@ use ui::prelude::v_flex;
 use ui::utils::SearchInputWidth;
 use util::ResultExt as _;
 use util::paths::PathMatcher;
+use workspace::CopyPath;
+use workspace::CopyRelativePath;
 use workspace::ToolbarItemEvent;
 use workspace::ToolbarItemLocation;
 use workspace::ToolbarItemView;
-use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::item::ItemHandle;
 use workspace::searchable::AnyMatches;
 use workspace::searchable::Direction;
@@ -126,8 +126,8 @@ pub enum Event {
     Dismissed,
 }
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(|workspace: &mut Workspace, _, _| BufferSearchBar::register(workspace)).detach();
+pub fn init(workspace_actions: &mut WorkspaceActions) {
+    BufferSearchBar::register(workspace_actions);
 }
 
 pub struct BufferSearchBar {

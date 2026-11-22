@@ -72,6 +72,7 @@ use util::paths::PathExt as _;
 use util::rel_path::RelPath;
 use workspace::StatusItemView;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 
 use crate::lsp_log_view;
 
@@ -760,13 +761,19 @@ impl ServerData<'_> {
     }
 }
 
+/// Toggles the menu of the workspace's language server button.
+pub(crate) fn init(workspace_actions: &mut WorkspaceActions) {
+    workspace_actions.register_action(|workspace, _: &ToggleMenu, window, cx| {
+        if let Some(button) = workspace.status_bar().read(cx).item_of_type::<LspButton>() {
+            let menu = button.read(cx).popover_menu_handle.clone();
+            menu.toggle(window, cx);
+        }
+    });
+}
+
 impl LspButton {
-    pub fn new(
-        workspace: &Workspace,
-        popover_menu_handle: PopoverMenuHandle<ContextMenu>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn new(workspace: &Workspace, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let popover_menu_handle = PopoverMenuHandle::default();
         let lsp_store = workspace.project().read(cx).lsp_store();
         let mut language_servers = LanguageServers::default();
         for (_, status) in lsp_store.read(cx).language_server_statuses() {

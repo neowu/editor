@@ -85,6 +85,7 @@ use workspace::ItemNavHistory;
 use workspace::Pane;
 use workspace::SaveIntent;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::item::Item;
 use workspace::item::ItemBufferKind;
 use workspace::item::ItemEvent;
@@ -175,8 +176,8 @@ enum PreviewLinkTarget {
 }
 
 impl MarkdownPreviewView {
-    pub fn register(workspace: &mut Workspace) {
-        workspace.register_action(move |workspace, _: &OpenFollowingPreview, window, cx| {
+    pub fn register(workspace_actions: &mut WorkspaceActions) {
+        workspace_actions.register_action(move |workspace, _: &OpenFollowingPreview, window, cx| {
             if let Some(editor) = Self::resolve_active_item_as_markdown_editor(workspace, cx) {
                 // Check if there's already a following preview
                 let existing_follow_view_idx = {

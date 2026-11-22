@@ -167,3 +167,68 @@ saving is probably a few microseconds per editor per frame.
   any design that keeps registrations per frame pays at least a push per
   entry. Keeping the action set on the entity or the type, with the node only
   pointing at it, avoids that.
+
+## Redesign step 1: static tables for workspace, pane and editor actions (2026-11-22)
+
+Supersedes the gpui side of "What was changed" above, and the notes there on
+table-only bubble order, duplicate checks and `editor_actions`.
+
+- `gpui::ActionTable<V>` replaces the `&'static [TypeId]` + listener form.
+  Tables live in `static`s; a dispatch node holds the view's entity and a
+  `&'static` table, so attaching allocates nothing beyond the node's Vec.
+  Handlers are `Send + Sync` boxes with no per-view state. Duplicate action
+  types are allowed and run in registration order.
+- `add_if(condition, handler)`: the condition is checked at dispatch (false
+  means skipped, as if unregistered) and by `available_actions` /
+  `is_action_available`. Nothing is evaluated per frame.
+- Workspace: `main` builds one `WorkspaceActions`, each crate's `init` adds
+  its handlers to it, and `install` appends the workspace's own and stores
+  the table in a `static`. Nothing is registered per window or after
+  startup; `Workspace::register_action` and `register_action_renderer` are
+  gone. Before, each render rebuilt every handler as a `Box` plus an `Rc`,
+  on a root view that renders every frame. Not measured.
+- Workspace conditions (`register_action_if`): the 3 save actions (active
+  item is editable), `git::FileHistory`, `git::OpenFileDiff`, the git graph
+  `Open` / `OpenAtCommit` (active repository), and the LSP command selector
+  toggle. The former renderer callbacks became these.
+- Pane: one static table attached by `Pane::render`. Only `OpenPreview` /
+  `OpenPreviewToTheSide` are conditional, on `has_preview`, a flag cached at
+  the pane's last render so the editor context menu can ask for them while
+  the editor is updated.
+- Editor: one table for all editors, installed at startup
+  (`editor::install_actions`). `go_to_line` and `lsp_locations` add their
+  handlers to it first, so they run before the editor's own and propagate
+  to them. `Editor::register_action`, `register_action_renderer` and the
+  per-editor `editor_actions` map are gone. Edit actions carry a "not
+  read-only" condition; multibuffer, inlay hint, diagnostics, minimap,
+  blame, Rust and full-mode actions carry their own.
+- Blame revision actions: the exact target needs `&mut Editor` and the
+  window, so the condition is only "blame is on" and the handlers propagate
+  when the cursor is not on a blamed line. They are listed as available
+  more often than they do anything.
+- Handlers that captured per-window state now look it up from the
+  workspace: the title bar's project menu (`Workspace::titlebar_item`) and
+  the language server button's menu (status bar item, registered in
+  `language_tools`). The app crate's duplicate panel `ToggleFocus` handlers
+  are gone; the panel crates register them. `git::FileHistory` for a panel
+  selection is handled by the git panel and project panel themselves, no
+  longer by a workspace handler that checked focus.
+- Cost of lazy conditions: an availability query panics (double lease)
+  when made while any entity a condition reads is being updated. That is
+  the views on the focus path, and for workspace conditions also the
+  active item, its buffer and the project. Current call sites are safe:
+  the command palette defers its query, the editor context menu computes
+  `FormatSelections` directly, and the pane preview condition reads the
+  cached flag. A new `is_action_available` call inside a render or update
+  needs the same care.
+- Other costs: the rendered frame holds the workspace and pane strongly
+  (was weak), so a closed pane lives until the next frame. Both tables are
+  install-once statics; `Workspace::render` panics without `install`, while
+  the editor falls back to its built-in table. Dispatch with real
+  conditions has no unit test (tests substitute the `applies` check); it
+  was checked with `edctl` in a read-only editor (edit and save actions
+  unavailable and ignored, navigation still handled) and with
+  `GoToDefinition` falling through to the editor's own handler.
+- Still per frame: project panel and git panel `.on_action` lists and the
+  pane search actions (`register_pane_search_actions`), all on cached
+  views, so only paid when dirty.

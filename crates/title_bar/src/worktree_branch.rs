@@ -1,5 +1,5 @@
-use actions::git::Branch;
-use actions::git::Worktree;
+use git::Branch;
+use git::Worktree;
 use git::status::GitSummary;
 use git_ui_core::worktree_picker::WorktreePicker;
 use gpui::AnyElement;

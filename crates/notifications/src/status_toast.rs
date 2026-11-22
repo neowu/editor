@@ -1,6 +1,5 @@
 use std::rc::Rc;
 
-use actions::toast;
 use gpui::AppContext as _;
 use gpui::DismissEvent;
 use gpui::Entity;
@@ -33,6 +32,7 @@ use ui::prelude::Window;
 use ui::prelude::h_flex;
 use workspace::ToastAction;
 use workspace::ToastView;
+use workspace::toast;
 
 pub struct StatusToast {
     icon: Option<Icon>,

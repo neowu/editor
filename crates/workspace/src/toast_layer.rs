@@ -2,7 +2,6 @@ use std::rc::Rc;
 use std::time::Duration;
 use std::time::Instant;
 
-use actions::toast;
 use gpui::AnyView;
 use gpui::DismissEvent;
 use gpui::Entity;
@@ -30,36 +29,34 @@ use ui::prelude::h_flex;
 use ui::prelude::px;
 use ui::prelude::v_flex;
 
-use crate::Workspace;
+use crate::WorkspaceActions;
+use crate::toast;
 
 const DEFAULT_TOAST_DURATION: Duration = Duration::from_secs(10);
 const MINIMUM_RESUME_DURATION: Duration = Duration::from_millis(800);
 
-pub(crate) fn init(cx: &App) {
-    cx.observe_new(|workspace: &mut Workspace, _window, _cx| {
-        workspace.register_action(|_workspace, _: &toast::RunAction, window, cx| {
-            let workspace = cx.entity();
-            let window = window.window_handle();
-            cx.defer(move |cx| {
-                let action = workspace
-                    .read(cx)
-                    .toast_layer
-                    .read(cx)
-                    .active_toast
-                    .as_ref()
-                    .and_then(|active_toast| active_toast.action.clone());
+pub(crate) fn init(workspace_actions: &mut WorkspaceActions) {
+    workspace_actions.register_action(|_workspace, _: &toast::RunAction, window, cx| {
+        let workspace = cx.entity();
+        let window = window.window_handle();
+        cx.defer(move |cx| {
+            let action = workspace
+                .read(cx)
+                .toast_layer
+                .read(cx)
+                .active_toast
+                .as_ref()
+                .and_then(|active_toast| active_toast.action.clone());
 
-                if let Some(on_click) = action.and_then(|action| action.on_click) {
-                    window
-                        .update(cx, |_, window, cx| {
-                            on_click(window, cx);
-                        })
-                        .ok();
-                }
-            });
+            if let Some(on_click) = action.and_then(|action| action.on_click) {
+                window
+                    .update(cx, |_, window, cx| {
+                        on_click(window, cx);
+                    })
+                    .ok();
+            }
         });
-    })
-    .detach();
+    });
 }
 
 pub trait ToastView: ManagedView {

@@ -4,9 +4,6 @@
 //! the start of the top-left tab bar. Above a sidebar narrower than the header,
 //! the header overhangs it and the top-left tab bar starts after the header.
 
-use actions::mode::Editor;
-use actions::mode::GitHistory;
-use actions::mode::Terminal;
 use gpui::AnyElement;
 use gpui::App;
 use gpui::Context;
@@ -52,6 +49,9 @@ use crate::Pane;
 use crate::Workspace;
 use crate::WorkspaceMode;
 use crate::dock::Dock;
+use crate::mode::Editor;
+use crate::mode::GitHistory;
+use crate::mode::Terminal;
 use crate::pane::top_row_icon_button;
 
 /// Where tab bar start content begins, from the window's left edge, when the

@@ -79,6 +79,7 @@ use ui::prelude::v_flex;
 use util::ResultExt as _;
 use workspace::ItemNavHistory;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::item::Item;
 use workspace::item::ItemEvent;
 use workspace::item::ItemHandle as _;
@@ -94,10 +95,10 @@ actions!(
     ]
 );
 
-pub fn init(cx: &mut App) {
+pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     editor::set_diagnostic_renderer(diagnostic_renderer::DiagnosticRenderer {}, cx);
-    cx.observe_new(ProjectDiagnosticsEditor::register).detach();
-    cx.observe_new(BufferDiagnosticsEditor::register).detach();
+    ProjectDiagnosticsEditor::register(workspace_actions);
+    BufferDiagnosticsEditor::register(workspace_actions);
 }
 
 pub(crate) struct ProjectDiagnosticsEditor {
@@ -146,8 +147,8 @@ enum RetainExcerpts {
 }
 
 impl ProjectDiagnosticsEditor {
-    pub(crate) fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
-        workspace.register_action(Self::deploy);
+    pub(crate) fn register(workspace_actions: &mut WorkspaceActions) {
+        workspace_actions.register_action(Self::deploy);
     }
 
     fn new(project_handle: Entity<Project>, window: &mut Window, cx: &mut Context<Self>) -> Self {

@@ -10,9 +10,11 @@ use workspace::Item;
 use workspace::ItemHandle as _;
 use workspace::SplitDirection;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 
-pub fn init(cx: &mut App) {
+pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     lsp_log_view::init(cx);
+    lsp_button::init(workspace_actions);
 }
 
 fn get_or_create_tool<T>(

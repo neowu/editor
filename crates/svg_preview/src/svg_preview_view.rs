@@ -36,6 +36,7 @@ use ui::prelude::h_flex;
 use ui::prelude::v_flex;
 use workspace::Pane;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::item::Item;
 use workspace::item::ItemEvent;
 use workspace::notifications::NotifyResultExt as _;
@@ -273,8 +274,8 @@ impl SvgPreviewView {
         cx.notify();
     }
 
-    pub fn register(workspace: &mut Workspace, _window: &mut Window, _cx: &mut Context<Workspace>) {
-        workspace.register_action(move |workspace, _: &OpenFollowingPreview, window, cx| {
+    pub fn register(workspace_actions: &mut WorkspaceActions) {
+        workspace_actions.register_action(move |workspace, _: &OpenFollowingPreview, window, cx| {
             if let Some(editor) = Self::resolve_active_item_as_svg_buffer(workspace, cx)
                 && Self::is_svg_file(&editor, cx)
             {

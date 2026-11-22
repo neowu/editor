@@ -25,6 +25,7 @@ use ui::prelude::IconButton;
 use ui::prelude::IconName;
 use ui::prelude::Toggleable as _;
 use util::paths::PathMatcher;
+use workspace::WorkspaceActions;
 
 use crate::project_search::ProjectSearchBar;
 
@@ -34,10 +35,10 @@ pub(crate) mod search_bar;
 pub mod search_status_button;
 pub mod text_finder;
 
-pub fn init(cx: &mut App) {
-    buffer_search::init(cx);
-    project_search::init(cx);
-    text_finder::init(cx);
+pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
+    buffer_search::init(workspace_actions);
+    project_search::init(workspace_actions, cx);
+    text_finder::init(workspace_actions);
 }
 
 actions!(

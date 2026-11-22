@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-use actions::CreateWorktree;
-use actions::NewWorktreeBranchTarget;
-use actions::OpenWorktreeInNewWindow;
-use actions::SwitchWorktree;
 use actions::menu;
 use fuzzy::StringMatchCandidate;
+use git::CreateWorktree;
+use git::NewWorktreeBranchTarget;
+use git::OpenWorktreeInNewWindow;
+use git::SwitchWorktree;
 use git::repository::Worktree as GitWorktree;
 use gpui::Action as _;
 use gpui::AnyElement;

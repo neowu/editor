@@ -840,6 +840,7 @@ impl Editor {
 
     pub(super) fn blame_revision(&mut self, _: &BlameRevision, window: &mut Window, cx: &mut Context<Self>) {
         let Some((path, revision, repository)) = self.blame_revision_target(window, cx) else {
+            cx.propagate();
             return;
         };
         self.open_blame_revision(path, revision, repository, window, cx);
@@ -852,6 +853,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         let Some((path, revision, repository)) = self.blame_previous_revision_target(window, cx) else {
+            cx.propagate();
             return;
         };
         self.open_blame_revision(path, revision, repository, window, cx);

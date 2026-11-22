@@ -8,6 +8,7 @@ extern crate self as gpui;
 
 #[macro_use]
 mod action;
+mod action_table;
 mod app;
 
 mod arena;
@@ -63,6 +64,8 @@ use std::future::Future;
 
 #[allow(clippy::wildcard_imports)]
 pub use action::*;
+pub use action_table::ActionTable;
+pub(crate) use action_table::DispatchActionTable;
 pub use anyhow::Result;
 #[allow(clippy::wildcard_imports)]
 pub use app::*;

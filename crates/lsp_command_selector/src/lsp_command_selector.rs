@@ -47,11 +47,12 @@ use ui::prelude::h_flex;
 use ui::prelude::v_flex;
 use workspace::ModalView;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 
 actions!(lsp_command_selector, [Toggle, ToggleArgumentsFocus]);
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(LspCommandSelector::register).detach();
+pub fn init(workspace_actions: &mut WorkspaceActions) {
+    LspCommandSelector::register(workspace_actions);
 }
 
 pub struct LspCommandSelector {
@@ -59,16 +60,9 @@ pub struct LspCommandSelector {
 }
 
 impl LspCommandSelector {
-    fn register(workspace: &mut Workspace, _: Option<&mut Window>, _: &mut Context<Workspace>) {
-        workspace.register_action_renderer(|div, workspace, _, cx| {
-            let commands_available = active_buffer(workspace, cx)
-                .is_some_and(|buffer| available_commands(&buffer, workspace.project(), cx).next().is_some());
-            if !commands_available {
-                return div;
-            }
-            div.on_action(cx.listener(|workspace, _: &Toggle, window, cx| {
-                Self::toggle(workspace, window, cx);
-            }))
+    fn register(workspace_actions: &mut WorkspaceActions) {
+        workspace_actions.register_action_if(commands_available, |workspace, _: &Toggle, window, cx| {
+            Self::toggle(workspace, window, cx);
         });
     }
 
@@ -367,6 +361,12 @@ impl PickerDelegate for LspCommandSelectorDelegate {
                 .into_any_element(),
         )
     }
+}
+
+/// Whether a language server of the active buffer offers any command.
+fn commands_available(workspace: &Workspace, cx: &App) -> bool {
+    active_buffer(workspace, cx)
+        .is_some_and(|buffer| available_commands(&buffer, workspace.project(), cx).next().is_some())
 }
 
 fn active_buffer(workspace: &Workspace, cx: &App) -> Option<Entity<Buffer>> {

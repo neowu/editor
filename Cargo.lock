@@ -1923,7 +1923,6 @@ dependencies = [
 name = "language_tools"
 version = "0.1.0"
 dependencies = [
- "actions",
  "anyhow",
  "editor",
  "gpui",
@@ -2381,7 +2380,6 @@ dependencies = [
 name = "notifications"
 version = "0.1.0"
 dependencies = [
- "actions",
  "gpui",
  "ui",
  "workspace",

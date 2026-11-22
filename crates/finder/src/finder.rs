@@ -91,6 +91,7 @@ use workspace::ModalView;
 use workspace::OpenOptions;
 use workspace::OpenVisible;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::notifications::NotifyResultExt as _;
 use workspace::searchable::SeedQuery;
 
@@ -163,15 +164,15 @@ pub struct Finder {
     init_modifiers: Option<Modifiers>,
 }
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(Finder::register).detach();
+pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
+    Finder::register(workspace_actions);
     cx.observe_new(OpenPathPrompt::register).detach();
     cx.observe_new(OpenPathPrompt::register_new_path).detach();
 }
 
 impl Finder {
-    fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
-        workspace.register_action(|workspace, action: &workspace::ToggleFinder, window, cx| {
+    fn register(workspace_actions: &mut WorkspaceActions) {
+        workspace_actions.register_action(|workspace, action: &workspace::ToggleFinder, window, cx| {
             if !workspace.mode().has_finder() {
                 return;
             }

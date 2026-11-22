@@ -3,12 +3,12 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use actions::NewWorktreeBranchTarget;
 use anyhow::Context as _;
 use anyhow::anyhow;
 use fs::Fs;
 use futures::channel::oneshot::Receiver;
 use futures::future;
+use git::NewWorktreeBranchTarget;
 use git::repository::CreateWorktreeTarget;
 use git::repository::FetchOptions;
 use git::repository::Remote;
@@ -273,7 +273,7 @@ impl Render for WorktreeFetchFailedToast {
                             workspace.update(cx, |workspace, cx| {
                                 let task = create_worktree_workspace_inner(
                                     workspace,
-                                    &actions::CreateWorktree {
+                                    &git::CreateWorktree {
                                         worktree_name: worktree_name.clone(),
                                         branch_target: branch_target.clone(),
                                     },
@@ -533,7 +533,7 @@ pub async fn await_and_rollback_on_failure(
 /// Errors are surfaced to the user via toasts.
 pub fn handle_create_worktree(
     workspace: &mut Workspace,
-    action: &actions::CreateWorktree,
+    action: &git::CreateWorktree,
     window: &mut gpui::Window,
     fallback_focused_dock: Option<DockPosition>,
     cx: &mut gpui::Context<Workspace>,
@@ -551,7 +551,7 @@ pub fn handle_create_worktree(
 
 fn create_worktree_workspace_inner(
     workspace: &mut Workspace,
-    action: &actions::CreateWorktree,
+    action: &git::CreateWorktree,
     window: &gpui::Window,
     fallback_focused_dock: Option<DockPosition>,
     remote_branch_fetch_mode: RemoteBranchFetchMode,
@@ -633,7 +633,7 @@ fn create_worktree_workspace_inner(
 
 pub fn handle_switch_worktree(
     workspace: &mut Workspace,
-    action: &actions::SwitchWorktree,
+    action: &git::SwitchWorktree,
     window: &mut gpui::Window,
     fallback_focused_dock: Option<DockPosition>,
     cx: &mut gpui::Context<Workspace>,

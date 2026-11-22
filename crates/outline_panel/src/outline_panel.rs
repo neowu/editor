@@ -18,8 +18,6 @@ use actions::menu::SelectFirst;
 use actions::menu::SelectLast;
 use actions::menu::SelectNext;
 use actions::menu::SelectPrevious;
-use actions::workspace::CopyPath;
-use actions::workspace::CopyRelativePath;
 use editor::AnchorRangeExt as _;
 use editor::Bias;
 use editor::DisplayPoint;
@@ -134,9 +132,12 @@ use ui::utils;
 use ui::utils::ui_text_style;
 use util::RangeExt as _;
 use util::rel_path::RelPath;
+use workspace::CopyPath;
+use workspace::CopyRelativePath;
 use workspace::OpenInTerminal;
 use workspace::WeakItemHandle;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
 use workspace::dock::PanelEvent;
@@ -975,18 +976,15 @@ pub enum Event {
     Focus,
 }
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(|workspace: &mut Workspace, _, _| {
-        workspace.register_action(|workspace, _: &ToggleFocus, window, cx| {
-            workspace.toggle_panel_focus::<OutlinePanel>(window, cx);
-        });
-        workspace.register_action(|workspace, _: &Toggle, window, cx| {
-            if !workspace.toggle_panel_focus::<OutlinePanel>(window, cx) {
-                workspace.close_panel::<OutlinePanel>(window, cx);
-            }
-        });
-    })
-    .detach();
+pub fn init(workspace_actions: &mut WorkspaceActions) {
+    workspace_actions.register_action(|workspace, _: &ToggleFocus, window, cx| {
+        workspace.toggle_panel_focus::<OutlinePanel>(window, cx);
+    });
+    workspace_actions.register_action(|workspace, _: &Toggle, window, cx| {
+        if !workspace.toggle_panel_focus::<OutlinePanel>(window, cx) {
+            workspace.close_panel::<OutlinePanel>(window, cx);
+        }
+    });
 }
 
 impl OutlinePanel {

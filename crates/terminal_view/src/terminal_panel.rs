@@ -79,6 +79,7 @@ use workspace::SwapPaneLeft;
 use workspace::SwapPaneRight;
 use workspace::SwapPaneUp;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::WorkspaceMode;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
@@ -105,21 +106,18 @@ actions!(
     ]
 );
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(|workspace: &mut Workspace, _window, _: &mut Context<Workspace>| {
-        workspace.register_action(TerminalPanel::new_terminal);
-        workspace.register_action(TerminalPanel::open_terminal);
-        workspace.register_action(|workspace, _: &ToggleFocus, window, cx| {
-            workspace.toggle_panel_focus::<TerminalPanel>(window, cx);
-        });
-        workspace.register_action(TerminalPanel::toggle_shell);
-        workspace.register_action(|workspace, _: &Toggle, window, cx| {
-            if !workspace.toggle_panel_focus::<TerminalPanel>(window, cx) {
-                workspace.close_panel::<TerminalPanel>(window, cx);
-            }
-        });
-    })
-    .detach();
+pub fn init(workspace_actions: &mut WorkspaceActions) {
+    workspace_actions.register_action(TerminalPanel::new_terminal);
+    workspace_actions.register_action(TerminalPanel::open_terminal);
+    workspace_actions.register_action(|workspace, _: &ToggleFocus, window, cx| {
+        workspace.toggle_panel_focus::<TerminalPanel>(window, cx);
+    });
+    workspace_actions.register_action(TerminalPanel::toggle_shell);
+    workspace_actions.register_action(|workspace, _: &Toggle, window, cx| {
+        if !workspace.toggle_panel_focus::<TerminalPanel>(window, cx) {
+            workspace.close_panel::<TerminalPanel>(window, cx);
+        }
+    });
 }
 
 pub struct TerminalPanel {

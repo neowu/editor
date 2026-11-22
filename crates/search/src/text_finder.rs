@@ -38,12 +38,23 @@ mod render;
 use delegate::Delegate;
 use delegate::matches_to_multibuffer;
 use util::ResultExt as _;
+use workspace::WorkspaceActions;
 
 use crate::ProjectSearchView;
 use crate::project_search::QuerySeed;
 use crate::text_finder::delegate::PopulateProjectSearch;
 
-actions!(text_finder, [ToProjectSearch, Fold, Unfold, ToggleFoldAll]);
+actions!(
+    text_finder,
+    [
+        /// Opens the Project Search Picker.
+        Toggle,
+        ToProjectSearch,
+        Fold,
+        Unfold,
+        ToggleFoldAll
+    ]
+);
 
 pub struct TextFinder {
     picker: Entity<Picker<Delegate>>,
@@ -51,14 +62,13 @@ pub struct TextFinder {
     _subscription: Subscription,
 }
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(TextFinder::register).detach();
+pub fn init(workspace_actions: &mut WorkspaceActions) {
+    TextFinder::register(workspace_actions);
 }
 
 impl TextFinder {
-    fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
-        pub(crate) use actions::text_finder::Toggle;
-        workspace.register_action(|workspace, _: &Toggle, window, cx| {
+    fn register(workspace_actions: &mut WorkspaceActions) {
+        workspace_actions.register_action(|workspace, _: &Toggle, window, cx| {
             let Some(text_picker) = workspace.active_modal::<Self>(cx) else {
                 let seed_query = Self::seed_query(workspace, window, cx);
                 Self::open(seed_query, window, cx).detach();

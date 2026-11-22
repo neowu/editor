@@ -21,7 +21,7 @@ use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 
-pub(crate) use actions::register_action;
+pub use actions::install_actions;
 pub(crate) use blocks::BlockLayout;
 use blocks::RenderBlocksOutput;
 use buffer_diff::DiffHunkStatus;
@@ -2348,7 +2348,7 @@ impl Element for EditorElement {
 
             window.set_key_context(key_context);
             window.handle_input(&focus_handle, ElementInputHandler::new(bounds, self.editor.clone()), cx);
-            self.register_actions(window, cx);
+            self.register_actions(window);
             self.register_key_listeners(window, cx, layout);
         }
 

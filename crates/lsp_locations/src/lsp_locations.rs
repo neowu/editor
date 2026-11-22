@@ -13,6 +13,7 @@ use editor::actions::GoToTypeDefinition;
 use editor::hover_links::HoverLink;
 use file_icons::FileIcons;
 use fuzzy::StringMatchCandidate;
+use gpui::ActionTable;
 use gpui::AnyElement;
 use gpui::App;
 use gpui::AppContext as _;
@@ -73,56 +74,26 @@ use workspace::Workspace;
 use workspace::notifications::NotificationId;
 use workspace::pane::NavigationEntry;
 
-pub fn init(cx: &mut App) {
-    cx.observe_new(register).detach();
-}
-
-/// Registers handlers for the navigation actions on each full editor. When the
-/// action resolves to [`OpenResultsIn::Picker`], we open the filterable picker;
-/// otherwise we `cx.propagate()` so the editor's own handler runs and builds a
-/// multibuffer.
-fn register(editor: &mut Editor, _window: Option<&mut Window>, cx: &mut Context<Editor>) {
-    if !editor.mode().is_full() {
-        return;
-    }
-    let handle = cx.entity().downgrade();
-    editor
-        .register_action({
-            let handle = handle.clone();
-            move |action: &GoToDefinition, window, cx| {
-                handle_nav_action(action.open_results_in, LspPickerKind::Definition, &handle, window, cx);
-            }
-        })
-        .detach();
-    editor
-        .register_action({
-            let handle = handle.clone();
-            move |action: &GoToDeclaration, window, cx| {
-                handle_nav_action(action.open_results_in, LspPickerKind::Declaration, &handle, window, cx);
-            }
-        })
-        .detach();
-    editor
-        .register_action({
-            let handle = handle.clone();
-            move |action: &GoToImplementation, window, cx| {
-                handle_nav_action(action.open_results_in, LspPickerKind::Implementation, &handle, window, cx);
-            }
-        })
-        .detach();
-    editor
-        .register_action({
-            let handle = handle.clone();
-            move |action: &GoToTypeDefinition, window, cx| {
-                handle_nav_action(action.open_results_in, LspPickerKind::TypeDefinition, &handle, window, cx);
-            }
-        })
-        .detach();
-    editor
-        .register_action(move |action: &FindAllReferences, window, cx| {
-            handle_nav_action(action.open_results_in, LspPickerKind::References, &handle, window, cx);
-        })
-        .detach();
+/// Handles the navigation actions on full editors, ahead of the editor's own handlers. When
+/// the action resolves to [`OpenResultsIn::Picker`], we open the filterable picker; otherwise
+/// we `cx.propagate()` so the editor's own handler runs and builds a multibuffer.
+pub fn init(editor_actions: &mut ActionTable<Editor>) {
+    let is_full = |editor: &Editor, _: &App| editor.mode().is_full();
+    editor_actions.add_if(is_full, |editor, action: &GoToDefinition, window, cx| {
+        handle_nav_action(action.open_results_in, LspPickerKind::Definition, editor, window, cx);
+    });
+    editor_actions.add_if(is_full, |editor, action: &GoToDeclaration, window, cx| {
+        handle_nav_action(action.open_results_in, LspPickerKind::Declaration, editor, window, cx);
+    });
+    editor_actions.add_if(is_full, |editor, action: &GoToImplementation, window, cx| {
+        handle_nav_action(action.open_results_in, LspPickerKind::Implementation, editor, window, cx);
+    });
+    editor_actions.add_if(is_full, |editor, action: &GoToTypeDefinition, window, cx| {
+        handle_nav_action(action.open_results_in, LspPickerKind::TypeDefinition, editor, window, cx);
+    });
+    editor_actions.add_if(is_full, |editor, action: &FindAllReferences, window, cx| {
+        handle_nav_action(action.open_results_in, LspPickerKind::References, editor, window, cx);
+    });
 }
 
 /// Either opens the picker for the editor, or propagates the action so the
@@ -131,15 +102,19 @@ fn register(editor: &mut Editor, _window: Option<&mut Window>, cx: &mut Context<
 fn handle_nav_action(
     open_results_in: Option<OpenResultsIn>,
     kind: LspPickerKind,
-    editor: &WeakEntity<Editor>,
+    editor: &Editor,
     window: &Window,
-    cx: &mut App,
+    cx: &mut Context<Editor>,
 ) {
     if open_results_in != Some(OpenResultsIn::Picker) {
         cx.propagate();
         return;
     }
-    LspLocationsPicker::open_for_editor(kind, editor.clone(), window, cx);
+    let Some(workspace) = editor.workspace() else {
+        return;
+    };
+    let editor = cx.entity();
+    workspace.update(cx, |_, cx| LspLocationsPicker::open(kind, editor, window, cx));
 }
 
 /// Runs the LSP query for `kind` and returns the raw locations. Returns `None`
@@ -237,16 +212,6 @@ pub struct LspLocationsPicker {
 }
 
 impl LspLocationsPicker {
-    fn open_for_editor(kind: LspPickerKind, editor: WeakEntity<Editor>, window: &Window, cx: &mut App) {
-        let Some(editor) = editor.upgrade() else {
-            return;
-        };
-        let Some(workspace) = editor.read(cx).workspace() else {
-            return;
-        };
-        workspace.update(cx, |_, cx| Self::open(kind, editor, window, cx));
-    }
-
     /// Opens the picker for `kind`: runs a fresh LSP query and shows the
     /// results. An empty definitions query falls back to references, matching
     /// [`Editor::go_to_definition`].
@@ -697,4 +662,28 @@ fn render_matched_line(location_match: &LocationMatch, cx: &App) -> StyledText {
 
     let highlights = gpui::combine_highlights(syntax_highlights, [match_highlight]);
     StyledText::new(location_match.display_text.clone()).with_default_highlights(&text_style, highlights)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::any::TypeId;
+
+    use super::*;
+
+    #[test]
+    fn init_handles_navigation_on_full_editors_only() {
+        let mut table = ActionTable::default();
+        init(&mut table);
+
+        let mut expected = [
+            TypeId::of::<GoToDefinition>(),
+            TypeId::of::<GoToDeclaration>(),
+            TypeId::of::<GoToImplementation>(),
+            TypeId::of::<GoToTypeDefinition>(),
+            TypeId::of::<FindAllReferences>(),
+        ];
+        expected.sort();
+        assert_eq!(table.action_types(), expected);
+        assert!(table.conditional().all(|conditional| conditional));
+    }
 }

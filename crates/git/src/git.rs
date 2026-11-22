@@ -10,6 +10,7 @@ pub mod status;
 
 use std::fmt;
 use std::fmt::Write as _;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use anyhow::Result;
@@ -46,6 +47,24 @@ pub const REPO_EXCLUDE: &str = "info/exclude";
 actions!(
     git,
     [
+        /// Checks out a different git branch.
+        CheckoutBranch,
+        /// Switches to a different git branch.
+        Switch,
+        /// Selects a different repository.
+        SelectRepo,
+        /// Opens the git branch selector.
+        Branch,
+        /// Shows uncommitted changes across the project.
+        ViewUncommittedChanges,
+        /// Shows unstaged changes across the project.
+        ViewUnstagedChanges,
+        /// Shows staged changes across the project.
+        ViewStagedChanges,
+        /// Opens the git stash selector.
+        ViewStash,
+        /// Opens the git worktree selector.
+        Worktree,
         // per-hunk
         /// Toggles the staged state of the hunk or status entry at cursor.
         ToggleStaged,
@@ -147,6 +166,51 @@ actions!(
         CreateTagAtHead,
     ]
 );
+
+/// Describes which ref to base a new git worktree on. The worktree is
+/// always created in a detached HEAD state; users can opt into creating
+/// a branch afterwards from the worktree itself.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub enum NewWorktreeBranchTarget {
+    /// Create a detached worktree from the current HEAD.
+    #[default]
+    CurrentBranch,
+    /// Create a detached worktree at the tip of an existing branch.
+    ExistingBranch { name: String },
+    /// Create a detached worktree at the tip of a remote-tracking branch.
+    RemoteBranch { remote_name: String, branch_name: String },
+}
+
+/// Creates a new git worktree and switches the workspace to it.
+/// Dispatched by the unified worktree picker when the user selects a "Create new worktree" entry.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Action)]
+#[action(namespace = git)]
+#[serde(deny_unknown_fields)]
+pub struct CreateWorktree {
+    /// When this is None, ed will randomly generate a worktree name.
+    pub worktree_name: Option<String>,
+    pub branch_target: NewWorktreeBranchTarget,
+}
+
+/// Switches the workspace to an existing linked worktree.
+/// Dispatched by the unified worktree picker when the user selects an existing worktree.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Action)]
+#[action(namespace = git)]
+#[serde(deny_unknown_fields)]
+pub struct SwitchWorktree {
+    pub path: PathBuf,
+    pub display_name: String,
+}
+
+/// Opens an existing worktree in a new window.
+/// Dispatched by the worktree picker's "Open in New Window" button.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Action)]
+#[action(namespace = git)]
+#[serde(deny_unknown_fields)]
+pub struct OpenWorktreeInNewWindow {
+    pub path: PathBuf,
+}
 
 /// Renames a git branch.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Action)]

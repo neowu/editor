@@ -1,7 +1,6 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use actions::workspace::OpenWithSystem;
 use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;
@@ -25,6 +24,7 @@ use ui::h_flex;
 use ui::v_flex;
 
 use crate::Item;
+use crate::OpenWithSystem;
 
 /// A view to display when a certain buffer/image/other item fails to open.
 #[derive(Debug)]

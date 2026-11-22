@@ -1,13 +1,11 @@
-use std::any::Any;
-use std::any::TypeId;
 use std::rc::Rc;
-use std::sync::LazyLock;
+use std::sync::OnceLock;
 
 use gpui::Action;
+use gpui::ActionTable;
 use gpui::App;
 use gpui::Context;
 use gpui::DispatchPhase;
-use gpui::Entity;
 use gpui::ModifiersChangedEvent;
 use gpui::TaskExt as _;
 use gpui::Window;
@@ -30,55 +28,8 @@ use crate::rust_analyzer_ext;
 use crate::scroll::scroll_amount::ScrollAmount;
 
 impl EditorElement {
-    pub(super) fn register_actions(&self, window: &mut Window, cx: &mut App) {
-        let editor = &self.editor;
-        editor.update(cx, |editor, cx| {
-            for action in editor.editor_actions.borrow().values() {
-                (action)(editor, window, cx);
-            }
-        });
-
-        rust_analyzer_ext::apply_related_actions(editor, window, cx);
-
-        register_action_table(editor, window, &ACTIONS);
-        if editor.read(cx).buffer_kind(cx) == ItemBufferKind::Multibuffer {
-            register_action(editor, window, Editor::expand_excerpts);
-            register_action(editor, window, Editor::expand_excerpts_up);
-            register_action(editor, window, Editor::expand_excerpts_down);
-        }
-        if editor.read(cx).lsp_data_enabled() {
-            if editor.read(cx).can_accept_inlay_hint(cx) {
-                register_action(editor, window, Editor::accept_inlay_hint);
-            }
-            register_action(editor, window, Editor::toggle_diagnostics);
-        }
-        if editor.read(cx).supports_minimap(cx) {
-            register_action(editor, window, Editor::toggle_minimap);
-        }
-        if editor.read(cx).blame().is_some() {
-            register_action(editor, window, Editor::open_git_blame_commit);
-            if editor.update(cx, |editor, cx| editor.blame_revision_target(window, cx).is_some()) {
-                register_action(editor, window, Editor::blame_revision);
-            }
-            if editor.update(cx, |editor, cx| editor.blame_previous_revision_target(window, cx).is_some()) {
-                register_action(editor, window, Editor::blame_previous_revision);
-            }
-        }
-        if !editor.read(cx).read_only(cx) {
-            register_action_table(editor, window, &EDIT_ACTIONS);
-            if editor.read(cx).enable_wrap_selections_in_tag(cx) {
-                register_action(editor, window, Editor::wrap_selections_in_tag);
-            }
-            if editor.read(cx).can_format_selections(cx) {
-                register_action(editor, window, |editor, action, window, cx| {
-                    if let Some(task) = editor.format_selections(action, window, cx) {
-                        editor.detach_and_notify_err(task, window, cx);
-                    } else {
-                        cx.propagate();
-                    }
-                });
-            }
-        }
+    pub(super) fn register_actions(&self, window: &mut Window) {
+        window.on_action_table(&self.editor, actions());
     }
 
     pub(super) fn register_key_listeners(&self, window: &mut Window, _: &mut App, layout: &EditorLayout) {
@@ -101,9 +52,48 @@ impl EditorElement {
     }
 }
 
-/// Actions every editor handles.
-static ACTIONS: LazyLock<ActionTable> = LazyLock::new(|| {
-    let mut t = ActionTableBuilder::default();
+static ACTIONS: OnceLock<ActionTable<Editor>> = OnceLock::new();
+
+/// Makes `table` the actions every editor handles, followed by the editor's own. Startup hands
+/// the table to each crate that adds editor actions, then installs it before any editor paints.
+/// Handlers for the same action run in registration order, so before the editor's own.
+pub fn install_actions(mut table: ActionTable<Editor>) {
+    add_built_in_actions(&mut table);
+    assert!(ACTIONS.set(table).is_ok(), "editor actions are installed once, before any editor paints");
+}
+
+fn actions() -> &'static ActionTable<Editor> {
+    // Only tests get here without `install_actions`; they handle the editor's own actions.
+    ACTIONS.get_or_init(|| {
+        let mut table = ActionTable::default();
+        add_built_in_actions(&mut table);
+        table
+    })
+}
+
+fn add_built_in_actions(t: &mut ActionTable<Editor>) {
+    add_actions(t);
+    add_edit_actions(&mut Editable(t));
+}
+
+fn editable(editor: &Editor, cx: &App) -> bool {
+    !editor.read_only(cx)
+}
+
+/// Adds handlers that only apply to editors that are not read-only.
+struct Editable<'a>(&'a mut ActionTable<Editor>);
+
+impl Editable<'_> {
+    fn add<A: Action>(
+        &mut self,
+        handler: impl Fn(&mut Editor, &A, &mut Window, &mut Context<Editor>) + Send + Sync + 'static,
+    ) {
+        self.0.add_if(editable, handler);
+    }
+}
+
+/// Actions every editor handles, some only in a certain state.
+fn add_actions(t: &mut ActionTable<Editor>) {
     t.add(Editor::open_context_menu);
     t.add(Editor::move_left);
     t.add(Editor::move_right);
@@ -324,12 +314,25 @@ static ACTIONS: LazyLock<ActionTable> = LazyLock::new(|| {
     t.add(Editor::open_selections_in_multibuffer);
     t.add(Editor::reload_file);
 
-    t.build()
-});
+    let is_multibuffer = |editor: &Editor, cx: &App| editor.buffer_kind(cx) == ItemBufferKind::Multibuffer;
+    t.add_if(is_multibuffer, Editor::expand_excerpts);
+    t.add_if(is_multibuffer, Editor::expand_excerpts_up);
+    t.add_if(is_multibuffer, Editor::expand_excerpts_down);
+    t.add_if(Editor::can_accept_inlay_hint, Editor::accept_inlay_hint);
+    t.add_if(|editor, _| editor.lsp_data_enabled(), Editor::toggle_diagnostics);
+    t.add_if(Editor::supports_minimap, Editor::toggle_minimap);
+    // The blame handlers propagate when the cursor is not on a blamed line.
+    let has_blame = |editor: &Editor, _: &App| editor.blame().is_some();
+    t.add_if(has_blame, Editor::open_git_blame_commit);
+    t.add_if(has_blame, Editor::blame_revision);
+    t.add_if(has_blame, Editor::blame_previous_revision);
+    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::go_to_parent_module);
+    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::expand_macro_recursively);
+    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::open_docs);
+}
 
 /// Actions only editors that are not read-only handle.
-static EDIT_ACTIONS: LazyLock<ActionTable> = LazyLock::new(|| {
-    let mut t = ActionTableBuilder::default();
+fn add_edit_actions(t: &mut Editable) {
     t.add(Editor::newline);
     t.add(Editor::newline_above);
     t.add(Editor::newline_below);
@@ -458,125 +461,94 @@ static EDIT_ACTIONS: LazyLock<ActionTable> = LazyLock::new(|| {
             cx.propagate();
         }
     });
-    t.build()
-});
 
-type ActionHandler = Box<dyn Fn(&mut Editor, &dyn Any, &mut Window, &mut Context<Editor>) + Send + Sync>;
-
-/// Action types (sorted) with their handlers, built once so painting an editor registers a
-/// single listener instead of one per action.
-pub(super) struct ActionTable {
-    types: Vec<TypeId>,
-    handlers: Vec<ActionHandler>,
-}
-
-#[derive(Default)]
-struct ActionTableBuilder(Vec<(TypeId, ActionHandler)>);
-
-impl ActionTableBuilder {
-    fn add<T: Action>(
-        &mut self,
-        listener: impl Fn(&mut Editor, &T, &mut Window, &mut Context<Editor>) + Send + Sync + 'static,
-    ) {
-        self.0.push((
-            TypeId::of::<T>(),
-            Box::new(move |editor, action, window, cx| {
-                listener(editor, action.downcast_ref().expect("action type matches listener"), window, cx);
-            }),
-        ));
-    }
-
-    fn build(mut self) -> ActionTable {
-        self.0.sort_by_key(|(action_type, _)| *action_type);
-        assert!(self.0.is_sorted_by(|a, b| a.0 < b.0), "action registered twice in one table");
-        let (types, handlers) = self.0.into_iter().unzip();
-        ActionTable { types, handlers }
-    }
-}
-
-fn register_action_table(editor: &Entity<Editor>, window: &mut Window, table: &'static ActionTable) {
-    let editor = editor.clone();
-    window.on_action_table(&table.types, move |ix, action, window, cx| {
-        editor.update(cx, |editor, cx| (table.handlers[ix])(editor, action, window, cx));
-    });
-}
-
-pub(crate) fn register_action<T: Action>(
-    editor: &Entity<Editor>,
-    window: &mut Window,
-    listener: impl Fn(&mut Editor, &T, &mut Window, &mut Context<Editor>) + 'static,
-) {
-    register_action_erased(
-        editor,
-        window,
-        TypeId::of::<T>(),
-        Box::new(move |editor, action, window, cx| {
-            listener(editor, action.downcast_ref().expect("action type matches listener"), window, cx);
-        }),
+    t.0.add_if(
+        |editor, cx| editable(editor, cx) && editor.enable_wrap_selections_in_tag(cx),
+        Editor::wrap_selections_in_tag,
     );
-}
-
-#[allow(clippy::type_complexity)]
-pub(super) fn register_action_erased(
-    editor: &Entity<Editor>,
-    window: &mut Window,
-    action_type: TypeId,
-    listener: Box<dyn Fn(&mut Editor, &dyn Any, &mut Window, &mut Context<Editor>)>,
-) {
-    let editor = editor.clone();
-    window.on_action(action_type, move |action, phase, window, cx| {
-        if phase == DispatchPhase::Bubble {
-            editor.update(cx, |editor, cx| {
-                listener(editor, action, window, cx);
-            });
-        }
-    });
+    t.0.add_if(
+        |editor, cx| editable(editor, cx) && editor.can_format_selections(cx),
+        |editor, action, window, cx| {
+            if let Some(task) = editor.format_selections(action, window, cx) {
+                editor.detach_and_notify_err(task, window, cx);
+            } else {
+                cx.propagate();
+            }
+        },
+    );
 }
 
 #[cfg(test)]
 mod tests {
+    use std::any::TypeId;
+
     use super::*;
+    use crate::actions;
 
-    #[test]
-    fn action_tables_are_sorted_and_disjoint() {
-        // Building a table asserts it has no duplicate action types.
-        for table in [&*ACTIONS, &*EDIT_ACTIONS] {
-            assert!(table.types.is_sorted());
-            assert_eq!(table.types.len(), table.handlers.len());
-        }
-        assert!(ACTIONS.types.iter().all(|action_type| EDIT_ACTIONS.types.binary_search(action_type).is_err()));
+    fn built_in() -> ActionTable<Editor> {
+        let mut table = ActionTable::default();
+        add_built_in_actions(&mut table);
+        table
+    }
+
+    /// Whether the table's only handler for `A` carries a condition.
+    fn conditional<A: Action>(table: &ActionTable<Editor>) -> bool {
+        let ix = table.action_types().binary_search(&TypeId::of::<A>()).expect("action is handled");
+        table.conditional().nth(ix).expect("one condition slot per handler")
     }
 
     #[test]
-    fn action_tables_split_navigation_from_editing() {
-        let in_table = |table: &ActionTable, action_type: TypeId| table.types.binary_search(&action_type).is_ok();
-
-        assert!(in_table(&ACTIONS, TypeId::of::<crate::actions::MoveLeft>()));
-        assert!(in_table(&ACTIONS, TypeId::of::<crate::actions::Copy>()));
-        assert!(in_table(&EDIT_ACTIONS, TypeId::of::<crate::actions::Newline>()));
-        assert!(in_table(&EDIT_ACTIONS, TypeId::of::<HandleInput>()));
-        assert!(!in_table(&ACTIONS, TypeId::of::<crate::actions::Newline>()));
+    fn built_in_actions_handle_each_action_once() {
+        assert!(built_in().action_types().is_sorted_by(|a, b| a < b), "action handled twice");
     }
 
     #[test]
-    fn builder_sorts_by_action_type() {
-        let mut builder = ActionTableBuilder::default();
-        builder.add(|_, _: &LineDown, _, _| {});
-        builder.add(|_, _: &LineUp, _, _| {});
-        builder.add(|_, _: &PageDown, _, _| {});
-        let table = builder.build();
+    fn navigation_applies_to_every_editor() {
+        let table = built_in();
 
-        assert_eq!(table.types.len(), 3);
-        assert!(table.types.is_sorted());
-        assert!(table.types.contains(&TypeId::of::<LineUp>()));
+        assert!(!conditional::<actions::MoveLeft>(&table));
+        assert!(!conditional::<actions::Copy>(&table));
+        assert!(!conditional::<actions::GoToDefinition>(&table));
     }
 
     #[test]
-    #[should_panic(expected = "action registered twice")]
-    fn builder_rejects_duplicate_action_types() {
-        let mut builder = ActionTableBuilder::default();
-        builder.add(|_, _: &LineDown, _, _| {});
-        builder.add(|_, _: &LineDown, _, _| {});
-        builder.build();
+    fn editing_depends_on_the_editor_being_editable() {
+        let table = built_in();
+
+        assert!(conditional::<actions::Newline>(&table));
+        assert!(conditional::<HandleInput>(&table));
+        assert!(conditional::<actions::Paste>(&table));
+        assert!(conditional::<actions::WrapSelectionsInTag>(&table));
+        assert!(conditional::<actions::FormatSelections>(&table));
+    }
+
+    #[test]
+    fn state_dependent_actions_are_conditional() {
+        let table = built_in();
+
+        assert!(conditional::<actions::ExpandExcerpts>(&table));
+        assert!(conditional::<actions::AcceptInlayHint>(&table));
+        assert!(conditional::<actions::ToggleDiagnostics>(&table));
+        assert!(conditional::<actions::ToggleMinimap>(&table));
+        assert!(conditional::<actions::BlameRevision>(&table));
+        assert!(conditional::<actions::GoToParentModule>(&table));
+    }
+
+    #[test]
+    fn built_in_handlers_follow_registered_ones() {
+        let mut table = ActionTable::default();
+        table.add_if(|_, _| false, |_, _: &actions::GoToDefinition, _, _| {});
+        add_built_in_actions(&mut table);
+
+        let definition = TypeId::of::<actions::GoToDefinition>();
+        let handlers: Vec<bool> = table
+            .action_types()
+            .iter()
+            .zip(table.conditional())
+            .filter_map(|(action_type, conditional)| (*action_type == definition).then_some(conditional))
+            .collect();
+        // The registered (conditional) handler runs before the editor's own.
+        assert_eq!(handlers, [true, false]);
+        assert_eq!(table.action_types().len(), built_in().action_types().len() + 1);
     }
 }

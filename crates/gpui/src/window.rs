@@ -34,6 +34,7 @@ use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 
 use crate::Action;
+use crate::ActionTable;
 use crate::AnyElement;
 use crate::AnyImageCache;
 use crate::AnyTooltip;
@@ -48,6 +49,7 @@ use crate::Bounds;
 use crate::Capslock;
 use crate::Context;
 use crate::CursorStyle;
+use crate::DispatchActionTable;
 use crate::DispatchNodeId;
 use crate::DispatchTree;
 use crate::DisplayId;
@@ -1711,7 +1713,7 @@ impl Window {
     /// Determine whether the given action is available along the dispatch path to the currently focused element.
     pub fn is_action_available(&self, action: &dyn Action, cx: &App) -> bool {
         let node_id = self.focus_node_id_in_rendered_frame(self.focused(cx).map(|handle| handle.id));
-        self.rendered_frame.dispatch_tree.is_action_available(action, node_id)
+        self.rendered_frame.dispatch_tree.is_action_available(action, node_id, |table, ix| table.applies(ix, cx))
     }
 
     /// The position of the mouse relative to the window.
@@ -2948,15 +2950,12 @@ impl Window {
         self.next_frame.dispatch_tree.on_action(action_type, Rc::new(listener));
     }
 
-    /// Register one bubble-phase listener for a sorted set of action types on the current
-    /// dispatch node. The listener receives the index of the dispatched action's type. Cheaper
-    /// than [`Self::on_action`] per action for elements that handle many actions every frame.
-    pub fn on_action_table(
-        &mut self,
-        action_types: &'static [TypeId],
-        listener: impl Fn(usize, &dyn Any, &mut Window, &mut App) + 'static,
-    ) {
-        self.next_frame.dispatch_tree.on_action_table(action_types, Rc::new(listener));
+    /// Attach `table` to the current dispatch node for the next frame, with `entity` as the view
+    /// its handlers run on. Costs one push however many actions the table handles.
+    ///
+    /// This method should only be called as part of the paint phase of element drawing.
+    pub fn on_action_table<V: 'static>(&mut self, entity: &Entity<V>, table: &'static ActionTable<V>) {
+        self.next_frame.dispatch_tree.on_action_table(DispatchActionTable::new(entity, table));
     }
 
     /// Perform titlebar double-click action.

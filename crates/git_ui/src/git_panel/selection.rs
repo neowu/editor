@@ -1,4 +1,3 @@
-use actions::git_panel::ToggleFocus;
 use actions::menu;
 use git::repository::RepoPath;
 use gpui::Entity;
@@ -23,6 +22,7 @@ use super::NextEntry;
 use super::PreviousEntry;
 use super::Section;
 use super::SelectionTargetKind;
+use super::ToggleFocus;
 use super::TreeKey;
 use crate::git_panel_view_options::GitPanelGroupBy;
 use crate::git_panel_view_options::GitPanelViewOptions;

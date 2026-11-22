@@ -108,11 +108,11 @@ actions!(
     ]
 );
 
-pub fn switch(workspace: &mut Workspace, _: &actions::git::Switch, window: &mut Window, cx: &mut Context<Workspace>) {
-    open(workspace, &actions::git::Branch, window, cx);
+pub fn switch(workspace: &mut Workspace, _: &git::Switch, window: &mut Window, cx: &mut Context<Workspace>) {
+    open(workspace, &git::Branch, window, cx);
 }
 
-pub fn open(workspace: &mut Workspace, _: &actions::git::Branch, window: &mut Window, cx: &mut Context<Workspace>) {
+pub fn open(workspace: &mut Workspace, _: &git::Branch, window: &mut Window, cx: &mut Context<Workspace>) {
     let workspace_handle = workspace.weak_handle();
     let repository = workspace.project().read(cx).active_repository(cx);
 

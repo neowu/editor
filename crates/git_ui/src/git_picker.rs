@@ -2,11 +2,11 @@ use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use actions::git::Branch;
-use actions::git::CheckoutBranch;
-use actions::git::Switch;
-use actions::git::ViewStash;
 use actions::menu;
+use git::Branch;
+use git::CheckoutBranch;
+use git::Switch;
+use git::ViewStash;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Context;
@@ -41,6 +41,7 @@ use ui::prelude::h_flex;
 use ui::prelude::v_flex;
 use workspace::ModalView;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::pane;
 
 use crate::branch_picker;
@@ -477,17 +478,17 @@ pub fn popover(
     })
 }
 
-pub fn register(workspace: &mut Workspace) {
-    workspace.register_action(|workspace, _: &Branch, window, cx| {
+pub fn register(workspace_actions: &mut WorkspaceActions) {
+    workspace_actions.register_action(|workspace, _: &Branch, window, cx| {
         open_with_tab(workspace, GitPickerTab::Branches, window, cx);
     });
-    workspace.register_action(|workspace, _: &Switch, window, cx| {
+    workspace_actions.register_action(|workspace, _: &Switch, window, cx| {
         open_with_tab(workspace, GitPickerTab::Branches, window, cx);
     });
-    workspace.register_action(|workspace, _: &CheckoutBranch, window, cx| {
+    workspace_actions.register_action(|workspace, _: &CheckoutBranch, window, cx| {
         open_with_tab(workspace, GitPickerTab::Branches, window, cx);
     });
-    workspace.register_action(|workspace, _: &ViewStash, window, cx| {
+    workspace_actions.register_action(|workspace, _: &ViewStash, window, cx| {
         open_with_tab(workspace, GitPickerTab::Stashes, window, cx);
     });
 }

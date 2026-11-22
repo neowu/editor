@@ -71,6 +71,7 @@ use ui::prelude::v_flex;
 use workspace::ItemHandle as _;
 use workspace::ItemNavHistory;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::item::Item;
 use workspace::item::ItemEvent;
 use workspace::item::SaveOptions;
@@ -264,8 +265,8 @@ impl BufferDiagnosticsEditor {
         }
     }
 
-    pub(crate) fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
-        workspace.register_action(Self::deploy);
+    pub(crate) fn register(workspace_actions: &mut WorkspaceActions) {
+        workspace_actions.register_action(Self::deploy);
     }
 
     fn update_all_diagnostics(&mut self, window: &Window, cx: &Context<Self>) {

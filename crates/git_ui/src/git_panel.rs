@@ -6,10 +6,7 @@ use std::time::Duration;
 use actions::DecreaseBufferFontSize;
 use actions::IncreaseBufferFontSize;
 use actions::ResetBufferFontSize;
-use actions::git_panel::ToggleFocus;
 use actions::menu;
-use actions::workspace::CopyPath;
-use actions::workspace::CopyRelativePath;
 use editor::Editor;
 use editor::EditorMode;
 use editor::EditorStyle;
@@ -84,8 +81,11 @@ use ui::prelude::px;
 use ui::prelude::rems;
 use ui::prelude::v_flex;
 use util::ResultExt as _;
+use workspace::CopyPath;
+use workspace::CopyRelativePath;
 use workspace::Item as _;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::dock::DockPosition;
 use workspace::dock::Panel;
 use workspace::dock::PanelEvent;
@@ -129,6 +129,8 @@ pub(crate) const LIST_ITEM_HEIGHT: Rems = rems(1.75);
 actions!(
     git_panel,
     [
+        /// Toggles focus on the git panel.
+        ToggleFocus,
         /// Closes the git panel.
         Close,
         /// Toggles the git panel.
@@ -186,32 +188,32 @@ pub(crate) enum RemoteOperationKind {
     Push,
 }
 
-pub fn register(workspace: &mut Workspace) {
-    workspace.register_action(|workspace, _: &ToggleFocus, window, cx| {
+pub fn register(workspace_actions: &mut WorkspaceActions) {
+    workspace_actions.register_action(|workspace, _: &ToggleFocus, window, cx| {
         workspace.toggle_panel_focus::<GitPanel>(window, cx);
     });
-    workspace.register_action(|workspace, _: &Toggle, window, cx| {
+    workspace_actions.register_action(|workspace, _: &Toggle, window, cx| {
         if !workspace.toggle_panel_focus::<GitPanel>(window, cx) {
             workspace.close_panel::<GitPanel>(window, cx);
         }
     });
-    workspace.register_action(|workspace, _: &Commit, window, cx| {
+    workspace_actions.register_action(|workspace, _: &Commit, window, cx| {
         focus_commit_editor(workspace, false, window, cx);
     });
-    workspace.register_action(|workspace, _: &Amend, window, cx| {
+    workspace_actions.register_action(|workspace, _: &Amend, window, cx| {
         focus_commit_editor(workspace, true, window, cx);
     });
-    workspace.register_action(|workspace, _: &ToggleFillCommitEditor, window, cx| {
+    workspace_actions.register_action(|workspace, _: &ToggleFillCommitEditor, window, cx| {
         if let Some(panel) = workspace.panel::<GitPanel>(cx) {
             panel.update(cx, |panel, cx| panel.toggle_fill_commit_editor(&ToggleFillCommitEditor, window, cx));
         }
     });
-    workspace.register_action(|workspace, _: &ToggleCommitEditor, window, cx| {
+    workspace_actions.register_action(|workspace, _: &ToggleCommitEditor, window, cx| {
         if let Some(panel) = workspace.panel::<GitPanel>(cx) {
             panel.update(cx, |panel, cx| panel.toggle_commit_editor(&ToggleCommitEditor, window, cx));
         }
     });
-    workspace.register_action(|workspace, _: &git::Init, window, cx| {
+    workspace_actions.register_action(|workspace, _: &git::Init, window, cx| {
         if let Some(panel) = workspace.panel::<GitPanel>(cx) {
             panel.update(cx, |panel, cx| panel.git_init(window, cx));
         }
@@ -903,15 +905,33 @@ impl GitPanel {
 
     fn view_file_history(&mut self, _: &git::FileHistory, window: &mut Window, cx: &mut Context<Self>) {
         let entries = self.effective_status_entries();
+        let git_store = self.project.read(cx).git_store().clone();
         if entries.len() <= 1 {
-            cx.propagate();
+            // Without a selection the workspace opens the active editor's file.
+            let Some((repository, repo_path)) = self.selected_file_history_target() else {
+                cx.propagate();
+                return;
+            };
+            let repository_id = repository.read(cx).id;
+            self.workspace
+                .update(cx, |workspace, cx| {
+                    git_graph::open_or_reuse_graph(
+                        workspace,
+                        repository_id,
+                        git_store,
+                        LogSource::Path(repo_path),
+                        None,
+                        window,
+                        cx,
+                    );
+                })
+                .log_err();
             return;
         }
         let Some(repository) = self.active_repository.as_ref() else {
             return;
         };
         let repository_id = repository.read(cx).id;
-        let git_store = self.project.read(cx).git_store().clone();
         self.workspace
             .update(cx, |workspace, cx| {
                 for entry in entries {

@@ -54,6 +54,7 @@ use workspace::ToolbarItemEvent;
 use workspace::ToolbarItemLocation;
 use workspace::ToolbarItemView;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::item::Item;
 use workspace::item::ItemEvent;
 use workspace::item::SaveOptions;
@@ -92,11 +93,11 @@ impl Addon for BranchDiffAddon {
 }
 
 impl BranchDiff {
-    pub(crate) fn register(workspace: &mut Workspace, cx: &mut Context<Workspace>) {
-        workspace.register_action(|workspace, _: &DeployBranchDiff, window, cx| {
+    pub(crate) fn register(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
+        workspace_actions.register_action(|workspace, _: &DeployBranchDiff, window, cx| {
             Self::deploy_branch_diff(workspace, window, cx);
         });
-        workspace.register_action(Self::compare_with_branch);
+        workspace_actions.register_action(Self::compare_with_branch);
         workspace::register_serializable_item::<Self>(cx);
     }
 

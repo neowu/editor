@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
 
-use actions::git::SelectRepo;
+use git::SelectRepo;
 use project::git_store::Repository;
 mod worktree_branch;
 
@@ -34,6 +34,7 @@ use ui::prelude::IconSize;
 use ui::prelude::SharedString;
 use ui::prelude::h_flex;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 
 use crate::worktree_branch::header_text_button;
 
@@ -57,31 +58,33 @@ actions!(
     ]
 );
 
-pub fn init(cx: &mut App) {
+pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     cx.observe_new(|workspace: &mut Workspace, window, cx| {
         let Some(window) = window else {
             return;
         };
         let item = cx.new(|cx| TitleBar::new(workspace, cx));
-        // The project menu is the only folder and repository switcher.
-        let title_bar = item.downgrade();
-        workspace.register_action(move |_, _: &ToggleProjectMenu, window, cx| {
-            toggle_project_menu(title_bar.clone(), window, cx);
-        });
-        let title_bar = item.downgrade();
-        workspace.register_action(move |_, _: &SelectRepo, window, cx| {
-            toggle_project_menu(title_bar.clone(), window, cx);
-        });
         workspace.set_titlebar_item(item.into(), window, cx);
     })
     .detach();
+
+    // The project menu is the only folder and repository switcher.
+    workspace_actions.register_action(|workspace, _: &ToggleProjectMenu, window, cx| {
+        toggle_project_menu(workspace, window, cx);
+    });
+    workspace_actions.register_action(|workspace, _: &SelectRepo, window, cx| {
+        toggle_project_menu(workspace, window, cx);
+    });
 }
 
 /// Toggles the header's project menu. Deferred because building the menu
 /// reads the workspace, which is being updated while its actions run.
-fn toggle_project_menu(title_bar: WeakEntity<TitleBar>, window: &Window, cx: &mut App) {
+fn toggle_project_menu(workspace: &Workspace, window: &Window, cx: &mut App) {
+    let Some(title_bar) = workspace.titlebar_item().and_then(|item| item.clone().downcast::<TitleBar>().ok()) else {
+        return;
+    };
     window.defer(cx, move |window, cx| {
-        title_bar.update(cx, |title_bar, cx| title_bar.project_menu_handle.toggle(window, cx)).ok();
+        title_bar.update(cx, |title_bar, cx| title_bar.project_menu_handle.toggle(window, cx));
     });
 }
 

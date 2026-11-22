@@ -2,7 +2,6 @@ use std::any::Any;
 use std::any::TypeId;
 use std::sync::Arc;
 
-use actions::git as git_actions;
 use anyhow::Context as _;
 use anyhow::Result;
 use buffer_diff::DiffHunkSecondaryStatus;
@@ -12,6 +11,7 @@ use editor::EditorEvent;
 use editor::SplittableEditor;
 use editor::actions::GoToHunk;
 use editor::actions::GoToPreviousHunk;
+use git as git_actions;
 use git::Commit;
 use git::StageAll;
 use git::StageAndNext;
@@ -68,6 +68,7 @@ use workspace::ToolbarItemEvent;
 use workspace::ToolbarItemLocation;
 use workspace::ToolbarItemView;
 use workspace::Workspace;
+use workspace::WorkspaceActions;
 use workspace::item::Item;
 use workspace::item::ItemEvent;
 use workspace::item::ItemHandle;
@@ -108,18 +109,18 @@ pub struct ProjectDiff {
 }
 
 impl ProjectDiff {
-    pub(crate) fn register(workspace: &mut Workspace, cx: &mut Context<Workspace>) {
-        workspace.register_action(Self::deploy);
-        workspace.register_action(|workspace, _: &git_actions::ViewUncommittedChanges, window, cx| {
+    pub(crate) fn register(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
+        workspace_actions.register_action(Self::deploy);
+        workspace_actions.register_action(|workspace, _: &git_actions::ViewUncommittedChanges, window, cx| {
             Self::deploy_at(workspace, None, window, cx);
         });
-        workspace.register_action(|workspace, _: &git_actions::ViewUnstagedChanges, window, cx| {
+        workspace_actions.register_action(|workspace, _: &git_actions::ViewUnstagedChanges, window, cx| {
             UnstagedDiff::deploy_at(workspace, None, window, cx);
         });
-        workspace.register_action(|workspace, _: &git_actions::ViewStagedChanges, window, cx| {
+        workspace_actions.register_action(|workspace, _: &git_actions::ViewStagedChanges, window, cx| {
             StagedDiff::deploy_at(workspace, None, window, cx);
         });
-        workspace.register_action(|workspace, _: &Add, window, cx| {
+        workspace_actions.register_action(|workspace, _: &Add, window, cx| {
             Self::deploy_at(workspace, None, window, cx);
         });
         workspace::register_serializable_item::<ProjectDiff>(cx);
