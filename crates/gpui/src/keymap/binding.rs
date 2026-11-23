@@ -12,7 +12,6 @@ use crate::InvalidKeystrokeError;
 use crate::KeyBindingContextPredicate;
 use crate::KeybindingKeystroke;
 use crate::Keystroke;
-use crate::SharedString;
 
 /// A keybinding and its associated metadata, from the keymap.
 pub struct KeyBinding {
@@ -20,8 +19,6 @@ pub struct KeyBinding {
     pub(crate) keystrokes: SmallVec<[KeybindingKeystroke; 2]>,
     pub(crate) context_predicate: Option<Rc<KeyBindingContextPredicate>>,
     pub(crate) meta: Option<KeyBindingMetaIndex>,
-    /// The json input string used when building the keybinding, if any.
-    pub(crate) action_input: Option<SharedString>,
 }
 
 impl Clone for KeyBinding {
@@ -31,7 +28,6 @@ impl Clone for KeyBinding {
             keystrokes: self.keystrokes.clone(),
             context_predicate: self.context_predicate.clone(),
             meta: self.meta,
-            action_input: self.action_input.clone(),
         }
     }
 }
@@ -41,7 +37,7 @@ impl KeyBinding {
     pub fn new<A: Action>(keystrokes: &str, action: A, context: Option<&str>) -> Self {
         let context_predicate = context
             .map(|context| KeyBindingContextPredicate::parse(context).expect("invalid keybinding context").into());
-        Self::load(keystrokes, Box::new(action), context_predicate, None).expect("invalid keybinding keystrokes")
+        Self::load(keystrokes, Box::new(action), context_predicate).expect("invalid keybinding keystrokes")
     }
 
     /// Load a keybinding from the given raw data.
@@ -49,14 +45,13 @@ impl KeyBinding {
         keystrokes: &str,
         action: Box<dyn Action>,
         context_predicate: Option<Rc<KeyBindingContextPredicate>>,
-        action_input: Option<SharedString>,
     ) -> result::Result<Self, InvalidKeystrokeError> {
         let keystrokes: SmallVec<[KeybindingKeystroke; 2]> = keystrokes
             .split_whitespace()
             .map(|source| Ok(KeybindingKeystroke::from_keystroke(Keystroke::parse(source)?)))
             .collect::<result::Result<_, _>>()?;
 
-        Ok(Self { keystrokes, action, context_predicate, meta: None, action_input })
+        Ok(Self { keystrokes, action, context_predicate, meta: None })
     }
 
     /// Set the metadata for this binding.
@@ -126,15 +121,14 @@ mod tests {
 
     #[test]
     fn load_parses_each_keystroke_unmapped() {
-        let binding = KeyBinding::load("cmd-k  ctrl-]", Box::new(First), None, Some("1".into())).unwrap();
+        let binding = KeyBinding::load("cmd-k  ctrl-]", Box::new(First), None).unwrap();
         let keystrokes: Vec<_> = binding.keystrokes().iter().map(|k| k.inner().clone()).collect();
         assert_eq!(keystrokes, [Keystroke::parse("cmd-k").unwrap(), Keystroke::parse("ctrl-]").unwrap()]);
-        assert_eq!(binding.action_input.as_deref(), Some("1"));
         assert!(binding.action().partial_eq(&First));
     }
 
     #[test]
     fn load_rejects_invalid_keystrokes() {
-        KeyBinding::load("cmd-k a-b", Box::new(First), None, None).unwrap_err();
+        KeyBinding::load("cmd-k a-b", Box::new(First), None).unwrap_err();
     }
 }

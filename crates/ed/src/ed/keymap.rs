@@ -42,10 +42,8 @@ impl Keymap<'_> {
     }
 
     fn push(&mut self, keystrokes: &str, action: &str, input: Option<Value>) {
-        let action_input = input.as_ref().map(|input| input.to_string().into());
-        let binding =
-            KeyBinding::load(keystrokes, (self.build_action)(action, input), self.context.clone(), action_input)
-                .unwrap_or_else(|error| panic!("invalid built-in keystrokes {keystrokes}: {error}"));
+        let binding = KeyBinding::load(keystrokes, (self.build_action)(action, input), self.context.clone())
+            .unwrap_or_else(|error| panic!("invalid built-in keystrokes {keystrokes}: {error}"));
         self.bindings.push(binding);
     }
 }
