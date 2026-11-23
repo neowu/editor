@@ -342,7 +342,7 @@ pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) 
                             language_paths.insert(Arc::clone(&path_range.path));
                             CodeBlockKind::FencedSrc(path_range)
                         } else {
-                            let language = SharedString::from(info.to_owned());
+                            let language = SharedString::from(info);
                             language_names.insert(language.clone());
                             CodeBlockKind::FencedLang(language)
                         };
@@ -541,7 +541,7 @@ pub(crate) fn parse_markdown_with_options(text: &str, options: MarkdownOptions) 
                             link_range.clone(),
                             MarkdownEvent::Start(MarkdownTag::Link {
                                 link_type: LinkType::Autolink,
-                                dest_url: SharedString::from(link.as_str().to_owned()),
+                                dest_url: SharedString::from(link.as_str()),
                                 title: SharedString::default(),
                                 id: SharedString::default(),
                             }),
