@@ -1,8 +1,6 @@
 use std::any::Any;
 use std::any::TypeId;
-use std::collections::HashMap;
 use std::ops::Range;
-use std::sync::Mutex;
 
 use crate::Action;
 use crate::AnyEntity;
@@ -40,9 +38,6 @@ struct Entry<V> {
     handler: Handler<V>,
 }
 
-/// One leaked table per view type, for [`ActionTable::shared`].
-static SHARED: Mutex<Option<HashMap<TypeId, &'static (dyn Any + Send + Sync)>>> = Mutex::new(None);
-
 impl<V> Default for ActionTable<V> {
     fn default() -> Self {
         Self::new()
@@ -63,19 +58,6 @@ impl<V: 'static> ActionTable<V> {
         handler: impl Fn(&mut V, &A, &mut Window, &mut Context<V>) + Send + Sync + 'static,
     ) {
         self.insert(None, handler);
-    }
-
-    /// The table for `V`, built by `build` the first time it is asked for and leaked. For generic
-    /// views, which cannot name a `static` per instantiation; look it up once per view, not per
-    /// frame.
-    pub fn shared(build: fn(&mut Self)) -> &'static Self {
-        let mut shared = SHARED.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        let table = *shared.get_or_insert_default().entry(TypeId::of::<V>()).or_insert_with(|| {
-            let mut table = Self::new();
-            build(&mut table);
-            Box::leak(Box::new(table))
-        });
-        table.downcast_ref().expect("tables are keyed by their view type")
     }
 
     /// Handle `A` only while `condition` held for the view when the table was last attached.
@@ -267,22 +249,6 @@ mod tests {
         let types = table.action_types().to_vec();
 
         assert_eq!(attach(table).action_types(), types);
-    }
-
-    #[test]
-    fn shared_builds_one_table_per_view_type() {
-        struct A;
-        struct B;
-        fn first<V: 'static>(table: &mut ActionTable<V>) {
-            table.add(|_: &mut V, _: &First, _: &mut Window, _: &mut Context<V>| {});
-        }
-        fn none<V>(_: &mut ActionTable<V>) {}
-
-        let a = ActionTable::<A>::shared(first);
-        assert_eq!(a.action_types(), [TypeId::of::<First>()]);
-        // The second builder is ignored: the table already exists.
-        assert!(std::ptr::eq(a, ActionTable::<A>::shared(none)));
-        assert!(ActionTable::<B>::shared(none).action_types().is_empty());
     }
 
     #[test]

@@ -423,7 +423,7 @@ impl<D: PickerDelegate> Picker<D> {
             show_scrollbar: false,
             presentation: Presentation::Modal,
             picker_bounds: Rc::new(Cell::new(None)),
-            actions: gpui::ActionTable::shared(Self::add_actions),
+            actions: Self::actions(),
             item_bounds: Rc::new(RefCell::new(HashMap::default())),
             reopenable: true,
         };

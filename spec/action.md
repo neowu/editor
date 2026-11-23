@@ -44,9 +44,9 @@ the workspace rebuilt all of its handlers on every frame.
   node (the project search bar's query and filter inputs, a terminal's tab
   and its rename editor). A node outside the view's own render (an item's
   tab, drawn by the pane) attaches the table with the view's entity.
-- A generic view cannot name a `static` per instantiation. It takes its table
-  from `ActionTable::shared` once, when it is created, and keeps the
-  reference (`Picker<D>`).
+- A generic view cannot name a `static` per instantiation. `Picker<D>` keeps a
+  private map of one leaked table per delegate type, looks its table up once
+  when it is created, and keeps the reference. gpui has no shared registry.
 
 ## Dispatch
 

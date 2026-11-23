@@ -1,7 +1,12 @@
+use std::any::Any;
+use std::any::TypeId;
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use gpui::Action as _;
+use gpui::ActionTable;
 use gpui::Focusable as _;
 use gpui::canvas;
 use ui::Color;
@@ -53,8 +58,29 @@ impl<D: PickerDelegate> Render for Picker<D> {
     }
 }
 
+/// One leaked table per view type. `Picker<D>` is generic, so it cannot name a `static` per
+/// instantiation.
+static TABLES: Mutex<Option<HashMap<TypeId, &'static (dyn Any + Send + Sync)>>> = Mutex::new(None);
+
+/// The table for `V`, built by `build` the first time it is asked for and leaked. Look it up once
+/// per view, not per frame.
+fn shared_table<V: 'static>(build: fn(&mut ActionTable<V>)) -> &'static ActionTable<V> {
+    let mut tables = TABLES.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let table = *tables.get_or_insert_default().entry(TypeId::of::<V>()).or_insert_with(|| {
+        let mut table = ActionTable::new();
+        build(&mut table);
+        Box::leak(Box::new(table))
+    });
+    table.downcast_ref().expect("tables are keyed by their view type")
+}
+
 impl<D: PickerDelegate> Picker<D> {
-    pub(crate) fn add_actions(t: &mut gpui::ActionTable<Self>) {
+    /// The action table shared by every picker with this delegate type.
+    pub(crate) fn actions() -> &'static ActionTable<Self> {
+        shared_table(Self::add_actions)
+    }
+
+    fn add_actions(t: &mut ActionTable<Self>) {
         t.add(Self::select_next);
         t.add(Self::select_previous);
         t.add(Self::editor_move_down);
@@ -251,5 +277,28 @@ impl<D: PickerDelegate> Picker<D> {
         } else {
             v_flex().w_full().gap_1().justify_end().child(render_aside(aside, cx)).child(menu)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use actions::menu::Confirm;
+
+    use super::*;
+
+    #[test]
+    fn shared_table_builds_one_table_per_view_type() {
+        struct A;
+        struct B;
+        fn confirm<V: 'static>(table: &mut ActionTable<V>) {
+            table.add(|_: &mut V, _: &Confirm, _: &mut Window, _: &mut Context<V>| {});
+        }
+        fn none<V>(_: &mut ActionTable<V>) {}
+
+        let a = shared_table::<A>(confirm);
+        assert_eq!(a.action_types(), [TypeId::of::<Confirm>()]);
+        // The second builder is ignored: the table already exists.
+        assert!(std::ptr::eq(a, shared_table::<A>(none)));
+        assert!(shared_table::<B>(none).action_types().is_empty());
     }
 }
