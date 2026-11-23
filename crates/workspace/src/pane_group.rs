@@ -6,7 +6,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Result;
-use gpui::Along as _;
 use gpui::AnyView;
 use gpui::AnyWeakView;
 use gpui::Axis;
@@ -46,7 +45,6 @@ const VERTICAL_MIN_SIZE: f32 = 100.;
 #[derive(Clone)]
 pub struct PaneGroup {
     pub root: Member,
-    pub is_center: bool,
     /// Split/close/move animation state for this group's panes.
     motion: Rc<RefCell<PaneMotion>>,
     backdrop: PaneBackdrop,
@@ -69,7 +67,7 @@ pub struct PaneRenderResult {
 
 impl PaneGroup {
     pub fn with_root(root: Member) -> Self {
-        Self { root, is_center: false, motion: Rc::default(), backdrop: PaneBackdrop::Window }
+        Self { root, motion: Rc::default(), backdrop: PaneBackdrop::Window }
     }
 
     pub fn new(pane: Entity<Pane>) -> Self {
@@ -85,11 +83,7 @@ impl PaneGroup {
         self.backdrop = backdrop;
     }
 
-    pub const fn set_is_center(&mut self, is_center: bool) {
-        self.is_center = is_center;
-    }
-
-    pub fn split(&mut self, old_pane: &Entity<Pane>, new_pane: &Entity<Pane>, direction: SplitDirection, cx: &mut App) {
+    pub fn split(&mut self, old_pane: &Entity<Pane>, new_pane: &Entity<Pane>, direction: SplitDirection) {
         let found = match &mut self.root {
             Member::Pane(pane) => {
                 if pane == old_pane {
@@ -114,8 +108,6 @@ impl PaneGroup {
                 }
             }
         }
-
-        self.mark_positions(cx);
     }
 
     pub fn bounding_box_for_pane(&self, pane: &Entity<Pane>) -> Option<Bounds<Pixels>> {
@@ -139,19 +131,14 @@ impl PaneGroup {
     /// - Ok(true) if it found and moved a pane
     /// - Ok(false) if it found but did not move the pane
     /// - Err(_) if it did not find the pane
-    pub fn move_to_border(
-        &mut self,
-        active_pane: &Entity<Pane>,
-        direction: SplitDirection,
-        cx: &mut App,
-    ) -> Result<bool> {
+    pub fn move_to_border(&mut self, active_pane: &Entity<Pane>, direction: SplitDirection) -> Result<bool> {
         if let Some(pane) = self.find_pane_at_border(direction)
             && pane == active_pane
         {
             return Ok(false);
         }
 
-        if !self.remove_internal(active_pane)? {
+        if !self.remove(active_pane)? {
             return Ok(false);
         }
 
@@ -160,7 +147,6 @@ impl PaneGroup {
         {
             let idx = if direction.increasing() { root.members.len() } else { 0 };
             root.insert_pane(idx, active_pane);
-            self.mark_positions(cx);
             return Ok(true);
         }
 
@@ -170,7 +156,6 @@ impl PaneGroup {
             vec![Member::Pane(active_pane.clone()), self.root.clone()]
         };
         self.root = Member::Axis(PaneAxis::new(direction.axis(), members));
-        self.mark_positions(cx);
         Ok(true)
     }
 
@@ -185,15 +170,7 @@ impl PaneGroup {
     /// - Ok(true) if it found and removed a pane
     /// - Ok(false) if it found but did not remove the pane
     /// - Err(_) if it did not find the pane
-    pub fn remove(&mut self, pane: &Entity<Pane>, cx: &mut App) -> Result<bool> {
-        let result = self.remove_internal(pane);
-        if matches!(result, Ok(true)) {
-            self.mark_positions(cx);
-        }
-        result
-    }
-
-    fn remove_internal(&mut self, pane: &Entity<Pane>) -> Result<bool> {
+    pub fn remove(&mut self, pane: &Entity<Pane>) -> Result<bool> {
         match &mut self.root {
             Member::Pane(_) => Ok(false),
             Member::Axis(axis) => {
@@ -205,43 +182,20 @@ impl PaneGroup {
         }
     }
 
-    pub fn resize(
-        &mut self,
-        pane: &Entity<Pane>,
-        direction: Axis,
-        amount: Pixels,
-        bounds: &Bounds<Pixels>,
-        cx: &mut App,
-    ) {
-        match &mut self.root {
-            Member::Pane(_) => {}
-            Member::Axis(axis) => {
-                axis.resize(pane, direction, amount, bounds);
-            }
-        }
-        self.mark_positions(cx);
-    }
-
-    pub fn reset_pane_sizes(&mut self, cx: &mut App) {
+    pub fn reset_pane_sizes(&mut self) {
         match &mut self.root {
             Member::Pane(_) => {}
             Member::Axis(axis) => {
                 axis.reset_pane_sizes();
             }
         }
-        self.mark_positions(cx);
     }
 
-    pub fn swap(&mut self, from: &Entity<Pane>, to: &Entity<Pane>, cx: &mut App) {
+    pub fn swap(&mut self, from: &Entity<Pane>, to: &Entity<Pane>) {
         match &mut self.root {
             Member::Pane(_) => {}
             Member::Axis(axis) => axis.swap(from, to),
         }
-        self.mark_positions(cx);
-    }
-
-    pub fn mark_positions(&mut self, cx: &mut App) {
-        self.root.mark_positions(self.is_center, cx);
     }
 
     /// Renders `pane` zoomed in place of the group, through the group's motion so
@@ -349,19 +303,6 @@ pub enum Member {
 }
 
 impl Member {
-    pub fn mark_positions(&mut self, in_center_group: bool, cx: &mut App) {
-        match self {
-            Member::Axis(pane_axis) => {
-                for member in &mut pane_axis.members {
-                    member.mark_positions(in_center_group, cx);
-                }
-            }
-            Member::Pane(entity) => entity.update(cx, |pane, _| {
-                pane.in_center_group = in_center_group;
-            }),
-        }
-    }
-
     fn new_axis(old_pane: Entity<Pane>, new_pane: Entity<Pane>, direction: SplitDirection) -> Self {
         use Axis::Horizontal;
         use Axis::Vertical;
@@ -613,85 +554,6 @@ impl PaneAxis {
                 axis.reset_pane_sizes();
             }
         }
-    }
-
-    fn resize(&mut self, pane: &Entity<Pane>, axis: Axis, amount: Pixels, bounds: &Bounds<Pixels>) -> Option<bool> {
-        let container_size =
-            self.bounding_boxes.lock().iter().filter_map(|e| *e).reduce(|acc, e| acc.union(&e)).unwrap_or(*bounds).size;
-
-        let found_pane = self.members.iter().any(|member| matches!(member, Member::Pane(p) if p == pane));
-
-        if found_pane && self.axis != axis {
-            return Some(false); // pane found but this is not the correct axis direction
-        }
-        let mut found_axis_index: Option<usize> = None;
-        if !found_pane {
-            for (i, pa) in self.members.iter_mut().enumerate() {
-                if let Member::Axis(pa) = pa
-                    && let Some(done) = pa.resize(pane, axis, amount, bounds)
-                {
-                    if done {
-                        return Some(true); // pane found and operations already done
-                    } else if self.axis != axis {
-                        return Some(false); // pane found but this is not the correct axis direction
-                    }
-                    found_axis_index = Some(i); // pane found and this is correct direction
-                }
-            }
-            found_axis_index?; // no pane found
-        }
-
-        let min_size = match axis {
-            Axis::Horizontal => px(HORIZONTAL_MIN_SIZE),
-            Axis::Vertical => px(VERTICAL_MIN_SIZE),
-        };
-        let mut flexes = self.flexes.lock();
-
-        let ix = if found_pane {
-            self.members.iter().position(|m| if let Member::Pane(p) = m { p == pane } else { false })
-        } else {
-            found_axis_index
-        };
-
-        if ix.is_none() {
-            return Some(true);
-        }
-
-        let ix = ix.unwrap_or(0);
-
-        let size = move |ix, flexes: &[f32]| container_size.along(axis) * (flexes[ix] / flexes.len() as f32);
-
-        // Don't allow resizing to less than the minimum size, if elements are already too small
-        if min_size - px(1.) > size(ix, flexes.as_slice()) {
-            return Some(true);
-        }
-
-        let flex_changes = |pixel_dx, target_ix: usize, next: isize, flexes: &[f32]| {
-            let flex_change = flexes.len() as f32 * pixel_dx / container_size.along(axis);
-            let current_target_flex = flexes[target_ix] + flex_change;
-            let next_target_flex = flexes[(target_ix.cast_signed() + next) as usize] - flex_change;
-            (current_target_flex, next_target_flex)
-        };
-
-        let apply_changes = |current_ix: usize, proposed_current_pixel_change: Pixels, flexes: &mut [f32]| {
-            let next_target_size = Pixels::max(size(current_ix + 1, flexes) - proposed_current_pixel_change, min_size);
-            let current_target_size =
-                Pixels::max(size(current_ix, flexes) + size(current_ix + 1, flexes) - next_target_size, min_size);
-
-            let current_pixel_change = current_target_size - size(current_ix, flexes);
-
-            let (current_target_flex, next_target_flex) = flex_changes(current_pixel_change, current_ix, 1, flexes);
-
-            flexes[current_ix] = current_target_flex;
-            flexes[current_ix + 1] = next_target_flex;
-        };
-
-        if ix + 1 == flexes.len() {
-            apply_changes(ix - 1, -1.0 * amount, flexes.as_mut_slice());
-        } else {
-            apply_changes(ix, amount, flexes.as_mut_slice());
-        }
-        Some(true)
     }
 
     fn swap(&mut self, from: &Entity<Pane>, to: &Entity<Pane>) {

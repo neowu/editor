@@ -941,9 +941,7 @@ fn render_landing_action_button<A: Action>(
         .on_click({
             let focus_handle = focus_handle.clone();
             cx.listener(move |this, _: &ClickEvent, window, cx| {
-                if !focus_handle.is_focused(window) {
-                    window.focus(&focus_handle, cx);
-                }
+                window.focus(&focus_handle, cx);
                 handler(this, action, window, cx);
             })
         })

@@ -517,7 +517,6 @@ pub struct Pane {
     suppress_scroll: bool,
     double_click_dispatch_action: Box<dyn Action>,
     save_modals_spawned: FxHashSet<EntityId>,
-    close_pane_if_empty: bool,
     empty_pane_hints: EmptyPaneHints,
     /// Every tab is read-only, so the tab menu leaves out entries about
     /// saving or editing.
@@ -528,8 +527,6 @@ pub struct Pane {
     zoom_out_on_close: bool,
     /// If a certain project item wants to get recreated with specific data, it can persist its data before the recreation here.
     pub project_item_restoration_data: FxHashMap<ProjectItemKind, Box<dyn Any + Send>>,
-
-    pub in_center_group: bool,
 }
 
 pub struct ActivationHistoryEntry {
@@ -673,14 +670,12 @@ impl Pane {
             _subscriptions: subscriptions,
             double_click_dispatch_action,
             save_modals_spawned: FxHashSet::default(),
-            close_pane_if_empty: true,
             empty_pane_hints: EmptyPaneHints::Files,
             read_only_tabs: false,
             has_preview: false,
             pinned_tab_count: 0,
             zoom_out_on_close: true,
             project_item_restoration_data: FxHashMap::default(),
-            in_center_group: false,
         }
     }
 
@@ -835,13 +830,6 @@ impl Pane {
         >,
     ) {
         self.can_split_predicate = can_split_predicate;
-    }
-
-    pub fn set_can_navigate(&mut self, can_navigate: bool, cx: &mut Context<Self>) {
-        self.toolbar.update(cx, |toolbar, cx| {
-            toolbar.set_can_navigate(can_navigate, cx);
-        });
-        cx.notify();
     }
 
     pub fn set_render_tab_bar_buttons<F>(&mut self, cx: &mut Context<Self>, render: F)
@@ -1745,7 +1733,7 @@ impl Pane {
                 // Remove the item from the pane.
                 if should_close {
                     pane.update_in(cx, |pane, window, cx| {
-                        pane.remove_item(item_to_close.item_id(), false, pane.close_pane_if_empty, window, cx);
+                        pane.remove_item(item_to_close.item_id(), false, true, window, cx);
                     })
                     .ok();
                 }
@@ -2901,9 +2889,7 @@ impl Pane {
             None
         };
 
-        if direction != self.drag_split_direction {
-            self.drag_split_direction = direction;
-        }
+        self.drag_split_direction = direction;
     }
 
     pub fn handle_tab_drop(

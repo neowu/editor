@@ -101,7 +101,7 @@ impl Workspace {
             let direction = SplitDirection::Right;
             let split_off_pane = self.find_pane_in_direction(direction, cx).unwrap_or_else(|| self.active_pane.clone());
             let new_pane = self.add_pane(window, cx);
-            self.center.split(&split_off_pane, &new_pane, direction, cx);
+            self.center.split(&split_off_pane, &new_pane, direction);
             new_pane
         };
 
@@ -242,7 +242,7 @@ impl Workspace {
                 return;
             }
             let new_pane = self.add_pane(window, cx);
-            self.center.split(&self.active_pane, &new_pane, action.direction, cx);
+            self.center.split(&self.active_pane, &new_pane, action.direction);
             new_pane
         };
 
@@ -255,19 +255,19 @@ impl Workspace {
 
     pub fn swap_pane_in_direction(&mut self, direction: SplitDirection, cx: &mut Context<Self>) {
         if let Some(to) = self.find_pane_in_direction(direction, cx) {
-            self.center.swap(&self.active_pane, &to, cx);
+            self.center.swap(&self.active_pane, &to);
             self.notify_mode(WorkspaceMode::Editor, cx);
         }
     }
 
     pub fn move_pane_to_border(&mut self, direction: SplitDirection, cx: &mut Context<Self>) {
-        if self.center.move_to_border(&self.active_pane, direction, cx).expect("active pane is in the center group") {
+        if self.center.move_to_border(&self.active_pane, direction).expect("active pane is in the center group") {
             self.notify_mode(WorkspaceMode::Editor, cx);
         }
     }
 
     pub fn reset_pane_sizes(&mut self, cx: &mut Context<Self>) {
-        self.center.reset_pane_sizes(cx);
+        self.center.reset_pane_sizes();
         self.notify_mode(WorkspaceMode::Editor, cx);
     }
 
@@ -458,7 +458,7 @@ impl Workspace {
         if self.git_history_center.root.contains_pane(&pane_to_split) {
             self.zoom_git_history_pane(None, cx);
             let new_pane = self.add_git_history_pane(window, cx);
-            self.git_history_center.split(&pane_to_split, &new_pane, split_direction, cx);
+            self.git_history_center.split(&pane_to_split, &new_pane, split_direction);
             self.notify_mode(WorkspaceMode::GitHistory, cx);
             return new_pane;
         }
@@ -466,7 +466,7 @@ impl Workspace {
             return self.split_terminal_pane_for_drop(&pane_to_split, split_direction, window, cx);
         }
         let new_pane = self.add_pane(window, cx);
-        self.center.split(&pane_to_split, &new_pane, split_direction, cx);
+        self.center.split(&pane_to_split, &new_pane, split_direction);
         self.notify_mode(WorkspaceMode::Editor, cx);
         new_pane
     }
@@ -490,7 +490,7 @@ impl Workspace {
         };
         let new_pane = self.add_pane(window, cx);
         new_pane.update(cx, |pane, cx| pane.add_item(item, true, true, None, window, cx));
-        self.center.split(&pane, &new_pane, direction, cx);
+        self.center.split(&pane, &new_pane, direction);
         self.notify_mode(WorkspaceMode::Editor, cx);
     }
 
@@ -525,7 +525,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.center.remove(&pane, cx).expect("pane is in the center group") {
+        if self.center.remove(&pane).expect("pane is in the center group") {
             if self.maximized_pane.as_ref().and_then(gpui::WeakEntity::upgrade).as_ref() == Some(&pane) {
                 self.maximized_pane = None;
             }

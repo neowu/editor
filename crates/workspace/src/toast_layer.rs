@@ -205,7 +205,6 @@ impl ToastLayer {
             return;
         };
         self.start_dismiss_timer(duration, cx);
-        cx.notify();
     }
 
     /// Clears the dismiss timer if one exists.

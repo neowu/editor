@@ -142,10 +142,6 @@ fn viewport_line_for_point(point: Point, display_offset: usize) -> Option<usize>
 
 const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(500);
 
-/// Event to transmit the scroll from the element to the view.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ScrollTerminal(pub i32);
-
 /// Sends the specified text directly to the terminal.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Action)]
 #[action(namespace = terminal)]
@@ -1243,16 +1239,16 @@ impl Item for TerminalView {
 
                 let workspace = workspace.downgrade();
                 let terminal_panel = terminal_panel.downgrade();
-                // Defer the split operation to avoid re-entrancy panic.
-                // The pane may be the one currently being updated, so we cannot
-                // call mark_positions (via split) synchronously.
+                // Defer the split and move to avoid a re-entrancy panic: the pane
+                // may be the one currently being updated, and moving the item
+                // updates it.
                 window
                     .spawn(cx, async move |cx| {
                         cx.update(|window, cx| {
                             let Ok(new_pane) = terminal_panel.update(cx, |terminal_panel, cx| {
                                 let new_pane =
                                     terminal_panel::new_terminal_pane(workspace, project, is_zoomed, window, cx);
-                                terminal_panel.center.split(&this_pane, &new_pane, split_direction, cx);
+                                terminal_panel.center.split(&this_pane, &new_pane, split_direction);
                                 anyhow::Ok(new_pane)
                             }) else {
                                 return;

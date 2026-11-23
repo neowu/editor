@@ -1034,7 +1034,7 @@ impl Workspace {
         let bottom_dock_buttons = cx.new(|cx| PanelButtons::new(bottom_dock.clone(), cx));
         let right_dock_buttons = cx.new(|cx| PanelButtons::new(right_dock.clone(), cx));
         let status_bar = cx.new(|cx| {
-            let mut status_bar = StatusBar::new(&center_pane.clone(), window, cx);
+            let mut status_bar = StatusBar::new(&center_pane, window, cx);
             status_bar.add_left_item(left_dock_buttons, window, cx);
             status_bar.add_right_item(right_dock_buttons, window, cx);
             status_bar.add_right_item(bottom_dock_buttons, window, cx);
@@ -1066,9 +1066,7 @@ impl Workspace {
             this.show_initial_notifications(cx);
         });
 
-        let mut center = PaneGroup::new(center_pane.clone());
-        center.set_is_center(true);
-        center.mark_positions(cx);
+        let center = PaneGroup::new(center_pane.clone());
 
         Workspace {
             weak_self: weak_handle.clone(),

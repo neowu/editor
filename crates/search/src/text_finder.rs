@@ -11,7 +11,6 @@ use gpui::Entity;
 use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;
-use gpui::Modifiers;
 use gpui::Subscription;
 use gpui::Task;
 use gpui::WeakEntity;
@@ -58,7 +57,6 @@ actions!(
 
 pub struct TextFinder {
     picker: Entity<Picker<Delegate>>,
-    init_modifiers: Option<Modifiers>,
     _subscription: Subscription,
 }
 
@@ -76,7 +74,6 @@ impl TextFinder {
             };
 
             text_picker.update(cx, |text_picker, cx| {
-                text_picker.init_modifiers = Some(window.modifiers());
                 text_picker.picker.update(cx, |picker, cx| {
                     picker.cycle_selection(window, cx);
                 });
@@ -299,11 +296,7 @@ impl TextFinder {
             cx.emit(DismissEvent);
         });
 
-        Self {
-            picker,
-            init_modifiers: window.modifiers().modified().then_some(window.modifiers()),
-            _subscription: subscription,
-        }
+        Self { picker, _subscription: subscription }
     }
 
     fn project_search_view(&self, cx: &App) -> Entity<ProjectSearchView> {

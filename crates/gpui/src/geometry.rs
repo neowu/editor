@@ -1383,12 +1383,6 @@ impl Anchor {
         }
     }
 
-    /// Returns whether the anchor is center-positioned.
-    #[inline]
-    pub const fn is_center(&self) -> bool {
-        matches!(self, Self::TopCenter | Self::BottomCenter | Self::LeftCenter | Self::RightCenter)
-    }
-
     /// Returns whether the anchor is bottom-positioned.
     #[inline]
     pub const fn is_bottom(&self) -> bool {

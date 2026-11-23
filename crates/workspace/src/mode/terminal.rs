@@ -296,7 +296,6 @@ impl Workspace {
         let delegate = terminal_mode_delegate(cx);
         let pane = cx.new(|cx| {
             let mut pane = Pane::new(workspace, project, Arc::default(), None, NewTerminal.boxed_clone(), window, cx);
-            pane.set_can_navigate(false, cx);
             pane.set_zoom_out_on_close(false);
             pane.set_empty_pane_hints(EmptyPaneHints::Terminal);
             if let Some(delegate) = &delegate {
@@ -329,7 +328,7 @@ impl Workspace {
             };
             let new_pane = self.add_terminal_pane(window, cx);
             new_pane.update(cx, |pane, cx| pane.add_item(item, true, true, None, window, cx));
-            self.terminal_center.split(&pane, &new_pane, direction, cx);
+            self.terminal_center.split(&pane, &new_pane, direction);
             self.set_active_terminal_pane(&new_pane, cx);
         } else {
             let Some(delegate) = terminal_mode_delegate(cx) else {
@@ -338,7 +337,7 @@ impl Workspace {
             let working_directory =
                 pane.read(cx).active_item().and_then(|item| delegate.working_directory(item.as_ref(), cx));
             let new_pane = self.add_terminal_pane(window, cx);
-            self.terminal_center.split(&pane, &new_pane, direction, cx);
+            self.terminal_center.split(&pane, &new_pane, direction);
             self.set_active_terminal_pane(&new_pane, cx);
             window.focus(&new_pane.focus_handle(cx), cx);
             delegate.open_shell(self, new_pane, working_directory, true, window, cx).detach_and_log_err(cx);
@@ -357,7 +356,7 @@ impl Workspace {
     ) -> Entity<Pane> {
         self.zoom_terminal_pane(None, cx);
         let new_pane = self.add_terminal_pane(window, cx);
-        self.terminal_center.split(pane, &new_pane, direction, cx);
+        self.terminal_center.split(pane, &new_pane, direction);
         self.notify_mode(WorkspaceMode::Terminal, cx);
         new_pane
     }
@@ -371,7 +370,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
-        if !self.terminal_center.remove(pane, cx).log_err().unwrap_or(false) {
+        if !self.terminal_center.remove(pane).log_err().unwrap_or(false) {
             return;
         }
         if self.active_terminal_pane == *pane {

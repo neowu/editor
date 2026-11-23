@@ -196,8 +196,6 @@ impl Workspace {
 
                     // Swap workspace center group
                     workspace.center = PaneGroup::with_root(center_group);
-                    workspace.center.set_is_center(true);
-                    workspace.center.mark_positions(cx);
 
                     // Only one pane stays zoomed, and it covers the others, so
                     // it is the one to activate.

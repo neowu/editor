@@ -183,7 +183,7 @@ impl Workspace {
                 // A lone tab stays, with an empty pane on the other side (as in the editor).
                 if pane.read(cx).items_len() < 2 {
                     let new_pane = self.add_git_history_pane(window, cx);
-                    self.git_history_center.split(&pane, &new_pane, direction.opposite(), cx);
+                    self.git_history_center.split(&pane, &new_pane, direction.opposite());
                     self.notify_mode(WorkspaceMode::GitHistory, cx);
                     return;
                 }
@@ -192,7 +192,7 @@ impl Workspace {
                 };
                 let new_pane = self.add_git_history_pane(window, cx);
                 new_pane.update(cx, |pane, cx| pane.add_item(item, true, true, None, window, cx));
-                self.git_history_center.split(&pane, &new_pane, direction, cx);
+                self.git_history_center.split(&pane, &new_pane, direction);
                 self.set_active_git_history_pane(&new_pane, window, cx);
             }
         }
@@ -207,7 +207,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Entity<Pane> {
         let new_pane = self.add_git_history_pane(window, cx);
-        self.git_history_center.split(pane, &new_pane, direction, cx);
+        self.git_history_center.split(pane, &new_pane, direction);
         self.set_active_git_history_pane(&new_pane, window, cx);
         window.focus(&new_pane.focus_handle(cx), cx);
         new_pane
@@ -215,7 +215,7 @@ impl Workspace {
 
     /// Drops an emptied history pane, unless it is the last one.
     fn remove_git_history_pane(&mut self, pane: &Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.git_history_center.remove(pane, cx).log_err().unwrap_or(false) {
+        if !self.git_history_center.remove(pane).log_err().unwrap_or(false) {
             return;
         }
         if self.active_git_history_pane == *pane {

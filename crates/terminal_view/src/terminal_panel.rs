@@ -168,7 +168,7 @@ impl TerminalPanel {
         match event {
             pane::Event::Remove { focus_on_pane } => {
                 let pane_count_before_removal = self.center.panes().len();
-                let _removal_result = self.center.remove(pane, cx);
+                let _removal_result = self.center.remove(pane);
                 if pane_count_before_removal == 1 {
                     self.center.first_pane().update(cx, |pane, cx| {
                         pane.set_zoomed(false, cx);
@@ -214,7 +214,7 @@ impl TerminalPanel {
                     new_pane.update(cx, |pane, cx| {
                         pane.add_item(item, true, true, None, window, cx);
                     });
-                    self.center.split(pane, &new_pane, direction, cx);
+                    self.center.split(pane, &new_pane, direction);
                     window.focus(&new_pane.focus_handle(cx), cx);
                     return;
                 }
@@ -226,7 +226,7 @@ impl TerminalPanel {
                     };
                     panel
                         .update_in(cx, |panel, window, cx| {
-                            panel.center.split(&pane, &new_pane, direction, cx);
+                            panel.center.split(&pane, &new_pane, direction);
                             window.focus(&new_pane.focus_handle(cx), cx);
                         })
                         .ok();
@@ -650,13 +650,13 @@ impl TerminalPanel {
 
     fn swap_pane_in_direction(&mut self, direction: SplitDirection, cx: &mut Context<Self>) {
         if let Some(to) = self.center.find_pane_in_direction(&self.active_pane, direction, cx).cloned() {
-            self.center.swap(&self.active_pane, &to, cx);
+            self.center.swap(&self.active_pane, &to);
             cx.notify();
         }
     }
 
     fn move_pane_to_border(&mut self, direction: SplitDirection, cx: &mut Context<Self>) {
-        if self.center.move_to_border(&self.active_pane, direction, cx).expect("active pane is in the center group") {
+        if self.center.move_to_border(&self.active_pane, direction).expect("active pane is in the center group") {
             cx.notify();
         }
     }
@@ -726,7 +726,6 @@ pub fn new_terminal_pane(
             cx,
         );
         pane.set_zoomed(zoomed, cx);
-        pane.set_can_navigate(false, cx);
         pane.set_tab_style(ui::TabStyle::Pill);
         pane.set_zoom_out_on_close(false);
         set_terminal_tab_bar_buttons(&mut pane, false, cx);
@@ -872,7 +871,7 @@ static TERMINAL_PANEL_ACTIONS: std::sync::LazyLock<gpui::ActionTable<TerminalPan
             cx.spawn_in(window, async move |terminal_panel, cx| {
                 if let Some(new_pane) = future.await {
                     _ = terminal_panel.update_in(cx, |terminal_panel, window, cx| {
-                        terminal_panel.center.split(&terminal_panel.active_pane, &new_pane, SplitDirection::Right, cx);
+                        terminal_panel.center.split(&terminal_panel.active_pane, &new_pane, SplitDirection::Right);
                         let new_pane = new_pane.read(cx);
                         window.focus(&new_pane.focus_handle(cx), cx);
                     });

@@ -1031,7 +1031,7 @@ pub mod simple_message_notification {
                                                 .id("message-notification-content")
                                                 .max_h(vh(0.6, window))
                                                 .overflow_y_scroll()
-                                                .track_scroll(&self.scroll_handle.clone())
+                                                .track_scroll(&self.scroll_handle)
                                                 .child(main_content),
                                         )
                                         .vertical_scrollbar_for(&self.scroll_handle, window, cx),

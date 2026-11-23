@@ -126,7 +126,7 @@ impl ActiveRepository {
             let repo_path = &repo.read(cx).work_directory_abs_path;
             worktree_abs_path.starts_with(repo_path.as_ref()) || repo_path.starts_with(&worktree_abs_path)
         });
-        active.project_name = worktree.read(cx).root_name().file_name().map(|name| SharedString::from(name.to_owned()));
+        active.project_name = worktree.read(cx).root_name().file_name().map(SharedString::from);
         let Some(active_repo) = &active.repository else {
             return active;
         };
