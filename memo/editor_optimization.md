@@ -309,3 +309,63 @@ Full editor, p50 us (allocations):
 - What is left in a full editor: gutter and diff hunks about 175 us, line
   layout about 145 us, longest line / blocks / cursors about 110 us, and the
   minimap range about 240 us.
+
+## Gutter and minimap follow-up (2026-11-23)
+
+From reading the gutter / diff hunk range and the minimap range above.
+
+Gutter and diff hunks:
+
+- `layout_expand_toggles` cloned the multibuffer snapshot every frame for
+  `widest_line_number`; it now returns early without expandable rows and reads
+  the prepaint snapshot.
+- `render_crease_toggle` ran `starts_indent` (scans following lines) on every
+  visible row; unfolded rows that are neither active nor in a hovered gutter
+  now return first. `render_crease_trailer` looks up the crease before the
+  fold state.
+- Line numbers take the row from `row_info.multibuffer_row` instead of a
+  display-to-buffer point conversion per row.
+- `layout_word_diff_highlights` returns before its conversions when no visible
+  hunk has word diffs; `active_run_indicators` returns early without
+  runnables.
+- Gutter width is `ch_advance` times the digit count instead of shaping a
+  run of spaces. With a proportional font the gutter is a digit wide per
+  digit rather than a space wide.
+- Not done: `active_run_indicators` by row lookup. Runnables are only kept
+  for about three screens, and the row keys go stale for the 50 ms debounce
+  after an edit while the anchors don't.
+
+Minimap:
+
+- The minimap built a second snapshot of its parent for background
+  highlights; it shares the display map, so it uses its own.
+- No longest-line layout in a minimap. The main editor reuses the visible
+  line's layout when the longest row is on screen.
+- No crease trailers, gutter diff hunks (with their hitboxes) or word diff
+  highlights in a minimap.
+- The minimap view is cached (`spec/editor.md`). The parent decides in
+  `layout_minimap` whether it must render again; a notify during prepaint
+  would only take effect a frame later, hence
+  `Window::invalidate_cached_view`. The minimap no longer draws the active
+  line, so cursor moves leave it untouched.
+- Risk: a hunk changing only between staged and unstaged relies on the
+  multibuffer bumping `edit_count` for the diff change; not checked.
+
+### Measured
+
+`edctl perf`, dev profile, 1200x700, fresh launch, a 545-line Rust file with
+60 modified hunks, cursor at the top; down / right / up 40 times each. Two
+runs per build; the pair with matching frame counts is given (the other
+"after" run drew 1162 frames, so runs are not equally loaded).
+
+| | Before | After |
+|---|---|---|
+| frames drawn | 1442 | 1437 |
+| instructions per frame | 18.06M | 10.10M |
+| draw p50 / p95 | 1.879 / 3.700 ms | 1.407 / 2.536 ms |
+| build (render, layout, prepaint) p50 | 1.517 ms | 0.963 ms |
+| paint p50 | 0.273 ms | 0.299 ms |
+
+The other pair: 18.20M against 10.59M instructions per frame, build p50
+1.529 against 1.032 ms. Not split between the small cuts and the cache; the
+prepaint ranges were not timed again.

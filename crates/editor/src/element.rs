@@ -75,6 +75,7 @@ use language::language_settings::WHITESPACE_SPACE;
 use language::language_settings::WHITESPACE_TAB;
 use line::LineFragment;
 pub(crate) use line::LineWithInvisibles;
+pub(crate) use minimap::MinimapInputs;
 use minimap::MinimapLayout;
 pub(crate) use minimap::MinimapRowCache;
 use multi_buffer::Anchor;
@@ -626,6 +627,13 @@ impl EditorElement {
         highlighted_ranges: &mut Vec<(Range<DisplayPoint>, Hsla)>,
         cx: &App,
     ) {
+        let has_word_diffs = display_hunks.iter().any(|(hunk, _)| {
+            matches!(hunk, DisplayDiffHunk::Unfolded { word_diffs, status, .. } if status.is_modified() && !word_diffs.is_empty())
+        });
+        if !has_word_diffs {
+            return;
+        }
+
         let colors = cx.theme().colors();
 
         let visible_start = DisplayPoint::new(start_row, 0).to_offset(&snapshot.display_snapshot, Bias::Left);
@@ -786,9 +794,10 @@ impl EditorElement {
             window.paint_quad(fill(layout.position_map.text_hitbox.bounds, self.style.background));
 
             if matches!(layout.mode, EditorMode::Full { .. } | EditorMode::Minimap { .. }) {
+                // The parent marks the cursor row on its minimap; a minimap that drew it
+                // too would have to be redrawn on every cursor move.
                 let show_active_line_background = match layout.mode {
                     EditorMode::Full { show_active_line_background, .. } => show_active_line_background,
-                    EditorMode::Minimap { .. } => true,
                     _ => false,
                 };
                 let mut active_rows = layout.active_rows.iter().peekable();
@@ -1325,7 +1334,7 @@ impl Element for EditorElement {
                     let em_layout_width = window.text_system().em_layout_width(font_id, font_size);
                     let glyph_grid_cell = size(em_advance, line_height);
 
-                    let gutter_dimensions = snapshot.gutter_dimensions(font_id, font_size, style, window, cx);
+                    let gutter_dimensions = snapshot.gutter_dimensions(font_id, font_size, window, cx);
                     let text_width = bounds.size.width - gutter_dimensions.width;
 
                     let minimap_width =
@@ -1460,38 +1469,13 @@ impl Element for EditorElement {
                         cx,
                     );
 
+                    // A minimap shares its parent's display map, so its snapshot and anchors apply to both.
                     let mut highlighted_ranges = self.editor_with_selections(cx).map_or_default(|editor| {
-                        if editor == self.editor {
-                            editor.read(cx).background_highlights_in_range(
-                                start_anchor..end_anchor,
-                                &snapshot.display_snapshot,
-                                cx.theme(),
-                            )
-                        } else {
-                            editor.update(cx, |editor, cx| {
-                                let snapshot = editor.snapshot(window, cx);
-                                let start_anchor = if start_row == DisplayRow::default() {
-                                    Anchor::Min
-                                } else {
-                                    snapshot
-                                        .buffer_snapshot()
-                                        .anchor_before(DisplayPoint::new(start_row, 0).to_offset(&snapshot, Bias::Left))
-                                };
-                                let end_anchor = if end_row > max_row {
-                                    Anchor::Max
-                                } else {
-                                    snapshot
-                                        .buffer_snapshot()
-                                        .anchor_before(DisplayPoint::new(end_row, 0).to_offset(&snapshot, Bias::Right))
-                                };
-
-                                editor.background_highlights_in_range(
-                                    start_anchor..end_anchor,
-                                    &snapshot.display_snapshot,
-                                    cx.theme(),
-                                )
-                            })
-                        }
+                        editor.read(cx).background_highlights_in_range(
+                            start_anchor..end_anchor,
+                            &snapshot.display_snapshot,
+                            cx.theme(),
+                        )
                     });
 
                     struct DiffHunkHighlightColors {
@@ -1660,6 +1644,7 @@ impl Element for EditorElement {
                             scroll_position,
                             start_row,
                             &row_infos,
+                            &snapshot,
                             window,
                             cx,
                         )
@@ -1668,19 +1653,28 @@ impl Element for EditorElement {
                     let mut crease_toggles = window.with_element_namespace("crease_toggles", |window| {
                         self.layout_crease_toggles(start_row..end_row, &row_infos, &active_rows, &snapshot, window, cx)
                     });
-                    let crease_trailers = window.with_element_namespace("crease_trailers", |window| {
-                        self.layout_crease_trailers(row_infos.iter().copied(), &snapshot, window, cx)
-                    });
+                    // A minimap has no gutter and no room for trailers or word diffs.
+                    let crease_trailers = if is_minimap {
+                        Vec::new()
+                    } else {
+                        window.with_element_namespace("crease_trailers", |window| {
+                            self.layout_crease_trailers(row_infos.iter().copied(), &snapshot, window, cx)
+                        })
+                    };
 
-                    let display_hunks = self.layout_gutter_diff_hunks(
-                        line_height,
-                        &gutter_hitbox,
-                        start_row..end_row,
-                        &snapshot,
-                        scroll_position,
-                        window,
-                        cx,
-                    );
+                    let display_hunks = if is_minimap {
+                        Vec::new()
+                    } else {
+                        self.layout_gutter_diff_hunks(
+                            line_height,
+                            &gutter_hitbox,
+                            start_row..end_row,
+                            &snapshot,
+                            scroll_position,
+                            window,
+                            cx,
+                        )
+                    };
 
                     Self::layout_word_diff_highlights(
                         &display_hunks,
@@ -1736,16 +1730,15 @@ impl Element for EditorElement {
                         return self.prepaint(None, bounds, request_layout, window, cx);
                     }
 
-                    let longest_line_width = layout_line(
-                        snapshot.longest_row(),
-                        &snapshot,
-                        style,
-                        editor_width,
-                        is_row_soft_wrapped,
-                        window,
-                        cx,
-                    )
-                    .width;
+                    // A minimap never scrolls sideways, so it has no use for the width.
+                    let longest_row = snapshot.longest_row();
+                    let longest_line_width = if is_minimap {
+                        Pixels::ZERO
+                    } else if let Some(line) = visible_line(&line_layouts, start_row, longest_row) {
+                        line.width
+                    } else {
+                        layout_line(longest_row, &snapshot, style, editor_width, is_row_soft_wrapped, window, cx).width
+                    };
 
                     let scrollbar_layout_information = ScrollbarLayoutInformation::new(
                         text_hitbox.bounds,
@@ -2615,6 +2608,11 @@ fn wrap_guide_x(
     (x >= content_left && x <= content_right).then_some(x)
 }
 
+/// The layout of `row` among `lines`, which were laid out from `start_row` on.
+fn visible_line<L>(lines: &[L], start_row: DisplayRow, row: DisplayRow) -> Option<&L> {
+    lines.get(row.0.checked_sub(start_row.0)? as usize)
+}
+
 pub(crate) fn layout_line(
     row: DisplayRow,
     snapshot: &EditorSnapshot,
@@ -2819,7 +2817,7 @@ fn compute_auto_height_layout(
     let em_width = window.text_system().em_width(font_id, font_size);
 
     let mut snapshot = editor.snapshot(window, cx);
-    let gutter_dimensions = snapshot.gutter_dimensions(font_id, font_size, style, window, cx);
+    let gutter_dimensions = snapshot.gutter_dimensions(font_id, font_size, window, cx);
 
     editor.gutter_dimensions = gutter_dimensions;
     let text_width = width - gutter_dimensions.width;
@@ -2887,7 +2885,17 @@ mod tests {
     use super::point;
     use super::px;
     use super::size;
+    use super::visible_line;
     use super::wrap_guide_x;
+
+    #[test]
+    fn visible_line_indexes_from_the_start_row() {
+        let lines = ["a", "b", "c"];
+        assert_eq!(visible_line(&lines, DisplayRow(5), DisplayRow(5)), Some(&"a"));
+        assert_eq!(visible_line(&lines, DisplayRow(5), DisplayRow(7)), Some(&"c"));
+        assert_eq!(visible_line(&lines, DisplayRow(5), DisplayRow(8)), None);
+        assert_eq!(visible_line(&lines, DisplayRow(5), DisplayRow(4)), None);
+    }
 
     #[test]
     fn wrap_guide_x_scales_with_column_and_clips_to_text_area() {

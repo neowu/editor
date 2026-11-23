@@ -86,6 +86,20 @@
   scrolling or a cursor blink only lays out rows that come into view. The
   theme isn't part of that check: the editor drops the cache when it is
   styled with another theme.
+- The minimap is a cached view and nothing notifies it. Its parent editor
+  compares what the minimap draws from it (`MinimapInputs`) in every prepaint
+  and has it rendered again in that frame (`Window::invalidate_cached_view`)
+  when one changed: the display snapshot (`same_chunks_as`), non-empty
+  selections, background highlights by content, the parent's focus, or the
+  minimap's scroll position. Empty cursors are not an input: the minimap draws
+  no active line of its own, the parent's cursor marker shows it. So a cursor
+  move, blink or hover redraws the editor without rendering the minimap.
+  Anything else a minimap is made to draw from its parent must be added to
+  `MinimapInputs`, or it goes stale.
+- A minimap lays out no gutter, crease trailers, diff hunk strips or word
+  diff highlights, and has no scroll width.
+- The line number column is as wide as the widest line number in digit
+  advances (`ch_advance`), not shaped text.
 - The horizontal scrollbar matches the `ui` scrollbars (project panel): no
   track, a thin rounded thumb inset in a 14px hitbox.
   It auto-shows while scrolling or when the buffer has markers (git hunks,

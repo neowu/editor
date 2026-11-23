@@ -325,6 +325,7 @@ pub use element::EditorElement;
 pub use element::HighlightedRange;
 pub use element::HighlightedRangeLine;
 use element::LineWithInvisibles;
+use element::MinimapInputs;
 use element::MinimapRowCache;
 pub use element::PointForPosition;
 use element::PositionMap;
@@ -1233,6 +1234,8 @@ pub struct Editor {
     minimap: Option<Entity<Self>>,
     /// Rows this editor laid out as a minimap, reused across frames.
     minimap_rows: MinimapRowCache,
+    /// What this editor's minimap drew from it when the minimap last rendered.
+    minimap_inputs: Option<MinimapInputs>,
     pub change_list: ChangeList,
     number_deleted_lines: bool,
 
@@ -2103,6 +2106,7 @@ impl Editor {
             diff_hunk_action_target: None,
             minimap: None,
             minimap_rows: MinimapRowCache::default(),
+            minimap_inputs: None,
             change_list: ChangeList::new(),
             mode,
             folding_newlines: Task::ready(()),

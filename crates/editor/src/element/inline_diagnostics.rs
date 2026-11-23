@@ -228,7 +228,7 @@ impl EditorElement {
 
             let window_ix = row.0.saturating_sub(start_row.0) as usize;
             let pos_x = {
-                let crease_trailer_layout = &crease_trailers[window_ix];
+                let crease_trailer_layout = crease_trailers.get(window_ix).and_then(Option::as_ref);
                 let line_layout = &line_layouts[window_ix];
 
                 let line_end = if let Some(crease_trailer) = crease_trailer_layout {

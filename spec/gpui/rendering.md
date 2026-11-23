@@ -56,6 +56,10 @@
   recorded it (`ViewElementState::frame_number`), because a view inside a
   reused view isn't visited and its recorded ranges go stale; it then renders
   once and is cacheable again. `Window::refresh` still redraws every view.
+- A notify during a draw marks the view dirty for the next frame only. A
+  parent that finds out in its own prepaint that a cached child must render
+  again calls `Window::invalidate_cached_view` before prepainting the child
+  (the editor does this for its minimap).
 - Rotating spinners (`CommonAnimationExt::with_rotate_animation`,
   `Svg::with_rotation_period`) never re-render a view. The SVG is painted once
   as a sprite tagged with a scene animation (kept across cached-view replay);

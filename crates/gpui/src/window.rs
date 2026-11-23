@@ -1230,6 +1230,13 @@ impl Window {
         }
     }
 
+    /// Makes a cached view render again in the frame being drawn. A notify
+    /// during a draw only takes effect in the next frame, so this is for a parent
+    /// that learns during its own prepaint that a cached child's inputs changed.
+    pub fn invalidate_cached_view(&mut self, view_id: EntityId) {
+        self.dirty_views.insert(view_id);
+    }
+
     /// Close this window.
     pub const fn remove_window(&mut self) {
         self.removed = true;

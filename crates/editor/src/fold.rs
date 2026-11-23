@@ -69,29 +69,31 @@ impl EditorSnapshot {
         cx: &mut App,
     ) -> Option<AnyElement> {
         let folded = self.is_line_folded(buffer_row);
-        let mut is_foldable = false;
+        let crease = self.crease_snapshot.query_row(buffer_row, self.buffer_snapshot());
 
-        if let Some(crease) = self.crease_snapshot.query_row(buffer_row, self.buffer_snapshot()) {
-            is_foldable = true;
-            match crease {
-                Crease::Inline { render_toggle, .. } | Crease::Block { render_toggle, .. } => {
-                    if let Some(render_toggle) = render_toggle {
-                        let toggle_callback = Arc::new(move |folded, window: &mut Window, cx: &mut App| {
-                            if folded {
-                                editor.update(cx, |editor, cx| editor.fold_at(buffer_row, window, cx));
-                            } else {
-                                editor.update(cx, |editor, cx| editor.unfold_at(buffer_row, window, cx));
-                            }
-                        });
-                        return Some((render_toggle)(buffer_row, folded, toggle_callback, window, cx));
-                    }
+        if let Some(
+            Crease::Inline { render_toggle: Some(render_toggle), .. }
+            | Crease::Block { render_toggle: Some(render_toggle), .. },
+        ) = crease
+        {
+            let toggle_callback = Arc::new(move |folded, window: &mut Window, cx: &mut App| {
+                if folded {
+                    editor.update(cx, |editor, cx| editor.fold_at(buffer_row, window, cx));
+                } else {
+                    editor.update(cx, |editor, cx| editor.unfold_at(buffer_row, window, cx));
                 }
-            }
+            });
+            return Some((render_toggle)(buffer_row, folded, toggle_callback, window, cx));
         }
 
-        is_foldable |= !self.use_lsp_folding_ranges && self.starts_indent(buffer_row);
+        // Checked before `starts_indent`, which scans the following lines.
+        if !shows_default_crease_toggle(folded, row_contains_cursor || self.gutter_hovered, || {
+            crease.is_some() || (!self.use_lsp_folding_ranges && self.starts_indent(buffer_row))
+        }) {
+            return None;
+        }
 
-        (folded || (is_foldable && (row_contains_cursor || self.gutter_hovered))).then(|| {
+        Some(
             Disclosure::new(("gutter_crease", buffer_row.0), !folded)
                 .toggle_state(folded)
                 .on_click(window.listener_for(&editor, move |this, _e, window, cx| {
@@ -101,8 +103,8 @@ impl EditorSnapshot {
                         this.fold_at(buffer_row, window, cx);
                     }
                 }))
-                .into_any_element()
-        })
+                .into_any_element(),
+        )
     }
 
     pub fn render_crease_trailer(
@@ -111,16 +113,22 @@ impl EditorSnapshot {
         window: &mut Window,
         cx: &mut App,
     ) -> Option<AnyElement> {
-        let folded = self.is_line_folded(buffer_row);
         if let Crease::Inline { render_trailer, .. } =
             self.crease_snapshot.query_row(buffer_row, self.buffer_snapshot())?
         {
             let render_trailer = render_trailer.as_ref()?;
-            Some(render_trailer(buffer_row, folded, window, cx))
+            Some(render_trailer(buffer_row, self.is_line_folded(buffer_row), window, cx))
         } else {
             None
         }
     }
+}
+
+/// Whether a row gets the default fold toggle: always when folded, otherwise
+/// only a foldable row that is active or in a hovered gutter. `is_foldable`
+/// runs only when the answer depends on it.
+fn shows_default_crease_toggle(folded: bool, active_or_hovered: bool, is_foldable: impl FnOnce() -> bool) -> bool {
+    folded || (active_or_hovered && is_foldable())
 }
 
 impl Editor {
@@ -780,6 +788,16 @@ mod tests {
     use super::BufferId;
     use super::FxHashSet;
     use super::all_buffers_folded;
+    use super::shows_default_crease_toggle;
+
+    #[test]
+    fn default_crease_toggle_shows_when_folded_or_foldable_and_active() {
+        let never = || -> bool { panic!("foldability checked when it can't matter") };
+        assert!(shows_default_crease_toggle(true, false, never));
+        assert!(!shows_default_crease_toggle(false, false, never));
+        assert!(shows_default_crease_toggle(false, true, || true));
+        assert!(!shows_default_crease_toggle(false, true, || false));
+    }
 
     #[test]
     fn all_buffers_folded_works() {

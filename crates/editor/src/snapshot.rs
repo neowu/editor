@@ -14,10 +14,8 @@ use multi_buffer::ToOffset;
 
 use super::Editor;
 use super::EditorSnapshot;
-use super::EditorStyle;
 use super::GutterDimensions;
 use super::MIN_LINE_NUMBER_DIGITS;
-use super::column_pixels;
 use crate::display_map::DisplayRow;
 use crate::display_map::DisplaySnapshot;
 use crate::git::blame::GlobalBlameRenderer;
@@ -179,16 +177,14 @@ impl EditorSnapshot {
         self.scroll_anchor.scroll_position(&self.display_snapshot)
     }
 
-    pub fn max_line_number_width(&self, style: &EditorStyle, window: &mut Window) -> Pixels {
-        let digit_count = self.widest_line_number().ilog10() + 1;
-        column_pixels(style, digit_count as usize, window)
+    pub fn max_line_number_width(&self, ch_advance: Pixels) -> Pixels {
+        line_number_width(self.widest_line_number(), ch_advance)
     }
 
     pub fn gutter_dimensions(
         &self,
         font_id: FontId,
         font_size: Pixels,
-        style: &EditorStyle,
         window: &mut Window,
         cx: &App,
     ) -> GutterDimensions {
@@ -202,7 +198,7 @@ impl EditorSnapshot {
                 // only resizing the gutter on files with > 10**MIN_LINE_NUMBER_DIGITS lines.
                 let min_digits = MIN_LINE_NUMBER_DIGITS.max(self.sticky_line_number_digits);
                 let min_width_for_number_on_gutter = ch_advance * min_digits as f32;
-                self.max_line_number_width(style, window).max(min_width_for_number_on_gutter)
+                self.max_line_number_width(ch_advance).max(min_width_for_number_on_gutter)
             } else {
                 0.0.into()
             };
@@ -268,5 +264,25 @@ impl Deref for EditorSnapshot {
 
     fn deref(&self) -> &Self::Target {
         &self.display_snapshot
+    }
+}
+
+/// Width of line number `number` (at least 1), as one digit advance per digit.
+fn line_number_width(number: u32, ch_advance: Pixels) -> Pixels {
+    ch_advance * (number.ilog10() + 1) as f32
+}
+
+#[cfg(test)]
+mod tests {
+    use gpui::px;
+
+    use super::line_number_width;
+
+    #[test]
+    fn line_number_width_is_one_advance_per_digit() {
+        assert_eq!(line_number_width(1, px(8.)), px(8.));
+        assert_eq!(line_number_width(9, px(8.)), px(8.));
+        assert_eq!(line_number_width(10, px(8.)), px(16.));
+        assert_eq!(line_number_width(12345, px(8.)), px(40.));
     }
 }

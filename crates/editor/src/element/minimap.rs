@@ -33,6 +33,7 @@ use gpui::MouseUpEvent;
 use gpui::PaintQuad;
 use gpui::ParentElement as _;
 use gpui::Pixels;
+use gpui::StyleRefinement;
 use gpui::Styled as _;
 use gpui::Window;
 use gpui::div;
@@ -41,6 +42,7 @@ use gpui::px;
 use gpui::quad;
 use gpui::size;
 use itertools::Itertools as _;
+use multi_buffer::Anchor;
 use multi_buffer::MultiBufferPoint;
 use rustc_hash::FxHashMap;
 use theme::ActiveTheme as _;
@@ -61,6 +63,7 @@ use crate::MINIMAP_FONT_SIZE;
 use crate::Point;
 use crate::RowExt as _;
 use crate::RowRangeExt as _;
+use crate::Selection;
 use crate::display_map::HighlightKey;
 use crate::display_map::ToDisplayPoint as _;
 use crate::scroll::ScrollOffset;
@@ -112,6 +115,82 @@ pub(crate) struct MinimapRowCache {
     snapshot: Option<DisplaySnapshot>,
     font: Option<(Font, Pixels)>,
     rows: RowCache<LineWithInvisibles>,
+}
+
+type DrawnSelections = (Arc<[Selection<Anchor>]>, Option<Selection<Anchor>>);
+type HighlightRanges = Arc<[Range<Anchor>]>;
+
+/// What a minimap draws from its parent editor, as of the minimap's last
+/// render. The minimap view is cached and nothing notifies it, so its parent
+/// compares these every frame and has it rendered again when one changed.
+pub(crate) struct MinimapInputs {
+    snapshot: DisplaySnapshot,
+    selections: Option<DrawnSelections>,
+    background_highlights: Vec<(HighlightKey, HighlightRanges)>,
+    focused: bool,
+}
+
+/// The selections as a minimap draws them: `None` while all are empty
+/// cursors, which it leaves to its parent's cursor markers.
+fn drawn_selections(
+    disjoint: &Arc<[Selection<Anchor>]>,
+    pending: Option<&Selection<Anchor>>,
+    line_mode: bool,
+) -> Option<DrawnSelections> {
+    let drawn = line_mode || disjoint.iter().chain(pending).any(|selection| selection.start != selection.end);
+    drawn.then(|| (Arc::clone(disjoint), pending.copied()))
+}
+
+fn same_drawn_selections(a: Option<&DrawnSelections>, b: Option<&DrawnSelections>) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => Arc::ptr_eq(&a.0, &b.0) && a.1 == b.1,
+        _ => false,
+    }
+}
+
+/// Whether `current` holds the ranges recorded in `recorded`. Ranges set again
+/// unchanged (document highlights on a cursor move) count as the same.
+fn same_background_highlights<F>(
+    recorded: &[(HighlightKey, HighlightRanges)],
+    current: &FxHashMap<HighlightKey, (F, HighlightRanges)>,
+) -> bool {
+    recorded.len() == current.len()
+        && recorded.iter().all(|(key, ranges)| {
+            current.get(key).is_some_and(|(_, current)| Arc::ptr_eq(ranges, current) || ranges == current)
+        })
+}
+
+impl Editor {
+    /// Records what the minimap is about to draw from this editor and returns
+    /// whether that differs from what it drew last.
+    fn update_minimap_inputs(&mut self, snapshot: &DisplaySnapshot, window: &Window) -> bool {
+        let selections = drawn_selections(
+            &self.selections.disjoint_anchors_arc(),
+            self.selections.pending_anchor(),
+            self.selections.line_mode(),
+        );
+        let focused = self.is_focused(window);
+        if let Some(inputs) = &self.minimap_inputs
+            && inputs.focused == focused
+            && same_drawn_selections(inputs.selections.as_ref(), selections.as_ref())
+            && same_background_highlights(&inputs.background_highlights, &self.background_highlights)
+            && snapshot.same_chunks_as(&inputs.snapshot)
+        {
+            return false;
+        }
+        self.minimap_inputs = Some(MinimapInputs {
+            snapshot: snapshot.clone(),
+            selections,
+            background_highlights: self
+                .background_highlights
+                .iter()
+                .map(|(key, (_, ranges))| (*key, Arc::clone(ranges)))
+                .collect(),
+            focused,
+        });
+        true
+    }
 }
 
 impl EditorElement {
@@ -246,12 +325,23 @@ impl EditorElement {
         let thumb_pixels_per_editor_line =
             MinimapLayout::thumb_pixels_per_editor_line(&layout, total_editor_lines, minimap_line_height);
 
-        minimap_editor.update(cx, |editor, cx| editor.set_scroll_position(point(0., minimap_scroll_top), window, cx));
+        let scrolled = minimap_editor
+            .update(cx, |editor, cx| editor.set_scroll_position(point(0., minimap_scroll_top), window, cx));
+        let inputs_changed =
+            self.editor.update(cx, |editor, _| editor.update_minimap_inputs(&snapshot.display_snapshot, window));
+        if scrolled.0 || inputs_changed {
+            window.invalidate_cached_view(minimap_editor.entity_id());
+        }
 
         // Required for the drop shadow to be visible
         const PADDING_OFFSET: Pixels = px(4.);
 
-        let mut minimap = div().size_full().shadow_xs().px(PADDING_OFFSET).child(minimap_editor).into_any_element();
+        let mut minimap = div()
+            .size_full()
+            .shadow_xs()
+            .px(PADDING_OFFSET)
+            .child(minimap_editor.cached(StyleRefinement::default().size_full()))
+            .into_any_element();
 
         let extended_bounds =
             minimap_bounds.extend(Edges { right: PADDING_OFFSET, left: PADDING_OFFSET, ..Default::default() });
@@ -790,5 +880,71 @@ mod row_cache_tests {
         let mut kept: Vec<u32> = cache.rows.keys().copied().collect();
         kept.sort_unstable();
         assert_eq!(kept, vec![10, 20, 31]);
+    }
+}
+
+#[cfg(test)]
+mod minimap_inputs_tests {
+    use std::sync::Arc;
+
+    use language::SelectionGoal;
+    use multi_buffer::Anchor;
+    use rustc_hash::FxHashMap;
+
+    use super::drawn_selections;
+    use super::same_background_highlights;
+    use super::same_drawn_selections;
+    use crate::Selection;
+    use crate::display_map::HighlightKey;
+
+    fn selection(start: Anchor, end: Anchor) -> Selection<Anchor> {
+        Selection { id: 0, start, end, reversed: false, goal: SelectionGoal::None }
+    }
+
+    #[test]
+    fn empty_cursors_are_not_drawn() {
+        let cursors: Arc<[Selection<Anchor>]> = Arc::from(vec![selection(Anchor::Min, Anchor::Min)]);
+        let pending = selection(Anchor::Max, Anchor::Max);
+        assert!(drawn_selections(&cursors, None, false).is_none());
+        assert!(drawn_selections(&cursors, Some(&pending), false).is_none());
+        // Line mode selects the cursor's whole line.
+        assert!(drawn_selections(&cursors, None, true).is_some());
+
+        let range = selection(Anchor::Min, Anchor::Max);
+        assert!(drawn_selections(&cursors, Some(&range), false).is_some());
+        assert!(drawn_selections(&Arc::from(vec![range]), None, false).is_some());
+    }
+
+    #[test]
+    fn drawn_selections_compare_by_identity_and_pending() {
+        let ranges: Arc<[Selection<Anchor>]> = Arc::from(vec![selection(Anchor::Min, Anchor::Max)]);
+        let pending = selection(Anchor::Min, Anchor::Max);
+        let drawn = drawn_selections(&ranges, None, false);
+        assert!(same_drawn_selections(None, None));
+        assert!(same_drawn_selections(drawn.as_ref(), drawn_selections(&ranges, None, false).as_ref()));
+        assert!(!same_drawn_selections(drawn.as_ref(), None));
+        assert!(!same_drawn_selections(drawn.as_ref(), drawn_selections(&ranges, Some(&pending), false).as_ref()));
+        let replaced: Arc<[Selection<Anchor>]> = Arc::from(ranges.to_vec());
+        assert!(!same_drawn_selections(drawn.as_ref(), drawn_selections(&replaced, None, false).as_ref()));
+    }
+
+    #[test]
+    fn background_highlights_compare_by_content() {
+        let ranges: Arc<[_]> = Arc::from(vec![Anchor::Min..Anchor::Max]);
+        let recorded = vec![(HighlightKey::BufferSearchHighlights, Arc::clone(&ranges))];
+        let mut current = FxHashMap::default();
+        assert!(same_background_highlights(&[], &current));
+        assert!(!same_background_highlights(&recorded, &current));
+
+        current.insert(HighlightKey::BufferSearchHighlights, ((), Arc::clone(&ranges)));
+        assert!(same_background_highlights(&recorded, &current));
+        assert!(!same_background_highlights(&[], &current));
+
+        // Set again with equal ranges.
+        current.insert(HighlightKey::BufferSearchHighlights, ((), Arc::from(ranges.to_vec())));
+        assert!(same_background_highlights(&recorded, &current));
+
+        current.insert(HighlightKey::BufferSearchHighlights, ((), Arc::from(vec![Anchor::Min..Anchor::Min])));
+        assert!(!same_background_highlights(&recorded, &current));
     }
 }

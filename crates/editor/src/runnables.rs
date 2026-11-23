@@ -601,6 +601,9 @@ impl Editor {
         snapshot: &DisplaySnapshot,
         cx: &App,
     ) -> FxHashSet<DisplayRow> {
+        if self.runnables.all_runnables().next().is_none() {
+            return FxHashSet::default();
+        }
         let offset_range_start = snapshot.display_point_to_point(DisplayPoint::new(range.start, 0), Bias::Left);
 
         let offset_range_end = snapshot.display_point_to_point(DisplayPoint::new(range.end, 0), Bias::Right);

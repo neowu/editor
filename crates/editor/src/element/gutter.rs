@@ -310,17 +310,17 @@ impl EditorElement {
         scroll_position: gpui::Point<ScrollOffset>,
         start_row: DisplayRow,
         buffer_rows: &[RowInfo],
+        snapshot: &EditorSnapshot,
         window: &Window,
         cx: &App,
     ) -> Vec<Option<(AnyElement, gpui::Point<Pixels>)>> {
-        if self.editor.read(cx).disable_expand_excerpt_buttons {
+        if self.editor.read(cx).disable_expand_excerpt_buttons || !has_expand_toggles(buffer_rows) {
             return vec![];
         }
 
         let editor_font_size = self.style.text.font_size.to_pixels(window.rem_size()) * 1.2;
 
-        let max_line_number_length =
-            self.editor.read(cx).buffer().read(cx).snapshot(cx).widest_line_number().ilog10() + 1;
+        let max_line_number_length = snapshot.widest_line_number().ilog10() + 1;
 
         let git_gutter_width =
             Self::gutter_strip_width(line_height) + gutter_dimensions.git_blame_entries_width.unwrap_or_default();
@@ -386,6 +386,7 @@ impl EditorElement {
             let display_row = DisplayRow(gutter.range.start.0 + ix as u32);
             line_number.clear();
             let number = row_info.buffer_row? + 1;
+            let multi_buffer_row = row_info.multibuffer_row?;
             if !gutter.snapshot.number_deleted_lines && row_info.diff_status.is_some_and(|status| status.is_deleted()) {
                 return None;
             }
@@ -411,9 +412,6 @@ impl EditorElement {
             ));
 
             let segment = LineNumberSegment { shaped_line, hitbox };
-
-            let buffer_row = DisplayPoint::new(display_row, 0).to_point(gutter.snapshot).row;
-            let multi_buffer_row = MultiBufferRow(buffer_row);
 
             Some((multi_buffer_row, segment))
         });
@@ -747,6 +745,10 @@ impl EditorElement {
     }
 }
 
+fn has_expand_toggles(row_infos: &[RowInfo]) -> bool {
+    row_infos.iter().any(|row_info| row_info.expand_info.is_some())
+}
+
 pub(super) struct Gutter<'a> {
     pub(super) line_height: Pixels,
     pub(super) range: Range<DisplayRow>,
@@ -877,4 +879,26 @@ pub(super) fn render_blame_entry(
         window,
         cx,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use multi_buffer::Anchor;
+    use multi_buffer::ExpandExcerptDirection;
+    use multi_buffer::ExpandInfo;
+    use multi_buffer::RowInfo;
+
+    use super::has_expand_toggles;
+
+    #[test]
+    fn has_expand_toggles_needs_a_row_with_expand_info() {
+        let plain = RowInfo { buffer_row: Some(1), ..RowInfo::default() };
+        let expandable = RowInfo {
+            expand_info: Some(ExpandInfo { direction: ExpandExcerptDirection::Up, start_anchor: Anchor::Min }),
+            ..RowInfo::default()
+        };
+        assert!(!has_expand_toggles(&[]));
+        assert!(!has_expand_toggles(&[plain, plain]));
+        assert!(has_expand_toggles(&[plain, expandable]));
+    }
 }
