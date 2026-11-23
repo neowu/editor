@@ -57,6 +57,8 @@ Directions the fork deliberately doesn't follow, even in kept crates:
    PR number to see if something was already ported.
 2. Drop changes to deleted files, removed-platform code, tests and
    test-support helpers. Add unit tests for the fork's changed functions.
+   A commit that mostly touches removed crates is still checked file by
+   file for the kept ones, and code the fork moved is found by name.
 3. `cargo +nightly fmt --all`, and keep `cargo clippy --workspace
    --all-targets` warning-free.
 4. Dependency bumps: `cargo update -p <crate> --precise <version>` per crate,
@@ -66,8 +68,8 @@ Directions the fork deliberately doesn't follow, even in kept crates:
 
 ## Status
 
-- Last reviewed upstream commit: `2f808b3c` (2026-11-21). The next pass
-  starts at `git log --reverse 2f808b3c..upstream/main`.
+- Last reviewed upstream commit: `2fc98e1e9b` (2026-11-23). The next pass
+  starts at `git log --reverse 2fc98e1e9b..upstream/main`.
 - Renderer series, partly taken: #66806 and #66807 are ported. Still open:
   #66809 (path rendering without MSAA or an intermediate texture) with
   #66811 (depth buffer to cut overdraw), the main Metal win; they trade
@@ -79,6 +81,9 @@ Directions the fork deliberately doesn't follow, even in kept crates:
   in restricted mode), #66423 (drag git panel files to the terminal), #66296
   (mouse-wheel zoom in terminals and diffs), #66450 (hide the edit prediction
   status bar button), git UI polish (#66260, #66187, #66226), #63909, #65474,
-  #66144, #66384, #66330/#66137 (JetBrains keymap).
+  #66144, #66384, #66330/#66137 (JetBrains keymap), #57638 (`./` and `../`
+  in the open-files prompt, relative to the active buffer), #67311 with its
+  fixes in #67316 (`NativeView`: an `NSView` composited into the scene; only
+  the `scroll_to_item` fix from it is ported).
 - Watch: #66487 (parallel LSP loads), reverted upstream as #66517. Revisit
   if it lands again.
