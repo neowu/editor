@@ -220,29 +220,29 @@ impl TextSystem {
     /// Returns the width of an `em`.
     ///
     /// Uses the width of the `m` character in the given font and size.
-    pub fn em_width(&self, font_id: FontId, font_size: Pixels) -> Result<Pixels> {
-        Ok(self.typographic_bounds(font_id, font_size, 'm')?.size.width)
+    pub fn em_width(&self, font_id: FontId, font_size: Pixels) -> Pixels {
+        self.read_metrics(font_id, |metrics| metrics.em_width(font_size))
     }
 
     /// Returns the advance width of an `em`.
     ///
     /// Uses the advance width of the `m` character in the given font and size.
-    pub fn em_advance(&self, font_id: FontId, font_size: Pixels) -> Result<Pixels> {
-        Ok(self.advance(font_id, font_size, 'm')?.width)
+    pub fn em_advance(&self, font_id: FontId, font_size: Pixels) -> Pixels {
+        self.read_metrics(font_id, |metrics| metrics.em_advance(font_size))
     }
 
     /// Returns the width of an `ch`.
     ///
     /// Uses the width of the `0` character in the given font and size.
-    pub fn ch_width(&self, font_id: FontId, font_size: Pixels) -> Result<Pixels> {
-        Ok(self.typographic_bounds(font_id, font_size, '0')?.size.width)
+    pub fn ch_width(&self, font_id: FontId, font_size: Pixels) -> Pixels {
+        self.read_metrics(font_id, |metrics| metrics.ch_width(font_size))
     }
 
     /// Returns the advance width of an `ch`.
     ///
     /// Uses the advance width of the `0` character in the given font and size.
-    pub fn ch_advance(&self, font_id: FontId, font_size: Pixels) -> Result<Pixels> {
-        Ok(self.advance(font_id, font_size, '0')?.width)
+    pub fn ch_advance(&self, font_id: FontId, font_size: Pixels) -> Pixels {
+        self.read_metrics(font_id, |metrics| metrics.ch_advance(font_size))
     }
 
     /// Get the number of font size units per 'em square',
@@ -877,6 +877,18 @@ pub struct FontMetrics {
     /// The outer limits of the area that the font covers.
     /// Corresponds to the xMin / xMax / yMin / yMax values in the OpenType `head` table.
     pub bounding_box: Bounds<f32>,
+
+    /// The typographic width of `m`, or 0 if the font has no such glyph.
+    pub em_width: f32,
+
+    /// The advance of `m`, or 0 if the font has no such glyph.
+    pub em_advance: f32,
+
+    /// The typographic width of `0`, or 0 if the font has no such glyph.
+    pub ch_width: f32,
+
+    /// The advance of `0`, or 0 if the font has no such glyph.
+    pub ch_advance: f32,
 }
 
 impl FontMetrics {
@@ -893,6 +905,26 @@ impl FontMetrics {
     /// Returns the recommended additional space to add between lines of type in pixels.
     pub fn line_gap(&self, font_size: Pixels) -> Pixels {
         Pixels((self.line_gap / self.units_per_em as f32) * font_size.0)
+    }
+
+    /// Returns the typographic width of `m` in pixels.
+    pub fn em_width(&self, font_size: Pixels) -> Pixels {
+        Pixels((self.em_width / self.units_per_em as f32) * font_size.0)
+    }
+
+    /// Returns the advance of `m` in pixels.
+    pub fn em_advance(&self, font_size: Pixels) -> Pixels {
+        Pixels((self.em_advance / self.units_per_em as f32) * font_size.0)
+    }
+
+    /// Returns the typographic width of `0` in pixels.
+    pub fn ch_width(&self, font_size: Pixels) -> Pixels {
+        Pixels((self.ch_width / self.units_per_em as f32) * font_size.0)
+    }
+
+    /// Returns the advance of `0` in pixels.
+    pub fn ch_advance(&self, font_size: Pixels) -> Pixels {
+        Pixels((self.ch_advance / self.units_per_em as f32) * font_size.0)
     }
 
     /// Returns the suggested position of the underline in pixels.
@@ -927,5 +959,31 @@ pub fn font_name_with_fallbacks<'a>(name: &'a str, system: &'a str) -> &'a str {
     match name {
         ".SystemUIFont" => system,
         _ => name,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::FontId;
+    use super::TextSystem;
+    use crate::NoopTextSystem;
+    use crate::px;
+
+    #[test]
+    fn em_and_ch_metrics_match_glyph_queries_at_any_size() {
+        let text_system = TextSystem::new(Arc::new(NoopTextSystem));
+        let font_id = FontId(1);
+        for font_size in [px(13.), px(16.), px(40.)] {
+            let bounds = |character| text_system.typographic_bounds(font_id, font_size, character).unwrap().size.width;
+            let advance = |character| text_system.advance(font_id, font_size, character).unwrap().width;
+            assert_eq!(text_system.em_width(font_id, font_size), bounds('m'));
+            assert_eq!(text_system.em_advance(font_id, font_size), advance('m'));
+            assert_eq!(text_system.ch_width(font_id, font_size), bounds('0'));
+            assert_eq!(text_system.ch_advance(font_id, font_size), advance('0'));
+        }
+        // 600 units of a 1000 unit em.
+        assert_eq!(text_system.em_advance(font_id, px(10.)), px(6.));
     }
 }

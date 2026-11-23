@@ -57,6 +57,7 @@ use crate::ToggleCodeActions;
 use crate::UPDATE_DEBOUNCE;
 use crate::display_map::DisplayPoint;
 use crate::display_map::DisplayRow;
+use crate::display_map::DisplaySnapshot;
 use crate::display_map::ToDisplayPoint as _;
 
 #[derive(Debug)]
@@ -597,11 +598,9 @@ impl Editor {
     pub(super) fn active_run_indicators(
         &self,
         range: Range<DisplayRow>,
-        window: &Window,
-        cx: &mut Context<Self>,
+        snapshot: &DisplaySnapshot,
+        cx: &App,
     ) -> FxHashSet<DisplayRow> {
-        let snapshot = self.snapshot(window, cx);
-
         let offset_range_start = snapshot.display_point_to_point(DisplayPoint::new(range.start, 0), Bias::Left);
 
         let offset_range_end = snapshot.display_point_to_point(DisplayPoint::new(range.end, 0), Bias::Right);
@@ -634,7 +633,7 @@ impl Editor {
                     }
                 }
 
-                let display_row = multibuffer_point.to_display_point(&snapshot).row();
+                let display_row = multibuffer_point.to_display_point(snapshot).row();
                 Some(display_row)
             })
             .collect()

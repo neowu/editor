@@ -244,6 +244,13 @@
   file finder: they are yes/no filters, and a glob's literal prefix limits which
   gitignored directories are scanned. A pattern without glob syntax matches
   that path at any depth (`editor` matches every `editor` directory or file).
+- Editor prepaint layout steps read the snapshot prepaint already holds
+  rather than re-snapshotting the display map. Work for optional UI
+  (mouse context menu, hover popovers, diff hunk controls, buffer header
+  selection data) starts only after checking that the UI is present.
+- The newest selection is identified by selection id during layout, not by
+  comparing resolved ranges.
+- A wrap guide sits at its column times the shaped width of one space.
 
 ## Markdown
 

@@ -584,3 +584,31 @@ fn family_name(descriptor: &CTFontDescriptor) -> Option<String> {
     let value = unsafe { descriptor.attribute(kCTFontFamilyNameAttribute) }?;
     Some(value.downcast::<CFString>().ok()?.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use gpui::PlatformTextSystem as _;
+    use gpui::font;
+
+    use super::AppleTextSystem;
+
+    #[test]
+    fn font_metrics_carry_em_and_ch_measures() {
+        let text_system = AppleTextSystem::new();
+        let font_id = text_system.font_id(&font("Menlo")).unwrap();
+        let metrics = text_system.font_metrics(font_id);
+        let width = |character| {
+            let glyph_id = text_system.glyph_for_char(font_id, character).unwrap();
+            text_system.typographic_bounds(font_id, glyph_id).unwrap().size.width
+        };
+        let advance = |character| {
+            let glyph_id = text_system.glyph_for_char(font_id, character).unwrap();
+            text_system.advance(font_id, glyph_id).unwrap().width
+        };
+        assert!(metrics.em_advance > 0.);
+        assert_eq!(metrics.em_width, width('m'));
+        assert_eq!(metrics.em_advance, advance('m'));
+        assert_eq!(metrics.ch_width, width('0'));
+        assert_eq!(metrics.ch_advance, advance('0'));
+    }
+}

@@ -18,6 +18,14 @@
   shape serves every clamp and width.
 - A font database change clears all three tiers.
 
+## Font metrics
+
+- The text system keeps each font's `FontMetrics` for the life of the app.
+  The platform fills in the width and advance of `m` and `0` (font units,
+  0 when the font lacks the glyph) with the rest of the metrics, so
+  `em_width`, `em_advance`, `ch_width` and `ch_advance` scale a stored value
+  by the font size and cannot fail. A font size change needs no invalidation.
+
 ## Animations
 
 - `gpui::spring` holds only the shared motion math; there is no generic

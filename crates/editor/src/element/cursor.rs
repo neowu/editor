@@ -149,10 +149,10 @@ impl EditorElement {
         editor_with_selections.update(cx, |editor, cx| {
             if editor.show_local_selections {
                 let mut layouts = Vec::new();
-                let newest = editor.selections.newest(&editor.display_snapshot(cx));
+                let newest_id = editor.selections.newest_anchor().id;
                 for selection in local_selections.iter().copied() {
                     let is_empty = selection.start == selection.end;
-                    let is_newest = selection == newest;
+                    let is_newest = selection.id == newest_id;
 
                     let layout = SelectionLayout::new(
                         selection,

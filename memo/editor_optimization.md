@@ -237,3 +237,75 @@ table-only bubble order, duplicate checks and `editor_actions`.
 - Still per frame: project panel and git panel `.on_action` lists and the
   pane search actions (`register_pane_search_actions`), all on cached
   views, so only paid when dirty.
+
+## Prepaint follow-up (2026-11-23)
+
+From reading the four most expensive ranges above. Measured below.
+
+- One snapshot per pass: `layout_selections`, the diff hunk cursor row and
+  `active_run_indicators` each re-synced the display map; they now read the
+  prepaint snapshot.
+- `layout_mouse_context_menu` laid out two rows and `layout_hover_popovers`
+  cloned the `EditorStyle` before checking that anything was shown; both
+  check first.
+- Selection resolution: `itertools::tee` replaced by `SmallVec` collects,
+  `pending()` returns early without a pending selection, and the newest
+  selection is matched by id instead of being resolved again.
+- `MultiBuffer::language_settings` no longer clones the multibuffer snapshot
+  (called from `soft_wrap_mode` and `wrap_guides` every frame).
+- `bg_segments_per_row` returns early with no highlights and only empty
+  selections; header selection data is skipped when headers are hidden.
+- Wrap guides use one space's shaped width times the column instead of
+  shaping a run of spaces per guide.
+- The diff hunk cursor row reuses the newest selection head from
+  `layout_selections`. Recomputing it late in prepaint cost about 20 us in a
+  full editor (a second `SelectionLayout::new`), against about nothing when it
+  ran right after the first.
+- Font metrics: `FontMetrics` carries the width and advance of `m` and `0`
+  in font units (0 when the glyph is missing), so `em_width`, `em_advance`,
+  `ch_width` and `ch_advance` scale a cached value instead of calling
+  CoreText. Font size changes need no invalidation.
+
+### Measured
+
+- Temporary instrumentation (removed): timers and a per-thread allocation
+  count at the range boundaries of `prepaint`, with a counting wrapper around
+  mimalloc. Dev profile, `--features mimalloc`, 1200x700 window.
+- Workload (`edctl`): open the command palette, type `toggle`, close, 25
+  times (about 300 single-line frames); then down / right / up 40 times in a
+  10-line Rust file with one diff hunk (460 full-editor frames, minimap on;
+  the minimap's nested prepaint is counted in its parent).
+- Each build ran twice; both p50 values are given. The first run of a pair
+  is usually the slower one, and runs differ by up to about 10%.
+
+Single-line editor, p50 us (allocations):
+
+| Range | Before | Without font cache | Final |
+|---|---|---|---|
+| whole prepaint | 114.7 / 115.2 (60) | 96.8 / 99.7 (21) | 86.3 / 94.4 (21) |
+| snapshot, font metrics, wrap width | 14.2 / 17.8 (0) | 16.0 / 15.4 (0) | 7.0 / 6.6 (0) |
+| highlights, selections | 18.5 / 18.9 (22) | 9.6 / 9.3 (4) | 9.5 / 8.9 (4) |
+| background segments, line layout | 10.7 / 11.1 (4) | 11.7 / 11.0 (4) | 12.0 / 11.2 (4) |
+| run indicators .. minimap | 12.2 / 12.2 (3) | 1.5 / 1.3 (0) | 1.4 / 1.2 (0) |
+
+Full editor, p50 us (allocations):
+
+| Range | Before | Without font cache | Final |
+|---|---|---|---|
+| whole prepaint | 1039.8 / 937.8 (219) | 923.0 / 844.1 (144) | 858.4 / 798.0 (144) |
+| snapshot, font metrics, wrap width | 59.2 / 47.2 (1) | 58.2 / 47.2 (1) | 23.4 / 20.1 (1) |
+| highlights, selections | 102.5 / 88.8 (22) | 66.7 / 55.9 (4) | 64.5 / 57.4 (4) |
+| background segments, line layout | 153.2 / 142.6 (40) | 152.7 / 144.6 (39) | 144.5 (39, second run) |
+| run indicators .. minimap | 353.7 / 333.8 (87) | 261.6 / 246.3 (51) | 250.1 / 241.8 (51) |
+
+- Largest single savings: the context menu check (about 11 us single-line,
+  about 90 us full, which includes the minimap editor's own prepaint), the
+  font cache (about 8 us single-line, about 27 us full, where the gutter
+  also asks for the `0` measures), and selection resolution (about 9 us
+  single-line, about 30 us full).
+- Line layout did not change, as expected.
+- Removing the extra display-map syncs from the gutter range changed nothing
+  measurable (173 us before and after): syncing an unchanged map is cheap.
+- What is left in a full editor: gutter and diff hunks about 175 us, line
+  layout about 145 us, longest line / blocks / cursors about 110 us, and the
+  minimap range about 240 us.

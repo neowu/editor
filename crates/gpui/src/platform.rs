@@ -448,6 +448,10 @@ impl PlatformTextSystem for NoopTextSystem {
                 origin: Point { x: -260.0, y: -245.0 },
                 size: Size { width: 1501.0, height: 1364.0 },
             },
+            em_width: 392.0,
+            em_advance: 600.0,
+            ch_width: 392.0,
+            ch_advance: 600.0,
         }
     }
 

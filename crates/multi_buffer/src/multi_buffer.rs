@@ -1390,8 +1390,8 @@ impl MultiBuffer {
     }
 
     pub fn language_settings(&self, cx: &App) -> Arc<LanguageSettings> {
-        let snapshot = self.snapshot(cx);
-        snapshot.excerpts.first().and_then(|excerpt| self.buffer(excerpt.range.context.start.buffer_id)).map_or_else(
+        let first_buffer_id = self.read(cx).excerpts.first().map(|excerpt| excerpt.range.context.start.buffer_id);
+        first_buffer_id.and_then(|buffer_id| self.buffer(buffer_id)).map_or_else(
             move || self.language_settings_at(MultiBufferOffset::default(), cx),
             |buffer| LanguageSettings::for_buffer(buffer.read(cx), cx),
         )

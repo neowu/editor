@@ -1352,9 +1352,9 @@ impl FileFinderDelegate {
                 let style = window.text_style();
                 let font_id = window.text_system().resolve_font(&style.font());
                 let font_size = TextSize::Default.rems(cx).to_pixels(window.rem_size());
-                let normal = cx.text_system().em_width(font_id, font_size).unwrap_or(px(16.));
+                let normal = cx.text_system().em_width(font_id, font_size);
                 let font_size = TextSize::Small.rems(cx).to_pixels(window.rem_size());
-                let small = cx.text_system().em_width(font_id, font_size).unwrap_or(px(10.));
+                let small = cx.text_system().em_width(font_id, font_size);
                 (normal, small)
             };
             let budget = full_path_budget(&file_name, normal_em, small_em, max_width);

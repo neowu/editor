@@ -119,6 +119,13 @@ fn glyph_rect_in_units(font: &CTFont, glyph_id: u32) -> [f32; 4] {
 
 pub(crate) fn metrics(font: &CTFont) -> FontMetrics {
     let units_per_point = units_per_point(font);
+    // Zero when the font has no glyph for the character.
+    let measure = |character| {
+        glyph_for_char(font, character)
+            .map_or((0., 0.), |glyph_id| (typographic_bounds(font, glyph_id).size.width, advance(font, glyph_id).width))
+    };
+    let (em_width, em_advance) = measure('m');
+    let (ch_width, ch_advance) = measure('0');
     unsafe {
         FontMetrics {
             units_per_em: font.units_per_em(),
@@ -130,6 +137,10 @@ pub(crate) fn metrics(font: &CTFont) -> FontMetrics {
             cap_height: (font.cap_height() * units_per_point) as f32,
             x_height: (font.x_height() * units_per_point) as f32,
             bounding_box: bounds_from_rect(rect_in_units(font.bounding_box(), units_per_point as f32)),
+            em_width,
+            em_advance,
+            ch_width,
+            ch_advance,
         }
     }
 }

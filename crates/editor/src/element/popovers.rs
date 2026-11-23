@@ -493,6 +493,9 @@ impl EditorElement {
         }
 
         let hover_popovers = self.editor.update(cx, |editor, cx| {
+            if !editor.hover_state.visible() {
+                return None;
+            }
             editor.hover_state.render(
                 snapshot,
                 visible_display_row_range.clone(),

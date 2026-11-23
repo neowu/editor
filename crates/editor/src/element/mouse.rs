@@ -193,6 +193,7 @@ impl EditorElement {
         cx: &mut App,
     ) -> Option<AnyElement> {
         let position = self.editor.update(cx, |editor, cx| {
+            editor.mouse_context_menu.as_ref()?;
             let visible_start_point = editor.display_to_pixel_point(
                 DisplayPoint::new(visible_range.start, 0),
                 editor_snapshot,
@@ -688,7 +689,7 @@ impl EditorElement {
             let style = editor.style.clone().unwrap_or_default();
             let font_id = window.text_system().resolve_font(&style.text.font());
             let font_size = style.text.font_size.to_pixels(window.rem_size());
-            let em_width = window.text_system().em_width(font_id, font_size).unwrap_or(font_size);
+            let em_width = window.text_system().em_width(font_id, font_size);
 
             let scroll_space: Pixels = HORIZONTAL_SCROLL_MARGIN * em_width;
 

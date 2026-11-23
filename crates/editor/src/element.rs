@@ -40,6 +40,7 @@ use gpui::Element;
 use gpui::ElementInputHandler;
 use gpui::Entity;
 use gpui::Focusable as _;
+use gpui::FontId;
 use gpui::GlobalElementId;
 use gpui::Hitbox;
 use gpui::HitboxBehavior;
@@ -337,6 +338,8 @@ impl EditorElement {
 
     fn layout_wrap_guides(
         &self,
+        font_id: FontId,
+        font_size: Pixels,
         em_advance: Pixels,
         scroll_position: gpui::Point<f64>,
         content_origin: gpui::Point<Pixels>,
@@ -344,20 +347,21 @@ impl EditorElement {
         window: &Window,
         cx: &App,
     ) -> SmallVec<[(Pixels, bool); 2]> {
+        let guides = self.editor.read(cx).wrap_guides(cx);
+        if guides.is_empty() {
+            return SmallVec::new();
+        }
         let scroll_left = scroll_position.x as f32 * em_advance;
         let content_origin = content_origin.x;
         let horizontal_offset = content_origin - scroll_left;
+        // A run of spaces is as wide as one space times its length.
+        let space_width = window.text_system().layout_width(font_id, font_size, ' ');
 
-        self.editor
-            .read(cx)
-            .wrap_guides(cx)
+        guides
             .into_iter()
             .filter_map(|(guide, active)| {
-                let wrap_position = column_pixels(&self.style, guide, window);
-                let wrap_guide_x = wrap_position + horizontal_offset;
-                let display_wrap_guide = wrap_guide_x >= content_origin && wrap_guide_x <= hitbox.bounds.right();
-
-                display_wrap_guide.then_some((wrap_guide_x, active))
+                let x = wrap_guide_x(guide, space_width, horizontal_offset, content_origin, hitbox.bounds.right())?;
+                Some((x, active))
             })
             .collect()
     }
@@ -461,7 +465,12 @@ impl EditorElement {
             // We don't actually know what color is behind this editor.
             return Vec::new();
         }
-        let highlight_iter = highlight_ranges.into_iter();
+        let mut highlight_iter = highlight_ranges.into_iter().peekable();
+        let has_selection =
+            selections.iter().any(|(_, layouts)| layouts.iter().any(|layout| layout.range.start != layout.range.end));
+        if highlight_iter.peek().is_none() && !has_selection {
+            return Vec::new();
+        }
         let selection_iter = selections.iter().flat_map(|(cursor_colors, layouts)| {
             let color = cursor_colors.selection;
             layouts.iter().filter_map(move |selection_layout| {
@@ -1311,8 +1320,8 @@ impl Element for EditorElement {
                     let ascent = window.text_system().ascent(font_id, font_size);
                     let descent = window.text_system().descent(font_id, font_size).abs();
                     let point_diagnostic_underline_offset = underline_y_offset(line_height, ascent, descent);
-                    let em_width = window.text_system().em_width(font_id, font_size).expect("font is resolved");
-                    let em_advance = window.text_system().em_advance(font_id, font_size).expect("font is resolved");
+                    let em_width = window.text_system().em_width(font_id, font_size);
+                    let em_advance = window.text_system().em_advance(font_id, font_size);
                     let em_layout_width = window.text_system().em_layout_width(font_id, font_size);
                     let glyph_grid_cell = size(em_advance, line_height);
 
@@ -1554,9 +1563,11 @@ impl Element for EditorElement {
                         |editor| {
                             editor.update(cx, |editor, cx| {
                                 let is_singleton = editor.buffer_kind(cx) == ItemBufferKind::Singleton;
+                                // Both are only read by buffer headers.
+                                let show_headers = snapshot.buffer_snapshot().show_headers();
 
                                 // Singleton buffers only need the newest selection anchor here.
-                                let selected_buffer_ids = if is_singleton {
+                                let selected_buffer_ids = if is_singleton || !show_headers {
                                     Vec::new()
                                 } else {
                                     let all_selections = editor.selections.all::<Point>(&snapshot.display_snapshot);
@@ -1580,7 +1591,9 @@ impl Element for EditorElement {
                                     .disjoint_in_row_range(start_anchor..end_anchor, &snapshot.display_snapshot);
                                 selections.extend(editor.selections.pending(&snapshot.display_snapshot));
 
-                                let latest_selection_anchors: FxHashMap<BufferId, Anchor> = if is_singleton {
+                                let latest_selection_anchors: FxHashMap<BufferId, Anchor> = if !show_headers {
+                                    FxHashMap::default()
+                                } else if is_singleton {
                                     let head = editor.selections.newest_anchor().head();
                                     snapshot
                                         .buffer_snapshot()
@@ -1623,26 +1636,8 @@ impl Element for EditorElement {
                     let (selections, active_rows, newest_selection_head) =
                         self.layout_selections(&local_selections, &snapshot, start_row, end_row, window, cx);
 
-                    let current_selection_head = self.editor.update(cx, |editor, cx| {
-                        (editor.selections.count() != 0).then(|| {
-                            let newest = editor.selections.newest::<Point>(&editor.display_snapshot(cx));
-
-                            SelectionLayout::new(
-                                newest,
-                                editor.selections.line_mode(),
-                                editor.cursor_offset_on_selection,
-                                editor.cursor_shape,
-                                &snapshot,
-                                true,
-                            )
-                            .head
-                            .row()
-                        })
-                    });
-
-                    let run_indicator_rows = self
-                        .editor
-                        .update(cx, |editor, cx| editor.active_run_indicators(start_row..end_row, window, cx));
+                    let run_indicator_rows =
+                        self.editor.read(cx).active_run_indicators(start_row..end_row, &snapshot, cx);
 
                     let gutter = Gutter {
                         line_height,
@@ -2160,8 +2155,16 @@ impl Element for EditorElement {
                         self.prepaint_expand_toggles(&mut expand_toggles, window, cx);
                     });
 
-                    let wrap_guides =
-                        self.layout_wrap_guides(em_advance, scroll_position, content_origin, &hitbox, window, cx);
+                    let wrap_guides = self.layout_wrap_guides(
+                        font_id,
+                        font_size,
+                        em_advance,
+                        scroll_position,
+                        content_origin,
+                        &hitbox,
+                        window,
+                        cx,
+                    );
 
                     let minimap = window.with_element_namespace("minimap", |window| {
                         self.layout_minimap(
@@ -2229,26 +2232,43 @@ impl Element for EditorElement {
                         Pixels::ZERO
                     };
 
-                    let (diff_hunk_controls, diff_hunk_control_bounds) =
-                        if is_read_only && self.editor.read(cx).diff_hunk_renderer.is_none() {
-                            (vec![], vec![])
-                        } else {
-                            self.layout_diff_hunk_controls(
-                                start_row..end_row,
-                                &row_infos,
-                                &text_hitbox,
-                                current_selection_head,
-                                line_height,
-                                right_margin,
-                                scroll_pixel_position,
-                                sticky_header_height,
-                                &display_hunks,
-                                &highlighted_rows,
-                                self.editor.clone(),
-                                window,
-                                cx,
-                            )
-                        };
+                    let (diff_hunk_controls, diff_hunk_control_bounds) = if display_hunks.is_empty()
+                        || (is_read_only && self.editor.read(cx).diff_hunk_renderer.is_none())
+                    {
+                        (vec![], vec![])
+                    } else {
+                        // Already laid out when the newest selection is on screen.
+                        let current_selection_head = newest_selection_head.map(|head| head.row()).or_else(|| {
+                            let editor = self.editor.read(cx);
+                            (editor.selections.count() != 0).then(|| {
+                                SelectionLayout::new(
+                                    editor.selections.newest::<Point>(&snapshot),
+                                    editor.selections.line_mode(),
+                                    editor.cursor_offset_on_selection,
+                                    editor.cursor_shape,
+                                    &snapshot,
+                                    true,
+                                )
+                                .head
+                                .row()
+                            })
+                        });
+                        self.layout_diff_hunk_controls(
+                            start_row..end_row,
+                            &row_infos,
+                            &text_hitbox,
+                            current_selection_head,
+                            line_height,
+                            right_margin,
+                            scroll_pixel_position,
+                            sticky_header_height,
+                            &display_hunks,
+                            &highlighted_rows,
+                            self.editor.clone(),
+                            window,
+                            cx,
+                        )
+                    };
 
                     self.populate_point_diagnostics(&snapshot, start_row..end_row, &mut line_layouts);
 
@@ -2583,6 +2603,18 @@ impl PositionMap {
     }
 }
 
+/// X of the wrap guide at `column`, unless it falls outside the text area.
+fn wrap_guide_x(
+    column: usize,
+    space_width: Pixels,
+    horizontal_offset: Pixels,
+    content_left: Pixels,
+    content_right: Pixels,
+) -> Option<Pixels> {
+    let x = space_width * column as f32 + horizontal_offset;
+    (x >= content_left && x <= content_right).then_some(x)
+}
+
 pub(crate) fn layout_line(
     row: DisplayRow,
     snapshot: &EditorSnapshot,
@@ -2784,7 +2816,7 @@ fn compute_auto_height_layout(
     let font_id = window.text_system().resolve_font(&style.text.font());
     let font_size = style.text.font_size.to_pixels(window.rem_size());
     let line_height = style.text.line_height_in_pixels(window.rem_size());
-    let em_width = window.text_system().em_width(font_id, font_size).expect("font is resolved");
+    let em_width = window.text_system().em_width(font_id, font_size);
 
     let mut snapshot = editor.snapshot(window, cx);
     let gutter_dimensions = snapshot.gutter_dimensions(font_id, font_size, style, window, cx);
@@ -2845,7 +2877,9 @@ mod tests {
     use super::BTreeMap;
     use super::Bounds;
     use super::BufferId;
+    use super::DisplayPoint;
     use super::DisplayRow;
+    use super::EditorElement;
     use super::RowInfo;
     use super::ScrollbarLayoutInformation;
     use super::drawn_buffer_ids;
@@ -2853,6 +2887,46 @@ mod tests {
     use super::point;
     use super::px;
     use super::size;
+    use super::wrap_guide_x;
+
+    #[test]
+    fn wrap_guide_x_scales_with_column_and_clips_to_text_area() {
+        // 80 columns of 8px spaces, text starting at x=50.
+        assert_eq!(wrap_guide_x(80, px(8.), px(50.), px(50.), px(1000.)), Some(px(690.)));
+        // Scrolled so the guide is left of the text area.
+        assert_eq!(wrap_guide_x(80, px(8.), px(-700.), px(50.), px(1000.)), None);
+        // Past the right edge.
+        assert_eq!(wrap_guide_x(200, px(8.), px(50.), px(50.), px(1000.)), None);
+        // The edges themselves are inside.
+        assert_eq!(wrap_guide_x(0, px(8.), px(50.), px(50.), px(1000.)), Some(px(50.)));
+    }
+
+    #[test]
+    fn bg_segments_are_empty_without_highlights_or_selections() {
+        let rows = DisplayRow(0)..DisplayRow(3);
+        assert!(EditorElement::bg_segments_per_row(rows, &[], [], gpui::black()).is_empty());
+    }
+
+    #[test]
+    fn bg_segments_split_a_highlight_per_row() {
+        let rows = DisplayRow(0)..DisplayRow(3);
+        let color = gpui::red();
+        let highlight = DisplayPoint::new(DisplayRow(0), 2)..DisplayPoint::new(DisplayRow(1), 4);
+        let segments =
+            EditorElement::bg_segments_per_row(rows.clone(), &[], [(highlight.clone(), color)], gpui::black());
+        assert_eq!(segments.len(), 3);
+        assert_eq!(
+            segments[0].iter().map(|(range, _)| (range.start, range.end)).collect::<Vec<_>>(),
+            [(2, u32::MAX as usize)]
+        );
+        assert_eq!(segments[1].iter().map(|(range, _)| (range.start, range.end)).collect::<Vec<_>>(), [(0, 4)]);
+        assert!(segments[2].is_empty());
+
+        // A translucent editor background can't be blended against.
+        assert!(
+            EditorElement::bg_segments_per_row(rows, &[], [(highlight, color)], gpui::transparent_black()).is_empty()
+        );
+    }
 
     #[test]
     fn drawn_buffer_ids_are_distinct_in_draw_order() {

@@ -11,7 +11,6 @@ use language::Point;
 use multi_buffer::MultiBufferPoint;
 use multi_buffer::MultiBufferRow;
 use multi_buffer::ToOffset;
-use util::ResultExt as _;
 
 use super::Editor;
 use super::EditorSnapshot;
@@ -193,10 +192,9 @@ impl EditorSnapshot {
         window: &mut Window,
         cx: &App,
     ) -> GutterDimensions {
-        if self.show_gutter
-            && let Some(ch_width) = cx.text_system().ch_width(font_id, font_size).log_err()
-            && let Some(ch_advance) = cx.text_system().ch_advance(font_id, font_size).log_err()
-        {
+        if self.show_gutter {
+            let ch_width = cx.text_system().ch_width(font_id, font_size);
+            let ch_advance = cx.text_system().ch_advance(font_id, font_size);
             let show_git_gutter = self.show_git_diff_gutter.unwrap_or(true);
             let show_line_numbers = self.show_line_numbers;
             let line_gutter_width = if show_line_numbers {

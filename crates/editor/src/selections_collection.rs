@@ -13,7 +13,6 @@ use std::sync::Arc;
 
 use gpui::Pixels;
 use itertools::Either;
-use itertools::Itertools as _;
 use language::Bias;
 use language::Point;
 use language::Selection;
@@ -21,6 +20,7 @@ use language::SelectionGoal;
 use multi_buffer::MultiBufferDimension;
 use multi_buffer::MultiBufferOffset;
 use multi_buffer::ToPoint as _;
+use smallvec::SmallVec;
 
 use crate::Anchor;
 use crate::DisplayPoint;
@@ -129,7 +129,7 @@ impl SelectionsCollection {
     where
         D: MultiBufferDimension + Sub + AddAssign<<D as Sub>::Output> + Ord,
     {
-        resolve_selections_wrapping_blocks(self.pending_anchor(), snapshot).next()
+        resolve_selections_wrapping_blocks([self.pending_anchor()?], snapshot).next()
     }
 
     pub(crate) fn all_unexpanded<D>(&self, snapshot: &DisplaySnapshot) -> Vec<Selection<D>>
@@ -978,12 +978,12 @@ fn resolve_selections_point<'a>(
     selections: impl 'a + IntoIterator<Item = &'a Selection<Anchor>>,
     map: &'a DisplaySnapshot,
 ) -> impl 'a + Iterator<Item = Selection<Point>> {
-    let (to_summarize, selections) = selections.into_iter().tee();
-    let mut summaries = map
-        .buffer_snapshot()
-        .summaries_for_anchors::<Point, _>(to_summarize.flat_map(|s| [&s.start, &s.end]))
-        .into_iter();
-    selections.map(move |s| {
+    let selections: SmallVec<[&Selection<Anchor>; 4]> = selections.into_iter().collect();
+    let mut summaries = SmallVec::<[Point; 8]>::new();
+    map.buffer_snapshot()
+        .summaries_for_anchors_cb(selections.iter().flat_map(|s| [&s.start, &s.end]), |point| summaries.push(point));
+    let mut summaries = summaries.into_iter();
+    selections.into_iter().map(move |s| {
         let start = summaries.next().expect("two summaries per selection");
         let end = summaries.next().expect("two summaries per selection");
         assert!(
@@ -1056,10 +1056,12 @@ where
     D: MultiBufferDimension + Sub + AddAssign<<D as Sub>::Output> + Ord,
     I: 'a + IntoIterator<Item = &'a Selection<Anchor>>,
 {
-    let (to_convert, selections) = coalesce_selections(resolve_selections_point(selections, map)).tee();
-    let mut converted_endpoints =
-        map.buffer_snapshot().dimensions_from_points::<D>(to_convert.flat_map(|s| [s.start, s.end]));
-    selections.map(move |s| {
+    let selections: SmallVec<[Selection<Point>; 4]> =
+        coalesce_selections(resolve_selections_point(selections, map)).collect();
+    let mut converted_endpoints = map
+        .buffer_snapshot()
+        .dimensions_from_points::<D>(selections.clone().into_iter().flat_map(|s| [s.start, s.end]));
+    selections.into_iter().map(move |s| {
         let start = converted_endpoints.next().expect("two endpoints per selection");
         let end = converted_endpoints.next().expect("two endpoints per selection");
         Selection { id: s.id, start, end, reversed: s.reversed, goal: s.goal }
@@ -1076,14 +1078,15 @@ where
 {
     // Transforms `Anchor -> DisplayPoint -> Point -> DisplayPoint -> D`
     // todo(lw): We should be able to short circuit the `Anchor -> DisplayPoint -> Point` to `Anchor -> Point`
-    let (to_convert, selections) = resolve_selections_display(selections, map).tee();
-    let mut converted_endpoints = map.buffer_snapshot().dimensions_from_points::<D>(to_convert.flat_map(|s| {
-        let start = map.display_point_to_point(s.start, Bias::Left);
-        let end = map.display_point_to_point(s.end, Bias::Right);
-        assert!(start <= end, "start: {start:?}, end: {end:?}");
-        [start, end]
-    }));
-    selections.map(move |s| {
+    let selections: SmallVec<[Selection<DisplayPoint>; 4]> = resolve_selections_display(selections, map).collect();
+    let mut converted_endpoints =
+        map.buffer_snapshot().dimensions_from_points::<D>(selections.clone().into_iter().flat_map(|s| {
+            let start = map.display_point_to_point(s.start, Bias::Left);
+            let end = map.display_point_to_point(s.end, Bias::Right);
+            assert!(start <= end, "start: {start:?}, end: {end:?}");
+            [start, end]
+        }));
+    selections.into_iter().map(move |s| {
         let start = converted_endpoints.next().expect("two endpoints per selection");
         let end = converted_endpoints.next().expect("two endpoints per selection");
         assert!(start <= end, "start: {start:?}, end: {end:?}");
