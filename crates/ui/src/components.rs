@@ -15,7 +15,6 @@ mod indicator;
 mod keybinding;
 mod label;
 mod list;
-mod modal;
 mod popover;
 mod popover_menu;
 mod project_empty_state;
@@ -63,8 +62,6 @@ pub use keybinding::*;
 pub use label::*;
 #[allow(clippy::wildcard_imports)]
 pub use list::*;
-#[allow(clippy::wildcard_imports)]
-pub use modal::*;
 #[allow(clippy::wildcard_imports)]
 pub use popover::*;
 #[allow(clippy::wildcard_imports)]
