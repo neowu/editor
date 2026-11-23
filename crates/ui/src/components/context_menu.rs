@@ -1190,7 +1190,7 @@ impl ContextMenu {
                     .on_hover(cx.listener(move |this, hovered, window, cx| {
                         if *hovered {
                             this.clear_selected();
-                            window.focus(&this.focus_handle.clone(), cx);
+                            window.focus(&this.focus_handle, cx);
                             this.hover_target = HoverTarget::MainMenu;
 
                             if let Some(ContextMenuItem::Submenu { builder, .. }) = this.items.get(ix) {
@@ -1218,7 +1218,7 @@ impl ContextMenu {
                             {
                                 this.close_submenu(false, cx);
                                 this.clear_selected();
-                                window.focus(&this.focus_handle.clone(), cx);
+                                window.focus(&this.focus_handle, cx);
                                 cx.notify();
                             }
                         }
@@ -1428,13 +1428,12 @@ impl ContextMenu {
                         item.on_hover(cx.listener(move |this, hovered, window, cx| {
                             if *hovered {
                                 this.clear_selected();
-                                window.focus(&this.focus_handle.clone(), cx);
+                                window.focus(&this.focus_handle, cx);
 
                                 if let SubmenuState::Open(open_submenu) = &this.submenu_state
                                     && open_submenu.item_index != ix
                                 {
                                     this.close_submenu(false, cx);
-                                    cx.notify();
                                 }
                             }
                         }))
