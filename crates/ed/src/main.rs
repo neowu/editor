@@ -212,8 +212,6 @@ fn main() {
     });
 
     app.run(move |cx| {
-        actions::init();
-
         initialize_keymap(cx);
 
         <dyn Fs>::set_global(Arc::clone(&fs), cx);

@@ -1,23 +1,5 @@
-use std::sync::Arc;
-
 use gpui::Action;
 use gpui::actions;
-
-// If the ed binary doesn't use anything in this crate, it will be optimized away
-// and the actions won't initialize. So we just provide an empty initialization function
-// to be called from main.
-//
-// These may provide relevant context:
-// https://github.com/rust-lang/rust/issues/47384
-// https://github.com/mmastrac/rust-ctor/issues/280
-pub const fn init() {}
-
-/// Opens a URL in the system's default web browser.
-#[derive(Clone, PartialEq, Eq, Action)]
-#[action(namespace = ed, no_build)]
-pub struct OpenBrowser {
-    pub url: Arc<str>,
-}
 
 actions!(
     ed,

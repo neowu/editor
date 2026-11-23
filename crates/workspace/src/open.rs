@@ -35,7 +35,6 @@ use super::OpenMode;
 use super::OpenVisible;
 use super::Pane;
 use super::Workspace;
-use super::workspace_error;
 use super::workspace_windows;
 use crate::item::ItemBufferKind;
 use crate::item::ItemHandle;
@@ -68,7 +67,7 @@ impl Workspace {
                     }
                     Err(err) => {
                         let rx = workspace.update_in(cx, |workspace, window, cx| {
-                            workspace.show_error(workspace_error::PortalError::new(err.to_string()), cx);
+                            workspace.show_error(err.to_string(), cx);
                             let prompt =
                                 workspace.on_prompt_for_open_path.take().expect("open path prompt handler is set");
                             let rx = prompt(workspace, lister, window, cx);
@@ -113,7 +112,7 @@ impl Workspace {
                 Ok(path) => path,
                 Err(err) => {
                     let rx = workspace.update_in(cx, |workspace, window, cx| {
-                        workspace.show_error(workspace_error::PortalError::new(err.to_string()), cx);
+                        workspace.show_error(err.to_string(), cx);
 
                         let prompt = workspace.on_prompt_for_new_path.take().expect("new path prompt handler is set");
                         let rx = prompt(workspace, lister, suggested_name, window, cx);

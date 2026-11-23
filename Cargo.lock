@@ -769,7 +769,6 @@ dependencies = [
  "title_bar",
  "tree-sitter-rust",
  "ui",
- "url",
  "util",
  "workspace",
 ]

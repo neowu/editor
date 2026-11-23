@@ -18,7 +18,6 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use actions::About;
-use actions::OpenBrowser;
 use actions::Quit;
 use anyhow::Context as _;
 use app_menus::app_menus;
@@ -265,24 +264,6 @@ fn register_actions(app_state: Arc<AppState>, workspace_actions: &mut WorkspaceA
     });
     workspace_actions.register_action(|_, _: &ToggleFullScreen, window, _| {
         window.toggle_fullscreen();
-    });
-    workspace_actions.register_action(|workspace, action: &OpenBrowser, _window, cx| {
-        // Parse and validate the URL to ensure it's properly formatted
-        match url::Url::parse(&action.url) {
-            Ok(parsed_url) => {
-                // Use the parsed URL's string representation which is properly escaped
-                cx.open_url(parsed_url.as_str());
-            }
-            Err(e) => {
-                workspace.show_error(
-                    format!(
-                        "Opening this URL in a browser failed because the URL is invalid: {}\n\nError was: {e}",
-                        action.url
-                    ),
-                    cx,
-                );
-            }
-        }
     });
     workspace_actions.register_action(|workspace, action: &workspace::Open, window, cx| {
         workspace::prompt_for_open_path_and_open(

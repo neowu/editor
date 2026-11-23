@@ -482,7 +482,6 @@ pub mod simple_message_notification {
     use ui::prelude::Icon;
     use ui::prelude::IconButton;
     use ui::prelude::IconName;
-    use ui::prelude::IconPosition;
     use ui::prelude::IconSize;
     use ui::prelude::InteractiveElement as _;
     use ui::prelude::IntoElement;
@@ -500,9 +499,6 @@ pub mod simple_message_notification {
     use super::Notification;
     use super::SuppressEvent;
     use crate::SuppressNotification;
-    use crate::workspace_error::ActionIcon;
-    use crate::workspace_error::ErrorAction;
-    use crate::workspace_error::ErrorActionHandler;
     use crate::workspace_error::ErrorSeverity;
     use crate::workspace_error::WorkspaceError;
 
@@ -643,15 +639,8 @@ pub mod simple_message_notification {
         secondary_content: Option<SharedString>,
         copy_text: Option<SharedString>,
         primary_message: Option<SharedString>,
-        primary_icon: Option<ActionIcon>,
-        primary_icon_color: Option<Color>,
         #[allow(clippy::type_complexity)]
         primary_on_click: Option<Arc<dyn Fn(&mut Window, &mut Context<Self>)>>,
-        secondary_message: Option<SharedString>,
-        secondary_icon: Option<ActionIcon>,
-        secondary_icon_color: Option<Color>,
-        #[allow(clippy::type_complexity)]
-        secondary_on_click: Option<Arc<dyn Fn(&mut Window, &mut Context<Self>)>>,
         #[allow(clippy::type_complexity)]
         more_info_message: Option<SharedString>,
         more_info_url: Option<Arc<str>>,
@@ -696,13 +685,7 @@ pub mod simple_message_notification {
                 secondary_content: None,
                 copy_text: None,
                 primary_message: None,
-                primary_icon: None,
-                primary_icon_color: None,
                 primary_on_click: None,
-                secondary_message: None,
-                secondary_icon: None,
-                secondary_icon_color: None,
-                secondary_on_click: None,
                 more_info_message: None,
                 more_info_url: None,
                 show_close_button: true,
@@ -727,51 +710,11 @@ pub mod simple_message_notification {
             self
         }
 
-        /// Show `icon` at the start (left) of the primary action button label.
-        pub const fn primary_icon(mut self, icon: IconName) -> Self {
-            self.primary_icon = Some(ActionIcon::start(icon));
-            self
-        }
-
-        /// Show `icon` at the end (right) of the primary action button label.
-        pub const fn primary_end_icon(mut self, icon: IconName) -> Self {
-            self.primary_icon = Some(ActionIcon::end(icon));
-            self
-        }
-
         pub fn primary_on_click<F>(mut self, on_click: F) -> Self
         where
             F: 'static + Fn(&mut Window, &mut Context<Self>),
         {
             self.primary_on_click = Some(Arc::new(on_click));
-            self
-        }
-
-        pub fn secondary_message<S>(mut self, message: S) -> Self
-        where
-            S: Into<SharedString>,
-        {
-            self.secondary_message = Some(message.into());
-            self
-        }
-
-        /// Show `icon` at the start (left) of the secondary action button label.
-        pub const fn secondary_icon(mut self, icon: IconName) -> Self {
-            self.secondary_icon = Some(ActionIcon::start(icon));
-            self
-        }
-
-        /// Show `icon` at the end (right) of the secondary action button label.
-        pub const fn secondary_end_icon(mut self, icon: IconName) -> Self {
-            self.secondary_icon = Some(ActionIcon::end(icon));
-            self
-        }
-
-        pub fn secondary_on_click<F>(mut self, on_click: F) -> Self
-        where
-            F: 'static + Fn(&mut Window, &mut Context<Self>),
-        {
-            self.secondary_on_click = Some(Arc::new(on_click));
             self
         }
 
@@ -836,45 +779,13 @@ pub mod simple_message_notification {
         pub fn from_workspace_error<E: WorkspaceError>(error: E, cx: &mut Context<Self>) -> Self {
             let primary_message = error.primary_message();
             let severity = error.severity();
-            let primary_action = error.primary_action();
-            let secondary_action = error.secondary_action();
-
             Self::new(primary_message.clone(), cx)
                 .content_icon(IconName::Warning, Color::Error)
                 .button_style(ButtonStyle::Outlined)
                 .copy_text(primary_message)
                 .show_suppress_button(false)
                 .when_some(error.secondary_message(), MessageNotification::secondary_content)
-                .map(|this| {
-                    let ErrorAction { label, icon, tooltip: _, handler } = primary_action;
-
-                    this.primary_message(label)
-                        .when_some(icon, |this, icon| match icon.position {
-                            IconPosition::Start => this.primary_icon(icon.name),
-                            IconPosition::End => this.primary_end_icon(icon.name),
-                        })
-                        .map(|this| match handler {
-                            ErrorActionHandler::Action(action) => this.primary_on_click(move |window, cx| {
-                                window.dispatch_action(action.boxed_clone(), cx);
-                            }),
-                            ErrorActionHandler::Dismiss => this.primary_on_click(move |_, cx| cx.emit(DismissEvent)),
-                        })
-                })
-                .when_some(secondary_action, |this, action| {
-                    let ErrorAction { label, icon, tooltip: _, handler } = action;
-
-                    this.secondary_message(label)
-                        .when_some(icon, |this, icon| match icon.position {
-                            IconPosition::Start => this.secondary_icon(icon.name),
-                            IconPosition::End => this.secondary_end_icon(icon.name),
-                        })
-                        .map(|this| match handler {
-                            ErrorActionHandler::Action(handler) => this.secondary_on_click(move |window, cx| {
-                                window.dispatch_action(handler.boxed_clone(), cx);
-                            }),
-                            ErrorActionHandler::Dismiss => this.secondary_on_click(move |_, cx| cx.emit(DismissEvent)),
-                        })
-                })
+                .primary_message("Dismiss")
                 .auto_dismiss(severity, cx)
         }
 
@@ -944,8 +855,7 @@ pub mod simple_message_notification {
                     )
                 });
 
-            let has_suffix =
-                self.primary_message.is_some() || self.secondary_message.is_some() || self.more_info_message.is_some();
+            let has_suffix = self.primary_message.is_some() || self.more_info_message.is_some();
 
             let suffix = h_flex()
                 .gap_1()
@@ -959,35 +869,6 @@ pub mod simple_message_notification {
                             }
                             this.dismiss(cx);
                         }))
-                        .when_some(self.primary_icon, |button, icon| {
-                            let element = Icon::new(icon.name)
-                                .size(IconSize::Small)
-                                .color(self.primary_icon_color.unwrap_or(Color::Muted));
-                            match icon.position {
-                                IconPosition::Start => button.start_icon(element),
-                                IconPosition::End => button.end_icon(element),
-                            }
-                        })
-                }))
-                .children(self.secondary_message.clone().map(|message| {
-                    Button::new(("notification-secondary", cx.entity_id()), message)
-                        .when_some(self.button_style, ui::ButtonCommon::style)
-                        .label_size(LabelSize::Small)
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            if let Some(on_click) = this.secondary_on_click.as_ref() {
-                                (on_click)(window, cx);
-                            }
-                            this.dismiss(cx);
-                        }))
-                        .when_some(self.secondary_icon, |button, icon| {
-                            let element = Icon::new(icon.name)
-                                .size(IconSize::Small)
-                                .color(self.secondary_icon_color.unwrap_or(Color::Muted));
-                            match icon.position {
-                                IconPosition::Start => button.start_icon(element),
-                                IconPosition::End => button.end_icon(element),
-                            }
-                        })
                 }))
                 .child(h_flex().w_full().justify_end().children(
                     self.more_info_message.iter().zip(self.more_info_url.iter()).map(|(message, url)| {

@@ -156,8 +156,7 @@ Actions that work wherever focus is in a window.
   form: the unit struct, or `Default` for an action with fields. That is what
   availability queries, the command palette and `edctl action` produce.
 - An action that only makes sense with its fields set by the caller is marked
-  `#[action(no_build)]` (`pane::ActivateItem`, `terminal::SendText`,
-  `ed::OpenBrowser`). Its name is listed by `edctl actions`, but it is never
+  `#[action(no_build)]` (`pane::ActivateItem`, `terminal::SendText`). Its name is listed by `edctl actions`, but it is never
   reported as available and can only be dispatched from code or a key binding.
 - Trade-off: `edctl action` takes no arguments. Automation reaches an action
   that needs input through a key bound to it (`edctl keys`).
