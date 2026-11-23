@@ -104,8 +104,6 @@ actions!(
         HideOthers,
         /// Minimizes the current window.
         Minimize,
-        /// Resets the application database.
-        ResetDatabase,
         /// Shows all hidden windows.
         ShowAll,
         /// Toggles fullscreen mode.

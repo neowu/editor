@@ -53,8 +53,6 @@ actions!(
     [
         /// Toggles the project menu dropdown.
         ToggleProjectMenu,
-        /// Switches to a different git branch.
-        SwitchBranch,
     ]
 );
 

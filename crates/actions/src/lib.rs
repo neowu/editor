@@ -202,7 +202,6 @@ pub mod menu {
             SelectParent,
             /// Restarts the menu from the beginning.
             Restart,
-            EndSlot,
         ]
     );
 }

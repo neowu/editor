@@ -89,7 +89,6 @@ actions!(
         Diff,
         /// Adds files to the git staging area.
         Add,
-        LeaderAndFollower,
         /// Compare with a specific branch
         CompareWithBranch,
     ]

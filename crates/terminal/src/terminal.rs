@@ -528,8 +528,6 @@ actions!(
         PasteText,
         /// Shows the character palette for special characters.
         ShowCharacterPalette,
-        /// Searches for text in the terminal.
-        SearchTest,
         /// Scrolls up by one line.
         ScrollLineUp,
         /// Scrolls down by one line.
@@ -538,10 +536,6 @@ actions!(
         ScrollPageUp,
         /// Scrolls down by one page.
         ScrollPageDown,
-        /// Scrolls up by half a page.
-        ScrollHalfPageUp,
-        /// Scrolls down by half a page.
-        ScrollHalfPageDown,
         /// Scrolls to the top of the terminal buffer.
         ScrollToTop,
         /// Scrolls to the bottom of the terminal buffer.
