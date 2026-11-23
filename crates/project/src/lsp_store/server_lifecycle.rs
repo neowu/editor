@@ -1366,9 +1366,7 @@ impl LspStore {
                         if progress.percentage.is_some() {
                             entry.percentage = progress.percentage;
                         }
-                        if progress.is_cancellable != entry.is_cancellable {
-                            entry.is_cancellable = progress.is_cancellable;
-                        }
+                        entry.is_cancellable = progress.is_cancellable;
                         did_update = true;
                     }
                 }

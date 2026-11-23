@@ -205,11 +205,7 @@ impl Repository {
     ) {
         this.update(cx, |repository, cx| {
             let graph_data = repository.initial_graph_data.entry(graph_data_key.clone()).and_modify(|graph_data| {
-                if !graph_data.subscribers.is_empty() {
-                    graph_data
-                        .subscribers
-                        .retain(|sender| sender.try_send(Ok(initial_graph_commit_data.clone())).is_ok());
-                }
+                graph_data.subscribers.retain(|sender| sender.try_send(Ok(initial_graph_commit_data.clone())).is_ok());
 
                 for commit_data in initial_graph_commit_data {
                     graph_data.commit_oid_to_index.insert(commit_data.sha, graph_data.commit_data.len());
