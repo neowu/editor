@@ -4,7 +4,6 @@ use serde::Serialize;
 use crate::Documentation;
 use crate::MarkupKind;
 use crate::TextDocumentPositionParams;
-use crate::TextDocumentRegistrationOptions;
 use crate::WorkDoneProgressOptions;
 use crate::WorkDoneProgressParams;
 
@@ -79,13 +78,6 @@ pub struct SignatureHelpOptions {
 }
 
 /// Signature help options.
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-pub struct SignatureHelpRegistrationOptions {
-    #[serde(flatten)]
-    pub text_document_registration_options: TextDocumentRegistrationOptions,
-}
-
-/// Signature help options.
 #[derive(Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(transparent)]
 pub struct SignatureHelpTriggerKind(i32);
@@ -95,8 +87,6 @@ impl SignatureHelpTriggerKind {
     pub const INVOKED: SignatureHelpTriggerKind = SignatureHelpTriggerKind(1);
     /// Signature help was triggered by a trigger character.
     pub const TRIGGER_CHARACTER: SignatureHelpTriggerKind = SignatureHelpTriggerKind(2);
-    /// Signature help was triggered by the cursor moving or by the document content changing.
-    pub const CONTENT_CHANGE: SignatureHelpTriggerKind = SignatureHelpTriggerKind(3);
 }
 }
 

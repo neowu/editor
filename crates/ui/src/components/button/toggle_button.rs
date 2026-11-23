@@ -16,9 +16,6 @@ use crate::prelude::Color;
 use crate::prelude::DefiniteLength;
 use crate::prelude::FixedWidth;
 use crate::prelude::FluentBuilder as _;
-use crate::prelude::Icon;
-use crate::prelude::IconName;
-use crate::prelude::IconSize;
 use crate::prelude::IntoElement;
 use crate::prelude::Label;
 use crate::prelude::LabelCommon as _;
@@ -61,7 +58,6 @@ impl ToggleButtonPosition {
 
 pub struct ButtonConfiguration {
     label: SharedString,
-    icon: Option<IconName>,
     #[allow(clippy::type_complexity)]
     on_click: Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>,
     selected: bool,
@@ -111,51 +107,6 @@ impl ButtonBuilder for ToggleButtonSimple {
     fn into_configuration(self) -> ButtonConfiguration {
         ButtonConfiguration {
             label: self.label,
-            icon: None,
-            on_click: self.on_click,
-            selected: self.selected,
-            tooltip: self.tooltip,
-        }
-    }
-}
-
-pub struct ToggleButtonWithIcon {
-    label: SharedString,
-    icon: IconName,
-    #[allow(clippy::type_complexity)]
-    on_click: Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>,
-    selected: bool,
-    #[allow(clippy::type_complexity)]
-    tooltip: Option<Rc<dyn Fn(&mut Window, &mut App) -> AnyView>>,
-}
-
-impl ToggleButtonWithIcon {
-    pub fn new(
-        label: impl Into<SharedString>,
-        icon: IconName,
-        on_click: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        Self { label: label.into(), icon, on_click: Box::new(on_click), selected: false, tooltip: None }
-    }
-
-    pub const fn selected(mut self, selected: bool) -> Self {
-        self.selected = selected;
-        self
-    }
-
-    pub fn tooltip(mut self, tooltip: impl Fn(&mut Window, &mut App) -> AnyView + 'static) -> Self {
-        self.tooltip = Some(Rc::new(tooltip));
-        self
-    }
-}
-
-impl private::ToggleButtonStyle for ToggleButtonWithIcon {}
-
-impl ButtonBuilder for ToggleButtonWithIcon {
-    fn into_configuration(self) -> ButtonConfiguration {
-        ButtonConfiguration {
-            label: self.label,
-            icon: Some(self.icon),
             on_click: self.on_click,
             selected: self.selected,
             tooltip: self.tooltip,
@@ -274,7 +225,7 @@ impl<T: ButtonBuilder, const COLS: usize, const ROWS: usize> RenderOnce for Togg
         let entries = self.rows.into_iter().enumerate().map(|(row_index, row)| {
             let group_name = self.group_name.clone();
             row.into_iter().enumerate().map(move |(col_index, button)| {
-                let ButtonConfiguration { label, icon, on_click, selected, tooltip } = button.into_configuration();
+                let ButtonConfiguration { label, on_click, selected, tooltip } = button.into_configuration();
 
                 let entry_index = row_index * COLS + col_index;
 
@@ -298,28 +249,11 @@ impl<T: ButtonBuilder, const COLS: usize, const ROWS: usize> RenderOnce for Togg
                     .when(self.size == ToggleButtonGroupSize::Large, |button| button.size(ButtonSize::Large))
                     .when_some(custom_height, |button, height| button.height(height.into()))
                     .child(
-                        h_flex()
-                            .w_full()
-                            .px_2()
-                            .gap_1p5()
-                            .justify_center()
-                            .flex_none()
-                            .when_some(icon, |this, icon| {
-                                this.py_2().child(Icon::new(icon).size(IconSize::XSmall).map(|this| {
-                                    if entry_index == self.selected_index || selected {
-                                        this.color(Color::Accent)
-                                    } else {
-                                        this.color(Color::Muted)
-                                    }
-                                }))
-                            })
-                            .child(
-                                Label::new(label)
-                                    .size(self.label_size)
-                                    .when(entry_index == self.selected_index || selected, |this| {
-                                        this.color(Color::Accent)
-                                    }),
-                            ),
+                        h_flex().w_full().px_2().gap_1p5().justify_center().flex_none().child(
+                            Label::new(label)
+                                .size(self.label_size)
+                                .when(entry_index == self.selected_index || selected, |this| this.color(Color::Accent)),
+                        ),
                     )
                     .when_some(tooltip, |this, tooltip| this.tooltip(move |window, cx| tooltip(window, cx)))
                     .on_click(on_click)

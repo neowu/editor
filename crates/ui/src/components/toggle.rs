@@ -1,5 +1,4 @@
 use std::rc::Rc;
-use std::sync::Arc;
 
 use gpui::AnyView;
 use gpui::ClickEvent;
@@ -23,11 +22,7 @@ use crate::KeyBinding;
 use crate::ToggleState;
 use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
-use crate::prelude::ButtonCommon as _;
-use crate::prelude::ButtonStyle;
-use crate::prelude::Clickable as _;
 use crate::prelude::DynamicSpacing;
-use crate::prelude::IconButton;
 use crate::prelude::IconSize;
 use crate::prelude::Label;
 use crate::prelude::LabelCommon as _;
@@ -36,7 +31,6 @@ use crate::prelude::Pixels;
 use crate::prelude::SharedString;
 use crate::prelude::h_flex;
 use crate::prelude::px;
-use crate::prelude::v_flex;
 use crate::utils::is_light;
 
 // TODO: Checkbox, CheckboxWithLabel, and Switch could all be
@@ -499,143 +493,6 @@ impl RenderOnce for Switch {
             .children(self.key_binding)
             .when_some(self.on_click.filter(|_| !self.disabled), |this, on_click| {
                 this.on_click(move |_, window, cx| on_click(&self.toggle_state.inverse(), window, cx))
-            })
-    }
-}
-
-/// # SwitchField
-///
-/// A field component that combines a label, description, and switch into one reusable component.
-#[derive(IntoElement)]
-pub struct SwitchField {
-    id: ElementId,
-    label: Option<SharedString>,
-    description: Option<SharedString>,
-    toggle_state: ToggleState,
-    #[allow(clippy::type_complexity)]
-    on_click: Arc<dyn Fn(&ToggleState, &mut Window, &mut App) + 'static>,
-    disabled: bool,
-    color: SwitchColor,
-    #[allow(clippy::type_complexity)]
-    tooltip: Option<Rc<dyn Fn(&mut Window, &mut App) -> AnyView>>,
-    tab_index: Option<isize>,
-}
-
-impl SwitchField {
-    pub fn new(
-        id: impl Into<ElementId>,
-        label: Option<impl Into<SharedString>>,
-        description: Option<SharedString>,
-        toggle_state: impl Into<ToggleState>,
-        on_click: impl Fn(&ToggleState, &mut Window, &mut App) + 'static,
-    ) -> Self {
-        Self {
-            id: id.into(),
-            label: label.map(Into::into),
-            description,
-            toggle_state: toggle_state.into(),
-            on_click: Arc::new(on_click),
-            disabled: false,
-            color: SwitchColor::Accent,
-            tooltip: None,
-            tab_index: None,
-        }
-    }
-
-    pub fn description(mut self, description: impl Into<SharedString>) -> Self {
-        self.description = Some(description.into());
-        self
-    }
-
-    pub const fn disabled(mut self, disabled: bool) -> Self {
-        self.disabled = disabled;
-        self
-    }
-
-    /// Sets the color of the switch using the specified [`SwitchColor`].
-    /// This changes the color scheme of the switch when it's in the "on" state.
-    pub const fn color(mut self, color: SwitchColor) -> Self {
-        self.color = color;
-        self
-    }
-
-    pub fn tooltip(mut self, tooltip: impl Fn(&mut Window, &mut App) -> AnyView + 'static) -> Self {
-        self.tooltip = Some(Rc::new(tooltip));
-        self
-    }
-
-    pub const fn tab_index(mut self, tab_index: isize) -> Self {
-        self.tab_index = Some(tab_index);
-        self
-    }
-}
-
-impl RenderOnce for SwitchField {
-    fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
-        let tooltip = self.tooltip.zip(self.label.clone()).map(|(tooltip_fn, label)| {
-            h_flex().gap_0p5().child(Label::new(label)).child(
-                IconButton::new("tooltip_button", IconName::Info)
-                    .icon_size(IconSize::XSmall)
-                    .icon_color(Color::Muted)
-                    .shape(crate::IconButtonShape::Square)
-                    .style(ButtonStyle::Transparent)
-                    .tooltip({
-                        let tooltip = Rc::clone(&tooltip_fn);
-                        move |window, cx| tooltip(window, cx)
-                    })
-                    .on_click(|_, _, _| {}), // Intentional empty on click handler so that clicking on the info tooltip icon doesn't trigger the switch toggle
-            )
-        });
-
-        h_flex()
-            .id((self.id.clone(), "container"))
-            .when(!self.disabled, |this| this.hover(|this| this.cursor_pointer()))
-            .w_full()
-            .gap_4()
-            .justify_between()
-            .flex_wrap()
-            .child(match (&self.description, tooltip) {
-                (Some(description), Some(tooltip)) => v_flex()
-                    .gap_0p5()
-                    .max_w_5_6()
-                    .child(tooltip)
-                    .child(Label::new(description.clone()).color(Color::Muted))
-                    .into_any_element(),
-                (Some(description), None) => v_flex()
-                    .gap_0p5()
-                    .max_w_5_6()
-                    .when_some(self.label, |this, label| this.child(Label::new(label)))
-                    .child(Label::new(description.clone()).color(Color::Muted))
-                    .into_any_element(),
-                (None, Some(tooltip)) => tooltip.into_any_element(),
-                (None, None) => {
-                    if let Some(label) = self.label.clone() {
-                        Label::new(label).into_any_element()
-                    } else {
-                        gpui::Empty.into_any_element()
-                    }
-                }
-            })
-            .child(
-                Switch::new((self.id.clone(), "switch"), self.toggle_state)
-                    .color(self.color)
-                    .disabled(self.disabled)
-                    .when_some(self.tab_index.filter(|_| !self.disabled), |this, tab_index| this.tab_index(tab_index))
-                    .on_click({
-                        let on_click = Arc::clone(&self.on_click);
-                        move |state, window, cx| {
-                            (on_click)(state, window, cx);
-                        }
-                    }),
-            )
-            .when(!self.disabled, |this| {
-                this.on_click({
-                    let on_click = Arc::clone(&self.on_click);
-                    let toggle_state = self.toggle_state;
-                    move |_click, window, cx| {
-                        (on_click)(&toggle_state.inverse(), window, cx);
-                    }
-                })
             })
     }
 }

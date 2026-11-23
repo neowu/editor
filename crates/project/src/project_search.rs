@@ -11,8 +11,6 @@ use std::path::PathBuf;
 use std::pin::pin;
 use std::str;
 use std::sync::Arc;
-use std::time::Duration;
-use std::time::Instant;
 
 use anyhow::Context as _;
 use async_channel::Receiver;
@@ -36,9 +34,7 @@ use futures::stream::FuturesOrdered;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::AsyncApp;
-use gpui::BackgroundExecutor;
 use gpui::Entity;
-use gpui::Priority;
 use gpui::Task;
 use language::Buffer;
 use language::BufferSnapshot;
@@ -887,97 +883,6 @@ fn glob_literal_prefix(glob: &str) -> PathBuf {
         prefix.push(literal);
     }
     prefix
-}
-
-type IsTerminating = bool;
-/// Adaptive batcher that starts eager (small batches) and grows batch size
-/// when items arrive quickly, reducing RPC overhead while preserving low latency
-/// for slow streams.
-pub struct AdaptiveBatcher<T> {
-    items: Sender<T>,
-    flush_batch: Sender<IsTerminating>,
-    _batch_task: Task<()>,
-}
-
-impl<T: 'static + Send> AdaptiveBatcher<T> {
-    pub fn new(cx: &BackgroundExecutor) -> (Self, Receiver<Vec<T>>) {
-        let (items, rx) = unbounded();
-        let (batch_tx, batch_rx) = unbounded();
-        let (flush_batch_tx, flush_batch_rx) = unbounded();
-        let flush_batch = flush_batch_tx.clone();
-        let executor = cx.clone();
-        let _batch_task = cx.spawn_with_priority(gpui::Priority::High, async move {
-            let mut current_batch = vec![];
-            let mut items_produced_so_far = 0_u64;
-
-            let mut _schedule_flush_after_delay: Option<Task<()>> = None;
-            let _time_elapsed_since_start_of_search = Instant::now();
-            let mut flush = pin!(flush_batch_rx);
-            let mut terminating = false;
-            loop {
-                select_biased! {
-                    item = rx.recv().fuse() => {
-                        if let Ok(new_item) = item {
-                            let is_fresh_batch = current_batch.is_empty();
-                            items_produced_so_far += 1;
-                            current_batch.push(new_item);
-                            if is_fresh_batch {
-                                // Chosen arbitrarily based on some experimentation with plots.
-                                let desired_duration_ms = (20 * (items_produced_so_far + 2).ilog2() as u64).min(300);
-                                let desired_duration = Duration::from_millis(desired_duration_ms);
-                                let _executor = executor.clone();
-                                let _flush = flush_batch_tx.clone();
-                                let new_timer = executor.spawn_with_priority(Priority::High, async move {
-                                    _executor.timer(desired_duration).await;
-                                    _ = _flush.send(false).await;
-                                });
-                                _schedule_flush_after_delay = Some(new_timer);
-                            }
-                        } else {
-                            // Items channel closed - send any remaining batch before exiting
-                            if !current_batch.is_empty() {
-                                _ = batch_tx.send(mem::take(&mut current_batch)).await;
-                            }
-                            break;
-                        }
-                    }
-                    should_break_afterwards = flush.next() => {
-                        if !current_batch.is_empty() {
-                            _ = batch_tx.send(mem::take(&mut current_batch)).await;
-                            _schedule_flush_after_delay = None;
-                        }
-                        if should_break_afterwards.unwrap_or_default() {
-                            terminating = true;
-                        }
-                    }
-                    complete => {
-                        break;
-                    }
-                }
-                if terminating {
-                    // Drain any remaining items before exiting
-                    while let Ok(new_item) = rx.try_recv() {
-                        current_batch.push(new_item);
-                    }
-                    if !current_batch.is_empty() {
-                        _ = batch_tx.send(mem::take(&mut current_batch)).await;
-                    }
-                    break;
-                }
-            }
-        });
-        let this = Self { items, flush_batch, _batch_task };
-        (this, batch_rx)
-    }
-
-    pub async fn push(&self, item: T) {
-        _ = self.items.send(item).await;
-    }
-
-    pub async fn flush(self) {
-        _ = self.flush_batch.send(true).await;
-        self._batch_task.await;
-    }
 }
 
 #[cfg(test)]

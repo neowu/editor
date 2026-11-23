@@ -75,27 +75,6 @@ impl Display for MarkdownString {
     }
 }
 
-/// Escapes markdown special characters in markdown text blocks. Markdown code blocks follow
-/// different rules and `MarkdownInlineCode` or `MarkdownCodeBlock` should be used in that case.
-///
-/// Also escapes the following markdown extensions:
-///
-/// * `^` for superscripts
-/// * `$` for inline math
-/// * `~` for strikethrough
-///
-/// Escape of some characters is unnecessary, because while they are involved in markdown syntax,
-/// the other characters involved are escaped:
-///
-/// * `!`, `]`, `(`, and `)` are used in link syntax, but `[` is escaped so these are parsed as
-///   plaintext.
-///
-/// * `;` is used in HTML entity syntax, but `&` is escaped, so they are parsed as plaintext.
-///
-/// TODO: There is one escape this doesn't do currently. Period after numbers at the start of the
-/// line (`[0-9]*\.`) should also be escaped to avoid it being interpreted as a list item.
-pub struct MarkdownEscaped<'a>(pub &'a str);
-
 /// Implements `Display` to format markdown inline code (wrapped in backticks), handling code that
 /// contains backticks and spaces. All whitespace is treated as a single space character. For text
 /// that does not contain whitespace other than ' ', this escaping roundtrips through
@@ -103,72 +82,6 @@ pub struct MarkdownEscaped<'a>(pub &'a str);
 ///
 /// When used in tables, `|` should be escaped like `\|` in the text provided to this function.
 pub struct MarkdownInlineCode<'a>(pub &'a str);
-
-/// Implements `Display` to format markdown code blocks, wrapped in 3 or more backticks as needed.
-pub struct MarkdownCodeBlock<'a> {
-    pub tag: &'a str,
-    pub text: &'a str,
-}
-
-impl Display for MarkdownEscaped<'_> {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let mut start_of_unescaped = None;
-        for (ix, c) in self.0.char_indices() {
-            match c {
-                // Always escaped.
-                '\\' | '`' | '*' | '_' | '[' | '^' | '$' | '~' | '&' |
-                // TODO: these only need to be escaped when they are the first non-whitespace
-                // character of the line of a block. There should probably be both an `escape_block`
-                // which does this and an `escape_inline` method which does not escape these.
-                '#' | '+' | '=' | '-' => {
-                    match start_of_unescaped {
-                        None => {}
-                        Some(start_of_unescaped) => {
-                            write!(formatter, "{}", &self.0[start_of_unescaped..ix])?;
-                        }
-                    }
-                    write!(formatter, "\\")?;
-                    // Can include this char in the "unescaped" text since a
-                    // backslash was just emitted.
-                    start_of_unescaped = Some(ix);
-                }
-                // Escaped since `<` is used in opening HTML tags. `&lt;` is used since Markdown
-                // supports HTML entities, and this allows the text to be used directly in HTML.
-                '<' => {
-                    match start_of_unescaped {
-                        None => {}
-                        Some(start_of_unescaped) => {
-                            write!(formatter, "{}", &self.0[start_of_unescaped..ix])?;
-                        }
-                    }
-                    write!(formatter, "&lt;")?;
-                    start_of_unescaped = None;
-                }
-                // Escaped since `>` is used for blockquotes. `&gt;` is used since Markdown supports
-                // HTML entities, and this allows the text to be used directly in HTML.
-                '>' => {
-                    match start_of_unescaped {
-                        None => {}
-                        Some(start_of_unescaped) => {
-                            write!(formatter, "{}", &self.0[start_of_unescaped..ix])?;
-                        }
-                    }
-                    write!(formatter, "&gt;")?;
-                    start_of_unescaped = None;
-                }
-                _ => {
-                    if start_of_unescaped.is_none() {
-                        start_of_unescaped = Some(ix);
-                    }
-                }
-            }
-        }
-        if let Some(start_of_unescaped) = start_of_unescaped {
-            write!(formatter, "{}", &self.0[start_of_unescaped..])?;
-        }
-        Ok(())
-    }
-}
 
 impl Display for MarkdownInlineCode<'_> {
     fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
@@ -210,15 +123,6 @@ impl Display for MarkdownInlineCode<'_> {
             };
             write!(formatter, "{backticks}{space}{text}{space}{backticks}")
         }
-    }
-}
-
-impl Display for MarkdownCodeBlock<'_> {
-    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
-        let tag = self.tag;
-        let text = self.text;
-        let backticks = "`".repeat(3.max(count_max_consecutive_chars(text, '`') + 1));
-        write!(formatter, "{backticks}{tag}\n{text}\n{backticks}\n")
     }
 }
 

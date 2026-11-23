@@ -1,6 +1,5 @@
 mod banner;
 mod button;
-mod callout;
 mod chip;
 mod context_menu;
 mod count_badge;
@@ -32,8 +31,6 @@ mod tooltip;
 pub use banner::*;
 #[allow(clippy::wildcard_imports)]
 pub use button::*;
-#[allow(clippy::wildcard_imports)]
-pub use callout::*;
 #[allow(clippy::wildcard_imports)]
 pub use chip::*;
 #[allow(clippy::wildcard_imports)]

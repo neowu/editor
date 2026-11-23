@@ -170,31 +170,6 @@ impl Drop for AppRefMut<'_> {
 /// You won't interact with this type much outside of initial configuration and startup.
 pub struct Application(Rc<AppCell>);
 
-/// A strong handle to an [`Application`] started with [`Application::run_embedded`].
-///
-/// Dropping this handle releases the app, so an embedder must hold it for as long as the
-/// app should run. While held, it is the embedder's entry point back into GPUI each time
-/// the external run loop gives it control.
-pub struct ApplicationHandle {
-    app: Rc<AppCell>,
-}
-
-impl ApplicationHandle {
-    /// Invoke `f` with the app context. Must not be called re-entrantly from code that
-    /// is already inside an update; the app state is a `RefCell` and will panic on a
-    /// double borrow.
-    pub fn update<R>(&self, f: impl FnOnce(&mut App) -> R) -> R {
-        let cx = &mut *self.app.borrow_mut();
-        f(cx)
-    }
-
-    /// An [`AsyncApp`] for use across await points. It holds the app weakly; keeping the
-    /// app alive remains this handle's job.
-    pub fn to_async(&self) -> AsyncApp {
-        self.update(|cx| cx.to_async())
-    }
-}
-
 /// Represents an application before it is fully launched. Once your app is
 /// configured, you'll start the app with `App::run`.
 impl Application {

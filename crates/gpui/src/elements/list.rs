@@ -100,7 +100,6 @@ struct StateInner {
     scrollbar_drag_start_height: Option<Pixels>,
     measuring_behavior: ListMeasuringBehavior,
     pending_scroll: Option<PendingScroll>,
-    follow_state: FollowState,
 }
 
 /// Deferred scroll adjustment applied after the scroll-top item has been remeasured.
@@ -136,47 +135,6 @@ enum ScrollAnchor {
     Proportional,
 }
 
-/// Controls whether the list automatically follows new content at the end.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub enum FollowMode {
-    /// Normal scrolling — no automatic following.
-    #[default]
-    Normal,
-    /// The list should auto-scroll along with the tail, when scrolled to bottom.
-    Tail,
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-enum FollowState {
-    #[default]
-    Normal,
-    Tail {
-        is_following: bool,
-    },
-}
-
-impl FollowState {
-    const fn is_following(self) -> bool {
-        matches!(self, FollowState::Tail { is_following: true })
-    }
-
-    const fn has_stopped_following(self) -> bool {
-        matches!(self, FollowState::Tail { is_following: false })
-    }
-
-    const fn start_following(&mut self) {
-        if matches!(self, FollowState::Tail { is_following: false }) {
-            *self = FollowState::Tail { is_following: true };
-        }
-    }
-
-    const fn stop_following(&mut self) {
-        if matches!(self, FollowState::Tail { is_following: true }) {
-            *self = FollowState::Tail { is_following: false };
-        }
-    }
-}
-
 /// Whether the list is scrolling from top to bottom or bottom to top.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ListAlignment {
@@ -196,9 +154,6 @@ pub struct ListScrollEvent {
 
     /// Whether the list has been scrolled.
     pub is_scrolled: bool,
-
-    /// Whether the list is currently in follow-tail mode (auto-scrolling to end).
-    pub is_following_tail: bool,
 }
 
 /// The sizing behavior to apply during layout.
@@ -328,7 +283,6 @@ impl ListState {
             scrollbar_drag_start_height: None,
             measuring_behavior: ListMeasuringBehavior::default(),
             pending_scroll: None,
-            follow_state: FollowState::default(),
         })));
         this.splice(0..0, item_count);
         this
@@ -519,10 +473,6 @@ impl ListState {
         let current_offset = self.logical_scroll_top();
         let state = &mut *self.0.borrow_mut();
 
-        if distance < px(0.) {
-            state.follow_state.stop_following();
-        }
-
         let mut cursor = state.items.cursor::<ListItemSummary>(());
         cursor.seek(&Count(current_offset.item_ix), Bias::Right);
 
@@ -561,10 +511,6 @@ impl ListState {
         if scroll_top.item_ix >= item_count {
             scroll_top.item_ix = item_count;
             scroll_top.offset_in_item = px(0.);
-        }
-
-        if scroll_top.item_ix < item_count {
-            state.follow_state.stop_following();
         }
 
         state.rebase_pending_scroll(scroll_top);
@@ -802,10 +748,6 @@ impl StateInner {
             self.logical_scroll_top = Some(scroll_top);
         }
 
-        if delta.y > px(0.) {
-            self.follow_state.stop_following();
-        }
-
         if let Some(handler) = self.scroll_handler.as_mut() {
             let visible_range = Self::visible_range(&self.items, height, scroll_top);
             handler(
@@ -813,7 +755,6 @@ impl StateInner {
                     visible_range,
                     count: self.items.summary().count,
                     is_scrolled: self.logical_scroll_top.is_some(),
-                    is_following_tail: matches!(self.follow_state, FollowState::Tail { is_following: true }),
                 },
                 window,
                 cx,
@@ -886,11 +827,6 @@ impl StateInner {
         let mut rendered_height = padding.top;
         let mut max_item_width = px(0.);
         let mut scroll_top = self.logical_scroll_top();
-
-        if self.follow_state.is_following() {
-            scroll_top = ListOffset { item_ix: self.items.summary().count, offset_in_item: px(0.) };
-            self.logical_scroll_top = Some(scroll_top);
-        }
 
         let mut rendered_focused_item = false;
 
@@ -1019,18 +955,6 @@ impl StateInner {
         cursor.seek(&Count(measured_range.end), Bias::Right);
         new_items.append(cursor.suffix(), ());
         self.items = new_items;
-
-        // If follow_tail mode is on but the user scrolled away
-        // (is_following is false), check whether the current scroll
-        // position has returned to the bottom.
-        if self.follow_state.has_stopped_following() {
-            let padding = self.last_padding.unwrap_or_default();
-            let total_height = self.items.summary().height + padding.top + padding.bottom;
-            let scroll_offset = self.scroll_top(&scroll_top);
-            if scroll_offset + available_height >= total_height - px(1.0) {
-                self.follow_state.start_following();
-            }
-        }
 
         // If none of the visible items are focused, check if an off-screen item is focused
         // and include it to be rendered after the visible items so keyboard interaction continues
@@ -1169,19 +1093,6 @@ impl StateInner {
         let content_height = self.scrollbar_drag_start_height.unwrap_or_else(|| self.items.summary().height);
         let scroll_max = (content_height + padding.top + padding.bottom - height).max(px(0.));
         let new_scroll_top = (-point.y).max(px(0.)).min(scroll_max);
-
-        // If content grew during the drag, the frozen bottom is below the
-        // live bottom. Treat dragging to the frozen end as resuming tail follow.
-        let dragged_to_end = scroll_max > px(0.) && new_scroll_top >= (scroll_max - px(1.0)).max(px(0.));
-        if dragged_to_end && matches!(self.follow_state, FollowState::Tail { .. }) {
-            self.follow_state = FollowState::Tail { is_following: true };
-            let item_count = self.items.summary().count;
-            self.pending_scroll = None;
-            self.logical_scroll_top = Some(ListOffset { item_ix: item_count, offset_in_item: px(0.) });
-            return;
-        }
-
-        self.follow_state.stop_following();
 
         if self.alignment == ListAlignment::Bottom && new_scroll_top == scroll_max {
             self.pending_scroll = None;

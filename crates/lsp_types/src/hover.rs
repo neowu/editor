@@ -6,7 +6,6 @@ use crate::MarkupContent;
 use crate::MarkupKind;
 use crate::Range;
 use crate::TextDocumentPositionParams;
-use crate::TextDocumentRegistrationOptions;
 use crate::WorkDoneProgressOptions;
 use crate::WorkDoneProgressParams;
 
@@ -29,16 +28,6 @@ pub struct HoverClientCapabilities {
 pub struct HoverOptions {
     #[serde(flatten)]
     pub work_done_progress_options: WorkDoneProgressOptions,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HoverRegistrationOptions {
-    #[serde(flatten)]
-    pub text_document_registration_options: TextDocumentRegistrationOptions,
-
-    #[serde(flatten)]
-    pub hover_options: HoverOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]

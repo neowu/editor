@@ -79,7 +79,7 @@ pub const SCROLLBAR_TRACK_WIDTH: Pixels = px(14.);
 const BORDER_WIDTH: Pixels = px(1.);
 
 pub mod scrollbars {
-    use gpui::App;
+
     use gpui::Global;
     use serde::Deserialize;
     use serde::Serialize;
@@ -100,10 +100,6 @@ pub mod scrollbars {
         Always,
         /// Never show the scrollbar.
         Never,
-    }
-
-    pub trait ScrollbarVisibility: 'static {
-        fn visibility(&self, cx: &App) -> ShowScrollbar;
     }
 
     #[derive(Default)]

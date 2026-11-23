@@ -1081,12 +1081,6 @@ impl RealGitRepository {
     }
 }
 
-#[derive(Debug)]
-pub struct GitCommitter {
-    pub name: Option<String>,
-    pub email: Option<String>,
-}
-
 #[derive(Clone, Debug)]
 pub struct GitCommitTemplate {
     pub template: String,

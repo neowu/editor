@@ -35,7 +35,7 @@ text.workspace = true
 theme.workspace = true
 tree-sitter.workspace = true
 two-face = { version = "0.5.2", default-features = false, features = ["syntect-onig"] }
-unicase.workspace = true
+unicase = "2.6"
 util.workspace = true
 watch.workspace = true
 

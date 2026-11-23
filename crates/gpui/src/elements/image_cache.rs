@@ -312,21 +312,3 @@ impl ImageCache for RetainAllImageCache {
         RetainAllImageCache::load(self, resource, window, cx)
     }
 }
-
-/// A provider struct for creating a retain-all image cache inline.
-pub struct RetainAllImageCacheProvider {
-    id: ElementId,
-}
-
-impl ImageCacheProvider for RetainAllImageCacheProvider {
-    fn provide(&mut self, window: &mut Window, cx: &mut App) -> AnyImageCache {
-        window
-            .with_global_id(self.id.clone(), |global_id, window| {
-                window.with_element_state::<Entity<RetainAllImageCache>, _>(global_id, |cache, _window| {
-                    let cache = cache.unwrap_or_else(|| RetainAllImageCache::new(cx));
-                    (cache.clone(), cache)
-                })
-            })
-            .into()
-    }
-}

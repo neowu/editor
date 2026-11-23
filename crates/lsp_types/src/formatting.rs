@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::DocumentSelector;
 use crate::DynamicRegistrationClientCapabilities;
 use crate::Range;
 use crate::TextDocumentIdentifier;
@@ -102,22 +101,6 @@ pub struct DocumentOnTypeFormattingParams {
 
     /// The format options.
     pub options: FormattingOptions,
-}
-
-/// Extends TextDocumentRegistrationOptions.
-#[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DocumentOnTypeFormattingRegistrationOptions {
-    /// A document selector to identify the scope of the registration. If set to null
-    /// the document selector provided on the client side will be used.
-    pub document_selector: Option<DocumentSelector>,
-
-    /// A character on which formatting should be triggered, like `}`.
-    pub first_trigger_character: String,
-
-    /// More trigger characters.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub more_trigger_character: Option<Vec<String>>,
 }
 
 #[cfg(test)]

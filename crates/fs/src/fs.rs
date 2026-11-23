@@ -348,8 +348,6 @@ impl FileHandle for File {
     }
 }
 
-pub struct RealWatcher;
-
 impl RealFs {
     pub fn new(executor: BackgroundExecutor) -> Arc<Self> {
         Arc::new_cyclic(|this| Self {
@@ -892,16 +890,6 @@ impl Fs for RealFs {
         rx.await.expect("restore never panics")?;
         self.trash.lock().remove(trash_id);
         Ok(restored_item_path)
-    }
-}
-
-impl Watcher for RealWatcher {
-    fn add(&self, _: &Path) -> Result<()> {
-        Ok(())
-    }
-
-    fn remove(&self, _: &Path) -> Result<()> {
-        Ok(())
     }
 }
 

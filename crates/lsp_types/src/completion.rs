@@ -512,7 +512,6 @@ lsp_enum! {
 impl CompletionTriggerKind {
     pub const INVOKED: CompletionTriggerKind = CompletionTriggerKind(1);
     pub const TRIGGER_CHARACTER: CompletionTriggerKind = CompletionTriggerKind(2);
-    pub const TRIGGER_FOR_INCOMPLETE_COMPLETIONS: CompletionTriggerKind = CompletionTriggerKind(3);
 }
 }
 

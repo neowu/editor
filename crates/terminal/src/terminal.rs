@@ -24,7 +24,6 @@ use std::fmt::Formatter;
 use std::ops::BitOr;
 use std::ops::BitOrAssign;
 use std::ops::Deref;
-use std::ops::Range as StdRange;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::sync::Arc;
@@ -239,15 +238,6 @@ pub const fn is_default_background_color(color: Color) -> bool {
 
 pub const fn is_app_chosen_exact_color(color: Color) -> bool {
     matches!(color, Color::Spec(_) | Color::Indexed(16..=255))
-}
-
-pub type AnsiSpans = Vec<(StdRange<usize>, Option<Color>)>;
-
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-pub struct ParsedAnsiText {
-    pub text: String,
-    pub foreground_spans: AnsiSpans,
-    pub background_spans: AnsiSpans,
 }
 
 pub fn strip_ansi_text(input: &[u8]) -> String {

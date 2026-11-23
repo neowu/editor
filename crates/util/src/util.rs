@@ -38,7 +38,6 @@ pub use path::PathExt;
 pub use path::normalize_path;
 pub use path::rel_path;
 use regex::Regex;
-use unicase::UniCase;
 
 pub use self::shell::get_default_system_shell;
 pub use self::shell::get_system_shell;
@@ -418,37 +417,6 @@ impl<T: Ord + Clone> RangeExt<T> for RangeInclusive<T> {
 
     fn contains_inclusive(&self, other: &Range<T>) -> bool {
         self.start() <= &other.start && &other.end <= self.end()
-    }
-}
-
-/// A way to sort strings with starting numbers numerically first, falling back to alphanumeric one,
-/// case-insensitive.
-///
-/// This is useful for turning regular alphanumerically sorted sequences as `1-abc, 10, 11-def, .., 2, 21-abc`
-/// into `1-abc, 2, 10, 11-def, .., 21-abc`.
-#[derive(Debug, PartialEq, Eq)]
-pub struct NumericPrefixWithSuffix<'a>(Option<u64>, &'a str);
-
-/// When dealing with equality, we need to consider the case of the strings to achieve strict equality
-/// to handle cases like "a" < "A" instead of "a" == "A".
-impl Ord for NumericPrefixWithSuffix<'_> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (self.0, other.0) {
-            (None, None) => {
-                UniCase::new(self.1).cmp(&UniCase::new(other.1)).then_with(|| self.1.cmp(other.1).reverse())
-            }
-            (None, Some(_)) => Ordering::Greater,
-            (Some(_), None) => Ordering::Less,
-            (Some(a), Some(b)) => a.cmp(&b).then_with(|| {
-                UniCase::new(self.1).cmp(&UniCase::new(other.1)).then_with(|| self.1.cmp(other.1).reverse())
-            }),
-        }
-    }
-}
-
-impl PartialOrd for NumericPrefixWithSuffix<'_> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 

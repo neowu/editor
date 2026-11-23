@@ -333,21 +333,11 @@ pub struct LocationLink {
 pub struct PositionEncodingKind(Cow<'static, str>);
 
 impl PositionEncodingKind {
-    /// Character offsets count UTF-8 code units.
-    pub const UTF8: PositionEncodingKind = PositionEncodingKind::new("utf-8");
-
     /// Character offsets count UTF-16 code units.
     ///
     /// This is the default and must always be supported
     /// by servers.
     pub const UTF16: PositionEncodingKind = PositionEncodingKind::new("utf-16");
-
-    /// Character offsets count UTF-32 code units.
-    ///
-    /// Implementation note: these are the same as Unicode code points,
-    /// so this `PositionEncodingKind` may also be used for an
-    /// encoding-agnostic representation of character offsets.
-    pub const UTF32: PositionEncodingKind = PositionEncodingKind::new("utf-32");
 
     pub const fn new(tag: &'static str) -> Self {
         PositionEncodingKind(Cow::Borrowed(tag))
@@ -1233,36 +1223,6 @@ pub struct ClientInfo {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Deserialize, Serialize)]
 pub struct InitializedParams {}
 
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-pub struct GenericRegistrationOptions {
-    #[serde(flatten)]
-    pub text_document_registration_options: TextDocumentRegistrationOptions,
-
-    #[serde(flatten)]
-    pub options: GenericOptions,
-
-    #[serde(flatten)]
-    pub static_registration_options: StaticRegistrationOptions,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-pub struct GenericOptions {
-    #[serde(flatten)]
-    pub work_done_progress_options: WorkDoneProgressOptions,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-pub struct GenericParams {
-    #[serde(flatten)]
-    pub text_document_position_params: TextDocumentPositionParams,
-
-    #[serde(flatten)]
-    pub work_done_progress_params: WorkDoneProgressParams,
-
-    #[serde(flatten)]
-    pub partial_result_params: PartialResultParams,
-}
-
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DynamicRegistrationClientCapabilities {
@@ -1816,16 +1776,6 @@ pub struct ServerInfo {
     pub version: Option<String>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Default, Deserialize, Serialize)]
-pub struct InitializeError {
-    /// Indicates whether the client execute the following retry logic:
-    ///
-    /// - (1) show the message provided by the ResponseError to the user
-    /// - (2) user selects retry or cancel
-    /// - (3) if user selected retry the initialize method is sent again.
-    pub retry: bool,
-}
-
 // The server can signal the following capabilities:
 
 /// Defines how the host (editor) should sync document changes to the language server.
@@ -2340,21 +2290,6 @@ pub struct TextDocumentContentChangeEvent {
     pub text: String,
 }
 
-/// Describe options to be used when registering for text document change events.
-///
-/// Extends TextDocumentRegistrationOptions.
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TextDocumentChangeRegistrationOptions {
-    /// A document selector to identify the scope of the registration. If set to null
-    /// the document selector provided on the client side will be used.
-    pub document_selector: Option<DocumentSelector>,
-
-    /// How documents are synced to the server. See TextDocumentSyncKind.Full
-    /// and TextDocumentSyncKindIncremental.
-    pub sync_kind: i32,
-}
-
 /// The parameters send in a will save text document notification.
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2367,22 +2302,9 @@ pub struct WillSaveTextDocumentParams {
 }
 
 /// Represents reasons why a text document is saved.
-#[derive(Copy, Eq, PartialEq, Clone, Deserialize, Serialize)]
+#[derive(Debug, Copy, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(transparent)]
 pub struct TextDocumentSaveReason(i32);
-lsp_enum! {
-impl TextDocumentSaveReason {
-    /// Manually triggered, e.g. by the user pressing save, by starting debugging,
-    /// or by an API call.
-    pub const MANUAL: TextDocumentSaveReason = TextDocumentSaveReason(1);
-
-    /// Automatic after a delay.
-    pub const AFTER_DELAY: TextDocumentSaveReason = TextDocumentSaveReason(2);
-
-    /// When the editor lost focus.
-    pub const FOCUS_OUT: TextDocumentSaveReason = TextDocumentSaveReason(3);
-}
-}
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -2401,17 +2323,6 @@ pub struct DidSaveTextDocumentParams {
     /// when the save notification was requested.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TextDocumentSaveRegistrationOptions {
-    /// The client is supposed to include the content on save.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub include_text: Option<bool>,
-
-    #[serde(flatten)]
-    pub text_document_registration_options: TextDocumentRegistrationOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Default, Deserialize, Serialize)]
@@ -2692,16 +2603,6 @@ pub struct ExecuteCommandParams {
 
     #[serde(flatten)]
     pub work_done_progress_params: WorkDoneProgressParams,
-}
-
-/// Execute command registration options.
-#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
-pub struct ExecuteCommandRegistrationOptions {
-    /// The commands to be executed on the server.
-    pub commands: Vec<String>,
-
-    #[serde(flatten)]
-    pub execute_command_options: ExecuteCommandOptions,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]

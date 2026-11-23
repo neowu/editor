@@ -7,13 +7,11 @@ use smallvec::SmallVec;
 
 use crate::App;
 use crate::Bounds;
-use crate::DevicePixels;
 use crate::Half as _;
 use crate::Hsla;
 use crate::LineLayout;
 use crate::Pixels;
 use crate::Point;
-use crate::RenderGlyphParams;
 use crate::Result;
 use crate::SharedString;
 use crate::StrikethroughStyle;
@@ -28,18 +26,6 @@ use crate::point;
 use crate::px;
 use crate::size;
 use crate::underline_y_offset;
-
-/// Pre-computed glyph data for efficient painting without per-glyph cache lookups.
-///
-/// This is produced by `ShapedLine::compute_glyph_raster_data` during prepaint
-/// and consumed by `ShapedLine::paint_with_raster_data` during paint.
-#[derive(Clone, Debug)]
-pub struct GlyphRasterData {
-    /// The raster bounds for each glyph, in paint order.
-    pub bounds: Vec<Bounds<DevicePixels>>,
-    /// The render params for each glyph (needed for sprite atlas lookup).
-    pub params: Vec<RenderGlyphParams>,
-}
 
 /// Set the text decoration for a run of text.
 #[derive(Debug, Clone)]

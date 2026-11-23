@@ -60,7 +60,6 @@ use workspace::ModalView;
 mod head;
 pub mod highlighted_match_with_paths;
 pub mod parts;
-pub mod popover_menu;
 mod render;
 mod shape;
 

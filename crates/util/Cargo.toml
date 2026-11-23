@@ -18,7 +18,6 @@ regex = { workspace = true, features = ["unicode-bool", "unicode-gencat"] }
 rustc-hash.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-unicase.workspace = true
 
 dirs.workspace = true
 libc.workspace = true

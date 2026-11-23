@@ -1,7 +1,6 @@
 mod anchored;
 mod animation;
 mod canvas;
-mod container_query;
 mod deferred;
 mod div;
 mod image_cache;
@@ -17,8 +16,6 @@ pub use anchored::*;
 pub use animation::*;
 #[allow(clippy::wildcard_imports)]
 pub use canvas::*;
-#[allow(clippy::wildcard_imports)]
-pub use container_query::*;
 #[allow(clippy::wildcard_imports)]
 pub use deferred::*;
 #[allow(clippy::wildcard_imports)]

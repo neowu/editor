@@ -14,10 +14,8 @@ use crate::App;
 use crate::AvailableSpace;
 use crate::Bounds;
 use crate::ContentMask;
-use crate::Context;
 use crate::Element;
 use crate::ElementId;
-use crate::Empty;
 use crate::Entity;
 use crate::EntityId;
 use crate::GlobalElementId;
@@ -361,15 +359,6 @@ impl<V: View> Element for ViewElement<V> {
             // Stateless path: just paint the element.
             paint_component(type_name::<V>(), element, window, cx);
         }
-    }
-}
-
-/// A view that renders nothing.
-pub struct EmptyView;
-
-impl Render for EmptyView {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        Empty
     }
 }
 

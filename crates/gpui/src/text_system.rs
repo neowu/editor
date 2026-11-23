@@ -65,10 +65,6 @@ use crate::px;
 #[repr(C)]
 pub struct FontId(pub usize);
 
-/// An opaque identifier for a specific font family.
-#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
-pub struct FontFamilyId(pub usize);
-
 /// Number of subpixel glyph variants along the X axis.
 pub const SUBPIXEL_VARIANTS_X: u8 = 4;
 
