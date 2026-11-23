@@ -504,20 +504,12 @@ impl Window {
             let table = table.clone();
             for ix in table.handlers_for(any_action.type_id()) {
                 // A handler that does not apply behaves as if it were not registered.
-                if table.is_capture(ix) != capture || !table.applies(ix, cx) {
+                if table.is_capture(ix) != capture || !table.applies(ix) {
                     continue;
                 }
                 // Actions stop propagation by default during the bubble phase only.
                 cx.propagate_event = capture;
                 table.dispatch(ix, any_action, self, cx);
-
-                if !cx.propagate_event {
-                    return false;
-                }
-            }
-            if !capture && table.fallback_matches(action, cx) {
-                cx.propagate_event = false;
-                table.dispatch_fallback(action, self, cx);
 
                 if !cx.propagate_event {
                     return false;
@@ -567,8 +559,7 @@ impl Window {
     /// Returns all available actions for the focused element.
     pub fn available_actions(&self, cx: &App) -> Vec<Box<dyn Action>> {
         let node_id = self.focus_node_id_in_rendered_frame(self.focus);
-        let mut actions =
-            self.rendered_frame.dispatch_tree.available_actions(node_id, |table, ix| table.applies(ix, cx));
+        let mut actions = self.rendered_frame.dispatch_tree.available_actions(node_id);
         for action_type in cx.global_action_listeners.keys() {
             if let Err(ix) = actions.binary_search_by_key(action_type, |a| a.as_any().type_id()) {
                 let action = cx.actions.build_action_type(action_type).ok();

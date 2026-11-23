@@ -1676,7 +1676,7 @@ impl Element for MarkdownElement {
         let markdown = self.renderer.markdown.clone();
         let text = self.list_state.is_none().then(|| Rc::clone(&layout.text));
         markdown.update(cx, |markdown, _| markdown.set_painted_text(text));
-        window.on_action_table(&markdown, &crate::ACTIONS);
+        window.on_action_table(&markdown, &crate::ACTIONS, cx);
 
         let was_hovering_clickable = Rc::new(Cell::new(false));
         self.paint_mouse_listeners(hitbox, &layout.text, &was_hovering_clickable, window, cx);

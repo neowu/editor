@@ -13,28 +13,30 @@ use crate::Window;
 
 type Handler<V> = Box<dyn Fn(&mut V, &dyn Any, &mut Window, &mut Context<V>) + Send + Sync>;
 type Condition<V> = fn(&V, &App) -> bool;
-type FallbackMatches<V> = fn(&V, &dyn Action, &App) -> bool;
-type FallbackHandler<V> = fn(&mut V, &dyn Action, &mut Window, &mut Context<V>);
 
 /// Action handlers for views of type `V`. A table is built once, kept in a `static`,
 /// and attached to the view's dispatch node each frame (`Window::on_action_table`,
 /// `InteractiveElement::action_table`), instead of registering one listener per action per frame.
 /// Handlers therefore cannot hold per-view state; they get the view as an argument.
 ///
-/// A handler added with a condition is skipped while the condition is false, exactly as if it
-/// were not registered: the keystroke falls through to other handlers and the action is not
-/// reported as available. Conditions run when an action is dispatched or availability is queried,
-/// never per frame. They read the view, so availability must not be queried while a view on the
-/// focus path is being updated.
+/// A handler added with a condition (`add_if`) is skipped while the condition is false, exactly as
+/// if it were not registered: the keystroke falls through to other handlers and the action is not
+/// reported as available. The table's distinct conditions are evaluated once each time the table
+/// is attached, so they read the view as of its last paint. Dispatch and availability queries
+/// only test what the frame recorded; they never read the view.
 pub struct ActionTable<V> {
     /// Sorted; handlers for the same type keep registration order.
     types: Vec<TypeId>,
     entries: Vec<Entry<V>>,
-    fallback: Option<(FallbackMatches<V>, FallbackHandler<V>)>,
+    /// The distinct conditions of the entries, at most [`MAX_CONDITIONS`].
+    conditions: Vec<Condition<V>>,
 }
 
+const MAX_CONDITIONS: usize = u64::BITS as usize;
+
 struct Entry<V> {
-    condition: Option<Condition<V>>,
+    /// Index into the table's conditions.
+    condition: Option<u8>,
     /// Runs in the capture phase, before any node below it, and propagates unless it stops.
     capture: bool,
     handler: Handler<V>,
@@ -52,7 +54,7 @@ impl<V> Default for ActionTable<V> {
 impl<V> ActionTable<V> {
     /// An empty table. `const`, so a table can be filled in a `static` before it is frozen.
     pub const fn new() -> Self {
-        Self { types: Vec::new(), entries: Vec::new(), fallback: None }
+        Self { types: Vec::new(), entries: Vec::new(), conditions: Vec::new() }
     }
 }
 
@@ -74,14 +76,6 @@ impl<V: 'static> ActionTable<V> {
         self.insert(None, true, handler);
     }
 
-    /// Handle, in the bubble phase, any action for which `matches` holds for the view and that
-    /// no typed handler of this table stopped. For a view whose actions are data (a menu handling
-    /// the actions of its items). Such actions are available but, having no fixed set, are not
-    /// listed among the available actions.
-    pub fn set_fallback(&mut self, matches: FallbackMatches<V>, handler: FallbackHandler<V>) {
-        self.fallback = Some((matches, handler));
-    }
-
     /// The table for `V`, built by `build` the first time it is asked for and leaked. For generic
     /// views, which cannot name a `static` per instantiation; look it up once per view, not per
     /// frame.
@@ -95,18 +89,26 @@ impl<V: 'static> ActionTable<V> {
         table.downcast_ref().expect("tables are keyed by their view type")
     }
 
-    /// Handle `A` only while `condition` holds for the view.
+    /// Handle `A` only while `condition` held for the view when the table was last attached.
+    /// Entries sharing a condition (the same `fn`) share one evaluation per frame.
     pub fn add_if<A: Action>(
         &mut self,
         condition: Condition<V>,
         handler: impl Fn(&mut V, &A, &mut Window, &mut Context<V>) + Send + Sync + 'static,
     ) {
-        self.insert(Some(condition), false, handler);
+        let ix = self.conditions.iter().position(|existing| std::ptr::fn_addr_eq(*existing, condition)).unwrap_or_else(
+            || {
+                assert!(self.conditions.len() < MAX_CONDITIONS, "an action table holds at most 64 distinct conditions");
+                self.conditions.push(condition);
+                self.conditions.len() - 1
+            },
+        );
+        self.insert(Some(ix as u8), false, handler);
     }
 
     fn insert<A: Action>(
         &mut self,
-        condition: Option<Condition<V>>,
+        condition: Option<u8>,
         capture: bool,
         handler: impl Fn(&mut V, &A, &mut Window, &mut Context<V>) + Send + Sync + 'static,
     ) {
@@ -139,10 +141,10 @@ impl<V: 'static> ActionTable<V> {
 trait AnyActionTable {
     fn action_types(&self) -> &[TypeId];
     fn is_capture(&self, ix: usize) -> bool;
-    fn applies(&self, ix: usize, entity: &AnyEntity, cx: &App) -> bool;
+    fn condition(&self, ix: usize) -> Option<u8>;
+    /// One bit per condition that holds for the view. Reads the view if there are conditions.
+    fn conditions(&self, entity: &AnyEntity, cx: &App) -> u64;
     fn dispatch(&self, ix: usize, entity: &AnyEntity, action: &dyn Any, window: &mut Window, cx: &mut App);
-    fn fallback_matches(&self, entity: &AnyEntity, action: &dyn Action, cx: &App) -> bool;
-    fn dispatch_fallback(&self, entity: &AnyEntity, action: &dyn Action, window: &mut Window, cx: &mut App);
 }
 
 impl<V: 'static> AnyActionTable for ActionTable<V> {
@@ -154,23 +156,25 @@ impl<V: 'static> AnyActionTable for ActionTable<V> {
         self.entries[ix].capture
     }
 
-    fn applies(&self, ix: usize, entity: &AnyEntity, cx: &App) -> bool {
-        self.entries[ix].condition.is_none_or(|condition| condition(view::<V>(entity).read(cx), cx))
+    fn condition(&self, ix: usize) -> Option<u8> {
+        self.entries[ix].condition
+    }
+
+    fn conditions(&self, entity: &AnyEntity, cx: &App) -> u64 {
+        if self.conditions.is_empty() {
+            return 0;
+        }
+        let view = view::<V>(entity);
+        let view = view.read(cx);
+        self.conditions
+            .iter()
+            .enumerate()
+            .fold(0, |mask, (ix, condition)| mask | (u64::from(condition(view, cx)) << ix))
     }
 
     fn dispatch(&self, ix: usize, entity: &AnyEntity, action: &dyn Any, window: &mut Window, cx: &mut App) {
         let handler = &self.entries[ix].handler;
         view::<V>(entity).update(cx, |view, cx| handler(view, action, window, cx));
-    }
-
-    fn fallback_matches(&self, entity: &AnyEntity, action: &dyn Action, cx: &App) -> bool {
-        self.fallback.is_some_and(|(matches, _)| matches(view::<V>(entity).read(cx), action, cx))
-    }
-
-    fn dispatch_fallback(&self, entity: &AnyEntity, action: &dyn Action, window: &mut Window, cx: &mut App) {
-        if let Some((_, handler)) = self.fallback {
-            view::<V>(entity).update(cx, |view, cx| handler(view, action, window, cx));
-        }
     }
 }
 
@@ -183,11 +187,18 @@ fn view<V: 'static>(entity: &AnyEntity) -> Entity<V> {
 pub(crate) struct DispatchActionTable {
     entity: AnyEntity,
     table: &'static dyn AnyActionTable,
+    /// One bit per condition of the table that held when it was attached.
+    pub(crate) conditions: u64,
 }
 
 impl DispatchActionTable {
     pub(crate) fn new<V: 'static>(entity: &Entity<V>, table: &'static ActionTable<V>) -> Self {
-        Self { entity: entity.clone().into_any(), table }
+        Self { entity: entity.clone().into_any(), table, conditions: 0 }
+    }
+
+    /// Evaluate the table's conditions on the view, which must not be being updated.
+    pub(crate) fn evaluate_conditions(&mut self, cx: &App) {
+        self.conditions = self.table.conditions(&self.entity, cx);
     }
 
     pub(crate) fn action_types(&self) -> &[TypeId] {
@@ -206,22 +217,13 @@ impl DispatchActionTable {
         self.table.is_capture(ix)
     }
 
-    /// Whether handler `ix` currently applies to the view. Reads the view.
-    pub(crate) fn applies(&self, ix: usize, cx: &App) -> bool {
-        self.table.applies(ix, &self.entity, cx)
+    /// Whether handler `ix` applied to the view when the table was attached.
+    pub(crate) fn applies(&self, ix: usize) -> bool {
+        self.table.condition(ix).is_none_or(|condition| self.conditions & (1 << condition) != 0)
     }
 
     pub(crate) fn dispatch(&self, ix: usize, action: &dyn Any, window: &mut Window, cx: &mut App) {
         self.table.dispatch(ix, &self.entity, action, window, cx);
-    }
-
-    /// Whether the table's fallback currently handles `action`. Reads the view.
-    pub(crate) fn fallback_matches(&self, action: &dyn Action, cx: &App) -> bool {
-        self.table.fallback_matches(&self.entity, action, cx)
-    }
-
-    pub(crate) fn dispatch_fallback(&self, action: &dyn Action, window: &mut Window, cx: &mut App) {
-        self.table.dispatch_fallback(&self.entity, action, window, cx);
     }
 }
 
@@ -320,15 +322,36 @@ mod tests {
     }
 
     #[test]
-    fn set_fallback_adds_no_typed_handler() {
-        // Matching and dispatch read the view through an `App`, which a unit test cannot build.
-        let mut table = ActionTable::<()>::default();
-        assert!(table.fallback.is_none());
-        table.add(noop::<First>);
-        table.set_fallback(|(), action, _| action.partial_eq(&Second), |(), _, _, _| {});
+    fn add_if_shares_one_condition_per_fn() {
+        let yes: Condition<()> = |(), _| true;
+        let no: Condition<()> = |(), _| false;
+        let mut table = ActionTable::default();
+        table.add_if(yes, noop::<First>);
+        table.add_if(no, noop::<Second>);
+        table.add_if(yes, noop::<Third>);
 
-        assert!(table.fallback.is_some());
-        assert_eq!(table.action_types(), [TypeId::of::<First>()]);
+        assert_eq!(table.conditions.len(), 2);
+    }
+
+    #[test]
+    fn applies_follows_each_handlers_condition() {
+        // Different bodies, so the two cannot be folded into one function.
+        let first: Condition<()> = |(), _| true;
+        let second: Condition<()> = |(), _| false;
+        let mut table = ActionTable::default();
+        table.add(noop::<First>);
+        table.add_if(first, noop::<First>);
+        table.add_if(second, noop::<First>);
+        let mut attached = attach(table);
+        let applies = |attached: &DispatchActionTable| {
+            attached.handlers_for(TypeId::of::<First>()).map(|ix| attached.applies(ix)).collect::<Vec<_>>()
+        };
+
+        // Nothing evaluated: only the unconditional handler applies.
+        assert_eq!(applies(&attached), [true, false, false]);
+        // Stands in for `evaluate_conditions`, which needs an `App`: only `second` holds.
+        attached.conditions = 0b10;
+        assert_eq!(applies(&attached), [true, false, true]);
     }
 
     #[test]

@@ -1287,7 +1287,7 @@ impl Interactivity {
         }
     }
 
-    fn paint_keyboard_listeners(&mut self, window: &mut Window, _cx: &mut App) {
+    fn paint_keyboard_listeners(&mut self, window: &mut Window, cx: &App) {
         let key_down_listeners = mem::take(&mut self.key_down_listeners);
         let key_up_listeners = mem::take(&mut self.key_up_listeners);
         let modifiers_changed_listeners = mem::take(&mut self.modifiers_changed_listeners);
@@ -1313,7 +1313,8 @@ impl Interactivity {
             });
         }
 
-        for table in mem::take(&mut self.action_tables) {
+        for mut table in mem::take(&mut self.action_tables) {
+            table.evaluate_conditions(cx);
             window.next_frame.dispatch_tree.on_action_table(table);
         }
     }

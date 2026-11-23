@@ -407,14 +407,16 @@ static GIT_PICKER_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GitPicker>> = s
         this.focus_active_picker(window, cx);
         cx.notify();
     });
-    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_delete_branch);
-    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_force_delete_branch);
-    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_show_all_branches);
-    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_show_local_branches);
-    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_show_remote_branches);
-    t.add_if(|picker, _| picker.tab == GitPickerTab::Branches, GitPicker::handle_cycle_branch_filter);
-    t.add_if(|picker, _| picker.tab == GitPickerTab::Stashes, GitPicker::handle_drop_stash);
-    t.add_if(|picker, _| picker.tab == GitPickerTab::Stashes, GitPicker::handle_show_stash);
+    let branches: fn(&GitPicker, &App) -> bool = |picker, _| picker.tab == GitPickerTab::Branches;
+    let stashes: fn(&GitPicker, &App) -> bool = |picker, _| picker.tab == GitPickerTab::Stashes;
+    t.add_if(branches, GitPicker::handle_delete_branch);
+    t.add_if(branches, GitPicker::handle_force_delete_branch);
+    t.add_if(branches, GitPicker::handle_show_all_branches);
+    t.add_if(branches, GitPicker::handle_show_local_branches);
+    t.add_if(branches, GitPicker::handle_show_remote_branches);
+    t.add_if(branches, GitPicker::handle_cycle_branch_filter);
+    t.add_if(stashes, GitPicker::handle_drop_stash);
+    t.add_if(stashes, GitPicker::handle_show_stash);
     t
 });
 

@@ -317,11 +317,14 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     workspace_actions.register_action(|workspace, _: &git::OpenModifiedFiles, window, cx| {
         open_modified_files(workspace, window, cx);
     });
+    // Whether the active file has changes is resolved by the handler, not per frame.
     workspace_actions.register_action_if(
-        |workspace, cx| file_diff_entry(workspace, cx).is_some(),
+        git_graph::has_active_repository,
         |workspace, _: &git::OpenFileDiff, window, cx| {
             if let Some((entry, repository)) = file_diff_entry(workspace, cx) {
                 open_file_diff(entry, repository, workspace.weak_handle(), window, cx);
+            } else {
+                cx.propagate();
             }
         },
     );

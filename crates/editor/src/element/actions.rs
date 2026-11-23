@@ -28,8 +28,8 @@ use crate::rust_analyzer_ext;
 use crate::scroll::scroll_amount::ScrollAmount;
 
 impl EditorElement {
-    pub(super) fn register_actions(&self, window: &mut Window) {
-        window.on_action_table(&self.editor, actions());
+    pub(super) fn register_actions(&self, window: &mut Window, cx: &App) {
+        window.on_action_table(&self.editor, actions(), cx);
     }
 
     pub(super) fn register_key_listeners(&self, window: &mut Window, _: &mut App, layout: &EditorLayout) {
@@ -462,20 +462,16 @@ fn add_edit_actions(t: &mut Editable) {
         }
     });
 
-    t.0.add_if(
-        |editor, cx| editable(editor, cx) && editor.enable_wrap_selections_in_tag(cx),
-        Editor::wrap_selections_in_tag,
-    );
-    t.0.add_if(
-        |editor, cx| editable(editor, cx) && editor.can_format_selections(cx),
-        |editor, action, window, cx| {
-            if let Some(task) = editor.format_selections(action, window, cx) {
-                editor.detach_and_notify_err(task, window, cx);
-            } else {
-                cx.propagate();
-            }
-        },
-    );
+    // Whether these two can do anything is costly to tell per frame, so they are gated like any
+    // edit and propagate when they have nothing to do.
+    t.add(Editor::wrap_selections_in_tag);
+    t.add(|editor, action, window, cx| {
+        if let Some(task) = editor.format_selections(action, window, cx) {
+            editor.detach_and_notify_err(task, window, cx);
+        } else {
+            cx.propagate();
+        }
+    });
 }
 
 #[cfg(test)]

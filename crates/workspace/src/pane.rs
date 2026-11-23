@@ -522,8 +522,7 @@ pub struct Pane {
     /// Every tab is read-only, so the tab menu leaves out entries about
     /// saving or editing.
     read_only_tabs: bool,
-    /// Whether the active item had a preview at the last render. The preview actions' condition
-    /// reads this, not the item: the editor asks for their availability while it is updated.
+    /// Whether the active item had a preview at the last render; the preview actions' condition.
     has_preview: bool,
     pinned_tab_count: usize,
     zoom_out_on_close: bool,
@@ -3256,22 +3255,17 @@ static ACTIONS: LazyLock<ActionTable<Pane>> = LazyLock::new(|| {
 });
 
 fn add_actions(t: &mut ActionTable<Pane>) {
-    t.add_if(
-        |pane, _| pane.has_preview,
-        |pane, _: &preview::OpenPreview, window, cx| {
-            if let Some(item) = pane.active_item() {
-                pane.open_preview(item, false, window, cx);
-            }
-        },
-    );
-    t.add_if(
-        |pane, _| pane.has_preview,
-        |pane, _: &preview::OpenPreviewToTheSide, window, cx| {
-            if let Some(item) = pane.active_item() {
-                pane.open_preview(item, true, window, cx);
-            }
-        },
-    );
+    let has_preview: fn(&Pane, &App) -> bool = |pane, _| pane.has_preview;
+    t.add_if(has_preview, |pane, _: &preview::OpenPreview, window, cx| {
+        if let Some(item) = pane.active_item() {
+            pane.open_preview(item, false, window, cx);
+        }
+    });
+    t.add_if(has_preview, |pane, _: &preview::OpenPreviewToTheSide, window, cx| {
+        if let Some(item) = pane.active_item() {
+            pane.open_preview(item, true, window, cx);
+        }
+    });
     t.add(|pane, split: &SplitLeft, _, cx| pane.split(SplitDirection::Left, split.mode, cx));
     t.add(|pane, split: &SplitUp, _, cx| pane.split(SplitDirection::Up, split.mode, cx));
     t.add(|pane, split: &SplitHorizontal, _, cx| pane.split(SplitDirection::Down, split.mode, cx));

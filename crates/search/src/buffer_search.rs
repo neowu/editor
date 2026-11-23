@@ -183,9 +183,10 @@ static BUFFER_SEARCH_BAR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<BufferSe
                 active_searchable_item.relay_action(Box::new(CopyRelativePath), window, cx);
             }
         });
-        t.add_if(|bar, cx| bar.supported_options(cx).replacement, BufferSearchBar::toggle_replace);
-        t.add_if(|bar, cx| bar.supported_options(cx).replacement, BufferSearchBar::replace_next);
-        t.add_if(|bar, cx| bar.supported_options(cx).replacement, BufferSearchBar::replace_all);
+        let replacement: fn(&BufferSearchBar, &App) -> bool = |bar, cx| bar.supported_options(cx).replacement;
+        t.add_if(replacement, BufferSearchBar::toggle_replace);
+        t.add_if(replacement, BufferSearchBar::replace_next);
+        t.add_if(replacement, BufferSearchBar::replace_all);
         t.add_if(|bar, cx| bar.supported_options(cx).case, BufferSearchBar::toggle_case_sensitive);
         t.add_if(|bar, cx| bar.supported_options(cx).word, BufferSearchBar::toggle_whole_word);
         t.add_if(|bar, cx| bar.supported_options(cx).regex, BufferSearchBar::toggle_regex);

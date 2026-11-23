@@ -4,7 +4,6 @@ use std::iter;
 use base64::engine::general_purpose::STANDARD;
 use convert_case::Case;
 use convert_case::Casing as _;
-use gpui::App;
 use gpui::Context;
 use gpui::Pixels;
 use gpui::Window;
@@ -39,16 +38,6 @@ use crate::actions::WrapSelectionsInTag;
 use crate::scroll::Autoscroll;
 
 impl Editor {
-    pub(super) fn enable_wrap_selections_in_tag(&self, cx: &App) -> bool {
-        let snapshot = self.buffer.read(cx).snapshot(cx);
-        for selection in self.selections.disjoint_anchors_arc().iter() {
-            if snapshot.language_at(selection.start).and_then(|lang| lang.config().wrap_characters.as_ref()).is_some() {
-                return true;
-            }
-        }
-        false
-    }
-
     pub(super) fn wrap_selections_in_tag(
         &mut self,
         _: &WrapSelectionsInTag,
@@ -83,7 +72,9 @@ impl Editor {
             boundaries.push((start_before, end_after, wrap_config.start_prefix.len(), wrap_config.end_suffix.len()));
         }
 
+        // No selection is in a language with wrap characters: leave the keystroke to others.
         if edits.is_empty() {
+            cx.propagate();
             return;
         }
 

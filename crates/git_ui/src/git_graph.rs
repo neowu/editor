@@ -790,15 +790,15 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     workspace_actions.register_action(|workspace, _: &GitHistory, window, cx| {
         show_active_repository_history(workspace, window, cx);
     });
-    workspace_actions.register_action_if(
-        |workspace, cx| file_history_target(workspace, cx).is_some(),
-        |workspace, _: &git::FileHistory, window, cx| {
-            if let Some((repo_id, log_source)) = file_history_target(workspace, cx) {
-                let git_store = workspace.project().read(cx).git_store().clone();
-                open_or_reuse_graph(workspace, repo_id, git_store, log_source, None, window, cx);
-            }
-        },
-    );
+    // Whether the active editor's file is in a repository is resolved by the handler, not per frame.
+    workspace_actions.register_action_if(has_active_repository, |workspace, _: &git::FileHistory, window, cx| {
+        if let Some((repo_id, log_source)) = file_history_target(workspace, cx) {
+            let git_store = workspace.project().read(cx).git_store().clone();
+            open_or_reuse_graph(workspace, repo_id, git_store, log_source, None, window, cx);
+        } else {
+            cx.propagate();
+        }
+    });
     workspace_actions.register_action_if(has_active_repository, |workspace, _: &Open, window, cx| {
         let Some(repo) = workspace.project().read(cx).active_repository(cx) else {
             return;
@@ -825,7 +825,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     });
 }
 
-fn has_active_repository(workspace: &Workspace, cx: &App) -> bool {
+pub(crate) fn has_active_repository(workspace: &Workspace, cx: &App) -> bool {
     workspace.project().read(cx).active_repository(cx).is_some()
 }
 

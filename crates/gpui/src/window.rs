@@ -1713,9 +1713,7 @@ impl Window {
     /// Determine whether the given action is available along the dispatch path to the currently focused element.
     pub fn is_action_available(&self, action: &dyn Action, cx: &App) -> bool {
         let node_id = self.focus_node_id_in_rendered_frame(self.focused(cx).map(|handle| handle.id));
-        let tree = &self.rendered_frame.dispatch_tree;
-        tree.is_action_available(action, node_id, |table, ix| table.applies(ix, cx))
-            || tree.any_table(node_id, |table| table.fallback_matches(action, cx))
+        self.rendered_frame.dispatch_tree.is_action_available(action, node_id)
     }
 
     /// The position of the mouse relative to the window.
@@ -2937,11 +2935,14 @@ impl Window {
     }
 
     /// Attach `table` to the current dispatch node for the next frame, with `entity` as the view
-    /// its handlers run on. Costs one push however many actions the table handles.
+    /// its handlers run on. Costs one push however many actions the table handles, plus one call
+    /// per distinct condition of the table; those read `entity`, which must not be being updated.
     ///
     /// This method should only be called as part of the paint phase of element drawing.
-    pub fn on_action_table<V: 'static>(&mut self, entity: &Entity<V>, table: &'static ActionTable<V>) {
-        self.next_frame.dispatch_tree.on_action_table(DispatchActionTable::new(entity, table));
+    pub fn on_action_table<V: 'static>(&mut self, entity: &Entity<V>, table: &'static ActionTable<V>, cx: &App) {
+        let mut table = DispatchActionTable::new(entity, table);
+        table.evaluate_conditions(cx);
+        self.next_frame.dispatch_tree.on_action_table(table);
     }
 
     /// Perform titlebar double-click action.

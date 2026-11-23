@@ -31,7 +31,6 @@ use gpui::Pixels;
 use gpui::Point;
 use gpui::Size;
 use gpui::Subscription;
-use gpui::TaskExt as _;
 use gpui::anchored;
 use gpui::canvas;
 use gpui::deferred;
@@ -237,7 +236,6 @@ pub struct ContextMenu {
     focus_handle: FocusHandle,
     action_context: Option<FocusHandle>,
     selected_index: Option<usize>,
-    delayed: bool,
     clicked: bool,
     key_context: SharedString,
     _on_blur_subscription: Subscription,
@@ -347,7 +345,6 @@ impl ContextMenu {
                     focus_handle,
                     action_context: None,
                     selected_index: None,
-                    delayed: false,
                     clicked: false,
                     key_context: "menu".into(),
                     _on_blur_subscription,
@@ -393,7 +390,6 @@ impl ContextMenu {
                 focus_handle: focus_handle.clone(),
                 action_context: None,
                 selected_index: None,
-                delayed: false,
                 clicked: false,
                 key_context: "menu".into(),
                 _on_blur_subscription: cx.on_blur(&focus_handle, window, |this: &mut ContextMenu, window, cx| {
@@ -994,7 +990,6 @@ impl ContextMenu {
                 focus_handle,
                 action_context: None,
                 selected_index: None,
-                delayed: false,
                 clicked: false,
                 key_context: "menu".into(),
                 _on_blur_subscription,
@@ -1070,42 +1065,6 @@ impl ContextMenu {
     }
 
     /// The first enabled entry that runs `action`.
-    fn entry_for_action(&self, action: &dyn Action) -> Option<usize> {
-        self.items.iter().position(|item| {
-            if let ContextMenuItem::Entry(ContextMenuEntry { action: Some(entry_action), disabled: false, .. }) = item {
-                entry_action.partial_eq(action)
-            } else {
-                false
-            }
-        })
-    }
-
-    pub fn on_action_dispatch(&mut self, dispatched: &dyn Action, window: &mut Window, cx: &mut Context<Self>) {
-        if self.clicked {
-            cx.propagate();
-            return;
-        }
-
-        if let Some(ix) = self.entry_for_action(dispatched) {
-            self.select_index(ix, window, cx);
-            self.delayed = true;
-            cx.notify();
-            let action = dispatched.boxed_clone();
-            cx.spawn_in(window, async move |this, cx| {
-                cx.background_executor().timer(Duration::from_millis(50)).await;
-                cx.update(|window, cx| {
-                    this.update(cx, |this, cx| {
-                        this.cancel(&menu::Cancel, window, cx);
-                        window.dispatch_action(action, cx);
-                    })
-                })
-            })
-            .detach_and_log_err(cx);
-        } else {
-            cx.propagate();
-        }
-    }
-
     pub fn on_blur_subscription(mut self, new_subscription: Subscription) -> Self {
         self._on_blur_subscription = new_subscription;
         self
@@ -1603,7 +1562,6 @@ impl ContextMenu {
             focus_handle,
             action_context: None,
             selected_index: None,
-            delayed: false,
             clicked: false,
             key_context: SharedString::from("menu"),
             _on_blur_subscription,
@@ -1636,11 +1594,6 @@ static CONTEXT_MENU_ACTIONS: std::sync::LazyLock<gpui::ActionTable<ContextMenu>>
     t.add(ContextMenu::confirm);
     t.add(ContextMenu::secondary_confirm);
     t.add(ContextMenu::cancel);
-    // The actions of the menu's own entries select and run the entry.
-    t.set_fallback(
-        |menu, dispatched, _| !menu.delayed && menu.entry_for_action(dispatched).is_some(),
-        ContextMenu::on_action_dispatch,
-    );
     t
 });
 
@@ -1810,7 +1763,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn actions_handle_navigation_once_and_leave_entry_actions_to_the_fallback() {
+    fn actions_handle_navigation_once() {
         let types = CONTEXT_MENU_ACTIONS.action_types();
 
         assert_eq!(types.len(), 9);

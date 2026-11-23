@@ -19,7 +19,6 @@
 //! `KeyBinding::new("cmd-k left", pane::SplitLeft, Some("Pane"))`.
 
 use std::any::Any;
-use std::any::TypeId;
 use std::cell::RefCell;
 use std::iter;
 use std::mem;
@@ -302,57 +301,34 @@ impl DispatchTree {
         false
     }
 
-    /// `applies` says whether a table handler currently applies to its view.
-    pub(crate) fn available_actions(
-        &self,
-        target: DispatchNodeId,
-        mut applies: impl FnMut(&DispatchActionTable, usize) -> bool,
-    ) -> Vec<Box<dyn Action>> {
+    /// The actions with a handler that applies on the path to `target`.
+    pub(crate) fn available_actions(&self, target: DispatchNodeId) -> Vec<Box<dyn Action>> {
         let mut actions = Vec::<Box<dyn Action>>::new();
-        let mut insert = |action_type: &TypeId, applies: &mut dyn FnMut() -> bool| {
-            if let Err(ix) = actions.binary_search_by_key(action_type, |a| a.as_any().type_id())
-                && applies()
-                // Intentionally silence these errors without logging.
-                // If an action cannot be built by default, it's not available.
-                && let Ok(action) = self.action_registry.build_action_type(action_type)
-            {
-                actions.insert(ix, action);
-            }
-        };
         for node_id in self.dispatch_path(target) {
             let node = &self.nodes[node_id.0];
             for table in &node.action_tables {
                 for (ix, action_type) in table.action_types().iter().enumerate() {
-                    insert(action_type, &mut || applies(table, ix));
+                    if let Err(insert_ix) = actions.binary_search_by_key(action_type, |a| a.as_any().type_id())
+                        && table.applies(ix)
+                        // Intentionally silence these errors without logging.
+                        // If an action cannot be built by default, it's not available.
+                        && let Ok(action) = self.action_registry.build_action_type(action_type)
+                    {
+                        actions.insert(insert_ix, action);
+                    }
                 }
             }
         }
         actions
     }
 
-    /// `applies` says whether a table handler currently applies to its view.
-    pub(crate) fn is_action_available(
-        &self,
-        action: &dyn Action,
-        target: DispatchNodeId,
-        mut applies: impl FnMut(&DispatchActionTable, usize) -> bool,
-    ) -> bool {
+    /// Whether a handler on the path to `target` applies to `action`.
+    pub(crate) fn is_action_available(&self, action: &dyn Action, target: DispatchNodeId) -> bool {
         let action_type = action.as_any().type_id();
         self.dispatch_path(target).into_iter().any(|node_id| {
             let node = &self.nodes[node_id.0];
-            node.action_tables.iter().any(|table| table.handlers_for(action_type).any(|ix| applies(table, ix)))
+            node.action_tables.iter().any(|table| table.handlers_for(action_type).any(|ix| table.applies(ix)))
         })
-    }
-
-    /// Whether `matches` holds for any table attached on the path to `target`.
-    pub(crate) fn any_table(
-        &self,
-        target: DispatchNodeId,
-        mut matches: impl FnMut(&DispatchActionTable) -> bool,
-    ) -> bool {
-        self.dispatch_path(target)
-            .into_iter()
-            .any(|node_id| self.nodes[node_id.0].action_tables.iter().any(&mut matches))
     }
 
     /// Returns key bindings that invoke an action on the currently focused element. Bindings are
@@ -543,23 +519,36 @@ mod tests {
 
     fn noop<A: Action>(_: &mut (), _: &A, _: &mut Window, _: &mut Context<()>) {}
 
-    /// A table handling `Tabled` at index 0 or 1 and `Conditional` at the other.
-    fn table() -> DispatchActionTable {
-        let mut table = ActionTable::default();
-        table.add(noop::<Tabled>);
-        table.add_if(|(), _| false, noop::<Conditional>);
+    fn attach(table: ActionTable<()>) -> DispatchActionTable {
         let mut entities = EntityMap::new();
         let slot = entities.reserve::<()>();
         DispatchActionTable::new(&entities.insert(slot, ()), Box::leak(Box::new(table)))
+    }
+
+    /// A table handling `Tabled` always and `Conditional` under a condition that has not been
+    /// evaluated (so does not hold).
+    fn table() -> DispatchActionTable {
+        let mut table = ActionTable::default();
+        table.add(noop::<Tabled>);
+        table.add_if(|(), _| true, noop::<Conditional>);
+        attach(table)
+    }
+
+    /// `table()` as attached while its condition holds.
+    fn table_with_condition() -> DispatchActionTable {
+        let mut table = table();
+        table.conditions = 1;
+        table
     }
 
     fn tree() -> DispatchTree {
         DispatchTree::new(Rc::default(), Rc::new(ActionRegistry::default()))
     }
 
-    /// Stands in for evaluating conditions, which needs an `App`: only `Tabled` applies.
-    fn only_tabled(table: &DispatchActionTable, ix: usize) -> bool {
-        table.action_types()[ix] == TypeId::of::<Tabled>()
+    fn names(actions: Vec<Box<dyn Action>>) -> Vec<&'static str> {
+        let mut names: Vec<_> = actions.iter().map(|action| action.name()).collect();
+        names.sort_unstable();
+        names
     }
 
     #[test]
@@ -570,19 +559,22 @@ mod tests {
         tree.on_action_table(table());
         tree.pop_node();
 
-        assert!(tree.is_action_available(&Tabled, node, only_tabled));
-        assert!(!tree.is_action_available(&Unhandled, node, |_, _| true));
+        assert!(tree.is_action_available(&Tabled, node));
+        assert!(!tree.is_action_available(&Unhandled, node));
     }
 
     #[test]
-    fn table_handlers_that_do_not_apply_are_unavailable() {
+    fn conditional_handlers_are_available_while_their_condition_held() {
         let mut tree = tree();
-        let node = tree.push_node();
+        let without = tree.push_node();
         tree.on_action_table(table());
         tree.pop_node();
+        let with = tree.push_node();
+        tree.on_action_table(table_with_condition());
+        tree.pop_node();
 
-        assert!(!tree.is_action_available(&Conditional, node, only_tabled));
-        assert!(tree.is_action_available(&Conditional, node, |_, _| true));
+        assert!(!tree.is_action_available(&Conditional, without));
+        assert!(tree.is_action_available(&Conditional, with));
     }
 
     #[test]
@@ -592,49 +584,24 @@ mod tests {
         tree.on_action_table(table());
         let child = tree.push_node();
         // A handler that applies on any node of the path makes the action available once.
-        tree.on_action_table(table());
+        tree.on_action_table(table_with_condition());
         tree.pop_node();
         tree.pop_node();
 
-        let names = |actions: Vec<Box<dyn Action>>| {
-            let mut names: Vec<_> = actions.iter().map(|action| action.name()).collect();
-            names.sort_unstable();
-            names
-        };
-        assert_eq!(names(tree.available_actions(child, only_tabled)), ["dispatch_test::Tabled"]);
-        assert_eq!(
-            names(tree.available_actions(child, |_, _| true)),
-            ["dispatch_test::Conditional", "dispatch_test::Tabled"]
-        );
-    }
-
-    #[test]
-    fn any_table_visits_the_tables_on_the_path() {
-        let mut tree = tree();
-        let parent = tree.push_node();
-        tree.on_action_table(table());
-        let child = tree.push_node();
-        tree.pop_node();
-        tree.pop_node();
-        let sibling = tree.push_node();
-        tree.pop_node();
-
-        assert!(tree.any_table(child, |_| true));
-        assert!(tree.any_table(parent, |_| true));
-        assert!(!tree.any_table(child, |_| false));
-        assert!(!tree.any_table(sibling, |_| true));
+        assert_eq!(names(tree.available_actions(child)), ["dispatch_test::Conditional", "dispatch_test::Tabled"]);
     }
 
     #[test]
     fn moved_nodes_keep_their_action_tables() {
         let mut source = DispatchNode::default();
-        source.action_tables.push(table());
+        source.action_tables.push(table_with_condition());
         let mut tree = tree();
 
         tree.move_node(&mut source);
         let node = tree.active_node_id().expect("node was pushed");
 
         assert!(source.action_tables.is_empty());
-        assert!(tree.is_action_available(&Tabled, node, |_, _| true));
+        assert!(tree.is_action_available(&Tabled, node));
+        assert!(tree.is_action_available(&Conditional, node));
     }
 }

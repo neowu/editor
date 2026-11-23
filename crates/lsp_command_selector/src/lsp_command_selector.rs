@@ -61,17 +61,22 @@ pub struct LspCommandSelector {
 
 impl LspCommandSelector {
     fn register(workspace_actions: &mut WorkspaceActions) {
-        workspace_actions.register_action_if(commands_available, |workspace, _: &Toggle, window, cx| {
+        workspace_actions.register_action_if(has_active_editor, |workspace, _: &Toggle, window, cx| {
             Self::toggle(workspace, window, cx);
         });
     }
 
     fn toggle(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
         let Some(buffer) = active_buffer(workspace, cx) else {
+            cx.propagate();
             return;
         };
         let project = workspace.project();
         let commands = available_commands(&buffer, project, cx).collect::<BTreeSet<_>>();
+        if commands.is_empty() {
+            cx.propagate();
+            return;
+        }
         let lsp_store = project.read(cx).lsp_store();
         workspace.toggle_modal(window, cx, move |window, cx| LspCommandSelector::new(lsp_store, commands, window, cx));
     }
@@ -371,9 +376,9 @@ impl PickerDelegate for LspCommandSelectorDelegate {
 }
 
 /// Whether a language server of the active buffer offers any command.
-fn commands_available(workspace: &Workspace, cx: &App) -> bool {
-    active_buffer(workspace, cx)
-        .is_some_and(|buffer| available_commands(&buffer, workspace.project(), cx).next().is_some())
+/// Whether the buffer's servers offer commands is resolved by the handler, not per frame.
+fn has_active_editor(workspace: &Workspace, cx: &App) -> bool {
+    workspace.active_item(cx).is_some_and(|item| item.act_as::<Editor>(cx).is_some())
 }
 
 fn active_buffer(workspace: &Workspace, cx: &App) -> Option<Entity<Buffer>> {

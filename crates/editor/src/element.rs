@@ -2348,7 +2348,7 @@ impl Element for EditorElement {
 
             window.set_key_context(key_context);
             window.handle_input(&focus_handle, ElementInputHandler::new(bounds, self.editor.clone()), cx);
-            self.register_actions(window);
+            self.register_actions(window, cx);
             self.register_key_listeners(window, cx, layout);
         }
 

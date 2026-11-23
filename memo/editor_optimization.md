@@ -213,6 +213,11 @@ table-only bubble order, duplicate checks and `editor_actions`.
   are gone; the panel crates register them. `git::FileHistory` for a panel
   selection is handled by the git panel and project panel themselves, no
   longer by a workspace handler that checked focus.
+- Superseded: conditions are no longer lazy. They are evaluated when the
+  table is attached at paint and recorded on the dispatch node; see
+  `spec/model.md`. The double-lease constraint below and the palette
+  deferral are gone, and the fallback (context menu entry actions) was
+  dropped.
 - Cost of lazy conditions: an availability query panics (double lease)
   when made while any entity a condition reads is being updated. That is
   the views on the focus path, and for workspace conditions also the

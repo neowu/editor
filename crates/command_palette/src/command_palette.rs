@@ -107,19 +107,9 @@ impl CommandPalette {
             return;
         };
 
-        // Availability conditions read the views on the focus path, this workspace included, so
-        // the actions are collected once this update has released it.
-        let query = query.to_owned();
-        let workspace = cx.weak_entity();
-        window.defer(cx, move |window, cx| {
-            let actions = window.available_actions(cx);
-            workspace
-                .update(cx, |workspace, cx| {
-                    workspace.toggle_modal(window, cx, move |window, cx| {
-                        CommandPalette::new(previous_focus_handle, actions, &query, window, cx)
-                    });
-                })
-                .ok();
+        let actions = window.available_actions(cx);
+        workspace.toggle_modal(window, cx, move |window, cx| {
+            CommandPalette::new(previous_focus_handle, actions, query, window, cx)
         });
     }
 
