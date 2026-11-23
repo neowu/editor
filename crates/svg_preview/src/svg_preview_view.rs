@@ -17,7 +17,6 @@ use gpui::RenderImage;
 use gpui::Styled as _;
 use gpui::Subscription;
 use gpui::Task;
-use gpui::WeakEntity;
 use gpui::Window;
 use gpui::div;
 use gpui::img;
@@ -36,12 +35,9 @@ use ui::prelude::h_flex;
 use ui::prelude::v_flex;
 use workspace::Pane;
 use workspace::Workspace;
-use workspace::WorkspaceActions;
 use workspace::item::Item;
 use workspace::item::ItemEvent;
 use workspace::notifications::NotifyResultExt as _;
-
-use crate::OpenFollowingPreview;
 
 pub struct SvgPreviewView {
     focus_handle: FocusHandle,
@@ -49,34 +45,11 @@ pub struct SvgPreviewView {
     current_svg: Option<Result<Arc<RenderImage>, SharedString>>,
     _refresh: Task<()>,
     _buffer_subscription: Option<Subscription>,
-    _workspace_subscription: Option<Subscription>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SvgPreviewMode {
-    /// The preview will always show the contents of the provided editor.
-    Default,
-    /// The preview will "follow" the last active editor of an SVG file.
-    Follow,
 }
 
 impl SvgPreviewView {
-    pub fn new(
-        mode: SvgPreviewMode,
-        active_buffer: Entity<MultiBuffer>,
-        workspace_handle: WeakEntity<Workspace>,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) -> Entity<Self> {
+    pub fn new(active_buffer: Entity<MultiBuffer>, window: &mut Window, cx: &mut Context<Workspace>) -> Entity<Self> {
         cx.new(|cx| {
-            let workspace_subscription = if mode == SvgPreviewMode::Follow
-                && let Some(workspace) = workspace_handle.upgrade()
-            {
-                Some(Self::subscribe_to_workspace(workspace, window, cx))
-            } else {
-                None
-            };
-
             let buffer = active_buffer.read_with(cx, |buffer, _cx| buffer.as_singleton());
 
             let subscription = buffer.as_ref().map(|buffer| Self::create_buffer_subscription(buffer, window, cx));
@@ -86,41 +59,12 @@ impl SvgPreviewView {
                 buffer,
                 current_svg: None,
                 _buffer_subscription: subscription,
-                _workspace_subscription: workspace_subscription,
                 _refresh: Task::ready(()),
             };
             this.render_image(window, cx);
 
             this
         })
-    }
-
-    fn subscribe_to_workspace(workspace: Entity<Workspace>, window: &Window, cx: &mut Context<Self>) -> Subscription {
-        cx.subscribe_in(
-            &workspace,
-            window,
-            move |this: &mut SvgPreviewView, workspace, event: &workspace::Event, window, cx| {
-                if matches!(event, workspace::Event::ActiveItemChanged) {
-                    let workspace = workspace.read(cx);
-                    if let Some(active_item) = workspace.active_item(cx)
-                        && let Some(buffer) = active_item.downcast::<MultiBuffer>()
-                        && Self::is_svg_file(&buffer, cx)
-                    {
-                        let Some(buffer) = buffer.read(cx).as_singleton() else {
-                            return;
-                        };
-                        if this.buffer.as_ref() != Some(&buffer) {
-                            this._buffer_subscription = Some(Self::create_buffer_subscription(&buffer, window, cx));
-                            this.buffer = Some(buffer);
-                            this.render_image(window, cx);
-                            cx.notify();
-                        }
-                    } else {
-                        this.set_current(None, window, cx);
-                    }
-                }
-            },
-        )
     }
 
     fn render_image(&mut self, window: &Window, cx: &Context<Self>) {
@@ -162,7 +106,7 @@ impl SvgPreviewView {
                 .update_in(cx, |workspace, window, cx| {
                     let buffer = cx.new(|cx| MultiBuffer::singleton(buffer, cx));
                     let pane = workspace.shown_pane().clone();
-                    Self::open_preview_in_pane(workspace, buffer, pane, window, cx);
+                    Self::open_preview_in_pane(buffer, pane, window, cx);
                 })
                 .ok();
         })
@@ -189,29 +133,6 @@ impl SvgPreviewView {
         pane.index_for_item(&view)
     }
 
-    pub fn resolve_active_item_as_svg_buffer(
-        workspace: &Workspace,
-        cx: &mut Context<Workspace>,
-    ) -> Option<Entity<MultiBuffer>> {
-        workspace
-            .shown_pane()
-            .read(cx)
-            .active_item()?
-            .act_as::<MultiBuffer>(cx)
-            .filter(|buffer| Self::is_svg_file(buffer, cx))
-    }
-
-    fn create_svg_view(
-        mode: SvgPreviewMode,
-        workspace: &Workspace,
-        buffer: Entity<MultiBuffer>,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) -> Entity<SvgPreviewView> {
-        let workspace_handle = workspace.weak_handle();
-        SvgPreviewView::new(mode, buffer, workspace_handle, window, cx)
-    }
-
     fn create_buffer_subscription(buffer: &Entity<Buffer>, window: &Window, cx: &mut Context<Self>) -> Subscription {
         cx.subscribe_in(buffer, window, move |this, _buffer, event: &BufferEvent, window, cx| match event {
             BufferEvent::Edited | BufferEvent::Saved => {
@@ -234,13 +155,12 @@ impl SvgPreviewView {
     }
 
     pub fn open_preview_in_pane(
-        workspace: &mut Workspace,
         buffer: Entity<MultiBuffer>,
         pane: Entity<Pane>,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
-        Self::activate_or_add_preview(workspace, buffer, pane, true, window, cx);
+        Self::activate_or_add_preview(buffer, pane, true, window, cx);
     }
 
     pub fn open_preview_to_the_side_of_pane(
@@ -251,11 +171,10 @@ impl SvgPreviewView {
         cx: &mut Context<Workspace>,
     ) {
         let target_pane = workspace.adjacent_pane_of(&origin_pane, window, cx);
-        Self::activate_or_add_preview(workspace, buffer, target_pane, false, window, cx);
+        Self::activate_or_add_preview(buffer, target_pane, false, window, cx);
     }
 
     fn activate_or_add_preview(
-        workspace: &Workspace,
         buffer: Entity<MultiBuffer>,
         pane: Entity<Pane>,
         focus: bool,
@@ -268,24 +187,10 @@ impl SvgPreviewView {
                 pane.activate_item(existing_view_idx, focus, focus, window, cx);
             });
         } else {
-            let view = Self::create_svg_view(SvgPreviewMode::Default, workspace, buffer, window, cx);
+            let view = Self::new(buffer, window, cx);
             pane.update(cx, |pane, cx| pane.add_item(Box::new(view), focus, focus, None, window, cx));
         }
         cx.notify();
-    }
-
-    pub fn register(workspace_actions: &mut WorkspaceActions) {
-        workspace_actions.register_action(move |workspace, _: &OpenFollowingPreview, window, cx| {
-            if let Some(editor) = Self::resolve_active_item_as_svg_buffer(workspace, cx)
-                && Self::is_svg_file(&editor, cx)
-            {
-                let view = Self::create_svg_view(SvgPreviewMode::Follow, workspace, editor, window, cx);
-                workspace
-                    .shown_pane()
-                    .update(cx, |pane, cx| pane.add_item(Box::new(view), true, true, None, window, cx));
-                cx.notify();
-            }
-        });
     }
 }
 

@@ -7,8 +7,6 @@ pub mod markdown_preview_view;
 mod mermaid_diagrams;
 mod preview_provider;
 
-use workspace::WorkspaceActions;
-
 use crate::markdown_preview_view::MarkdownPreviewView;
 
 actions!(
@@ -30,16 +28,12 @@ actions!(
         ScrollToTop,
         /// Scrolls to the bottom of the markdown preview.
         ScrollToBottom,
-        /// Opens a following markdown preview that syncs with the editor.
-        OpenFollowingPreview,
         /// Closes the markdown preview and returns focus to the source editor.
         CloseAndReturnToEditor
     ]
 );
 
-pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
+pub fn init(cx: &mut App) {
     workspace::register_serializable_item::<MarkdownPreviewView>(cx);
     preview::register_preview_provider(preview_provider::PROVIDER, cx);
-
-    markdown_preview_view::MarkdownPreviewView::register(workspace_actions);
 }

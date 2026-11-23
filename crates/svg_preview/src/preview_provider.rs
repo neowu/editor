@@ -18,7 +18,7 @@ pub(crate) const PROVIDER: PreviewProvider = PreviewProvider {
         if to_the_side {
             SvgPreviewView::open_preview_to_the_side_of_pane(workspace, buffer, pane, window, cx);
         } else {
-            SvgPreviewView::open_preview_in_pane(workspace, buffer, pane, window, cx);
+            SvgPreviewView::open_preview_in_pane(buffer, pane, window, cx);
         }
     },
 };

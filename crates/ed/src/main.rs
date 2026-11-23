@@ -267,8 +267,8 @@ fn main() {
 
         title_bar::init(&mut workspace_actions, cx);
         git_ui::init(&mut workspace_actions, cx);
-        markdown_preview::init(&mut workspace_actions, cx);
-        svg_preview::init(&mut workspace_actions, cx);
+        markdown_preview::init(cx);
+        svg_preview::init(cx);
 
         app_state.languages.set_theme(cx.theme());
 

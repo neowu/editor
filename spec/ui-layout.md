@@ -462,8 +462,8 @@ because it hurt readability; an opaque window is also cheaper to composite.
   while its active item has a preview, so the shortcut falls through elsewhere
   and menus just check whether the action is available. An editor's language
   change updates its tab, so the button appears once a new file's language is
-  detected. Following previews (`markdown::OpenFollowingPreview`,
-  `svg::OpenFollowingPreview`) stay type-specific.
+  detected. A preview is bound to one file; there are no previews that follow
+  the active editor.
   Zoom stays rightmost. Multibuffers have no collapse/expand all files button:
   that is `editor::ToggleFoldAll` (cmd-shift-enter in search bars) or View >
   Fold All / Unfold All, so a multibuffer with nothing else to show (e.g. find

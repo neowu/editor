@@ -84,11 +84,9 @@ use workspace::ItemNavHistory;
 use workspace::Pane;
 use workspace::SaveIntent;
 use workspace::Workspace;
-use workspace::WorkspaceActions;
 use workspace::item::Item;
 use workspace::item::ItemBufferKind;
 use workspace::item::ItemEvent;
-use workspace::item::ItemHandle;
 use workspace::item::SaveOptions;
 use workspace::item::SerializableItem;
 use workspace::item::TabContentParams;
@@ -105,7 +103,6 @@ use workspace::searchable::SearchableItemHandle;
 use workspace::searchable::SeedQuery;
 
 use crate::CloseAndReturnToEditor;
-use crate::OpenFollowingPreview;
 use crate::ScrollDown;
 use crate::ScrollDownByItem;
 use crate::ScrollPageDown;
@@ -141,20 +138,10 @@ pub struct MarkdownPreviewView {
     base_directory: Option<PathBuf>,
     pending_update_task: Option<Task<Result<()>>>,
     hovered_url: Option<SharedString>,
-    mode: MarkdownPreviewMode,
     /// Search results depend on the parsed markdown, which lags behind the source while a
     /// background parse is in flight. Tracked so matches can be invalidated once it lands.
     markdown_parse_pending: bool,
     nav_history: Option<ItemNavHistory>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum MarkdownPreviewMode {
-    /// The preview will always show the contents of the provided editor.
-    Default,
-    /// The preview will "follow" the currently active editor.
-    Follow,
 }
 
 struct EditorState {
@@ -174,33 +161,6 @@ enum PreviewLinkTarget {
 }
 
 impl MarkdownPreviewView {
-    pub fn register(workspace_actions: &mut WorkspaceActions) {
-        workspace_actions.register_action(move |workspace, _: &OpenFollowingPreview, window, cx| {
-            if let Some(editor) = Self::resolve_active_item_as_markdown_editor(workspace, cx) {
-                // Check if there's already a following preview
-                let existing_follow_view_idx = {
-                    let active_pane = workspace.shown_pane().read(cx);
-                    active_pane
-                        .items_of_type::<MarkdownPreviewView>()
-                        .find(|view| view.read(cx).mode == MarkdownPreviewMode::Follow)
-                        .and_then(|view| active_pane.index_for_item(&view))
-                };
-
-                if let Some(existing_follow_view_idx) = existing_follow_view_idx {
-                    workspace.shown_pane().update(cx, |pane, cx| {
-                        pane.activate_item(existing_follow_view_idx, true, true, window, cx);
-                    });
-                } else {
-                    let view = Self::create_following_markdown_view(workspace, editor, window, cx);
-                    workspace
-                        .shown_pane()
-                        .update(cx, |pane, cx| pane.add_item(Box::new(view.clone()), true, true, None, window, cx));
-                }
-                cx.notify();
-            }
-        });
-    }
-
     pub fn open_preview_in_pane(
         workspace: &mut Workspace,
         editor: Entity<Editor>,
@@ -243,12 +203,11 @@ impl MarkdownPreviewView {
     fn find_existing_independent_preview_item_idx(pane: &Pane, editor: &Entity<Editor>, cx: &App) -> Option<usize> {
         let target_buffer = editor.read(cx).buffer().read(cx).as_singleton()?;
         let view = pane.items_of_type::<MarkdownPreviewView>().find(|view| {
-            // Only look for independent (Default mode) previews, not Follow previews.
             // Match by buffer entity rather than editor entity so the lookup survives
             // workspace restoration, where the preview's bound editor may differ from
             // the editor the user is currently invoking the action on even though both
             // wrap the same source buffer.
-            view.read(cx).mode == MarkdownPreviewMode::Default && view.read(cx).is_previewing(&target_buffer, cx)
+            view.read(cx).is_previewing(&target_buffer, cx)
         })?;
         pane.index_for_item(&view)
     }
@@ -259,18 +218,6 @@ impl MarkdownPreviewView {
             .is_some_and(|state| state.editor.read(cx).buffer().read(cx).as_singleton().as_ref() == Some(buffer))
     }
 
-    pub fn resolve_active_item_as_markdown_editor(
-        workspace: &Workspace,
-        cx: &mut Context<Workspace>,
-    ) -> Option<Entity<Editor>> {
-        if let Some(editor) = workspace.shown_pane().read(cx).active_item().and_then(|item| item.act_as::<Editor>(cx))
-            && Self::is_markdown_file(&editor, cx)
-        {
-            return Some(editor);
-        }
-        None
-    }
-
     pub fn create_markdown_view(
         workspace: &mut Workspace,
         editor: Entity<Editor>,
@@ -279,22 +226,10 @@ impl MarkdownPreviewView {
     ) -> Entity<MarkdownPreviewView> {
         let language_registry = Arc::clone(workspace.project().read(cx).languages());
         let workspace_handle = workspace.weak_handle();
-        MarkdownPreviewView::new(MarkdownPreviewMode::Default, editor, workspace_handle, language_registry, window, cx)
-    }
-
-    fn create_following_markdown_view(
-        workspace: &Workspace,
-        editor: Entity<Editor>,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) -> Entity<MarkdownPreviewView> {
-        let language_registry = Arc::clone(workspace.project().read(cx).languages());
-        let workspace_handle = workspace.weak_handle();
-        MarkdownPreviewView::new(MarkdownPreviewMode::Follow, editor, workspace_handle, language_registry, window, cx)
+        MarkdownPreviewView::new(editor, workspace_handle, language_registry, window, cx)
     }
 
     pub fn new(
-        mode: MarkdownPreviewMode,
         active_editor: Entity<Editor>,
         workspace: WeakEntity<Workspace>,
         language_registry: Arc<LanguageRegistry>,
@@ -334,53 +269,27 @@ impl MarkdownPreviewView {
                 base_directory: None,
                 pending_update_task: None,
                 hovered_url: None,
-                mode,
                 markdown_parse_pending: false,
                 nav_history: None,
             };
 
             this.set_editor(active_editor, window, cx);
 
-            match mode {
-                MarkdownPreviewMode::Follow => {
-                    if let Some(workspace) = &workspace.upgrade() {
-                        cx.observe_in(workspace, window, |this, workspace, window, cx| {
-                            let item = workspace.read(cx).active_item(cx);
-                            this.workspace_updated(item, window, cx);
-                        })
-                        .detach();
-                    } else {
-                        log::error!("Failed to listen to workspace updates");
-                    }
-                }
-                MarkdownPreviewMode::Default => {
-                    // After workspace restoration the bound editor may be an orphan that
-                    // wraps the right buffer but isn't the canonical Editor instance in
-                    // any pane. Re-binding to the workspace's editor for our buffer is
-                    // what restores cursor-driven scroll sync — `SelectionsChanged` only
-                    // fires from the editor the user actually interacts with.
-                    //
-                    // Subscribing to `workspace::Event` (rather than `observe`) keeps the
-                    // rebind check off the cursor-move hot path; `observe` would fire on
-                    // every workspace `cx.notify`.
-                    if let Some(workspace) = &workspace.upgrade() {
-                        cx.subscribe_in(workspace, window, Self::on_workspace_event).detach();
-                    }
-                }
+            // After workspace restoration the bound editor may be an orphan that
+            // wraps the right buffer but isn't the canonical Editor instance in
+            // any pane. Re-binding to the workspace's editor for our buffer is
+            // what restores cursor-driven scroll sync — `SelectionsChanged` only
+            // fires from the editor the user actually interacts with.
+            //
+            // Subscribing to `workspace::Event` (rather than `observe`) keeps the
+            // rebind check off the cursor-move hot path; `observe` would fire on
+            // every workspace `cx.notify`.
+            if let Some(workspace) = &workspace.upgrade() {
+                cx.subscribe_in(workspace, window, Self::on_workspace_event).detach();
             }
 
             this
         })
-    }
-
-    fn workspace_updated(&mut self, active_item: Option<Box<dyn ItemHandle>>, window: &Window, cx: &mut Context<Self>) {
-        if let Some(item) = active_item
-            && item.item_id() != cx.entity_id()
-            && let Some(editor) = item.act_as::<Editor>(cx)
-            && Self::is_markdown_file(&editor, cx)
-        {
-            self.set_editor(editor, window, cx);
-        }
     }
 
     pub fn is_markdown_path(path: impl AsRef<Path>, languages: &Arc<LanguageRegistry>) -> bool {
@@ -1000,9 +909,7 @@ fn find_preview_for_buffer(
     buffer: &Entity<Buffer>,
     cx: &App,
 ) -> Option<Entity<MarkdownPreviewView>> {
-    workspace
-        .items_of_type::<MarkdownPreviewView>(cx)
-        .find(|view| view.read(cx).mode == MarkdownPreviewMode::Default && view.read(cx).is_previewing(buffer, cx))
+    workspace.items_of_type::<MarkdownPreviewView>(cx).find(|view| view.read(cx).is_previewing(buffer, cx))
 }
 
 fn open_markdown_link_in_preview(
@@ -1266,9 +1173,6 @@ impl Item for MarkdownPreviewView {
     }
 
     fn added_to_workspace(&mut self, workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Self>) {
-        if self.mode != MarkdownPreviewMode::Default {
-            return;
-        }
         if let Some(editor) = self.find_canonical_editor(workspace, cx)
             && self.active_editor.as_ref().is_none_or(|s| s.editor != editor)
         {
@@ -1602,7 +1506,7 @@ impl SerializableItem for MarkdownPreviewView {
         cx: &mut App,
     ) -> Task<Result<Entity<Self>>> {
         window.spawn(cx, async move |cx| {
-            let SerializedMarkdownPreview { abs_path, mode } =
+            let SerializedMarkdownPreview { abs_path } =
                 serde_json::from_value(state).context("deserializing markdown preview state")?;
 
             let (worktree, relative_path) = project
@@ -1618,7 +1522,7 @@ impl SerializableItem for MarkdownPreviewView {
             cx.update(|window, cx| {
                 let language_registry = Arc::clone(project.read(cx).languages());
                 let editor = cx.new(|cx| Editor::for_buffer(buffer, Some(project.clone()), window, cx));
-                MarkdownPreviewView::new(mode, editor, workspace, language_registry, window, cx)
+                MarkdownPreviewView::new(editor, workspace, language_registry, window, cx)
             })
         })
     }
@@ -1629,7 +1533,7 @@ impl SerializableItem for MarkdownPreviewView {
         let file = buffer.read(cx).file()?;
         let worktree_id = file.worktree_id(cx);
         let abs_path = workspace.project().read(cx).worktree_for_id(worktree_id, cx)?.read(cx).absolutize(file.path());
-        serde_json::to_value(SerializedMarkdownPreview { abs_path, mode: self.mode }).log_err()
+        serde_json::to_value(SerializedMarkdownPreview { abs_path }).log_err()
     }
 
     fn should_serialize(&self, event: &Self::Event) -> bool {
@@ -1641,10 +1545,4 @@ impl SerializableItem for MarkdownPreviewView {
 #[derive(serde::Serialize, serde::Deserialize)]
 struct SerializedMarkdownPreview {
     abs_path: PathBuf,
-    #[serde(default = "default_preview_mode")]
-    mode: MarkdownPreviewMode,
-}
-
-const fn default_preview_mode() -> MarkdownPreviewMode {
-    MarkdownPreviewMode::Default
 }
