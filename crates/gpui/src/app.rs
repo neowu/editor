@@ -356,7 +356,6 @@ pub struct App {
 }
 
 impl App {
-    #[allow(clippy::new_ret_no_self)]
     pub(crate) fn new_app(platform: Rc<dyn Platform>, asset_source: Arc<dyn AssetSource>) -> Rc<AppCell> {
         let background_executor = platform.background_executor();
         let foreground_executor = platform.foreground_executor();
