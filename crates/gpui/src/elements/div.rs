@@ -706,12 +706,11 @@ impl Interactivity {
         }
 
         if let Some(scroll_offset) = self.scroll_offset.as_ref() {
-            let mut scroll_to_bottom = false;
-            let mut tracked_scroll_handle = self.tracked_scroll_handle.as_ref().map(|handle| handle.0.borrow_mut());
-            if let Some(scroll_handle_state) = tracked_scroll_handle.as_deref_mut() {
-                scroll_handle_state.overflow = style.overflow;
-                scroll_to_bottom = mem::take(&mut scroll_handle_state.scroll_to_bottom);
-            }
+            let scroll_to_bottom = self
+                .tracked_scroll_handle
+                .as_ref()
+                .is_some_and(|scroll_handle| scroll_handle.begin_frame(style.overflow, bounds));
+            let tracked_scroll_handle = self.tracked_scroll_handle.as_ref().map(|handle| handle.0.borrow_mut());
 
             let rem_size = window.rem_size();
             // Taffy lays the box out with the padding snapped to the device pixel
@@ -742,7 +741,6 @@ impl Interactivity {
 
             if let Some(mut scroll_handle_state) = tracked_scroll_handle {
                 scroll_handle_state.max_offset = scroll_max;
-                scroll_handle_state.bounds = bounds;
             }
 
             *scroll_offset
@@ -2342,10 +2340,6 @@ impl Element for Div {
             (child_max - child_min).into()
         };
 
-        if let Some(scroll_handle) = self.interactivity.tracked_scroll_handle.as_ref() {
-            scroll_handle.scroll_to_active_item();
-        }
-
         self.interactivity.prepaint(
             global_id,
             bounds,
@@ -3022,6 +3016,21 @@ impl ScrollHandle {
     /// Scrolls the minimal amount to either ensure that the child is
     /// fully visible or the top element of the view depends on the
     /// scroll strategy.
+    /// Records this frame's overflow and bounds, then scrolls to the requested item.
+    /// Returns whether a scroll to the bottom was requested.
+    fn begin_frame(&self, overflow: Point<Overflow>, bounds: Bounds<Pixels>) -> bool {
+        let scroll_to_bottom = {
+            let mut state = self.0.borrow_mut();
+            state.overflow = overflow;
+            // Scrolling to an item needs this frame's values: what the handle
+            // remembers is from the last frame, and empty on the first draw.
+            state.bounds = bounds;
+            mem::take(&mut state.scroll_to_bottom)
+        };
+        self.scroll_to_active_item();
+        scroll_to_bottom
+    }
+
     fn scroll_to_active_item(&self) {
         let mut state = self.0.borrow_mut();
 
@@ -3098,6 +3107,31 @@ impl ScrollHandle {
 #[cfg(test)]
 mod tests {
     use super::InteractivityBox;
+    use super::Overflow;
+    use super::ScrollHandle;
+    use crate::Bounds;
+    use crate::point;
+    use crate::px;
+    use crate::size;
+
+    #[test]
+    fn begin_frame_scrolls_to_an_item_requested_before_the_first_frame() {
+        // Never drawn: the handle knows neither its bounds nor that it scrolls.
+        let scroll_handle = ScrollHandle::new();
+        scroll_handle.scroll_to_item(4);
+        scroll_handle.scroll_to_bottom();
+        scroll_handle.0.borrow_mut().child_bounds =
+            (0..5).map(|ix| Bounds::new(point(px(40. * ix as f32), px(0.)), size(px(40.), px(20.)))).collect();
+
+        let overflow = point(Overflow::Scroll, Overflow::Visible);
+        let bounds = Bounds::new(point(px(0.), px(0.)), size(px(100.), px(20.)));
+        assert!(scroll_handle.begin_frame(overflow, bounds));
+
+        // Five 40px items in a 100px strip: the last one ends at 200px.
+        assert_eq!(scroll_handle.offset().x, px(-100.));
+        assert_eq!(scroll_handle.bounds(), bounds);
+        assert!(!scroll_handle.begin_frame(overflow, bounds));
+    }
 
     #[test]
     fn interactivity_is_heap_allocated_outside_a_draw() {
