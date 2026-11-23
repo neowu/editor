@@ -63,17 +63,14 @@ const RESIZE_HANDLE_WIDTH: f32 = 8.0;
 struct DraggedSplitHandle;
 
 pub struct SplitEditorState {
-    left_ratio: f32,
     visible_left_ratio: f32,
-    cached_width: Pixels,
 }
 
 impl SplitEditorState {
     pub const fn new(_cx: &mut App) -> Self {
-        Self { left_ratio: 0.5, visible_left_ratio: 0.5, cached_width: px(0.) }
+        Self { visible_left_ratio: 0.5 }
     }
 
-    #[allow(clippy::misnamed_getters)]
     pub const fn left_ratio(&self) -> f32 {
         self.visible_left_ratio
     }
@@ -92,10 +89,6 @@ impl SplitEditorState {
         let bounds = drag_event.bounds;
         let bounds_width = bounds.right() - bounds.left();
 
-        if bounds_width > px(0.) {
-            self.cached_width = bounds_width;
-        }
-
         let min_ratio = 0.1;
         let max_ratio = 0.9;
 
@@ -103,12 +96,7 @@ impl SplitEditorState {
         self.visible_left_ratio = new_ratio.clamp(min_ratio, max_ratio);
     }
 
-    const fn commit_ratio(&mut self) {
-        self.left_ratio = self.visible_left_ratio;
-    }
-
     const fn on_double_click(&mut self) {
-        self.left_ratio = 0.5;
         self.visible_left_ratio = 0.5;
     }
 }
@@ -193,7 +181,6 @@ impl RenderOnce for SplitEditorView {
         let resize_handle = render_resize_handle(&self.split_state, separator_color, window, cx);
 
         let state_for_drag = self.split_state.downgrade();
-        let state_for_drop = self.split_state.downgrade();
 
         let buffer_headers = SplitBufferHeadersElement::new(lhs_editor.clone(), rhs_editor.clone(), self.style.clone());
 
@@ -220,13 +207,8 @@ impl RenderOnce for SplitEditorView {
                             })
                             .ok();
                     })
-                    .on_drop::<DraggedSplitHandle>(move |_, _, cx| {
-                        state_for_drop
-                            .update(cx, |state, _| {
-                                state.commit_ratio();
-                            })
-                            .ok();
-                    })
+                    // Registering a drop target ends the drag here; the ratio was already applied while dragging.
+                    .on_drop::<DraggedSplitHandle>(|_, _, _| {})
                     .child(
                         div()
                             .id("split-editor-left")

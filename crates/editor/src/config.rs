@@ -2,7 +2,6 @@ use language::language_settings::INDENT_GUIDES;
 
 use super::App;
 use super::Arc;
-use super::BufferId;
 use super::Context;
 use super::Editor;
 use super::EditorStyle;
@@ -184,10 +183,6 @@ impl Editor {
 
     pub(super) const fn should_show_indent_guides(&self) -> Option<bool> {
         self.show_indent_guides
-    }
-
-    pub(super) fn has_indent_guides_disabled_for_buffer(&self, buffer_id: BufferId) -> bool {
-        self.buffers_with_disabled_indent_guides.contains(&buffer_id)
     }
 
     pub(super) fn set_number_deleted_lines(&mut self, number: bool, cx: &mut Context<Self>) {

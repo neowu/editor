@@ -856,9 +856,7 @@ impl DisplayMap {
         let snapshot = self.buffer.read(cx).snapshot(cx);
 
         let old_ids = self.lsp_folding_crease_ids.remove(&buffer_id).unwrap_or_default();
-        if !old_ids.is_empty() {
-            self.crease_map.remove(old_ids, &snapshot);
-        }
+        self.crease_map.remove(old_ids, &snapshot);
 
         if ranges.is_empty() {
             return;

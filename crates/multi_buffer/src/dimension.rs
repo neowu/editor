@@ -589,7 +589,7 @@ where
 }
 
 impl ToOffset for Point {
-    fn to_offset<'a>(&self, snapshot: &MultiBufferSnapshot) -> MultiBufferOffset {
+    fn to_offset(&self, snapshot: &MultiBufferSnapshot) -> MultiBufferOffset {
         snapshot.point_to_offset(*self)
     }
     fn to_offset_utf16(&self, snapshot: &MultiBufferSnapshot) -> MultiBufferOffsetUtf16 {
@@ -599,7 +599,7 @@ impl ToOffset for Point {
 
 impl ToOffset for MultiBufferOffset {
     #[track_caller]
-    fn to_offset<'a>(&self, snapshot: &MultiBufferSnapshot) -> MultiBufferOffset {
+    fn to_offset(&self, snapshot: &MultiBufferSnapshot) -> MultiBufferOffset {
         assert!(*self <= snapshot.len(), "offset {} is greater than the snapshot.len() {}", self.0, snapshot.len().0);
         *self
     }
@@ -609,7 +609,7 @@ impl ToOffset for MultiBufferOffset {
 }
 
 impl ToOffset for MultiBufferOffsetUtf16 {
-    fn to_offset<'a>(&self, snapshot: &MultiBufferSnapshot) -> MultiBufferOffset {
+    fn to_offset(&self, snapshot: &MultiBufferSnapshot) -> MultiBufferOffset {
         snapshot.offset_utf16_to_offset(*self)
     }
 
@@ -619,7 +619,7 @@ impl ToOffset for MultiBufferOffsetUtf16 {
 }
 
 impl ToOffset for PointUtf16 {
-    fn to_offset<'a>(&self, snapshot: &MultiBufferSnapshot) -> MultiBufferOffset {
+    fn to_offset(&self, snapshot: &MultiBufferSnapshot) -> MultiBufferOffset {
         snapshot.point_utf16_to_offset(*self)
     }
     fn to_offset_utf16(&self, snapshot: &MultiBufferSnapshot) -> MultiBufferOffsetUtf16 {
@@ -628,28 +628,28 @@ impl ToOffset for PointUtf16 {
 }
 
 impl ToPoint for MultiBufferOffset {
-    fn to_point<'a>(&self, snapshot: &MultiBufferSnapshot) -> Point {
+    fn to_point(&self, snapshot: &MultiBufferSnapshot) -> Point {
         snapshot.offset_to_point(*self)
     }
-    fn to_point_utf16<'a>(&self, snapshot: &MultiBufferSnapshot) -> PointUtf16 {
+    fn to_point_utf16(&self, snapshot: &MultiBufferSnapshot) -> PointUtf16 {
         snapshot.offset_to_point_utf16(*self)
     }
 }
 
 impl ToPoint for Point {
-    fn to_point<'a>(&self, _: &MultiBufferSnapshot) -> Point {
+    fn to_point(&self, _: &MultiBufferSnapshot) -> Point {
         *self
     }
-    fn to_point_utf16<'a>(&self, snapshot: &MultiBufferSnapshot) -> PointUtf16 {
+    fn to_point_utf16(&self, snapshot: &MultiBufferSnapshot) -> PointUtf16 {
         snapshot.point_to_point_utf16(*self)
     }
 }
 
 impl ToPoint for PointUtf16 {
-    fn to_point<'a>(&self, snapshot: &MultiBufferSnapshot) -> Point {
+    fn to_point(&self, snapshot: &MultiBufferSnapshot) -> Point {
         snapshot.point_utf16_to_point(*self)
     }
-    fn to_point_utf16<'a>(&self, _: &MultiBufferSnapshot) -> PointUtf16 {
+    fn to_point_utf16(&self, _: &MultiBufferSnapshot) -> PointUtf16 {
         *self
     }
 }

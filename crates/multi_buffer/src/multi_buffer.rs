@@ -830,8 +830,6 @@ impl MultiBuffer {
         self.read(cx).has_conflict()
     }
 
-    // The `is_empty` signature doesn't match what clippy expects
-    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self, cx: &App) -> MultiBufferOffset {
         self.read(cx).len()
     }

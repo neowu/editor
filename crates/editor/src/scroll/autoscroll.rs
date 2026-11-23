@@ -83,7 +83,6 @@ pub enum AutoscrollStrategy {
     Top,
     Bottom,
     TopRelative(ScrollOffset),
-    BottomRelative(ScrollOffset),
 }
 
 impl Eq for AutoscrollStrategy {}
@@ -237,10 +236,6 @@ impl Editor {
             }
             AutoscrollStrategy::TopRelative(lines) => {
                 scroll_position.y = target_top - lines as ScrollOffset;
-                self.set_scroll_position_internal(scroll_position, local, true, window, cx)
-            }
-            AutoscrollStrategy::BottomRelative(lines) => {
-                scroll_position.y = target_bottom + lines as ScrollOffset;
                 self.set_scroll_position_internal(scroll_position, local, true, window, cx)
             }
         };

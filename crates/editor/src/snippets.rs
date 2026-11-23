@@ -169,11 +169,10 @@ impl Editor {
                     if let Some(pair) = bracket_pair
                         && self.use_autoclose
                     {
-                        let start = snapshot.anchor_after(selection_head);
-                        let end = snapshot.anchor_after(selection_head);
+                        let anchor = snapshot.anchor_after(selection_head);
                         self.autoclose_regions.push(AutocloseRegion {
                             selection_id: selection.id,
-                            range: start..end,
+                            range: anchor..anchor,
                             pair,
                         });
                     }

@@ -1122,7 +1122,6 @@ pub struct Editor {
     show_runnables: Option<bool>,
     show_wrap_guides: Option<bool>,
     show_indent_guides: Option<bool>,
-    buffers_with_disabled_indent_guides: FxHashSet<BufferId>,
     highlight_order: usize,
     highlighted_rows: HashMap<TypeId, Vec<RowHighlight>, TypeIdHashBuilder>,
     background_highlights: FxHashMap<HighlightKey, BackgroundHighlight>,
@@ -1706,7 +1705,6 @@ impl Editor {
         clone.scroll_manager.clone_state(&self.scroll_manager, &my_snapshot, &clone_snapshot, cx);
         clone.searchable = self.searchable;
         clone.read_only = self.read_only;
-        clone.buffers_with_disabled_indent_guides.clone_from(&self.buffers_with_disabled_indent_guides);
         clone.enable_lsp_data = self.enable_lsp_data;
         clone.needs_initial_data_update = self.enable_lsp_data;
         clone.enable_runnables = self.enable_runnables;
@@ -1998,7 +1996,6 @@ impl Editor {
             show_runnables: None,
             show_wrap_guides: None,
             show_indent_guides,
-            buffers_with_disabled_indent_guides: FxHashSet::default(),
             highlight_order: 0,
             highlighted_rows: HashMap::default(),
             background_highlights: FxHashMap::default(),

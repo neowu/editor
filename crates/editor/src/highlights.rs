@@ -141,7 +141,6 @@ impl Editor {
                         |_, theme| theme.colors().editor_document_highlight_write_background,
                         cx,
                     );
-                    cx.notify();
                 })
                 .log_err();
             }
