@@ -2525,7 +2525,6 @@ pub struct PointForPosition {
     pub next_valid: DisplayPoint,
     pub nearest_valid: DisplayPoint,
     pub exact_unclipped: DisplayPoint,
-    pub column_overshoot_after_line_end: u32,
 }
 
 impl PointForPosition {
@@ -2592,7 +2591,7 @@ impl PositionMap {
 
         let column_overshoot_after_line_end = (x_overshoot_after_line_end / self.em_layout_width) as u32;
         *exact_unclipped.column_mut() += column_overshoot_after_line_end;
-        PointForPosition { previous_valid, next_valid, nearest_valid, exact_unclipped, column_overshoot_after_line_end }
+        PointForPosition { previous_valid, next_valid, nearest_valid, exact_unclipped }
     }
 }
 
