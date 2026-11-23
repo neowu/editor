@@ -1123,7 +1123,6 @@ mod remote_button {
             .offset(gpui::Point { x: px(0.), y: px(2.) })
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn split_button(
         id: SharedString,
         left_label: impl Into<SharedString>,

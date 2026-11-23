@@ -2248,7 +2248,7 @@ impl GitRepository for RealGitRepository {
             let git = git?;
             let mut cmd = git.build_command(&["commit", "--quiet", "-m"]);
             cmd.envs(env.iter())
-                .arg(message.to_string())
+                .arg(message.as_str())
                 .arg("--cleanup=strip")
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped());
@@ -2938,7 +2938,6 @@ impl GitBinary {
         Ok(String::from_utf8(output.stdout)?)
     }
 
-    #[allow(clippy::disallowed_methods)]
     pub(crate) fn build_command<S>(&self, args: &[S]) -> Command
     where
         S: AsRef<OsStr>,

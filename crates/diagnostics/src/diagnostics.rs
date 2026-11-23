@@ -813,14 +813,14 @@ async fn heuristic_syntactic_expand(
             let rows_remaining = max_row_count.saturating_sub(row_count);
             let Some(start_row) = (node_range.start.row.saturating_sub(rows_remaining)..node_range.start.row)
                 .rev()
-                .find(|row| is_line_blank_or_indented_less(indent_level, *row, tab_size, &snapshot.clone()))
+                .find(|row| is_line_blank_or_indented_less(indent_level, *row, tab_size, &snapshot))
             else {
                 return Some(node_row_range);
             };
             let rows_remaining = max_row_count.saturating_sub(node_range.end.row - start_row);
             let Some(end_row) = (node_range.end.row + 1
                 ..cmp::min(node_range.end.row + rows_remaining + 1, snapshot.row_count()))
-                .find(|row| is_line_blank_or_indented_less(indent_level, *row, tab_size, &snapshot.clone()))
+                .find(|row| is_line_blank_or_indented_less(indent_level, *row, tab_size, &snapshot))
             else {
                 return Some(node_row_range);
             };

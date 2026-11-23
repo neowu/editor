@@ -286,7 +286,6 @@ impl GitPanel {
                     repo.checkout_files("HEAD", entries.into_iter().map(|entries| entries.repo_path).collect(), cx)
                 });
                 this.update_visible_entries(window, cx);
-                cx.notify();
                 task
             })?
             .await?;
