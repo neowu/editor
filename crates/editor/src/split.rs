@@ -75,7 +75,6 @@ use crate::DefaultDiffHunkRenderer;
 use crate::DiffHunkRenderer;
 use crate::Editor;
 use crate::EditorEvent;
-use crate::ToggleSoftWrap;
 use crate::display_map::Companion;
 use crate::display_map::CompanionExcerptPatch;
 use crate::element::SplitSide;
@@ -905,30 +904,6 @@ impl SplittableEditor {
         }
     }
 
-    pub fn toggle_soft_wrap(&mut self, _: &ToggleSoftWrap, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(lhs) = &self.lhs {
-            cx.stop_propagation();
-
-            let is_lhs_focused = lhs.was_last_focused;
-            let (focused_editor, other_editor) =
-                if is_lhs_focused { (&lhs.editor, &self.rhs_editor) } else { (&self.rhs_editor, &lhs.editor) };
-
-            // Toggle the focused editor
-            focused_editor.update(cx, |editor, cx| {
-                editor.toggle_soft_wrap(&ToggleSoftWrap, window, cx);
-            });
-
-            // Copy the soft wrap state from the focused editor to the other editor
-            let soft_wrap_override = focused_editor.read(cx).soft_wrap_mode_override;
-            other_editor.update(cx, |editor, cx| {
-                editor.soft_wrap_mode_override = soft_wrap_override;
-                cx.notify();
-            });
-        } else {
-            cx.propagate();
-        }
-    }
-
     fn unsplit(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         let Some(lhs) = self.lhs.take() else {
             return;
@@ -1466,7 +1441,6 @@ static SPLITTABLE_EDITOR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<Splittab
         t.add(SplittableEditor::toggle_split);
         t.add(SplittableEditor::activate_pane_left);
         t.add(SplittableEditor::activate_pane_right);
-        t.add_capture(SplittableEditor::toggle_soft_wrap);
         t
     });
 

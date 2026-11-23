@@ -140,10 +140,9 @@ impl GoToLine {
         }
     }
 
-    /// Tab fills an empty input with the placeholder (the current position) and never reaches
-    /// the line editor.
+    /// Tab fills an empty input with the placeholder (the current position). The single-line
+    /// input propagates Tab, so it reaches this view.
     fn accept_placeholder(&mut self, _: &Tab, window: &mut Window, cx: &mut Context<Self>) {
-        cx.stop_propagation();
         self.line_editor.update(cx, |editor, cx| {
             if let Some(placeholder_text) = editor.placeholder_text(cx)
                 && editor.text(cx).is_empty()
@@ -293,7 +292,7 @@ impl GoToLine {
 
 static GO_TO_LINE_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GoToLine>> = std::sync::LazyLock::new(|| {
     let mut t = gpui::ActionTable::<GoToLine>::default();
-    t.add_capture(GoToLine::accept_placeholder);
+    t.add(GoToLine::accept_placeholder);
     t.add(GoToLine::cancel);
     t.add(GoToLine::confirm);
     t

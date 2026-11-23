@@ -11,12 +11,6 @@ use editor::DiffStyleControls;
 use editor::Editor;
 use editor::MultiBufferOffset;
 use editor::SplittableEditor;
-use editor::actions::Backtab;
-use editor::actions::FoldAll;
-use editor::actions::Tab;
-use editor::actions::ToggleFoldAll;
-use editor::actions::ToggleSoftWrap;
-use editor::actions::UnfoldAll;
 use editor::scroll::Autoscroll;
 use futures::channel::oneshot;
 use gpui::App;
@@ -86,6 +80,8 @@ use workspace::searchable::SeedQuery;
 use workspace::searchable::SelectSearchOptions;
 use workspace::searchable::WeakSearchableItemHandle;
 
+use crate::FocusNextField;
+use crate::FocusPreviousField;
 use crate::FocusSearch;
 use crate::NextHistoryQuery;
 use crate::PreviousHistoryQuery;
@@ -162,12 +158,8 @@ impl EventEmitter<workspace::ToolbarItemEvent> for BufferSearchBar {}
 static BUFFER_SEARCH_BAR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<BufferSearchBar>> =
     std::sync::LazyLock::new(|| {
         let mut t = gpui::ActionTable::<BufferSearchBar>::default();
-        t.add_capture(BufferSearchBar::tab);
-        t.add_capture(BufferSearchBar::backtab);
-        t.add_capture(BufferSearchBar::toggle_fold_all);
-        t.add_capture(BufferSearchBar::fold_all);
-        t.add_capture(BufferSearchBar::unfold_all);
-        t.add_capture(BufferSearchBar::toggle_soft_wrap);
+        t.add(BufferSearchBar::focus_next_field);
+        t.add(BufferSearchBar::focus_previous_field);
         t.add(BufferSearchBar::previous_history_query);
         t.add(BufferSearchBar::next_history_query);
         t.add(BufferSearchBar::dismiss);
@@ -805,50 +797,6 @@ impl BufferSearchBar {
 
     // The query editor would otherwise fold itself, so relay the fold-all
     // actions to the searched editor while keeping the focus in the search bar.
-    fn toggle_fold_all(&mut self, action: &ToggleFoldAll, window: &mut Window, cx: &mut Context<Self>) {
-        self.update_searched_editor(cx, |editor, cx| editor.toggle_fold_all(action, window, cx));
-    }
-
-    fn fold_all(&mut self, action: &FoldAll, window: &mut Window, cx: &mut Context<Self>) {
-        self.update_searched_editor(cx, |editor, cx| editor.fold_all(action, window, cx));
-    }
-
-    fn unfold_all(&mut self, action: &UnfoldAll, window: &mut Window, cx: &mut Context<Self>) {
-        self.update_searched_editor(cx, |editor, cx| editor.unfold_all(action, window, cx));
-    }
-
-    fn update_searched_editor(&self, cx: &mut Context<Self>, f: impl FnOnce(&mut Editor, &mut Context<Editor>)) {
-        if let Some(item) = &self.active_searchable_item
-            && let Some(item) = item.act_as_type(TypeId::of::<Editor>(), cx)
-        {
-            let editor = item.downcast::<Editor>().expect("Is an editor");
-            editor.update(cx, f);
-        }
-    }
-
-    // The query editor is an editor itself and would otherwise swallow this
-    // action without any visible effect, so relay it to the searched editor
-    // while keeping the focus in the search bar.
-    fn toggle_soft_wrap(&mut self, action: &ToggleSoftWrap, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(item) = &self.active_searchable_item else {
-            return;
-        };
-        // A split diff editor picks which side to toggle and keeps both sides
-        // in sync, while its `act_as_type(Editor)` only exposes the RHS
-        // editor, so relay to the split editor itself when it is split.
-        if let Some(split_editor) = item.act_as_type(TypeId::of::<SplittableEditor>(), cx) {
-            let split_editor = split_editor.downcast::<SplittableEditor>().expect("Is a splittable editor");
-            if split_editor.read(cx).is_split() {
-                split_editor.update(cx, |split_editor, cx| split_editor.toggle_soft_wrap(action, window, cx));
-                return;
-            }
-        }
-        if let Some(item) = item.act_as_type(TypeId::of::<Editor>(), cx) {
-            let editor = item.downcast::<Editor>().expect("Is an editor");
-            editor.update(cx, |editor, cx| editor.toggle_soft_wrap(action, window, cx));
-        }
-    }
-
     pub fn search_suggested(
         &mut self,
         seed_query_override: Option<SeedQuery>,
@@ -1279,13 +1227,14 @@ impl BufferSearchBar {
         }
     }
 
-    fn tab(&mut self, _: &Tab, window: &mut Window, cx: &mut Context<Self>) {
+    fn focus_next_field(&mut self, _: &FocusNextField, window: &mut Window, cx: &mut Context<Self>) {
         self.cycle_field(Direction::Next, window, cx);
     }
 
-    fn backtab(&mut self, _: &Backtab, window: &mut Window, cx: &mut Context<Self>) {
+    fn focus_previous_field(&mut self, _: &FocusPreviousField, window: &mut Window, cx: &mut Context<Self>) {
         self.cycle_field(Direction::Prev, window, cx);
     }
+
     fn cycle_field(&self, direction: Direction, window: &mut Window, cx: &mut Context<Self>) {
         let mut handles = vec![self.query_editor.focus_handle(cx)];
         if self.replace_enabled {
@@ -1305,7 +1254,6 @@ impl BufferSearchBar {
         };
         let next_focus_handle = &handles[new_index];
         self.focus(next_focus_handle, window, cx);
-        cx.stop_propagation();
     }
 
     fn next_history_query(&mut self, _: &NextHistoryQuery, window: &mut Window, cx: &mut Context<Self>) {

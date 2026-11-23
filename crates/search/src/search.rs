@@ -64,6 +64,10 @@ actions!(
         ReplaceAll,
         /// Replaces the next match.
         ReplaceNext,
+        /// Moves focus to the next input of the search bar.
+        FocusNextField,
+        /// Moves focus to the previous input of the search bar.
+        FocusPreviousField,
     ]
 );
 

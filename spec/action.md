@@ -50,16 +50,19 @@ the workspace rebuilt all of its handlers on every frame.
 
 ## Dispatch
 
-- Actions dispatch along the focus tree: a capture phase from the window root
-  down to the focused node, then a bubble phase back up, then the app-level
-  handler for the action type.
-- `add` handlers run in the bubble phase and stop propagation unless they call
-  `cx.propagate()`.
-- `add_capture` handlers run in the capture phase, before the nodes below the
-  one the table is attached to, and keep propagating unless they stop it. A
-  view embedding an editor uses this to take an action before that editor
-  does (Tab in the search bars and the go-to-line input). Behaviour for one
-  editor instance belongs to the view embedding it, not to the editor.
+- Actions dispatch along the focus tree in one pass: from the focused node up
+  to the window root, then the app-level handler for the action type. There
+  is no capture phase.
+- A handler stops propagation unless it calls `cx.propagate()`.
+- The focused view always gets an action first. A view embedding an editor
+  cannot take an action before that editor does. It binds the key, in its own
+  key context (`BufferSearchBar > Editor`), to an action the editor does not
+  handle (Tab in the search bars is `search::FocusNextField`), or relies on
+  the editor propagating (a single-line editor propagates Tab, which the
+  go-to-line input uses).
+- An editor action dispatched while a search bar input has focus acts on that
+  input, not on the searched editor (fold all, toggle soft wrap). Toggling
+  soft wrap in a split diff changes the focused side only.
 - On a node, tables run in attach order and handlers for the same action in
   registration order.
 - Handlers run inside the view's update. They use the view they are given and
@@ -141,8 +144,7 @@ Actions that work wherever focus is in a window.
   from the menu) are `cx.on_action` handlers. They get no window or
   workspace, run after everything in the focus tree, and are always reported
   as available.
-- One handler per action type (a second registration replaces the first) and
-  no capture phase.
+- One handler per action type (a second registration replaces the first).
 
 ## Where action types are declared
 

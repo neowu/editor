@@ -37,8 +37,6 @@ const MAX_CONDITIONS: usize = u64::BITS as usize;
 struct Entry<V> {
     /// Index into the table's conditions.
     condition: Option<u8>,
-    /// Runs in the capture phase, before any node below it, and propagates unless it stops.
-    capture: bool,
     handler: Handler<V>,
 }
 
@@ -64,16 +62,7 @@ impl<V: 'static> ActionTable<V> {
         &mut self,
         handler: impl Fn(&mut V, &A, &mut Window, &mut Context<V>) + Send + Sync + 'static,
     ) {
-        self.insert(None, false, handler);
-    }
-
-    /// Handle `A` in the capture phase: before the nodes below the one the table is attached to.
-    /// The action keeps propagating unless the handler calls `cx.stop_propagation()`.
-    pub fn add_capture<A: Action>(
-        &mut self,
-        handler: impl Fn(&mut V, &A, &mut Window, &mut Context<V>) + Send + Sync + 'static,
-    ) {
-        self.insert(None, true, handler);
+        self.insert(None, handler);
     }
 
     /// The table for `V`, built by `build` the first time it is asked for and leaked. For generic
@@ -103,13 +92,12 @@ impl<V: 'static> ActionTable<V> {
                 self.conditions.len() - 1
             },
         );
-        self.insert(Some(ix as u8), false, handler);
+        self.insert(Some(ix as u8), handler);
     }
 
     fn insert<A: Action>(
         &mut self,
         condition: Option<u8>,
-        capture: bool,
         handler: impl Fn(&mut V, &A, &mut Window, &mut Context<V>) + Send + Sync + 'static,
     ) {
         let action_type = TypeId::of::<A>();
@@ -119,7 +107,6 @@ impl<V: 'static> ActionTable<V> {
             ix,
             Entry {
                 condition,
-                capture,
                 handler: Box::new(move |view, action, window, cx| {
                     handler(view, action.downcast_ref().expect("handlers are keyed by their action type"), window, cx);
                 }),
@@ -140,7 +127,6 @@ impl<V: 'static> ActionTable<V> {
 
 trait AnyActionTable {
     fn action_types(&self) -> &[TypeId];
-    fn is_capture(&self, ix: usize) -> bool;
     fn condition(&self, ix: usize) -> Option<u8>;
     /// One bit per condition that holds for the view. Reads the view if there are conditions.
     fn conditions(&self, entity: &AnyEntity, cx: &App) -> u64;
@@ -150,10 +136,6 @@ trait AnyActionTable {
 impl<V: 'static> AnyActionTable for ActionTable<V> {
     fn action_types(&self) -> &[TypeId] {
         &self.types
-    }
-
-    fn is_capture(&self, ix: usize) -> bool {
-        self.entries[ix].capture
     }
 
     fn condition(&self, ix: usize) -> Option<u8> {
@@ -211,10 +193,6 @@ impl DispatchActionTable {
         let start = types.partition_point(|existing| *existing < action_type);
         let len = types[start..].iter().take_while(|existing| **existing == action_type).count();
         start..start + len
-    }
-
-    pub(crate) fn is_capture(&self, ix: usize) -> bool {
-        self.table.is_capture(ix)
     }
 
     /// Whether handler `ix` applied to the view when the table was attached.
@@ -289,20 +267,6 @@ mod tests {
         let types = table.action_types().to_vec();
 
         assert_eq!(attach(table).action_types(), types);
-    }
-
-    #[test]
-    fn add_capture_marks_only_its_handler() {
-        let mut table = ActionTable::default();
-        table.add(noop::<First>);
-        table.add_capture(noop::<First>);
-        table.add(noop::<Second>);
-        let attached = attach(table);
-
-        let first = attached.handlers_for(TypeId::of::<First>());
-        let capture: Vec<bool> = first.map(|ix| attached.is_capture(ix)).collect();
-        assert_eq!(capture, [false, true]);
-        assert!(attached.handlers_for(TypeId::of::<Second>()).all(|ix| !attached.is_capture(ix)));
     }
 
     #[test]

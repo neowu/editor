@@ -45,6 +45,10 @@ Risk:
 
 ## 2. Drop the capture phase
 
+Done 2026-11-23. Tab in the search bars moved to the keymap; the fold-all and
+soft-wrap relays and the split diff's soft-wrap sync were dropped, not
+replaced. The rest of this section is the plan as written.
+
 `add_capture` has 13 uses:
 
 - buffer search bar: tab, backtab, toggle/fold/unfold all, toggle soft wrap;

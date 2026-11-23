@@ -24,11 +24,8 @@ use editor::MultiBuffer;
 use editor::PathKey;
 use editor::SearchResultsStatus;
 use editor::SelectionEffects;
-use editor::actions::Backtab;
 use editor::actions::FoldAll;
 use editor::actions::SelectAll;
-use editor::actions::Tab;
-use editor::actions::ToggleFoldAll;
 use editor::actions::UnfoldAll;
 use editor::items::active_match_index;
 use editor::scroll::Autoscroll;
@@ -122,6 +119,8 @@ use workspace::searchable::SearchableItemHandle;
 
 use crate::BufferSearchBar;
 use crate::EXCLUDE_PLACEHOLDER;
+use crate::FocusNextField;
+use crate::FocusPreviousField;
 use crate::FocusSearch;
 use crate::HighlightKey;
 use crate::INCLUDE_PLACEHOLDER;
@@ -2240,33 +2239,12 @@ impl ProjectSearchBar {
         }
     }
 
-    fn tab(&mut self, _: &Tab, window: &mut Window, cx: &mut Context<Self>) {
+    fn focus_next_field(&mut self, _: &FocusNextField, window: &mut Window, cx: &mut Context<Self>) {
         self.cycle_field(Direction::Next, window, cx);
     }
 
-    fn backtab(&mut self, _: &Backtab, window: &mut Window, cx: &mut Context<Self>) {
+    fn focus_previous_field(&mut self, _: &FocusPreviousField, window: &mut Window, cx: &mut Context<Self>) {
         self.cycle_field(Direction::Prev, window, cx);
-    }
-
-    // The query and filter inputs would otherwise fold themselves, so relay
-    // the fold-all actions to the results.
-    fn toggle_fold_all(&mut self, action: &ToggleFoldAll, window: &mut Window, cx: &mut Context<Self>) {
-        self.update_results_editor(cx, |editor, cx| editor.toggle_fold_all(action, window, cx));
-    }
-
-    fn fold_all(&mut self, action: &FoldAll, window: &mut Window, cx: &mut Context<Self>) {
-        self.update_results_editor(cx, |editor, cx| editor.fold_all(action, window, cx));
-    }
-
-    fn unfold_all(&mut self, action: &UnfoldAll, window: &mut Window, cx: &mut Context<Self>) {
-        self.update_results_editor(cx, |editor, cx| editor.unfold_all(action, window, cx));
-    }
-
-    fn update_results_editor(&self, cx: &mut Context<Self>, f: impl FnOnce(&mut Editor, &mut Context<Editor>)) {
-        if let Some(search_view) = &self.active_project_search {
-            let results_editor = search_view.read(cx).results_editor.clone();
-            results_editor.update(cx, f);
-        }
     }
 
     fn focus_search(&self, window: &mut Window, cx: &mut Context<Self>) {
@@ -2304,7 +2282,6 @@ impl ProjectSearchBar {
             };
             let next_focus_handle = &views[new_index];
             window.focus(next_focus_handle, cx);
-            cx.stop_propagation();
         });
     }
 
@@ -2545,11 +2522,8 @@ static PROJECT_SEARCH_BAR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<Project
         t.add(|this, _: &ToggleFilters, window, cx| {
             this.toggle_filters(window, cx);
         });
-        t.add_capture(ProjectSearchBar::tab);
-        t.add_capture(ProjectSearchBar::backtab);
-        t.add_capture(ProjectSearchBar::toggle_fold_all);
-        t.add_capture(ProjectSearchBar::fold_all);
-        t.add_capture(ProjectSearchBar::unfold_all);
+        t.add(ProjectSearchBar::focus_next_field);
+        t.add(ProjectSearchBar::focus_previous_field);
         t.add(|this, action, window, cx| this.confirm(action, window, cx));
         t.add(|this, action, window, cx| {
             this.toggle_replace(action, window, cx);

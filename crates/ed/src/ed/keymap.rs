@@ -247,11 +247,14 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("tab", "buffer_search::FocusEditor");
     k.bind("enter", "search::SelectNextMatch");
     k.bind("shift-enter", "search::SelectPreviousMatch");
-    k.bind("cmd-shift-enter", "editor::ToggleFoldAll");
     k.bind("alt-enter", "search::SelectAllMatches");
     k.bind("cmd-f", "search::FocusSearch");
     k.bind("cmd-alt-l", "search::ToggleSelection");
     k.bind("alt-cmd-f", "text_finder::Toggle");
+
+    k.group(Some("BufferSearchBar > Editor"));
+    k.bind("tab", "search::FocusNextField");
+    k.bind("shift-tab", "search::FocusPreviousField");
 
     k.group(Some("BufferSearchBar && in_replace > Editor"));
     k.bind("enter", "search::ReplaceNext");
@@ -276,6 +279,8 @@ fn build(build_action: BuildAction<'_>) -> Vec<KeyBinding> {
     k.bind("alt-cmd-f", "project_search::OpenTextFinder");
 
     k.group(Some("ProjectSearchBar > Editor"));
+    k.bind("tab", "search::FocusNextField");
+    k.bind("shift-tab", "search::FocusPreviousField");
     k.bind("up", "search::PreviousHistoryQuery");
     k.bind("down", "search::NextHistoryQuery");
 
@@ -808,6 +813,21 @@ mod tests {
         assert_eq!(newlines.len(), 2);
         for context in newlines {
             assert!(context.contains("!showing_code_actions") && context.contains("!showing_completions"), "{context}");
+        }
+    }
+
+    #[test]
+    fn search_bar_tab_cycles_fields() {
+        let keymap = test_keymap();
+        for bar in ["BufferSearchBar > Editor", "ProjectSearchBar > Editor"] {
+            for (keys, action) in [("tab", "search::FocusNextField"), ("shift-tab", "search::FocusPreviousField")] {
+                let bound: Vec<_> = keymap
+                    .iter()
+                    .filter(|binding| context(binding).as_deref() == Some(bar) && keystrokes(binding) == keys)
+                    .map(|binding| binding.action().name())
+                    .collect();
+                assert_eq!(bound, [action], "{bar} {keys}");
+            }
         }
     }
 

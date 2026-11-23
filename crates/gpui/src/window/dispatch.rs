@@ -488,15 +488,9 @@ impl Window {
         }
     }
 
-    /// Run the handlers for `action` in the tables attached to `node_id`, for the capture or the
-    /// bubble phase. Returns whether the action still propagates.
-    fn dispatch_action_on_tables(
-        &mut self,
-        node_id: DispatchNodeId,
-        action: &dyn Action,
-        capture: bool,
-        cx: &mut App,
-    ) -> bool {
+    /// Run the handlers for `action` in the tables attached to `node_id`. Returns whether the
+    /// action still propagates.
+    fn dispatch_action_on_tables(&mut self, node_id: DispatchNodeId, action: &dyn Action, cx: &mut App) -> bool {
         let any_action = action.as_any();
         let mut table_ix = 0;
         while let Some(table) = self.rendered_frame.dispatch_tree.node(node_id).action_tables.get(table_ix) {
@@ -504,11 +498,11 @@ impl Window {
             let table = table.clone();
             for ix in table.handlers_for(any_action.type_id()) {
                 // A handler that does not apply behaves as if it were not registered.
-                if table.is_capture(ix) != capture || !table.applies(ix) {
+                if !table.applies(ix) {
                     continue;
                 }
-                // Actions stop propagation by default during the bubble phase only.
-                cx.propagate_event = capture;
+                // A handler stops propagation unless it calls `cx.propagate()`.
+                cx.propagate_event = false;
                 table.dispatch(ix, any_action, self, cx);
 
                 if !cx.propagate_event {
@@ -524,23 +518,16 @@ impl Window {
 
         cx.propagate_event = true;
 
-        // Capture phase for window actions.
-        for node_id in &dispatch_path {
-            if !self.dispatch_action_on_tables(*node_id, action, true, cx) {
-                return;
-            }
-        }
-
-        // Bubble phase for window actions.
+        // From the focused node up to the root.
         for node_id in dispatch_path.iter().rev() {
-            if !self.dispatch_action_on_tables(*node_id, action, false, cx) {
+            if !self.dispatch_action_on_tables(*node_id, action, cx) {
                 return;
             }
         }
 
         // Global listener runs last.
         if let Some(listener) = cx.global_action_listeners.get(&action.as_any().type_id()).cloned() {
-            cx.propagate_event = false; // Actions stop propagation by default during the bubble phase
+            cx.propagate_event = false;
             listener(action.as_any(), cx);
         }
     }
