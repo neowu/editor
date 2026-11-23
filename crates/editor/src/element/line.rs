@@ -231,7 +231,7 @@ impl LineWithInvisibles {
                             &ensure_highlight_contrast(&styles, segments, min_contrast, len)
                         };
                         let shaped_line =
-                            shape_editor_line(line.clone().into(), font_size, text_runs, editor_mode, window);
+                            shape_editor_line(line.as_str().into(), font_size, text_runs, editor_mode, window);
                         width += shaped_line.width;
                         len += shaped_line.len;
 
