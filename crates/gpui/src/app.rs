@@ -22,7 +22,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::rc::Weak;
-use std::result;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -53,7 +52,6 @@ use slotmap::SlotMap;
 use smallvec::SmallVec;
 
 use crate::Action;
-use crate::ActionBuildError;
 use crate::ActionRegistry;
 use crate::ActivationPolicy;
 use crate::Any;
@@ -1333,13 +1331,9 @@ impl App {
         self.propagate_event = true;
     }
 
-    /// Build an action from some arbitrary data, typically a keymap entry.
-    pub fn build_action(
-        &self,
-        name: &str,
-        data: Option<serde_json::Value>,
-    ) -> result::Result<Box<dyn Action>, ActionBuildError> {
-        self.actions.build_action(name, data)
+    /// Builds the action registered under `name`, unless it cannot be built without input.
+    pub fn build_action(&self, name: &str) -> Option<Box<dyn Action>> {
+        self.actions.build_action(name)
     }
 
     /// Get all action names that have been registered. Note that registration only allows for

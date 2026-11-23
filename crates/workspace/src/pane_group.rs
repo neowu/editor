@@ -19,7 +19,6 @@ use gpui::WeakEntity;
 use gpui::Window;
 use gpui::px;
 use parking_lot::Mutex;
-use serde::Deserialize;
 use ui::prelude::ActiveTheme as _;
 use ui::prelude::App;
 use ui::prelude::Element as _;
@@ -669,8 +668,7 @@ impl PaneAxis {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SplitDirection {
     Up,
     Down,

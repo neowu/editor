@@ -146,6 +146,22 @@ Actions that work wherever focus is in a window.
   as available.
 - One handler per action type (a second registration replaces the first).
 
+## Action values and names
+
+- An action is a plain Rust value. Nothing builds one from JSON: actions do not
+  implement `Deserialize`, and the keymap binds values
+  (`k.bind("cmd-1", pane::ActivateItem(0))`), so a wrong action or field is a
+  compile error instead of a startup panic.
+- Each action also registers its name. A name builds the action's argument-free
+  form: the unit struct, or `Default` for an action with fields. That is what
+  availability queries, the command palette and `edctl action` produce.
+- An action that only makes sense with its fields set by the caller is marked
+  `#[action(no_build)]` (`pane::ActivateItem`, `terminal::SendText`,
+  `ed::OpenBrowser`). Its name is listed by `edctl actions`, but it is never
+  reported as available and can only be dispatched from code or a key binding.
+- Trade-off: `edctl action` takes no arguments. Automation reaches an action
+  that needs input through a key bound to it (`edctl keys`).
+
 ## Where action types are declared
 
 See "Crate layering" in `model.md`: a type is declared in the crate that owns

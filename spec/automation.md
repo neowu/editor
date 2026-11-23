@@ -45,6 +45,9 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
   resolution, so the window may be hidden or covered. It waits for the window
   to settle first (no redraw and no animation frame pending); `--no-settle` captures the current frame, to see an
   animation mid-flight.
+- `action <name>` dispatches the action's argument-free form (`action.md`,
+  "Action values and names"); it takes no arguments, so an action that needs
+  input is driven with `keys`.
 - `action`, `keys` (keymap syntax), `type`, `click`, `mouse`, and `scroll`
   inject input as the platform would: keystrokes hide the cursor and injected
   mouse/scroll events show it again, so hover features (e.g. cmd+hover links),

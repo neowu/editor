@@ -31,7 +31,6 @@ notifications.workspace = true
 picker.workspace = true
 project.workspace = true
 rustc-hash.workspace = true
-serde.workspace = true
 serde_json.workspace = true
 smallvec.workspace = true
 strum.workspace = true

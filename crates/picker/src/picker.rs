@@ -41,7 +41,6 @@ use gpui::prelude::StatefulInteractiveElement as _;
 use gpui::prelude::Styled as _;
 use gpui::uniform_list;
 use head::Head;
-use serde::Deserialize;
 use ui::Checkbox;
 use ui::Divider;
 use ui::DocumentationAside;
@@ -105,9 +104,8 @@ actions!(
 
 /// ConfirmInput is an alternative editor action which - instead of selecting active picker entry - treats pickers editor input literally,
 /// performing some kind of action on it.
-#[derive(Clone, PartialEq, Eq, Deserialize, Default, Action)]
-#[action(namespace = picker)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, PartialEq, Eq, Default, Action)]
+#[action(namespace = picker, no_build)]
 pub struct ConfirmInput {
     pub secondary: bool,
 }

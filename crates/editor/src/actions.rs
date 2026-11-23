@@ -4,33 +4,27 @@ use gpui::actions;
 use project::project_settings::GoToDiagnosticSeverityFilter;
 
 use super::Debug;
-use super::Deserialize;
 use super::DisplayRow;
 use super::Editor;
 use super::Entity;
 
 /// Selects the next occurrence of the current selection.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct SelectNext {
-    #[serde(default)]
     pub replace_newest: bool,
 }
 
 /// Selects the previous occurrence of the current selection.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct SelectPrevious {
-    #[serde(default)]
     pub replace_newest: bool,
 }
 
 /// Moves the cursor to the beginning of the current line.
-#[derive(PartialEq, Eq, Clone, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields, default)]
 pub struct MoveToBeginningOfLine {
     pub stop_at_soft_wraps: bool,
     pub stop_at_indent: bool,
@@ -43,47 +37,37 @@ impl Default for MoveToBeginningOfLine {
 }
 
 /// Selects from the cursor to the beginning of the current line.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct SelectToBeginningOfLine {
-    #[serde(default)]
-    pub(super) stop_at_soft_wraps: bool,
-    #[serde(default)]
+    pub stop_at_soft_wraps: bool,
     pub stop_at_indent: bool,
 }
 
 /// Deletes from the cursor to the beginning of the current line.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct DeleteToBeginningOfLine {
-    #[serde(default)]
-    pub(super) stop_at_indent: bool,
+    pub stop_at_indent: bool,
 }
 
 /// Moves the cursor up by one page.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct MovePageUp {
-    #[serde(default)]
-    pub(super) center_cursor: bool,
+    pub center_cursor: bool,
 }
 
 /// Moves the cursor down by one page.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct MovePageDown {
-    #[serde(default)]
-    pub(super) center_cursor: bool,
+    pub center_cursor: bool,
 }
 
 /// Moves the cursor to the end of the current line.
-#[derive(PartialEq, Eq, Clone, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields, default)]
 pub struct MoveToEndOfLine {
     pub stop_at_soft_wraps: bool,
 }
@@ -95,25 +79,19 @@ impl Default for MoveToEndOfLine {
 }
 
 /// Selects from the cursor to the end of the current line.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct SelectToEndOfLine {
-    #[serde(default)]
-    pub(super) stop_at_soft_wraps: bool,
+    pub stop_at_soft_wraps: bool,
 }
 
 /// Toggles the display of available code actions at the cursor position.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
 pub struct ToggleCodeActions {
     // Source from which the action was deployed.
-    #[serde(default)]
-    #[serde(skip)]
     pub deployed_from: Option<CodeActionSource>,
     // Run first available task if there is only one.
-    #[serde(default)]
-    #[serde(skip)]
     pub quick_launch: bool,
 }
 
@@ -124,36 +102,29 @@ pub enum CodeActionSource {
 }
 
 /// Confirms and accepts the currently selected completion suggestion.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct ConfirmCompletion {
-    #[serde(default)]
     pub item_ix: Option<usize>,
 }
 
 /// Composes multiple completion suggestions into a single completion.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct ComposeCompletion {
-    #[serde(default)]
     pub item_ix: Option<usize>,
 }
 
 /// Confirms and applies the currently selected code action.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct ConfirmCodeAction {
-    #[serde(default)]
     pub item_ix: Option<usize>,
 }
 
 /// Toggles comment markers for the selected lines.
-#[derive(PartialEq, Eq, Clone, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields, default)]
 pub struct ToggleComments {
     pub advance_downwards: bool,
     pub ignore_indent: bool,
@@ -171,153 +142,124 @@ impl Default for ToggleComments {
 }
 
 /// Toggles block comment markers for the selected text.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct ToggleBlockComments;
 
 /// Moves the cursor up by a specified number of lines.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct MoveUpByLines {
-    #[serde(default)]
     pub(super) lines: u32,
 }
 
 /// Moves the cursor down by a specified number of lines.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct MoveDownByLines {
-    #[serde(default)]
     pub(super) lines: u32,
 }
 
 /// Extends selection up by a specified number of lines.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct SelectUpByLines {
-    #[serde(default)]
     pub(super) lines: u32,
 }
 
 /// Extends selection down by a specified number of lines.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct SelectDownByLines {
-    #[serde(default)]
     pub(super) lines: u32,
 }
 
 /// Expands all excerpts with selections.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct ExpandExcerpts {
-    #[serde(default)]
     pub(super) lines: u32,
 }
 
 /// Expands excerpts above the current position.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct ExpandExcerptsUp {
-    #[serde(default)]
     pub(super) lines: u32,
 }
 
 /// Expands excerpts below the current position.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct ExpandExcerptsDown {
-    #[serde(default)]
     pub(super) lines: u32,
 }
 
 /// Handles text input in the editor.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
-#[action(namespace = editor)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
+#[action(namespace = editor, no_build)]
 pub struct HandleInput(pub String);
 
 /// Deletes from the cursor to the end of the next word.
 /// Stops before the end of the next word, if whitespace sequences of length >= 2 are encountered.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct DeleteToNextWordEnd {
-    #[serde(default)]
     pub ignore_newlines: bool,
     // Whether to stop before the end of the next word, if language-defined bracket is encountered.
-    #[serde(default)]
     pub ignore_brackets: bool,
 }
 
 /// Deletes from the cursor to the start of the previous word.
 /// Stops before the start of the previous word, if whitespace sequences of length >= 2 are encountered.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct DeleteToPreviousWordStart {
-    #[serde(default)]
     pub ignore_newlines: bool,
     // Whether to stop before the start of the previous word, if language-defined bracket is encountered.
-    #[serde(default)]
     pub ignore_brackets: bool,
 }
 
 /// Deletes from the cursor to the end of the next subword.
 /// Stops before the end of the next subword, if whitespace sequences of length >= 2 are encountered.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct DeleteToNextSubwordEnd {
-    #[serde(default)]
     pub ignore_newlines: bool,
     // Whether to stop before the start of the previous word, if language-defined bracket is encountered.
-    #[serde(default)]
     pub ignore_brackets: bool,
 }
 
 /// Deletes from the cursor to the start of the previous subword.
 /// Stops before the start of the previous subword, if whitespace sequences of length >= 2 are encountered.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct DeleteToPreviousSubwordStart {
-    #[serde(default)]
     pub ignore_newlines: bool,
     // Whether to stop before the start of the previous word, if language-defined bracket is encountered.
-    #[serde(default)]
     pub ignore_brackets: bool,
 }
 
 /// Cuts from cursor to end of line.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct CutToEndOfLine {
-    #[serde(default)]
     pub stop_at_newlines: bool,
 }
 
 /// Folds all code blocks at the specified indentation level.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
-#[action(namespace = editor)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
+#[action(namespace = editor, no_build)]
 pub struct FoldAtLevel(pub u32);
 
 #[derive(Clone, PartialEq, Eq, Action)]
-#[action(no_json, no_register)]
+#[action(no_build, no_register)]
 pub struct DiffClipboardWithSelectionData {
     pub clipboard_text: String,
     pub editor: Entity<Editor>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Deserialize, Default)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Default)]
 pub enum UuidVersion {
     #[default]
     V4,
@@ -325,39 +267,32 @@ pub enum UuidVersion {
 }
 
 /// Splits selection into individual lines.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct SplitSelectionIntoLines {
     /// Keep the text selected after splitting instead of collapsing to cursors.
-    #[serde(default)]
     pub keep_selections: bool,
 }
 
 /// Expands the diagnostic under the cursor, if any, in case diagnostics are not
 /// yet active. Otherwise, goes to the next diagnostic in the file.
-#[derive(PartialEq, Eq, Clone, Default, Debug, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Debug, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct GoToDiagnostic {
-    #[serde(default)]
     pub severity: GoToDiagnosticSeverityFilter,
 }
 
 /// Expands the diagnostic under the cursor, if any, in case diagnostics are not
 /// yet active. Otherwise, goes to the previous diagnostic in the file.
-#[derive(PartialEq, Eq, Clone, Default, Debug, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Debug, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct GoToPreviousDiagnostic {
-    #[serde(default)]
     pub severity: GoToDiagnosticSeverityFilter,
 }
 
 /// Adds a cursor above the current selection.
-#[derive(PartialEq, Eq, Clone, Debug, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Debug, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields, default)]
 pub struct AddSelectionAbove {
     pub skip_soft_wrap: bool,
 }
@@ -369,9 +304,8 @@ impl Default for AddSelectionAbove {
 }
 
 /// Adds a cursor below the current selection.
-#[derive(PartialEq, Eq, Clone, Debug, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Debug, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields, default)]
 pub struct AddSelectionBelow {
     pub skip_soft_wrap: bool,
 }
@@ -383,9 +317,8 @@ impl Default for AddSelectionBelow {
 }
 
 /// Inserts a snippet at the cursor.
-#[derive(PartialEq, Eq, Clone, Default, Debug, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Debug, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct InsertSnippet {
     /// Language name if using a named snippet, or `None` for a global snippet.
     ///
@@ -852,8 +785,7 @@ actions!(
 );
 
 /// Where to show LSP results that can contain multiple locations.
-#[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum OpenResultsIn {
     #[default]
     MultiBuffer,
@@ -861,53 +793,44 @@ pub enum OpenResultsIn {
 }
 
 /// Goes to the definition of the symbol at cursor.
-#[derive(PartialEq, Eq, Clone, Default, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct GoToDefinition {
     /// Where to show the definitions. Defaults to a multibuffer
     /// when omitted. A single result is always opened directly.
-    #[serde(default)]
     pub open_results_in: Option<OpenResultsIn>,
 }
 
 /// Goes to the declaration of the symbol at cursor.
-#[derive(PartialEq, Eq, Clone, Default, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct GoToDeclaration {
     /// Where to show the declarations. Defaults to a multibuffer
     /// when omitted. A single result is always opened directly.
-    #[serde(default)]
     pub open_results_in: Option<OpenResultsIn>,
 }
 
 /// Goes to the implementation of the symbol at cursor.
-#[derive(PartialEq, Eq, Clone, Default, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct GoToImplementation {
     /// Where to show the implementations. Defaults to a multibuffer
     /// when omitted. A single result is always opened directly.
-    #[serde(default)]
     pub open_results_in: Option<OpenResultsIn>,
 }
 
 /// Goes to the type definition of the symbol at cursor.
-#[derive(PartialEq, Eq, Clone, Default, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields)]
 pub struct GoToTypeDefinition {
     /// Where to show the definitions. Defaults to a multibuffer
     /// when omitted. A single result is always opened directly.
-    #[serde(default)]
     pub open_results_in: Option<OpenResultsIn>,
 }
 
 /// Finds all references to the symbol at cursor.
-#[derive(PartialEq, Eq, Clone, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Action)]
 #[action(namespace = editor)]
-#[serde(deny_unknown_fields, default)]
 pub struct FindAllReferences {
     pub always_open_multibuffer: bool,
     /// Where to show the references. Defaults to a multibuffer

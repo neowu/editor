@@ -358,12 +358,11 @@ actions!(
 );
 
 /// Opens the Git Graph Tab at a specific commit.
-#[derive(Clone, PartialEq, Eq, serde::Deserialize, gpui::Action)]
-#[action(namespace = git_graph)]
+#[derive(Clone, PartialEq, Eq, gpui::Action)]
+#[action(namespace = git_graph, no_build)]
 pub struct OpenAtCommit {
     pub sha: String,
     /// The commit's repository; the active repository when omitted.
-    #[serde(default)]
     pub repo_id: Option<u64>,
 }
 

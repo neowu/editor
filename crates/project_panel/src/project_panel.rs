@@ -85,7 +85,6 @@ use project::git_store::GitStoreEvent;
 use project::git_store::RepositoryEvent;
 use project::project_settings::GoToDiagnosticSeverityFilter;
 use rustc_hash::FxHashMap;
-use serde::Deserialize;
 use svg_preview::svg_preview_view::SvgPreviewView;
 use ui::ContextMenu;
 use ui::IconDecorationKind;
@@ -371,29 +370,23 @@ struct StickyDetails {
 }
 
 /// Moves the selected files or directories to the system trash. Undoable.
-#[derive(PartialEq, Clone, Default, Debug, Deserialize, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Debug, Action)]
 #[action(namespace = project_panel)]
-#[serde(deny_unknown_fields)]
-struct Delete {
-    #[serde(default)]
+pub struct Delete {
     pub skip_prompt: bool,
 }
 
 /// Selects the next entry with diagnostics.
-#[derive(PartialEq, Clone, Default, Debug, Deserialize, Action)]
+#[derive(PartialEq, Clone, Default, Debug, Action)]
 #[action(namespace = project_panel)]
-#[serde(deny_unknown_fields)]
 struct SelectNextDiagnostic {
-    #[serde(default)]
     pub severity: GoToDiagnosticSeverityFilter,
 }
 
 /// Selects the previous entry with diagnostics.
-#[derive(PartialEq, Clone, Default, Debug, Deserialize, Action)]
+#[derive(PartialEq, Clone, Default, Debug, Action)]
 #[action(namespace = project_panel)]
-#[serde(deny_unknown_fields)]
 struct SelectPrevDiagnostic {
-    #[serde(default)]
     pub severity: GoToDiagnosticSeverityFilter,
 }
 

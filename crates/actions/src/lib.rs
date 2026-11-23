@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use gpui::Action;
 use gpui::actions;
-use serde::Deserialize;
 
 // If the ed binary doesn't use anything in this crate, it will be optimized away
 // and the actions won't initialize. So we just provide an empty initialization function
@@ -14,9 +13,8 @@ use serde::Deserialize;
 pub const fn init() {}
 
 /// Opens a URL in the system's default web browser.
-#[derive(Clone, PartialEq, Eq, Deserialize, Action)]
-#[action(namespace = ed)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, PartialEq, Eq, Action)]
+#[action(namespace = ed, no_build)]
 pub struct OpenBrowser {
     pub url: Arc<str>,
 }
@@ -101,7 +99,7 @@ pub mod search {
     /// point is `project_panel::NewSearchInDirectory`, which resolves the
     /// selected directory and dispatches this action with it.
     #[derive(Clone, Debug, Default, PartialEq, Eq, Action)]
-    #[action(namespace = search, no_json, no_register)]
+    #[action(namespace = search, no_build, no_register)]
     pub struct NewSearchInDirectory {
         pub directory: String,
     }
@@ -125,12 +123,10 @@ pub mod search {
 pub mod buffer_search {
     use gpui::Action;
     use gpui::actions;
-    use serde::Deserialize;
 
     /// Opens the buffer search interface with the specified configuration.
-    #[derive(PartialEq, Eq, Clone, Deserialize, Action)]
+    #[derive(PartialEq, Eq, Clone, Action)]
     #[action(namespace = buffer_search)]
-    #[serde(deny_unknown_fields, default)]
     pub struct Deploy {
         pub focus: bool,
         pub replace_enabled: bool,
@@ -168,11 +164,9 @@ pub mod buffer_search {
     );
 }
 /// Opens the recent projects interface.
-#[derive(PartialEq, Eq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Eq, Clone, Default, Action)]
 #[action(namespace = projects)]
-#[serde(deny_unknown_fields)]
 pub struct OpenRecent {
-    #[serde(default)]
     pub create_new_window: Option<bool>,
 }
 

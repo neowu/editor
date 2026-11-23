@@ -13,17 +13,10 @@ pub(crate) fn derive_action(input: TokenStream) -> TokenStream {
 
     let struct_name = &input.ident;
     let mut name_argument = None;
-    let mut no_json = false;
+    let mut no_build = false;
     let mut no_register = false;
     let mut namespace = None;
 
-    /*
-    *
-    * #[action()]
-    * Struct Foo {
-    *  bar: bool // is bar considered an attribute
-    }
-    */
     for attr in &input.attrs {
         if attr.path().is_ident("action") {
             attr.parse_nested_meta(|meta| {
@@ -41,11 +34,11 @@ pub(crate) fn derive_action(input: TokenStream) -> TokenStream {
                     meta.input.parse::<Token![=]>()?;
                     let ident: Ident = meta.input.parse()?;
                     namespace = Some(ident.to_string());
-                } else if meta.path.is_ident("no_json") {
-                    if no_json {
-                        return Err(meta.error("'no_json' argument specified multiple times"));
+                } else if meta.path.is_ident("no_build") {
+                    if no_build {
+                        return Err(meta.error("'no_build' argument specified multiple times"));
                     }
-                    no_json = true;
+                    no_build = true;
                 } else if meta.path.is_ident("no_register") {
                     if no_register {
                         return Err(meta.error("'no_register' argument specified multiple times"));
@@ -54,7 +47,7 @@ pub(crate) fn derive_action(input: TokenStream) -> TokenStream {
                 } else {
                     return Err(meta.error(format!(
                         "'{:?}' argument not recognized, expected \
-                        'name', 'namespace', 'no_json', or 'no_register'",
+                        'name', 'namespace', 'no_build', or 'no_register'",
                         meta.path
                     )));
                 }
@@ -76,19 +69,18 @@ pub(crate) fn derive_action(input: TokenStream) -> TokenStream {
 
     let is_unit_struct = matches!(&input.data, Data::Struct(data) if data.fields.is_empty());
 
-    let build_fn_body = if no_json {
-        let error_msg = format!("{full_name} cannot be built from JSON");
-        quote! { Err(gpui::private::anyhow::anyhow!(#error_msg)) }
+    let build = if no_build {
+        quote! { None }
     } else if is_unit_struct {
-        quote! { Ok(Box::new(Self)) }
+        quote! { Some(|| Box::new(#struct_name)) }
     } else {
-        quote! { Ok(Box::new(gpui::private::serde_json::from_value::<Self>(_value)?)) }
+        quote! { Some(|| Box::new(<#struct_name as ::std::default::Default>::default())) }
     };
 
     let registration = if no_register {
         quote! {}
     } else {
-        generate_register_action(struct_name)
+        generate_register_action(struct_name, &full_name, &build)
     };
 
     TokenStream::from(quote! {
@@ -115,10 +107,6 @@ pub(crate) fn derive_action(input: TokenStream) -> TokenStream {
 
             fn boxed_clone(&self) -> Box<dyn gpui::Action> {
                 Box::new(self.clone())
-            }
-
-            fn build(_value: gpui::private::serde_json::Value) -> gpui::Result<Box<dyn gpui::Action>> {
-                #build_fn_body
             }
         }
     })

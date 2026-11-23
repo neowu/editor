@@ -70,7 +70,6 @@ use project::git_store::GitStoreEvent;
 use project::git_store::RepositoryEvent;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use serde::Deserialize;
 use theme::ThemeColors;
 use ui::ContextMenu;
 use ui::ContextMenuEntry;
@@ -166,8 +165,7 @@ impl DraggedSelection {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SaveIntent {
     /// write all files (even if unchanged)
     /// prompt before overwriting on-disk changes.
@@ -208,105 +206,78 @@ pub(crate) async fn confirm_close_running_items(
 const RUNNING_PROCESS_MESSAGE: &str = "A process is still running in the following terminals. Close them anyway?";
 
 /// Activates a specific item in the pane by its index.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
-#[action(namespace = pane)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
+#[action(namespace = pane, no_build)]
 pub struct ActivateItem(pub usize);
 
 /// Closes the currently active item in the pane.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
-#[serde(deny_unknown_fields)]
 pub struct CloseActiveItem {
-    #[serde(default)]
     pub save_intent: Option<SaveIntent>,
-    #[serde(default)]
     pub close_pinned: bool,
 }
 
 /// Closes all inactive items in the pane.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
-#[serde(deny_unknown_fields)]
 pub struct CloseOtherItems {
-    #[serde(default)]
     pub save_intent: Option<SaveIntent>,
-    #[serde(default)]
     pub close_pinned: bool,
 }
 
 /// Closes all multibuffers in the pane.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
-#[serde(deny_unknown_fields)]
 pub struct CloseMultibufferItems {
-    #[serde(default)]
     pub save_intent: Option<SaveIntent>,
-    #[serde(default)]
     pub close_pinned: bool,
 }
 
 /// Closes all items in the pane.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
-#[serde(deny_unknown_fields)]
 pub struct CloseAllItems {
-    #[serde(default)]
     pub save_intent: Option<SaveIntent>,
-    #[serde(default)]
     pub close_pinned: bool,
 }
 
 /// Closes all items to the right of the current item.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
-#[serde(deny_unknown_fields)]
 pub struct CloseItemsToTheRight {
-    #[serde(default)]
     pub close_pinned: bool,
 }
 
 /// Closes all items to the left of the current item.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
-#[serde(deny_unknown_fields)]
 pub struct CloseItemsToTheLeft {
-    #[serde(default)]
     pub close_pinned: bool,
 }
 
 /// Reveals the current item in the project panel.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
 pub struct RevealInProjectPanel {
-    #[serde(skip)]
     pub entry_id: Option<u64>,
 }
 
 /// Opens the search interface with the specified configuration.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = pane)]
-#[serde(deny_unknown_fields)]
 pub struct DeploySearch {
-    #[serde(default)]
     pub replace_enabled: bool,
-    #[serde(default)]
     pub included_files: Option<String>,
-    #[serde(default)]
     pub excluded_files: Option<String>,
-    #[serde(default)]
     pub query: Option<String>,
-    #[serde(default)]
     pub regex: Option<bool>,
-    #[serde(default)]
     pub case_sensitive: Option<bool>,
-    #[serde(default)]
     pub whole_word: Option<bool>,
-    #[serde(default)]
     pub include_ignored: Option<bool>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Deserialize, Default)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum SplitMode {
     /// Move the active tab into a new pane. A lone tab stays and an empty pane
     /// opens on the other side; terminals open a new shell beside it instead.
@@ -320,9 +291,8 @@ macro_rules! split_structs {
     ($($name:ident => $doc:literal),* $(,)?) => {
         $(
             #[doc = $doc]
-            #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+            #[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
             #[action(namespace = pane)]
-            #[serde(deny_unknown_fields, default)]
             pub struct $name {
                 pub mode: SplitMode,
             }
@@ -340,9 +310,8 @@ split_structs!(
 );
 
 /// Activates the previous item in the pane.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Action)]
 #[action(namespace = pane)]
-#[serde(deny_unknown_fields, default)]
 pub struct ActivatePreviousItem {
     /// Whether to wrap from the first item to the last item.
     pub wrap_around: bool,
@@ -355,9 +324,8 @@ impl Default for ActivatePreviousItem {
 }
 
 /// Activates the next item in the pane.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Action)]
 #[action(namespace = pane)]
-#[serde(deny_unknown_fields, default)]
 pub struct ActivateNextItem {
     /// Whether to wrap from the last item to the first item.
     pub wrap_around: bool,
@@ -3865,11 +3833,8 @@ mod tests {
     use super::tab_strip_height;
 
     #[test]
-    fn split_actions_move_by_default_and_reject_clone() {
+    fn split_actions_move_by_default() {
         assert_eq!(super::SplitRight::default().mode, super::SplitMode::MovePane);
-        let empty: super::SplitDown = serde_json::from_str(r#"{"mode":"EmptyPane"}"#).unwrap();
-        assert_eq!(empty.mode, super::SplitMode::EmptyPane);
-        serde_json::from_str::<super::SplitDown>(r#"{"mode":"ClonePane"}"#).unwrap_err();
     }
 
     #[test]

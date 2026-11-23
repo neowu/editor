@@ -16,14 +16,6 @@ pub fn derive_action(input: TokenStream) -> TokenStream {
     derive_action::derive_action(input)
 }
 
-/// This can be used to register an action with the GPUI runtime when you want to manually implement
-/// the `Action` trait. Typically you should use the `Action` derive macro or `actions!` macro
-/// instead.
-#[proc_macro]
-pub fn register_action(ident: TokenStream) -> TokenStream {
-    register_action::register_action(ident)
-}
-
 /// #[derive(IntoElement)] generates an `IntoElement` impl for any `RenderOnce`
 /// type, wrapping it in a `ViewElement` so it can be used as a child.
 #[proc_macro_derive(IntoElement)]

@@ -1,5 +1,3 @@
-use serde::Deserialize;
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum DiagnosticSeverity {
     // No diagnostics are shown.
@@ -23,8 +21,7 @@ impl DiagnosticSeverity {
 }
 
 /// Determines the severity of the diagnostic that should be moved to.
-#[derive(PartialEq, PartialOrd, Clone, Copy, Debug, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(PartialEq, PartialOrd, Clone, Copy, Debug, Eq)]
 pub enum GoToDiagnosticSeverity {
     /// Errors.
     Error = 3,
@@ -59,8 +56,7 @@ impl GoToDiagnosticSeverity {
 }
 
 /// Allows filtering diagnostics that should be moved to.
-#[derive(PartialEq, Eq, Clone, Copy, Debug, Deserialize)]
-#[serde(untagged)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum GoToDiagnosticSeverityFilter {
     /// Move to diagnostics of a specific severity.
     Only(GoToDiagnosticSeverity),
@@ -68,10 +64,8 @@ pub enum GoToDiagnosticSeverityFilter {
     /// Specify a range of severities to include.
     Range {
         /// Minimum severity to move to. Defaults no "error".
-        #[serde(default = "GoToDiagnosticSeverity::min")]
         min: GoToDiagnosticSeverity,
         /// Maximum severity to move to. Defaults to "hint".
-        #[serde(default = "GoToDiagnosticSeverity::max")]
         max: GoToDiagnosticSeverity,
     },
 }

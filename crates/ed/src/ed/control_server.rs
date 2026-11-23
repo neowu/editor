@@ -194,9 +194,11 @@ async fn handle_request(
         Command::Highlights { rows } => window.update(cx, |_, window, cx| {
             anyhow::Ok(serde_json::to_value(syntax_inspect::highlights(window, rows, cx)?)?)
         })??,
-        Command::Action { name, args } => {
+        Command::Action { name } => {
             window.update(cx, |_, window, cx| -> Result<()> {
-                let action = cx.build_action(&name, args).map_err(|error| anyhow::anyhow!("{error}"))?;
+                let action = cx
+                    .build_action(&name)
+                    .with_context(|| format!("no action named {name} that can be built without input"))?;
                 window.dispatch_action(action, cx);
                 Ok(())
             })??;

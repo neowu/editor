@@ -48,7 +48,6 @@ use gpui::div;
 use project::Project;
 use project::ProjectEntryId;
 use project::search::SearchQuery;
-use serde::Deserialize;
 use task::SpawnInTerminal;
 use terminal::Clear;
 use terminal::Copy;
@@ -143,14 +142,14 @@ fn viewport_line_for_point(point: Point, display_offset: usize) -> Option<usize>
 const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(500);
 
 /// Sends the specified text directly to the terminal.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Action)]
-#[action(namespace = terminal)]
-pub struct SendText(String);
+#[derive(Clone, Debug, Default, PartialEq, Eq, Action)]
+#[action(namespace = terminal, no_build)]
+pub struct SendText(pub String);
 
 /// Sends a keystroke sequence to the terminal.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Action)]
-#[action(namespace = terminal)]
-pub struct SendKeystroke(String);
+#[derive(Clone, Debug, Default, PartialEq, Eq, Action)]
+#[action(namespace = terminal, no_build)]
+pub struct SendKeystroke(pub String);
 
 actions!(
     terminal,
@@ -161,7 +160,7 @@ actions!(
 );
 
 /// Renames the terminal tab.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Action)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Action)]
 #[action(namespace = terminal)]
 pub struct RenameTerminal;
 

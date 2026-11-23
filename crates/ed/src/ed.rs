@@ -630,7 +630,7 @@ fn sync_theme_appearance(appearance: gpui::WindowAppearance, cx: &mut App) {
 /// The keymap and menus are built-in and static: they're built once at startup, against the
 /// keyboard layout active at launch.
 pub(crate) fn initialize_keymap(cx: &mut App) {
-    let bindings = keymap::keymap(cx);
+    let bindings = keymap::keymap();
     cx.bind_keys(bindings);
     let menus = app_menus(cx);
     cx.set_menus(menus);

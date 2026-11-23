@@ -310,9 +310,8 @@ impl DispatchTree {
                 for (ix, action_type) in table.action_types().iter().enumerate() {
                     if let Err(insert_ix) = actions.binary_search_by_key(action_type, |a| a.as_any().type_id())
                         && table.applies(ix)
-                        // Intentionally silence these errors without logging.
-                        // If an action cannot be built by default, it's not available.
-                        && let Ok(action) = self.action_registry.build_action_type(action_type)
+                        // An action that cannot be built without input is not available.
+                        && let Some(action) = self.action_registry.build_action_type(action_type)
                     {
                         actions.insert(insert_ix, action);
                     }

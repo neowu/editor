@@ -148,7 +148,6 @@ use project::ProjectPath;
 use project::Worktree;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use serde::Deserialize;
 pub use serialization::flush_windows_serialization;
 pub use serialization::last_opened_workspace_location;
 pub use serialization::restore_workspace;
@@ -231,12 +230,11 @@ pub trait TerminalProvider {
 }
 
 /// Opens a file or directory.
-#[derive(Clone, PartialEq, Eq, Deserialize, Action)]
+#[derive(Clone, PartialEq, Eq, Action)]
 #[action(namespace = workspace)]
 pub struct Open {
     /// When true, opens in a new window. When false, replaces the current
     /// window's workspace. When omitted, uses `default_open_behavior`.
-    #[serde(default)]
     pub create_new_window: Option<bool>,
 }
 
@@ -360,14 +358,13 @@ actions!(
 );
 
 /// Activates a specific pane by its index.
-#[derive(Clone, Deserialize, PartialEq, Eq, Action)]
-#[action(namespace = workspace)]
+#[derive(Clone, PartialEq, Eq, Action)]
+#[action(namespace = workspace, no_build)]
 pub struct ActivatePane(pub usize);
 
 /// Moves an item to a specific pane by index.
-#[derive(Clone, Deserialize, PartialEq, Eq, Action)]
+#[derive(Clone, PartialEq, Eq, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields, default)]
 pub struct MoveItemToPane {
     pub destination: usize,
     pub focus: bool,
@@ -380,9 +377,8 @@ impl Default for MoveItemToPane {
 }
 
 /// Moves an item to a pane in the specified direction.
-#[derive(Clone, Deserialize, PartialEq, Eq, Action)]
+#[derive(Clone, PartialEq, Eq, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields, default)]
 pub struct MoveItemToPaneInDirection {
     pub direction: SplitDirection,
     pub focus: bool,
@@ -395,26 +391,21 @@ impl Default for MoveItemToPaneInDirection {
 }
 
 /// Creates a new file in a split of the desired direction.
-#[derive(Clone, Deserialize, PartialEq, Eq, Action)]
-#[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, PartialEq, Eq, Action)]
+#[action(namespace = workspace, no_build)]
 pub struct NewFileSplit(pub SplitDirection);
 
 /// Saves all open files in the workspace.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
 pub struct SaveAll {
-    #[serde(default)]
     pub save_intent: Option<SaveIntent>,
 }
 
 /// Saves the current file with the specified options.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
 pub struct Save {
-    #[serde(default)]
     pub save_intent: Option<SaveIntent>,
 }
 
@@ -424,93 +415,74 @@ pub struct Save {
 pub struct FocusCenterPane;
 
 ///  Closes all items and panes in the workspace.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
 pub struct CloseAllItemsAndPanes {
-    #[serde(default)]
     pub save_intent: Option<SaveIntent>,
 }
 
 /// Closes all inactive tabs and panes in the workspace.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
 pub struct CloseInactiveTabsAndPanes {
-    #[serde(default)]
     pub save_intent: Option<SaveIntent>,
 }
 
 /// Closes the active item across all panes.
-#[derive(Clone, PartialEq, Eq, Debug, Deserialize, Default, Action)]
+#[derive(Clone, PartialEq, Eq, Debug, Default, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
 pub struct CloseItemInAllPanes {
-    #[serde(default)]
     pub save_intent: Option<SaveIntent>,
-    #[serde(default)]
     pub close_pinned: bool,
 }
 
 /// Sends a sequence of keystrokes to the active element.
-#[derive(Clone, Deserialize, PartialEq, Eq, Action)]
-#[action(namespace = workspace)]
+#[derive(Clone, PartialEq, Eq, Action)]
+#[action(namespace = workspace, no_build)]
 pub struct SendKeystrokes(pub String);
 
 /// Toggles the finder.
-#[derive(Default, PartialEq, Eq, Clone, Deserialize, Action)]
+#[derive(Default, PartialEq, Eq, Clone, Action)]
 #[action(namespace = finder, name = "Toggle")]
-#[serde(deny_unknown_fields)]
 pub struct ToggleFinder {
-    #[serde(default)]
     pub separate_history: bool,
-    #[serde(default)]
     pub include_ignored: Option<bool>,
 }
 
 /// Opens a new terminal.
-#[derive(Default, PartialEq, Eq, Clone, Deserialize, Action)]
+#[derive(Default, PartialEq, Eq, Clone, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
 pub struct NewTerminal;
 
 /// Increases size of a currently focused dock by a given amount of pixels.
-#[derive(Clone, PartialEq, Eq, Deserialize, Action)]
+#[derive(Clone, PartialEq, Eq, Default, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
 pub struct IncreaseActiveDockSize {
     /// For 0px parameter, uses UI font size value.
-    #[serde(default)]
     pub px: u32,
 }
 
 /// Decreases size of a currently focused dock by a given amount of pixels.
-#[derive(Clone, PartialEq, Eq, Deserialize, Action)]
+#[derive(Clone, PartialEq, Eq, Default, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
 pub struct DecreaseActiveDockSize {
     /// For 0px parameter, uses UI font size value.
-    #[serde(default)]
     pub px: u32,
 }
 
 /// Increases size of all currently visible docks uniformly, by a given amount of pixels.
-#[derive(Clone, PartialEq, Eq, Deserialize, Action)]
+#[derive(Clone, PartialEq, Eq, Default, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
 pub struct IncreaseOpenDocksSize {
     /// For 0px parameter, uses UI font size value.
-    #[serde(default)]
     pub px: u32,
 }
 
 /// Decreases size of all currently visible docks uniformly, by a given amount of pixels.
-#[derive(Clone, PartialEq, Eq, Deserialize, Action)]
+#[derive(Clone, PartialEq, Eq, Default, Action)]
 #[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
 pub struct DecreaseOpenDocksSize {
     /// For 0px parameter, uses UI font size value.
-    #[serde(default)]
     pub px: u32,
 }
 
@@ -592,9 +564,8 @@ impl PartialEq for Toast {
 }
 
 /// Opens a new terminal with the specified working directory.
-#[derive(Debug, Default, Clone, Deserialize, PartialEq, Eq, Action)]
-#[action(namespace = workspace)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Action)]
+#[action(namespace = workspace, no_build)]
 pub struct OpenTerminal {
     pub working_directory: PathBuf,
 }

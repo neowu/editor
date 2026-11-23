@@ -37,7 +37,6 @@ use project::ProjectPath;
 use project::git_store::Repository;
 use project::git_store::diff_buffer_list;
 use project::git_store::diff_buffer_list::DiffBase;
-use serde::Deserialize;
 use ui::DiffStat;
 use ui::Divider;
 use ui::Tooltip;
@@ -96,7 +95,7 @@ actions!(
 
 /// Shows the diff between the working directory and your default
 /// branch (typically main or master).
-#[derive(PartialEq, Clone, Deserialize, Default, Action)]
+#[derive(PartialEq, Clone, Default, Action)]
 #[action(namespace = git, name = "DiffBranch")]
 pub(crate) struct DeployBranchDiff;
 

@@ -548,11 +548,10 @@ impl Window {
         let node_id = self.focus_node_id_in_rendered_frame(self.focus);
         let mut actions = self.rendered_frame.dispatch_tree.available_actions(node_id);
         for action_type in cx.global_action_listeners.keys() {
-            if let Err(ix) = actions.binary_search_by_key(action_type, |a| a.as_any().type_id()) {
-                let action = cx.actions.build_action_type(action_type).ok();
-                if let Some(action) = action {
-                    actions.insert(ix, action);
-                }
+            if let Err(ix) = actions.binary_search_by_key(action_type, |a| a.as_any().type_id())
+                && let Some(action) = cx.actions.build_action_type(action_type)
+            {
+                actions.insert(ix, action);
             }
         }
         actions

@@ -119,12 +119,9 @@ enum CliCommand {
         #[arg(long)]
         json: bool,
     },
-    /// Dispatch an action to the focused element, e.g. `finder::Toggle`.
-    Action {
-        name: String,
-        /// Action arguments as JSON.
-        args: Option<String>,
-    },
+    /// Dispatch an action to the focused element, e.g. `finder::Toggle`. An action that needs
+    /// input (`terminal::SendText`) can only be reached through a key bound to it.
+    Action { name: String },
     /// Press keystrokes in keymap syntax, e.g. `cmd-p` or `escape`.
     Keys {
         #[arg(required = true)]
@@ -338,9 +335,8 @@ fn run(cli: Cli) -> Result<()> {
             let highlights: Vec<Highlight> = client.request(Command::Highlights { rows: rows.rows })?;
             if json { print_json(&highlights)? } else { print!("{}", format_highlights(&highlights)) }
         }
-        CliCommand::Action { name, args } => {
-            let args = args.map(|args| serde_json::from_str(&args)).transpose().context("invalid action arguments")?;
-            client.request::<Value>(Command::Action { name, args })?;
+        CliCommand::Action { name } => {
+            client.request::<Value>(Command::Action { name })?;
         }
         CliCommand::Keys { keystrokes } => {
             client.request::<Value>(Command::Keys { keystrokes: keystrokes.join(" ") })?;

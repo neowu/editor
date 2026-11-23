@@ -48,9 +48,7 @@ mod window;
 /// Do not touch, here be dragons for use by gpui_macros and such.
 #[doc(hidden)]
 pub mod private {
-    pub use anyhow;
     pub use inventory;
-    pub use serde_json;
 }
 
 mod seal {
@@ -93,7 +91,6 @@ pub use gpui_macros::AppContext;
 pub use gpui_macros::IntoElement;
 pub use gpui_macros::Render;
 pub use gpui_macros::VisualContext;
-pub use gpui_macros::register_action;
 #[allow(clippy::wildcard_imports)]
 pub use gpui_shared_string::*;
 #[allow(clippy::wildcard_imports)]

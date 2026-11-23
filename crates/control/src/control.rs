@@ -99,10 +99,9 @@ pub enum Command {
     Highlights {
         rows: Option<(u32, u32)>,
     },
-    /// Dispatch an action to the focused element.
+    /// Dispatch an action, built without input, to the focused element.
     Action {
         name: String,
-        args: Option<Value>,
     },
     /// Space-separated keystrokes in keymap syntax, e.g. `cmd-p enter`.
     Keys {

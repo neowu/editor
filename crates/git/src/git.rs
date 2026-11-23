@@ -170,8 +170,7 @@ actions!(
 /// Describes which ref to base a new git worktree on. The worktree is
 /// always created in a detached HEAD state; users can opt into creating
 /// a branch afterwards from the worktree itself.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case", tag = "kind")]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum NewWorktreeBranchTarget {
     /// Create a detached worktree from the current HEAD.
     #[default]
@@ -184,9 +183,8 @@ pub enum NewWorktreeBranchTarget {
 
 /// Creates a new git worktree and switches the workspace to it.
 /// Dispatched by the unified worktree picker when the user selects a "Create new worktree" entry.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Action)]
-#[action(namespace = git)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq, Action)]
+#[action(namespace = git, no_build)]
 pub struct CreateWorktree {
     /// When this is None, ed will randomly generate a worktree name.
     pub worktree_name: Option<String>,
@@ -195,9 +193,8 @@ pub struct CreateWorktree {
 
 /// Switches the workspace to an existing linked worktree.
 /// Dispatched by the unified worktree picker when the user selects an existing worktree.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Action)]
-#[action(namespace = git)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq, Action)]
+#[action(namespace = git, no_build)]
 pub struct SwitchWorktree {
     pub path: PathBuf,
     pub display_name: String,
@@ -205,31 +202,26 @@ pub struct SwitchWorktree {
 
 /// Opens an existing worktree in a new window.
 /// Dispatched by the worktree picker's "Open in New Window" button.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Action)]
-#[action(namespace = git)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq, Eq, Action)]
+#[action(namespace = git, no_build)]
 pub struct OpenWorktreeInNewWindow {
     pub path: PathBuf,
 }
 
 /// Renames a git branch.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Action)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Action)]
 #[action(namespace = git)]
-#[serde(deny_unknown_fields)]
 pub struct RenameBranch {
     /// The branch to rename.
     ///
     /// Default: the current branch.
-    #[serde(default)]
     pub branch: Option<String>,
 }
 
 /// Restores a file to its last committed state, discarding local changes.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize, Action)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Action)]
 #[action(namespace = git)]
-#[serde(deny_unknown_fields)]
 pub struct RestoreFile {
-    #[serde(default)]
     pub skip_prompt: bool,
 }
 
