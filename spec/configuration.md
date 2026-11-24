@@ -22,7 +22,8 @@ migrator, or Vim/Helix mode.
     capped at 100, each flagged `open` while it has a window (the open list
     is the recents, not a separate list). Window bounds are not saved. It is
     read once at launch; unreadable contents count as empty. Every change
-    rewrites the whole file. A project moves to the front of the recents when
+    rewrites the whole file. The flags are updated when a workspace opens,
+    closes or changes root folders (no polling). A project moves to the front of the recents when
     opened or its window is focused.
     There is no Remote Servers modal.
   - `<first root folder>/.ed/workspace.json`, per project: the pane tree with

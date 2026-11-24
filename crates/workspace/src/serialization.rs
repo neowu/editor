@@ -136,6 +136,8 @@ impl Workspace {
         };
         if let Some(store) = ProjectsStore::try_global(cx) {
             store.record_recent(location, cx);
+            // A project is only flagged open once it is in the recents.
+            persistence::sync_open_projects(cx);
         }
     }
 

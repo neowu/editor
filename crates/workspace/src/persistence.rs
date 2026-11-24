@@ -1,5 +1,4 @@
 use std::fs as std_fs;
-use std::time::Duration;
 
 use futures::future;
 use futures::lock;
@@ -232,21 +231,28 @@ pub(crate) fn init(fs: Arc<dyn Fs>, cx: &mut App) {
 /// Keeps the open flags in `projects.json` matching the open windows. Closing a
 /// window clears its project's flag; quitting keeps everything that was open.
 fn track_session(cx: &App) {
-    cx.spawn(async move |cx| {
-        loop {
-            cx.update(|cx| {
-                if let Some(open) = open_project_locations(cx) {
-                    ProjectsStore::global(cx).set_open(&open, cx).detach();
-                }
-            });
-            cx.background_executor().timer(Duration::from_millis(500)).await;
-        }
+    cx.observe_new(|_: &mut Workspace, _, cx| {
+        sync_open_projects(cx);
+        cx.on_release(|_, cx| sync_open_projects(cx)).detach();
     })
     .detach();
 
     cx.on_app_quit(|cx| match open_project_locations(cx) {
         Some(open) => ProjectsStore::global(cx).set_open(&open, cx),
         None => Task::ready(()),
+    })
+    .detach();
+}
+
+/// Updates the open flags on the next tick: callers are mid-update of a
+/// workspace, and the window opening or closing has to settle first.
+pub(crate) fn sync_open_projects(cx: &App) {
+    cx.spawn(async move |cx| {
+        cx.update(|cx| {
+            if let Some(open) = open_project_locations(cx) {
+                ProjectsStore::global(cx).set_open(&open, cx).detach();
+            }
+        });
     })
     .detach();
 }

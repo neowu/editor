@@ -199,7 +199,6 @@ impl Application {
         let platform = Rc::clone(&self.0.borrow().platform);
         platform.run(Box::new(move || {
             let cx = &mut *this.borrow_mut();
-            // Some platforms only connect to their display server in `run`.
             cx.displays_changed();
             on_finish_launching(cx);
         }));
@@ -369,7 +368,8 @@ impl App {
                 current_window_by_entity: FxHashMap::default(),
                 event_listeners: SubscriberSet::new(),
                 release_listeners: SubscriberSet::new(),
-                displays: read_displays(platform.as_ref()),
+                // Read in `run`, and again by a window that finds its display unknown.
+                displays: FxHashMap::default(),
                 system_sleep_observers: SingleSubscriberSet::new(),
                 system_wake_observers: SingleSubscriberSet::new(),
                 global_observers: SubscriberSet::new(),
