@@ -233,7 +233,7 @@ fn selected_icon_color(selected_style: Option<ButtonStyle>, selected_icon_color:
 }
 
 impl RenderOnce for IconButton {
-    #[allow(refining_impl_trait)]
+    #[expect(refining_impl_trait)]
     fn render(self, window: &mut Window, cx: &mut App) -> ButtonLike {
         let is_disabled = self.base.disabled;
         let is_selected = self.base.selected;

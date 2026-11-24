@@ -268,7 +268,7 @@ impl ButtonCommon for Button {
 }
 
 impl RenderOnce for Button {
-    #[allow(refining_impl_trait)]
+    #[expect(refining_impl_trait)]
     fn render(self, _window: &mut Window, _cx: &mut App) -> ButtonLike {
         let is_disabled = self.base.disabled;
         let is_selected = self.base.selected;
