@@ -115,7 +115,7 @@ impl LineWithInvisibles {
         let mut row = 0;
         let mut line_exceeded_max_len = false;
         let font_size = text_style.font_size.to_pixels(window.rem_size());
-        let min_contrast = crate::MINIMUM_CONTRAST_FOR_HIGHLIGHTS;
+        let min_contrast = theme::contrast::MINIMUM_CONTRAST;
 
         let ellipsis = SharedString::from("⋯");
 

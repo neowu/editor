@@ -86,8 +86,8 @@ const YELLOW: u32 = 0xebcb8b;
 const GREEN: u32 = 0xa3be8c;
 const PURPLE: u32 = 0xb48ead;
 
-// Light inks: the Nord accents deepened to keep 4.5:1 contrast on the light card. Pastel Nord
-// accents are too pale for text on a light surface, and shading them only turns them grey.
+// Light inks: the Nord accents deepened to read as text on the light card and chrome. Pastel
+// Nord accents are too pale for text on a light surface, and shading them only turns them grey.
 const INK_RED: u32 = 0xb0424e;
 const INK_ORANGE: u32 = 0xb3583a;
 const INK_YELLOW: u32 = 0x8f6a12;
@@ -107,15 +107,29 @@ struct Palette {
     card: u32,
     popup: u32,
     border: u32,
+    /// Hover fill of filled elements, painted at half opacity.
+    hover: u32,
     highlight: u32,
     selected: u32,
+    /// Line numbers and guides, the weakest step of the text ladder.
     faint: u32,
     selection: u32,
+    /// Occurrences of the symbol under the cursor and the matching bracket: weaker than the
+    /// selection, stronger than the active line.
+    symbol: u32,
+    /// Opacity of the search match fills over the card. Text over them stays readable without
+    /// the runtime contrast fix recolouring it.
+    search_match: f32,
+    search_active_match: f32,
+    // The text ladder, strongest first: each step is clearly weaker than the one before, in
+    // both appearances (measured in APCA, see the tests).
     text: u32,
     /// Code and terminal text, one step softer than `text`.
     text_soft: u32,
     text_muted: u32,
+    /// Comments and punctuation.
     text_dim: u32,
+    /// Inlay hints and predictions.
     code_hint: u32,
     red: u32,
     orange: u32,
@@ -140,15 +154,20 @@ struct Palette {
 }
 
 const DARK_CHROME: u32 = shade(DARK0, -30);
+const DARK_CARD: u32 = shade(DARK_CHROME, -33);
 const DARK: Palette = Palette {
     chrome: DARK_CHROME,
-    card: shade(DARK_CHROME, -33),
+    card: DARK_CARD,
     popup: shade(DARK1, -30),
     border: DARK1,
+    hover: DARK1,
     highlight: DARK2,
     selected: DARK3,
     faint: DARK3,
     selection: shade(DARK3, 50),
+    symbol: mix(DARK2, DARK_CARD, 65),
+    search_match: 0.3,
+    search_active_match: 0.6,
     text: LIGHT2,
     text_soft: LIGHT0,
     text_muted: shade(LIGHT0, -20),
@@ -175,20 +194,26 @@ const DARK: Palette = Palette {
 };
 
 const LIGHT_CARD: u32 = shade(LIGHT2, 5);
+const LIGHT_HIGHLIGHT: u32 = shade(LIGHT0, -10);
 const LIGHT: Palette = Palette {
     chrome: LIGHT1,
     card: LIGHT_CARD,
     popup: shade(LIGHT2, 10),
     border: LIGHT0,
-    highlight: shade(LIGHT0, -10),
+    hover: LIGHT_HIGHLIGHT,
+    highlight: LIGHT_HIGHLIGHT,
     selected: shade(LIGHT0, -18),
-    faint: shade(LIGHT0, -25),
+    faint: mix(DARK3, LIGHT_CARD, 35),
     selection: FROST2,
+    symbol: mix(LIGHT_HIGHLIGHT, LIGHT_CARD, 65),
+    search_match: 0.67,
+    search_active_match: 0.4,
     text: DARK0,
     text_soft: DARK1,
     text_muted: DARK3,
-    text_dim: shade(DARK3, 35),
-    code_hint: shade(DARK3, 80),
+    // The dim steps fade towards the card rather than lighten, which would turn them blue.
+    text_dim: mix(DARK3, LIGHT_CARD, 65),
+    code_hint: mix(DARK3, LIGHT_CARD, 45),
     red: INK_RED,
     orange: INK_ORANGE,
     yellow: INK_YELLOW,
@@ -199,13 +224,14 @@ const LIGHT: Palette = Palette {
     blue: INK_BLUE,
     deep_blue: INK_DEEP_BLUE,
     ignored: shade(YELLOW, -40),
-    word_added: mix(GREEN, LIGHT_CARD, 40),
+    word_added: mix(GREEN, LIGHT_CARD, 55),
     word_deleted: mix(RED, LIGHT_CARD, 40),
-    // White stays readable on the light card instead of being literal white.
+    // White stays readable on the light card instead of being literal white, and bright white,
+    // which programs use for emphasis, is the stronger of the two.
     ansi_black: DARK1,
     ansi_bright_black: DARK3,
     ansi_white: shade(DARK3, 35),
-    ansi_bright_white: shade(DARK3, 80),
+    ansi_bright_white: DARK2,
     bright: -20,
     dim: 35,
 };
@@ -231,7 +257,7 @@ fn theme_colors(p: &Palette) -> ThemeColors {
         surface_background: color(p.chrome),
         background: color(p.chrome),
         element_background: color(p.border),
-        element_hover: color(p.border).alpha(0.5),
+        element_hover: color(p.hover).alpha(0.5),
         element_active: color(p.border),
         element_selected: color(p.border),
         element_selection_background: color(p.selection).alpha(0.5),
@@ -258,8 +284,8 @@ fn theme_colors(p: &Palette) -> ThemeColors {
         tab_bar_background: color(p.chrome),
         tab_inactive_background: color(p.chrome),
         tab_active_background: color(p.card),
-        search_match_background: color(SEARCH_MATCH).alpha(0.67),
-        search_active_match_background: color(SEARCH_ACTIVE_MATCH).alpha(0.67),
+        search_match_background: color(SEARCH_MATCH).alpha(p.search_match),
+        search_active_match_background: color(SEARCH_ACTIVE_MATCH).alpha(p.search_active_match),
         panel_background: color(p.chrome),
         panel_focused_border: color(p.cyan),
         panel_indent_guide: indent_guide,
@@ -267,7 +293,7 @@ fn theme_colors(p: &Palette) -> ThemeColors {
         panel_indent_guide_active: indent_guide_active,
         panel_overlay_background: color(p.chrome),
         // `element_hover` flattened onto the chrome: the overlay must stay opaque.
-        panel_overlay_hover: color(mix(p.border, p.chrome, 50)),
+        panel_overlay_hover: color(mix(p.hover, p.chrome, 50)),
         pane_focused_border: color(p.cyan),
         pane_group_border: color(p.border),
         scrollbar_thumb_background: scrollbar,
@@ -295,9 +321,9 @@ fn theme_colors(p: &Palette) -> ThemeColors {
         editor_active_wrap_guide: color(p.faint),
         editor_indent_guide: indent_guide,
         editor_indent_guide_active: indent_guide_active,
-        editor_document_highlight_read_background: color(p.highlight),
-        editor_document_highlight_write_background: color(p.highlight),
-        editor_document_highlight_bracket_background: color(p.highlight),
+        editor_document_highlight_read_background: color(p.symbol),
+        editor_document_highlight_write_background: color(p.symbol),
+        editor_document_highlight_bracket_background: color(p.symbol),
         editor_diff_hunk_added_background: color(p.green).alpha(0.12),
         editor_diff_hunk_added_hollow_background: color(p.green).alpha(0.06),
         editor_diff_hunk_added_hollow_border: color(p.green).alpha(0.36),
@@ -490,18 +516,12 @@ mod tests {
     use gpui::Rgba;
 
     use super::*;
+    use crate::contrast::MINIMUM_CONTRAST;
+    use crate::contrast::apca_contrast;
 
-    /// WCAG relative luminance contrast of two opaque colours.
-    fn contrast(a: u32, b: u32) -> f32 {
-        let luminance = |hex: u32| {
-            let channel = |shift: u32| {
-                let value = ((hex >> shift) & 0xff) as f32 / 255.;
-                if value <= 0.03928 { value / 12.92 } else { ((value + 0.055) / 1.055).powf(2.4) }
-            };
-            0.2126 * channel(16) + 0.7152 * channel(8) + 0.0722 * channel(0)
-        };
-        let (a, b) = (luminance(a), luminance(b));
-        (a.max(b) + 0.05) / (a.min(b) + 0.05)
+    /// APCA contrast of opaque `text` on `background`, the metric the runtime contrast fix uses.
+    fn contrast(text: u32, background: u32) -> f32 {
+        apca_contrast(color(text), color(background)).abs()
     }
 
     #[test]
@@ -542,6 +562,7 @@ mod tests {
         assert_eq!(DARK.card, 0x15181d);
         assert_eq!(DARK.popup, 0x292e39);
         assert_eq!(DARK.selection, 0x72819f);
+        assert_eq!(DARK.symbol, 0x333a47);
         assert_eq!(DARK.text_muted, 0xacb1ba);
         assert_eq!(DARK.text_dim, 0x979ba3);
         assert_eq!(DARK.code_hint, 0x5b677f);
@@ -555,23 +576,60 @@ mod tests {
         assert_eq!(LIGHT.popup, 0xffffff);
         assert_eq!(LIGHT.highlight, 0xc2c7d1);
         assert_eq!(LIGHT.selected, 0xb1b6bf);
-        assert_eq!(LIGHT.faint, 0xa2a6ae);
-        assert_eq!(LIGHT.text_dim, 0x66748f);
-        assert_eq!(LIGHT.code_hint, 0x889abe);
-        assert_eq!(LIGHT.word_added, 0xd5e2d1);
+        assert_eq!(LIGHT.faint, 0xbbc1cb);
+        assert_eq!(LIGHT.symbol, 0xd5d9e1);
+        assert_eq!(LIGHT.text_dim, 0x888f9e);
+        assert_eq!(LIGHT.code_hint, 0xaab0bc);
+        assert_eq!(LIGHT.word_added, 0xc9d9c0);
     }
 
     #[test]
-    fn text_roles_are_readable_on_the_card() {
+    fn text_ladder_steps_down_in_both_appearances() {
         for p in [&DARK, &LIGHT] {
-            for role in [p.text, p.text_soft, p.text_muted, p.text_dim] {
-                assert!(contrast(role, p.card) >= 4.5, "{role:06x} on {:06x}", p.card);
+            let ladder = [p.text, p.text_soft, p.text_muted, p.text_dim, p.code_hint, p.faint];
+            for (stronger, weaker) in ladder.iter().zip(&ladder[1..]) {
+                assert!(contrast(*stronger, p.card) > contrast(*weaker, p.card), "{stronger:06x} then {weaker:06x}");
             }
+            // Down to comments, text needs no runtime recolouring on the card.
+            assert!(contrast(p.text_dim, p.card) >= MINIMUM_CONTRAST, "{:06x}", p.text_dim);
+            // Comments are clearly weaker than code, hints clearly weaker than comments.
+            assert!(contrast(p.text_dim, p.card) < contrast(p.text_soft, p.card) * 0.67);
+            assert!(contrast(p.code_hint, p.card) < contrast(p.text_dim, p.card) * 0.75);
         }
+    }
+
+    #[test]
+    fn light_inks_are_readable_on_card_and_chrome() {
         // The inks exist for this; the dark theme keeps the Nord accents as they are.
         let p = &LIGHT;
         for ink in [p.red, p.orange, p.yellow, p.green, p.purple, p.teal, p.cyan, p.blue, p.deep_blue] {
-            assert!(contrast(ink, p.card) >= 4.5, "{ink:06x} on {:06x}", p.card);
+            assert!(contrast(ink, p.card) >= 65., "{ink:06x} on {:06x}", p.card);
+            assert!(contrast(ink, p.chrome) >= 55., "{ink:06x} on {:06x}", p.chrome);
+        }
+    }
+
+    #[test]
+    fn fills_behind_code_keep_it_readable_and_apart() {
+        for p in [&DARK, &LIGHT] {
+            let search = mix(SEARCH_MATCH, p.card, (p.search_match * 100.) as u32);
+            let active = mix(SEARCH_ACTIVE_MATCH, p.card, (p.search_active_match * 100.) as u32);
+            let selection = mix(p.selection, p.card, 50);
+            let active_line = mix(p.border, p.card, 50);
+            for fill in [search, active, selection, p.symbol, p.word_added, p.word_deleted] {
+                assert!(contrast(p.text_soft, fill) >= MINIMUM_CONTRAST, "{:06x} on {fill:06x}", p.text_soft);
+            }
+            // Lightness order from the card: active line, symbol, selection.
+            let distance = |fill: u32| (color(fill).l - color(p.card).l).abs();
+            assert!(distance(active_line) < distance(p.symbol));
+            assert!(distance(p.symbol) < distance(selection));
+        }
+    }
+
+    #[test]
+    fn light_hover_shows_on_the_chrome() {
+        for p in [&DARK, &LIGHT] {
+            let hover = mix(p.hover, p.chrome, 50);
+            assert!((color(hover).l - color(p.chrome).l).abs() > 0.03, "{hover:06x} on {:06x}", p.chrome);
         }
     }
 

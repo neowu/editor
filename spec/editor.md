@@ -237,9 +237,10 @@
   its default (off). Lens commands handled client-side are limited to showing
   locations.
 - Text inside highlights (search matches, selections, etc.) is recolored to
-  keep `minimum_contrast_for_highlights` against the highlight background.
+  keep `theme::contrast::MINIMUM_CONTRAST` against the highlight background.
   The Markdown preview applies the same rule to its search matches and
-  selection. Both use the shared `ui::utils::highlight_contrast` helpers, so
+  selection. Both use the shared `ui::utils::highlight_contrast` helpers (APCA
+  itself lives in `theme::contrast`), so
   anything else that paints text highlights should go through them too.
 - Line endings are always LF: new files start as LF and every file is
   converted to LF on format/save. There is no line-ending setting, selector or

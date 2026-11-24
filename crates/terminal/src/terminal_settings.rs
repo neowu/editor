@@ -48,7 +48,7 @@ impl TerminalSettings {
             detect_venv: true,
             max_scroll_history_lines: Some(10000),
             scroll_multiplier: 1.0,
-            minimum_contrast: 45.0,
+            minimum_contrast: theme::contrast::MINIMUM_CONTRAST,
             path_hyperlink_regexes: vec![
                 "File \"(?<path>[^\"]+)\", line (?<line>[0-9]+)".into(),
                 [

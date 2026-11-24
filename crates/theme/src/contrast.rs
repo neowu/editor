@@ -1,5 +1,9 @@
 use gpui::Hsla;
 
+/// Minimum APCA contrast the editor, markdown and the terminal keep for text over any
+/// background, recolouring the text when a pairing falls below it.
+pub const MINIMUM_CONTRAST: f32 = 45.0;
+
 /// APCA (Accessible Perceptual Contrast Algorithm) constants
 /// Based on APCA 0.0.98G-4g W3 compatible constants
 /// https://github.com/Myndex/apca-w3.

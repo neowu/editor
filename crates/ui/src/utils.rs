@@ -5,7 +5,6 @@ use theme::ActiveTheme as _;
 
 use crate::font;
 
-mod apca_contrast;
 mod constants;
 mod control_characters;
 mod corner_solver;
@@ -15,8 +14,6 @@ mod window_drag;
 mod with_rem_size;
 
 #[allow(clippy::wildcard_imports)]
-pub use apca_contrast::*;
-#[allow(clippy::wildcard_imports)]
 pub use constants::*;
 #[allow(clippy::wildcard_imports)]
 pub use control_characters::*;
@@ -25,6 +22,8 @@ pub use corner_solver::inner_corner_radius;
 pub use highlight_contrast::*;
 #[allow(clippy::wildcard_imports)]
 pub use search_input::*;
+pub use theme::contrast::apca_contrast;
+pub use theme::contrast::ensure_minimum_contrast;
 pub use window_drag::window_drag_area;
 #[allow(clippy::wildcard_imports)]
 pub use with_rem_size::*;

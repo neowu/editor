@@ -584,8 +584,6 @@ const PULL_DIAGNOSTICS_DEBOUNCE: Duration = Duration::from_millis(50);
 pub(crate) const INLINE_DIAGNOSTICS_PADDING_COLUMNS: f32 = 4.0;
 /// Lines added to an excerpt per expand step.
 pub(crate) const EXPAND_EXCERPT_LINES: u32 = 5;
-/// Minimum APCA contrast for text drawn over highlight backgrounds.
-pub const MINIMUM_CONTRAST_FOR_HIGHLIGHTS: f32 = 45.0;
 const MAX_LINE_LEN: usize = 1024;
 /// Reserve gutter space for this many line number digits, to avoid resizes as files grow.
 pub(crate) const MIN_LINE_NUMBER_DIGITS: usize = 4;

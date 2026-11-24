@@ -3748,6 +3748,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "theme_test"
+version = "0.1.0"
+dependencies = [
+ "gpui",
+ "gpui_macos",
+ "theme",
+ "ui",
+]
+
+[[package]]
 name = "thiserror"
 version = "2.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"

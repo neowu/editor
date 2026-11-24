@@ -687,7 +687,7 @@ impl MarkdownPreviewView {
         }
 
         let mut markdown_style = preview_markdown_style(cx.theme().colors(), cx.theme().syntax(), window, cx);
-        markdown_style.minimum_highlight_contrast = editor::MINIMUM_CONTRAST_FOR_HIGHLIGHTS;
+        markdown_style.minimum_highlight_contrast = theme::contrast::MINIMUM_CONTRAST;
 
         let mut markdown_element = MarkdownElement::new(self.markdown.clone(), markdown_style)
             .input_focus_handle(self.focus_handle.clone())

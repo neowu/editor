@@ -1,4 +1,5 @@
 pub mod built_in;
+pub mod contrast;
 mod styles;
 mod syntax_theme;
 
