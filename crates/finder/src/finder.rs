@@ -37,8 +37,7 @@ use gpui::Window;
 use gpui::actions;
 use language::BufferSnapshot;
 use language::Point;
-pub use open_path_prompt::OpenPathDelegate;
-use open_path_prompt::OpenPathPrompt;
+use open_path::OpenPathPrompt;
 use picker::Picker;
 use picker::PickerDelegate;
 use picker::parts;
@@ -94,6 +93,7 @@ use workspace::searchable::SeedQuery;
 use crate::symbols::SymbolsDelegate;
 use crate::tabs::TabsDelegate;
 
+mod open_path;
 mod symbols;
 mod tabs;
 

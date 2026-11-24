@@ -36,9 +36,9 @@ use util::ResultExt as _;
 use util::paths::compare_paths;
 use workspace::Workspace;
 
-pub struct OpenPathPrompt;
+pub(crate) struct OpenPathPrompt;
 
-pub struct OpenPathDelegate {
+pub(crate) struct OpenPathDelegate {
     tx: Option<oneshot::Sender<Option<Vec<PathBuf>>>>,
     lister: DirectoryLister,
     selected_index: usize,
@@ -54,7 +54,7 @@ pub struct OpenPathDelegate {
 }
 
 impl OpenPathDelegate {
-    pub fn new(tx: oneshot::Sender<Option<Vec<PathBuf>>>, lister: DirectoryLister, creating_path: bool) -> Self {
+    fn new(tx: oneshot::Sender<Option<Vec<PathBuf>>>, lister: DirectoryLister, creating_path: bool) -> Self {
         Self {
             tx: Some(tx),
             lister,
@@ -70,7 +70,7 @@ impl OpenPathDelegate {
         }
     }
 
-    pub const fn show_hidden(mut self) -> Self {
+    const fn show_hidden(mut self) -> Self {
         self.hidden_entries = true;
         self
     }
@@ -123,7 +123,7 @@ struct CandidateInfo {
 }
 
 impl OpenPathPrompt {
-    pub fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
+    pub(crate) fn register(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
         workspace.set_prompt_for_open_path(Box::new(|workspace, lister, window, cx| {
             let (tx, rx) = oneshot::channel();
             Self::prompt_for_open_path(workspace, lister, false, None, tx, window, cx);
@@ -131,7 +131,11 @@ impl OpenPathPrompt {
         }));
     }
 
-    pub fn register_new_path(workspace: &mut Workspace, _window: Option<&mut Window>, _: &mut Context<Workspace>) {
+    pub(crate) fn register_new_path(
+        workspace: &mut Workspace,
+        _window: Option<&mut Window>,
+        _: &mut Context<Workspace>,
+    ) {
         workspace.set_prompt_for_new_path(Box::new(|workspace, lister, suggested_name, window, cx| {
             let (tx, rx) = oneshot::channel();
             Self::prompt_for_new_path(workspace, lister, suggested_name, tx, window, cx);

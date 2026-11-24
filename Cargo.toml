@@ -4,7 +4,7 @@ members = ["crates/*", "test/*", "xtask"]
 default-members = ["crates/ed"]
 
 [workspace.package]
-version = "2.9.0"
+version = "2.10.0"
 edition = "2024"
 
 [workspace.dependencies]
@@ -50,7 +50,6 @@ markdown_preview = { path = "crates/markdown_preview" }
 mermaid = { path = "crates/mermaid" }
 multi_buffer = { path = "crates/multi_buffer" }
 notifications = { path = "crates/notifications" }
-open_path_prompt = { path = "crates/open_path_prompt" }
 outline_panel = { path = "crates/outline_panel" }
 path = { path = "crates/path" }
 paths = { path = "crates/paths" }

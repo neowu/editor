@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "actions"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "gpui",
 ]
@@ -718,7 +718,7 @@ dependencies = [
 
 [[package]]
 name = "ed"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "actions",
  "activity_indicator",
@@ -987,8 +987,8 @@ dependencies = [
  "fuzzy",
  "gpui",
  "language",
- "open_path_prompt",
  "ordered-float",
+ "path",
  "picker",
  "project",
  "rustc-hash",
@@ -2590,22 +2590,6 @@ checksum = "1e68317604e77e53b85896388e1a803c1d21b74c899ec9e5e1112db90735edd7"
 dependencies = [
  "cc",
  "pkg-config",
-]
-
-[[package]]
-name = "open_path_prompt"
-version = "0.1.0"
-dependencies = [
- "file_icons",
- "futures",
- "fuzzy",
- "gpui",
- "path",
- "picker",
- "project",
- "ui",
- "util",
- "workspace",
 ]
 
 [[package]]
@@ -4677,7 +4661,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "2.9.0"
+version = "2.10.0"
 dependencies = [
  "framework_lint",
 ]

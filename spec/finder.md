@@ -47,3 +47,7 @@
   history entry from outside it. Fuzzy search is skipped when the path
   resolves. Upstream's related handling of excluded files and `a/`/`b/` diff
   prefixes for excluded directories isn't ported.
+- The in-app open/new path prompt (`open_path.rs`) lives in the finder crate
+  but is a separate modal: workspace's `prompt_for_open_path` /
+  `prompt_for_new_path` hooks are set on workspace creation. It browses one
+  directory level at a time, fuzzy-matching entries of the typed directory.
