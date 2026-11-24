@@ -112,7 +112,6 @@ use ui::TableResizeBehavior;
 use ui::TintColor;
 use ui::Tooltip;
 use ui::bind_redistributable_columns;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonStyle;
@@ -1391,7 +1390,7 @@ impl GitGraph {
         let focus_handle = cx.focus_handle();
         cx.on_focus(&focus_handle, window, |_, _, cx| cx.notify()).detach();
 
-        let accent_colors = cx.theme().accents();
+        let accent_colors = theme::theme().accents();
         let graph = GraphData::new(accent_colors_count(accent_colors));
         let log_source = log_source.unwrap_or_default();
         let log_order = LogOrder::default();
@@ -1940,9 +1939,9 @@ impl GitGraph {
 
             this.update(cx, |this, cx| {
                 if this.search_state.matches.is_empty() {
-                    this.search_state.editor.update(cx, |editor, cx| {
+                    this.search_state.editor.update(cx, |editor, _| {
                         editor.set_text_style_refinement(TextStyleRefinement {
-                            color: Some(Color::Error.color(cx)),
+                            color: Some(Color::Error.color()),
                             ..Default::default()
                         });
                     });
@@ -2032,7 +2031,7 @@ impl GitGraph {
         };
         let sha = commit.data.sha;
         let ref_names = commit.data.ref_names.clone();
-        let accent_colors = cx.theme().accents();
+        let accent_colors = theme::theme().accents();
         let ref_color = accent_colors
             .0
             .get(commit.color_idx)
@@ -2362,7 +2361,7 @@ impl GitGraph {
     }
 
     fn render_search_bar(&self, cx: &Context<Self>) -> impl IntoElement {
-        let color = cx.theme().colors();
+        let color = theme::theme().colors();
         let query_focus_handle = self.search_state.editor.focus_handle(cx).tab_index(1).tab_stop(true);
 
         h_flex()
@@ -2538,9 +2537,9 @@ impl GitGraph {
             .w_full()
             .py(DynamicSpacing::Base06.rems())
             .px(DynamicSpacing::Base08.rems())
-            .bg(cx.theme().colors().toolbar_background)
+            .bg(theme::theme().colors().toolbar_background)
             .border_b_1()
-            .border_color(cx.theme().colors().border_variant)
+            .border_color(theme::theme().colors().border_variant)
             .child(row)
     }
 
@@ -2669,11 +2668,11 @@ impl GitGraph {
 
         gpui::canvas(
             move |_bounds, _window, _cx| {},
-            move |bounds: Bounds<Pixels>, (): (), window: &mut Window, cx: &mut App| {
+            move |bounds: Bounds<Pixels>, (): (), window: &mut Window, _: &mut App| {
                 graph_canvas_bounds.set(Some(bounds));
 
                 window.paint_layer(bounds, |window| {
-                    let theme = cx.theme();
+                    let theme = theme::theme();
                     let accent_colors = theme.accents();
                     let background = theme.colors().editor_background;
 
@@ -2911,7 +2910,7 @@ impl GitGraph {
             .get_repository(cx)
             .and_then(|repo| repo.read(cx).branch.as_ref().map(|branch| SharedString::from(branch.name().to_owned())));
 
-        let theme = cx.theme();
+        let theme = theme::theme();
         let accent_colors = *theme.accents();
         let background = theme.colors().editor_background;
 
@@ -3321,7 +3320,7 @@ impl Render for GitGraph {
                             .hide_row_hover()
                             .width_config(table_width_config)
                             .column_filter(table_filter)
-                            .map_row(move |(index, row), window, cx| {
+                            .map_row(move |(index, row), window, _| {
                                 let is_selected = selected_entry_idx == Some(index);
                                 let is_hovered = hovered_entry_idx == Some(index);
                                 let is_context_menu_target = context_menu_target_index == Some(index);
@@ -3332,11 +3331,11 @@ impl Render for GitGraph {
                                 let weak_for_hover = weak.clone();
                                 let weak_for_context_menu = weak.clone();
 
-                                let hover_bg = cx.theme().colors().element_hover.opacity(0.6);
+                                let hover_bg = theme::theme().colors().element_hover.opacity(0.6);
                                 let selected_bg = if is_focused {
-                                    cx.theme().colors().element_selected
+                                    theme::theme().colors().element_selected
                                 } else {
-                                    cx.theme().colors().element_hover
+                                    theme::theme().colors().element_hover
                                 };
 
                                 row.h(row_height)
@@ -3476,7 +3475,7 @@ impl Render for GitGraph {
             .key_context("GitGraph")
             .track_focus(&self.focus_handle)
             .size_full()
-            .bg(cx.theme().colors().editor_background)
+            .bg(theme::theme().colors().editor_background)
             .action_table(&cx.entity(), &GIT_GRAPH_ACTIONS)
             .child(
                 v_flex()

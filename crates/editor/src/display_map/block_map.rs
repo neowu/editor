@@ -1607,7 +1607,6 @@ pub(crate) fn balancing_block(
                 cx.line_height,
                 cx.indent_guide_padding,
                 cx.window,
-                cx.app,
             )
         }),
         priority: my_block.priority,

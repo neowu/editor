@@ -43,7 +43,6 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
 use text::BufferId;
-use theme::ActiveTheme as _;
 use ui::Tooltip;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
@@ -346,7 +345,7 @@ impl EditorElement {
                 let width = if is_wide { available_width - px(5.) } else { available_width + em_width - px(5.) };
 
                 let toggle = IconButton::new(("expand", ix), icon_name)
-                    .icon_color(Color::Custom(cx.theme().colors().editor_line_number))
+                    .icon_color(Color::Custom(theme::theme().colors().editor_line_number))
                     .hover_color(Color::Default)
                     .icon_size(IconSize::Custom(rems(editor_font_size / window.rem_size())))
                     .width(width)
@@ -374,7 +373,6 @@ impl EditorElement {
         gutter: &Gutter<'_>,
         active_rows: &BTreeMap<DisplayRow, LineHighlightSpec>,
         window: &mut Window,
-        cx: &App,
     ) -> Arc<FxHashMap<MultiBufferRow, LineNumberLayout>> {
         let include_line_numbers = gutter.snapshot.show_line_numbers;
         if !include_line_numbers {
@@ -394,7 +392,7 @@ impl EditorElement {
             write!(&mut line_number, "{number}").expect("writing to a String can't fail");
 
             let spec = active_rows.get(&display_row);
-            let color = LineNumberStyle::new(spec.is_some(), row_info.diff_status).color(cx.theme().colors());
+            let color = LineNumberStyle::new(spec.is_some(), row_info.diff_status).color(theme::theme().colors());
 
             let shaped_line = self.shape_line_number(SharedString::from(&line_number), color, window);
             let scroll_top = gutter.scroll_position.y * ScrollPixelOffset::from(gutter.line_height);
@@ -472,7 +470,7 @@ impl EditorElement {
                 };
 
                 let Some(()) = (if !is_singleton && hitbox.is_hovered(window) {
-                    let color = cx.theme().colors().editor_hover_line_number;
+                    let color = theme::theme().colors().editor_hover_line_number;
 
                     let line = self.shape_line_number(shaped_line.text.clone(), color, window);
                     line.paint(hitbox.origin, line_height, TextAlign::Left, None, window, cx).log_err()
@@ -518,19 +516,19 @@ impl EditorElement {
                         );
                         Some((
                             hunk_bounds,
-                            cx.theme().colors().version_control_modified,
+                            theme::theme().colors().version_control_modified,
                             Corners::all(px(0.)),
                             DiffHunkStatus::modified_none(),
                         ))
                     }
                     DisplayDiffHunk::Unfolded { status, display_row_range, .. } => hitbox.as_ref().map(|hunk_hitbox| {
                         let color = match split_side {
-                            Some(SplitSide::Left) => cx.theme().colors().version_control_deleted,
-                            Some(SplitSide::Right) => cx.theme().colors().version_control_added,
+                            Some(SplitSide::Left) => theme::theme().colors().version_control_deleted,
+                            Some(SplitSide::Right) => theme::theme().colors().version_control_added,
                             None => match status.kind {
-                                DiffHunkStatusKind::Added => cx.theme().colors().version_control_added,
-                                DiffHunkStatusKind::Modified => cx.theme().colors().version_control_modified,
-                                DiffHunkStatusKind::Deleted => cx.theme().colors().version_control_deleted,
+                                DiffHunkStatusKind::Added => theme::theme().colors().version_control_added,
+                                DiffHunkStatusKind::Modified => theme::theme().colors().version_control_modified,
+                                DiffHunkStatusKind::Deleted => theme::theme().colors().version_control_deleted,
                             },
                         };
                         match status.kind {
@@ -551,11 +549,11 @@ impl EditorElement {
                 if let Some((hunk_bounds, background_color, corner_radii, status)) = hunk_to_paint {
                     // Flatten the background color with the editor color to prevent
                     // elements below transparent hunks from showing through
-                    let flattened_background_color = cx.theme().colors().editor_background.blend(background_color);
+                    let flattened_background_color = theme::theme().colors().editor_background.blend(background_color);
 
                     if self.diff_hunk_hollow(status, cx) {
                         let flattened_unstaged_background_color =
-                            cx.theme().colors().editor_background.blend(background_color.opacity(0.3));
+                            theme::theme().colors().editor_background.blend(background_color.opacity(0.3));
 
                         window.paint_quad(quad(
                             hunk_bounds,
@@ -850,7 +848,7 @@ pub(super) fn render_blame_entry(
     cx: &mut App,
 ) -> Option<AnyElement> {
     let index: u32 = blame_entry.sha.into();
-    let mut sha_color = cx.theme().accents().color_for_index(index);
+    let mut sha_color = theme::theme().accents().color_for_index(index);
 
     // If the last color we used is the same as the one we get for this line, but
     // the commit SHAs are different, then we try again to get a different color.
@@ -858,7 +856,7 @@ pub(super) fn render_blame_entry(
         && sha != blame_entry.sha
         && color == sha_color
     {
-        sha_color = cx.theme().accents().color_for_index(index + 1);
+        sha_color = theme::theme().accents().color_for_index(index + 1);
     }
     last_used_color.replace((sha_color, blame_entry.sha));
 

@@ -26,7 +26,6 @@ use text::Point;
 use theme::built_in::BUFFER_LINE_HEIGHT;
 use ui::CopyButton;
 use ui::font;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::AnyElement;
 use ui::prelude::App;
 use ui::prelude::Context;
@@ -197,7 +196,7 @@ pub(crate) struct DiagnosticBlock {
 impl DiagnosticBlock {
     pub(crate) fn render_block(&self, editor: WeakEntity<Editor>, bcx: &BlockContext) -> AnyElement {
         let cx = &bcx.app;
-        let status_colors = cx.theme().status();
+        let status_colors = theme::theme().status();
 
         let max_width = bcx.em_width * 120.;
 
@@ -232,7 +231,7 @@ impl DiagnosticBlock {
             .border_color(border_color)
             .child(
                 div().flex_1().min_w_0().child(
-                    MarkdownElement::new(self.markdown.clone(), diagnostics_markdown_style(bcx.window, cx))
+                    MarkdownElement::new(self.markdown.clone(), diagnostics_markdown_style(bcx.window))
                         .hide_code_block_copy_button()
                         .on_url_click({
                             move |link, window, cx| {

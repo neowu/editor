@@ -70,7 +70,6 @@ use terminal::TerminalBounds;
 use terminal::is_app_chosen_exact_color as terminal_is_app_chosen_exact_color;
 use terminal::is_default_background_color;
 use terminal::terminal_settings::TerminalSettings;
-use theme::ActiveTheme as _;
 use theme::Theme;
 use ui::ParentElement as _;
 use ui::Tooltip;
@@ -419,10 +418,9 @@ impl TerminalElement {
         text_style: &TextStyle,
         hyperlink: Option<(HighlightStyle, &Range)>,
         minimum_contrast: f32,
-        cx: &App,
     ) -> (Vec<LayoutRect>, Vec<BatchedTextRun>, Vec<BlockElementLayoutRect>) {
         let start_time = Instant::now();
-        let theme = cx.theme();
+        let theme = theme::theme();
         // A grid repeats few color pairs, and each contrast check costs several `powf` calls
         // (dozens when the color needs adjusting).
         let mut contrast_cache = FxHashMap::default();
@@ -1046,7 +1044,7 @@ impl Element for TerminalElement {
             let line_height = terminal_settings.line_height;
             let font_size = buffer_font_size;
 
-            let theme = cx.theme();
+            let theme = theme::theme();
 
             let link_style = HighlightStyle {
                 color: Some(theme.colors().link_text_hover),
@@ -1210,7 +1208,6 @@ impl Element for TerminalElement {
                         &text_style,
                         hover_match.as_ref().map(|hover_match| (link_style, hover_match)),
                         minimum_contrast,
-                        cx,
                     )
                 } else {
                     // Calculate which screen rows are visible based on pixel positions.
@@ -1236,7 +1233,6 @@ impl Element for TerminalElement {
                         &text_style,
                         hover_match.as_ref().map(|hover_match| (link_style, hover_match)),
                         minimum_contrast,
-                        cx,
                     )
                 };
 

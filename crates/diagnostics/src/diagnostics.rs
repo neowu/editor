@@ -67,7 +67,6 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use text::BufferId;
 use text::OffsetRangeExt as _;
-use theme::ActiveTheme as _;
 use ui::Icon;
 use ui::IconName;
 use ui::Label;
@@ -130,7 +129,7 @@ impl Render for ProjectDiagnosticsEditor {
                 .justify_center()
                 .items_center()
                 .text_center()
-                .bg(cx.theme().colors().editor_background)
+                .bg(theme::theme().colors().editor_background)
                 .child(Label::new("No problems in workspace").color(Color::Muted))
         } else {
             div().size_full().child(self.editor.clone())

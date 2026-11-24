@@ -10,7 +10,6 @@ use gpui::ManagedView;
 use gpui::MouseButton;
 use gpui::Subscription;
 use gpui::WeakFocusHandle;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Context;
 use ui::prelude::FluentBuilder as _;
 use ui::prelude::InteractiveElement as _;
@@ -305,7 +304,7 @@ impl Render for ModalLayer {
             .inset_0()
             .occlude()
             .when(active_modal.modal.fade_out_background(cx), |this| {
-                let mut background = cx.theme().colors().elevated_surface_background;
+                let mut background = theme::theme().colors().elevated_surface_background;
                 background.fade_out(0.2);
                 this.bg(background)
             })

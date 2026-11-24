@@ -60,7 +60,6 @@ use ui::LinkPreview;
 use ui::ScrollAxes;
 use ui::Scrollbars;
 use ui::WithScrollbar as _;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Color;
 use ui::prelude::FluentBuilder as _;
 use ui::prelude::Icon;
@@ -686,7 +685,7 @@ impl MarkdownPreviewView {
             project = Some(project_entity);
         }
 
-        let mut markdown_style = preview_markdown_style(cx.theme().colors(), cx.theme().syntax(), window, cx);
+        let mut markdown_style = preview_markdown_style(theme::theme().colors(), theme::theme().syntax(), window, cx);
         markdown_style.minimum_highlight_contrast = theme::contrast::MINIMUM_CONTRAST;
 
         let mut markdown_element = MarkdownElement::new(self.markdown.clone(), markdown_style)
@@ -1267,7 +1266,7 @@ static MARKDOWN_PREVIEW_VIEW_ACTIONS: std::sync::LazyLock<gpui::ActionTable<Mark
 
 impl Render for MarkdownPreviewView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let bg_color = cx.theme().colors().editor_background;
+        let bg_color = theme::theme().colors().editor_background;
         let preview_font_size = preview_font_size(cx);
         let hovered_url = self.hovered_url.clone();
         div()

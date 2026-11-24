@@ -1,6 +1,5 @@
 use gpui::FontWeight;
 
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::IntoElement;
 use crate::prelude::Label;
@@ -28,10 +27,10 @@ impl CountBadge {
 }
 
 impl RenderOnce for CountBadge {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         let label = if self.count > 99 { "99+".to_owned() } else { self.count.to_string() };
 
-        let bg = cx.theme().colors().editor_background.blend(cx.theme().status().error.opacity(0.4));
+        let bg = theme::theme().colors().editor_background.blend(theme::theme().status().error.opacity(0.4));
 
         h_flex()
             .absolute()
@@ -44,7 +43,7 @@ impl RenderOnce for CountBadge {
             .justify_center()
             .text_center()
             .border_1()
-            .border_color(cx.theme().colors().border)
+            .border_color(theme::theme().colors().border)
             .bg(bg)
             .shadow_sm()
             .child(Label::new(label).size(LabelSize::Custom(rems_from_px(9_f32))).weight(FontWeight::MEDIUM))

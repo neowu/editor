@@ -12,7 +12,6 @@ use gpui::Pixels;
 use gpui::WeakEntity;
 use project::Project;
 use ui::Window;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::FluentBuilder as _;
 use ui::prelude::InteractiveElement as _;
 use ui::prelude::IntoElement as _;
@@ -84,7 +83,7 @@ impl Workspace {
                                 .min_h_0()
                                 .w_full()
                                 .overflow_hidden()
-                                .bg(cx.theme().colors().panel_background)
+                                .bg(theme::theme().colors().panel_background)
                                 .child(side_card),
                         )
                         .child(

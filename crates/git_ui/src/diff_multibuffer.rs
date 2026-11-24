@@ -46,7 +46,6 @@ use project::git_store::diff_buffer_list::BranchDiffEvent;
 use project::git_store::diff_buffer_list::DiffBase;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use theme::ActiveTheme as _;
 use ui::CommonAnimationExt as _;
 use ui::KeyBinding;
 use ui::prelude::Button;
@@ -717,7 +716,7 @@ impl Render for DiffMultibuffer {
         div()
             .track_focus(&self.focus_handle)
             .key_context(if is_empty { "EmptyPane" } else { "GitDiff" })
-            .bg(cx.theme().colors().editor_background)
+            .bg(theme::theme().colors().editor_background)
             .flex()
             .items_center()
             .justify_center()

@@ -47,7 +47,6 @@ use ui::DocumentationAside;
 use ui::ErasedEditorEvent;
 use ui::KeyBinding;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Div;
 use ui::prelude::DynamicSpacing;
 use ui::prelude::Label;
@@ -950,7 +949,7 @@ impl<D: PickerDelegate> Picker<D> {
         div()
             .id(("item", ix))
             .when(selectable, gpui::Styled::cursor_pointer)
-            .when(use_fallback_indicator, |this| this.hover(|s| s.bg(cx.theme().colors().ghost_element_hover)))
+            .when(use_fallback_indicator, |this| this.hover(|s| s.bg(theme::theme().colors().ghost_element_hover)))
             .when(multi_select_active && selectable, |this| {
                 this.tooltip(Tooltip::element(move |_window, cx| {
                     h_flex()
@@ -1029,7 +1028,7 @@ impl<D: PickerDelegate> Picker<D> {
                 }
             })
             .when(self.delegate.separators_after_indices().contains(&ix), |picker| {
-                picker.border_color(cx.theme().colors().border_variant).border_b_1().py(px(-1.0))
+                picker.border_color(theme::theme().colors().border_variant).border_b_1().py(px(-1.0))
             })
     }
 

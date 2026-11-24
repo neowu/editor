@@ -31,7 +31,6 @@ use ui::HighlightedLabel;
 use ui::KeyBinding;
 use ui::ListItem;
 use ui::ListItemSpacing;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::AnyElement;
 use ui::prelude::Button;
 use ui::prelude::Clickable as _;
@@ -375,7 +374,7 @@ impl PickerDelegate for CommandPaletteDelegate {
                 .gap_1()
                 .justify_end()
                 .border_t_1()
-                .border_color(cx.theme().colors().border_variant)
+                .border_color(theme::theme().colors().border_variant)
                 .child(
                     Button::new("run-action", "Run")
                         .key_binding(

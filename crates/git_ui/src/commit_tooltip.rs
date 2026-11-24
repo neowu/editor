@@ -35,7 +35,6 @@ use ui::CopyButton;
 use ui::Divider;
 use ui::Tooltip;
 use ui::font;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonStyle;
@@ -189,7 +188,7 @@ impl Render for CommitTooltip {
             local_offset,
             time_format::TimestampFormat::MediumAbsolute,
         );
-        let markdown_style = { hover_markdown_style(window, cx) };
+        let markdown_style = { hover_markdown_style(window) };
 
         let message = self.commit.message.as_ref().map_or_else(
             || "<no commit message>".into_any(),
@@ -222,7 +221,7 @@ impl Render for CommitTooltip {
             .then(|| shallow_boundary_notice(self.repository.clone(), self.workspace.clone(), window, cx))
             .flatten();
 
-        tooltip_container(cx, move |this, cx| {
+        tooltip_container(cx, move |this, _| {
             this.occlude()
                 .on_mouse_move(|_, _, cx| cx.stop_propagation())
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
@@ -237,10 +236,10 @@ impl Render for CommitTooltip {
                                 .flex_wrap()
                                 .child(author)
                                 .when(!author_email.is_empty(), |this| {
-                                    this.child(div().text_color(cx.theme().colors().text_muted).child(author_email))
+                                    this.child(div().text_color(theme::theme().colors().text_muted).child(author_email))
                                 })
                                 .border_b_1()
-                                .border_color(cx.theme().colors().border_variant),
+                                .border_color(theme::theme().colors().border_variant),
                         )
                         .children(boundary_notice)
                         .child(
@@ -254,14 +253,14 @@ impl Render for CommitTooltip {
                         )
                         .child(
                             h_flex()
-                                .text_color(cx.theme().colors().text_muted)
+                                .text_color(theme::theme().colors().text_muted)
                                 .w_full()
                                 .justify_between()
                                 .pt_1()
                                 .gap_1()
                                 .flex_wrap()
                                 .border_t_1()
-                                .border_color(cx.theme().colors().border_variant)
+                                .border_color(theme::theme().colors().border_variant)
                                 .child(absolute_timestamp)
                                 .child(
                                     h_flex()
@@ -314,7 +313,7 @@ pub(crate) fn shallow_boundary_notice(
             .py_1()
             .gap_2()
             .border_b_1()
-            .border_color(cx.theme().colors().border_variant)
+            .border_color(theme::theme().colors().border_variant)
             .child(
                 h_flex()
                     .gap_2()

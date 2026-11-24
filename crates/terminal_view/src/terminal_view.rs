@@ -85,7 +85,6 @@ use ui::ScrollAxes;
 use ui::Scrollbars;
 use ui::Tooltip;
 use ui::WithScrollbar as _;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonSize;
 use ui::prelude::Clickable as _;
@@ -1062,20 +1061,22 @@ impl Render for TerminalView {
                 div()
                     .id("terminal-view-container")
                     .size_full()
-                    .bg(cx.theme().colors().editor_background)
-                    .child(div().size_full().bg(cx.theme().colors().terminal_background).child(TerminalElement::new(
-                        terminal_handle,
-                        terminal_view_handle,
-                        self.workspace.clone(),
-                        self.focus_handle.clone(),
-                        focused,
-                        self.should_show_cursor(focused, cx),
-                        self.block_below_cursor.clone(),
-                    )))
+                    .bg(theme::theme().colors().editor_background)
+                    .child(div().size_full().bg(theme::theme().colors().terminal_background).child(
+                        TerminalElement::new(
+                            terminal_handle,
+                            terminal_view_handle,
+                            self.workspace.clone(),
+                            self.focus_handle.clone(),
+                            focused,
+                            self.should_show_cursor(focused, cx),
+                            self.block_below_cursor.clone(),
+                        ),
+                    ))
                     .custom_scrollbars(
                         Scrollbars::new(ScrollAxes::Both)
                             .show_along(ScrollAxes::Vertical)
-                            .with_track_along(ScrollAxes::Vertical, cx.theme().colors().terminal_background)
+                            .with_track_along(ScrollAxes::Vertical, theme::theme().colors().terminal_background)
                             .tracked_scroll_handle(&self.scroll_handle),
                         window,
                         cx,

@@ -24,7 +24,6 @@ use language::Buffer;
 use language::BufferEvent;
 use multi_buffer::MultiBuffer;
 use project::ProjectPath;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::FluentBuilder as _;
 use ui::prelude::Icon;
 use ui::prelude::IconName;
@@ -201,7 +200,7 @@ impl Render for SvgPreviewView {
             .key_context("SvgPreview")
             .track_focus(&self.focus_handle(cx))
             .size_full()
-            .bg(cx.theme().colors().editor_background)
+            .bg(theme::theme().colors().editor_background)
             .flex()
             .justify_center()
             .items_center()

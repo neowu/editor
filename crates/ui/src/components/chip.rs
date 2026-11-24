@@ -4,7 +4,6 @@ use gpui::IntoElement;
 use gpui::ParentElement as _;
 use gpui::Styled as _;
 
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::Color;
 use crate::prelude::FluentBuilder as _;
@@ -110,10 +109,10 @@ impl Chip {
 }
 
 impl RenderOnce for Chip {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let bg_color = self.bg_color.unwrap_or_else(|| cx.theme().colors().element_background);
+    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+        let bg_color = self.bg_color.unwrap_or_else(|| theme::theme().colors().element_background);
 
-        let border_color = self.border_color.unwrap_or_else(|| cx.theme().colors().border);
+        let border_color = self.border_color.unwrap_or_else(|| theme::theme().colors().border);
 
         h_flex()
             .when_some(self.height, |this, h| this.h(h))

@@ -13,7 +13,6 @@ use gpui::list;
 use gpui::prelude::FluentBuilder as _;
 use ui::LabelCommon as _;
 use ui::WithScrollbar as _;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Color;
 use ui::prelude::Element;
 use ui::prelude::ElementId;
@@ -737,7 +736,6 @@ impl BlockRenderer {
         source: &str,
         metadata_block: &ParsedMetadataBlock,
         markdown_end: usize,
-        cx: &App,
     ) {
         let content_range = &metadata_block.content_range;
         if let Some(rows) = metadata_block.rows.as_deref() {
@@ -748,7 +746,7 @@ impl BlockRenderer {
                     .w_full()
                     .mb_2()
                     .border_1()
-                    .border_color(cx.theme().colors().border)
+                    .border_color(theme::theme().colors().border)
                     .rounded_sm()
                     .overflow_hidden(),
                 content_range,
@@ -763,7 +761,6 @@ impl BlockRenderer {
                     content_range,
                     markdown_end,
                     MetadataCellStyle { row_index, is_key: true },
-                    cx,
                 );
                 self.push_metadata_cell(
                     builder,
@@ -772,7 +769,6 @@ impl BlockRenderer {
                     content_range,
                     markdown_end,
                     MetadataCellStyle { row_index, is_key: false },
-                    cx,
                 );
             }
 
@@ -799,7 +795,6 @@ impl BlockRenderer {
         block_range: &Range<usize>,
         markdown_end: usize,
         cell_style: MetadataCellStyle,
-        cx: &App,
     ) {
         builder.push_div(
             div()
@@ -808,17 +803,17 @@ impl BlockRenderer {
                 .min_w_0()
                 .px_2()
                 .py_1()
-                .border_color(cx.theme().colors().border)
+                .border_color(theme::theme().colors().border)
                 .when(cell_style.row_index > 0, gpui::Styled::border_t_1)
                 .when(!cell_style.is_key, gpui::Styled::border_l_1)
-                .when(cell_style.is_key, |this| this.bg(cx.theme().colors().panel_background)),
+                .when(cell_style.is_key, |this| this.bg(theme::theme().colors().panel_background)),
             block_range,
             markdown_end,
         );
 
         let text_style = if cell_style.is_key {
             TextStyleRefinement {
-                color: Some(cx.theme().colors().text_muted),
+                color: Some(theme::theme().colors().text_muted),
                 font_weight: Some(FontWeight::SEMIBOLD),
                 ..Default::default()
             }
@@ -932,7 +927,7 @@ impl BlockRenderer {
 
     fn highlights(&self, cx: &App) -> MarkdownHighlights {
         let markdown = self.markdown.read(cx);
-        let colors = cx.theme().colors();
+        let colors = theme::theme().colors();
         let selection = &markdown.selection;
         MarkdownHighlights {
             search_highlights: Rc::clone(&markdown.search_highlights),
@@ -1092,13 +1087,13 @@ impl RenderPass<'_> {
                 if renderer.show_root_block_markers {
                     self.builder.pop_root_block(
                         self.frame.active_root_block == Some(*root_block_index),
-                        cx.theme().colors().border,
-                        cx.theme().colors().border_variant,
+                        theme::theme().colors().border,
+                        theme::theme().colors().border_variant,
                     );
                 }
             }
             MarkdownEvent::Start(tag) => self.start(index, range, tag, window, cx),
-            MarkdownEvent::End(tag) => self.end(range, *tag, cx),
+            MarkdownEvent::End(tag) => self.end(range, *tag),
             MarkdownEvent::Text => {
                 self.push_text(index, &parsed.source[range.clone()], range);
             }
@@ -1190,7 +1185,7 @@ impl RenderPass<'_> {
             MarkdownTag::FootnoteDefinition(label) => self.start_footnote_definition(range, label),
             MarkdownTag::MetadataBlock(kind) => {
                 if let Some(metadata_block) = self.frame.parsed.metadata_blocks.get(&range.start) {
-                    renderer.push_metadata_block(builder, &self.frame.parsed.source, metadata_block, markdown_end, cx);
+                    renderer.push_metadata_block(builder, &self.frame.parsed.source, metadata_block, markdown_end);
                     self.skip_until = Some(MarkdownTagEnd::MetadataBlock(*kind));
                 }
             }
@@ -1203,12 +1198,12 @@ impl RenderPass<'_> {
                 });
             }
             MarkdownTag::TableRow => builder.table.start_row(),
-            MarkdownTag::TableCell => self.start_table_cell(range, cx),
+            MarkdownTag::TableCell => self.start_table_cell(range),
             _ => log::debug!("unsupported markdown tag {tag:?}"),
         }
     }
 
-    fn end(&mut self, range: &Range<usize>, tag: MarkdownTagEnd, cx: &App) {
+    fn end(&mut self, range: &Range<usize>, tag: MarkdownTagEnd) {
         let renderer = self.renderer;
         let builder = &mut self.builder;
         match tag {
@@ -1218,7 +1213,7 @@ impl RenderPass<'_> {
             MarkdownTagEnd::Paragraph => renderer.pop_markdown_paragraph(builder),
             MarkdownTagEnd::Heading(_) => renderer.pop_markdown_heading(builder),
             MarkdownTagEnd::BlockQuote(_kind) => renderer.pop_markdown_block_quote(builder),
-            MarkdownTagEnd::CodeBlock => self.end_code_block(range, cx),
+            MarkdownTagEnd::CodeBlock => self.end_code_block(range),
             MarkdownTagEnd::HtmlBlock => builder.pop_div(),
             MarkdownTagEnd::List(_) => {
                 builder.pop_list();
@@ -1355,7 +1350,7 @@ impl RenderPass<'_> {
             let scrollbars = Scrollbars::new(ScrollAxes::Horizontal)
                 .id(("markdown-code-block-scrollbar", range.start))
                 .tracked_scroll_handle(scroll_handle)
-                .with_track_along(ScrollAxes::Horizontal, cx.theme().colors().editor_background)
+                .with_track_along(ScrollAxes::Horizontal, theme::theme().colors().editor_background)
                 .notify_content();
 
             let mut parent_container = parent_container.custom_scrollbars(scrollbars, window, cx);
@@ -1381,7 +1376,7 @@ impl RenderPass<'_> {
         builder.push_div(code_block, range, markdown_end);
     }
 
-    fn end_code_block(&mut self, range: &Range<usize>, cx: &App) {
+    fn end_code_block(&mut self, range: &Range<usize>) {
         let builder = &mut self.builder;
         builder.trim_trailing_newline();
 
@@ -1396,7 +1391,7 @@ impl RenderPass<'_> {
                     h_flex()
                         .gap_0p5()
                         .absolute()
-                        .bg(cx.theme().colors().editor_background)
+                        .bg(theme::theme().colors().editor_background)
                         .top_1()
                         .right_1()
                         .visible_on_hover("code_block")
@@ -1484,7 +1479,7 @@ impl RenderPass<'_> {
                 .when(!style.table_columns_min_size, |this| this.grid_cols_max_content(column_count as u16))
                 .mb_2()
                 .border(px(1.5))
-                .border_color(cx.theme().colors().border)
+                .border_color(theme::theme().colors().border)
                 .rounded_sm()
                 .restrict_scroll_to_axis()
                 .custom_scrollbars(
@@ -1499,7 +1494,7 @@ impl RenderPass<'_> {
         );
     }
 
-    fn start_table_cell(&mut self, range: &Range<usize>, cx: &App) {
+    fn start_table_cell(&mut self, range: &Range<usize>) {
         let style = &self.renderer.style;
         let markdown_end = self.markdown_end;
         let builder = &mut self.builder;
@@ -1516,11 +1511,11 @@ impl RenderPass<'_> {
             .h_full()
             .when(col_index > 0, gpui::Styled::border_l_1)
             .when(row_index > 0, gpui::Styled::border_t_1)
-            .border_color(cx.theme().colors().border)
+            .border_color(theme::theme().colors().border)
             .px(style.table_cell_padding.x)
             .py(style.table_cell_padding.y)
-            .when(is_header, |this| this.bg(cx.theme().colors().title_bar_background))
-            .when(!is_header && row_index % 2 == 1, |this| this.bg(cx.theme().colors().panel_background));
+            .when(is_header, |this| this.bg(theme::theme().colors().title_bar_background))
+            .when(!is_header && row_index % 2 == 1, |this| this.bg(theme::theme().colors().panel_background));
 
         cell_div = match alignment {
             Some(Alignment::Center) => cell_div.items_center(),

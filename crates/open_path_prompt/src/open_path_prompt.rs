@@ -659,14 +659,14 @@ impl PickerDelegate for OpenPathDelegate {
                                 StyledText::new(label)
                                     .with_default_highlights(
                                         &window.text_style(),
-                                        vec![(delta..label_len, HighlightStyle::color(Color::Conflict.color(cx)))],
+                                        vec![(delta..label_len, HighlightStyle::color(Color::Conflict.color()))],
                                     )
                                     .into_any_element()
                             } else {
                                 StyledText::new(format!("{label} (create)"))
                                     .with_default_highlights(
                                         &window.text_style(),
-                                        vec![(delta..label_len, HighlightStyle::color(Color::Created.color(cx)))],
+                                        vec![(delta..label_len, HighlightStyle::color(Color::Created.color()))],
                                     )
                                     .into_any_element()
                             }

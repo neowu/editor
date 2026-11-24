@@ -49,7 +49,6 @@ use ui::PopoverMenu;
 use ui::PopoverMenuHandle;
 use ui::TintColor;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonStyle;
@@ -674,7 +673,7 @@ impl RecentProjectsDelegate {
     /// text edge, setting the window's border colour; the picked one is
     /// ringed, and clicking it again clears the colour.
     fn render_border_colors(&self, cx: &Context<Picker<Self>>) -> impl IntoElement + use<> {
-        let theme = cx.theme();
+        let theme = theme::theme();
         let current = self.workspace.upgrade().and_then(|workspace| workspace.read(cx).border_color());
         h_flex().pl(px(1.)).py_1().gap_1().children((0_u32..).zip(theme.accents().0).map(|(index, accent)| {
             let selected = current == Some(index);
@@ -1132,7 +1131,7 @@ impl PickerDelegate for RecentProjectsDelegate {
                     .p_1p5()
                     .gap_1()
                     .border_t_1()
-                    .border_color(cx.theme().colors().border_variant)
+                    .border_color(theme::theme().colors().border_variant)
                     .child({
                         ButtonLike::new("open_local_folder")
                             .child(h_flex().w_full().gap_1().justify_between().child(Label::new("Open Folders")).child(
@@ -1188,7 +1187,7 @@ impl PickerDelegate for RecentProjectsDelegate {
                 .gap_1()
                 .justify_end()
                 .border_t_1()
-                .border_color(cx.theme().colors().border_variant)
+                .border_color(theme::theme().colors().border_variant)
                 .when_some(secondary_footer_actions, gpui::ParentElement::child)
                 .map(|this| {
                     if is_already_open_entry {

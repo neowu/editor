@@ -15,7 +15,6 @@ use gpui::WeakEntity;
 use gpui::transparent_black;
 use gpui::uniform_list;
 
-use crate::ActiveTheme as _;
 use crate::AnyElement;
 use crate::App;
 use crate::Context;
@@ -369,7 +368,7 @@ pub fn render_table_row(
 ) -> AnyElement {
     let is_striped = table_context.striped;
     let is_last = row_index == table_context.total_row_count - 1;
-    let bg = (row_index % 2 == 1 && is_striped).then(|| cx.theme().colors().text.opacity(0.05));
+    let bg = (row_index % 2 == 1 && is_striped).then(|| theme::theme().colors().text.opacity(0.05));
     let cols = items.cols();
     let column_widths = match &table_context.column_widths {
         Some(widths) => widths.clone().map(Some),
@@ -383,7 +382,9 @@ pub fn render_table_row(
         .id(("table_row", row_index))
         .size_full()
         .when_some(bg, |row, bg| row.bg(bg))
-        .when(table_context.show_row_hover, |row| row.hover(|s| s.bg(cx.theme().colors().element_hover.opacity(0.6))));
+        .when(table_context.show_row_hover, |row| {
+            row.hover(|s| s.bg(theme::theme().colors().element_hover.opacity(0.6)))
+        });
 
     let column_filter = table_context.column_filter.as_ref();
 
@@ -413,7 +414,7 @@ pub fn render_table_row(
                     if is_last {
                         row.border_color(transparent_black())
                     } else {
-                        row.border_color(cx.theme().colors().border)
+                        row.border_color(theme::theme().colors().border)
                     }
                 })
             })
@@ -444,7 +445,7 @@ pub fn render_table_header(
     let element_id = entity_id.map_or_default(|entity| entity.to_string());
 
     let shared_element_id: SharedString = format!("table-{element_id}").into();
-    let outer = h_flex().py_1().w_full().border_b_1().border_color(cx.theme().colors().border_variant);
+    let outer = h_flex().py_1().w_full().border_b_1().border_color(theme::theme().colors().border_variant);
 
     let use_ui_font = table_context.use_ui_font;
     let resize_info_ref = resize_info.as_ref();

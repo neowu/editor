@@ -32,7 +32,6 @@ use project::Project;
 use ui::HighlightedLabel;
 use ui::ListItem;
 use ui::ListItemSpacing;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Color;
 use ui::prelude::Disableable as _;
 use ui::prelude::FluentBuilder as _;
@@ -343,7 +342,7 @@ impl PickerDelegate for LspCommandSelectorDelegate {
                 .p_2()
                 .gap_1()
                 .border_t_1()
-                .border_color(cx.theme().colors().border_variant)
+                .border_color(theme::theme().colors().border_variant)
                 .child(
                     h_flex()
                         .gap_2()

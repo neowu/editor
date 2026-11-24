@@ -2,12 +2,10 @@ use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
 
-use gpui::App;
 use gpui::BoxShadow;
 use gpui::Hsla;
 use gpui::hsla;
 use gpui::px;
-use theme::ActiveTheme as _;
 use theme::Appearance;
 
 /// Today, elevation is primarily used to add shadows to elements, and set the correct background for elements like buttons.
@@ -46,8 +44,8 @@ impl Display for ElevationIndex {
 
 impl ElevationIndex {
     /// Returns an appropriate shadow for the given elevation index.
-    pub fn shadow(self, cx: &App) -> Vec<BoxShadow> {
-        let is_light = cx.theme().appearance() == Appearance::Light;
+    pub fn shadow(self) -> Vec<BoxShadow> {
+        let is_light = theme::theme().appearance() == Appearance::Light;
 
         match self {
             ElevationIndex::Surface => vec![],
@@ -72,37 +70,37 @@ impl ElevationIndex {
     }
 
     /// Returns the background color for the given elevation index.
-    pub fn bg(&self, cx: &mut App) -> Hsla {
+    pub fn bg(&self) -> Hsla {
         match self {
-            ElevationIndex::Background => cx.theme().colors().background,
-            ElevationIndex::Surface => cx.theme().colors().surface_background,
-            ElevationIndex::EditorSurface => cx.theme().colors().editor_background,
-            ElevationIndex::ElevatedSurface => cx.theme().colors().elevated_surface_background,
-            ElevationIndex::ModalSurface => cx.theme().colors().elevated_surface_background,
+            ElevationIndex::Background => theme::theme().colors().background,
+            ElevationIndex::Surface => theme::theme().colors().surface_background,
+            ElevationIndex::EditorSurface => theme::theme().colors().editor_background,
+            ElevationIndex::ElevatedSurface => theme::theme().colors().elevated_surface_background,
+            ElevationIndex::ModalSurface => theme::theme().colors().elevated_surface_background,
         }
     }
 
     /// Returns a color that is appropriate a filled element on this elevation.
-    pub fn on_elevation_bg(&self, cx: &App) -> Hsla {
+    pub fn on_elevation_bg(&self) -> Hsla {
         match self {
-            ElevationIndex::Background => cx.theme().colors().surface_background,
-            ElevationIndex::Surface => cx.theme().colors().background,
-            ElevationIndex::EditorSurface => cx.theme().colors().surface_background,
-            ElevationIndex::ElevatedSurface => cx.theme().colors().background,
-            ElevationIndex::ModalSurface => cx.theme().colors().background,
+            ElevationIndex::Background => theme::theme().colors().surface_background,
+            ElevationIndex::Surface => theme::theme().colors().background,
+            ElevationIndex::EditorSurface => theme::theme().colors().surface_background,
+            ElevationIndex::ElevatedSurface => theme::theme().colors().background,
+            ElevationIndex::ModalSurface => theme::theme().colors().background,
         }
     }
 
     /// Attempts to return a darker background color than the current elevation index's background.
     ///
     /// If the current background color is already dark, it will return a lighter color instead.
-    pub fn darker_bg(&self, cx: &App) -> Hsla {
+    pub fn darker_bg(&self) -> Hsla {
         match self {
-            ElevationIndex::Background => cx.theme().colors().surface_background,
-            ElevationIndex::Surface => cx.theme().colors().editor_background,
-            ElevationIndex::EditorSurface => cx.theme().colors().surface_background,
-            ElevationIndex::ElevatedSurface => cx.theme().colors().editor_background,
-            ElevationIndex::ModalSurface => cx.theme().colors().editor_background,
+            ElevationIndex::Background => theme::theme().colors().surface_background,
+            ElevationIndex::Surface => theme::theme().colors().editor_background,
+            ElevationIndex::EditorSurface => theme::theme().colors().surface_background,
+            ElevationIndex::ElevatedSurface => theme::theme().colors().editor_background,
+            ElevationIndex::ModalSurface => theme::theme().colors().editor_background,
         }
     }
 }

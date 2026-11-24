@@ -43,7 +43,6 @@ use ui::KeyBinding;
 use ui::ListItem;
 use ui::ListItemSpacing;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
@@ -579,7 +578,7 @@ impl PickerDelegate for StashListDelegate {
                 .justify_end()
                 .flex_wrap()
                 .border_t_1()
-                .border_color(cx.theme().colors().border_variant)
+                .border_color(theme::theme().colors().border_variant)
                 .child(
                     Button::new("drop-stash", "Drop")
                         .key_binding(

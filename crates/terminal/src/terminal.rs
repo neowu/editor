@@ -83,7 +83,6 @@ use task::Shell;
 use task::SpawnInTerminal;
 use terminal_settings::CursorShape as SettingsCursorShape;
 use terminal_settings::TerminalSettings;
-use theme::ActiveTheme as _;
 use theme::Theme;
 use thiserror::Error;
 use util::ResultExt as _;
@@ -1219,7 +1218,7 @@ impl Terminal {
                 // followed by a color request sequence.
 
                 let color = self.term.lock().colors()[index]
-                    .unwrap_or_else(|| to_vte_rgb(get_color_at_index(index, cx.theme())));
+                    .unwrap_or_else(|| to_vte_rgb(get_color_at_index(index, theme::theme())));
                 self.write_to_pty(format(color).into_bytes());
             }
             TerminalBackendEvent::ChildExit(exit_status) => {

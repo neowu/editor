@@ -3,7 +3,6 @@ use gpui::IntoElement;
 use gpui::ParentElement;
 use gpui::Styled as _;
 
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::Color;
 use crate::prelude::FluentBuilder as _;
@@ -52,7 +51,7 @@ impl ParentElement for Banner {
 }
 
 impl RenderOnce for Banner {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
         let banner = h_flex()
             .min_w_0()
             .py_0p5()
@@ -66,26 +65,26 @@ impl RenderOnce for Banner {
             Severity::Info => (
                 IconName::Info,
                 Color::Muted,
-                cx.theme().status().info_background.opacity(0.5),
-                cx.theme().colors().border.opacity(0.5),
+                theme::theme().status().info_background.opacity(0.5),
+                theme::theme().colors().border.opacity(0.5),
             ),
             Severity::Success => (
                 IconName::Check,
                 Color::Success,
-                cx.theme().status().success.opacity(0.1),
-                cx.theme().status().success.opacity(0.2),
+                theme::theme().status().success.opacity(0.1),
+                theme::theme().status().success.opacity(0.2),
             ),
             Severity::Warning => (
                 IconName::Warning,
                 Color::Warning,
-                cx.theme().status().warning_background.opacity(0.5),
-                cx.theme().status().warning_border.opacity(0.4),
+                theme::theme().status().warning_background.opacity(0.5),
+                theme::theme().status().warning_border.opacity(0.4),
             ),
             Severity::Error => (
                 IconName::XCircle,
                 Color::Error,
-                cx.theme().status().error.opacity(0.1),
-                cx.theme().status().error.opacity(0.2),
+                theme::theme().status().error.opacity(0.1),
+                theme::theme().status().error.opacity(0.2),
             ),
         };
 

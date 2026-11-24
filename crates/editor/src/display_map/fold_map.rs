@@ -86,18 +86,17 @@ impl FoldPlaceholder {
     /// Returns a styled `Div` container with the standard fold‐placeholder
     /// look (background, hover, active, rounded corners, full size).
     /// Callers add children and event handlers on top.
-    pub fn fold_element(fold_id: FoldId, cx: &App) -> Stateful<gpui::Div> {
+    pub fn fold_element(fold_id: FoldId) -> Stateful<gpui::Div> {
         use gpui::InteractiveElement as _;
         use gpui::StatefulInteractiveElement as _;
         use gpui::Styled as _;
-        use theme::ActiveTheme as _;
         gpui::div()
             .id(fold_id)
             .font(font::buffer_font().clone())
-            .text_color(cx.theme().colors().text_placeholder)
-            .bg(cx.theme().colors().ghost_element_background)
-            .hover(|style| style.bg(cx.theme().colors().ghost_element_hover))
-            .active(|style| style.bg(cx.theme().colors().ghost_element_active))
+            .text_color(theme::theme().colors().text_placeholder)
+            .bg(theme::theme().colors().ghost_element_background)
+            .hover(|style| style.bg(theme::theme().colors().ghost_element_hover))
+            .active(|style| style.bg(theme::theme().colors().ghost_element_active))
             .rounded_xs()
             .size_full()
     }

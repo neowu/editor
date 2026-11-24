@@ -47,7 +47,6 @@ use ui::ContextMenu;
 use ui::ElevationIndex;
 use ui::PopoverMenuHandle;
 use ui::TintColor;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonStyle;
@@ -462,7 +461,7 @@ impl Render for RenameBranchModal {
         v_flex()
             .key_context("RenameBranchModal")
             .action_table(&cx.entity(), &RENAME_BRANCH_MODAL_ACTIONS)
-            .elevation_2(cx)
+            .elevation_2()
             .w(rems(34.))
             .child(
                 h_flex()
@@ -567,7 +566,7 @@ impl Render for CreateTagModal {
         v_flex()
             .key_context("CreateTagModal")
             .action_table(&cx.entity(), &CREATE_TAG_MODAL_ACTIONS)
-            .elevation_2(cx)
+            .elevation_2()
             .w(rems(34.))
             .child(
                 h_flex()
@@ -821,7 +820,7 @@ impl Render for RefPickerModal {
         v_flex()
             .key_context("RefPickerModal")
             .action_table(&cx.entity(), &REF_PICKER_MODAL_ACTIONS)
-            .elevation_2(cx)
+            .elevation_2()
             .w(rems(34.))
             .child(
                 h_flex()
@@ -1221,17 +1220,17 @@ impl GitStatusIcon {
 }
 
 impl RenderOnce for GitStatusIcon {
-    fn render(self, _window: &mut ui::Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut ui::Window, _: &mut App) -> impl IntoElement {
         let status = self.status;
 
         let (icon_name, color) = if status.is_conflicted() {
-            (IconName::Warning, cx.theme().colors().version_control_conflict)
+            (IconName::Warning, theme::theme().colors().version_control_conflict)
         } else if status.is_deleted() {
-            (IconName::SquareMinus, cx.theme().colors().version_control_deleted)
+            (IconName::SquareMinus, theme::theme().colors().version_control_deleted)
         } else if status.is_modified() {
-            (IconName::SquareDot, cx.theme().colors().version_control_modified)
+            (IconName::SquareDot, theme::theme().colors().version_control_modified)
         } else {
-            (IconName::SquarePlus, cx.theme().colors().version_control_added)
+            (IconName::SquarePlus, theme::theme().colors().version_control_added)
         };
 
         Icon::new(icon_name).color(Color::Custom(color))
@@ -1286,7 +1285,7 @@ static GIT_CLONE_MODAL_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GitCloneMo
 impl Render for GitCloneModal {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
-            .elevation_3(cx)
+            .elevation_3()
             .w(rems(34.))
             .flex_1()
             .overflow_hidden()
@@ -1295,7 +1294,7 @@ impl Render for GitCloneModal {
                     .w_full()
                     .p_2()
                     .border_b_1()
-                    .border_color(cx.theme().colors().border_variant)
+                    .border_color(theme::theme().colors().border_variant)
                     .child(self.repo_input.clone()),
             )
             .child(
@@ -1304,7 +1303,7 @@ impl Render for GitCloneModal {
                     .p_2()
                     .gap_0p5()
                     .rounded_b_sm()
-                    .bg(cx.theme().colors().editor_background)
+                    .bg(theme::theme().colors().editor_background)
                     .child(
                         Label::new("Clone a repository from GitHub or other sources.")
                             .color(Color::Muted)

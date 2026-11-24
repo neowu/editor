@@ -6,7 +6,6 @@ use gpui::IntoElement;
 use gpui::Stateful;
 use smallvec::SmallVec;
 
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::Div;
 use crate::prelude::DynamicSpacing;
@@ -163,17 +162,17 @@ impl RenderOnce for Tab {
     fn render(self, _: &mut Window, cx: &mut App) -> Stateful<Div> {
         let (text_color, tab_bg, _tab_hover_bg, _tab_active_bg) = if self.selected {
             (
-                cx.theme().colors().text,
-                cx.theme().colors().tab_active_background,
-                cx.theme().colors().element_hover,
-                cx.theme().colors().element_active,
+                theme::theme().colors().text,
+                theme::theme().colors().tab_active_background,
+                theme::theme().colors().element_hover,
+                theme::theme().colors().element_active,
             )
         } else {
             (
-                cx.theme().colors().text_muted,
-                cx.theme().colors().tab_inactive_background,
-                cx.theme().colors().ghost_element_hover,
-                cx.theme().colors().ghost_element_active,
+                theme::theme().colors().text_muted,
+                theme::theme().colors().tab_inactive_background,
+                theme::theme().colors().ghost_element_hover,
+                theme::theme().colors().ghost_element_active,
             )
         };
 
@@ -183,8 +182,9 @@ impl RenderOnce for Tab {
         if self.style == TabStyle::Pill {
             // Selection is shown by text contrast (and the item's own icon colour), not a fill,
             // matching the title bar's mode switch.
-            let text_color = if self.selected { cx.theme().colors().text } else { cx.theme().colors().text_muted };
-            let hover_bg = cx.theme().colors().ghost_element_hover;
+            let text_color =
+                if self.selected { theme::theme().colors().text } else { theme::theme().colors().text_muted };
+            let hover_bg = theme::theme().colors().ghost_element_hover;
             return self
                 .div
                 .h(Tab::container_height(cx))
@@ -213,7 +213,7 @@ impl RenderOnce for Tab {
         // flaring into it. Inactive tabs are the bar's colour, so they paint no fill that would
         // cover a neighbouring flare.
         let flares = self.selected && !self.floating;
-        let chrome_bg = cx.theme().colors().tab_bar_background;
+        let chrome_bg = theme::theme().colors().tab_bar_background;
         self.div
             .h(Tab::container_height(cx))
             .flex()

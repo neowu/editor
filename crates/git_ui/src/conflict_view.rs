@@ -31,7 +31,6 @@ use project::ConflictSet;
 use project::ConflictSetUpdate;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::AnyElement;
 use ui::prelude::Button;
 use ui::prelude::Clickable as _;
@@ -271,14 +270,14 @@ fn update_conflict_highlighting(
 ) {
     log::debug!("update conflict highlighting for {conflict:?}");
 
-    let ours_background = |cx: &App| cx.theme().colors().version_control_conflict_marker_ours;
-    let theirs_background = |cx: &App| cx.theme().colors().version_control_conflict_marker_theirs;
+    let ours_background = |_: &App| theme::theme().colors().version_control_conflict_marker_ours;
+    let theirs_background = |_: &App| theme::theme().colors().version_control_conflict_marker_theirs;
 
     let options = RowHighlightOptions { include_gutter: true, ..Default::default() };
 
     editor.insert_gutter_highlight::<ConflictsOuter>(
         outer.start..theirs.end,
-        |cx| cx.theme().colors().editor_background,
+        |_| theme::theme().colors().editor_background,
         cx,
     );
 
@@ -296,7 +295,7 @@ fn render_conflict_buttons(conflict: &ConflictRegion, editor: WeakEntity<Editor>
         .h(cx.line_height)
         .ml(cx.margins.gutter.width)
         .gap_1()
-        .bg(cx.theme().colors().editor_background)
+        .bg(theme::theme().colors().editor_background)
         .child(Button::new("head", format!("Use {}", conflict.ours_branch_name)).label_size(LabelSize::Small).on_click(
             {
                 let editor = editor.clone();

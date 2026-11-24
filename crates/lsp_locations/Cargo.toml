@@ -18,6 +18,7 @@ picker.workspace = true
 project.workspace = true
 rustc-hash.workspace = true
 text.workspace = true
+theme.workspace = true
 ui.workspace = true
 util.workspace = true
 workspace.workspace = true

@@ -52,7 +52,6 @@ use ui::ListItem;
 use ui::ListItemSpacing;
 use ui::ListSubHeader;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
 use ui::prelude::Color;
@@ -286,7 +285,7 @@ impl Render for WorktreePicker {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .key_context("WorktreePicker")
-            .elevation_3(cx)
+            .elevation_3()
             .child(self.picker.clone())
             .on_modifiers_changed(cx.listener(Self::handle_modifiers_changed))
             .on_mouse_down_out(cx.listener(|_, _, _, cx| {
@@ -1118,7 +1117,7 @@ impl PickerDelegate for WorktreePickerDelegate {
             .gap_0p5()
             .justify_end()
             .border_t_1()
-            .border_color(cx.theme().colors().border_variant);
+            .border_color(theme::theme().colors().border_variant);
 
         if is_creating {
             Some(

@@ -45,7 +45,6 @@ use itertools::Itertools as _;
 use multi_buffer::Anchor;
 use multi_buffer::MultiBufferPoint;
 use rustc_hash::FxHashMap;
-use theme::ActiveTheme as _;
 use workspace::item::Item as _;
 use workspace::item::ItemBufferKind;
 
@@ -464,7 +463,7 @@ impl EditorElement {
 
             let background_highlights = editor.background_highlights.clone();
             let snapshot = layout.position_map.snapshot.clone();
-            let theme = cx.theme();
+            let theme = theme::theme();
 
             editor.scrollbar_marker_state.dirty = false;
             editor.scrollbar_marker_state.pending_refresh = Some(cx.spawn_in(window, async move |editor, cx| {
@@ -565,9 +564,9 @@ impl EditorElement {
                     layout.minimap.paint(window, cx);
                     if let Some(thumb_bounds) = layout.thumb_layout.thumb_bounds {
                         let minimap_thumb_color = match layout.thumb_layout.thumb_state {
-                            ScrollbarThumbState::Idle => cx.theme().colors().minimap_thumb_background,
-                            ScrollbarThumbState::Hovered => cx.theme().colors().minimap_thumb_hover_background,
-                            ScrollbarThumbState::Dragging => cx.theme().colors().minimap_thumb_active_background,
+                            ScrollbarThumbState::Idle => theme::theme().colors().minimap_thumb_background,
+                            ScrollbarThumbState::Hovered => theme::theme().colors().minimap_thumb_hover_background,
+                            ScrollbarThumbState::Dragging => theme::theme().colors().minimap_thumb_active_background,
                         };
                         window.paint_layer(minimap_hitbox.bounds, |window| {
                             window.paint_quad(quad(
@@ -575,7 +574,7 @@ impl EditorElement {
                                 Corners::default(),
                                 minimap_thumb_color,
                                 Edges::default(),
-                                cx.theme().colors().minimap_thumb_border,
+                                theme::theme().colors().minimap_thumb_border,
                                 BorderStyle::Solid,
                             ));
                         });

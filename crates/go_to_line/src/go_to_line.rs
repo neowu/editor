@@ -31,7 +31,6 @@ use gpui::prelude::ParentElement as _;
 use language::Buffer;
 use text::Bias;
 use text::Point;
-use theme::ActiveTheme as _;
 use ui::prelude::Color;
 use ui::prelude::Label;
 use ui::prelude::LabelCommon as _;
@@ -198,7 +197,7 @@ impl GoToLine {
             let end = snapshot.anchor_after(end_point);
             editor.highlight_rows::<GoToLineRowHighlights>(
                 start..end,
-                |cx| cx.theme().colors().editor_highlighted_line_background,
+                |_| theme::theme().colors().editor_highlighted_line_background,
                 RowHighlightOptions { autoscroll: true, ..Default::default() },
                 cx,
             );
@@ -317,13 +316,13 @@ impl Render for GoToLine {
 
         v_flex()
             .w(rems(24.))
-            .elevation_2(cx)
+            .elevation_2()
             .key_context("GoToLine")
             .action_table(&cx.entity(), &GO_TO_LINE_ACTIONS)
             .child(
                 div()
                     .border_b_1()
-                    .border_color(cx.theme().colors().border_variant)
+                    .border_color(theme::theme().colors().border_variant)
                     .px_2()
                     .py_1()
                     .child(self.line_editor.clone()),

@@ -12,7 +12,6 @@ use gpui::Styled as _;
 use gpui::Subscription;
 use gpui::Window;
 use ui::ButtonSize;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Color;
 use ui::prelude::DynamicSpacing;
 use ui::prelude::InteractiveElement as _;
@@ -89,7 +88,7 @@ impl Render for StatusBar {
             .gap(DynamicSpacing::Base08.rems())
             .px(crate::CARD_GAP)
             .py(vertical_padding())
-            .bg(cx.theme().colors().status_bar_background)
+            .bg(theme::theme().colors().status_bar_background)
             .child(self.render_left_tools())
             .child(self.render_right_tools())
     }

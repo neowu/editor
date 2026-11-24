@@ -21,7 +21,6 @@ use gpui::Window;
 use language::BufferSnapshot;
 use language::Node;
 use language::Point;
-use theme::ActiveTheme as _;
 use workspace::Workspace;
 
 /// Zero-based inclusive rows; everything when unset.
@@ -44,7 +43,7 @@ pub(crate) fn highlights(window: &Window, rows: Rows, cx: &mut App) -> Result<Ve
     let editor = active_editor(window, cx)?;
     let (snapshot, buffer) = cursor_buffer(&editor, cx)?;
     let buffer_id = buffer.buffer_id();
-    let syntax_theme = cx.theme().syntax();
+    let syntax_theme = theme::theme().syntax();
     let mut highlights = Vec::new();
     let mut push = |range: Range<Point>, kind, name: String, theme_key: Option<String>, style: HighlightStyle| {
         if language::touches_rows(rows, range.start.row, range.end.row) {

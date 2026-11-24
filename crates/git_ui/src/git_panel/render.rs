@@ -67,7 +67,6 @@ use ui::SplitButton;
 use ui::Tab;
 use ui::Tooltip;
 use ui::WithScrollbar as _;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::App;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
@@ -386,7 +385,7 @@ impl Render for GitPanel {
             .action_table(&cx.entity(), &GIT_PANEL_ACTIONS)
             .size_full()
             .overflow_hidden()
-            .bg(cx.theme().colors().panel_background)
+            .bg(theme::theme().colors().panel_background)
             .child(
                 v_flex()
                     .size_full()
@@ -776,7 +775,7 @@ impl GitPanel {
 
     pub fn render_footer(&self, window: &mut Window, cx: &mut Context<Self>) -> Option<impl IntoElement> {
         self.active_repository.as_ref()?;
-        let panel_editor_style = git_commit_editor_style(git_commit_font_size(cx), cx);
+        let panel_editor_style = git_commit_editor_style(git_commit_font_size(cx));
 
         let editor_is_long =
             self.commit_editor.update(cx, |editor, cx| editor.max_point(cx).row().0 >= MAX_PANEL_EDITOR_LINES as u32);
@@ -827,7 +826,7 @@ impl GitPanel {
                 })
             }))
             .child(
-                panel_editor_container(window, cx)
+                panel_editor_container(window)
                     .id("commit-editor-container")
                     .when(self.commit_editor_expanded, |this| this.flex_1().min_h_0())
                     // A floating card like the editor panes. It spans the dock, so the window edge and
@@ -860,7 +859,7 @@ impl GitPanel {
                             .w_full()
                             .p_1p5()
                             .border_t_1()
-                            .when(editor_is_long, |el| el.border_color(cx.theme().colors().border_variant))
+                            .when(editor_is_long, |el| el.border_color(theme::theme().colors().border_variant))
                             .justify_between()
                             .child(h_flex().gap_0p5().child(toggle_commit_editor_button))
                             .child(h_flex().gap_0p5().child(self.render_commit_button(cx))),
@@ -975,7 +974,7 @@ impl GitPanel {
                         .px_1()
                         .rounded_sm()
                         .line_clamp(1)
-                        .hover(|s| s.bg(cx.theme().colors().element_hover))
+                        .hover(|s| s.bg(theme::theme().colors().element_hover))
                         .child(Label::new(commit.subject.clone()).size(LabelSize::Small).truncate())
                         .on_click({
                             let commit = commit.clone();
@@ -1277,7 +1276,7 @@ impl GitPanel {
                     )
                     .when(is_tree_view, |list| {
                         list.with_decoration(
-                            ui::indent_guides(px(TREE_INDENT), IndentGuideColors::panel(cx))
+                            ui::indent_guides(px(TREE_INDENT), IndentGuideColors::panel())
                                 .with_left_offset(INDENT_GUIDE_LEFT_OFFSET)
                                 .with_compute_indents_fn(cx.entity(), |this, range, _window, _cx| {
                                     this.compute_visible_depths(range)
@@ -1299,7 +1298,7 @@ impl GitPanel {
                 .custom_scrollbars(
                     Scrollbars::new(ScrollAxes::Both)
                         .tracked_scroll_handle(&self.scroll_handle)
-                        .with_track_along(ScrollAxes::Horizontal, cx.theme().colors().panel_background),
+                        .with_track_along(ScrollAxes::Horizontal, theme::theme().colors().panel_background),
                     window,
                     cx,
                 ),
@@ -1348,7 +1347,7 @@ impl GitPanel {
             .gap_2()
             .justify_between()
             .cursor_pointer()
-            .hover(|style| style.bg(cx.theme().colors().ghost_element_hover))
+            .hover(|style| style.bg(theme::theme().colors().ghost_element_hover))
             .border_1()
             .border_r_2()
             .child(
@@ -1644,13 +1643,13 @@ impl GitPanel {
         let marked_bg_alpha = 0.12;
         let state_opacity_step = 0.04;
 
-        let info_color = cx.theme().status().info;
+        let info_color = theme::theme().status().info;
 
         let base_bg = match (selected, marked) {
             (true, true) => info_color.alpha(selected_bg_alpha + marked_bg_alpha),
             (true, false) => info_color.alpha(selected_bg_alpha),
             (false, true) => info_color.alpha(marked_bg_alpha),
-            _ => cx.theme().colors().ghost_element_background,
+            _ => theme::theme().colors().ghost_element_background,
         };
 
         let (hover_bg, active_bg) = if selected {
@@ -1659,7 +1658,7 @@ impl GitPanel {
                 info_color.alpha(selected_bg_alpha + state_opacity_step * 2.0),
             )
         } else {
-            (cx.theme().colors().ghost_element_hover, cx.theme().colors().ghost_element_active)
+            (theme::theme().colors().ghost_element_hover, theme::theme().colors().ghost_element_active)
         };
 
         let name_row = h_flex().min_w_0().flex_1().gap_1().child(git_status_icon(status)).map(|this| {
@@ -1692,7 +1691,7 @@ impl GitPanel {
             .border_1()
             .border_r_2()
             .when(selected && self.focus_handle.is_focused(window), |el| {
-                el.border_color(cx.theme().colors().panel_focused_border)
+                el.border_color(theme::theme().colors().panel_focused_border)
             })
             .bg(base_bg)
             .hover(|s| s.bg(hover_bg))
@@ -1792,8 +1791,8 @@ impl GitPanel {
         let marked_bg_alpha = 0.12;
         let state_opacity_step = 0.04;
 
-        let info_color = cx.theme().status().info;
-        let colors = cx.theme().colors();
+        let info_color = theme::theme().status().info;
+        let colors = theme::theme().colors();
 
         let base_bg = match (selected, marked) {
             (true, true) => info_color.alpha(selected_bg_alpha + marked_bg_alpha),
@@ -1856,7 +1855,7 @@ impl GitPanel {
             .border_1()
             .border_r_2()
             .when(selected && self.focus_handle.is_focused(window), |el| {
-                el.border_color(cx.theme().colors().panel_focused_border)
+                el.border_color(theme::theme().colors().panel_focused_border)
             })
             .bg(base_bg)
             .hover(|s| s.bg(hover_bg))

@@ -12,7 +12,6 @@ use std::rc::Rc;
 use std::time::Duration;
 use std::time::Instant;
 
-use gpui::App;
 use gpui::Bounds;
 use gpui::BoxShadow;
 use gpui::ContentMask;
@@ -35,7 +34,6 @@ use gpui::motion;
 use gpui::point;
 use gpui::px;
 use smallvec::SmallVec;
-use ui::prelude::ActiveTheme as _;
 
 use crate::CARD_RADIUS;
 
@@ -330,13 +328,8 @@ pub(crate) fn record_bounds(motion: Rc<RefCell<PaneMotion>>, id: EntityId, strip
 /// Deferred so it escapes ancestor clipping and paints over neighbours: an
 /// unzooming pane shrinks from the whole area, over docks and the sidebar, back
 /// into a group that may be clipped to the center column.
-pub(crate) fn render_overlay(
-    motion: Rc<RefCell<PaneMotion>>,
-    backdrop: Hsla,
-    zoomed: bool,
-    cx: &App,
-) -> impl IntoElement {
-    let card = cx.theme().colors().editor_background;
+pub(crate) fn render_overlay(motion: Rc<RefCell<PaneMotion>>, backdrop: Hsla, zoomed: bool) -> impl IntoElement {
+    let card = theme::theme().colors().editor_background;
     deferred(
         canvas(
             move |region, window, _| {

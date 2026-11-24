@@ -19,7 +19,6 @@ use gpui::WeakEntity;
 use gpui::Window;
 use gpui::px;
 use parking_lot::Mutex;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::App;
 use ui::prelude::Element as _;
 use ui::prelude::FluentBuilder as _;
@@ -211,13 +210,13 @@ impl PaneGroup {
                 pane.entity_id(),
                 pane.read(cx).tab_strip_height(cx),
             ))
-            .child(pane_motion::render_overlay(Rc::clone(&self.motion), self.backdrop_color(cx), true, cx))
+            .child(pane_motion::render_overlay(Rc::clone(&self.motion), self.backdrop_color(), true))
     }
 
-    fn backdrop_color(&self, cx: &App) -> gpui::Hsla {
+    fn backdrop_color(&self) -> gpui::Hsla {
         match self.backdrop {
-            PaneBackdrop::Window => cx.theme().colors().background,
-            PaneBackdrop::Panel => cx.theme().colors().panel_background,
+            PaneBackdrop::Window => theme::theme().colors().background,
+            PaneBackdrop::Panel => theme::theme().colors().panel_background,
         }
     }
 
@@ -229,14 +228,14 @@ impl PaneGroup {
         window: &mut Window,
         cx: &mut App,
     ) -> impl IntoElement {
-        let backdrop = self.backdrop_color(cx);
+        let backdrop = self.backdrop_color();
         div()
             .relative()
             .flex()
             .flex_1()
             .size_full()
             .child(self.root.render(0, zoomed, maximized, render_cx, &self.motion, window, cx).element)
-            .child(pane_motion::render_overlay(Rc::clone(&self.motion), backdrop, false, cx))
+            .child(pane_motion::render_overlay(Rc::clone(&self.motion), backdrop, false))
     }
 
     pub fn panes(&self) -> Vec<&Entity<Pane>> {
@@ -368,9 +367,9 @@ impl Member {
                     .relative()
                     .size_full()
                     .when(is_maximized, |this| {
-                        this.bg(cx.theme().colors().background)
+                        this.bg(theme::theme().colors().background)
                             .border_1()
-                            .border_color(cx.theme().colors().border)
+                            .border_color(theme::theme().colors().border)
                             .shadow_lg()
                             .overflow_hidden()
                     })
@@ -760,7 +759,6 @@ mod element {
     use parking_lot::Mutex;
     use smallvec::SmallVec;
     use ui::prelude;
-    use ui::prelude::ActiveTheme as _;
     use ui::prelude::ElementId;
     use util::ResultExt as _;
 
@@ -1061,7 +1059,7 @@ mod element {
                 child.element.paint(window, cx);
             }
 
-            let mut overlay_background = cx.theme().colors().editor_background;
+            let mut overlay_background = theme::theme().colors().editor_background;
             overlay_background.fade_out(INACTIVE_PANE_OPACITY);
 
             let len = layout.children.len();

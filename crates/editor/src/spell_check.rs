@@ -41,7 +41,6 @@ use rustc_hash::FxHashSet;
 use spell_check::PROJECT_WORDS_FILE;
 use text::BufferId;
 use text::OffsetRangeExt as _;
-use theme::ActiveTheme as _;
 use util::ResultExt as _;
 use util::rel_path::RelPath;
 
@@ -136,7 +135,7 @@ impl Editor {
                 .update(cx, |editor, cx| {
                     let style = HighlightStyle {
                         underline: Some(UnderlineStyle {
-                            color: Some(cx.theme().status().info),
+                            color: Some(theme::theme().status().info),
                             thickness: px(1.),
                             wavy: true,
                         }),

@@ -10,7 +10,6 @@ use gpui::px;
 use smallvec::SmallVec;
 
 use crate::Disclosure;
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::DefiniteLength;
 use crate::prelude::Disableable;
@@ -259,7 +258,7 @@ impl ParentElement for ListItem {
 }
 
 impl RenderOnce for ListItem {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         h_flex()
             .id(self.id)
             .when_some(self.group_name, |this, group| this.group(group))
@@ -277,13 +276,15 @@ impl RenderOnce for ListItem {
                             DockSide::Left => this.border_l_2(),
                             DockSide::Right => this.border_r_2(),
                         })
-                        .when(focused && !self.disabled, |this| this.border_color(cx.theme().colors().border_focused))
+                        .when(focused && !self.disabled, |this| {
+                            this.border_color(theme::theme().colors().border_focused)
+                        })
                 })
                 .when(self.selectable && !self.disabled, |this| {
-                    this.hover(|style| style.bg(cx.theme().colors().ghost_element_hover))
-                        .active(|style| style.bg(cx.theme().colors().ghost_element_active))
+                    this.hover(|style| style.bg(theme::theme().colors().ghost_element_hover))
+                        .active(|style| style.bg(theme::theme().colors().ghost_element_active))
                         .when(self.outlined, |this| this.rounded_sm())
-                        .when(self.selected, |this| this.bg(cx.theme().colors().ghost_element_selected))
+                        .when(self.selected, |this| this.bg(theme::theme().colors().ghost_element_selected))
                 })
             })
             .when(self.rounded, |this| this.rounded_sm())
@@ -304,22 +305,22 @@ impl RenderOnce for ListItem {
                     .when(self.inset, |this| {
                         this.when_some(self.focused, |this, focused| {
                             if focused && !self.disabled {
-                                this.border_1().border_color(cx.theme().colors().border_focused)
+                                this.border_1().border_color(theme::theme().colors().border_focused)
                             } else {
                                 this.border_1()
                             }
                         })
                         .when(self.selectable && !self.disabled, |this| {
-                            this.hover(|style| style.bg(cx.theme().colors().ghost_element_hover))
-                                .active(|style| style.bg(cx.theme().colors().ghost_element_active))
-                                .when(self.selected, |this| this.bg(cx.theme().colors().ghost_element_selected))
+                            this.hover(|style| style.bg(theme::theme().colors().ghost_element_hover))
+                                .active(|style| style.bg(theme::theme().colors().ghost_element_active))
+                                .when(self.selected, |this| this.bg(theme::theme().colors().ghost_element_selected))
                         })
                     })
                     .when_some(self.on_click.filter(|_| !self.disabled), |this, on_click| {
                         this.cursor_pointer().on_click(on_click)
                     })
                     .when(self.outlined, |this| {
-                        this.border_1().border_color(cx.theme().colors().border).rounded_sm().overflow_hidden()
+                        this.border_1().border_color(theme::theme().colors().border).rounded_sm().overflow_hidden()
                     })
                     .when_some(self.on_secondary_mouse_down, |this, on_mouse_down| {
                         this.on_mouse_down(MouseButton::Right, move |event, window, cx| {

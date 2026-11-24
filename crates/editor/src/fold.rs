@@ -4,7 +4,6 @@ use gpui::IntoElement as _;
 use ui::font;
 use ui::prelude::Toggleable as _;
 
-use super::ActiveTheme as _;
 use super::AnyElement;
 use super::App;
 use super::AppContext as _;
@@ -724,13 +723,13 @@ impl Editor {
                 return;
             }
             let placeholder = FoldPlaceholder {
-                render: Arc::new(move |_, _, cx| {
+                render: Arc::new(move |_, _, _| {
                     div()
-                        .bg(cx.theme().status().hint_background)
+                        .bg(theme::theme().status().hint_background)
                         .border_b_1()
                         .size_full()
                         .font(font::buffer_font().clone())
-                        .border_color(cx.theme().status().hint)
+                        .border_color(theme::theme().status().hint)
                         .child("\\n")
                         .into_any()
                 }),

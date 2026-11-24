@@ -30,7 +30,6 @@ use multi_buffer::MultiBuffer;
 use project::Entry;
 use rustc_hash::FxHashMap;
 use text::BufferId;
-use theme::ActiveTheme as _;
 use ui::ButtonLike;
 use ui::ContextMenu;
 use ui::DiffStat;
@@ -106,7 +105,7 @@ impl EditorElement {
             latest_selection_anchors,
         );
 
-        let editor_bg_color = cx.theme().colors().editor_background;
+        let editor_bg_color = theme::theme().colors().editor_background;
 
         let selected = selected_buffer_ids.contains(&excerpt.buffer_id());
 
@@ -263,11 +262,11 @@ pub(crate) fn render_buffer_header(
         (None, None)
     };
     let focus_handle = editor_read.focus_handle(cx);
-    let colors = cx.theme().colors();
+    let colors = theme::theme().colors();
     // On transparent windows, only render an opaque `editor_subheader_background` so it masks
     // the editor content beneath it without creating a darker bar. Sticky shadows still require
     // an opaque window to avoid rendering as a halo.
-    let opaque_window = cx.theme().window_background_appearance() == WindowBackgroundAppearance::Opaque;
+    let opaque_window = theme::theme().window_background_appearance() == WindowBackgroundAppearance::Opaque;
     let show_header_background = opaque_window || colors.editor_subheader_background.is_opaque();
 
     // Only on hover, so the header holding the cursor doesn't look different from the rest.
@@ -453,7 +452,9 @@ pub(crate) fn render_buffer_header(
                                 .when(show_open_file_button, |this| {
                                     this.child(
                                         Button::new("open-file-button", open_file_label)
-                                            .style(ButtonStyle::OutlinedCustom(cx.theme().colors().border.opacity(0.6)))
+                                            .style(ButtonStyle::OutlinedCustom(
+                                                theme::theme().colors().border.opacity(0.6),
+                                            ))
                                             .layer(ui::ElevationIndex::ElevatedSurface)
                                             .on_click(window.listener_for(editor, {
                                                 let jump_data = jump_data.clone();

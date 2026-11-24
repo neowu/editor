@@ -115,7 +115,6 @@ use ui::Scrollbars;
 use ui::Tab;
 use ui::Tooltip;
 use ui::WithScrollbar as _;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
 use ui::prelude::Color;
@@ -2262,7 +2261,7 @@ impl OutlinePanel {
             .flex_none()
             .cursor_pointer()
             .rounded_sm()
-            .hover(|style| style.bg(cx.theme().colors().ghost_element_hover))
+            .hover(|style| style.bg(theme::theme().colors().ghost_element_hover))
             .tooltip(Tooltip::text(if is_expanded { "Collapse" } else { "Expand" }))
             .on_click(cx.listener(move |panel, event: &gpui::ClickEvent, window, cx| {
                 if event.is_right_click() || event.first_focus() {
@@ -2352,12 +2351,12 @@ impl OutlinePanel {
                 if is_active {
                     style
                 } else {
-                    let hover_color = cx.theme().colors().ghost_element_hover;
+                    let hover_color = theme::theme().colors().ghost_element_hover;
                     style.bg(hover_color).border_color(hover_color)
                 }
             })
             .when(is_active && self.focus_handle.contains_focused(window, cx), |div| {
-                div.border_color(cx.theme().colors().panel_focused_border)
+                div.border_color(theme::theme().colors().panel_focused_border)
             })
     }
 
@@ -3713,7 +3712,7 @@ impl OutlinePanel {
                     new_search_query,
                     previous_matches,
                     new_search_matches,
-                    cx.theme().syntax(),
+                    theme::theme().syntax(),
                     window,
                     cx,
                 ));
@@ -4012,7 +4011,7 @@ impl OutlinePanel {
                         h_flex()
                             .px_0p5()
                             .justify_center()
-                            .bg(cx.theme().colors().element_selected.opacity(0.2))
+                            .bg(theme::theme().colors().element_selected.opacity(0.2))
                             .child(Label::new(query)),
                     )
                 })
@@ -4098,7 +4097,7 @@ impl OutlinePanel {
                 .with_width_from_item(self.max_width_item_index)
                 .track_scroll(&self.scroll_handle)
                 .with_decoration(
-                    ui::indent_guides(INDENT_SIZE, IndentGuideColors::panel(cx))
+                    ui::indent_guides(INDENT_SIZE, IndentGuideColors::panel())
                         .with_compute_indents_fn(cx.entity(), |outline_panel, range, _, _| {
                             let entries = outline_panel.cached_entries.get(range);
                             if let Some(entries) = entries {
@@ -4142,7 +4141,7 @@ impl OutlinePanel {
             v_flex().flex_shrink_1().size_full().child(list_contents.size_full().flex_shrink_1()).custom_scrollbars(
                 Scrollbars::new(ScrollAxes::Both)
                     .tracked_scroll_handle(&self.scroll_handle)
-                    .with_track_along(ScrollAxes::Horizontal, cx.theme().colors().panel_background)
+                    .with_track_along(ScrollAxes::Horizontal, theme::theme().colors().panel_background)
                     .tracked_entity(cx.entity_id()),
                 window,
                 cx,
@@ -4169,7 +4168,7 @@ impl OutlinePanel {
             .h(Tab::container_height(cx))
             .justify_between()
             .border_b_1()
-            .border_color(cx.theme().colors().border)
+            .border_color(theme::theme().colors().border)
             .child(
                 h_flex()
                     .w_full()
@@ -4399,7 +4398,7 @@ impl Render for OutlinePanel {
                         .h(Tab::container_height(cx))
                         .gap_0p5()
                         .border_b_1()
-                        .border_color(cx.theme().colors().border_variant)
+                        .border_color(theme::theme().colors().border_variant)
                         .child(Label::new("Searching:").color(Color::Muted))
                         .child(Label::new(query_text)),
                 )
@@ -4554,7 +4553,7 @@ fn render_outline_item<T, M: IntoIterator<Item = Range<usize>>>(
     cx: &App,
 ) -> impl IntoElement + use<T, M> {
     let highlight_style =
-        HighlightStyle { background_color: Some(cx.theme().colors().text_accent.alpha(0.3)), ..Default::default() };
+        HighlightStyle { background_color: Some(theme::theme().colors().text_accent.alpha(0.3)), ..Default::default() };
     let custom_highlights = match_ranges.into_iter().map(|range| (range, highlight_style));
 
     let text_style = ui_text_style(cx);

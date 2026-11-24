@@ -39,7 +39,6 @@ use ui::Divider;
 use ui::Icon;
 use ui::Tooltip;
 use ui::Window;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
@@ -88,7 +87,7 @@ impl DiffHunkRenderer for UnstagedDiffHunkRenderer {
         line_height: Pixels,
         editor: &Entity<Editor>,
         _window: &mut Window,
-        cx: &mut App,
+        _: &mut App,
     ) -> AnyElement {
         let hunk_range_for_restore = hunk_range.clone();
         let hunk_range = hunk_range.start..hunk_range.start;
@@ -100,9 +99,9 @@ impl DiffHunkRenderer for UnstagedDiffHunkRenderer {
             .pb_1()
             .border_x_1()
             .border_b_1()
-            .border_color(cx.theme().colors().border_variant)
+            .border_color(theme::theme().colors().border_variant)
             .rounded_b_lg()
-            .bg(cx.theme().colors().editor_background)
+            .bg(theme::theme().colors().editor_background)
             .block_mouse_except_scroll()
             .shadow_md()
             .child(

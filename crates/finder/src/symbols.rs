@@ -29,7 +29,6 @@ use picker::PickerDelegate;
 use project::Project;
 use project::Symbol;
 use project::lsp_store::SymbolLocation;
-use theme::ActiveTheme as _;
 use ui::LabelLike;
 use ui::ListItem;
 use ui::ListItemSpacing;
@@ -228,7 +227,7 @@ impl PickerDelegate for SymbolsDelegate {
     ) -> Option<Self::ListItem> {
         let string_match = &self.matches.get(ix)?;
         let symbol = &self.symbols.get(string_match.candidate_id)?;
-        let theme = cx.theme();
+        let theme = theme::theme();
         let cursor_colors = theme.cursor_colors();
         let syntax_runs = styled_runs_for_code_label(&symbol.label, theme.syntax(), &cursor_colors);
 
@@ -250,7 +249,7 @@ impl PickerDelegate for SymbolsDelegate {
         let path = path.into_owned();
 
         let text_style = TextStyle {
-            color: cx.theme().colors().text,
+            color: theme::theme().colors().text,
             font_family: font::buffer_font().family.clone(),
             font_features: font::buffer_font().features.clone(),
             font_fallbacks: font::buffer_font().fallbacks.clone(),
@@ -260,8 +259,10 @@ impl PickerDelegate for SymbolsDelegate {
             ..Default::default()
         };
 
-        let highlight_style =
-            HighlightStyle { background_color: Some(cx.theme().colors().text_accent.alpha(0.3)), ..Default::default() };
+        let highlight_style = HighlightStyle {
+            background_color: Some(theme::theme().colors().text_accent.alpha(0.3)),
+            ..Default::default()
+        };
         let custom_highlights =
             string_match.positions.iter().map(|pos| (*pos..label.ceil_char_boundary(pos + 1), highlight_style));
 

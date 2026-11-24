@@ -54,7 +54,7 @@ use crate::head::Head;
 
 impl<D: PickerDelegate> Render for Picker<D> {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        div().when(self.draws_own_container(), |this| this.elevation_3(cx)).child(self.render_results(window, cx))
+        div().when(self.draws_own_container(), |this| this.elevation_3()).child(self.render_results(window, cx))
     }
 }
 
@@ -236,7 +236,7 @@ impl<D: PickerDelegate> Picker<D> {
         let render_aside = |aside: DocumentationAside, cx: &mut Context<Self>| {
             WithRemSize::new(ui_font_size)
                 .occlude()
-                .elevation_2(cx)
+                .elevation_2()
                 .w_full()
                 .p_2()
                 .overflow_hidden()

@@ -1,7 +1,6 @@
 //! UI-related utilities.
 
 use gpui::App;
-use theme::ActiveTheme as _;
 
 use crate::font;
 
@@ -29,14 +28,14 @@ pub use window_drag::window_drag_area;
 pub use with_rem_size::*;
 
 /// Returns true if the current theme is light or vibrant light.
-pub fn is_light(cx: &mut App) -> bool {
-    cx.theme().appearance.is_light()
+pub fn is_light() -> bool {
+    theme::theme().appearance.is_light()
 }
 
 pub fn ui_text_style(cx: &App) -> gpui::TextStyle {
     let ui_font = font::ui_font();
     gpui::TextStyle {
-        color: cx.theme().colors().text,
+        color: theme::theme().colors().text,
         font_family: ui_font.family.clone(),
         font_features: ui_font.features.clone(),
         font_fallbacks: ui_font.fallbacks.clone(),

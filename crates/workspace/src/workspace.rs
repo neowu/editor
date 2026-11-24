@@ -155,7 +155,6 @@ use status_bar::StatusBar;
 pub use status_bar::StatusItemView;
 pub use status_bar::status_item_color;
 use task::SpawnInTerminal;
-use theme::ActiveTheme as _;
 pub use toast_layer::ToastAction;
 pub use toast_layer::ToastLayer;
 pub use toast_layer::ToastView;
@@ -2586,7 +2585,7 @@ impl Render for Workspace {
 
         let ui_font = font::setup_ui_font(window, cx);
 
-        let theme = cx.theme();
+        let theme = theme::theme();
         let colors = theme.colors();
         let notification_entities =
             self.notifications.iter().map(|(_, notification)| notification.entity_id()).collect::<Vec<_>>();
@@ -2690,7 +2689,7 @@ fn build_window_options(cx: &mut App) -> WindowOptions {
         // other platforms.
         app_owns_titlebar_drag: true,
         display_id: display.map(|display| display.id()),
-        window_background: cx.theme().window_background_appearance(),
+        window_background: theme::theme().window_background_appearance(),
         window_min_size: Some(Size { width: px(360.0), height: px(240.0) }),
         ..Default::default()
     }

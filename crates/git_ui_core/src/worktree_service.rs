@@ -26,7 +26,6 @@ use gpui::WeakEntity;
 use project::Project;
 use project::git_store::Repository;
 use rustc_hash::FxHashSet;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::Clickable as _;
 use ui::prelude::Color;
@@ -254,13 +253,13 @@ impl Render for WorktreeFetchFailedToast {
 
         h_flex()
             .id("worktree-fetch-failed-toast")
-            .elevation_3(cx)
+            .elevation_3()
             .gap_2()
             .py_1p5()
             .pl_2p5()
             .pr_1p5()
             .flex_none()
-            .bg(cx.theme().colors().surface_background)
+            .bg(theme::theme().colors().surface_background)
             .shadow_lg()
             .child(Icon::new(IconName::XCircle).size(IconSize::Small).color(Color::Error))
             .child(Label::new(format!("git fetch failed for {}", self.remote_branch_name)))

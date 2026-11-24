@@ -17,7 +17,6 @@ use ui::IconButton;
 use ui::IconButtonShape;
 use ui::Tooltip;
 use ui::font;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
 use ui::prelude::Color;
@@ -99,26 +98,26 @@ pub(super) fn render_local_action_button<T: 'static, A: Action>(
 pub(crate) fn input_base_styles(border_color: Hsla, map: impl FnOnce(Div) -> Div) -> Div {
     h_flex().map(map).min_w_32().min_h_8().pl_2().pr_1().border_1().border_color(border_color).rounded_md()
 }
-pub(crate) fn filter_search_results_input(border_color: Hsla, map: impl FnOnce(Div) -> Div, cx: &App) -> Div {
+pub(crate) fn filter_search_results_input(border_color: Hsla, map: impl FnOnce(Div) -> Div) -> Div {
     input_base_styles(border_color, map).pl_0().child(
         h_flex()
             .mr_2()
             .px_2()
             .h_full()
             .border_r_1()
-            .border_color(cx.theme().colors().border)
-            .bg(cx.theme().colors().text_accent.opacity(0.05))
+            .border_color(theme::theme().colors().border)
+            .bg(theme::theme().colors().text_accent.opacity(0.05))
             .child(Label::new("Find in Results").color(Color::Muted)),
     )
 }
 
 pub(crate) fn render_text_input(editor: &Entity<Editor>, color_override: Option<Color>, app: &App) -> impl IntoElement {
     let (color, use_syntax) = if editor.read(app).read_only(app) {
-        (app.theme().colors().text_disabled, false)
+        (theme::theme().colors().text_disabled, false)
     } else {
         match color_override {
-            Some(color_override) => (color_override.color(app), false),
-            None => (app.theme().colors().text, true),
+            Some(color_override) => (color_override.color(), false),
+            None => (theme::theme().colors().text, true),
         }
     };
 
@@ -134,13 +133,13 @@ pub(crate) fn render_text_input(editor: &Entity<Editor>, color_override: Option<
     };
 
     let mut editor_style = EditorStyle {
-        background: app.theme().colors().toolbar_background,
-        cursor_colors: app.theme().cursor_colors(),
+        background: theme::theme().colors().toolbar_background,
+        cursor_colors: theme::theme().cursor_colors(),
         text: text_style,
         ..EditorStyle::default()
     };
     if use_syntax {
-        editor_style.syntax = app.theme().syntax();
+        editor_style.syntax = theme::theme().syntax();
     }
 
     EditorElement::new(editor, editor_style)

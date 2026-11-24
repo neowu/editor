@@ -3,7 +3,6 @@ use gpui::IntoElement;
 use gpui::Refineable as _;
 use gpui::StyleRefinement;
 
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::Div;
 use crate::prelude::FluentBuilder as _;
@@ -28,11 +27,11 @@ pub enum DividerColor {
 }
 
 impl DividerColor {
-    pub fn hsla(self, cx: &mut App) -> Hsla {
+    pub fn hsla(self) -> Hsla {
         match self {
-            DividerColor::Border => cx.theme().colors().border,
-            DividerColor::BorderFaded => cx.theme().colors().border.opacity(0.6),
-            DividerColor::BorderVariant => cx.theme().colors().border_variant,
+            DividerColor::Border => theme::theme().colors().border,
+            DividerColor::BorderFaded => theme::theme().colors().border.opacity(0.6),
+            DividerColor::BorderVariant => theme::theme().colors().border_variant,
         }
     }
 }
@@ -74,8 +73,8 @@ impl Divider {
         self
     }
 
-    pub fn render_solid(self, base: Div, cx: &mut App) -> impl IntoElement {
-        base.bg(self.color.hsla(cx))
+    pub fn render_solid(self, base: Div) -> impl IntoElement {
+        base.bg(self.color.hsla())
     }
 }
 
@@ -86,7 +85,7 @@ impl Styled for Divider {
 }
 
 impl RenderOnce for Divider {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let mut base = match self.direction {
             DividerDirection::Horizontal => {
                 div().min_w_0().h_px().max_h_px().w_full().when(self.inset, |this| this.mx_1p5())
@@ -96,6 +95,6 @@ impl RenderOnce for Divider {
 
         base.style().refine(&self.style);
 
-        self.render_solid(base, cx)
+        self.render_solid(base)
     }
 }

@@ -35,7 +35,6 @@ use ui::Divider;
 use ui::DividerColor;
 use ui::IconButton;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
 use ui::prelude::FluentBuilder as _;
@@ -853,7 +852,7 @@ impl Render for Dock {
                     Axis::Vertical => this.h_full().w_full().flex_col(),
                 })
                 // Docks blend into the chrome; panes inside them (e.g. the terminal) draw their own cards.
-                .bg(cx.theme().colors().panel_background)
+                .bg(theme::theme().colors().panel_background)
                 .child(
                     div()
                         .map(|this| match self.position().axis() {

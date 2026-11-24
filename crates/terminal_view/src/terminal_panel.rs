@@ -37,7 +37,6 @@ use terminal::Terminal;
 use terminal::terminal_settings::TerminalSettings;
 use ui::CommonAnimationExt as _;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
 use ui::prelude::Color;
@@ -797,14 +796,14 @@ impl Focusable for FailedToSpawnTerminal {
 }
 
 impl Render for FailedToSpawnTerminal {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .track_focus(&self.focus_handle)
             .size_full()
             .p_4()
             .items_center()
             .justify_center()
-            .bg(cx.theme().colors().editor_background)
+            .bg(theme::theme().colors().editor_background)
             .child(
                 v_flex()
                     .max_w_112()

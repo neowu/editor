@@ -67,7 +67,6 @@ use theme::built_in::BUFFER_LINE_HEIGHT;
 use ui::ContextMenu;
 use ui::PopoverMenuHandle;
 use ui::font;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::App;
 use ui::prelude::BorrowAppContext as _;
 use ui::prelude::Context;
@@ -1684,16 +1683,16 @@ impl Panel for GitPanel {
     }
 }
 
-pub fn panel_editor_container(_window: &mut Window, cx: &mut App) -> Div {
-    v_flex().size_full().bg(cx.theme().colors().editor_background)
+pub fn panel_editor_container(_window: &mut Window) -> Div {
+    v_flex().size_full().bg(theme::theme().colors().editor_background)
 }
 
-pub(crate) fn git_commit_editor_style(font_size: gpui::Pixels, cx: &App) -> EditorStyle {
+pub(crate) fn git_commit_editor_style(font_size: gpui::Pixels) -> EditorStyle {
     EditorStyle {
-        background: cx.theme().colors().editor_background,
-        cursor_colors: cx.theme().cursor_colors(),
+        background: theme::theme().colors().editor_background,
+        cursor_colors: theme::theme().cursor_colors(),
         text: TextStyle {
-            color: cx.theme().colors().text,
+            color: theme::theme().colors().text,
             font_family: font::buffer_font().family.clone(),
             font_fallbacks: font::buffer_font().fallbacks.clone(),
             font_features: font::buffer_font().features.clone(),
@@ -1702,7 +1701,7 @@ pub(crate) fn git_commit_editor_style(font_size: gpui::Pixels, cx: &App) -> Edit
             line_height: (font_size * BUFFER_LINE_HEIGHT).into(),
             ..Default::default()
         },
-        syntax: cx.theme().syntax(),
+        syntax: theme::theme().syntax(),
         ..Default::default()
     }
 }

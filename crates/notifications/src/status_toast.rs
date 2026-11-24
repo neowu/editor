@@ -8,7 +8,6 @@ use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::IntoElement;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::App;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
@@ -99,18 +98,18 @@ impl StatusToast {
 }
 
 impl Render for StatusToast {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         let has_action_or_dismiss = self.action.is_some() || self.show_dismiss;
 
         h_flex()
             .id("status-toast")
-            .elevation_3(cx)
+            .elevation_3()
             .gap_2()
             .py_1p5()
             .pl_2p5()
             .map(|this| if has_action_or_dismiss { this.pr_1p5() } else { this.pr_2p5() })
             .flex_none()
-            .bg(cx.theme().colors().surface_background)
+            .bg(theme::theme().colors().surface_background)
             .shadow_lg()
             .when_some(self.icon.clone(), gpui::ParentElement::child)
             .child(Label::new(self.text.clone()).color(Color::Default))

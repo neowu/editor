@@ -51,7 +51,6 @@ use ui::FluentBuilder as _;
 use ui::ListItem;
 use ui::ListItemSpacing;
 use ui::font;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Color;
 use ui::prelude::DynamicSpacing;
 use ui::prelude::Icon;
@@ -617,7 +616,7 @@ impl PickerDelegate for LspLocationsDelegate {
                                         .justify_end()
                                         .child(
                                             Label::new(location_match.line_number.to_string())
-                                                .color(Color::Custom(cx.theme().colors().text_muted.opacity(0.5))),
+                                                .color(Color::Custom(theme::theme().colors().text_muted.opacity(0.5))),
                                         ),
                                 )
                                 .child(
@@ -636,7 +635,7 @@ impl PickerDelegate for LspLocationsDelegate {
 /// background and bold weight.
 fn render_matched_line(location_match: &LocationMatch, cx: &App) -> StyledText {
     let text_style = TextStyle {
-        color: cx.theme().colors().text,
+        color: theme::theme().colors().text,
         font_family: font::buffer_font().family.clone(),
         font_features: font::buffer_font().features.clone(),
         font_fallbacks: font::buffer_font().fallbacks.clone(),
@@ -646,7 +645,7 @@ fn render_matched_line(location_match: &LocationMatch, cx: &App) -> StyledText {
         ..Default::default()
     };
 
-    let syntax_theme = cx.theme().syntax();
+    let syntax_theme = theme::theme().syntax();
     let syntax_highlights = location_match
         .syntax_highlights
         .iter()
@@ -654,7 +653,7 @@ fn render_matched_line(location_match: &LocationMatch, cx: &App) -> StyledText {
         .collect::<Vec<_>>();
 
     let match_style = HighlightStyle {
-        background_color: Some(cx.theme().colors().search_match_background),
+        background_color: Some(theme::theme().colors().search_match_background),
         font_weight: Some(gpui::FontWeight::BOLD),
         ..Default::default()
     };

@@ -245,14 +245,14 @@ impl RenderOnce for IconButton {
         } else if is_selected {
             selected_icon_color(self.selected_style, self.selected_icon_color)
         } else {
-            let base_color = self.icon_color.color(cx);
+            let base_color = self.icon_color.color();
             Color::Custom(base_color.opacity(self.alpha.unwrap_or(1.0)))
         };
 
         let hover_color = self
             .hover_color
             .filter(|_| !is_disabled && !is_selected)
-            .map(|color| Color::Custom(color.color(cx).opacity(self.alpha.unwrap_or(1.0))));
+            .map(|color| Color::Custom(color.color().opacity(self.alpha.unwrap_or(1.0))));
 
         let icon_element = Icon::new(icon).size(self.icon_size).color(icon_color).group_hover_color(hover_color);
 

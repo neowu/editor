@@ -57,7 +57,6 @@ use ui::ListItem;
 use ui::ListSubHeader;
 use ui::Popover;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Color;
 use ui::prelude::Context;
 use ui::prelude::Div;
@@ -924,7 +923,7 @@ impl CompletionsMenu {
                                     {
                                         highlight.strikethrough =
                                             Some(StrikethroughStyle { thickness: 1.0.into(), ..Default::default() });
-                                        highlight.color = Some(cx.theme().colors().text_muted);
+                                        highlight.color = Some(theme::theme().colors().text_muted);
                                     }
 
                                     (range, highlight)
@@ -943,7 +942,7 @@ impl CompletionsMenu {
                             None
                         } else {
                             let suffix_text_style =
-                                gpui::TextStyle { color: cx.theme().colors().text_muted, ..style.text.clone() };
+                                gpui::TextStyle { color: theme::theme().colors().text_muted, ..style.text.clone() };
                             Some(
                                 StyledText::new(suffix_text.to_owned())
                                     .with_default_highlights(&suffix_text_style, suffix_highlights),
@@ -1102,16 +1101,16 @@ impl CompletionsMenu {
     fn render_markdown(markdown: Entity<Markdown>, window: &Window, cx: &Context<Editor>) -> Div {
         let editor = cx.weak_entity();
         div().child(
-            MarkdownElement::new(markdown, hover_markdown_style(window, cx))
-                .hide_code_block_copy_button()
-                .on_url_click(move |link, window, cx| {
+            MarkdownElement::new(markdown, hover_markdown_style(window)).hide_code_block_copy_button().on_url_click(
+                move |link, window, cx| {
                     open_markdown_url(
                         editor.read_with(cx, |editor, _| editor.workspace()).ok().flatten(),
                         link,
                         window,
                         cx,
                     );
-                }),
+                },
+            ),
         )
     }
 
@@ -1721,7 +1720,7 @@ impl CodeActionsMenu {
                     .map(|(ix, action)| {
                         let item_ix = range.start + ix;
                         let selected = item_ix == selected_item;
-                        let colors = cx.theme().colors();
+                        let colors = theme::theme().colors();
 
                         ListItem::new(item_ix)
                             .inset(true)

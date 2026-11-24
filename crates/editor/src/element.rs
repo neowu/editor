@@ -90,7 +90,6 @@ use smallvec::SmallVec;
 use smallvec::smallvec;
 use sum_tree::Bias;
 use text::BufferId;
-use theme::ActiveTheme as _;
 use theme::CursorColors;
 use ui::prelude::AbsoluteLength;
 use ui::prelude::ElementId;
@@ -534,7 +533,7 @@ impl EditorElement {
         // Show the placeholder when the editor is empty
         if snapshot.is_empty() {
             let font_size = style.text.font_size.to_pixels(window.rem_size());
-            let placeholder_color = cx.theme().colors().text_placeholder;
+            let placeholder_color = theme::theme().colors().text_placeholder;
             let placeholder_text = snapshot.placeholder_text();
 
             let placeholder_lines =
@@ -625,7 +624,6 @@ impl EditorElement {
         start_row: DisplayRow,
         snapshot: &EditorSnapshot,
         highlighted_ranges: &mut Vec<(Range<DisplayPoint>, Hsla)>,
-        cx: &App,
     ) {
         let has_word_diffs = display_hunks.iter().any(|(hunk, _)| {
             matches!(hunk, DisplayDiffHunk::Unfolded { word_diffs, status, .. } if status.is_modified() && !word_diffs.is_empty())
@@ -634,7 +632,7 @@ impl EditorElement {
             return;
         }
 
-        let colors = cx.theme().colors();
+        let colors = theme::theme().colors();
 
         let visible_start = DisplayPoint::new(start_row, 0).to_offset(&snapshot.display_snapshot, Bias::Left);
         let visible_end = DisplayPoint::new(DisplayRow(start_row.0 + row_infos.len() as u32), 0)
@@ -786,10 +784,10 @@ impl EditorElement {
         (controls, control_bounds)
     }
 
-    fn paint_background(&self, layout: &EditorLayout, window: &mut Window, cx: &App) {
+    fn paint_background(&self, layout: &EditorLayout, window: &mut Window) {
         window.paint_layer(layout.hitbox.bounds, |window| {
             let scroll_top = layout.position_map.scroll_position.y;
-            let gutter_bg = cx.theme().colors().editor_gutter_background;
+            let gutter_bg = theme::theme().colors().editor_gutter_background;
             window.paint_quad(fill(layout.gutter_hitbox.bounds, gutter_bg));
             window.paint_quad(fill(layout.position_map.text_hitbox.bounds, self.style.background));
 
@@ -811,7 +809,7 @@ impl EditorElement {
                     }
 
                     if show_active_line_background && !contains_non_empty_selection.selection {
-                        let active_line_bg = cx.theme().colors().editor_active_line_background;
+                        let active_line_bg = theme::theme().colors().editor_active_line_background;
                         let bounds = Bounds {
                             origin: point(
                                 layout.hitbox.left(),
@@ -892,9 +890,9 @@ impl EditorElement {
 
                 for (guide_x, active) in &layout.wrap_guides {
                     let color = if *active {
-                        cx.theme().colors().editor_active_wrap_guide
+                        theme::theme().colors().editor_active_wrap_guide
                     } else {
-                        cx.theme().colors().editor_wrap_guide
+                        theme::theme().colors().editor_wrap_guide
                     };
                     window.paint_quad(fill(
                         window.pixel_snap_bounds(Bounds {
@@ -908,7 +906,7 @@ impl EditorElement {
         });
     }
 
-    fn paint_indent_guides(&self, layout: &EditorLayout, window: &mut Window, cx: &App) {
+    fn paint_indent_guides(&self, layout: &EditorLayout, window: &mut Window) {
         let Some(indent_guides) = &layout.indent_guides else {
             return;
         };
@@ -920,7 +918,7 @@ impl EditorElement {
         };
 
         for indent_guide in indent_guides {
-            let indent_accent_colors = cx.theme().accents().color_for_index(indent_guide.depth);
+            let indent_accent_colors = theme::theme().accents().color_for_index(indent_guide.depth);
             let settings = &indent_guide.settings;
 
             // TODO fixed for now, expose them through themes later
@@ -1474,7 +1472,7 @@ impl Element for EditorElement {
                         editor.read(cx).background_highlights_in_range(
                             start_anchor..end_anchor,
                             &snapshot.display_snapshot,
-                            cx.theme(),
+                            theme::theme(),
                         )
                     });
 
@@ -1484,7 +1482,7 @@ impl Element for EditorElement {
                         hollow_border: Hsla,
                     }
 
-                    let colors = cx.theme().colors();
+                    let colors = theme::theme().colors();
                     let added_diff_hunk_colors = DiffHunkHighlightColors {
                         filled_background: colors.editor_diff_hunk_added_background,
                         hollow_background: colors.editor_diff_hunk_added_hollow_background,
@@ -1633,7 +1631,7 @@ impl Element for EditorElement {
                         row_infos: &row_infos,
                     };
 
-                    let line_numbers = self.layout_line_numbers(&gutter, &active_rows, window, cx);
+                    let line_numbers = self.layout_line_numbers(&gutter, &active_rows, window);
 
                     let mut expand_toggles = window.with_element_namespace("expand_toggles", |window| {
                         self.layout_expand_toggles(
@@ -1682,7 +1680,6 @@ impl Element for EditorElement {
                         start_row,
                         &snapshot,
                         &mut highlighted_ranges,
-                        cx,
                     );
 
                     let bg_segments_per_row = Self::bg_segments_per_row(
@@ -2179,7 +2176,7 @@ impl Element for EditorElement {
                         &[TextRun {
                             len: tab_len,
                             font: self.style.text.font(),
-                            color: cx.theme().colors().editor_invisible,
+                            color: theme::theme().colors().editor_invisible,
                             ..Default::default()
                         }],
                         None,
@@ -2193,7 +2190,7 @@ impl Element for EditorElement {
                         &[TextRun {
                             len: space_len,
                             font: self.style.text.font(),
-                            color: cx.theme().colors().editor_invisible,
+                            color: theme::theme().colors().editor_invisible,
                             ..Default::default()
                         }],
                         None,
@@ -2376,9 +2373,9 @@ impl Element for EditorElement {
                 window.with_content_mask(Some(ContentMask { bounds }), |window| {
                     self.paint_mouse_listeners(layout, window);
 
-                    self.paint_background(layout, window, cx);
+                    self.paint_background(layout, window);
 
-                    self.paint_indent_guides(layout, window, cx);
+                    self.paint_indent_guides(layout, window);
 
                     if layout.gutter_hitbox.size.width > Pixels::ZERO {
                         self.paint_blamed_display_rows(layout, window, cx);

@@ -43,7 +43,6 @@ use ui::Indicator;
 use ui::PopoverMenu;
 use ui::PopoverMenuHandle;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Color;
 use ui::prelude::Context;
@@ -523,7 +522,7 @@ impl LanguageServerState {
                         let server_version = server_version.clone();
                         let server_message = server_message.clone();
                         let process_memory_cache = Rc::clone(&process_memory_cache);
-                        move |_, cx| {
+                        move |_, _| {
                             let memory_usage =
                                 process_id.map(|pid| process_memory_cache.borrow_mut().get_memory_usage(pid));
 
@@ -537,7 +536,7 @@ impl LanguageServerState {
 
                             let version_label = server_version.as_ref().map(|v| format!("v{}", v.as_ref()));
 
-                            let separator_color = cx.theme().colors().icon_disabled.opacity(0.8);
+                            let separator_color = theme::theme().colors().icon_disabled.opacity(0.8);
 
                             v_flex()
                                 .id("metadata-container")
@@ -1173,7 +1172,7 @@ impl Render for LspButton {
                         .when_some(indicator, IconButton::indicator)
                         .icon_size(IconSize::Small)
                         .tab_index(0_isize)
-                        .indicator_border_color(Some(cx.theme().colors().status_bar_background)),
+                        .indicator_border_color(Some(theme::theme().colors().status_bar_background)),
                     move |_window, cx| Tooltip::with_meta("Language Servers", Some(&ToggleMenu), description, cx),
                 ),
         )

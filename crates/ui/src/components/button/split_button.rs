@@ -10,7 +10,6 @@ use gpui::hsla;
 use gpui::prelude::FluentBuilder as _;
 use gpui::prelude::IntoElement;
 use gpui::px;
-use theme::ActiveTheme as _;
 
 use super::ButtonLike;
 use crate::Divider;
@@ -75,11 +74,11 @@ impl SplitButton {
 }
 
 impl RenderOnce for SplitButton {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         let is_filled_or_outlined = matches!(self.style, SplitButtonStyle::Filled | SplitButtonStyle::Outlined);
 
         let outline =
-            BoxShadow::new(px(0.), px(0.), cx.theme().colors().border.opacity(0.8)).spread_radius(px(1.)).inset();
+            BoxShadow::new(px(0.), px(0.), theme::theme().colors().border.opacity(0.8)).spread_radius(px(1.)).inset();
 
         h_flex()
             .when(is_filled_or_outlined, |this| this.relative().rounded_sm())
@@ -95,7 +94,7 @@ impl RenderOnce for SplitButton {
                 this.child(div().absolute().inset_0().rounded_sm().shadow(vec![outline]))
             })
             .when(self.style == SplitButtonStyle::Filled, |this| {
-                this.bg(ElevationIndex::Surface.on_elevation_bg(cx)).shadow(vec![BoxShadow::new(
+                this.bg(ElevationIndex::Surface.on_elevation_bg()).shadow(vec![BoxShadow::new(
                     px(0.),
                     px(1.),
                     hsla(0.0, 0.0, 0.0, 0.16),

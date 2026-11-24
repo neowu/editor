@@ -78,7 +78,6 @@ use ui::IconButtonShape;
 use ui::KeyBinding;
 use ui::Toggleable as _;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
@@ -999,7 +998,7 @@ impl Render for ProjectSearchView {
                 .items_center()
                 .justify_center()
                 .overflow_hidden()
-                .bg(cx.theme().colors().editor_background)
+                .bg(theme::theme().colors().editor_background)
                 .track_focus(&self.focus_handle(cx))
                 .child(
                     v_flex()
@@ -2149,8 +2148,8 @@ impl ProjectSearchView {
             ))
     }
 
-    fn border_color_for(&self, panel: InputPanel, cx: &App) -> Hsla {
-        if self.panels_with_errors.contains_key(&panel) { Color::Error.color(cx) } else { cx.theme().colors().border }
+    fn border_color_for(&self, panel: InputPanel) -> Hsla {
+        if self.panels_with_errors.contains_key(&panel) { Color::Error.color() } else { theme::theme().colors().border }
     }
 
     fn move_focus_to_results(&self, window: &mut Window, cx: &mut Context<Self>) {
@@ -2560,12 +2559,12 @@ impl Render for ProjectSearchBar {
         let input_width = SearchInputWidth::calc_width(container_width);
 
         let input_base_styles = |panel: InputPanel| {
-            input_base_styles(search.border_color_for(panel, cx), |div| match panel {
+            input_base_styles(search.border_color_for(panel), |div| match panel {
                 InputPanel::Query | InputPanel::Replacement => div.w(input_width),
                 InputPanel::Include | InputPanel::Exclude => div.flex_grow_1(),
             })
         };
-        let theme_colors = cx.theme().colors();
+        let theme_colors = theme::theme().colors();
         let project_search = search.entity.read(cx);
         let limit_reached = project_search.search_state.limit_reached();
         let is_search_underway = project_search.pending_search.is_some();

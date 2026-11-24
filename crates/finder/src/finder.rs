@@ -59,7 +59,6 @@ use ui::ListItem;
 use ui::ListItemSpacing;
 use ui::StyledExt as _;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
@@ -369,8 +368,14 @@ impl Finder {
     }
 
     fn render_mode_bar(&self, cx: &Context<Self>) -> impl IntoElement {
-        h_flex().w_full().px_2().py_1().gap_1().border_t_1().border_color(cx.theme().colors().border_variant).children(
-            Mode::ALL.map(|mode| {
+        h_flex()
+            .w_full()
+            .px_2()
+            .py_1()
+            .gap_1()
+            .border_t_1()
+            .border_color(theme::theme().colors().border_variant)
+            .children(Mode::ALL.map(|mode| {
                 let active = mode == self.mode;
                 Button::new(mode.label(), mode.label())
                     .label_size(LabelSize::Small)
@@ -378,8 +383,7 @@ impl Finder {
                     .toggle_state(active)
                     .key_binding(KeyBinding::for_action_in(mode.action().as_ref(), &self.picker_focus_handle, cx))
                     .on_click(cx.listener(move |this, _, window, cx| this.set_mode(mode, window, cx)))
-            }),
-        )
+            }))
     }
 
     fn handle_modifiers_changed(&mut self, event: &ModifiersChangedEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -483,7 +487,7 @@ impl Render for Finder {
 
         v_flex()
             .key_context(key_context)
-            .elevation_3(cx)
+            .elevation_3()
             .on_modifiers_changed(cx.listener(Self::handle_modifiers_changed))
             .action_table(&cx.entity(), &FINDER_ACTIONS)
             .map(|this| match self.mode {

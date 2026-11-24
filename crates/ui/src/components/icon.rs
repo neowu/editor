@@ -24,7 +24,6 @@ pub use icon_decoration::*;
 pub use icons::*;
 
 use crate::Indicator;
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::Color;
 use crate::prelude::DynamicSpacing;
@@ -255,8 +254,8 @@ impl Transformable for Icon {
 }
 
 impl RenderOnce for Icon {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
-        let color = self.color.color(cx);
+    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+        let color = self.color.color();
         let svg = match self.source {
             IconSource::Embedded(path) => svg().path(path),
             IconSource::ExternalSvg(path) => svg().external_path(path),
@@ -264,7 +263,7 @@ impl RenderOnce for Icon {
                 return img(path).size(self.size).flex_none().text_color(color).into_any_element();
             }
         };
-        let group_hover_color = self.group_hover_color.map(|color| color.color(cx));
+        let group_hover_color = self.group_hover_color.map(|color| color.color());
 
         svg.with_transformation(self.transformation)
             .when_some(self.rotation_period, |svg, period| svg.with_rotation_period(period))
@@ -309,9 +308,9 @@ impl IconWithIndicator {
 }
 
 impl RenderOnce for IconWithIndicator {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         let indicator_border_color =
-            self.indicator_border_color.unwrap_or_else(|| cx.theme().colors().elevated_surface_background);
+            self.indicator_border_color.unwrap_or_else(|| theme::theme().colors().elevated_surface_background);
 
         div().relative().child(self.icon).when_some(self.indicator, |this, indicator| {
             this.child(

@@ -5,7 +5,6 @@ use gpui::UnderlineStyle;
 use smallvec::SmallVec;
 
 use crate::font;
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::AnyElement;
 use crate::prelude::App;
 use crate::prelude::Color;
@@ -85,7 +84,7 @@ pub trait LabelCommon {
     fn buffer_font(self) -> Self;
 
     /// Styles the label to look like inline code.
-    fn inline_code(self, cx: &App) -> Self;
+    fn inline_code(self) -> Self;
 }
 
 /// A label-like element that can be used to create a custom label when
@@ -230,11 +229,11 @@ impl LabelCommon for LabelLike {
         self
     }
 
-    fn inline_code(mut self, cx: &App) -> Self {
+    fn inline_code(mut self) -> Self {
         self.base = self
             .base
             .font(font::buffer_font().clone())
-            .bg(cx.theme().colors().element_background)
+            .bg(theme::theme().colors().element_background)
             .rounded_sm()
             .px_0p5();
         self
@@ -249,7 +248,7 @@ impl ParentElement for LabelLike {
 
 impl RenderOnce for LabelLike {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let mut color = self.color.color(cx);
+        let mut color = self.color.color();
         if let Some(alpha) = self.alpha {
             color.fade_out(1.0 - alpha);
         }
@@ -267,7 +266,7 @@ impl RenderOnce for LabelLike {
             .when(self.underline, |mut this| {
                 this.text_style().underline = Some(UnderlineStyle {
                     thickness: px(1.),
-                    color: Some(cx.theme().colors().text_muted.opacity(0.4)),
+                    color: Some(theme::theme().colors().text_muted.opacity(0.4)),
                     wavy: false,
                 });
                 this

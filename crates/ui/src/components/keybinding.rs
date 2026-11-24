@@ -170,7 +170,7 @@ impl RenderOnce for KeyBinding {
                         .flex_none()
                         .when(self.style == KeyBindingStyle::Default, |this| this.py_0p5())
                         .rounded_xs()
-                        .text_color(color.unwrap_or(Color::Muted).color(cx))
+                        .text_color(color.unwrap_or(Color::Muted).color())
                         .children(render_keybinding_keystroke_with_style(
                             keystroke,
                             color,
@@ -311,7 +311,7 @@ impl RenderOnce for Key {
             .h(size)
             .text_size(size)
             .line_height(relative(1.))
-            .text_color(self.color.unwrap_or(Color::Muted).color(cx))
+            .text_color(self.color.unwrap_or(Color::Muted).color())
             .child(self.key)
     }
 }

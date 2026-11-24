@@ -16,7 +16,6 @@ use multi_buffer::MultiBufferOffset;
 use multi_buffer::MultiBufferRow;
 use multi_buffer::ToOffset as _;
 use text::BufferId;
-use theme::ActiveTheme as _;
 use theme::SyntaxTheme;
 use unicode_segmentation::UnicodeSegmentation as _;
 
@@ -56,7 +55,7 @@ impl Editor {
                 buffer.ensure_parsed(cx);
                 buffer.parsing_idle()
             });
-            let syntax = cx.theme().syntax();
+            let syntax = theme::theme().syntax();
             cx.spawn(async move |_, cx| {
                 parsed.await;
                 let buffer_snapshot = buffer.read_with(cx, |buffer, _| buffer.snapshot());
@@ -129,7 +128,7 @@ impl Editor {
 
                     editor
                         .update(cx, |editor, cx| {
-                            let syntax = cx.theme().syntax();
+                            let syntax = theme::theme().syntax();
                             let display_snapshot = editor.display_map.update(cx, |map, cx| map.snapshot(cx));
                             let language = buffer.read(cx).language().cloned();
                             for item in &mut items {

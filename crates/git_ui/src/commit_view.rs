@@ -70,7 +70,6 @@ use project::git_store::CommitFile;
 use project::git_store::Repository;
 use project::git_store::UnshallowState;
 use rustc_hash::FxHashMap;
-use theme::ActiveTheme as _;
 use ui::ContextMenu;
 use ui::DiffStat;
 use ui::Divider;
@@ -1371,7 +1370,7 @@ impl Render for CommitView {
             .key_context(if is_stash { "StashDiff" } else { "CommitDiff" })
             .action_table(&cx.entity(), &COMMIT_VIEW_ACTIONS)
             .size_full()
-            .bg(cx.theme().colors().editor_background)
+            .bg(theme::theme().colors().editor_background)
             .when(!self.editor.read(cx).rhs_editor().read(cx).is_empty(cx), |this| {
                 this.child(div().flex_grow(1.).child(self.editor.clone()))
             })

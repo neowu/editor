@@ -22,7 +22,6 @@ pub use gpui::prelude::*;
 pub use gpui::px;
 pub use gpui::relative;
 pub use gpui::rems;
-pub use theme::ActiveTheme;
 
 pub use crate::Button;
 pub use crate::ButtonCommon;

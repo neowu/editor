@@ -111,7 +111,7 @@ impl Render for StashMessageModal {
         v_flex()
             .key_context("StashMessageModal")
             .action_table(&cx.entity(), &STASH_MESSAGE_MODAL_ACTIONS)
-            .elevation_2(cx)
+            .elevation_2()
             .w(rems(34.))
             .child(
                 h_flex()

@@ -19,7 +19,6 @@ use gpui::point;
 use gpui::size;
 use smallvec::SmallVec;
 
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::Context;
 use crate::prelude::Element;
 use crate::prelude::ElementId;
@@ -42,11 +41,11 @@ pub struct IndentGuideColors {
 
 impl IndentGuideColors {
     /// Returns the indent guide colors that should be used for panels.
-    pub fn panel(cx: &App) -> Self {
+    pub fn panel() -> Self {
         Self {
-            default: cx.theme().colors().panel_indent_guide,
-            hover: cx.theme().colors().panel_indent_guide_hover,
-            active: cx.theme().colors().panel_indent_guide_active,
+            default: theme::theme().colors().panel_indent_guide,
+            hover: theme::theme().colors().panel_indent_guide_hover,
+            active: theme::theme().colors().panel_indent_guide_active,
         }
     }
 }

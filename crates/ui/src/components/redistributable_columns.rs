@@ -14,7 +14,6 @@ use gpui::WeakEntity;
 
 use super::data_table::table_row::IntoTableRow as _;
 use super::data_table::table_row::TableRow;
-use crate::ActiveTheme as _;
 use crate::AnyElement;
 use crate::App;
 use crate::Context;
@@ -537,7 +536,7 @@ pub(crate) fn render_column_resize_divider(
 ) -> AnyElement {
     window.with_id(col_idx, |window| {
         let mut resize_divider =
-            divider.w(px(RESIZE_DIVIDER_WIDTH)).h_full().bg(cx.theme().colors().border.opacity(0.8));
+            divider.w(px(RESIZE_DIVIDER_WIDTH)).h_full().bg(theme::theme().colors().border.opacity(0.8));
 
         let mut resize_handle =
             div().id("column-resize-handle").absolute().left_neg_0p5().w(px(RESIZE_COLUMN_WIDTH)).h_full();
@@ -546,7 +545,7 @@ pub(crate) fn render_column_resize_divider(
             let is_highlighted = window.use_state(cx, |_window, _cx| false);
 
             resize_divider =
-                resize_divider.when(*is_highlighted.read(cx), |div| div.bg(cx.theme().colors().border_focused));
+                resize_divider.when(*is_highlighted.read(cx), |div| div.bg(theme::theme().colors().border_focused));
 
             resize_handle = resize_handle
                 .on_hover({

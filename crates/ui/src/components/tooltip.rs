@@ -16,7 +16,6 @@ use crate::LabelSize;
 use crate::StyledExt as _;
 use crate::font;
 use crate::h_flex;
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::Context;
 use crate::prelude::Div;
@@ -206,10 +205,10 @@ where
     // padding to avoid tooltip appearing right below the mouse cursor
     div().pl_2().pt_2p5().child(
         v_flex()
-            .elevation_2(app)
+            .elevation_2()
             .font(ui_font)
             .text_ui(app)
-            .text_color(app.theme().colors().text)
+            .text_color(theme::theme().colors().text)
             .py_1()
             .px_2()
             .map(|el| f(el, cx)),

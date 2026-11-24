@@ -8,7 +8,6 @@ use gpui::Styled;
 use gpui::Window;
 use gpui::div;
 use gpui::rems;
-use theme::ActiveTheme as _;
 
 use crate::Color;
 use crate::font;
@@ -202,14 +201,14 @@ pub struct Headline {
 }
 
 impl RenderOnce for Headline {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         let ui_font = font::ui_font().clone();
 
         div()
             .font(ui_font)
             .line_height(self.size.line_height())
             .text_size(self.size.rems())
-            .text_color(cx.theme().colors().text)
+            .text_color(theme::theme().colors().text)
             .child(self.text)
     }
 }

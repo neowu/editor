@@ -3,11 +3,11 @@ pub mod contrast;
 mod styles;
 mod syntax_theme;
 
-use gpui::App;
 use gpui::Hsla;
 use gpui::SharedString;
 use gpui::WindowBackgroundAppearance;
 
+pub use crate::built_in::theme;
 #[allow(clippy::wildcard_imports)]
 pub use crate::styles::*;
 pub use crate::syntax_theme::SyntaxTheme;
@@ -28,19 +28,6 @@ impl Appearance {
             Self::Light => true,
             Self::Dark => false,
         }
-    }
-}
-
-/// Implementing this trait allows accessing the active theme.
-pub trait ActiveTheme {
-    /// Returns the theme. It is constant, so this never depends on app state.
-    fn theme(&self) -> &'static Theme;
-}
-
-impl ActiveTheme for App {
-    #[inline(always)]
-    fn theme(&self) -> &'static Theme {
-        built_in::theme()
     }
 }
 

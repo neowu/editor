@@ -29,7 +29,6 @@ use gpui::prelude::StatefulInteractiveElement as _;
 use gpui::prelude::Styled as _;
 use project::git_store::Repository;
 use ui::ContextMenu;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::AnyElement;
 use ui::prelude::App;
 use ui::prelude::SharedString;
@@ -94,11 +93,11 @@ impl BlameRenderer for GitBlameRenderer {
                         .justify_between()
                         .font(style.font())
                         .line_height(style.line_height)
-                        .text_color(cx.theme().status().hint)
-                        .when(is_highlighted, |this| this.bg(cx.theme().colors().element_selected))
+                        .text_color(theme::theme().status().hint)
+                        .when(is_highlighted, |this| this.bg(theme::theme().colors().element_selected))
                         .child(h_flex().gap_2().child(div().text_color(sha_color).child(short_commit_id)).child(name))
                         .child(relative_timestamp)
-                        .hover(|style| style.bg(cx.theme().colors().element_hover))
+                        .hover(|style| style.bg(theme::theme().colors().element_hover))
                         .cursor_pointer()
                         .on_mouse_down(MouseButton::Right, {
                             let blame_entry = blame_entry.clone();

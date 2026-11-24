@@ -39,7 +39,6 @@ use sum_tree::Dimensions;
 use sum_tree::SumTree;
 use text::ChunkBitmaps;
 use text::Patch;
-use ui::ActiveTheme as _;
 use ui::IntoElement as _;
 use ui::ParentElement as _;
 use ui::Styled as _;
@@ -350,7 +349,7 @@ impl<'a> Iterator for InlayChunks<'a> {
                         if let InlayContent::Color(color) = inlay.content {
                             renderer = Some(ChunkRenderer {
                                 id: ChunkRendererId::Inlay(inlay.id),
-                                render: Arc::new(move |cx| {
+                                render: Arc::new(move |_| {
                                     div()
                                         .relative()
                                         .size_3p5()
@@ -360,7 +359,7 @@ impl<'a> Iterator for InlayChunks<'a> {
                                                 .right_1()
                                                 .size_3()
                                                 .border_1()
-                                                .border_color(if cx.theme().appearance().is_light() {
+                                                .border_color(if theme::theme().appearance().is_light() {
                                                     gpui::black().opacity(0.5)
                                                 } else {
                                                     gpui::white().opacity(0.5)

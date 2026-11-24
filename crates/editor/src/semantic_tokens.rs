@@ -29,7 +29,6 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use text::BufferId;
 use theme::SyntaxTheme;
-use ui::ActiveTheme as _;
 
 use crate::Editor;
 use crate::display_map::HighlightStyleInterner;
@@ -233,7 +232,7 @@ impl Editor {
                                     else {
                                         continue;
                                     };
-                                    let theme = cx.theme().syntax();
+                                    let theme = theme::theme().syntax();
                                     token_highlights.reserve(2 * server_tokens.len());
                                     token_highlights.extend(buffer_into_editor_highlights(
                                         &server_tokens,

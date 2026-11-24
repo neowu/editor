@@ -11,7 +11,6 @@ use gpui::Render;
 use gpui::Styled as _;
 use gpui::Window;
 use ui::h_flex;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::DynamicSpacing;
 use ui::prelude::FluentBuilder as _;
 use ui::prelude::InteractiveElement as _;
@@ -143,7 +142,7 @@ impl Toolbar {
 }
 
 impl Render for Toolbar {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         if !self.has_any_visible_items() {
             return div();
         }
@@ -159,7 +158,7 @@ impl Render for Toolbar {
             .py(DynamicSpacing::Base06.rems())
             .px(DynamicSpacing::Base08.rems())
             .when(has_left_items || has_right_items, |this| this.gap(DynamicSpacing::Base06.rems()))
-            .bg(cx.theme().colors().toolbar_background)
+            .bg(theme::theme().colors().toolbar_background)
             .when(has_left_items || has_right_items, |this| {
                 this.child(
                     h_flex()

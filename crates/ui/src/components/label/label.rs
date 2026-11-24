@@ -8,7 +8,6 @@ use gpui::TextAlign;
 
 use crate::LabelLike;
 use crate::font;
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::Color;
 use crate::prelude::IntoElement;
@@ -174,19 +173,19 @@ impl LabelCommon for Label {
     }
 
     /// Styles the label to look like inline code.
-    fn inline_code(mut self, cx: &App) -> Self {
-        self.base = self.base.inline_code(cx);
+    fn inline_code(mut self) -> Self {
+        self.base = self.base.inline_code();
         self
     }
 }
 
 impl RenderOnce for Label {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         if self.render_code_spans
             && let Some((stripped, code_ranges)) = parse_backtick_spans(&self.label)
         {
             let buffer_font_family = font::buffer_font().family.clone();
-            let background_color = cx.theme().colors().element_background;
+            let background_color = theme::theme().colors().element_background;
 
             let highlights = code_ranges.iter().map(|range| {
                 (range.clone(), HighlightStyle { background_color: Some(background_color), ..Default::default() })

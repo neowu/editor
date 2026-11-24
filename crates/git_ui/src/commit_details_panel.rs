@@ -66,7 +66,6 @@ use ui::Divider;
 use ui::IndentGuideColors;
 use ui::Tooltip;
 use ui::WithScrollbar as _;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
@@ -346,7 +345,7 @@ impl CommitDetailsPanel {
         let head_branch_name: Option<SharedString> = self.repository.upgrade().and_then(|repository| {
             repository.read(cx).branch.as_ref().map(|branch| SharedString::from(branch.name().to_owned()))
         });
-        let background = cx.theme().colors().editor_background;
+        let background = theme::theme().colors().editor_background;
 
         v_flex()
             .relative()
@@ -444,7 +443,7 @@ impl CommitDetailsPanel {
             return gpui::Empty.into_any_element();
         };
 
-        let message_style = commit_message_style(editor::hover_markdown_style(window, cx));
+        let message_style = commit_message_style(editor::hover_markdown_style(window));
         let line_height = message_style.base_text_style.line_height_in_pixels(window.rem_size());
         let collapsed = self.message_collapsed;
 
@@ -605,7 +604,7 @@ impl CommitDetailsPanel {
                         })
                         .when(is_tree_view, |list| {
                             list.with_decoration(
-                                ui::indent_guides(px(TREE_INDENT), IndentGuideColors::panel(cx))
+                                ui::indent_guides(px(TREE_INDENT), IndentGuideColors::panel())
                                     .with_left_offset(INDENT_GUIDE_LEFT_OFFSET)
                                     .with_compute_indents_fn(cx.entity(), move |_, range, _window, _cx| {
                                         range
@@ -782,7 +781,7 @@ impl ChangedFileEntry {
         directory_label: Option<SharedString>,
         is_revealed: bool,
         panel: WeakEntity<CommitDetailsPanel>,
-        cx: &App,
+        _: &App,
     ) -> AnyElement {
         let file_name = self.file_name.clone();
         let repo_path = self.repo_path.clone();
@@ -796,7 +795,7 @@ impl ChangedFileEntry {
             Label::new(directory_label).single_line().color(Color::Muted).truncate_start().into_any_element()
         }));
 
-        changed_file_row(("changed-file", ix), depth, is_revealed, content, cx)
+        changed_file_row(("changed-file", ix), depth, is_revealed, content)
             .on_click({
                 let panel = panel.clone();
                 let repo_path = repo_path.clone();
@@ -872,7 +871,7 @@ impl ChangedFileDirectoryEntry {
             folder_icon.into_any_element(),
             Label::new(self.name.clone()).single_line().color(Color::Muted).truncate().into_any_element(),
         ];
-        changed_file_row(("changed-file-dir", ix), self.depth, false, content, cx)
+        changed_file_row(("changed-file-dir", ix), self.depth, false, content)
             .tooltip({
                 let name = self.name.clone();
                 move |_, cx| Tooltip::with_meta("Toggle Folder", None, name.clone(), cx)
@@ -896,9 +895,8 @@ fn changed_file_row(
     depth: usize,
     selected: bool,
     content: impl IntoIterator<Item = AnyElement>,
-    cx: &App,
 ) -> Stateful<Div> {
-    let colors = cx.theme().colors();
+    let colors = theme::theme().colors();
     h_flex()
         .id(id)
         .h(LIST_ITEM_HEIGHT)

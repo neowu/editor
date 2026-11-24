@@ -54,7 +54,6 @@ use ui::PopoverMenu;
 use ui::PopoverMenuHandle;
 use ui::Severity;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::AnyElement;
 use ui::prelude::BorrowAppContext as _;
 use ui::prelude::Button;
@@ -1606,7 +1605,7 @@ impl PickerDelegate for BranchListDelegate {
                 .when_some(section_header, |this, (section_header, show_divider)| {
                     this.pt_1p5()
                         .when(show_divider, |this| {
-                            this.mt_1().border_t_1().border_color(cx.theme().colors().border_variant)
+                            this.mt_1().border_t_1().border_color(theme::theme().colors().border_variant)
                         })
                         .child(ListSubHeader::new(section_header).inset(true))
                 })
@@ -1622,7 +1621,7 @@ impl PickerDelegate for BranchListDelegate {
         let focus_handle = self.focus_handle.clone();
 
         let footer_container =
-            || h_flex().w_full().p_1p5().border_t_1().border_color(cx.theme().colors().border_variant);
+            || h_flex().w_full().p_1p5().border_t_1().border_color(theme::theme().colors().border_variant);
 
         match self.state {
             PickerState::List => {

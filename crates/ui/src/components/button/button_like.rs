@@ -17,7 +17,6 @@ use smallvec::SmallVec;
 
 use crate::DynamicSpacing;
 use crate::ElevationIndex;
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::Clickable;
 use crate::prelude::Color;
@@ -102,31 +101,31 @@ pub enum TintColor {
 }
 
 impl TintColor {
-    fn button_like_style(self, cx: &App) -> ButtonLikeStyles {
+    fn button_like_style(self) -> ButtonLikeStyles {
         match self {
             TintColor::Accent => ButtonLikeStyles {
-                background: cx.theme().status().info_background,
-                border_color: cx.theme().status().info_border,
-                label_color: cx.theme().colors().text,
-                icon_color: cx.theme().colors().text,
+                background: theme::theme().status().info_background,
+                border_color: theme::theme().status().info_border,
+                label_color: theme::theme().colors().text,
+                icon_color: theme::theme().colors().text,
             },
             TintColor::Error => ButtonLikeStyles {
-                background: cx.theme().status().error_background,
-                border_color: cx.theme().status().error_border,
-                label_color: cx.theme().colors().text,
-                icon_color: cx.theme().colors().text,
+                background: theme::theme().status().error_background,
+                border_color: theme::theme().status().error_border,
+                label_color: theme::theme().colors().text,
+                icon_color: theme::theme().colors().text,
             },
             TintColor::Warning => ButtonLikeStyles {
-                background: cx.theme().status().warning_background,
-                border_color: cx.theme().status().warning_border,
-                label_color: cx.theme().colors().text,
-                icon_color: cx.theme().colors().text,
+                background: theme::theme().status().warning_background,
+                border_color: theme::theme().status().warning_border,
+                label_color: theme::theme().colors().text,
+                icon_color: theme::theme().colors().text,
             },
             TintColor::Success => ButtonLikeStyles {
-                background: cx.theme().status().success_background,
-                border_color: cx.theme().status().success_border,
-                label_color: cx.theme().colors().text,
-                icon_color: cx.theme().colors().text,
+                background: theme::theme().status().success_background,
+                border_color: theme::theme().status().success_border,
+                label_color: theme::theme().colors().text,
+                icon_color: theme::theme().colors().text,
             },
         }
     }
@@ -214,153 +213,153 @@ pub(crate) struct ButtonLikeStyles {
     pub icon_color: Hsla,
 }
 
-fn element_bg_from_elevation(elevation: Option<ElevationIndex>, cx: &App) -> Hsla {
+fn element_bg_from_elevation(elevation: Option<ElevationIndex>) -> Hsla {
     match elevation {
-        Some(ElevationIndex::Background) => cx.theme().colors().element_background,
-        Some(ElevationIndex::ElevatedSurface) => cx.theme().colors().elevated_surface_background,
-        Some(ElevationIndex::Surface) => cx.theme().colors().surface_background,
-        Some(ElevationIndex::ModalSurface) => cx.theme().colors().background,
-        _ => cx.theme().colors().element_background,
+        Some(ElevationIndex::Background) => theme::theme().colors().element_background,
+        Some(ElevationIndex::ElevatedSurface) => theme::theme().colors().elevated_surface_background,
+        Some(ElevationIndex::Surface) => theme::theme().colors().surface_background,
+        Some(ElevationIndex::ModalSurface) => theme::theme().colors().background,
+        _ => theme::theme().colors().element_background,
     }
 }
 
 impl ButtonStyle {
-    pub(crate) fn enabled(self, elevation: Option<ElevationIndex>, cx: &App) -> ButtonLikeStyles {
+    pub(crate) fn enabled(self, elevation: Option<ElevationIndex>) -> ButtonLikeStyles {
         match self {
             ButtonStyle::Filled => ButtonLikeStyles {
-                background: element_bg_from_elevation(elevation, cx),
+                background: element_bg_from_elevation(elevation),
                 border_color: transparent_black(),
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
-            ButtonStyle::Tinted(tint) => tint.button_like_style(cx),
+            ButtonStyle::Tinted(tint) => tint.button_like_style(),
             ButtonStyle::Outlined => ButtonLikeStyles {
-                background: element_bg_from_elevation(elevation, cx),
-                border_color: cx.theme().colors().border_variant,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                background: element_bg_from_elevation(elevation),
+                border_color: theme::theme().colors().border_variant,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::OutlinedGhost => ButtonLikeStyles {
                 background: transparent_black(),
-                border_color: cx.theme().colors().border_variant,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                border_color: theme::theme().colors().border_variant,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::OutlinedCustom(border_color) => ButtonLikeStyles {
                 background: transparent_black(),
                 border_color,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::Subtle => ButtonLikeStyles {
-                background: cx.theme().colors().ghost_element_background,
+                background: theme::theme().colors().ghost_element_background,
                 border_color: transparent_black(),
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::Transparent => ButtonLikeStyles {
                 background: transparent_black(),
                 border_color: transparent_black(),
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
         }
     }
 
-    pub(crate) fn hovered(self, elevation: Option<ElevationIndex>, cx: &App) -> ButtonLikeStyles {
+    pub(crate) fn hovered(self, elevation: Option<ElevationIndex>) -> ButtonLikeStyles {
         match self {
             ButtonStyle::Filled => {
-                let mut filled_background = element_bg_from_elevation(elevation, cx);
+                let mut filled_background = element_bg_from_elevation(elevation);
                 filled_background.fade_out(0.5);
 
                 ButtonLikeStyles {
                     background: filled_background,
                     border_color: transparent_black(),
-                    label_color: Color::Default.color(cx),
-                    icon_color: Color::Default.color(cx),
+                    label_color: Color::Default.color(),
+                    icon_color: Color::Default.color(),
                 }
             }
             ButtonStyle::Tinted(tint) => {
-                let mut styles = tint.button_like_style(cx);
-                let theme = cx.theme();
+                let mut styles = tint.button_like_style();
+                let theme = theme::theme();
                 styles.background = theme.darken(styles.background, 0.05, 0.2);
                 styles
             }
             ButtonStyle::Outlined => ButtonLikeStyles {
-                background: cx.theme().colors().ghost_element_hover,
-                border_color: cx.theme().colors().border,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                background: theme::theme().colors().ghost_element_hover,
+                border_color: theme::theme().colors().border,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::OutlinedGhost => ButtonLikeStyles {
-                background: cx.theme().colors().ghost_element_hover,
-                border_color: cx.theme().colors().border,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                background: theme::theme().colors().ghost_element_hover,
+                border_color: theme::theme().colors().border,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::OutlinedCustom(border_color) => ButtonLikeStyles {
-                background: cx.theme().colors().ghost_element_hover,
+                background: theme::theme().colors().ghost_element_hover,
                 border_color,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::Subtle => ButtonLikeStyles {
-                background: cx.theme().colors().ghost_element_hover,
+                background: theme::theme().colors().ghost_element_hover,
                 border_color: transparent_black(),
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::Transparent => ButtonLikeStyles {
                 background: transparent_black(),
                 border_color: transparent_black(),
                 // TODO: These are not great
-                label_color: Color::Muted.color(cx),
+                label_color: Color::Muted.color(),
                 // TODO: These are not great
-                icon_color: Color::Muted.color(cx),
+                icon_color: Color::Muted.color(),
             },
         }
     }
 
-    pub(crate) fn active(self, cx: &App) -> ButtonLikeStyles {
+    pub(crate) fn active(self) -> ButtonLikeStyles {
         match self {
             ButtonStyle::Filled => ButtonLikeStyles {
-                background: cx.theme().colors().element_active,
+                background: theme::theme().colors().element_active,
                 border_color: transparent_black(),
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
-            ButtonStyle::Tinted(tint) => tint.button_like_style(cx),
+            ButtonStyle::Tinted(tint) => tint.button_like_style(),
             ButtonStyle::Subtle => ButtonLikeStyles {
-                background: cx.theme().colors().ghost_element_active,
+                background: theme::theme().colors().ghost_element_active,
                 border_color: transparent_black(),
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::Outlined => ButtonLikeStyles {
-                background: cx.theme().colors().element_active,
-                border_color: cx.theme().colors().border_variant,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                background: theme::theme().colors().element_active,
+                border_color: theme::theme().colors().border_variant,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::OutlinedGhost => ButtonLikeStyles {
                 background: transparent_black(),
-                border_color: cx.theme().colors().border_variant,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                border_color: theme::theme().colors().border_variant,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::OutlinedCustom(border_color) => ButtonLikeStyles {
-                background: cx.theme().colors().element_active,
+                background: theme::theme().colors().element_active,
                 border_color,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::Transparent => ButtonLikeStyles {
                 background: transparent_black(),
                 border_color: transparent_black(),
                 // TODO: These are not great
-                label_color: Color::Muted.color(cx),
+                label_color: Color::Muted.color(),
                 // TODO: These are not great
-                icon_color: Color::Muted.color(cx),
+                icon_color: Color::Muted.color(),
             },
         }
     }
@@ -369,41 +368,41 @@ impl ButtonStyle {
     pub(crate) fn focused(self, window: &Window, cx: &App) -> ButtonLikeStyles {
         match self {
             ButtonStyle::Filled => ButtonLikeStyles {
-                background: cx.theme().colors().element_background,
-                border_color: cx.theme().colors().border_focused,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                background: theme::theme().colors().element_background,
+                border_color: theme::theme().colors().border_focused,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
-            ButtonStyle::Tinted(tint) => tint.button_like_style(cx),
+            ButtonStyle::Tinted(tint) => tint.button_like_style(),
             ButtonStyle::Subtle => ButtonLikeStyles {
-                background: cx.theme().colors().ghost_element_background,
-                border_color: cx.theme().colors().border_focused,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                background: theme::theme().colors().ghost_element_background,
+                border_color: theme::theme().colors().border_focused,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::Outlined => ButtonLikeStyles {
-                background: cx.theme().colors().ghost_element_background,
-                border_color: cx.theme().colors().border,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                background: theme::theme().colors().ghost_element_background,
+                border_color: theme::theme().colors().border,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::OutlinedGhost => ButtonLikeStyles {
                 background: transparent_black(),
-                border_color: cx.theme().colors().border,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                border_color: theme::theme().colors().border,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::OutlinedCustom(border_color) => ButtonLikeStyles {
-                background: cx.theme().colors().ghost_element_background,
+                background: theme::theme().colors().ghost_element_background,
                 border_color,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::Transparent => ButtonLikeStyles {
                 background: transparent_black(),
-                border_color: cx.theme().colors().border_focused,
-                label_color: Color::Accent.color(cx),
-                icon_color: Color::Accent.color(cx),
+                border_color: theme::theme().colors().border_focused,
+                label_color: Color::Accent.color(),
+                icon_color: Color::Accent.color(),
             },
         }
     }
@@ -412,41 +411,41 @@ impl ButtonStyle {
     pub(crate) fn disabled(self, elevation: Option<ElevationIndex>, window: &Window, cx: &App) -> ButtonLikeStyles {
         match self {
             ButtonStyle::Filled => ButtonLikeStyles {
-                background: cx.theme().colors().element_disabled,
-                border_color: cx.theme().colors().border_disabled,
-                label_color: Color::Disabled.color(cx),
-                icon_color: Color::Disabled.color(cx),
+                background: theme::theme().colors().element_disabled,
+                border_color: theme::theme().colors().border_disabled,
+                label_color: Color::Disabled.color(),
+                icon_color: Color::Disabled.color(),
             },
-            ButtonStyle::Tinted(tint) => tint.button_like_style(cx),
+            ButtonStyle::Tinted(tint) => tint.button_like_style(),
             ButtonStyle::Subtle => ButtonLikeStyles {
-                background: cx.theme().colors().ghost_element_disabled,
-                border_color: cx.theme().colors().border_disabled,
-                label_color: Color::Disabled.color(cx),
-                icon_color: Color::Disabled.color(cx),
+                background: theme::theme().colors().ghost_element_disabled,
+                border_color: theme::theme().colors().border_disabled,
+                label_color: Color::Disabled.color(),
+                icon_color: Color::Disabled.color(),
             },
             ButtonStyle::Outlined => ButtonLikeStyles {
-                background: cx.theme().colors().element_disabled,
-                border_color: cx.theme().colors().border_disabled,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                background: theme::theme().colors().element_disabled,
+                border_color: theme::theme().colors().border_disabled,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::OutlinedGhost => ButtonLikeStyles {
                 background: transparent_black(),
-                border_color: cx.theme().colors().border_disabled,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                border_color: theme::theme().colors().border_disabled,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::OutlinedCustom(_) => ButtonLikeStyles {
-                background: cx.theme().colors().element_disabled,
-                border_color: cx.theme().colors().border_disabled,
-                label_color: Color::Default.color(cx),
-                icon_color: Color::Default.color(cx),
+                background: theme::theme().colors().element_disabled,
+                border_color: theme::theme().colors().border_disabled,
+                label_color: Color::Default.color(),
+                icon_color: Color::Default.color(),
             },
             ButtonStyle::Transparent => ButtonLikeStyles {
                 background: transparent_black(),
                 border_color: transparent_black(),
-                label_color: Color::Disabled.color(cx),
-                icon_color: Color::Disabled.color(cx),
+                label_color: Color::Disabled.color(),
+                icon_color: Color::Disabled.color(),
             },
         }
     }
@@ -669,13 +668,13 @@ impl ParentElement for ButtonLike {
 }
 
 impl RenderOnce for ButtonLike {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let style = self.selected_style.filter(|_| self.selected).unwrap_or(self.style);
 
         let is_outlined =
             matches!(self.style, ButtonStyle::Outlined | ButtonStyle::OutlinedGhost | ButtonStyle::OutlinedCustom(_));
 
-        let active_background = self.active_background.unwrap_or_else(|| style.active(cx).background);
+        let active_background = self.active_background.unwrap_or_else(|| style.active().background);
 
         self.base
             .h_flex()
@@ -704,8 +703,8 @@ impl RenderOnce for ButtonLike {
                 ButtonSize::Default | ButtonSize::Compact => this.px(DynamicSpacing::Base04.rems()),
                 ButtonSize::None => this.px_px(),
             })
-            .border_color(style.enabled(self.layer, cx).border_color)
-            .bg(style.enabled(self.layer, cx).background)
+            .border_color(style.enabled(self.layer).border_color)
+            .bg(style.enabled(self.layer).background)
             .when(self.disabled, |this| {
                 if self.cursor_style == CursorStyle::PointingHand {
                     this.cursor_not_allowed()
@@ -719,9 +718,9 @@ impl RenderOnce for ButtonLike {
                 let shows_selected_style = self.selected && self.selected_style.is_some();
                 let hover_background = self.hover_background.unwrap_or_else(|| {
                     if shows_selected_style {
-                        style.enabled(self.layer, cx).background
+                        style.enabled(self.layer).background
                     } else {
-                        style.hovered(self.layer, cx).background
+                        style.hovered(self.layer).background
                     }
                 });
                 let focus_color = |refinement: StyleRefinement| refinement.bg(hover_background);
@@ -730,7 +729,7 @@ impl RenderOnce for ButtonLike {
                     .hover(focus_color)
                     .map(|this| {
                         if is_outlined {
-                            this.focus_visible(|s| s.border_color(cx.theme().colors().border_focused))
+                            this.focus_visible(|s| s.border_color(theme::theme().colors().border_focused))
                         } else {
                             this.focus_visible(focus_color)
                         }

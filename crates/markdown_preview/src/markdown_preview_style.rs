@@ -22,7 +22,6 @@ use theme::built_in::BUFFER_LINE_HEIGHT;
 use ui::Rems;
 use ui::font;
 use ui::font::UI_FONT_SIZE;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::App;
 use ui::prelude::Pixels;
 use ui::prelude::Refineable as _;
@@ -130,7 +129,7 @@ pub(crate) fn preview_markdown_style(
     let mut container_style = StyleRefinement::default();
     container_style.text.font_size = Some(body_font_size.into());
 
-    let status = cx.theme().status();
+    let status = theme::theme().status();
     MarkdownStyle {
         base_text_style,
         container_style,

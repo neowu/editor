@@ -6,7 +6,6 @@ use gpui::relative;
 
 use crate::ButtonLike;
 use crate::ButtonLikeRounding;
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::ButtonCommon as _;
 use crate::prelude::ButtonSize;
@@ -216,7 +215,7 @@ impl<T: ButtonBuilder, const COLS: usize, const ROWS: usize> FixedWidth for Togg
 }
 
 impl<T: ButtonBuilder, const COLS: usize, const ROWS: usize> RenderOnce for ToggleButtonGroup<T, COLS, ROWS> {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         let custom_height = match self.size {
             ToggleButtonGroupSize::Custom(height) => Some(height),
             _ => None,
@@ -261,7 +260,7 @@ impl<T: ButtonBuilder, const COLS: usize, const ROWS: usize> RenderOnce for Togg
             })
         });
 
-        let border_color = cx.theme().colors().border.opacity(0.6);
+        let border_color = theme::theme().colors().border.opacity(0.6);
         let is_outlined_or_filled =
             self.style == ToggleButtonGroupStyle::Outlined || self.style == ToggleButtonGroupStyle::Filled;
         let is_transparent = self.style == ToggleButtonGroupStyle::Transparent;

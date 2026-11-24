@@ -9,7 +9,6 @@ use crate::LabelCommon;
 use crate::LabelLike;
 use crate::LabelSize;
 use crate::LineHeightStyle;
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::Color;
 use crate::prelude::IntoElement;
@@ -176,8 +175,8 @@ impl LabelCommon for HighlightedLabel {
         self
     }
 
-    fn inline_code(mut self, cx: &App) -> Self {
-        self.base = self.base.inline_code(cx);
+    fn inline_code(mut self) -> Self {
+        self.base = self.base.inline_code();
         self
     }
 }
@@ -203,8 +202,8 @@ pub fn highlight_ranges(text: &str, indices: &[usize], style: HighlightStyle) ->
 }
 
 impl RenderOnce for HighlightedLabel {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
-        let highlight_color = cx.theme().colors().text_accent;
+    fn render(self, window: &mut Window, _: &mut App) -> impl IntoElement {
+        let highlight_color = theme::theme().colors().text_accent;
 
         let highlights = highlight_ranges(
             &self.label,
@@ -213,7 +212,7 @@ impl RenderOnce for HighlightedLabel {
         );
 
         let mut text_style = window.text_style();
-        text_style.color = self.base.color.color(cx);
+        text_style.color = self.base.color.color();
 
         self.base.child(StyledText::new(self.label).with_default_highlights(&text_style, highlights))
     }

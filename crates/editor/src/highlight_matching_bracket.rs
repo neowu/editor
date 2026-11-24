@@ -3,7 +3,6 @@ use gpui::Context;
 use gpui::HighlightStyle;
 use language::CursorShape;
 use multi_buffer::MultiBufferOffset;
-use theme::ActiveTheme as _;
 
 use crate::Editor;
 use crate::HighlightKey;
@@ -64,7 +63,7 @@ impl Editor {
                                 new_ranges,
                                 HighlightStyle {
                                     background_color: Some(
-                                        cx.theme().colors().editor_document_highlight_bracket_background,
+                                        theme::theme().colors().editor_document_highlight_bracket_background,
                                     ),
                                     ..Default::default()
                                 },

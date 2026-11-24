@@ -32,7 +32,6 @@ use multi_buffer::ToOffset as _;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use sum_tree::Bias;
-use theme::ActiveTheme as _;
 use theme::Appearance;
 use theme::CursorColors;
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -191,7 +190,7 @@ impl EditorElement {
     pub(super) fn collect_cursors(&self, snapshot: &EditorSnapshot, cx: &App) -> Vec<(DisplayPoint, Hsla)> {
         let editor = self.editor.read(cx);
         let mut cursors = Vec::new();
-        let color = cx.theme().cursor_colors().cursor;
+        let color = theme::theme().cursor_colors().cursor;
         let mut add_cursor = |anchor: Anchor| {
             cursors.push((anchor.to_display_point(&snapshot.display_snapshot), color));
         };
@@ -289,13 +288,13 @@ impl EditorElement {
                         // opaque enough to use as a text color.
                         //
                         // TODO: In the future we should ensure themes have a `text_inverse` color.
-                        let color = if cx.theme().colors().editor_background.a < 0.75 {
-                            match cx.theme().appearance {
+                        let color = if theme::theme().colors().editor_background.a < 0.75 {
+                            match theme::theme().appearance {
                                 Appearance::Dark => Hsla::black(),
                                 Appearance::Light => Hsla::white(),
                             }
                         } else {
-                            cx.theme().colors().editor_background
+                            theme::theme().colors().editor_background
                         };
 
                         let shaped = window.text_system().shape_line(

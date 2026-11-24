@@ -26,7 +26,6 @@ use project::ProjectPath;
 use project::ResolvedPath;
 use regex::Regex;
 use text::OffsetRangeExt as _;
-use theme::ActiveTheme as _;
 use util::ResultExt as _;
 use util::TryFutureExt as _;
 use util::markdown::source_position_from_fragment;
@@ -495,7 +494,7 @@ pub fn show_link_definition(
                     if underline_hovered_link {
                         let style = HighlightStyle {
                             underline: Some(UnderlineStyle { thickness: px(1.), ..UnderlineStyle::default() }),
-                            color: Some(cx.theme().colors().link_text_hover),
+                            color: Some(theme::theme().colors().link_text_hover),
                             ..HighlightStyle::default()
                         };
                         let highlight_range = symbol_range.unwrap_or_else(|| match &trigger_point {
@@ -532,7 +531,7 @@ pub fn show_link_definition(
                 } else if let Some((_, multi_buffer_range, _, _)) = detected_document_link.as_ref() {
                     let style = HighlightStyle {
                         underline: Some(UnderlineStyle { thickness: px(1.), ..UnderlineStyle::default() }),
-                        color: Some(cx.theme().colors().link_text_hover),
+                        color: Some(theme::theme().colors().link_text_hover),
                         ..HighlightStyle::default()
                     };
                     editor.highlight_text(HighlightKey::HoveredLinkState, vec![multi_buffer_range.clone()], style, cx);

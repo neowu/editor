@@ -80,7 +80,6 @@ use ui::ListItemSpacing;
 use ui::Toggleable as _;
 use ui::Tooltip;
 use ui::font;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
 use ui::prelude::Color;
@@ -672,7 +671,7 @@ impl Delegate {
                                 .p_1()
                                 .gap_1p5()
                                 .rounded_sm()
-                                .when(selected, |this| this.bg(cx.theme().colors().ghost_element_selected))
+                                .when(selected, |this| this.bg(theme::theme().colors().ghost_element_selected))
                                 .child(
                                     h_flex()
                                         .gap_1()
@@ -741,7 +740,7 @@ impl Delegate {
                                         .justify_end()
                                         .child(
                                             Label::new(search_match.line_number.to_string())
-                                                .color(Color::Custom(cx.theme().colors().text_muted.opacity(0.5))),
+                                                .color(Color::Custom(theme::theme().colors().text_muted.opacity(0.5))),
                                         ),
                                 )
                                 .child(
@@ -1203,7 +1202,7 @@ fn matched_line_window(snapshot: &language::BufferSnapshot, match_range: &Range<
 /// search match with a highlighted background and bold weight.
 fn render_matched_line(search_match: &SearchMatch, cx: &App) -> StyledText {
     let text_style = TextStyle {
-        color: cx.theme().colors().text,
+        color: theme::theme().colors().text,
         font_family: font::buffer_font().family.clone(),
         font_features: font::buffer_font().features.clone(),
         font_fallbacks: font::buffer_font().fallbacks.clone(),
@@ -1213,7 +1212,7 @@ fn render_matched_line(search_match: &SearchMatch, cx: &App) -> StyledText {
         ..Default::default()
     };
     let search_match_style = HighlightStyle {
-        background_color: Some(cx.theme().colors().search_match_background),
+        background_color: Some(theme::theme().colors().search_match_background),
         font_weight: Some(gpui::FontWeight::BOLD),
         ..Default::default()
     };
@@ -1236,7 +1235,7 @@ fn render_matched_line(search_match: &SearchMatch, cx: &App) -> StyledText {
 
     // Syntax highlights for the visible (trimmed) portion of the line, with
     // ranges relative to the start of the rendered text.
-    let syntax_theme = cx.theme().syntax();
+    let syntax_theme = theme::theme().syntax();
     let mut syntax_highlights: Vec<(Range<usize>, HighlightStyle)> = Vec::new();
     let mut current_offset = 0;
     for chunk in snapshot

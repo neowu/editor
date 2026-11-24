@@ -8,7 +8,6 @@ use strum::EnumIter;
 use strum::EnumString;
 use strum::IntoStaticStr;
 
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::FluentBuilder as _;
 use crate::prelude::InteractiveElement as _;
@@ -86,8 +85,8 @@ pub struct IconDecoration {
 
 impl IconDecoration {
     /// Creates a new [`IconDecoration`].
-    pub fn new(kind: IconDecorationKind, knockout_color: Hsla, cx: &App) -> Self {
-        let color = cx.theme().colors().icon;
+    pub fn new(kind: IconDecorationKind, knockout_color: Hsla) -> Self {
+        let color = theme::theme().colors().icon;
         let position = Point::default();
 
         Self {

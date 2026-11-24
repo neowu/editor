@@ -784,7 +784,7 @@ impl Inner {
                     cx.new(move |cx| {
                         let markdown = cx.new(|cx| Markdown::new(error.into(), None, None, cx));
                         MessageNotification::new_from_builder(cx, move |window, cx| {
-                            MarkdownElement::new(markdown.clone(), markdown_style(window, cx))
+                            MarkdownElement::new(markdown.clone(), markdown_style(window))
                                 .text_size(TextSize::Default.rems(cx))
                                 .into_any_element()
                         })

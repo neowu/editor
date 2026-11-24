@@ -62,8 +62,9 @@
   accents, the Nord hues deepened to read as text on the light card (APCA 65)
   and chrome (APCA 55).
 - Each theme is one lazily built `static`: `built_in::theme_for(appearance)`
-  returns it, and `built_in::theme()` / `cx.theme()` return the active one as
-  `&'static Theme`, picked by one process-wide atomic flag
+  returns it, and `theme::theme()` (re-exported `built_in::theme()`) returns the
+  active one as `&'static Theme` with no context argument, picked by one
+  process-wide atomic flag
   (`built_in::set_appearance`). There is no theme global, no `theme::init`,
   and no `Arc` around the theme, the syntax theme or the accents (a fixed
   array). Tests cannot install another theme.

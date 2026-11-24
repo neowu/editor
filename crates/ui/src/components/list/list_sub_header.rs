@@ -1,4 +1,3 @@
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::AnyElement;
 use crate::prelude::App;
 use crate::prelude::Color;
@@ -58,12 +57,12 @@ impl Toggleable for ListSubHeader {
 }
 
 impl RenderOnce for ListSubHeader {
-    fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         h_flex().flex_1().w_full().relative().pb(DynamicSpacing::Base04.rems()).px(DynamicSpacing::Base02.rems()).child(
             div()
                 .h_5()
                 .when(self.inset, |this| this.px_2())
-                .when(self.selected, |this| this.bg(cx.theme().colors().ghost_element_selected))
+                .when(self.selected, |this| this.bg(theme::theme().colors().ghost_element_selected))
                 .flex()
                 .flex_1()
                 .w_full()

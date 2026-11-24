@@ -36,7 +36,6 @@ use parking_lot::Mutex;
 use ui::CopyButton;
 use ui::Tooltip;
 use ui::font;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonSize;
@@ -331,7 +330,7 @@ impl Render for LanguageServerPrompt {
             .occlude()
             .w_full()
             .max_h(vh(0.8, window))
-            .elevation_3(cx)
+            .elevation_3()
             .overflow_y_scroll()
             .track_scroll(&self.scroll_handle)
             .on_modifiers_changed(cx.listener(|_, _, _, cx| cx.notify()))
@@ -385,7 +384,7 @@ impl Render for LanguageServerPrompt {
                             ),
                     )
                     .child(
-                        MarkdownElement::new(self.markdown.clone(), markdown_style(window, cx))
+                        MarkdownElement::new(self.markdown.clone(), markdown_style(window))
                             .text_size(TextSize::Small.rems(cx))
                             .hide_code_block_copy_button()
                             .on_url_click(|link, window, cx| {
@@ -416,7 +415,7 @@ impl Render for LanguageServerPrompt {
 impl EventEmitter<DismissEvent> for LanguageServerPrompt {}
 impl EventEmitter<SuppressEvent> for LanguageServerPrompt {}
 
-pub fn markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
+pub fn markdown_style(window: &Window) -> MarkdownStyle {
     let ui_font_family = font::ui_font().family.clone();
     let ui_font_fallbacks = font::ui_font().fallbacks.clone();
     let buffer_font_family = font::buffer_font().family.clone();
@@ -426,15 +425,15 @@ pub fn markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
     base_text_style.refine(&TextStyleRefinement {
         font_family: Some(ui_font_family),
         font_fallbacks: ui_font_fallbacks,
-        color: Some(cx.theme().colors().text),
+        color: Some(theme::theme().colors().text),
         ..Default::default()
     });
 
     MarkdownStyle {
         base_text_style,
-        selection_background_color: cx.theme().colors().element_selection_background,
+        selection_background_color: theme::theme().colors().element_selection_background,
         inline_code: TextStyleRefinement {
-            background_color: Some(cx.theme().colors().editor_background.opacity(0.5)),
+            background_color: Some(theme::theme().colors().editor_background.opacity(0.5)),
             font_family: Some(buffer_font_family),
             font_fallbacks: buffer_font_fallbacks,
             ..Default::default()
@@ -442,7 +441,7 @@ pub fn markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
         link: TextStyleRefinement {
             underline: Some(UnderlineStyle {
                 thickness: px(1.),
-                color: Some(cx.theme().colors().text_accent),
+                color: Some(theme::theme().colors().text_accent),
                 wavy: false,
             }),
             ..Default::default()
@@ -936,7 +935,7 @@ pub mod simple_message_notification {
                     .when(show_close_button, |this| this.on_modifiers_changed(move |_, _, cx| cx.notify(entity)))
                     .p_3()
                     .gap_2()
-                    .elevation_3(cx)
+                    .elevation_3()
                     .child(
                         h_flex()
                             .gap_4()

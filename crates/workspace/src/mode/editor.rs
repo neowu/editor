@@ -18,7 +18,6 @@ use gpui::fill;
 use gpui::motion;
 use gpui::point;
 use ui::Window;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::FluentBuilder as _;
 use ui::prelude::InteractiveElement as _;
 use ui::prelude::ParentElement as _;
@@ -40,7 +39,7 @@ use crate::docks::DraggedDock;
 
 impl Workspace {
     pub(super) fn render_editor_mode(&self, window: &mut Window, cx: &mut Context<Self>) -> Div {
-        let background = cx.theme().colors().background;
+        let background = theme::theme().colors().background;
         let pane_render_context = PaneRenderContext { active_pane: &self.active_pane, workspace: &self.weak_self };
 
         let layout = div()
@@ -242,7 +241,7 @@ impl Workspace {
         let open = dock.read(cx).is_open();
         // Advanced at prepaint, after the dock (an earlier sibling) recorded this frame's extent.
         let motion = Rc::clone(&self.dock_motions[dock_index(position)]);
-        let colors = cx.theme().colors();
+        let colors = theme::theme().colors();
         let (curtain, panel) = (colors.background, colors.panel_background);
 
         Some(

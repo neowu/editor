@@ -63,7 +63,6 @@ use gpui::relative;
 use gpui::size;
 use gpui_util::ResultExt as _;
 use smallvec::SmallVec;
-use theme::ActiveTheme as _;
 
 use crate::scrollbars::ScrollbarAutoHide;
 use crate::scrollbars::ShowScrollbar;
@@ -1257,7 +1256,7 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
 
         let bounds = Bounds::new(self.origin + origin, size);
         window.with_content_mask(Some(ContentMask { bounds }), |window| {
-            let colors = cx.theme().colors();
+            let colors = theme::theme().colors();
 
             let capture_phase;
 
@@ -1357,7 +1356,7 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
                                     ScrollbarAxis::Horizontal => Edges { top: BORDER_WIDTH, ..Default::default() },
                                     ScrollbarAxis::Vertical => Edges { left: BORDER_WIDTH, ..Default::default() },
                                 },
-                                cx.theme().colors().border_variant.opacity(0.6),
+                                theme::theme().colors().border_variant.opacity(0.6),
                                 BorderStyle::Solid,
                             ));
                         }

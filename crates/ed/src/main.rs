@@ -49,7 +49,6 @@ use gpui::TaskExt as _;
 use gpui::UpdateGlobal as _;
 use language::LanguageRegistry;
 use rustc_hash::FxHashMap;
-use theme::ActiveTheme as _;
 use util::ResultExt as _;
 use workspace::AppState;
 use workspace::SessionWorkspace;
@@ -267,7 +266,7 @@ fn main() {
         markdown_preview::init(cx);
         svg_preview::init(cx);
 
-        app_state.languages.set_theme(cx.theme());
+        app_state.languages.set_theme(theme::theme());
 
         initialize_workspace(Arc::clone(&app_state), &mut workspace_actions, cx);
         workspace_actions.install();

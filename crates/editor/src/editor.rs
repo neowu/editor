@@ -523,7 +523,6 @@ use text::BufferId;
 use text::FromAnchor;
 use text::OffsetUtf16;
 use text::Rope;
-use theme::ActiveTheme;
 use theme::CursorColors;
 use theme::StatusColors;
 use theme::SyntaxTheme;
@@ -794,13 +793,13 @@ impl Default for EditorStyle {
     }
 }
 
-pub fn make_inlay_hints_style(cx: &App) -> HighlightStyle {
+pub fn make_inlay_hints_style() -> HighlightStyle {
     let show_background = INLAY_HINTS.show_background;
 
-    let mut style = cx.theme().syntax().style_for_name("hint").unwrap_or_default();
+    let mut style = theme::theme().syntax().style_for_name("hint").unwrap_or_default();
 
     if style.color.is_none() {
-        style.color = Some(cx.theme().status().hint);
+        style.color = Some(theme::theme().status().hint);
     }
 
     if !show_background {
@@ -809,7 +808,7 @@ pub fn make_inlay_hints_style(cx: &App) -> HighlightStyle {
     }
 
     if style.background_color.is_none() {
-        style.background_color = Some(cx.theme().status().hint_background);
+        style.background_color = Some(theme::theme().status().hint_background);
     }
 
     style
@@ -1735,9 +1734,9 @@ impl Editor {
         let editor = cx.entity().downgrade();
         let fold_placeholder = FoldPlaceholder {
             constrain_width: false,
-            render: Arc::new(move |fold_id, fold_range, cx| {
+            render: Arc::new(move |fold_id, fold_range, _| {
                 let editor = editor.clone();
-                FoldPlaceholder::fold_element(fold_id, cx)
+                FoldPlaceholder::fold_element(fold_id)
                     .cursor_pointer()
                     .child("⋯")
                     .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
@@ -2783,7 +2782,7 @@ impl Editor {
 
     fn current_cursor_colors(&self, cx: &App) -> CursorColors {
         if self.read_only(cx) {
-            cx.theme().cursor_colors().read_only()
+            theme::theme().cursor_colors().read_only()
         } else {
             self.style.as_ref().expect("style is set before rendering").cursor_colors
         }
@@ -3397,7 +3396,7 @@ impl Editor {
     fn create_style(&self, cx: &App) -> EditorStyle {
         let mut text_style = match self.mode {
             EditorMode::SingleLine | EditorMode::AutoHeight { .. } => TextStyle {
-                color: cx.theme().colors().editor_foreground,
+                color: theme::theme().colors().editor_foreground,
                 font_family: font::ui_font().family.clone(),
                 font_features: font::ui_font().features.clone(),
                 font_fallbacks: font::ui_font().fallbacks.clone(),
@@ -3407,7 +3406,7 @@ impl Editor {
                 ..Default::default()
             },
             EditorMode::Full { .. } | EditorMode::Minimap { .. } => TextStyle {
-                color: cx.theme().colors().editor_foreground,
+                color: theme::theme().colors().editor_foreground,
                 font_family: font::buffer_font().family.clone(),
                 font_features: font::buffer_font().features.clone(),
                 font_fallbacks: font::buffer_font().fallbacks.clone(),
@@ -3422,21 +3421,21 @@ impl Editor {
         }
 
         let background = match self.mode {
-            EditorMode::SingleLine => cx.theme().system().transparent,
-            EditorMode::AutoHeight { .. } => cx.theme().system().transparent,
-            EditorMode::Full { .. } => cx.theme().colors().editor_background,
-            EditorMode::Minimap { .. } => cx.theme().colors().editor_background.opacity(0.7),
+            EditorMode::SingleLine => theme::theme().system().transparent,
+            EditorMode::AutoHeight { .. } => theme::theme().system().transparent,
+            EditorMode::Full { .. } => theme::theme().colors().editor_background,
+            EditorMode::Minimap { .. } => theme::theme().colors().editor_background.opacity(0.7),
         };
 
         EditorStyle {
             background,
-            border: cx.theme().colors().border,
-            cursor_colors: cx.theme().cursor_colors(),
+            border: theme::theme().colors().border,
+            cursor_colors: theme::theme().cursor_colors(),
             text: text_style,
             scrollbar_width: EditorElement::SCROLLBAR_WIDTH,
-            syntax: cx.theme().syntax(),
-            status: cx.theme().status().clone(),
-            inlay_hints_style: make_inlay_hints_style(cx),
+            syntax: theme::theme().syntax(),
+            status: theme::theme().status().clone(),
+            inlay_hints_style: make_inlay_hints_style(),
             unnecessary_code_fade: UNNECESSARY_CODE_FADE,
             show_underlines: !self.mode.is_minimap(),
         }

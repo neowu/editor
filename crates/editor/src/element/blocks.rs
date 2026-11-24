@@ -24,7 +24,6 @@ use multi_buffer::Anchor;
 use multi_buffer::MultiBufferRow;
 use rustc_hash::FxHashMap;
 use text::BufferId;
-use theme::ActiveTheme as _;
 use ui::prelude::h_flex;
 use ui::prelude::v_flex;
 
@@ -185,7 +184,7 @@ impl EditorElement {
             }
 
             Block::ExcerptBoundary { .. } => {
-                let color = cx.theme().colors().clone();
+                let color = theme::theme().colors().clone();
                 let mut result = v_flex().id(block_id).w_full();
 
                 result = result.child(
@@ -230,7 +229,7 @@ impl EditorElement {
             Block::Spacer { height, .. } => {
                 let indent_guide_padding = indent_guides
                     .map_or(px(0.0), |guides| Self::depth_zero_indent_guide_padding_for_row(guides, block_row_start));
-                Self::render_spacer_block(block_id, *height, line_height, indent_guide_padding, window, cx)
+                Self::render_spacer_block(block_id, *height, line_height, indent_guide_padding, window)
             }
         };
 
@@ -308,12 +307,11 @@ impl EditorElement {
         line_height: Pixels,
         indent_guide_padding: Pixels,
         window: &mut Window,
-        cx: &App,
     ) -> AnyElement {
         let target_size = 16.0;
         let scale = window.scale_factor();
         let pattern_size = Self::spacer_pattern_period(f32::from(line_height) * scale, target_size * scale);
-        let color = cx.theme().colors().panel_background;
+        let color = theme::theme().colors().panel_background;
         let background = pattern_slash(color, 2.0, pattern_size - 2.0);
 
         div()

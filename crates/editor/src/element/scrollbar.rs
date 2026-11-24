@@ -23,7 +23,6 @@ use gpui::Window;
 use gpui::px;
 use gpui::quad;
 use gpui::size;
-use theme::ActiveTheme as _;
 use workspace::item::Item as _;
 use workspace::item::ItemBufferKind;
 
@@ -123,9 +122,9 @@ impl EditorElement {
                 continue;
             };
             let scrollbar_thumb_color = match scrollbar_layout.thumb_state {
-                ScrollbarThumbState::Dragging => cx.theme().colors().scrollbar_thumb_active_background,
-                ScrollbarThumbState::Hovered => cx.theme().colors().scrollbar_thumb_hover_background,
-                ScrollbarThumbState::Idle => cx.theme().colors().scrollbar_thumb_background,
+                ScrollbarThumbState::Dragging => theme::theme().colors().scrollbar_thumb_active_background,
+                ScrollbarThumbState::Hovered => theme::theme().colors().scrollbar_thumb_hover_background,
+                ScrollbarThumbState::Idle => theme::theme().colors().scrollbar_thumb_background,
             };
             let thumb_bounds = thumb_bounds.dilate(-ui::SCROLLBAR_PADDING);
             window.paint_layer(hitbox.bounds, |window| {

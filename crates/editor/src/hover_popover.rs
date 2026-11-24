@@ -57,7 +57,6 @@ use ui::ScrollAxes;
 use ui::Scrollbars;
 use ui::WithScrollbar as _;
 use ui::font;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Color;
 use ui::prelude::FluentBuilder as _;
 use ui::prelude::Refineable as _;
@@ -333,8 +332,8 @@ fn show_hover(
                         .context("no rendered diagnostic")
                 })??;
 
-                let (background_color, border_color) = cx.update(|_, cx| {
-                    let status_colors = cx.theme().status();
+                let (background_color, border_color) = cx.update(|_, _| {
+                    let status_colors = theme::theme().status();
                     match local_diagnostic.diagnostic.severity {
                         DiagnosticSeverity::ERROR => (status_colors.error_background, status_colors.error_border),
                         DiagnosticSeverity::WARNING => (status_colors.warning_background, status_colors.warning_border),
@@ -822,7 +821,7 @@ fn unclosed_code_fence(markdown: &str) -> Option<String> {
     open_fence.map(|fence| fence.fence_char.to_string().repeat(fence.len))
 }
 
-pub fn hover_markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
+pub fn hover_markdown_style(window: &Window) -> MarkdownStyle {
     let ui_font_family = font::ui_font().family.clone();
     let ui_font_features = font::ui_font().features.clone();
     let ui_font_fallbacks = font::ui_font().fallbacks.clone();
@@ -836,7 +835,7 @@ pub fn hover_markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
         font_family: Some(ui_font_family),
         font_features: Some(ui_font_features),
         font_fallbacks: ui_font_fallbacks,
-        color: Some(cx.theme().colors().editor_foreground),
+        color: Some(theme::theme().colors().editor_foreground),
         ..Default::default()
     });
     MarkdownStyle {
@@ -847,34 +846,34 @@ pub fn hover_markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
             .font_features(buffer_font_features.clone())
             .font_weight(buffer_font_weight),
         inline_code: TextStyleRefinement {
-            background_color: Some(cx.theme().colors().background),
+            background_color: Some(theme::theme().colors().background),
             font_family: Some(buffer_font_family),
             font_features: Some(buffer_font_features),
             font_fallbacks: buffer_font_fallbacks,
             font_weight: Some(buffer_font_weight),
             ..Default::default()
         },
-        rule_color: cx.theme().colors().border,
-        block_quote_border_color: Color::Muted.color(cx),
-        block_quote: TextStyleRefinement { color: Some(Color::Muted.color(cx)), ..Default::default() },
+        rule_color: theme::theme().colors().border,
+        block_quote_border_color: Color::Muted.color(),
+        block_quote: TextStyleRefinement { color: Some(Color::Muted.color()), ..Default::default() },
         link: TextStyleRefinement {
-            color: Some(cx.theme().colors().editor_foreground),
+            color: Some(theme::theme().colors().editor_foreground),
             underline: Some(gpui::UnderlineStyle {
                 thickness: px(1.),
-                color: Some(cx.theme().colors().editor_foreground),
+                color: Some(theme::theme().colors().editor_foreground),
                 wavy: false,
             }),
             ..Default::default()
         },
-        syntax: cx.theme().syntax(),
-        selection_background_color: cx.theme().colors().element_selection_background,
+        syntax: theme::theme().syntax(),
+        selection_background_color: theme::theme().colors().element_selection_background,
         heading: StyleRefinement::default().font_weight(FontWeight::BOLD).text_base().mt(rems(1.)).mb_0(),
         table_columns_min_size: true,
         ..Default::default()
     }
 }
 
-pub fn diagnostics_markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
+pub fn diagnostics_markdown_style(window: &Window) -> MarkdownStyle {
     let ui_font_family = font::ui_font().family.clone();
     let ui_font_fallbacks = font::ui_font().fallbacks.clone();
     let ui_font_features = font::ui_font().features.clone();
@@ -887,33 +886,33 @@ pub fn diagnostics_markdown_style(window: &Window, cx: &App) -> MarkdownStyle {
         font_family: Some(ui_font_family),
         font_features: Some(ui_font_features),
         font_fallbacks: ui_font_fallbacks,
-        color: Some(cx.theme().colors().editor_foreground),
+        color: Some(theme::theme().colors().editor_foreground),
         ..Default::default()
     });
     MarkdownStyle {
         base_text_style,
         code_block: StyleRefinement::default().my(rems(1.)).font_buffer(),
         inline_code: TextStyleRefinement {
-            background_color: Some(cx.theme().colors().editor_background.opacity(0.5)),
+            background_color: Some(theme::theme().colors().editor_background.opacity(0.5)),
             font_family: Some(buffer_font_family),
             font_features: Some(buffer_font_features),
             font_fallbacks: buffer_font_fallbacks,
             ..Default::default()
         },
-        rule_color: cx.theme().colors().border,
-        block_quote_border_color: Color::Muted.color(cx),
-        block_quote: TextStyleRefinement { color: Some(Color::Muted.color(cx)), ..Default::default() },
+        rule_color: theme::theme().colors().border,
+        block_quote_border_color: Color::Muted.color(),
+        block_quote: TextStyleRefinement { color: Some(Color::Muted.color()), ..Default::default() },
         link: TextStyleRefinement {
-            color: Some(cx.theme().colors().editor_foreground),
+            color: Some(theme::theme().colors().editor_foreground),
             underline: Some(gpui::UnderlineStyle {
                 thickness: px(1.),
-                color: Some(cx.theme().colors().editor_foreground),
+                color: Some(theme::theme().colors().editor_foreground),
                 wavy: false,
             }),
             ..Default::default()
         },
-        syntax: cx.theme().syntax(),
-        selection_background_color: cx.theme().colors().element_selection_background,
+        syntax: theme::theme().syntax(),
+        selection_background_color: theme::theme().colors().element_selection_background,
         height_is_multiple_of_line_height: true,
         heading: StyleRefinement::default().font_weight(FontWeight::BOLD).text_base().mb_0(),
         table_columns_min_size: true,
@@ -1179,7 +1178,7 @@ impl InfoPopover {
         div()
             .id("info_popover")
             .occlude()
-            .elevation_2(cx)
+            .elevation_2()
             .child(
                 canvas(
                     {
@@ -1222,7 +1221,7 @@ impl InfoPopover {
                         .max_h(max_size.height)
                         .track_scroll(&self.scroll_handle)
                         .child(
-                            MarkdownElement::new(markdown, hover_markdown_style(window, cx))
+                            MarkdownElement::new(markdown, hover_markdown_style(window))
                                 .scroll_handle(self.scroll_handle.clone())
                                 .hide_code_block_copy_button()
                                 .on_url_click(move |link, window, cx| {
@@ -1259,7 +1258,7 @@ fn render_code_lenses(
     has_content_below: bool,
     cx: &Context<Editor>,
 ) -> AnyElement {
-    let colors = cx.theme().colors();
+    let colors = theme::theme().colors();
     let lens_color = colors.editor_code_lens_foreground.unwrap_or(colors.text_muted);
     let hover_color = colors.text;
     let border_color = colors.border_variant;
@@ -1313,7 +1312,7 @@ impl DiagnosticPopover {
         div()
             .id("diagnostic")
             .occlude()
-            .elevation_2_borderless(cx)
+            .elevation_2_borderless()
             .child(
                 canvas(
                     {
@@ -1328,7 +1327,7 @@ impl DiagnosticPopover {
             )
             // Don't draw the background color if the theme
             // allows transparent surfaces.
-            .when(theme_is_transparent(cx), |this| this.bg(gpui::transparent_black()))
+            .when(theme_is_transparent(), |this| this.bg(gpui::transparent_black()))
             // Prevent a mouse move on the popover from being propagated to the editor,
             // because that would dismiss the popover.
             .on_mouse_move({
@@ -1368,7 +1367,7 @@ impl DiagnosticPopover {
                             .overflow_y_scroll()
                             .track_scroll(&self.scroll_handle)
                             .child(
-                                MarkdownElement::new(self.markdown.clone(), diagnostics_markdown_style(window, cx))
+                                MarkdownElement::new(self.markdown.clone(), diagnostics_markdown_style(window))
                                     .hide_code_block_copy_button()
                                     .on_url_click(move |link, window, cx| {
                                         if let Some(renderer) = GlobalDiagnosticRenderer::global(cx) {

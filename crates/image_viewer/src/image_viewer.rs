@@ -62,7 +62,6 @@ use project::Project;
 use project::ProjectPath;
 use project::image_store::ImageItemEvent;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
 use ui::prelude::FluentBuilder as _;
@@ -414,7 +413,7 @@ impl Element for ImageContentElement {
         let zoom_level = initial_zoom_level.unwrap_or(image_view.zoom_level);
 
         let pan_offset = image_view.pan_offset;
-        let border_color = cx.theme().colors().border;
+        let border_color = theme::theme().colors().border;
 
         let is_dragging = image_view.is_dragging();
 
@@ -444,33 +443,32 @@ impl Element for ImageContentElement {
             }
         });
 
-        let mut image_content =
-            div()
-                .relative()
-                .size_full()
-                .child(
-                    div()
-                        .absolute()
-                        .left(left)
-                        .top(top)
-                        .w(scaled_width)
-                        .h(scaled_height)
-                        .child(
-                            div()
-                                .size_full()
-                                .absolute()
-                                .top_0()
-                                .left_0()
-                                .child(div().size_full().bg(checkerboard(
-                                    cx.theme().colors().panel_background,
-                                    BASE_SQUARE_SIZE * zoom_level,
-                                )))
-                                .border_1()
-                                .border_color(border_color),
-                        )
-                        .child(img(image).id(("image-viewer-image", self.image_view.entity_id())).size_full()),
-                )
-                .into_any_element();
+        let mut image_content = div()
+            .relative()
+            .size_full()
+            .child(
+                div()
+                    .absolute()
+                    .left(left)
+                    .top(top)
+                    .w(scaled_width)
+                    .h(scaled_height)
+                    .child(
+                        div()
+                            .size_full()
+                            .absolute()
+                            .top_0()
+                            .left_0()
+                            .child(div().size_full().bg(checkerboard(
+                                theme::theme().colors().panel_background,
+                                BASE_SQUARE_SIZE * zoom_level,
+                            )))
+                            .border_1()
+                            .border_color(border_color),
+                    )
+                    .child(img(image).id(("image-viewer-image", self.image_view.entity_id())).size_full()),
+            )
+            .into_any_element();
 
         image_content.prepaint_as_root(bounds.origin, bounds.size.into(), window, cx);
         Some((image_content, is_dragging))
@@ -640,7 +638,7 @@ impl Render for ImageView {
             .action_table(&cx.entity(), &IMAGE_VIEW_ACTIONS)
             .size_full()
             .relative()
-            .bg(cx.theme().colors().editor_background)
+            .bg(theme::theme().colors().editor_background)
             .child({
                 div()
                     .id("image-container")
@@ -715,7 +713,7 @@ impl ImageViewToolbarControls {
             let mut editor = Editor::single_line(window, cx);
             editor.set_text(zoom_percentage.to_string(), window, cx);
             editor.set_text_style_refinement(gpui::TextStyleRefinement {
-                color: Some(cx.theme().colors().text),
+                color: Some(theme::theme().colors().text),
                 text_align: Some(gpui::TextAlign::Center),
                 font_size: Some(TextSize::Small.rems(cx).into()),
                 ..Default::default()

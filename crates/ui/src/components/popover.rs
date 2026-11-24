@@ -10,7 +10,6 @@ use gpui::Window;
 use gpui::div;
 use smallvec::SmallVec;
 
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::FluentBuilder as _;
 use crate::prelude::StyledExt as _;
 use crate::prelude::px;
@@ -53,13 +52,13 @@ pub struct Popover {
 }
 
 impl RenderOnce for Popover {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         div()
             .flex()
             .gap_1()
-            .child(v_flex().elevation_2(cx).py(POPOVER_Y_PADDING / 2.).child(div().children(self.children)))
+            .child(v_flex().elevation_2().py(POPOVER_Y_PADDING / 2.).child(div().children(self.children)))
             .when_some(self.aside, |this, aside| {
-                this.child(v_flex().elevation_2(cx).bg(cx.theme().colors().surface_background).px_1().child(aside))
+                this.child(v_flex().elevation_2().bg(theme::theme().colors().surface_background).px_1().child(aside))
             })
     }
 }

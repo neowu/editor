@@ -60,7 +60,6 @@ use ui::IconName;
 use ui::Label;
 use ui::Tooltip;
 use ui::h_flex;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::Clickable as _;
 use ui::prelude::Color;
@@ -704,7 +703,7 @@ impl Render for BufferDiagnosticsEditor {
                 .justify_center()
                 .items_center()
                 .text_center()
-                .bg(cx.theme().colors().editor_background)
+                .bg(theme::theme().colors().editor_background)
                 .child(
                     div().h_flex().child(Label::new("No problems in").color(Color::Muted)).child(
                         Button::new("open-file", filename)

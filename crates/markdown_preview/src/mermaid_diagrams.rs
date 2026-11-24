@@ -40,7 +40,6 @@ use ui::TintColor;
 use ui::WithScrollbar as _;
 use ui::font;
 use ui::font::UI_FONT_SIZE;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonStyle;
 use ui::prelude::Clickable as _;
@@ -121,7 +120,7 @@ impl MermaidDiagrams {
             order: Vec::new(),
             views: FxHashMap::default(),
             zoom: preview_zoom(cx),
-            light: cx.theme().appearance().is_light(),
+            light: theme::theme().appearance().is_light(),
         }
     }
 
@@ -220,7 +219,7 @@ impl MermaidDiagrams {
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
         let source_offset = block.source_offset;
-        self.set_zoom_and_appearance(preview_zoom(cx), cx.theme().appearance().is_light(), cx);
+        self.set_zoom_and_appearance(preview_zoom(cx), theme::theme().appearance().is_light(), cx);
         // The diagrams may lag behind the rendered parse for a frame; render
         // anything that doesn't match as a plain code block.
         let contents =
@@ -287,7 +286,7 @@ impl CachedMermaidDiagram {
     ) -> Self {
         let render_image = Arc::new(OnceLock::<anyhow::Result<Arc<RenderImage>>>::new());
         let svg_renderer = cx.svg_renderer();
-        let theme = mermaid_theme(cx);
+        let theme = mermaid_theme();
 
         let task = cx.spawn({
             let render_image = Arc::clone(&render_image);
@@ -359,8 +358,8 @@ fn preview_zoom(cx: &App) -> f32 {
 }
 
 /// The editor theme as a diagram theme.
-fn mermaid_theme(cx: &App) -> mermaid::Theme {
-    let colors = cx.theme().colors();
+fn mermaid_theme() -> mermaid::Theme {
+    let colors = theme::theme().colors();
     let background = colors.editor_background;
     // Flattened onto the background, as diagram colors are opaque.
     let color = |color: Hsla| {
@@ -368,7 +367,7 @@ fn mermaid_theme(cx: &App) -> mermaid::Theme {
         let channel = |channel: f32| (channel.clamp(0.0, 1.0) * 255.0).round() as u8;
         mermaid::Color::rgb(channel(color.r), channel(color.g), channel(color.b))
     };
-    let accents = cx.theme().accents();
+    let accents = theme::theme().accents();
     let font_family = &font::buffer_font().family;
     mermaid::Theme {
         background: color(background),
@@ -378,7 +377,7 @@ fn mermaid_theme(cx: &App) -> mermaid::Theme {
         border: color(colors.text_muted),
         surface: color(colors.element_background),
         accent: color(colors.text_accent),
-        critical: color(cx.theme().status().error),
+        critical: color(theme::theme().status().error),
         series: array::from_fn(|index| color(accents.color_for_index(index as u32))),
         // Fall back to common monospace fonts when the configured one isn't
         // installed.
@@ -462,7 +461,7 @@ fn with_horizontal_scrollbar(
     let scrollbars = Scrollbars::always_visible(ScrollAxes::Horizontal)
         .id(("mermaid-diagram-scrollbar", source_offset))
         .tracked_scroll_handle(scroll_handle)
-        .with_track_along(ScrollAxes::Horizontal, cx.theme().colors().editor_background)
+        .with_track_along(ScrollAxes::Horizontal, theme::theme().colors().editor_background)
         .notify_content();
 
     div().w_full().custom_scrollbars(scrollbars, window, cx).child(body).into_any_element()

@@ -34,7 +34,6 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use smallvec::smallvec;
 use text::BufferId;
-use theme::ActiveTheme as _;
 use ui::h_flex;
 use ui::prelude::DefiniteLength;
 use ui::prelude::InteractiveElement as _;
@@ -176,7 +175,7 @@ impl RenderOnce for SplitEditorView {
         let left_ratio = self.split_state.read(cx).left_ratio();
         let right_ratio = self.split_state.read(cx).right_ratio();
 
-        let separator_color = cx.theme().colors().border_variant;
+        let separator_color = theme::theme().colors().border_variant;
 
         let resize_handle = render_resize_handle(&self.split_state, separator_color, window, cx);
 
@@ -404,7 +403,7 @@ impl SplitBufferHeadersElement {
             latest_selection_anchors,
         );
 
-        let editor_bg_color = cx.theme().colors().editor_background;
+        let editor_bg_color = theme::theme().colors().editor_background;
         let selected = selected_buffer_ids.contains(&excerpt.buffer_id());
 
         let mut header = v_flex()

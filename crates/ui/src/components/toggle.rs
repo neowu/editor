@@ -20,7 +20,6 @@ use crate::Icon;
 use crate::IconName;
 use crate::KeyBinding;
 use crate::ToggleState;
-use crate::prelude::ActiveTheme as _;
 use crate::prelude::App;
 use crate::prelude::DynamicSpacing;
 use crate::prelude::IconSize;
@@ -174,26 +173,26 @@ impl Checkbox {
         self
     }
 
-    fn bg_color(&self, cx: &App) -> Hsla {
+    fn bg_color(&self) -> Hsla {
         let style = self.style.clone();
         match (style, self.filled) {
-            (ToggleStyle::Ghost, false) => cx.theme().colors().ghost_element_background,
-            (ToggleStyle::Ghost, true) => cx.theme().colors().element_background,
+            (ToggleStyle::Ghost, false) => theme::theme().colors().ghost_element_background,
+            (ToggleStyle::Ghost, true) => theme::theme().colors().element_background,
             (ToggleStyle::ElevationBased(_), false) => gpui::transparent_black(),
-            (ToggleStyle::ElevationBased(elevation), true) => elevation.darker_bg(cx),
+            (ToggleStyle::ElevationBased(elevation), true) => elevation.darker_bg(),
             (ToggleStyle::Custom(_), false) => gpui::transparent_black(),
             (ToggleStyle::Custom(color), true) => color.opacity(0.2),
         }
     }
 
-    fn border_color(&self, cx: &App) -> Hsla {
+    fn border_color(&self) -> Hsla {
         if self.disabled {
-            return cx.theme().colors().border_variant;
+            return theme::theme().colors().border_variant;
         }
 
         match self.style.clone() {
-            ToggleStyle::Ghost => cx.theme().colors().border,
-            ToggleStyle::ElevationBased(_) => cx.theme().colors().border,
+            ToggleStyle::Ghost => theme::theme().colors().border,
+            ToggleStyle::ElevationBased(_) => theme::theme().colors().border,
             ToggleStyle::Custom(color) => color.opacity(0.3),
         }
     }
@@ -204,7 +203,7 @@ impl Checkbox {
 }
 
 impl RenderOnce for Checkbox {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
         let group_id = format!("checkbox_group_{:?}", self.id);
         let color = if self.disabled { Color::Disabled } else { Color::Selected };
 
@@ -220,8 +219,8 @@ impl RenderOnce for Checkbox {
             ToggleState::Unselected => None,
         };
 
-        let bg_color = self.bg_color(cx);
-        let border_color = self.border_color(cx);
+        let bg_color = self.bg_color();
+        let border_color = self.border_color();
         let hover_border_color = border_color.alpha(0.7);
 
         let size = Self::container_size();
@@ -239,12 +238,12 @@ impl RenderOnce for Checkbox {
                 .border_1()
                 .border_color(border_color)
                 .when(self.disabled, |this| this.cursor_not_allowed())
-                .when(self.disabled, |this| this.bg(cx.theme().colors().element_disabled.opacity(0.6)))
+                .when(self.disabled, |this| this.bg(theme::theme().colors().element_disabled.opacity(0.6)))
                 .when(!self.disabled && !self.visualization, |this| {
                     this.group_hover(group_id.clone(), |el| el.border_color(hover_border_color))
                 })
                 .when(self.placeholder, |this| {
-                    this.child(div().flex_none().rounded_full().bg(color.color(cx).alpha(0.5)).size(px(4.)))
+                    this.child(div().flex_none().rounded_full().bg(color.color().alpha(0.5)).size(px(4.)))
                 })
                 .children(icon),
         );
@@ -281,15 +280,15 @@ pub enum SwitchColor {
 }
 
 impl SwitchColor {
-    fn get_colors(&self, is_on: bool, cx: &App) -> (Hsla, Hsla) {
+    fn get_colors(&self, is_on: bool) -> (Hsla, Hsla) {
         if !is_on {
-            return (cx.theme().colors().element_disabled, cx.theme().colors().border);
+            return (theme::theme().colors().element_disabled, theme::theme().colors().border);
         }
 
         match self {
             SwitchColor::Accent => {
-                let status = cx.theme().status();
-                let colors = cx.theme().colors();
+                let status = theme::theme().status();
+                let colors = theme::theme().colors();
                 (status.info.opacity(0.4), colors.text_accent.opacity(0.2))
             }
             SwitchColor::Custom(color) => (*color, color.opacity(0.6)),
@@ -412,11 +411,11 @@ impl Switch {
 impl RenderOnce for Switch {
     fn render(self, _window: &mut Window, cx: &mut App) -> impl IntoElement {
         let is_on = self.toggle_state == ToggleState::Selected;
-        let adjust_ratio = if is_light(cx) { 1.5 } else { 1.0 };
+        let adjust_ratio = if is_light() { 1.5 } else { 1.0 };
 
-        let base_color = cx.theme().colors().text;
+        let base_color = theme::theme().colors().text;
         let thumb_color = base_color;
-        let (bg_color, border_color) = self.color.get_colors(is_on, cx);
+        let (bg_color, border_color) = self.color.get_colors(is_on);
 
         let bg_hover_color = if is_on {
             bg_color.blend(base_color.opacity(0.16 * adjust_ratio))
@@ -436,12 +435,12 @@ impl RenderOnce for Switch {
             .id((self.id.clone(), "switch"))
             .p(px(1.0))
             .border_2()
-            .border_color(cx.theme().colors().border_transparent)
+            .border_color(theme::theme().colors().border_transparent)
             .rounded_full()
             .when_some(self.tab_index.filter(|_| !self.disabled), |this, tab_index| {
                 this.tab_index(tab_index)
                     .focus_visible(|mut style| {
-                        style.border_color = Some(cx.theme().colors().border_focused);
+                        style.border_color = Some(theme::theme().colors().border_focused);
                         style
                     })
                     .when_some(self.on_click.clone(), |this, on_click| {

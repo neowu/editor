@@ -69,7 +69,6 @@ use ui::StickyCandidate;
 use ui::Tooltip;
 use ui::WithScrollbar as _;
 use ui::font;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Color;
 use ui::prelude::Element as _;
 use ui::prelude::ElementId;
@@ -236,7 +235,7 @@ impl ProjectPanel {
         let diagnostic_severity = details.diagnostic_severity;
         let diagnostic_mark = details.diagnostic_mark;
         let diagnostic_count = details.diagnostic_count;
-        let item_colors = get_item_color(is_sticky, cx);
+        let item_colors = get_item_color(is_sticky);
 
         let canonical_path = details.canonical_path.clone();
         let path = Arc::clone(&details.path);
@@ -250,8 +249,8 @@ impl ProjectPanel {
 
         let validation_color_and_message = if show_editor {
             match self.state.edit_state.as_ref().map_or(ValidationState::None, |e| e.validation_state.clone()) {
-                ValidationState::Error(msg) => Some((Color::Error.color(cx), msg)),
-                ValidationState::Warning(msg) => Some((Color::Warning.color(cx), msg)),
+                ValidationState::Error(msg) => Some((Color::Error.color(), msg)),
+                ValidationState::Warning(msg) => Some((Color::Warning.color(), msg)),
                 ValidationState::None => None,
             }
         } else {
@@ -600,10 +599,10 @@ impl ProjectPanel {
                             DecoratedIcon::new(
                                 Icon::from_path(glyph).color(Color::Muted),
                                 Some(
-                                    IconDecoration::new(decoration_kind, bg_color, cx)
+                                    IconDecoration::new(decoration_kind, bg_color)
                                         .group_name(Some(GROUP_NAME.into()))
                                         .knockout_hover_color(bg_hover_color)
-                                        .color(color.color(cx))
+                                        .color(color.color())
                                         .position(Point { x: px(-2.), y: px(-2.) }),
                                 ),
                             )
@@ -676,7 +675,7 @@ impl ProjectPanel {
                         .px_2()
                         .border_1()
                         .border_color(color)
-                        .bg(cx.theme().colors().background)
+                        .bg(theme::theme().colors().background)
                         .child(Label::new(message).color(Color::from(color)).size(LabelSize::Small)),
                 ))
             })
@@ -750,7 +749,7 @@ impl ProjectPanel {
                 .when(index == 0, gpui::Styled::ml_neg_0p5)
                 .px_0p5()
                 .rounded_xs()
-                .hover(|style| style.bg(cx.theme().colors().element_active))
+                .hover(|style| style.bg(theme::theme().colors().element_active))
                 .when(!is_sticky, |div| {
                     div.when(index != components_len - 1, |div| {
                         let target_entry_id = folded_ancestors.ancestors.get(components_len - 1 - index).copied();
@@ -1113,8 +1112,8 @@ struct ItemColors {
     focused: Hsla,
 }
 
-fn get_item_color(is_sticky: bool, cx: &App) -> ItemColors {
-    let colors = cx.theme().colors();
+fn get_item_color(is_sticky: bool) -> ItemColors {
+    let colors = theme::theme().colors();
 
     ItemColors {
         default: if is_sticky { colors.panel_overlay_background } else { colors.panel_background },
@@ -1319,7 +1318,7 @@ impl Render for ProjectPanel {
                             })
                             .map(|list| {
                                 list.with_decoration(
-                                    ui::indent_guides(INDENT_SIZE, IndentGuideColors::panel(cx))
+                                    ui::indent_guides(INDENT_SIZE, IndentGuideColors::panel())
                                         .with_compute_indents_fn(cx.entity(), |this, range, window, cx| {
                                             let mut items = SmallVec::with_capacity(range.end - range.start);
                                             this.iter_visible_entries(
@@ -1421,7 +1420,7 @@ impl Render for ProjectPanel {
                                     },
                                 );
                                 list.with_decoration(sticky_items.with_decoration(
-                                    ui::indent_guides(INDENT_SIZE, IndentGuideColors::panel(cx)).with_render_fn(
+                                    ui::indent_guides(INDENT_SIZE, IndentGuideColors::panel()).with_render_fn(
                                         cx.entity(),
                                         move |_, params, _, _| {
                                             const LEFT_OFFSET: Pixels = ui::LIST_ITEM_INDENT_GUIDE_LEFT_OFFSET;
@@ -1491,7 +1490,7 @@ impl Render for ProjectPanel {
                                             .last_worktree_root_id
                                             .is_some_and(|root_id| *highlight_entry_id == root_id),
                                     }),
-                                    |div| div.bg(cx.theme().colors().drop_target_background()),
+                                    |div| div.bg(theme::theme().colors().drop_target_background()),
                                 )
                                 .on_drag_move::<DraggedSelection>(cx.listener(
                                     move |this, event: &DragMoveEvent<DraggedSelection>, _, cx| {
@@ -1574,7 +1573,7 @@ impl Render for ProjectPanel {
                 .custom_scrollbars(
                     Scrollbars::new(ScrollAxes::Both)
                         .tracked_scroll_handle(&self.scroll_handle)
-                        .with_track_along(ScrollAxes::Horizontal, cx.theme().colors().panel_background)
+                        .with_track_along(ScrollAxes::Horizontal, theme::theme().colors().panel_background)
                         .notify_content(),
                     window,
                     cx,
@@ -1619,10 +1618,10 @@ impl Render for ProjectPanel {
 }
 
 impl Render for DraggedProjectEntryView {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
         let ui_font = font::ui_font().clone();
         h_flex().font(ui_font).pl(self.click_offset.x + px(12.)).pt(self.click_offset.y + px(12.)).child(
-            div().flex().gap_1().items_center().py_1().px_2().rounded_lg().bg(cx.theme().colors().background).map(
+            div().flex().gap_1().items_center().py_1().px_2().rounded_lg().bg(theme::theme().colors().background).map(
                 |this| {
                     if self.selections.len() > 1 && self.selections.contains(&self.selection) {
                         this.child(Label::new(format!("{} entries", self.selections.len())))

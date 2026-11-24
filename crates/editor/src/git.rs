@@ -18,7 +18,6 @@ use ui::Button;
 use ui::h_flex;
 use ui::prelude::Disableable as _;
 
-use super::ActiveTheme as _;
 use super::Anchor;
 use super::AnchorRangeExt as _;
 use super::AnyElement;
@@ -1071,9 +1070,9 @@ pub(crate) fn render_diff_hunk_controls(
         .pb_1()
         .border_x_1()
         .border_b_1()
-        .border_color(cx.theme().colors().border_variant)
+        .border_color(theme::theme().colors().border_variant)
         .rounded_b_lg()
-        .bg(cx.theme().colors().editor_background)
+        .bg(theme::theme().colors().editor_background)
         .gap_1()
         .block_mouse_except_scroll()
         .shadow_md()

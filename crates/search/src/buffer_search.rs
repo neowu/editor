@@ -44,7 +44,6 @@ use rustc_hash::FxHashMap;
 use ui::BASE_REM_SIZE_IN_PX;
 use ui::IconButtonShape;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonStyle;
 use ui::prelude::Clickable as _;
@@ -233,8 +232,8 @@ impl Render for BufferSearchBar {
         let should_show_replace_input = self.replace_enabled && replacement;
         let in_replace = self.replacement_editor.focus_handle(cx).is_focused(window);
 
-        let theme_colors = cx.theme().colors();
-        let query_border = if self.query_error.is_some() { Color::Error.color(cx) } else { theme_colors.border };
+        let theme_colors = theme::theme().colors();
+        let query_border = if self.query_error.is_some() { Color::Error.color() } else { theme_colors.border };
         let replacement_border = theme_colors.border;
 
         let container_width = window.viewport_size().width;
@@ -243,7 +242,7 @@ impl Render for BufferSearchBar {
         let input_base_styles = |border_color| input_base_styles(border_color, |div| div.w(input_width));
 
         let input_style = if find_in_results {
-            filter_search_results_input(query_border, |div| div.w(input_width), cx)
+            filter_search_results_input(query_border, |div| div.w(input_width))
         } else {
             input_base_styles(query_border)
         };

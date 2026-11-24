@@ -22,7 +22,6 @@ use project::git_store::GitStoreEvent;
 use ui::Indicator;
 use ui::Tab;
 use ui::Tooltip;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonStyle;
 use ui::prelude::Clickable as _;
@@ -197,7 +196,7 @@ impl Render for WindowHeader {
                     .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .map(|this| {
                         let modes = switchable_modes(self.shown.has_repository, self.shown.has_terminal_mode);
-                        this.when(modes.len() > 1, |this| this.child(render_mode_switch(self.shown, &modes, cx)))
+                        this.when(modes.len() > 1, |this| this.child(render_mode_switch(self.shown, &modes)))
                     })
                     .child(render_nav_buttons(&self.workspace, self.shown)),
             )
@@ -265,7 +264,7 @@ fn mode_indicator(mode: WorkspaceMode, terminal_running: bool) -> Option<Color> 
 /// Icon-only mode switch (Editor / Git History / Terminal): top-row icon
 /// buttons grouped on a faint track, so the modes read as one control, with
 /// the shown mode's button filled and its icon in the accent colour.
-fn render_mode_switch(state: WindowHeaderState, modes: &[WorkspaceMode], cx: &App) -> impl IntoElement {
+fn render_mode_switch(state: WindowHeaderState, modes: &[WorkspaceMode]) -> impl IntoElement {
     let segment = |mode: WorkspaceMode| {
         let (id, icon, label, action): (&'static str, IconName, &'static str, Box<dyn gpui::Action>) = match mode {
             WorkspaceMode::Editor => ("workspace-mode-editor", IconName::Code, "Editor", Box::new(Editor)),
@@ -294,7 +293,7 @@ fn render_mode_switch(state: WindowHeaderState, modes: &[WorkspaceMode], cx: &Ap
         .p(MODE_SWITCH_PADDING)
         .gap(MODE_SWITCH_PADDING)
         .rounded_lg()
-        .bg(cx.theme().colors().element_background.opacity(0.4))
+        .bg(theme::theme().colors().element_background.opacity(0.4))
         .children(modes.iter().map(|mode| segment(*mode)))
 }
 

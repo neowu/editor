@@ -33,7 +33,6 @@ use project::lsp_store::LspFormatTarget;
 use rustc_hash::FxHashSet;
 use text::Bias;
 use text::BufferId;
-use theme::ActiveTheme as _;
 use util::TryFutureExt as _;
 use workspace::Workspace;
 
@@ -221,7 +220,7 @@ impl Editor {
                                         .child(EditorElement::new(
                                             &rename_editor,
                                             EditorStyle {
-                                                background: cx.theme().system().transparent,
+                                                background: theme::theme().system().transparent,
                                                 cursor_colors: cx.editor_style.cursor_colors,
                                                 text: text_style,
                                                 scrollbar_width: cx.editor_style.scrollbar_width,
@@ -229,7 +228,7 @@ impl Editor {
                                                 status: cx.editor_style.status.clone(),
                                                 inlay_hints_style: HighlightStyle {
                                                     font_weight: Some(FontWeight::BOLD),
-                                                    ..make_inlay_hints_style(cx.app)
+                                                    ..make_inlay_hints_style()
                                                 },
                                                 ..EditorStyle::default()
                                             },

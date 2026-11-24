@@ -66,7 +66,6 @@ use outline_panel::OutlinePanel;
 use project_panel::ProjectPanel;
 use search::project_search::ProjectSearchBar;
 use terminal_view::terminal_panel::TerminalPanel;
-use theme::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonStyle;
@@ -416,8 +415,8 @@ fn open_about_window(cx: &mut App) {
                 .track_focus(&self.ok_focus_handle)
                 .action_table(&cx.entity(), &ABOUT_WINDOW_ACTIONS)
                 .size_full()
-                .bg(cx.theme().colors().editor_background)
-                .text_color(cx.theme().colors().text)
+                .bg(theme::theme().colors().editor_background)
+                .text_color(theme::theme().colors().text)
                 .p_4()
                 .pt_8()
                 .gap_3()

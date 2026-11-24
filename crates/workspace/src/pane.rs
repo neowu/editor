@@ -83,7 +83,6 @@ use ui::TabPosition;
 use ui::TabStyle;
 use ui::Tooltip;
 use ui::font;
-use ui::prelude::ActiveTheme as _;
 use ui::prelude::Button;
 use ui::prelude::ButtonCommon as _;
 use ui::prelude::ButtonSize;
@@ -2658,7 +2657,7 @@ impl Pane {
                     .bottom(relative(0.2))
                     .w(TAB_DROP_MARKER_WIDTH)
                     .rounded_full()
-                    .bg(cx.theme().colors().drop_target_border())
+                    .bg(theme::theme().colors().drop_target_border())
                     .map(|bar| match side {
                         TabDropSide::Before => bar.left(offset),
                         TabDropSide::After => bar.right(offset),
@@ -2673,8 +2672,8 @@ impl Pane {
     }
 
     /// The floating card: rounded, card-coloured, with square content corners kept inside.
-    fn card_style<E: Styled>(cx: &App) -> impl FnOnce(E) -> E + use<E> {
-        let bg = cx.theme().colors().editor_background;
+    fn card_style<E: Styled>() -> impl FnOnce(E) -> E + use<E> {
+        let bg = theme::theme().colors().editor_background;
         move |el| el.rounded(crate::CARD_RADIUS).bg(bg).p(crate::CARD_INSET)
     }
 
@@ -2736,7 +2735,7 @@ impl Pane {
                 h_flex().children(pinned_tabs).when(is_scrollable && is_scrolled, |this| {
                     this.when(has_active_unpinned_tab, gpui::Styled::border_r_2)
                         .when(!has_active_unpinned_tab, gpui::Styled::border_r_1)
-                        .border_color(cx.theme().colors().border)
+                        .border_color(theme::theme().colors().border)
                 })
             }))
             .child(self.render_unpinned_tabs_container(unpinned_tabs, tab_count, cx))
@@ -3352,7 +3351,7 @@ impl Render for Pane {
                     .min_h_0()
                     .relative()
                     // Everything below the tab bar is the floating card.
-                    .when(!pill_tabs, |div| div.map(Self::card_style(cx)))
+                    .when(!pill_tabs, |div| div.map(Self::card_style()))
                     .group("")
                     .overflow_hidden()
                     .on_drag_move::<DraggedTab>(cx.listener(Self::handle_drag_move))
@@ -3381,7 +3380,7 @@ impl Render for Pane {
                     })
                     // Below the drag target, whose border runs along the card edge.
                     .when(!pill_tabs, |content| {
-                        content.child(div().map(Self::card_corner_mask_style(cx.theme().colors())))
+                        content.child(div().map(Self::card_corner_mask_style(theme::theme().colors())))
                     })
                     .child(
                         // drag target
@@ -3389,7 +3388,7 @@ impl Render for Pane {
                             .invisible()
                             .absolute()
                             .rounded(crate::CARD_RADIUS)
-                            .map(Self::drop_target_style(cx.theme().colors()))
+                            .map(Self::drop_target_style(theme::theme().colors()))
                             .group_drag_over::<DraggedTab>("", gpui::Styled::visible)
                             .group_drag_over::<DraggedSelection>("", gpui::Styled::visible)
                             .when_some(self.can_drop_predicate.clone(), |this, p| {
@@ -3418,10 +3417,10 @@ impl Render for Pane {
                     v_flex()
                         .flex_1()
                         .min_h_0()
-                        .map(Self::card_style(cx))
+                        .map(Self::card_style())
                         .when(self.active_item().is_some(), |card| card.child(self.cached_tab_bar(cx)))
                         .child(content)
-                        .child(div().map(Self::card_corner_mask_style(cx.theme().colors())))
+                        .child(div().map(Self::card_corner_mask_style(theme::theme().colors())))
                         .into_any_element()
                 } else {
                     content.into_any_element()

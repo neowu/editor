@@ -13,7 +13,6 @@ use gpui::TextStyle;
 use gpui::Window;
 use gpui::prelude::Element as _;
 use gpui::relative;
-use theme::ActiveTheme as _;
 use ui::ErasedEditor;
 use ui::font;
 use ui::prelude::rems;
@@ -60,8 +59,8 @@ impl ui::ErasedEditor for ErasedEditorImpl {
         self.0.read(cx).focus_handle(cx)
     }
 
-    fn render(&self, _: &mut Window, cx: &App) -> AnyElement {
-        let theme_color = cx.theme().colors();
+    fn render(&self, _: &mut Window, _: &App) -> AnyElement {
+        let theme_color = theme::theme().colors();
 
         let text_style = TextStyle {
             font_family: font::ui_font().family.clone(),
@@ -75,8 +74,8 @@ impl ui::ErasedEditor for ErasedEditorImpl {
         };
         let editor_style = EditorStyle {
             background: theme_color.ghost_element_background,
-            cursor_colors: cx.theme().cursor_colors(),
-            syntax: cx.theme().syntax(),
+            cursor_colors: theme::theme().cursor_colors(),
+            syntax: theme::theme().syntax(),
             text: text_style,
             ..Default::default()
         };
