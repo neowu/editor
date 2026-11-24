@@ -1,4 +1,15 @@
-# install lsp manually, or it will be run by npx/uvx
+# Introduction
+
+A code editor forked from zed, only supports MacOS and local development
+
+# Install
+
+```sh
+./release.sh
+./install.sh
+```
+
+# Install lsp manually, or it will be run by npx/uvx
 
 ```sh
 # json, css, html

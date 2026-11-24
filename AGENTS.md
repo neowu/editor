@@ -16,10 +16,8 @@ always value performance / efficiency / simplicity over strictly correctness / d
 - update `/spec` to reflect what code and design changed
 - for spec doc, only keep key design decisions / behaviour / requirements, always goes to code for impl details
 
-# unit test
+# test
 
 - add unit tests for every function added or changed
-
-# automation ui test
-
-- follow `spec/automation.md`
+- for e2e test, put to `test` (layout in `spec/test.md`)
+- automation ui test, follow `spec/automation.md`

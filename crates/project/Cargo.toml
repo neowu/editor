@@ -49,8 +49,5 @@ watch.workspace = true
 which = "8"
 worktree.workspace = true
 
-[dev-dependencies]
-tempfile.workspace = true
-
 [lints]
 workspace = true

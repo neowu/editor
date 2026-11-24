@@ -35,8 +35,6 @@ crate list (`ls crates`) is the source of truth. The major removals:
 - Windows, Linux, iOS, web, wgpu and OpenHarmony platforms.
 - Debugger, vim/helix, sidebar, multi-workspace windows and project groups,
   git hosting providers, docs site, CI, crates.io client tooling.
-- Tests, benches, `test-support` features and GPUI examples (see
-  `testing-and-benchmarks.md`).
 
 Directions the fork deliberately doesn't follow, even in kept crates:
 

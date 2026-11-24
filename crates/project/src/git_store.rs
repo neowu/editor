@@ -3572,16 +3572,19 @@ mod rebase_in_progress_tests {
 
     #[test]
     fn rebase_in_progress_works() {
-        let dir = tempfile::tempdir().unwrap();
-        assert!(!rebase_in_progress(dir.path()));
+        let dir = std::env::temp_dir().join(format!("rebase-in-progress-{}", std::process::id()));
+        _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(!rebase_in_progress(&dir));
         // A stale REBASE_HEAD alone doesn't count.
-        std::fs::write(dir.path().join("REBASE_HEAD"), "abc").unwrap();
-        assert!(!rebase_in_progress(dir.path()));
-        std::fs::create_dir_all(dir.path().join("rebase-merge")).unwrap();
-        assert!(rebase_in_progress(dir.path()));
-        std::fs::remove_dir(dir.path().join("rebase-merge")).unwrap();
-        std::fs::create_dir_all(dir.path().join("rebase-apply")).unwrap();
-        assert!(rebase_in_progress(dir.path()));
+        std::fs::write(dir.join("REBASE_HEAD"), "abc").unwrap();
+        assert!(!rebase_in_progress(&dir));
+        std::fs::create_dir_all(dir.join("rebase-merge")).unwrap();
+        assert!(rebase_in_progress(&dir));
+        std::fs::remove_dir(dir.join("rebase-merge")).unwrap();
+        std::fs::create_dir_all(dir.join("rebase-apply")).unwrap();
+        assert!(rebase_in_progress(&dir));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
 

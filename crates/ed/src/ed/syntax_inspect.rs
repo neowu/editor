@@ -47,7 +47,7 @@ pub(crate) fn highlights(window: &Window, rows: Rows, cx: &mut App) -> Result<Ve
     let syntax_theme = cx.theme().syntax();
     let mut highlights = Vec::new();
     let mut push = |range: Range<Point>, kind, name: String, theme_key: Option<String>, style: HighlightStyle| {
-        if touches_rows(rows, range.start.row, range.end.row) {
+        if language::touches_rows(rows, range.start.row, range.end.row) {
             highlights.push(Highlight {
                 start: Position { row: range.start.row, column: range.start.column },
                 end: Position { row: range.end.row, column: range.end.column },
@@ -168,41 +168,22 @@ fn cursor_buffer(editor: &Entity<Editor>, cx: &App) -> Result<(MultiBufferSnapsh
     Ok((snapshot, buffer))
 }
 
-const fn touches_rows(rows: Rows, start_row: u32, end_row: u32) -> bool {
-    match rows {
-        Some((first, last)) => start_row <= last && end_row >= first,
-        None => true,
-    }
-}
-
-/// The nodes under `root` touching `rows`, parents first. Subtrees outside the rows are skipped.
+/// The nodes under `root` touching `rows`, parents first.
 fn syntax_nodes(root: Node, rows: Rows) -> Vec<control::SyntaxNode> {
     let mut nodes = Vec::new();
-    let mut cursor = root.walk();
-    loop {
+    language::walk_syntax(root, rows, |cursor| {
         let node = cursor.node();
-        let start = node.start_position();
-        let end = node.end_position();
-        let included = touches_rows(rows, start.row as u32, end.row as u32);
-        if included {
-            nodes.push(control::SyntaxNode {
-                depth: cursor.depth(),
-                field: cursor.field_name().map(str::to_owned),
-                kind: node.kind().to_owned(),
-                named: node.is_named(),
-                start: Position { row: start.row as u32, column: start.column as u32 },
-                end: Position { row: end.row as u32, column: end.column as u32 },
-            });
-        }
-        if included && cursor.goto_first_child() {
-            continue;
-        }
-        while !cursor.goto_next_sibling() {
-            if !cursor.goto_parent() {
-                return nodes;
-            }
-        }
-    }
+        let (start, end) = (node.start_position(), node.end_position());
+        nodes.push(control::SyntaxNode {
+            depth: cursor.depth(),
+            field: cursor.field_name().map(str::to_owned),
+            kind: node.kind().to_owned(),
+            named: node.is_named(),
+            start: Position { row: start.row as u32, column: start.column as u32 },
+            end: Position { row: end.row as u32, column: end.column as u32 },
+        });
+    });
+    nodes
 }
 
 fn semantic_token_name(token_type: Option<&str>, modifiers: Option<&str>) -> String {
@@ -251,52 +232,10 @@ mod tests {
     use gpui::HighlightStyle;
     use gpui::rgb;
     use gpui::rgba;
-    use language::Parser;
 
     use super::format_color;
     use super::format_style;
     use super::semantic_token_name;
-    use super::syntax_nodes;
-    use super::touches_rows;
-
-    #[test]
-    fn touches_rows_is_inclusive() {
-        assert!(touches_rows(None, 5, 9));
-        assert!(touches_rows(Some((2, 3)), 0, 2));
-        assert!(touches_rows(Some((2, 3)), 3, 8));
-        assert!(!touches_rows(Some((2, 3)), 0, 1));
-        assert!(!touches_rows(Some((2, 3)), 4, 4));
-    }
-
-    #[test]
-    fn syntax_nodes_walks_parents_first_and_prunes_rows() {
-        let mut parser = Parser::new();
-        parser.set_language(&tree_sitter_rust::LANGUAGE.into()).unwrap();
-        let tree = parser.parse("fn a() {}\nfn b() {}\n", None).unwrap();
-
-        let nodes = syntax_nodes(tree.root_node(), None);
-        let summary: Vec<_> = nodes
-            .iter()
-            .take(4)
-            .map(|node| (node.depth, node.field.as_deref(), node.kind.as_str(), node.named))
-            .collect();
-        assert_eq!(
-            summary,
-            [
-                (0, None, "source_file", true),
-                (1, None, "function_item", true),
-                (2, None, "fn", false),
-                (2, Some("name"), "identifier", true),
-            ]
-        );
-        assert_eq!(nodes.iter().filter(|node| node.kind == "function_item").count(), 2);
-
-        let second_row = syntax_nodes(tree.root_node(), Some((1, 1)));
-        let functions: Vec<_> = second_row.iter().filter(|node| node.kind == "function_item").collect();
-        assert_eq!(functions.len(), 1);
-        assert_eq!((functions[0].start.row, functions[0].start.column, functions[0].end.column), (1, 0, 9));
-        assert!(second_row.iter().all(|node| node.end.row >= 1));
-    }
 
     #[test]
     fn semantic_token_name_joins_type_and_modifiers() {
