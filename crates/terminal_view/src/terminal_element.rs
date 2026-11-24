@@ -169,6 +169,17 @@ impl BatchedTextRun {
         self.append_char_internal(c, true);
     }
 
+    /// Whether blank cells can sit inside this run unchanged on screen: they carry no
+    /// underline, strikethrough or background, so neither may the run.
+    const fn can_bridge_blanks(&self) -> bool {
+        self.style.underline.is_none() && self.style.strikethrough.is_none() && self.style.background_color.is_none()
+    }
+
+    /// The column right after this run's last cell.
+    const fn end_column(&self) -> i32 {
+        self.start_point.column + (self.cell_count as u32).cast_signed()
+    }
+
     fn append_zero_width_chars(&mut self, chars: &[char]) {
         for &c in chars {
             self.append_char_internal(c, false);
@@ -449,6 +460,9 @@ impl TerminalElement {
             }
 
             let mut previous_cell_had_extras = false;
+            // Blank cells right after `current_batch`, kept in it if the same style resumes, so
+            // words separated by spaces stay one run (one shaped line, matched whole by edctl).
+            let mut pending_blanks = 0;
 
             for cell in line {
                 let point = cell.point();
@@ -491,7 +505,14 @@ impl TerminalElement {
 
                 //Layout current cell text
                 {
-                    if !is_blank(cell) {
+                    if is_blank(cell) {
+                        if let Some(batch) = &current_batch
+                            && batch.can_bridge_blanks()
+                            && batch.end_column() + pending_blanks == (point.column as u32).cast_signed()
+                        {
+                            pending_blanks += 1;
+                        }
+                    } else {
                         cell_count += 1;
                         let cell_style = TerminalElement::cell_style(
                             point,
@@ -515,6 +536,7 @@ impl TerminalElement {
                             if let Some(batch) = current_batch.take() {
                                 batched_runs.push(batch);
                             }
+                            pending_blanks = 0;
                             continue;
                         }
 
@@ -524,9 +546,11 @@ impl TerminalElement {
                         if let Some(ref mut batch) = current_batch {
                             if batch.can_append(&cell_style)
                                 && batch.start_point.line == cell_point.line
-                                && batch.start_point.column + (batch.cell_count as u32).cast_signed()
-                                    == cell_point.column
+                                && batch.end_column() + pending_blanks == cell_point.column
                             {
+                                for _ in 0..pending_blanks {
+                                    batch.append_char(' ');
+                                }
                                 batch.append_char(cell.character());
                                 if let Some(chars) = zero_width_chars {
                                     batch.append_zero_width_chars(chars);
@@ -559,6 +583,7 @@ impl TerminalElement {
                             }
                             current_batch = Some(new_batch);
                         }
+                        pending_blanks = 0;
                     }
                 }
             }
@@ -1738,6 +1763,38 @@ mod tests {
     use gpui::hsla;
 
     use super::*;
+
+    /// The text of each run `layout_grid` builds for `lines`, one grid line per string.
+    fn run_texts(lines: &[&str]) -> Vec<String> {
+        let cells = lines.iter().enumerate().flat_map(|(line, text)| {
+            text.chars().enumerate().map(move |(column, c)| IndexedCell {
+                point: Point::new((line as u32).cast_signed(), column),
+                cell: Cell::from(c),
+            })
+        });
+        let (_, runs, _) = TerminalElement::layout_grid(cells, 0, &TextStyle::default(), None, 0.0);
+        runs.into_iter().map(|run| run.text).collect()
+    }
+
+    #[test]
+    fn layout_grid_keeps_spaced_words_in_one_run_per_line() {
+        assert_eq!(run_texts(&["test result: ok.   ", "  next  line"]), ["test result: ok.", "next  line"]);
+        assert_eq!(run_texts(&["     "]), Vec::<String>::new());
+    }
+
+    #[test]
+    fn blanks_are_bridged_only_in_plain_runs() {
+        let run = |style: TextRun| BatchedTextRun::new_from_char(LayoutPoint::new(0, 2), 'a', style, px(12.).into());
+        let plain = run(TextRun::default());
+        assert!(plain.can_bridge_blanks());
+        assert_eq!(plain.end_column(), 3);
+        assert!(!run(TextRun { underline: Some(UnderlineStyle::default()), ..TextRun::default() }).can_bridge_blanks());
+        assert!(
+            !run(TextRun { strikethrough: Some(StrikethroughStyle::default()), ..TextRun::default() })
+                .can_bridge_blanks()
+        );
+        assert!(!run(TextRun { background_color: Some(gpui::red()), ..TextRun::default() }).can_bridge_blanks());
+    }
 
     #[test]
     fn cached_minimum_contrast_matches_uncached_per_color_pair() {

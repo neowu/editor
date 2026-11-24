@@ -33,7 +33,6 @@ use super::FutureExt as _;
 use super::IconButton;
 use super::Location;
 use super::MultiBufferRow;
-use super::NotifyResultExt as _;
 use super::OffsetRangeExt as _;
 use super::Point;
 use super::Project;
@@ -91,36 +90,18 @@ impl Editor {
             return;
         };
         let buffer_id = buffer.read(cx).buffer_id();
-        let tasks = self.runnables.runnables((buffer_id, buffer_row)).map(|t| Arc::new(t.to_owned()));
-
-        let project = self.project.clone();
-        let runnable_task = if let Some(CodeActionSource::Indicator(_)) = deployed_from {
-            Task::ready(Ok(Option::default()))
-        } else {
-            let mut task_context_task = Task::ready(Ok(None));
-            let workspace = self.workspace().map(|w| w.downgrade());
-            if let Some(tasks) = &tasks
-                && let Some(project) = project
-            {
-                task_context_task = Self::build_tasks_context(&project, &buffer, buffer_row, tasks, cx);
+        let runnable_task = match (&deployed_from, self.runnables.runnables((buffer_id, buffer_row)), &self.project) {
+            (Some(CodeActionSource::Indicator(_)), _, _) | (_, None, _) | (_, _, None) => Task::ready(None),
+            (_, Some(tasks), Some(project)) => {
+                let spawns = Self::runnable_tasks(project, &buffer, buffer_row, tasks, cx);
+                let position =
+                    snapshot.buffer_snapshot().anchor_before(Point::new(multibuffer_point.row, tasks.column));
+                cx.background_spawn(async move { Some(ResolvedTasks { tasks: spawns.await, position }) })
             }
-
-            cx.spawn_in(window, async move |_, cx| {
-                let task_context = match workspace {
-                    Some(ws) => task_context_task.await.notify_workspace_async_err(ws, cx).flatten(),
-                    None => task_context_task.await.ok().flatten(),
-                };
-
-                let resolved_tasks = tasks.zip(task_context).map(|(tasks, task_context)| ResolvedTasks {
-                    templates: tasks.resolve(&task_context).collect(),
-                    position: snapshot.buffer_snapshot().anchor_before(Point::new(multibuffer_point.row, tasks.column)),
-                });
-                anyhow::Ok(resolved_tasks)
-            })
         };
 
         let toggle_task = cx.spawn_in(window, async move |editor, cx| {
-            let resolved_tasks = runnable_task.await?;
+            let resolved_tasks = runnable_task.await;
 
             let code_actions = if let Some(CodeActionSource::RunMenu(_)) = &deployed_from {
                 None
@@ -147,7 +128,7 @@ impl Editor {
 
             editor.update_in(cx, |editor, window, cx| {
                 let spawn_straight_away = quick_launch
-                    && resolved_tasks.as_ref().is_some_and(|tasks| tasks.templates.len() == 1)
+                    && resolved_tasks.as_ref().is_some_and(|tasks| tasks.tasks.len() == 1)
                     && code_actions.as_ref().is_none_or(|actions| actions.is_empty());
 
                 hover_popover::hide_hover(editor, cx);
@@ -211,7 +192,7 @@ impl Editor {
         let workspace = self.workspace();
 
         match action {
-            CodeActionsItem::Task(_, resolved_task) => {
+            CodeActionsItem::Task(task) => {
                 let workspace = workspace?;
                 if let Some((buffer_id, buffer_row)) = runnable_task_key {
                     self.set_runnable_task_status(buffer_id, buffer_row, RunnableTaskStatus::Running, cx);
@@ -219,8 +200,8 @@ impl Editor {
                 let editor = cx.weak_entity();
                 workspace.update(cx, |workspace, cx| {
                     if let Some((buffer_id, buffer_row)) = runnable_task_key {
-                        workspace.schedule_resolved_task_with_completion(
-                            resolved_task,
+                        workspace.schedule_task_with_completion(
+                            task,
                             move |result, cx| {
                                 editor
                                     .update(cx, |editor, cx| {
@@ -237,7 +218,7 @@ impl Editor {
                             cx,
                         );
                     } else {
-                        workspace.schedule_resolved_task(resolved_task, window, cx);
+                        workspace.schedule_task(task, window, cx);
                     }
 
                     Some(Task::ready(Ok(())))

@@ -52,7 +52,7 @@ pub fn init(languages: Arc<LanguageRegistry>, fs: Arc<Fs>, cx: &mut App) {
         git_commit::languages(),
         go::languages(),
         html::languages(),
-        json::languages(Arc::clone(&languages), Arc::clone(&biome)),
+        json::languages(Arc::clone(&languages), Arc::clone(&biome), Arc::clone(&fs)),
         markdown::languages(),
         python::languages(),
         rust::languages(),
@@ -157,9 +157,26 @@ fn load_queries(dir: &str) -> LanguageQueries {
 /// Panics unless the queries in `dir` compile against `grammar`.
 #[cfg(test)]
 fn assert_queries_compile(dir: &str, grammar: tree_sitter::Language) {
-    if let Err(error) = Language::new(load_config(dir), Some(grammar)).with_queries(load_queries(dir)) {
+    if let Err(error) = bundled_language(dir, grammar) {
         panic!("{dir}: {error:#}");
     }
+}
+
+/// The bundled language in `dir` (its config and queries) on `grammar`, without a registry.
+pub fn bundled_language(dir: &str, grammar: tree_sitter::Language) -> anyhow::Result<Language> {
+    Language::new(load_config(dir), Some(grammar)).with_queries(load_queries(dir))
+}
+
+/// App-free task builders behind each language's `ContextProvider::runnables`.
+pub mod runnables {
+    pub use crate::bash::bash_tasks;
+    pub use crate::go::go_tasks;
+    pub use crate::json::composer_script_task;
+    pub use crate::json::package_script_task;
+    pub use crate::markdown::shell_block_task;
+    pub use crate::package_json::PackageJsonData;
+    pub use crate::python::python_tasks;
+    pub use crate::typescript::js_test_tasks;
 }
 
 #[cfg(test)]
@@ -255,8 +272,7 @@ mod tests {
 
     #[test]
     fn loaded_grammar_resolves_highlights_without_a_registry() {
-        let json = Language::new(load_config("json"), Some(tree_sitter_json::LANGUAGE.into()))
-            .with_queries(load_queries("json"));
+        let json = bundled_language("json", tree_sitter_json::LANGUAGE.into());
         let grammar = json.unwrap().grammar().cloned().unwrap();
         assert!(grammar.highlight_id_for_name("string").is_some());
         assert!(grammar.highlight_id_for_name("no_such_capture").is_none());

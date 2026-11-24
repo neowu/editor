@@ -80,7 +80,6 @@ each an entity with its own event enum:
 | `ImageStore` | open `ImageItem`s |
 | `LspStore` | language servers, diagnostics, LSP requests |
 | `GitStore` | `Repository`s and their status, buffer diffs |
-| `TaskStore` | task inventory |
 | `ProjectEnvironment` | shell environment per worktree |
 
 - Stores reference each other directly (`LspStore`, `GitStore`,

@@ -1,9 +1,5 @@
 use std::borrow::Cow;
 use std::cmp::Reverse;
-use std::fmt;
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::io::ErrorKind;
 use std::num::NonZeroU32;
 use std::ops::Range;
 use std::path::Path;
@@ -20,9 +16,7 @@ use async_trait::async_trait;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::AsyncApp;
-use gpui::Entity;
 use gpui::SharedString;
-use gpui::Task;
 use language::language_settings::LanguageSettings;
 use language::language_settings::RewrapBehavior;
 use language::language_settings::SemanticTokenRules;
@@ -36,11 +30,6 @@ use regex::Regex;
 use rustc_hash::FxHashMap;
 use serde_json::json;
 use smallvec::SmallVec;
-use task::TaskTemplate;
-use task::TaskTemplates;
-use task::TaskVariables;
-use task::VariableName;
-use util::ResultExt as _;
 use util::merge_json_value_into;
 use util::rel_path::RelPath;
 
@@ -509,357 +498,10 @@ impl LspAdapter for RustLspAdapter {
 
 pub(crate) struct RustContextProvider;
 
-const RUST_PACKAGE_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("RUST_PACKAGE"));
-
-/// The bin name corresponding to the current file in Cargo.toml.
-const RUST_BIN_NAME_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("RUST_BIN_NAME"));
-
-/// The bin kind (bin/example) corresponding to the current file in Cargo.toml.
-const RUST_BIN_KIND_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("RUST_BIN_KIND"));
-
-/// The flag to list required features for executing a bin, if any.
-const RUST_BIN_REQUIRED_FEATURES_FLAG_TASK_VARIABLE: VariableName =
-    VariableName::Custom(Cow::Borrowed("RUST_BIN_REQUIRED_FEATURES_FLAG"));
-
-/// The list of required features for executing a bin, if any.
-const RUST_BIN_REQUIRED_FEATURES_TASK_VARIABLE: VariableName =
-    VariableName::Custom(Cow::Borrowed("RUST_BIN_REQUIRED_FEATURES"));
-
-const RUST_TEST_MOD_FILTER_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("RUST_TEST_MOD_FILTER"));
-
-const RUST_DOC_TEST_NAME_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("RUST_DOC_TEST_NAME"));
-
-const RUST_TEST_NAME_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("RUST_TEST_NAME"));
-
 impl ContextProvider for RustContextProvider {
-    fn build_context(
-        &self,
-        task_variables: &TaskVariables,
-        location: ContextLocation<'_>,
-        project_env: Option<FxHashMap<String, String>>,
-        cx: &mut gpui::App,
-    ) -> Task<Result<TaskVariables>> {
-        let local_abs_path =
-            location.file_location.buffer.read(cx).file().and_then(|file| Some(file.as_local()?.abs_path(cx)));
-
-        let mut variables = TaskVariables::default();
-
-        if let Some(test_name) = task_variables.get(&VariableName::Custom(Cow::Borrowed("_test_name"))) {
-            variables.insert(RUST_TEST_NAME_TASK_VARIABLE, test_name.into());
-            if let (Some(path), Some(stem)) = (&local_abs_path, task_variables.get(&VariableName::Stem)) {
-                variables.insert(RUST_TEST_MOD_FILTER_TASK_VARIABLE, test_mod_filter(path, stem, test_name));
-            }
-        }
-        if let Some(doc_test_name) = task_variables.get(&VariableName::Custom(Cow::Borrowed("_doc_test_name"))) {
-            variables.insert(RUST_DOC_TEST_NAME_TASK_VARIABLE, doc_test_name.into());
-        }
-        cx.background_spawn(async move {
-            if let Some(path) = local_abs_path.as_deref().and_then(|local_abs_path| local_abs_path.parent())
-                && let Some(package_name) = human_readable_package_name(path, project_env.as_ref()).await
-            {
-                variables.insert(RUST_PACKAGE_TASK_VARIABLE.clone(), package_name);
-            }
-            if let Some(path) = local_abs_path.as_ref()
-                && let Some(target) = target_info_from_abs_path(path, project_env.as_ref()).await?
-            {
-                variables.extend(TaskVariables::from_iter([
-                    (RUST_PACKAGE_TASK_VARIABLE.clone(), target.package_name),
-                    (RUST_BIN_NAME_TASK_VARIABLE.clone(), target.target_name),
-                    (RUST_BIN_KIND_TASK_VARIABLE.clone(), target.target_kind.to_string()),
-                ]));
-                let (flag, features) = if target.required_features.is_empty() {
-                    (String::new(), String::new())
-                } else {
-                    ("--features".to_owned(), target.required_features.join(","))
-                };
-                variables.insert(RUST_BIN_REQUIRED_FEATURES_FLAG_TASK_VARIABLE, flag);
-                variables.insert(RUST_BIN_REQUIRED_FEATURES_TASK_VARIABLE, features);
-            }
-            Ok(variables)
-        })
-    }
-
-    fn associated_tasks(&self, _: Option<Entity<Buffer>>, _: &App) -> Task<Option<TaskTemplates>> {
-        let task_templates = vec![
-            TaskTemplate {
-                label: format!("Check (package: {})", RUST_PACKAGE_TASK_VARIABLE.template_value()),
-                command: "cargo".into(),
-                args: vec!["check".into(), "-p".into(), RUST_PACKAGE_TASK_VARIABLE.template_value()],
-                cwd: Some(VariableName::Dirname.template_value()),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: "Check all targets (workspace)".into(),
-                command: "cargo".into(),
-                args: vec!["check".into(), "--workspace".into(), "--all-targets".into()],
-                cwd: Some(VariableName::Dirname.template_value()),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!(
-                    "Test '{}' (package: {})",
-                    RUST_TEST_NAME_TASK_VARIABLE.template_value(),
-                    RUST_PACKAGE_TASK_VARIABLE.template_value(),
-                ),
-                command: "cargo".into(),
-                args: vec![
-                    "test".into(),
-                    "-p".into(),
-                    RUST_PACKAGE_TASK_VARIABLE.template_value(),
-                    "--".into(),
-                    "--nocapture".into(),
-                    "--include-ignored".into(),
-                    RUST_TEST_NAME_TASK_VARIABLE.template_value(),
-                ],
-                tags: vec!["rust-test".to_owned()],
-                cwd: Some(VariableName::Dirname.template_value()),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!(
-                    "Doc test '{}' (package: {})",
-                    RUST_DOC_TEST_NAME_TASK_VARIABLE.template_value(),
-                    RUST_PACKAGE_TASK_VARIABLE.template_value(),
-                ),
-                command: "cargo".into(),
-                args: vec![
-                    "test".into(),
-                    "--doc".into(),
-                    "-p".into(),
-                    RUST_PACKAGE_TASK_VARIABLE.template_value(),
-                    "--".into(),
-                    "--nocapture".into(),
-                    "--include-ignored".into(),
-                    RUST_DOC_TEST_NAME_TASK_VARIABLE.template_value(),
-                ],
-                tags: vec!["rust-doc-test".to_owned()],
-                cwd: Some(VariableName::Dirname.template_value()),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!(
-                    "Test mod '{}' (package: {})",
-                    RUST_TEST_NAME_TASK_VARIABLE.template_value(),
-                    RUST_PACKAGE_TASK_VARIABLE.template_value(),
-                ),
-                command: "cargo".into(),
-                args: vec![
-                    "test".into(),
-                    "-p".into(),
-                    RUST_PACKAGE_TASK_VARIABLE.template_value(),
-                    "--".into(),
-                    RUST_TEST_MOD_FILTER_TASK_VARIABLE.template_value(),
-                ],
-                tags: vec!["rust-mod-test".to_owned()],
-                cwd: Some(VariableName::Dirname.template_value()),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!(
-                    "Run {} {} (package: {})",
-                    RUST_BIN_KIND_TASK_VARIABLE.template_value(),
-                    RUST_BIN_NAME_TASK_VARIABLE.template_value(),
-                    RUST_PACKAGE_TASK_VARIABLE.template_value(),
-                ),
-                command: "cargo".into(),
-                args: vec![
-                    "run".into(),
-                    "-p".into(),
-                    RUST_PACKAGE_TASK_VARIABLE.template_value(),
-                    format!("--{}", RUST_BIN_KIND_TASK_VARIABLE.template_value()),
-                    RUST_BIN_NAME_TASK_VARIABLE.template_value(),
-                    RUST_BIN_REQUIRED_FEATURES_FLAG_TASK_VARIABLE.template_value(),
-                    RUST_BIN_REQUIRED_FEATURES_TASK_VARIABLE.template_value(),
-                ],
-                cwd: Some(VariableName::Dirname.template_value()),
-                tags: vec!["rust-main".to_owned()],
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!("Test (package: {})", RUST_PACKAGE_TASK_VARIABLE.template_value()),
-                command: "cargo".into(),
-                args: vec!["test".into(), "-p".into(), RUST_PACKAGE_TASK_VARIABLE.template_value()],
-                cwd: Some(VariableName::Dirname.template_value()),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: "Run".into(),
-                command: "cargo".into(),
-                args: vec!["run".into()],
-                cwd: Some(VariableName::Dirname.template_value()),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: "Clean".into(),
-                command: "cargo".into(),
-                args: vec!["clean".into()],
-                cwd: Some(VariableName::Dirname.template_value()),
-                ..TaskTemplate::default()
-            },
-        ];
-
-        Task::ready(Some(TaskTemplates(task_templates)))
-    }
-
     fn lsp_task_source(&self) -> Option<LanguageServerName> {
         Some(SERVER_NAME)
     }
-}
-
-/// Part of the data structure of Cargo metadata.
-#[derive(Debug, serde::Deserialize)]
-struct CargoMetadata {
-    packages: Vec<CargoPackage>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct CargoPackage {
-    id: String,
-    targets: Vec<CargoTarget>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-struct CargoTarget {
-    name: String,
-    kind: Vec<String>,
-    src_path: String,
-    #[serde(rename = "required-features", default)]
-    required_features: Vec<String>,
-}
-
-#[derive(Debug, PartialEq)]
-enum TargetKind {
-    Bin,
-    Example,
-}
-
-impl Display for TargetKind {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            TargetKind::Bin => write!(f, "bin"),
-            TargetKind::Example => write!(f, "example"),
-        }
-    }
-}
-
-impl TryFrom<&str> for TargetKind {
-    type Error = ();
-    fn try_from(value: &str) -> Result<Self, ()> {
-        match value {
-            "bin" => Ok(Self::Bin),
-            "example" => Ok(Self::Example),
-            _ => Err(()),
-        }
-    }
-}
-/// Which package and binary target are we in?
-#[derive(Debug, PartialEq)]
-struct TargetInfo {
-    package_name: String,
-    target_name: String,
-    target_kind: TargetKind,
-    required_features: Vec<String>,
-}
-
-async fn target_info_from_abs_path(
-    abs_path: &Path,
-    project_env: Option<&FxHashMap<String, String>>,
-) -> Result<Option<TargetInfo>> {
-    let directory = abs_path.parent().ok_or_else(|| anyhow::anyhow!("failed to get parent directory"))?;
-    if !has_cargo_manifest(directory).await? {
-        return Ok(None);
-    }
-
-    let mut command = new_command("cargo");
-    if let Some(envs) = project_env {
-        command.envs(envs);
-    }
-    let output = command
-        .current_dir(directory)
-        .arg("metadata")
-        .arg("--no-deps")
-        .arg("--format-version")
-        .arg("1")
-        .output()
-        .await?;
-
-    if !output.status.success() {
-        let stderr_msg = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("Cargo metadata failed\n {stderr_msg}");
-    }
-
-    let metadata: CargoMetadata = serde_json::from_slice(&output.stdout)?;
-    Ok(target_info_from_metadata(metadata, abs_path))
-}
-
-async fn has_cargo_manifest(directory: &Path) -> Result<bool> {
-    let resolved_directory = fs::canonicalize(directory).await?;
-    for ancestor in resolved_directory.ancestors() {
-        match fs::metadata(ancestor.join("Cargo.toml")).await {
-            Ok(_) => return Ok(true),
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
-            Err(error) => return Err(error.into()),
-        }
-    }
-    Ok(false)
-}
-
-fn target_info_from_metadata(metadata: CargoMetadata, abs_path: &Path) -> Option<TargetInfo> {
-    metadata.packages.into_iter().find_map(|package| {
-        let target = package.targets.into_iter().find(|target| Path::new(&target.src_path) == abs_path)?;
-        let target_kind = target.kind.iter().find_map(|kind| TargetKind::try_from(kind.as_ref()).ok())?;
-        Some(TargetInfo {
-            package_name: package_name_from_pkgid(&package.id)?.to_owned(),
-            target_name: target.name,
-            required_features: target.required_features,
-            target_kind,
-        })
-    })
-}
-
-async fn human_readable_package_name(
-    package_directory: &Path,
-    project_env: Option<&FxHashMap<String, String>>,
-) -> Option<String> {
-    let mut command = new_command("cargo");
-    if let Some(envs) = project_env {
-        command.envs(envs);
-    }
-    let pkgid =
-        String::from_utf8(command.current_dir(package_directory).arg("pkgid").output().await.log_err()?.stdout).ok()?;
-    Some(package_name_from_pkgid(&pkgid)?.to_owned())
-}
-
-// For providing local `cargo check -p $pkgid` task, we do not need most of the information we have returned.
-// Output example in the root of Zed project:
-// ```sh
-// ❯ cargo pkgid zed
-// path+file:///absolute/path/to/project/zed/crates/zed#0.131.0
-// ```
-// Another variant, if a project has a custom package name or hyphen in the name:
-// ```
-// path+file:///absolute/path/to/project/custom-package#my-custom-package@0.1.0
-// ```
-//
-// Extracts the package name from the output according to the spec:
-// https://doc.rust-lang.org/cargo/reference/pkgid-spec.html#specification-grammar
-fn package_name_from_pkgid(pkgid: &str) -> Option<&str> {
-    fn split_off_suffix(input: &str, suffix_start: char) -> &str {
-        match input.rsplit_once(suffix_start) {
-            Some((without_suffix, _)) => without_suffix,
-            None => input,
-        }
-    }
-
-    let (version_prefix, version_suffix) = pkgid.trim().rsplit_once('#')?;
-    let package_name = if let Some((custom_package_name, _version)) = version_suffix.rsplit_once('@') {
-        custom_package_name
-    } else {
-        let host_and_path = split_off_suffix(version_prefix, '?');
-        let (_, package_name) = host_and_path.rsplit_once('/')?;
-        package_name
-    };
-    Some(package_name)
 }
 
 const CLIPPY_CONFIG_FILE_NAMES: [&str; 2] = ["clippy.toml", ".clippy.toml"];
@@ -907,22 +549,6 @@ fn dedup_diagnostics(diagnostics: &mut Vec<lsp::Diagnostic>) {
     *diagnostics = kept;
 }
 
-/// Test name filter for the inline module `mod_name` declared in the file at `path`.
-///
-/// Only the file's own module name is known, not its full path, which is fine since
-/// libtest filters by substring.
-fn test_mod_filter(path: &Path, stem: &str, mod_name: &str) -> String {
-    let file_module = match stem {
-        "lib" | "main" => None,
-        "mod" => path.parent().and_then(|dir| dir.file_name()).map(|name| name.to_string_lossy().into_owned()),
-        _ => Some(stem.to_owned()),
-    };
-    match file_module {
-        Some(file_module) => format!("{file_module}::{mod_name}::"),
-        None => format!("{mod_name}::"),
-    }
-}
-
 /// Settings for Rust.
 pub(crate) fn settings() -> LanguageSettings {
     LanguageSettings {
@@ -956,40 +582,6 @@ pub(crate) fn languages() -> Vec<LanguageDef> {
 
 #[cfg(test)]
 mod tests {
-    use super::CargoMetadata;
-    use super::TargetInfo;
-    use super::TargetKind;
-    use super::target_info_from_metadata;
-
-    #[test]
-    fn target_info_matches_bin_and_example_src_path() {
-        let metadata = serde_json::json!({"packages": [
-            {"id": "path+file:///w/a#0.1.0", "targets": [
-                {"name": "a", "kind": ["lib"], "src_path": "/w/a/src/lib.rs"},
-            ]},
-            {"id": "path+file:///w/b#0.1.0", "targets": [
-                {"name": "b", "kind": ["bin"], "src_path": "/w/b/src/main.rs"},
-                {"name": "demo", "kind": ["example"], "src_path": "/w/b/examples/demo.rs", "required-features": ["x"]},
-            ]},
-        ]});
-        let info = |path: &str| {
-            let metadata: CargoMetadata = serde_json::from_value(metadata.clone()).unwrap();
-            target_info_from_metadata(metadata, Path::new(path))
-        };
-        assert_eq!(
-            info("/w/b/examples/demo.rs"),
-            Some(TargetInfo {
-                package_name: "b".into(),
-                target_name: "demo".into(),
-                target_kind: TargetKind::Example,
-                required_features: vec!["x".into()],
-            })
-        );
-        assert_eq!(info("/w/b/src/main.rs").map(|t| t.target_kind), Some(TargetKind::Bin));
-        assert_eq!(info("/w/a/src/lib.rs"), None);
-        assert_eq!(info("/w/b/src/other.rs"), None);
-    }
-
     #[test]
     fn semantic_token_rules_map_to_theme_styles() {
         let rules = super::semantic_token_rules().rules;
@@ -1056,7 +648,6 @@ mod tests {
     use super::existing_clippy_configs;
     use super::initialization_options;
     use super::str;
-    use super::test_mod_filter;
 
     fn diagnostic(line: u32, message: &str) -> lsp::Diagnostic {
         lsp::Diagnostic {
@@ -1160,14 +751,6 @@ mod tests {
 
     fn library_root(abs_path: &str) -> Option<LibraryRoot> {
         CargoLibraryProvider.library_root(Path::new(abs_path))
-    }
-
-    #[test]
-    fn mod_filter_scopes_to_file_module() {
-        assert_eq!(test_mod_filter(Path::new("/p/src/lib.rs"), "lib", "tests"), "tests::");
-        assert_eq!(test_mod_filter(Path::new("/p/src/main.rs"), "main", "tests"), "tests::");
-        assert_eq!(test_mod_filter(Path::new("/p/src/foo/mod.rs"), "mod", "tests"), "foo::tests::");
-        assert_eq!(test_mod_filter(Path::new("/p/src/foo/bar.rs"), "bar", "tests"), "bar::tests::");
     }
 
     #[test]

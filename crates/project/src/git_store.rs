@@ -1220,19 +1220,6 @@ impl GitStore {
         &self.repositories
     }
 
-    /// Returns the main repository working directory for the given worktree.
-    /// For normal checkouts this equals the worktree's own path. For linked
-    /// worktrees it points back to the main worktree, if one exists. Linked
-    /// worktrees attached to a bare repository have no main worktree path.
-    pub fn original_repo_path_for_worktree(&self, worktree_id: WorktreeId, cx: &App) -> Option<Arc<Path>> {
-        self.active_repo_id
-            .iter()
-            .chain(self.worktree_ids.keys())
-            .find(|repo_id| self.worktree_ids.get(repo_id).is_some_and(|ids| ids.contains(&worktree_id)))
-            .and_then(|repo_id| self.repositories.get(repo_id))
-            .and_then(|repo| repo.read(cx).snapshot().main_worktree_abs_path().map(Arc::from))
-    }
-
     pub fn status_for_buffer_id(&self, buffer_id: BufferId, cx: &App) -> Option<FileStatus> {
         let (repo, path) = self.repository_and_path_for_buffer_id(buffer_id, cx)?;
         let status = repo.read(cx).snapshot.status_for_path(&path)?;

@@ -30,9 +30,7 @@ use gpui::actions;
 use itertools::Itertools as _;
 use project::Project;
 use rustc_hash::FxHashMap;
-use task::RevealStrategy;
 use task::SpawnInTerminal;
-use task::TaskId;
 use terminal::Terminal;
 use terminal::terminal_settings::TerminalSettings;
 use ui::CommonAnimationExt as _;
@@ -125,7 +123,7 @@ pub struct TerminalPanel {
     focus_handle: FocusHandle,
     workspace: WeakEntity<Workspace>,
     pending_terminals_to_add: usize,
-    deferred_tasks: FxHashMap<TaskId, Task<()>>,
+    deferred_tasks: FxHashMap<String, Task<()>>,
     active: bool,
 }
 
@@ -329,9 +327,7 @@ impl TerminalPanel {
                 if visible || !has_no_terminals {
                     let working_directory = default_working_directory(workspace, cx);
                     terminal_panel
-                        .update(cx, |panel, cx| {
-                            panel.add_terminal_shell(working_directory, RevealStrategy::Always, window, cx)
-                        })
+                        .update(cx, |panel, cx| panel.add_terminal_shell(working_directory, window, cx))
                         .detach_and_log_err(cx);
                 }
             }
@@ -358,8 +354,7 @@ impl TerminalPanel {
 
         let mut terminals_for_task = self.terminals_for_task(&task.full_label, cx);
         let Some(existing) = terminals_for_task.pop() else {
-            let reveal = task.reveal;
-            return self.add_terminal_task(task, reveal, window, cx);
+            return self.add_terminal_task(task, window, cx);
         };
 
         let (existing_item_index, task_pane, existing_terminal) = existing;
@@ -370,7 +365,7 @@ impl TerminalPanel {
         let (tx, rx) = oneshot::channel();
 
         self.deferred_tasks.insert(
-            task.id.clone(),
+            task.full_label.clone(),
             cx.spawn_in(window, async move |terminal_panel, cx| {
                 wait_for_terminals_tasks(terminals_for_task, cx).await;
                 let task = terminal_panel.update_in(cx, |terminal_panel, window, cx| {
@@ -404,9 +399,7 @@ impl TerminalPanel {
         };
 
         terminal_panel
-            .update(cx, |this, cx| {
-                this.add_terminal_shell(default_working_directory(workspace, cx), RevealStrategy::Always, window, cx)
-            })
+            .update(cx, |this, cx| this.add_terminal_shell(default_working_directory(workspace, cx), window, cx))
             .detach_and_log_err(cx);
     }
 
@@ -446,7 +439,6 @@ impl TerminalPanel {
     pub fn add_terminal_task(
         &mut self,
         task: SpawnInTerminal,
-        reveal_strategy: RevealStrategy,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<WeakEntity<Terminal>>> {
@@ -466,15 +458,11 @@ impl TerminalPanel {
                     )
                 }));
 
-                let take_focus = reveal_strategy == RevealStrategy::Always && !workspace.has_active_modal(window, cx);
-                match reveal_strategy {
-                    RevealStrategy::Always if take_focus => {
-                        workspace.focus_panel::<Self>(window, cx);
-                    }
-                    RevealStrategy::Always | RevealStrategy::NoFocus => {
-                        workspace.open_panel::<Self>(window, cx);
-                    }
-                    RevealStrategy::Never => {}
+                let take_focus = !workspace.has_active_modal(window, cx);
+                if take_focus {
+                    workspace.focus_panel::<Self>(window, cx);
+                } else {
+                    workspace.open_panel::<Self>(window, cx);
                 }
 
                 pane.update(cx, |pane, cx| {
@@ -489,7 +477,6 @@ impl TerminalPanel {
     fn add_terminal_shell(
         &mut self,
         cwd: Option<PathBuf>,
-        reveal_strategy: RevealStrategy,
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<WeakEntity<Terminal>>> {
@@ -511,16 +498,11 @@ impl TerminalPanel {
                         )
                     }));
 
-                    let take_focus =
-                        reveal_strategy == RevealStrategy::Always && !workspace.has_active_modal(window, cx);
-                    match reveal_strategy {
-                        RevealStrategy::Always if take_focus => {
-                            workspace.focus_panel::<Self>(window, cx);
-                        }
-                        RevealStrategy::Always | RevealStrategy::NoFocus => {
-                            workspace.open_panel::<Self>(window, cx);
-                        }
-                        RevealStrategy::Never => {}
+                    let take_focus = !workspace.has_active_modal(window, cx);
+                    if take_focus {
+                        workspace.focus_panel::<Self>(window, cx);
+                    } else {
+                        workspace.open_panel::<Self>(window, cx);
                     }
 
                     pane.update(cx, |pane, cx| {
@@ -585,7 +567,6 @@ impl TerminalPanel {
         window: &Window,
         cx: &Context<Self>,
     ) -> Task<Result<WeakEntity<Terminal>>> {
-        let reveal = spawn_task.reveal;
         let task_workspace = self.workspace.clone();
         cx.spawn_in(window, async move |terminal_panel, cx| {
             let project = terminal_panel
@@ -596,29 +577,11 @@ impl TerminalPanel {
             })?;
 
             // Task tabs stay in the terminal panel: editor panes refuse terminals.
-            match reveal {
-                RevealStrategy::Always => {
-                    terminal_panel.update_in(cx, |terminal_panel, window, cx| {
-                        terminal_panel.activate_terminal_view(&task_pane, terminal_item_index, true, window, cx);
-                    })?;
-
-                    cx.spawn(async move |cx| {
-                        task_workspace.update_in(cx, workspace::Workspace::focus_panel::<Self>).ok()
-                    })
-                    .detach();
-                }
-                RevealStrategy::NoFocus => {
-                    terminal_panel.update_in(cx, |terminal_panel, window, cx| {
-                        terminal_panel.activate_terminal_view(&task_pane, terminal_item_index, false, window, cx);
-                    })?;
-
-                    cx.spawn(async move |cx| {
-                        task_workspace.update_in(cx, workspace::Workspace::open_panel::<Self>).ok()
-                    })
-                    .detach();
-                }
-                RevealStrategy::Never => {}
-            }
+            terminal_panel.update_in(cx, |terminal_panel, window, cx| {
+                terminal_panel.activate_terminal_view(&task_pane, terminal_item_index, true, window, cx);
+            })?;
+            cx.spawn(async move |cx| task_workspace.update_in(cx, workspace::Workspace::focus_panel::<Self>).ok())
+                .detach();
 
             Ok(new_terminal.downgrade())
         })
@@ -1005,7 +968,7 @@ impl Panel for TerminalPanel {
                 return;
             };
 
-            this.add_terminal_shell(kind, RevealStrategy::Always, window, cx).detach_and_log_err(cx);
+            this.add_terminal_shell(kind, window, cx).detach_and_log_err(cx);
         });
     }
 

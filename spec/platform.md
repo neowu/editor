@@ -161,8 +161,7 @@ or UNC prefixes. There is no path-style abstraction; code uses
   Dock-menu items dispatch their actions directly through AppKit, not via URLs.
 - Branding is `ed` everywhere (crates `ed`/`actions`, UI text,
   `TERM_PROGRAM=ed`, pasteboard types).
-  Environment variables and task template variables use the `ED_` prefix
-  (`$ED_FILE`, ...) and the project folder is `.ed`; upstream
+  Environment variables use the `ED_` prefix and the project folder is `.ed`; upstream
   `ZED_*` variables and `.zed` folders are ignored.
 - Linux desktop, FreeBSD, Windows, and browser backends, packaging, and associated
   build/test/release tooling are removed.

@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -13,24 +12,18 @@ pub(crate) struct PackageJson {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct PackageJsonData {
+pub struct PackageJsonData {
     pub jest_package_path: Option<Arc<Path>>,
     pub mocha_package_path: Option<Arc<Path>>,
     pub vitest_package_path: Option<Arc<Path>>,
     pub jasmine_package_path: Option<Arc<Path>>,
     pub bun_package_path: Option<Arc<Path>>,
     pub node_package_path: Option<Arc<Path>>,
-    pub scripts: BTreeSet<(Arc<Path>, String)>,
     pub package_manager: Option<&'static str>,
 }
 
 impl PackageJsonData {
-    pub(crate) fn new(path: Arc<Path>, package_json: FxHashMap<String, Value>) -> Self {
-        let mut scripts = BTreeSet::new();
-        if let Some(Value::Object(package_json_scripts)) = package_json.get("scripts") {
-            scripts.extend(package_json_scripts.keys().cloned().map(|name| (Arc::clone(&path), name)));
-        }
-
+    pub fn new(path: Arc<Path>, package_json: FxHashMap<String, Value>) -> Self {
         let mut jest_package_path = None;
         let mut mocha_package_path = None;
         let mut vitest_package_path = None;
@@ -87,7 +80,6 @@ impl PackageJsonData {
             jasmine_package_path,
             bun_package_path,
             node_package_path,
-            scripts,
             package_manager,
         }
     }
@@ -99,7 +91,6 @@ impl PackageJsonData {
         self.jasmine_package_path = self.jasmine_package_path.take().or(other.jasmine_package_path);
         self.bun_package_path = self.bun_package_path.take().or(other.bun_package_path);
         self.node_package_path = self.node_package_path.take().or(other.node_package_path);
-        self.scripts.extend(other.scripts);
         self.package_manager = self.package_manager.or(other.package_manager);
     }
 }

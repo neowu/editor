@@ -48,10 +48,9 @@ use project::Completion;
 use project::CompletionDisplayOptions;
 use project::CompletionGroup;
 use project::CompletionSource;
-use project::TaskSourceKind;
 use project::lsp_store::CompletionDocumentation;
 use rustc_hash::FxHashSet;
-use task::ResolvedTask;
+use task::SpawnInTerminal;
 use ui::Divider;
 use ui::ListItem;
 use ui::ListSubHeader;
@@ -1577,7 +1576,7 @@ impl CodeActionContents {
     }
 
     fn len(&self) -> usize {
-        let tasks_len = self.tasks.as_ref().map_or(0, |tasks| tasks.templates.len());
+        let tasks_len = self.tasks.as_ref().map_or(0, |tasks| tasks.tasks.len());
         let code_actions_len = self.actions.as_ref().map_or(0, |actions| actions.len());
         tasks_len + code_actions_len
     }
@@ -1587,25 +1586,22 @@ impl CodeActionContents {
     }
 
     fn iter(&self) -> impl Iterator<Item = CodeActionsItem> + '_ {
-        self.tasks
-            .iter()
-            .flat_map(|tasks| {
-                tasks.templates.iter().map(|(kind, task)| CodeActionsItem::Task(kind.clone(), task.clone()))
-            })
-            .chain(self.actions.iter().flat_map(|actions| {
+        self.tasks.iter().flat_map(|tasks| tasks.tasks.iter().map(|task| CodeActionsItem::Task(task.clone()))).chain(
+            self.actions.iter().flat_map(|actions| {
                 actions.iter().map(|available| CodeActionsItem::CodeAction {
                     action: available.action.clone(),
                     provider: Rc::clone(&available.provider),
                 })
-            }))
+            }),
+        )
     }
 
     pub fn get(&self, mut index: usize) -> Option<CodeActionsItem> {
         if let Some(tasks) = &self.tasks {
-            if let Some((kind, task)) = tasks.templates.get(index) {
-                return Some(CodeActionsItem::Task(kind.clone(), task.clone()));
+            if let Some(task) = tasks.tasks.get(index) {
+                return Some(CodeActionsItem::Task(task.clone()));
             }
-            index -= tasks.templates.len();
+            index -= tasks.tasks.len();
         }
         if let Some(actions) = &self.actions
             && let Some(available) = actions.get(index)
@@ -1622,7 +1618,7 @@ impl CodeActionContents {
 
 #[derive(Clone)]
 pub enum CodeActionsItem {
-    Task(TaskSourceKind, ResolvedTask),
+    Task(SpawnInTerminal),
     CodeAction { action: CodeAction, provider: Rc<dyn CodeActionProvider> },
 }
 
@@ -1630,14 +1626,14 @@ impl CodeActionsItem {
     pub fn label(&self) -> String {
         match self {
             Self::CodeAction { action, .. } => action.lsp_action.title().to_owned(),
-            Self::Task(_, task) => task.resolved_label.clone(),
+            Self::Task(task) => task.full_label.clone(),
         }
     }
 
     pub fn menu_label(&self) -> String {
         match self {
             Self::CodeAction { action, .. } => action.lsp_action.title().replace('\n', ""),
-            Self::Task(_, task) => task.resolved_label.replace('\n', ""),
+            Self::Task(task) => task.full_label.replace('\n', ""),
         }
     }
 }
@@ -1757,7 +1753,7 @@ impl CodeActionsMenu {
                 .iter()
                 .enumerate()
                 .max_by_key(|(_, action)| match action {
-                    CodeActionsItem::Task(_, task) => task.resolved_label.chars().count(),
+                    CodeActionsItem::Task(task) => task.full_label.chars().count(),
                     CodeActionsItem::CodeAction { action, .. } => action.lsp_action.title().chars().count(),
                 })
                 .map(|(ix, _)| ix),

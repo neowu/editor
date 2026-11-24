@@ -1,7 +1,7 @@
-use std::borrow::Cow;
 use std::ffi::OsString;
 use std::num::NonZeroU32;
 use std::ops::Range;
+use std::path::Path;
 use std::str;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -10,7 +10,6 @@ use anyhow::Result;
 use async_trait::async_trait;
 use gpui::App;
 use gpui::AsyncApp;
-use gpui::Entity;
 use gpui::Task;
 use language::ContextProvider;
 use language::LspAdapterDelegate;
@@ -26,10 +25,7 @@ use lsp::LanguageServerName;
 use regex::Regex;
 use rustc_hash::FxHashMap;
 use serde_json::json;
-use task::TaskTemplate;
-use task::TaskTemplates;
-use task::TaskVariables;
-use task::VariableName;
+use task::SpawnInTerminal;
 
 use crate::LanguageDef;
 
@@ -302,267 +298,76 @@ impl RunnableResolver for GoRunnableResolver {
     }
 }
 
-const GO_PACKAGE_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("GO_PACKAGE"));
-const GO_MODULE_ROOT_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("GO_MODULE_ROOT"));
-const GO_SUBTEST_NAME_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("GO_SUBTEST_NAME"));
-const GO_TABLE_TEST_CASE_NAME_TASK_VARIABLE: VariableName =
-    VariableName::Custom(Cow::Borrowed("GO_TABLE_TEST_CASE_NAME"));
-const GO_SUITE_NAME_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("GO_SUITE_NAME"));
-
 impl ContextProvider for GoContextProvider {
-    fn build_context(
-        &self,
-        variables: &TaskVariables,
-        location: ContextLocation<'_>,
-        _: Option<FxHashMap<String, String>>,
-        cx: &mut gpui::App,
-    ) -> Task<Result<TaskVariables>> {
-        let local_abs_path =
-            location.file_location.buffer.read(cx).file().and_then(|file| Some(file.as_local()?.abs_path(cx)));
-
-        let go_package_variable =
-            local_abs_path.as_deref().and_then(|local_abs_path| local_abs_path.parent()).map(|buffer_dir| {
-                // Prefer the relative form `./my-nested-package/is-here` over
-                // absolute path, because it's more readable in the modal, but
-                // the absolute path also works.
-                let package_name = variables
-                    .get(&VariableName::WorktreeRoot)
-                    .and_then(|worktree_abs_path| buffer_dir.strip_prefix(worktree_abs_path).ok())
-                    .map_or_else(
-                        || format!("{}", buffer_dir.to_string_lossy()),
-                        |relative_pkg_dir| {
-                            if relative_pkg_dir.as_os_str().is_empty() {
-                                ".".into()
-                            } else {
-                                format!("./{}", relative_pkg_dir.to_string_lossy())
-                            }
-                        },
-                    );
-
-                (GO_PACKAGE_TASK_VARIABLE.clone(), package_name)
-            });
-
-        let go_module_root_variable =
-            local_abs_path.as_deref().and_then(|local_abs_path| local_abs_path.parent()).map(|buffer_dir| {
-                // Walk dirtree up until getting the first go.mod file
-                let module_dir = buffer_dir
-                    .ancestors()
-                    .find(|dir| dir.join("go.mod").is_file())
-                    .map_or_else(|| ".".to_owned(), |dir| dir.to_string_lossy().into_owned());
-
-                (GO_MODULE_ROOT_TASK_VARIABLE.clone(), module_dir)
-            });
-
-        let _subtest_name = variables.get(&VariableName::Custom(Cow::Borrowed("_subtest_name")));
-
-        let go_subtest_variable =
-            Some((GO_SUBTEST_NAME_TASK_VARIABLE.clone(), extract_subtest_name(_subtest_name.unwrap_or(""))));
-
-        let _table_test_case_name = variables.get(&VariableName::Custom(Cow::Borrowed("_table_test_case_name")));
-
-        let go_table_test_case_variable = _table_test_case_name
-            .map(extract_subtest_name)
-            .map(|case_name| (GO_TABLE_TEST_CASE_NAME_TASK_VARIABLE.clone(), case_name));
-
-        let _suite_name = variables.get(&VariableName::Custom(Cow::Borrowed("_suite_name")));
-
-        let go_suite_variable =
-            _suite_name.map(extract_subtest_name).map(|suite_name| (GO_SUITE_NAME_TASK_VARIABLE.clone(), suite_name));
-
-        Task::ready(Ok(TaskVariables::from_iter(
-            [
-                go_package_variable,
-                go_subtest_variable,
-                go_table_test_case_variable,
-                go_suite_variable,
-                go_module_root_variable,
-            ]
-            .into_iter()
-            .flatten(),
-        )))
-    }
-
-    fn associated_tasks(&self, _: Option<Entity<Buffer>>, _: &App) -> Task<Option<TaskTemplates>> {
-        let package_cwd =
-            if GO_PACKAGE_TASK_VARIABLE.template_value() == "." { None } else { Some("$ED_DIRNAME".to_owned()) };
-        let module_cwd = Some(GO_MODULE_ROOT_TASK_VARIABLE.template_value());
-
-        Task::ready(Some(TaskTemplates(vec![
-            TaskTemplate {
-                label: format!(
-                    "go test {} -v -run Test{}/{}",
-                    GO_PACKAGE_TASK_VARIABLE.template_value(),
-                    GO_SUITE_NAME_TASK_VARIABLE.template_value(),
-                    VariableName::Symbol.template_value(),
-                ),
-                command: "go".into(),
-                args: vec![
-                    "test".into(),
-                    "-v".into(),
-                    "-run".into(),
-                    format!(
-                        "\\^Test{}\\$/\\^{}\\$",
-                        GO_SUITE_NAME_TASK_VARIABLE.template_value(),
-                        VariableName::Symbol.template_value(),
-                    ),
-                ],
-                cwd: package_cwd.clone(),
-                tags: vec!["go-testify-suite".to_owned()],
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!(
-                    "go test {} -v -run {}/{}",
-                    GO_PACKAGE_TASK_VARIABLE.template_value(),
-                    VariableName::Symbol.template_value(),
-                    GO_TABLE_TEST_CASE_NAME_TASK_VARIABLE.template_value(),
-                ),
-                command: "go".into(),
-                args: vec![
-                    "test".into(),
-                    "-v".into(),
-                    "-run".into(),
-                    format!(
-                        "\\^{}\\$/\\^{}\\$",
-                        VariableName::Symbol.template_value(),
-                        GO_TABLE_TEST_CASE_NAME_TASK_VARIABLE.template_value(),
-                    ),
-                ],
-                cwd: package_cwd.clone(),
-                tags: vec!["go-table-test-case".to_owned(), "go-table-test-case-without-explicit-variable".to_owned()],
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!(
-                    "go test {} -run {}",
-                    GO_PACKAGE_TASK_VARIABLE.template_value(),
-                    VariableName::Symbol.template_value(),
-                ),
-                command: "go".into(),
-                args: vec!["test".into(), "-run".into(), format!("\\^{}\\$", VariableName::Symbol.template_value(),)],
-                tags: vec!["go-test".to_owned()],
-                cwd: package_cwd.clone(),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!(
-                    "go test {} -run {}",
-                    GO_PACKAGE_TASK_VARIABLE.template_value(),
-                    VariableName::Symbol.template_value(),
-                ),
-                command: "go".into(),
-                args: vec!["test".into(), "-run".into(), format!("\\^{}\\$", VariableName::Symbol.template_value(),)],
-                tags: vec!["go-example".to_owned()],
-                cwd: package_cwd.clone(),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!("go test {}", GO_PACKAGE_TASK_VARIABLE.template_value()),
-                command: "go".into(),
-                args: vec!["test".into()],
-                cwd: package_cwd.clone(),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!("go test {}", GO_PACKAGE_TASK_VARIABLE.template_value()),
-                command: "go".into(),
-                args: vec!["test".into()],
-                cwd: package_cwd.clone(),
-                tags: vec!["go-package-test".to_owned()],
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: "go test ./...".into(),
-                command: "go".into(),
-                args: vec!["test".into(), "./...".into()],
-                cwd: module_cwd.clone(),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!(
-                    "go test {} -v -run {}/{}",
-                    GO_PACKAGE_TASK_VARIABLE.template_value(),
-                    VariableName::Symbol.template_value(),
-                    GO_SUBTEST_NAME_TASK_VARIABLE.template_value(),
-                ),
-                command: "go".into(),
-                args: vec![
-                    "test".into(),
-                    "-v".into(),
-                    "-run".into(),
-                    format!(
-                        "\\^{}\\$/\\^{}\\$",
-                        VariableName::Symbol.template_value(),
-                        GO_SUBTEST_NAME_TASK_VARIABLE.template_value(),
-                    ),
-                ],
-                cwd: package_cwd.clone(),
-                tags: vec!["go-subtest".to_owned()],
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!(
-                    "go test {} -bench {}",
-                    GO_PACKAGE_TASK_VARIABLE.template_value(),
-                    VariableName::Symbol.template_value()
-                ),
-                command: "go".into(),
-                args: vec![
-                    "test".into(),
-                    "-benchmem".into(),
-                    "-run='^$'".into(),
-                    "-bench".into(),
-                    format!("\\^{}\\$", VariableName::Symbol.template_value()),
-                ],
-                cwd: package_cwd.clone(),
-                tags: vec!["go-benchmark".to_owned()],
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!(
-                    "go test {} -fuzz=Fuzz -run {}",
-                    GO_PACKAGE_TASK_VARIABLE.template_value(),
-                    VariableName::Symbol.template_value(),
-                ),
-                command: "go".into(),
-                args: vec![
-                    "test".into(),
-                    "-fuzz=Fuzz".into(),
-                    "-run".into(),
-                    format!("\\^{}\\$", VariableName::Symbol.template_value(),),
-                ],
-                tags: vec!["go-fuzz".to_owned()],
-                cwd: package_cwd.clone(),
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!("go run {}", GO_PACKAGE_TASK_VARIABLE.template_value()),
-                command: "go".into(),
-                args: vec!["run".into(), ".".into()],
-                cwd: package_cwd.clone(),
-                tags: vec!["go-main".to_owned()],
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: format!("go generate {}", GO_PACKAGE_TASK_VARIABLE.template_value()),
-                command: "go".into(),
-                args: vec!["generate".into()],
-                cwd: package_cwd,
-                tags: vec!["go-generate".to_owned()],
-                ..TaskTemplate::default()
-            },
-            TaskTemplate {
-                label: "go generate ./...".into(),
-                command: "go".into(),
-                args: vec!["generate".into(), "./...".into()],
-                cwd: module_cwd,
-                ..TaskTemplate::default()
-            },
-        ])))
+    fn runnables(&self, cx: RunContext, _: &App) -> Task<Vec<SpawnInTerminal>> {
+        Task::ready(go_tasks(&cx).into_iter().collect())
     }
 
     fn runnable_resolver(&self) -> Option<Arc<dyn RunnableResolver>> {
         Some(Arc::new(GoRunnableResolver))
+    }
+}
+
+/// Runs from the file's folder, so `go` acts on that package.
+pub fn go_tasks(cx: &RunContext) -> Option<SpawnInTerminal> {
+    let dir = cx.dir()?;
+    let package = go_package_label(&dir, cx.worktree_root.as_deref());
+    let symbol = || cx.symbol.as_deref();
+    let capture = |name| cx.capture(name).map(extract_subtest_name);
+    let (label, args): (String, Vec<String>) = match cx.tag.as_ref() {
+        "go-testify-suite" => {
+            let (suite, symbol) = (capture("_suite_name")?, symbol()?);
+            (
+                format!("go test {package} -v -run Test{suite}/{symbol}"),
+                vec!["test".into(), "-v".into(), "-run".into(), format!("\\^Test{suite}\\$/\\^{symbol}\\$")],
+            )
+        }
+        "go-table-test-case" | "go-table-test-case-without-explicit-variable" => {
+            let (case, symbol) = (capture("_table_test_case_name")?, symbol()?);
+            (
+                format!("go test {package} -v -run {symbol}/{case}"),
+                vec!["test".into(), "-v".into(), "-run".into(), format!("\\^{symbol}\\$/\\^{case}\\$")],
+            )
+        }
+        "go-subtest" => {
+            let (subtest, symbol) = (capture("_subtest_name").unwrap_or_default(), symbol()?);
+            (
+                format!("go test {package} -v -run {symbol}/{subtest}"),
+                vec!["test".into(), "-v".into(), "-run".into(), format!("\\^{symbol}\\$/\\^{subtest}\\$")],
+            )
+        }
+        "go-test" | "go-example" => {
+            let symbol = symbol()?;
+            (format!("go test {package} -run {symbol}"), vec!["test".into(), "-run".into(), format!("\\^{symbol}\\$")])
+        }
+        "go-benchmark" => {
+            let symbol = symbol()?;
+            (
+                format!("go test {package} -bench {symbol}"),
+                vec!["test".into(), "-benchmem".into(), "-run='^$'".into(), "-bench".into(), format!("\\^{symbol}\\$")],
+            )
+        }
+        "go-fuzz" => {
+            let symbol = symbol()?;
+            (
+                format!("go test {package} -fuzz=Fuzz -run {symbol}"),
+                vec!["test".into(), "-fuzz=Fuzz".into(), "-run".into(), format!("\\^{symbol}\\$")],
+            )
+        }
+        "go-package-test" => (format!("go test {package}"), vec!["test".into()]),
+        "go-main" => (format!("go run {package}"), vec!["run".into(), ".".into()]),
+        "go-generate" => (format!("go generate {package}"), vec!["generate".into()]),
+        _ => return None,
+    };
+    Some(SpawnInTerminal::new(label, "go", args, Some(dir)))
+}
+
+/// `./nested/pkg` (or `.`) relative to the worktree root, else the absolute folder.
+fn go_package_label(dir: &Path, worktree_root: Option<&Path>) -> String {
+    match worktree_root.and_then(|root| dir.strip_prefix(root).ok()) {
+        Some(relative) if relative.as_os_str().is_empty() => ".".to_owned(),
+        Some(relative) => format!("./{}", relative.display()),
+        None => dir.display().to_string(),
     }
 }
 
@@ -633,4 +438,53 @@ pub(crate) fn languages() -> Vec<LanguageDef> {
         },
         LanguageDef { adapters: vec![adapter], context: Some(context), ..LanguageDef::new("gowork", mod_settings()) },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+    use std::path::PathBuf;
+
+    use language::RunContext;
+
+    use super::go_package_label;
+    use super::go_tasks;
+
+    #[test]
+    fn go_package_label_is_relative_to_the_worktree() {
+        assert_eq!(go_package_label(Path::new("/w"), Some(Path::new("/w"))), ".");
+        assert_eq!(go_package_label(Path::new("/w/a/b"), Some(Path::new("/w"))), "./a/b");
+        assert_eq!(go_package_label(Path::new("/x/a"), Some(Path::new("/w"))), "/x/a");
+        assert_eq!(go_package_label(Path::new("/x/a"), None), "/x/a");
+    }
+
+    #[test]
+    fn go_tasks_build_per_tag() {
+        let cx = RunContext {
+            tag: "go-test".into(),
+            file: PathBuf::from("/w/pkg/a_test.go"),
+            worktree_root: Some(PathBuf::from("/w")),
+            symbol: Some("TestA".to_owned()),
+            ..RunContext::default()
+        };
+        let task = go_tasks(&cx).unwrap();
+        assert_eq!(task.full_label, "go test ./pkg -run TestA");
+        assert_eq!(task.command_label, "go test -run \\^TestA\\$");
+        assert_eq!(task.cwd, Some(PathBuf::from("/w/pkg")));
+
+        let subtest = RunContext {
+            tag: "go-subtest".into(),
+            captures: rustc_hash::FxHashMap::from_iter([("_subtest_name".to_owned(), "\"with space\"".to_owned())]),
+            ..cx.clone()
+        };
+        assert_eq!(go_tasks(&subtest).unwrap().full_label, "go test ./pkg -v -run TestA/with_space");
+
+        let main = RunContext { tag: "go-main".into(), symbol: None, ..cx.clone() };
+        assert_eq!(go_tasks(&main).unwrap().command_label, "go run .");
+
+        // Tags that name a test need its symbol.
+        assert!(go_tasks(&RunContext { symbol: None, ..cx.clone() }).is_none());
+        assert!(go_tasks(&RunContext { tag: "go-testify-suite".into(), ..cx.clone() }).is_none());
+        assert!(go_tasks(&RunContext { tag: "other".into(), ..cx }).is_none());
+    }
 }

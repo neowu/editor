@@ -1,21 +1,19 @@
 use std::num::NonZeroU32;
-use std::str::FromStr as _;
 use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use gpui::App;
+use gpui::AppContext as _;
 use gpui::AsyncApp;
-use gpui::Entity;
 use gpui::SharedString;
 use gpui::Task;
-use language::Buffer;
 use language::ContextProvider;
 use language::LanguageName;
 use language::LanguageRegistry;
-use language::LocalFile as _;
 use language::LspAdapter;
 use language::LspAdapterDelegate;
+use language::RunContext;
 use language::language_settings::AllLanguageSettings;
 use language::language_settings::Formatter;
 use language::language_settings::LanguageSettings;
@@ -24,92 +22,59 @@ use language::language_settings::WordsCompletionMode;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
 use lsp::Uri;
+use project::Fs;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 use serde_json::json;
-use task::TaskTemplate;
-use task::TaskTemplates;
-use task::VariableName;
-use util::rel_path::RelPath;
+use task::SpawnInTerminal;
 
 use crate::LanguageDef;
 use crate::PackageJsonData;
 use crate::npx;
 
-pub(crate) struct JsonTaskProvider;
+pub(crate) struct JsonTaskProvider {
+    fs: Arc<Fs>,
+}
 
 impl ContextProvider for JsonTaskProvider {
-    fn associated_tasks(&self, buffer: Option<Entity<Buffer>>, cx: &App) -> gpui::Task<Option<TaskTemplates>> {
-        let file = buffer.as_ref().and_then(|buf| buf.read(cx).file());
-        let Some(file) = project::File::from_dyn(file).cloned() else {
-            return Task::ready(None);
+    fn runnables(&self, cx: RunContext, app: &App) -> Task<Vec<SpawnInTerminal>> {
+        let Some(script) = cx.capture("script").map(ToOwned::to_owned) else {
+            return Task::ready(Vec::new());
         };
-        let is_package_json = file.path.ends_with(RelPath::from_unix_str("package.json").expect("valid relative path"));
-        let is_composer_json =
-            file.path.ends_with(RelPath::from_unix_str("composer.json").expect("valid relative path"));
-        if !is_package_json && !is_composer_json {
-            return Task::ready(None);
+        let file_name = cx.file.file_name().and_then(|name| name.to_str());
+        match (cx.tag.as_ref(), file_name) {
+            ("package-script", Some("package.json")) => {
+                let fs = Arc::clone(&self.fs);
+                app.background_spawn(async move {
+                    let package_json = fs
+                        .load(&cx.file)
+                        .await
+                        .ok()
+                        .and_then(|contents| serde_json::from_str::<FxHashMap<String, Value>>(&contents).ok());
+                    let package_manager = package_json.and_then(|package_json| {
+                        PackageJsonData::new(cx.file.as_path().into(), package_json).package_manager
+                    });
+                    vec![package_script_task(&cx, package_manager.unwrap_or("npm"), script)]
+                })
+            }
+            ("composer-script", Some("composer.json")) => Task::ready(vec![composer_script_task(&cx, script)]),
+            _ => Task::ready(Vec::new()),
         }
-
-        cx.spawn(async move |cx| {
-            let contents = file.worktree.update(cx, |this, cx| this.load_file(&file.path, cx)).await.ok()?;
-            let path = cx.update(|cx| file.abs_path(cx)).as_path().into();
-            let contents_text = contents.text.to_string();
-
-            let task_templates = if is_package_json {
-                let package_json = serde_json::from_str::<FxHashMap<String, serde_json::Value>>(&contents_text).ok()?;
-                let package_json = PackageJsonData::new(path, package_json);
-                let command = package_json.package_manager.unwrap_or("npm").to_owned();
-                package_json
-                    .scripts
-                    .into_iter()
-                    .map(|(_, key)| TaskTemplate {
-                        label: format!("run {key}"),
-                        command: command.clone(),
-                        args: vec!["run".into(), key],
-                        cwd: Some(VariableName::Dirname.template_value()),
-                        ..TaskTemplate::default()
-                    })
-                    .chain([TaskTemplate {
-                        label: "package script $ED_script".to_owned(),
-                        command: command.clone(),
-                        args: vec!["run".into(), VariableName::Custom("script".into()).template_value()],
-                        cwd: Some(VariableName::Dirname.template_value()),
-                        tags: vec!["package-script".into()],
-                        ..TaskTemplate::default()
-                    }])
-                    .collect()
-            } else if is_composer_json {
-                serde_json::Value::from_str(&contents_text)
-                    .ok()?
-                    .get("scripts")?
-                    .as_object()?
-                    .keys()
-                    .map(|key| TaskTemplate {
-                        label: format!("run {key}"),
-                        command: "composer".to_owned(),
-                        args: vec!["-d".into(), "$ED_DIRNAME".into(), key.into()],
-                        ..TaskTemplate::default()
-                    })
-                    .chain([TaskTemplate {
-                        label: "composer script $ED_script".to_owned(),
-                        command: "composer".to_owned(),
-                        args: vec![
-                            "-d".into(),
-                            "$ED_DIRNAME".into(),
-                            VariableName::Custom("script".into()).template_value(),
-                        ],
-                        tags: vec!["composer-script".into()],
-                        ..TaskTemplate::default()
-                    }])
-                    .collect()
-            } else {
-                vec![]
-            };
-
-            Some(TaskTemplates(task_templates))
-        })
     }
+}
+
+pub fn package_script_task(cx: &RunContext, package_manager: &str, script: String) -> SpawnInTerminal {
+    SpawnInTerminal::new(format!("package script {script}"), package_manager, vec!["run".into(), script], cx.dir())
+}
+
+pub fn composer_script_task(cx: &RunContext, script: String) -> SpawnInTerminal {
+    let dir = cx.dir().unwrap_or_default().to_string_lossy().into_owned();
+    SpawnInTerminal::new(
+        format!("composer script {script}"),
+        "composer",
+        vec!["-d".into(), dir, script],
+        cx.worktree_root.clone(),
+    )
 }
 
 pub(crate) struct JsonLspAdapter {
@@ -261,9 +226,9 @@ pub(crate) fn settings() -> LanguageSettings {
     }
 }
 
-pub(crate) fn languages(registry: Arc<LanguageRegistry>, biome: Arc<dyn LspAdapter>) -> Vec<LanguageDef> {
+pub(crate) fn languages(registry: Arc<LanguageRegistry>, biome: Arc<dyn LspAdapter>, fs: Arc<Fs>) -> Vec<LanguageDef> {
     let adapter: Arc<dyn LspAdapter> = Arc::new(JsonLspAdapter::new(registry));
-    let context: Arc<dyn ContextProvider> = Arc::new(JsonTaskProvider);
+    let context: Arc<dyn ContextProvider> = Arc::new(JsonTaskProvider { fs });
     vec![
         LanguageDef {
             grammar: Some(tree_sitter_json::LANGUAGE.into()),
@@ -283,7 +248,27 @@ pub(crate) fn languages(registry: Arc<LanguageRegistry>, biome: Arc<dyn LspAdapt
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
+
+    #[test]
+    fn script_tasks_run_from_the_manifest_folder() {
+        let cx = RunContext {
+            file: PathBuf::from("/w/pkg/package.json"),
+            worktree_root: Some(PathBuf::from("/w")),
+            ..RunContext::default()
+        };
+        let task = package_script_task(&cx, "pnpm", "build".to_owned());
+        assert_eq!(task.full_label, "package script build");
+        assert_eq!(task.command_label, "pnpm run build");
+        assert_eq!(task.cwd, Some(PathBuf::from("/w/pkg")));
+
+        let task = composer_script_task(&cx, "test".to_owned());
+        assert_eq!(task.full_label, "composer script test");
+        assert_eq!(task.command_label, "composer -d /w/pkg test");
+        assert_eq!(task.cwd, Some(PathBuf::from("/w")));
+    }
 
     #[test]
     fn schema_associations_use_schemastore_and_inline_jsonc() {

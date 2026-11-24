@@ -458,6 +458,13 @@ fn terminal_cell_from_alacritty(cell: &AlacCell) -> Cell {
     Cell { cell: cell.clone() }
 }
 
+/// A default-styled cell holding `c`.
+impl From<char> for Cell {
+    fn from(c: char) -> Self {
+        Self { cell: AlacCell { c, ..AlacCell::default() } }
+    }
+}
+
 impl Cell {
     #[inline]
     pub const fn character(&self) -> char {
@@ -807,4 +814,16 @@ fn all_search_matches<'a, T>(term: &'a Term<T>, regex: &'a mut RegexSearch) -> i
     let start = AlacPoint::new(term.grid().topmost_line(), Column(0));
     let end = AlacPoint::new(term.grid().bottommost_line(), term.grid().last_column());
     RegexIter::new(start, end, AlacDirection::Right, term, regex)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cell_from_char_is_default_styled() {
+        let cell = Cell::from('x');
+        assert_eq!(cell.character(), 'x');
+        assert_eq!(Cell { cell: AlacCell { c: 'x', ..AlacCell::default() } }, cell);
+    }
 }

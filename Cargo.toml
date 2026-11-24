@@ -4,12 +4,13 @@ members = ["crates/*", "test/*", "xtask"]
 default-members = ["crates/ed"]
 
 [workspace.package]
-version = "2.10.0"
+version = "2.11.0"
 edition = "2024"
 
 [workspace.dependencies]
 actions = { path = "crates/actions" }
 activity_indicator = { path = "crates/activity_indicator" }
+app_paths = { path = "crates/app_paths" }
 assets = { path = "crates/assets" }
 async_macos = { path = "crates/async_macos" }
 buffer_diff = { path = "crates/buffer_diff" }
@@ -52,7 +53,6 @@ multi_buffer = { path = "crates/multi_buffer" }
 notifications = { path = "crates/notifications" }
 outline_panel = { path = "crates/outline_panel" }
 path = { path = "crates/path" }
-app_paths = { path = "crates/app_paths" }
 picker = { path = "crates/picker" }
 project = { path = "crates/project" }
 project_panel = { path = "crates/project_panel" }
@@ -164,6 +164,12 @@ time = {
   ]
 }
 tree-sitter = "0.27.1"
+tree-sitter-bash = "0.25.1"
+tree-sitter-go = "0.25"
+tree-sitter-json = "0.24"
+tree-sitter-md = "0.5.4"
+tree-sitter-python = "0.25"
+tree-sitter-typescript = "0.23.2"
 tree-sitter-rust = "0.24.2"
 unicode-segmentation = "1.10"
 url = "2.2"

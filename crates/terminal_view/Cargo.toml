@@ -18,9 +18,8 @@ log.workspace = true
 project.workspace = true
 regex.workspace = true
 rustc-hash.workspace = true
-task.workspace = true
-
 shlex.workspace = true
+task.workspace = true
 terminal.workspace = true
 theme.workspace = true
 ui.workspace = true

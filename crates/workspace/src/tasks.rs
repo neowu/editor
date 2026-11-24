@@ -1,7 +1,6 @@
 use gpui::AppContext as _;
 use gpui::AsyncWindowContext;
 use gpui::Context;
-use task::ResolvedTask;
 use task::SpawnInTerminal;
 use ui::Window;
 
@@ -20,33 +19,23 @@ pub enum ScheduledTaskResult {
 type TaskCompletionHandler = Box<dyn FnOnce(ScheduledTaskResult, &mut AsyncWindowContext)>;
 
 impl Workspace {
-    pub fn schedule_resolved_task(
+    pub fn schedule_task(
         self: &mut Workspace,
-        resolved_task: ResolvedTask,
+        task: SpawnInTerminal,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
-        self.schedule_spawn_internal(resolved_task.resolved, None, window, cx);
+        self.schedule_spawn_internal(task, None, window, cx);
     }
 
-    /// Spawns an already resolved task again, e.g. to rerun it from its terminal tab.
-    pub fn schedule_spawn_in_terminal(
+    pub fn schedule_task_with_completion(
         self: &mut Workspace,
-        spawn_in_terminal: SpawnInTerminal,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) {
-        self.schedule_spawn_internal(spawn_in_terminal, None, window, cx);
-    }
-
-    pub fn schedule_resolved_task_with_completion(
-        self: &mut Workspace,
-        resolved_task: ResolvedTask,
+        task: SpawnInTerminal,
         on_complete: impl FnOnce(ScheduledTaskResult, &mut AsyncWindowContext) + 'static,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
-        self.schedule_spawn_internal(resolved_task.resolved, Some(Box::new(on_complete)), window, cx);
+        self.schedule_spawn_internal(task, Some(Box::new(on_complete)), window, cx);
     }
 
     fn schedule_spawn_internal(
@@ -79,7 +68,7 @@ impl Workspace {
                         Some(Err(e)) => {
                             log::error!("Task spawn failed: {e:#}");
                             _ = workspace.update(cx, |w, cx| {
-                                let id = NotificationId::unique::<ResolvedTask>();
+                                let id = NotificationId::unique::<SpawnInTerminal>();
                                 w.show_toast(Toast::new(id, format!("Task spawn failed: {e}")), cx);
                             });
                             ScheduledTaskResult::SpawnFailed

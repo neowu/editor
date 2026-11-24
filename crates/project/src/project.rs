@@ -17,9 +17,8 @@ pub mod lsp_store;
 pub mod manifest_tree;
 pub mod project_search;
 pub mod project_settings;
+mod runnables;
 pub mod search;
-pub mod task_inventory;
-pub mod task_store;
 pub mod terminals;
 pub mod worktree_store;
 
@@ -132,11 +131,6 @@ use search::SearchQuery;
 use search::SearchResult;
 use search_history::SearchHistory;
 use snippet::Snippet;
-pub use task_inventory::BasicContextProvider;
-pub use task_inventory::ContextProviderWithTasks;
-pub use task_inventory::TaskSourceKind;
-pub use task_inventory::language_task_templates;
-use task_store::TaskStore;
 use terminals::Terminals;
 use text::Anchor;
 use text::BufferId;
@@ -189,8 +183,6 @@ pub struct Project {
     pending_active_path: Option<ProjectPath>,
 
     languages: Arc<LanguageRegistry>,
-
-    task_store: Entity<TaskStore>,
 
     fs: Arc<Fs>,
     git_store: Entity<GitStore>,
@@ -876,8 +868,6 @@ impl Project {
             });
             git_store.update(cx, |git_store, _| git_store.set_project(weak_self.clone()));
 
-            let task_store = cx.new(|_| TaskStore::new(worktree_store.clone(), environment.clone(), git_store.clone()));
-
             let lsp_store = cx.new(|cx| {
                 LspStore::new_local(
                     buffer_store.clone(),
@@ -904,8 +894,6 @@ impl Project {
                 active_entry: None,
                 pending_active_path: None,
                 languages,
-
-                task_store,
 
                 fs,
 
@@ -980,11 +968,6 @@ impl Project {
     /// Reveals the given path in the system file manager.
     pub fn reveal_path(&self, path: &Path, cx: &mut Context<Self>) {
         cx.reveal_path(path);
-    }
-
-    #[inline]
-    pub const fn task_store(&self) -> &Entity<TaskStore> {
-        &self.task_store
     }
 
     #[inline]

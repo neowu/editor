@@ -555,7 +555,6 @@ use workspace::Workspace;
 use workspace::WorkspaceActions;
 use workspace::item::ItemBufferKind;
 use workspace::item::ItemHandle;
-use workspace::notifications::NotifyResultExt;
 use workspace::notifications::NotifyTaskExt as _;
 pub use workspace::searchable::Direction;
 use workspace::searchable::SelectSearchOptions;

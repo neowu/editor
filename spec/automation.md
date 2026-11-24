@@ -38,7 +38,9 @@ Metal, so the OS sees no UI structure; the app reports what it painted itself.
   whether it is clickable, focusable, or focused, and the text lines painted
   inside it. Ids are the `/`-joined element id path without view and
   focus-handle ids, and component type paths are shortened to their last
-  segment. Text too small to read (e.g. the minimap) is left out.
+  segment. Text too small to read (e.g. the minimap) is left out. The
+  terminal paints same-styled text on a line as one run, spaces included, so
+  `wait --text` can match a phrase of its output.
 - `state` reports the window's bounds and its display's visible area,
   workspace roots, panes and items, and the active editor's text and
   selections. `screenshot` renders the last frame offscreen at device

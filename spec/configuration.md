@@ -200,7 +200,7 @@ migrator, or Vim/Helix mode.
   so an action whose fields have non-`false` defaults uses struct-level
   `#[serde(default)]` with a hand-written `Default`; `Default::default()` and
   deserializing `{}` give the same action. Built-in data that is never omitted
-  (settings, task templates, language `config.toml`) states every such field
+  (settings, language `config.toml`) states every such field
   explicitly instead of relying on serde defaults. The JSON language server
   only gets the SchemaStore `tsconfig.json`/`package.json` schema URLs and a
   trailing-comma schema for JSONC files (see `languages.md`); there are no settings, keymap, or

@@ -17,7 +17,7 @@ use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
 use task::ShellKind;
-use task::TaskTemplate;
+use task::SpawnInTerminal;
 use text::BufferId;
 use text::PointUtf16;
 use text::ToPointUtf16 as _;
@@ -330,28 +330,27 @@ pub struct GetLspRunnables {
 
 #[derive(Debug, Default)]
 pub struct LspRunnables {
-    pub runnables: Vec<(Option<LocationLink>, TaskTemplate)>,
+    pub runnables: Vec<(LocationLink, SpawnInTerminal)>,
 }
 
-pub fn runnable_to_task_template(label: String, args: RunnableArgs) -> TaskTemplate {
-    let mut task_template = TaskTemplate { label, ..Default::default() };
-    match args {
+pub fn runnable_to_spawn(label: String, args: RunnableArgs) -> SpawnInTerminal {
+    let (command, args, env, cwd) = match args {
         RunnableArgs::Cargo(cargo) => {
-            match cargo.override_cargo {
+            let mut task_args = Vec::new();
+            let command = match cargo.override_cargo {
                 Some(override_cargo) => {
                     let mut override_parts = override_cargo.split(' ').map(str::to_owned);
-                    task_template.command = override_parts.next().unwrap_or_else(|| override_cargo.clone());
-                    task_template.args.extend(override_parts);
+                    let command = override_parts.next().unwrap_or_else(|| override_cargo.clone());
+                    task_args.extend(override_parts);
+                    command
                 }
-                None => "cargo".clone_into(&mut task_template.command),
-            }
-            task_template.env = cargo.environment;
-            task_template.cwd = Some(cargo.workspace_root.unwrap_or(cargo.cwd).to_string_lossy().to_string());
-            task_template.args.extend(cargo.cargo_args);
+                None => "cargo".to_owned(),
+            };
+            task_args.extend(cargo.cargo_args);
             if !cargo.executable_args.is_empty() {
                 let shell_kind = ShellKind::system();
-                task_template.args.push("--".to_owned());
-                task_template.args.extend(
+                task_args.push("--".to_owned());
+                task_args.extend(
                     cargo
                         .executable_args
                         .into_iter()
@@ -361,15 +360,11 @@ pub fn runnable_to_task_template(label: String, args: RunnableArgs) -> TaskTempl
                         .filter_map(|extra_arg| shell_kind.try_quote(&extra_arg).map(|s| s.to_string())),
                 );
             }
+            (command, task_args, cargo.environment, cargo.workspace_root.unwrap_or(cargo.cwd))
         }
-        RunnableArgs::Shell(shell) => {
-            task_template.command = shell.program;
-            task_template.args = shell.args;
-            task_template.env = shell.environment;
-            task_template.cwd = Some(shell.cwd.to_string_lossy().into_owned());
-        }
-    }
-    task_template
+        RunnableArgs::Shell(shell) => (shell.program, shell.args, shell.environment, shell.cwd),
+    };
+    SpawnInTerminal { env, ..SpawnInTerminal::new(label, command, args, Some(cwd)) }
 }
 
 impl LspCommand for GetLspRunnables {
@@ -407,14 +402,12 @@ impl LspCommand for GetLspRunnables {
         let mut runnables = Vec::with_capacity(lsp_runnables.len());
 
         for runnable in lsp_runnables {
-            let location = match runnable.location {
-                Some(location) => {
-                    Some(location_link_from_lsp(location, &lsp_store, &buffer, server_id, &mut cx).await?)
-                }
-                None => None,
+            // Without a location there is no row for a run icon.
+            let Some(location) = runnable.location else {
+                continue;
             };
-            let task_template = runnable_to_task_template(runnable.label, runnable.args);
-            runnables.push((location, task_template));
+            let location = location_link_from_lsp(location, &lsp_store, &buffer, server_id, &mut cx).await?;
+            runnables.push((location, runnable_to_spawn(runnable.label, runnable.args)));
         }
 
         Ok(LspRunnables { runnables })
@@ -433,4 +426,57 @@ impl Notification for LspExtRunFlycheck {
 #[serde(rename_all = "camelCase")]
 pub struct RunFlycheckParams {
     pub text_document: Option<lsp::TextDocumentIdentifier>,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use rustc_hash::FxHashMap;
+
+    use super::CargoRunnableArgs;
+    use super::RunnableArgs;
+    use super::ShellRunnableArgs;
+    use super::runnable_to_spawn;
+
+    #[test]
+    fn runnable_to_spawn_builds_cargo_and_shell_tasks() {
+        let cargo = RunnableArgs::Cargo(CargoRunnableArgs {
+            environment: FxHashMap::from_iter([("RUST_BACKTRACE".to_owned(), "1".to_owned())]),
+            cwd: PathBuf::from("/ws/crate"),
+            override_cargo: Some("cross +nightly".to_owned()),
+            workspace_root: Some(PathBuf::from("/ws")),
+            cargo_args: vec!["test".to_owned(), "-p".to_owned(), "a".to_owned()],
+            executable_args: vec!["tests::it".to_owned()],
+        });
+        let task = runnable_to_spawn("test it".to_owned(), cargo);
+        assert_eq!(task.full_label, "test it");
+        assert_eq!(task.command.as_deref(), Some("cross"));
+        assert_eq!(task.args, ["+nightly", "test", "-p", "a", "--", "tests::it"]);
+        assert_eq!(task.cwd, Some(PathBuf::from("/ws")));
+        assert_eq!(task.env["RUST_BACKTRACE"], "1");
+
+        let cargo = RunnableArgs::Cargo(CargoRunnableArgs {
+            environment: FxHashMap::default(),
+            cwd: PathBuf::from("/ws/crate"),
+            override_cargo: None,
+            workspace_root: None,
+            cargo_args: vec!["run".to_owned()],
+            executable_args: Vec::new(),
+        });
+        let task = runnable_to_spawn("run".to_owned(), cargo);
+        assert_eq!(task.command.as_deref(), Some("cargo"));
+        assert_eq!(task.args, ["run"]);
+        assert_eq!(task.cwd, Some(PathBuf::from("/ws/crate")));
+
+        let shell = RunnableArgs::Shell(ShellRunnableArgs {
+            environment: FxHashMap::default(),
+            cwd: PathBuf::from("/x"),
+            program: "make".to_owned(),
+            args: vec!["all".to_owned()],
+        });
+        let task = runnable_to_spawn("make".to_owned(), shell);
+        assert_eq!(task.command_label, "make all");
+        assert_eq!(task.cwd, Some(PathBuf::from("/x")));
+    }
 }

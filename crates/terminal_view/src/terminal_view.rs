@@ -866,7 +866,7 @@ fn rerun_in_terminal(
     spawned_task.allow_concurrent_runs = true;
     // Deferred: spawning replaces this view's terminal, which must not happen mid-update.
     window.defer(cx, move |window, cx| {
-        workspace.update(cx, |workspace, cx| workspace.schedule_spawn_in_terminal(spawned_task, window, cx)).ok();
+        workspace.update(cx, |workspace, cx| workspace.schedule_task(spawned_task, window, cx)).ok();
     });
 }
 

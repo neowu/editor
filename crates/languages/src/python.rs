@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::fmt::Write as _;
 use std::iter;
 use std::num::NonZeroU32;
@@ -10,17 +9,15 @@ use anyhow::Result;
 use async_trait::async_trait;
 use gpui::App;
 use gpui::AsyncApp;
-use gpui::Entity;
 use gpui::SharedString;
 use gpui::Task;
-use language::Buffer;
-use language::ContextLocation;
 use language::ContextProvider;
 use language::LspAdapter;
 use language::LspAdapterDelegate;
 use language::ManifestName;
 use language::ManifestProvider;
 use language::ManifestQuery;
+use language::RunContext;
 use language::Symbol;
 use language::language_settings::Formatter;
 use language::language_settings::LanguageServerFormatterSpecifier;
@@ -32,12 +29,9 @@ use lsp::CompletionItemKind;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
 use lsp::Uri;
-use rustc_hash::FxHashMap;
 use serde_json::Value;
 use serde_json::json;
-use task::TaskTemplate;
-use task::TaskTemplates;
-use task::VariableName;
+use task::SpawnInTerminal;
 use util::rel_path::RelPath;
 
 use crate::LanguageDef;
@@ -236,108 +230,38 @@ impl LspAdapter for RuffLspAdapter {
 
 pub(crate) struct PythonContextProvider;
 
-const PYTHON_TEST_TARGET_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("PYTHON_TEST_TARGET"));
-
-const PYTHON_MODULE_NAME_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("PYTHON_MODULE_NAME"));
-
-/// Every Python task runs through `uv run python`, so uv picks (and syncs) the
-/// project's `.venv`.
-fn uv_python_task(label: String, args: impl IntoIterator<Item = String>) -> TaskTemplate {
-    TaskTemplate {
-        label,
-        command: "uv".to_owned(),
-        args: ["run".to_owned(), "python".to_owned()].into_iter().chain(args).collect(),
-        cwd: Some(VariableName::WorktreeRoot.template_value()),
-        ..TaskTemplate::default()
-    }
-}
-
 impl ContextProvider for PythonContextProvider {
-    fn build_context(
-        &self,
-        variables: &task::TaskVariables,
-        _: ContextLocation<'_>,
-        _: Option<FxHashMap<String, String>>,
-        _: &mut gpui::App,
-    ) -> Task<Result<task::TaskVariables>> {
-        let test_target = self.build_pytest_target(variables);
-        let module_target = self.build_module_target(variables);
-
-        Task::ready(Ok(task::TaskVariables::from_iter(test_target.into_iter().chain([module_target]))))
-    }
-
-    fn associated_tasks(&self, _: Option<Entity<Buffer>>, _: &App) -> Task<Option<TaskTemplates>> {
-        let file = VariableName::File.template_value_with_whitespace();
-        let test_target = PYTHON_TEST_TARGET_TASK_VARIABLE.template_value_with_whitespace();
-
-        let mut tasks = vec![
-            uv_python_task(
-                "execute selection".to_owned(),
-                ["-c".to_owned(), VariableName::SelectedText.template_value_with_whitespace()],
-            ),
-            uv_python_task(format!("run '{}'", VariableName::File.template_value()), [file.clone()]),
-            TaskTemplate {
-                tags: vec!["python-module-main-method".to_owned()],
-                ..uv_python_task(
-                    format!("run module '{}'", VariableName::File.template_value()),
-                    ["-m".to_owned(), PYTHON_MODULE_NAME_TASK_VARIABLE.template_value()],
-                )
-            },
-        ];
-
-        let runner = "pytest";
-        let target_tags = ["python-pytest-class", "python-pytest-method"];
-        tasks.extend([
-            // Run tests for an entire file
-            uv_python_task(
-                format!("{runner} '{}'", VariableName::File.template_value()),
-                ["-m".to_owned(), runner.to_owned(), file],
-            ),
-            // Run test(s) for a specific target within a file
-            TaskTemplate {
-                tags: target_tags.map(ToOwned::to_owned).to_vec(),
-                ..uv_python_task(
-                    format!("{runner} $ED_PYTHON_TEST_TARGET"),
-                    ["-m".to_owned(), runner.to_owned(), test_target],
-                )
-            },
-        ]);
-
-        Task::ready(Some(TaskTemplates(tasks)))
+    fn runnables(&self, cx: RunContext, _: &App) -> Task<Vec<SpawnInTerminal>> {
+        Task::ready(python_tasks(&cx).into_iter().collect())
     }
 }
 
-impl PythonContextProvider {
-    fn build_pytest_target(&self, variables: &task::TaskVariables) -> Option<(VariableName, String)> {
-        let file_path = variables.get(&VariableName::RelativeFile)?;
+/// Every Python task runs through `uv run python` from the worktree root, so uv picks
+/// (and syncs) the project's `.venv`.
+pub fn python_tasks(cx: &RunContext) -> Option<SpawnInTerminal> {
+    let worktree_root = cx.worktree_root.as_ref()?;
+    let relative_file = cx.file.strip_prefix(worktree_root).ok()?.to_str()?;
+    let (label, args) = match cx.tag.as_ref() {
+        "python-module-main-method" => {
+            let module = python_module_name_from_relative_path(relative_file)?;
+            (format!("run module '{}'", cx.file.display()), vec!["-m".to_owned(), module])
+        }
+        "python-pytest-class" | "python-pytest-method" => {
+            let target =
+                pytest_target(relative_file, cx.capture("_pytest_class_name"), cx.capture("_pytest_method_name"));
+            (format!("pytest {target}"), vec!["-m".to_owned(), "pytest".to_owned(), format!("\"{target}\"")])
+        }
+        _ => return None,
+    };
+    let args = ["run".to_owned(), "python".to_owned()].into_iter().chain(args).collect();
+    Some(SpawnInTerminal::new(label, "uv", args, Some(worktree_root.clone())))
+}
 
-        let pytest_class_name = variables.get(&VariableName::Custom(Cow::Borrowed("_pytest_class_name")));
-
-        let pytest_method_name = variables.get(&VariableName::Custom(Cow::Borrowed("_pytest_method_name")));
-
-        let pytest_target_str = match (pytest_class_name, pytest_method_name) {
-            (Some(class_name), Some(method_name)) => {
-                format!("{file_path}::{class_name}::{method_name}")
-            }
-            (Some(class_name), None) => {
-                format!("{file_path}::{class_name}")
-            }
-            (None, Some(method_name)) => {
-                format!("{file_path}::{method_name}")
-            }
-            (None, None) => file_path.to_owned(),
-        };
-
-        Some((PYTHON_TEST_TARGET_TASK_VARIABLE.clone(), pytest_target_str))
-    }
-
-    fn build_module_target(&self, variables: &task::TaskVariables) -> (VariableName, String) {
-        let python_module_name = variables
-            .get(&VariableName::RelativeFile)
-            .and_then(python_module_name_from_relative_path)
-            .unwrap_or_default();
-
-        (PYTHON_MODULE_NAME_TASK_VARIABLE.clone(), python_module_name)
+fn pytest_target(file: &str, class_name: Option<&str>, method_name: Option<&str>) -> String {
+    match (class_name, method_name) {
+        (Some(class_name), Some(method_name)) => format!("{file}::{class_name}::{method_name}"),
+        (Some(name), None) | (None, Some(name)) => format!("{file}::{name}"),
+        (None, None) => file.to_owned(),
     }
 }
 
@@ -376,4 +300,43 @@ pub(crate) fn languages() -> Vec<LanguageDef> {
         semantic_token_rules: Some(semantic_token_rules()),
         ..LanguageDef::new("python", settings())
     }]
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use language::RunContext;
+
+    use super::pytest_target;
+    use super::python_tasks;
+
+    #[test]
+    fn pytest_target_joins_file_class_and_method() {
+        assert_eq!(pytest_target("t.py", Some("A"), Some("b")), "t.py::A::b");
+        assert_eq!(pytest_target("t.py", Some("A"), None), "t.py::A");
+        assert_eq!(pytest_target("t.py", None, Some("b")), "t.py::b");
+        assert_eq!(pytest_target("t.py", None, None), "t.py");
+    }
+
+    #[test]
+    fn python_tasks_run_through_uv_from_the_worktree_root() {
+        let cx = RunContext {
+            tag: "python-pytest-method".into(),
+            captures: rustc_hash::FxHashMap::from_iter([("_pytest_method_name".to_owned(), "test_it".to_owned())]),
+            file: PathBuf::from("/w/pkg/test_a.py"),
+            worktree_root: Some(PathBuf::from("/w")),
+            ..RunContext::default()
+        };
+        let task = python_tasks(&cx).unwrap();
+        assert_eq!(task.full_label, "pytest pkg/test_a.py::test_it");
+        assert_eq!(task.command_label, "uv run python -m pytest \"pkg/test_a.py::test_it\"");
+        assert_eq!(task.cwd, Some(PathBuf::from("/w")));
+
+        let task = python_tasks(&RunContext { tag: "python-module-main-method".into(), ..cx.clone() }).unwrap();
+        assert_eq!(task.command_label, "uv run python -m pkg.test_a");
+
+        assert!(python_tasks(&RunContext { worktree_root: None, ..cx.clone() }).is_none());
+        assert!(python_tasks(&RunContext { tag: "other".into(), ..cx }).is_none());
+    }
 }

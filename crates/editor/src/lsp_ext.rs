@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use gpui::App;
-use gpui::AsyncApp;
 use gpui::Entity;
 use gpui::Task;
 use language::Buffer;
@@ -11,14 +10,11 @@ use lsp::LanguageServerName;
 use project::LanguageServerToQuery;
 use project::LocationLink;
 use project::Project;
-use project::TaskSourceKind;
 use project::lsp_store::lsp_ext_command::GetLspRunnables;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use task::ResolvedTask;
-use task::TaskContext;
+use task::SpawnInTerminal;
 use text::BufferId;
-use ui::SharedString;
 use util::ResultExt as _;
 
 use crate::Editor;
@@ -57,38 +53,13 @@ where
     })
 }
 
-async fn lsp_task_context(
-    project: &Entity<Project>,
-    buffer: &Entity<Buffer>,
-    cx: &mut AsyncApp,
-) -> Option<TaskContext> {
-    let (worktree_store, environment) =
-        project.read_with(cx, |project, _| (project.worktree_store(), project.environment().clone()));
-
-    let worktree_abs_path = cx.update(|cx| {
-        let worktree_id = buffer.read(cx).file().map(|f| f.worktree_id(cx));
-
-        let worktree = worktree_id.and_then(|worktree_id| worktree_store.read(cx).worktree_for_id(worktree_id, cx))?;
-        worktree.read(cx).root_dir()
-    });
-
-    let project_env =
-        environment.update(cx, |environment, cx| environment.buffer_environment(buffer, &worktree_store, cx)).await;
-
-    Some(TaskContext {
-        cwd: worktree_abs_path.map(|p| p.to_path_buf()),
-        project_env: project_env.unwrap_or_default(),
-        ..TaskContext::default()
-    })
-}
-
-#[allow(clippy::type_complexity)]
+/// Runnables from the language servers in `task_sources`, for their buffers (or only `for_position`'s).
 pub fn lsp_tasks(
     project: Entity<Project>,
     task_sources: &FxHashMap<LanguageServerName, Vec<BufferId>>,
     for_position: Option<text::Anchor>,
     cx: &mut App,
-) -> Task<Vec<(TaskSourceKind, Vec<(Option<LocationLink>, ResolvedTask)>)>> {
+) -> Task<Vec<(LocationLink, SpawnInTerminal)>> {
     let lsp_task_sources = task_sources
         .iter()
         .filter_map(|(name, buffer_ids)| {
@@ -109,20 +80,9 @@ pub fn lsp_tasks(
         .collect::<Vec<_>>();
 
     cx.spawn(async move |cx| {
-        let mut lsp_tasks = FxHashMap::default();
+        let mut lsp_tasks = Vec::new();
         for (server_id, buffers) in lsp_task_sources {
-            let mut new_lsp_tasks = Vec::new();
             for buffer in buffers {
-                let source_kind = match buffer.update(cx, |buffer, _| buffer.language().map(|language| language.name()))
-                {
-                    Some(language_name) => {
-                        TaskSourceKind::Lsp { server: server_id, language_name: SharedString::from(language_name) }
-                    }
-                    None => continue,
-                };
-                let id_base = source_kind.to_id_base();
-                let lsp_buffer_context = lsp_task_context(&project, &buffer, cx).await.unwrap_or_default();
-
                 let runnables_task = project.update(cx, |project, cx| {
                     let buffer_id = buffer.read(cx).buffer_id();
                     project.request_lsp(
@@ -133,16 +93,10 @@ pub fn lsp_tasks(
                     )
                 });
                 if let Some(new_runnables) = runnables_task.await.log_err() {
-                    new_lsp_tasks.extend(new_runnables.runnables.into_iter().filter_map(|(location, runnable)| {
-                        let resolved_task = runnable.resolve_task(&id_base, &lsp_buffer_context)?;
-                        Some((location, resolved_task))
-                    }));
-                }
-                if !new_lsp_tasks.is_empty() {
-                    lsp_tasks.entry(source_kind).or_insert_with(Vec::new).append(&mut new_lsp_tasks);
+                    lsp_tasks.extend(new_runnables.runnables);
                 }
             }
         }
-        lsp_tasks.into_iter().collect()
+        lsp_tasks
     })
 }
