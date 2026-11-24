@@ -666,7 +666,6 @@ fn resolve_socket(socket: Option<PathBuf>) -> Result<PathBuf> {
     }
 }
 
-#[expect(clippy::disallowed_methods, reason = "edctl is a blocking CLI with no async runtime")]
 fn launch(
     app: Option<PathBuf>,
     fresh: bool,

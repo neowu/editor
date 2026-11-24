@@ -318,7 +318,6 @@ impl ProcessExit {
 }
 
 #[cfg(test)]
-#[allow(clippy::disallowed_methods, clippy::zombie_processes, reason = "children are reaped by ProcessExit")]
 mod tests {
     use std::future::poll_fn;
 
@@ -371,6 +370,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::zombie_processes, reason = "children are reaped by ProcessExit")]
     fn process_exit_reports_status() {
         // Repeated to cover children that exit before the watcher is installed.
         for code in [0, 3].into_iter().cycle().take(40) {
@@ -383,6 +383,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::zombie_processes, reason = "children are reaped by ProcessExit")]
     fn signal_kills_a_running_process() {
         let child = std::process::Command::new("/bin/sleep").arg("30").spawn().unwrap();
         let exit = ProcessExit::watch(child.id());

@@ -1,5 +1,3 @@
-#![allow(clippy::disallowed_methods, reason = "this is the wrapper the lint points to")]
-
 use std::ffi::OsStr;
 use std::future::poll_fn;
 use std::io;
@@ -258,7 +256,6 @@ impl AsyncRead for ChildStderr {
 }
 
 #[cfg(test)]
-#[allow(clippy::zombie_processes, reason = "children are reaped by ProcessExit")]
 mod tests {
     use std::os::unix::process::CommandExt as _;
 

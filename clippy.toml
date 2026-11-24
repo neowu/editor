@@ -8,13 +8,3 @@ too-many-lines-threshold = 500
 too-many-arguments-threshold = 26
 warn-on-all-wildcard-imports = true
 inherent-impl-lint-scope = "file"
-
-disallowed-methods = [
-  { path = "std::process::Command::spawn", reason = "Spawning `std::process::Command` can block the current thread for an unknown duration", replacement = "async_macos::command::Command::spawn" },
-  { path = "std::process::Command::output", reason = "Spawning `std::process::Command` can block the current thread for an unknown duration", replacement = "async_macos::command::Command::output" },
-  { path = "std::process::Command::status", reason = "Spawning `std::process::Command` can block the current thread for an unknown duration", replacement = "async_macos::command::Command::status" },
-  { path = "std::process::Command::stdin", reason = "`async_macos::command::Command::from()` does not preserve stdio configuration", replacement = "async_macos::command::Command::stdin" },
-  { path = "std::process::Command::stdout", reason = "`async_macos::command::Command::from()` does not preserve stdio configuration", replacement = "async_macos::command::Command::stdout" },
-  { path = "std::process::Command::stderr", reason = "`async_macos::command::Command::from()` does not preserve stdio configuration", replacement = "async_macos::command::Command::stderr" },
-  { path = "serde_json::from_reader", reason = "Parsing from a buffer is much slower than first reading the buffer into a Vec/String, see https://github.com/serde-rs/json/issues/160#issuecomment-253446892. Use `serde_json::from_slice` instead." },
-]
