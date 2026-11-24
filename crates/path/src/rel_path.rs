@@ -4,14 +4,12 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::ops::Deref;
 use std::path::Path;
-use std::result;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use serde::de;
 
 /// A file system path that is guaranteed to be relative and normalized.
 ///
@@ -19,14 +17,14 @@ use serde::de;
 ///
 /// Relative paths are also guaranteed to be valid unicode.
 #[repr(transparent)]
-#[derive(PartialEq, Eq, Hash, serde::Serialize)]
+#[derive(PartialEq, Eq, Hash)]
 pub struct RelPath(str);
 
 /// An owned representation of a file system path that is guaranteed to be
 /// relative and normalized.
 ///
 /// This type is to [`RelPath`] as [`std::path::PathBuf`] is to [`std::path::Path`].
-#[derive(PartialEq, Eq, Clone, Hash, serde::Serialize)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub struct RelPathBuf(String);
 
 impl RelPath {
@@ -536,17 +534,6 @@ impl DoubleEndedIterator for RelPathComponents<'_> {
             self.0 = "";
             Some(result)
         }
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for RelPathBuf {
-    fn deserialize<D>(deserializer: D) -> result::Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let path = String::deserialize(deserializer)?;
-        let rel_path = RelPath::new(Path::new(&path)).map_err(de::Error::custom)?;
-        Ok(rel_path.into_owned())
     }
 }
 

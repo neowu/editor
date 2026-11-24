@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use anyhow::Context as _;
-use anyhow::bail;
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
@@ -10,7 +9,6 @@ use sha2::Sha256;
 use util::ResultExt as _;
 use util::truncate_and_remove_front;
 
-use crate::ED_VARIABLE_NAME_PREFIX;
 use crate::ResolvedTask;
 use crate::SpawnInTerminal;
 use crate::TaskContext;
@@ -108,17 +106,11 @@ impl TaskTemplate {
         let id = TaskId(format!("{id_base}_{task_hash}_{variables_hash}"));
 
         let env = {
-            // Start with the project environment as the base.
+            // The project environment is the base; only the template's own values hold variables.
             let mut env = cx.project_env.clone();
-
-            // Extend that environment with what's defined in the TaskTemplate
-            env.extend(self.env.clone());
-
-            // Then we replace all task variables that could be set in environment variables
-            let mut env = substitute_all_template_variables_in_map(&env, &task_variables)?;
-
-            // Last step: set the task variables as environment variables too
-            env.extend(task_variables.into_iter().map(|(k, v)| (k, v.to_owned())));
+            for (key, value) in &self.env {
+                env.insert(key.clone(), substitute_all_template_variables_in_str(value, &task_variables)?);
+            }
             env
         };
 
@@ -171,42 +163,24 @@ fn to_hex(bytes: &[u8]) -> String {
     hex
 }
 
+/// Replaces every `$ED_NAME` with its task variable, failing the template if
+/// one is unset. Templates are built in code and only use this form, so
+/// nothing else is interpreted: any other `$` reaches the shell as written.
 fn substitute_all_template_variables_in_str<A: AsRef<str>>(
     template_str: &str,
     task_variables: &FxHashMap<String, A>,
 ) -> Option<String> {
-    let substituted_string = shellexpand::env_with_context(template_str, |var| {
-        // Colons denote a default value in case the variable is not set. We
-        // want to preserve that default, as otherwise shellexpand will
-        // substitute it for us.
-        let colon_position = var.find(':').unwrap_or(var.len());
-        let (variable_name, default) = var.split_at(colon_position);
-        if let Some(name) = task_variables.get(variable_name) {
-            // Got a task variable hit - use the variable value, ignore default
-            return Ok(Some(name.as_ref().to_owned()));
-        } else if variable_name.starts_with(ED_VARIABLE_NAME_PREFIX) {
-            // Unknown ED variable - use default if available
-            if !default.is_empty() {
-                // Strip the colon and return the default value
-                return Ok(Some(default[1..].to_owned()));
-            }
-            bail!("Unknown variable name: {variable_name}");
-        }
-        // This is an unknown variable.
-        // We should not error out, as they may come from user environment (e.g.
-        // $PATH). That means that the variable substitution might not be
-        // perfect. If there's a default, we need to return the string verbatim
-        // as otherwise shellexpand will apply that default for us.
-        if !default.is_empty() {
-            return Ok(Some(format!("${{{var}}}")));
-        }
-
-        // Else we can just return None and that variable will be left as is.
-        Ok(None)
-    })
-    .ok()?;
-
-    Some(substituted_string.into_owned())
+    let mut result = String::with_capacity(template_str.len());
+    let mut rest = template_str;
+    while let Some(start) = rest.find("$ED_") {
+        result.push_str(&rest[..start]);
+        let name = &rest[start + 1..];
+        let len = name.find(|c: char| !c.is_ascii_alphanumeric() && c != '_').unwrap_or(name.len());
+        result.push_str(task_variables.get(&name[..len])?.as_ref());
+        rest = &name[len..];
+    }
+    result.push_str(rest);
+    Some(result)
 }
 
 fn substitute_all_template_variables_in_vec(
@@ -225,26 +199,55 @@ fn substitute_all_template_variables_in_vec(
     Some(expanded)
 }
 
-fn substitute_all_template_variables_in_map(
-    keys_and_values: &FxHashMap<String, String>,
-    task_variables: &FxHashMap<String, &str>,
-) -> Option<FxHashMap<String, String>> {
-    let mut new_map: FxHashMap<String, String> = FxHashMap::default();
-    for (key, value) in keys_and_values {
-        let new_value = substitute_all_template_variables_in_str(value, task_variables)?;
-        let new_key = substitute_all_template_variables_in_str(key, task_variables)?;
-        new_map.insert(new_key, new_value);
-    }
-
-    Some(new_map)
-}
-
 #[cfg(test)]
 mod tests {
 
+    use rustc_hash::FxHashMap;
+
     use super::TaskContext;
     use super::TaskTemplate;
+    use super::substitute_all_template_variables_in_str;
     use super::to_hex;
+    use crate::TaskVariables;
+    use crate::VariableName;
+
+    #[test]
+    fn substitutes_template_variables() {
+        let variables = FxHashMap::from_iter([("ED_FILE".to_owned(), "/a/b.rs"), ("ED_CUSTOM_row".to_owned(), "7")]);
+        let substitute = |template: &str| substitute_all_template_variables_in_str(template, &variables);
+
+        assert_eq!(substitute("cat $ED_FILE:$ED_CUSTOM_row").unwrap(), "cat /a/b.rs:7");
+        assert_eq!(substitute("é\\^$ED_CUSTOM_row\\$é").unwrap(), "é\\^7\\$é");
+        assert_eq!(substitute("$ED_NOPE"), None);
+        assert_eq!(substitute("$ED_"), None);
+        // Nothing but `$ED_*` is interpreted.
+        for literal in ["", "$PATH ${HOME:-/x} $(pwd) $$ $1 $", "${ED_FILE}", "$EDITOR"] {
+            assert_eq!(substitute(literal).as_deref(), Some(literal));
+        }
+    }
+
+    #[test]
+    fn resolve_task_substitutes_template_env_only() {
+        let template = TaskTemplate {
+            label: "run".into(),
+            command: "echo".into(),
+            env: FxHashMap::from_iter([("CODE".to_owned(), "$ED_FILE".to_owned())]),
+            ..TaskTemplate::default()
+        };
+        let context = TaskContext {
+            task_variables: TaskVariables::from_iter([(VariableName::File, "/a/b.rs".to_owned())]),
+            project_env: FxHashMap::from_iter([
+                ("CODE".to_owned(), "overridden".to_owned()),
+                ("PS1".to_owned(), "$ED_NOPE $$".to_owned()),
+            ]),
+            ..TaskContext::default()
+        };
+        let env = template.resolve_task("test", &context).unwrap().resolved.env;
+        assert_eq!(env["CODE"], "/a/b.rs");
+        assert_eq!(env["PS1"], "$ED_NOPE $$");
+        // Task variables are substituted, never exported.
+        assert_eq!(env.len(), 2);
+    }
 
     #[test]
     fn to_hex_encodes_lowercase_pairs() {

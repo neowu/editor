@@ -40,12 +40,10 @@ pub mod workspace_error;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::env;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::LazyLock;
 use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::AtomicUsize;
@@ -96,8 +94,6 @@ use gpui::WindowKind;
 use gpui::WindowOptions;
 use gpui::actions;
 use gpui::point;
-use gpui::size;
-#[allow(clippy::wildcard_imports)]
 pub use item::Item;
 pub use item::ItemHandle;
 pub use item::ProjectItem;
@@ -216,12 +212,6 @@ fn window_title(project_name: &str, file_name: Option<&str>) -> String {
         _ => project_name.to_owned(),
     }
 }
-
-static ED_WINDOW_SIZE: LazyLock<Option<Size<Pixels>>> =
-    LazyLock::new(|| env::var("ED_WINDOW_SIZE").ok().as_deref().and_then(parse_pixel_size_env_var));
-
-static ED_WINDOW_POSITION: LazyLock<Option<Point<Pixels>>> =
-    LazyLock::new(|| env::var("ED_WINDOW_POSITION").ok().as_deref().and_then(parse_pixel_position_env_var));
 
 pub trait TerminalProvider {
     fn spawn(&self, task: SpawnInTerminal, window: &mut Window, cx: &mut App) -> Task<Option<Result<ExitStatus>>>;
@@ -2474,10 +2464,6 @@ fn project_window_title(project: &Project, cx: &App) -> String {
     }
 }
 
-fn window_bounds_env_override() -> Option<Bounds<Pixels>> {
-    ED_WINDOW_POSITION.zip(*ED_WINDOW_SIZE).map(|(position, size)| Bounds { origin: position, size })
-}
-
 /// A focusable major window region used by region navigation
 /// ([`FocusNextPart`]/[`FocusPreviousPart`]).
 struct FocusablePart {
@@ -2619,9 +2605,8 @@ impl Render for Workspace {
 }
 
 /// Options every workspace window opens with, on the display of the frontmost
-/// window (the main display when there is none). Bounds are the environment
-/// override, else the display's whole visible area: sized directly rather than
-/// zoomed, since macOS zooms a not-yet-shown window against the wrong screen.
+/// window (the main display when there is none). Bounds are the display's whole
+/// visible area: sized directly rather than zoomed, since macOS zooms a not-yet-shown window against the wrong screen.
 /// Windows don't remember their bounds.
 fn build_window_options(cx: &mut App) -> WindowOptions {
     let display = frontmost_window_display(cx).or_else(|| cx.main_display());
@@ -2633,7 +2618,6 @@ fn build_window_options(cx: &mut App) -> WindowOptions {
             traffic_light_position: Some(point(px(TRAFFIC_LIGHT_POSITION.0), px(TRAFFIC_LIGHT_POSITION.1))),
         }),
         window_bounds: Some(WindowBounds::Windowed(window_bounds_or_fill(
-            window_bounds_env_override(),
             display.as_ref().map(|display| display.visible_bounds()),
         ))),
         focus: false,
@@ -2660,9 +2644,9 @@ fn frontmost_window_display(cx: &mut App) -> Option<Rc<dyn PlatformDisplay>> {
     window.update(cx, |_, window, cx| window.display(cx)).ok().flatten()
 }
 
-/// `env_override`, else the display's `visible` area, else the default size.
-fn window_bounds_or_fill(env_override: Option<Bounds<Pixels>>, visible: Option<Bounds<Pixels>>) -> Bounds<Pixels> {
-    env_override.or(visible).unwrap_or_else(|| Bounds::new(Point::default(), DEFAULT_WINDOW_SIZE))
+/// the display's `visible` area, else the default size.
+fn window_bounds_or_fill(visible: Option<Bounds<Pixels>>) -> Bounds<Pixels> {
+    visible.unwrap_or_else(|| Bounds::new(Point::default(), DEFAULT_WINDOW_SIZE))
 }
 
 actions!(
@@ -2743,20 +2727,6 @@ pub(crate) async fn prepare_window_to_close(
     }
 
     prepared
-}
-
-fn parse_pixel_position_env_var(value: &str) -> Option<Point<Pixels>> {
-    let mut parts = value.split(',');
-    let x: usize = parts.next()?.parse().ok()?;
-    let y: usize = parts.next()?.parse().ok()?;
-    Some(point(px(x as f32), px(y as f32)))
-}
-
-fn parse_pixel_size_env_var(value: &str) -> Option<Size<Pixels>> {
-    let mut parts = value.split(',');
-    let width: usize = parts.next()?.parse().ok()?;
-    let height: usize = parts.next()?.parse().ok()?;
-    Some(size(px(width as f32), px(height as f32)))
 }
 
 pub fn with_active_or_new_workspace(
@@ -2885,11 +2855,9 @@ mod tests {
         use gpui::px;
         use gpui::size;
 
-        let env = Bounds::new(point(px(1.), px(2.)), size(px(300.), px(400.)));
         let visible = Bounds::new(point(px(0.), px(25.)), size(px(800.), px(575.)));
-        assert_eq!(super::window_bounds_or_fill(Some(env), Some(visible)), env);
-        assert_eq!(super::window_bounds_or_fill(None, Some(visible)), visible);
-        assert_eq!(super::window_bounds_or_fill(None, None).size, DEFAULT_WINDOW_SIZE);
+        assert_eq!(super::window_bounds_or_fill(Some(visible)), visible);
+        assert_eq!(super::window_bounds_or_fill(None).size, DEFAULT_WINDOW_SIZE);
     }
 
     #[test]

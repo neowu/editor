@@ -305,13 +305,9 @@ fn local_paths_to_check(
             let mut paths_to_check = Vec::new();
             let maybe_path = &path_to_check.path;
             if maybe_path.starts_with("~") {
-                if let Some(home_path) = maybe_path
-                    .strip_prefix("~")
-                    .ok()
-                    .and_then(|stripped_maybe_path| Some(dirs::home_dir()?.join(stripped_maybe_path)))
-                {
+                if let Ok(stripped_maybe_path) = maybe_path.strip_prefix("~") {
                     paths_to_check.push(PathWithPosition {
-                        path: home_path,
+                        path: util::paths::home_dir().join(stripped_maybe_path),
                         row: path_to_check.row,
                         column: path_to_check.column,
                     });

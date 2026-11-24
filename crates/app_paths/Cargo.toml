@@ -1,10 +1,10 @@
 [package]
-name = "paths"
+name = "app_paths"
 version = "0.1.0"
 edition.workspace = true
 
 [lib]
-path = "src/paths.rs"
+path = "src/app_paths.rs"
 
 [dependencies]
 ignore.workspace = true

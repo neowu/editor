@@ -18,7 +18,7 @@ libc.workspace = true
 log.workspace = true
 objc2-core-foundation = { workspace = true, features = ["CFArray", "CFString", "std"] }
 parking_lot.workspace = true
-paths.workspace = true
+app_paths.workspace = true
 rope.workspace = true
 rustc-hash.workspace = true
 rustix = { version = "1.1", features = ["fs"] }

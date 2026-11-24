@@ -128,7 +128,7 @@ pub(crate) fn init(cx: &mut App) {
             });
         })
         .on_action(|_: &workspace::RevealLogInFileManager, cx| {
-            cx.reveal_path(paths::log_file().as_path());
+            cx.reveal_path(app_paths::log_file().as_path());
         });
     }
 
@@ -502,8 +502,8 @@ fn open_log_file(window: &Window, cx: &Context<Workspace>) {
     cx.spawn_in(window, async move |workspace, cx| {
         let log = {
             let result = futures::join!(
-                fs.load(paths::old_log_file()),
-                fs.load(paths::log_file()),
+                fs.load(app_paths::old_log_file()),
+                fs.load(app_paths::log_file()),
                 languages.language_for_name("log")
             );
             match result {
@@ -536,7 +536,7 @@ fn open_log_file(window: &Window, cx: &Context<Workspace>) {
                                     format!(
                                         "Unable to access/open log file at path \
                                                     {}: {e:#}",
-                                        paths::log_file().display()
+                                        app_paths::log_file().display()
                                     ),
                                     cx,
                                 )

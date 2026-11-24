@@ -65,7 +65,7 @@ impl Project {
 
         let path: Option<Arc<Path>> = if let Some(cwd) = &spawn_task.cwd {
             let cwd = cwd.to_string_lossy();
-            let tilde_substituted = shellexpand::tilde(&cwd);
+            let tilde_substituted = util::paths::expand_tilde(&cwd);
             Some(Arc::from(Path::new(tilde_substituted.as_ref())))
         } else {
             self.active_project_directory(cx)

@@ -2656,7 +2656,7 @@ impl BackgroundScanner {
 
         log::trace!("containing git repository: {containing_git_repository:?}");
 
-        let global_gitignore_file = paths::global_gitignore_path();
+        let global_gitignore_file = app_paths::global_gitignore_path();
         let mut global_gitignore_events = if let Some(global_gitignore_path) = &global_gitignore_file
             && scanning_enabled
             && self.track_git_repositories
@@ -4235,7 +4235,7 @@ async fn discover_ancestor_git_repo(
     let mut ignores = FxHashMap::default();
     for (index, ancestor) in root_abs_path.as_path().ancestors().enumerate() {
         if index != 0 {
-            if ancestor == paths::home_dir() {
+            if ancestor == home_dir() {
                 // Unless $HOME is itself the worktree root, don't consider it as a
                 // containing git repository---expensive and likely unwanted.
                 break;

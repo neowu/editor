@@ -45,6 +45,8 @@ or UNC prefixes. There is no path-style abstraction; code uses
   `cli_default_open_behavior` setting; open requests, Open, and Open Recent
   add to the existing window unless the action asks for a new one. New
   windows show the Launchpad.
+- Running as root (including via sudo) exits at startup with an error; there is
+  no override.
 - Quit never asks for confirmation, except for unsaved changes and running
   terminals.
 - Closing a terminal tab, closing or replacing the window, and quitting ask
@@ -159,8 +161,8 @@ or UNC prefixes. There is no path-style abstraction; code uses
   Dock-menu items dispatch their actions directly through AppKit, not via URLs.
 - Branding is `ed` everywhere (crates `ed`/`actions`, UI text,
   `TERM_PROGRAM=ed`, pasteboard types).
-  Environment variables use the `ED_` prefix (task variables like `$ED_FILE`,
-  `ED_WINDOW_SIZE`, ...) and the project folder is `.ed`; upstream
+  Environment variables and task template variables use the `ED_` prefix
+  (`$ED_FILE`, ...) and the project folder is `.ed`; upstream
   `ZED_*` variables and `.zed` folders are ignored.
 - Linux desktop, FreeBSD, Windows, and browser backends, packaging, and associated
   build/test/release tooling are removed.

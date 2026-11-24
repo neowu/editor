@@ -787,10 +787,6 @@ impl Hash for ColorPresentation {
 pub struct DirectoryLister(pub Entity<Project>);
 
 impl DirectoryLister {
-    pub fn resolve_tilde<'a>(&self, path: &'a String) -> Cow<'a, str> {
-        shellexpand::tilde(path)
-    }
-
     pub fn default_query(&self, cx: &mut App) -> String {
         let project = self.0.read(cx);
         project
@@ -811,7 +807,7 @@ impl DirectoryLister {
         let fs = Arc::clone(self.0.read(cx).fs());
         cx.background_spawn(async move {
             let mut results = vec![];
-            let expanded = shellexpand::tilde(&path);
+            let expanded = util::paths::expand_tilde(&path);
             let query = Path::new(expanded.as_ref());
             let mut response = fs.read_dir(query).await?;
             while let Some(path) = response.next().await {
@@ -2033,7 +2029,7 @@ impl Project {
     }
 
     pub fn resolve_abs_path(&self, path: &str, cx: &App) -> Task<Option<ResolvedPath>> {
-        let expanded = PathBuf::from(shellexpand::tilde(&path).into_owned());
+        let expanded = PathBuf::from(util::paths::expand_tilde(path).into_owned());
         let fs = Arc::clone(&self.fs);
         cx.background_spawn(async move {
             let metadata = fs.metadata(&expanded).await.ok().flatten();

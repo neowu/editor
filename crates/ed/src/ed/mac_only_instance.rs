@@ -17,8 +17,8 @@ pub(crate) enum IsOnlyInstance {
 /// this app's own state directory, so it is per user (or per `--user-data-dir`)
 /// and never collides with an upstream ed instance.
 pub(crate) fn ensure_only_instance() -> IsOnlyInstance {
-    let path = paths::state_dir().join(format!("{}.lock", paths::APP_NAME));
-    let file = match fs::create_dir_all(paths::state_dir())
+    let path = app_paths::state_dir().join(format!("{}.lock", app_paths::APP_NAME));
+    let file = match fs::create_dir_all(app_paths::state_dir())
         .and_then(|()| File::options().create(true).truncate(false).write(true).open(&path))
     {
         Ok(file) => file,

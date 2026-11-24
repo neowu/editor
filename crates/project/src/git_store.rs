@@ -501,7 +501,7 @@ impl GitStore {
         fs: Arc<Fs>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let _fs_watches = paths::git_global_config_files()
+        let _fs_watches = app_paths::git_global_config_files()
             .into_iter()
             .map(|path| {
                 let fs = Arc::clone(&fs);

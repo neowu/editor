@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::error::Error;
 use std::ffi::OsStr;
@@ -31,7 +32,17 @@ use crate::shell::ShellKind;
 /// Returns the path to the user's home directory.
 pub fn home_dir() -> &'static PathBuf {
     static HOME_DIR: OnceLock<PathBuf> = OnceLock::new();
-    HOME_DIR.get_or_init(|| dirs::home_dir().expect("failed to determine home directory"))
+    HOME_DIR.get_or_init(|| std::env::home_dir().expect("failed to determine home directory"))
+}
+
+/// Expands a leading `~` or `~/` to the home directory; `~user` is left as is.
+pub fn expand_tilde(path: &str) -> Cow<'_, str> {
+    match path.strip_prefix('~') {
+        Some(rest) if rest.is_empty() || rest.starts_with('/') => {
+            Cow::Owned(format!("{}{rest}", home_dir().to_string_lossy()))
+        }
+        _ => Cow::Borrowed(path),
+    }
 }
 
 pub trait PathExt {
@@ -886,7 +897,19 @@ mod tests {
 
     use super::PathWithPosition;
     use super::compare_lowercase;
+    use super::expand_tilde;
+    use super::home_dir;
     use super::natural_sort;
+
+    #[test]
+    fn expand_tilde_only_expands_own_home() {
+        let home = home_dir().to_string_lossy();
+        assert_eq!(expand_tilde("~"), home);
+        assert_eq!(expand_tilde("~/a b/c"), format!("{home}/a b/c"));
+        assert_eq!(expand_tilde("~other/a"), "~other/a");
+        assert_eq!(expand_tilde("/a/~/b"), "/a/~/b");
+        assert_eq!(expand_tilde(""), "");
+    }
 
     #[test]
     fn natural_sort_orders_numbers_and_case() {

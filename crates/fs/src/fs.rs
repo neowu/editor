@@ -475,7 +475,7 @@ impl Fs {
             // Use the directory of the destination as temp dir to avoid
             // invalid cross-device link error, and XDG_CACHE_DIR for fallback.
             // See https://github.com/zed-industries/zed/pull/8437 for more details.
-            let mut tmp_file = tempfile::NamedTempFile::new_in(path.parent().unwrap_or(paths::temp_dir()))?;
+            let mut tmp_file = tempfile::NamedTempFile::new_in(path.parent().unwrap_or(app_paths::temp_dir()))?;
             tmp_file.write_all(data.as_bytes())?;
             tmp_file.persist(path)?;
             anyhow::Ok(())

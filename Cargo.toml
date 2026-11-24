@@ -52,7 +52,7 @@ multi_buffer = { path = "crates/multi_buffer" }
 notifications = { path = "crates/notifications" }
 outline_panel = { path = "crates/outline_panel" }
 path = { path = "crates/path" }
-paths = { path = "crates/paths" }
+app_paths = { path = "crates/app_paths" }
 picker = { path = "crates/picker" }
 project = { path = "crates/project" }
 project_panel = { path = "crates/project_panel" }
@@ -89,7 +89,6 @@ base64 = "0.23"
 bitflags = "2.6.0"
 clap = { version = "4.4", features = ["derive", "wrap_help"] }
 derive_more = { version = "2.1", features = ["deref", "deref_mut", "from_str"] }
-dirs = "7.0"
 dispatch2 = { version = "0.3", default-features = false, features = ["std"] }
 encoding_rs = "0.8"
 etagere = "0.3"
@@ -145,7 +144,6 @@ rust-embed = { version = "8.11", features = ["compression", "include-exclude"] }
 rustc-hash = "2"
 serde = { version = "1", features = ["rc"] }
 serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
-shellexpand = "3.1"
 shlex = "2.0"
 slotmap = "1.0.6"
 smallvec = { version = "1.6", features = ["const_new", "union"] }

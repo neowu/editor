@@ -135,6 +135,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2cb931c189b85683d69a5cfad41d4d418671e1ac413dd209f3f2fc31e3cfd902"
 
 [[package]]
+name = "app_paths"
+version = "0.1.0"
+dependencies = [
+ "ignore",
+ "util",
+]
+
+[[package]]
 name = "arc-swap"
 version = "1.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -665,36 +673,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dirs"
-version = "6.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3e8aa94d75141228480295a7d0e7feb620b1a5ad9f12bc40be62411e38cce4e"
-dependencies = [
- "dirs-sys",
-]
-
-[[package]]
-name = "dirs"
-version = "7.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d57d423b3c82e89b9a24ca3091fee61f456a26edbd28d26c65906f4bc1dcd8f"
-dependencies = [
- "dirs-sys",
-]
-
-[[package]]
-name = "dirs-sys"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e01a3366d27ee9890022452ee61b2b63a67e6f13f58900b651ff5665f0bb1fab"
-dependencies = [
- "libc",
- "option-ext",
- "redox_users",
- "windows-sys 0.61.2",
-]
-
-[[package]]
 name = "dispatch2"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -723,6 +701,7 @@ dependencies = [
  "actions",
  "activity_indicator",
  "anyhow",
+ "app_paths",
  "assets",
  "async_macos",
  "clap",
@@ -752,7 +731,6 @@ dependencies = [
  "markdown",
  "markdown_preview",
  "outline_panel",
- "paths",
  "percent-encoding",
  "picker",
  "project",
@@ -1096,6 +1074,7 @@ name = "fs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "app_paths",
  "async-channel",
  "async_macos",
  "dispatch2",
@@ -1106,7 +1085,6 @@ dependencies = [
  "log",
  "objc2-core-foundation",
  "parking_lot 0.13.0",
- "paths",
  "rope",
  "rustc-hash",
  "rustix",
@@ -2017,15 +1995,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
-name = "libredox"
-version = "0.1.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61ff90caf6077a803a240f62fdbe88645a890bbca49ef8174c3cb0404362171d"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "linked-hash-map"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2575,12 +2544,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "option-ext"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
-
-[[package]]
 name = "ordered-float"
 version = "5.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2671,15 +2634,6 @@ name = "path"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "serde",
-]
-
-[[package]]
-name = "paths"
-version = "0.1.0"
-dependencies = [
- "ignore",
- "util",
 ]
 
 [[package]]
@@ -2858,6 +2812,7 @@ version = "0.1.0"
 dependencies = [
  "aho-corasick",
  "anyhow",
+ "app_paths",
  "async-channel",
  "async-lock",
  "async_macos",
@@ -2880,12 +2835,10 @@ dependencies = [
  "lsp",
  "parking_lot 0.13.0",
  "path",
- "paths",
  "regex",
  "rustc-hash",
  "serde",
  "serde_json",
- "shellexpand",
  "snippet",
  "sum_tree",
  "task",
@@ -3019,16 +2972,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "580c875845b41ecb1564ad1ae4703044cef774145e3d7a94dc2b3fa7c97868fd"
 dependencies = [
  "bitflags",
-]
-
-[[package]]
-name = "redox_users"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60dc65c0ff1a7ae1294b0c67b9f14baf70b644404010370171787bfac1038fc0"
-dependencies = [
- "libredox",
- "thiserror",
 ]
 
 [[package]]
@@ -3320,15 +3263,6 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
-]
-
-[[package]]
-name = "shellexpand"
-version = "3.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32824fab5e16e6c4d86dc1ba84489390419a39f97699852b66480bb87d297ed8"
-dependencies = [
- "dirs 6.0.0",
 ]
 
 [[package]]
@@ -3628,7 +3562,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "shellexpand",
  "util",
 ]
 
@@ -3688,7 +3621,6 @@ version = "0.1.0"
 dependencies = [
  "actions",
  "anyhow",
- "dirs 7.0.0",
  "editor",
  "futures",
  "gpui",
@@ -3698,7 +3630,6 @@ dependencies = [
  "project",
  "regex",
  "rustc-hash",
- "shellexpand",
  "shlex",
  "task",
  "terminal",
@@ -4211,7 +4142,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async_macos",
- "dirs 7.0.0",
  "globset",
  "gpui_util",
  "itertools",
@@ -4578,8 +4508,8 @@ version = "0.1.0"
 dependencies = [
  "actions",
  "anyhow",
+ "app_paths",
  "async_macos",
- "dirs 7.0.0",
  "fs",
  "futures",
  "gpui",
@@ -4589,7 +4519,6 @@ dependencies = [
  "log",
  "markdown",
  "parking_lot 0.13.0",
- "paths",
  "project",
  "rustc-hash",
  "serde",
@@ -4608,6 +4537,7 @@ name = "worktree"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "app_paths",
  "async-channel",
  "async-lock",
  "async_macos",
@@ -4621,7 +4551,6 @@ dependencies = [
  "ignore",
  "language",
  "log",
- "paths",
  "rustc-hash",
  "smallvec",
  "sum_tree",

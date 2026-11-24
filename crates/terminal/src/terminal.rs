@@ -544,7 +544,6 @@ const DEBUG_LINE_HEIGHT: Pixels = px(5.);
 /// Inserts ed-specific environment variables for terminal sessions.
 /// Used by both local terminals and remote terminals (via SSH).
 pub fn insert_ed_terminal_env(env: &mut FxHashMap<String, String>) {
-    env.insert("ED_TERM".to_owned(), "true".to_owned());
     env.insert("TERM_PROGRAM".to_owned(), "ed".to_owned());
     env.insert("TERM".to_owned(), "xterm-256color".to_owned());
     env.insert("COLORTERM".to_owned(), "truecolor".to_owned());

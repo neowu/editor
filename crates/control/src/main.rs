@@ -725,7 +725,7 @@ fn launch(
     Ok(())
 }
 
-/// Where `ed --user-data-dir <dir>` writes its log; mirrors `paths::log_file`.
+/// Where `ed --user-data-dir <dir>` writes its log; mirrors `app_paths::log_file`.
 fn log_file_for_data_dir(dir: &Path) -> PathBuf {
     dir.join("state").join("logs").join("ed.log")
 }

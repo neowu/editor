@@ -16,7 +16,6 @@ tell "finished" from "abandoned". ⚠ = no release since 18 Nov 2025.
 | base64 | 0.22 | 0.23 | none |
 | chardetng | 0.1 | 1.0 | `EncodingDetector::new(Iso2022JpDetection::Allow)`, `guess(_, Utf8Detection::Allow)`; same behaviour as 0.1 |
 | convert_case | 0.11 | 0.12 | none |
-| dirs | 6 | 7 | none (`shellexpand` still pulls dirs 6) |
 | etagere | 0.2 | 0.3 | none |
 | fancy-regex | 0.19 | 0.20 | none |
 | linkify | 0.10 | 0.11 | none |
@@ -35,9 +34,8 @@ Trade-offs:
 
 - syn 3 adds a second syn: `derive_more`, `pin-project`, `rust-embed`, `strum`
   and `cbindgen` still depend on syn 2, so both compile (build time only).
-- dirs 6/7 and parking_lot 0.12/0.13 are duplicated for the same reason.
-  Small, but it costs binary size until `shellexpand` / `alacritty_terminal`
-  move.
+- parking_lot 0.12/0.13 is duplicated for the same reason. Small, but it
+  costs binary size until `alacritty_terminal` moves.
 - taffy 0.14/0.15 reworked alignment (`AlignItems` is now a keyword + safety
   struct). Unit tests pass, but layout regressions are only visible in the
   app; worth a visual check of panels, pickers and the terminal.
@@ -61,7 +59,6 @@ Trade-offs:
 | clap | 4.6.8 | 2026-11-16 |
 | convert_case | 0.12.0 | 2026-08-27 |
 | derive_more | 2.1.1 | 2025-12-22 |
-| dirs | 7.0.0 | 2026-09-05 |
 | dispatch2 | 0.3.1 | 2026-02-26 |
 | emojis | 0.9.1 | 2026-10-17 |
 | encoding_rs | 0.8.44 | 2026-10-30 |
@@ -112,7 +109,6 @@ Trade-offs:
 | serde | 1.0.229 | 2026-07-18 |
 | serde_json | 1.0.154 | 2026-10-11 |
 | sha2 | 0.11.1 | 2026-10-12 |
-| shellexpand | 3.1.2 | 2026-02-23 |
 | shlex | 2.0.1 | 2026-05-17 |
 | slotmap | 1.1.1 | 2025-12-06 |
 | smallvec | 1.16.5 | 2026-11-06 |
@@ -195,6 +191,10 @@ Trade-offs:
   FxHasher is unseeded, so it is stable between running instances of the same
   build, but its output could change with a `rustc-hash` upgrade. The effect is
   only that paste metadata from an older build gets ignored once.
+- `dirs` / `shellexpand` (not stale, dropped 2026-11-24 for size: 7 fewer
+  packages, 438 total): home dir is `std::env::home_dir()`, tilde expansion is
+  `util::paths::expand_tilde`, task template substitution is a `$ED_NAME`-only
+  scanner in `task_template.rs` (see `spec/tasks.md`).
 - `std::thread::park` shares one token per thread. A future that itself calls
   `thread::park` inside `poll` could swallow the wake, but nothing in the
   codebase does that. `futures::executor::block_on` works the same way.

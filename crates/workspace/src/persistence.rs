@@ -223,7 +223,7 @@ impl ProjectsStore {
 }
 
 pub(crate) fn init(fs: Arc<Fs>, cx: &mut App) {
-    let store = ProjectsStore::load(fs, paths::data_dir().join(PROJECTS_FILE_NAME));
+    let store = ProjectsStore::load(fs, app_paths::data_dir().join(PROJECTS_FILE_NAME));
     cx.set_global(GlobalProjectsStore(Arc::new(store)));
     track_session(cx);
 }

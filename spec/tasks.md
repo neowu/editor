@@ -42,6 +42,11 @@ clients as JSON.
 - In a single-file worktree (a file opened without its folder) there is no
   worktree root: `$ED_WORKTREE_ROOT`, the relative path variables and the
   default cwd are unset, so templates that need them don't resolve.
+- Templates are built in code, so substitution only knows `$ED_NAME`: an
+  unset one fails the template, and nothing else is interpreted (no `${..}`,
+  defaults or `$$` escape; any other `$` reaches the shell as written). Only
+  the template's own env values are substituted, not the project environment.
+  Task variables are not exported to the task's environment.
 - A task always runs in the terminal dock with the default system shell, saves nothing first, and leaves its tab
   open with no summary lines when it finishes. Running a task whose tab
   already exists waits for that run to finish, then replaces the tab's output.

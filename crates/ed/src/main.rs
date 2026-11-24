@@ -126,7 +126,7 @@ fn main() {
     }
 
     if let Some(directory) = args.user_data_dir.as_deref() {
-        paths::set_custom_root_dir(directory);
+        app_paths::set_custom_root_dir(directory);
     }
 
     let file_errors = init_paths();
@@ -140,7 +140,7 @@ fn main() {
     if stdout_is_a_pty() {
         logger::init_output_stdout();
     } else {
-        let result = logger::init_output_file(paths::log_file(), paths::old_log_file());
+        let result = logger::init_output_file(app_paths::log_file(), app_paths::old_log_file());
         if let Err(err) = result {
             eprintln!("Could not open log file: {err}... Defaulting to stdout");
             logger::init_output_stdout();
@@ -429,7 +429,7 @@ fn install_panic_hook() {
 }
 
 fn init_paths() -> FxHashMap<io::ErrorKind, Vec<&'static Path>> {
-    [paths::data_dir(), paths::logs_dir(), paths::temp_dir()].into_iter().fold(
+    [app_paths::data_dir(), app_paths::logs_dir(), app_paths::temp_dir()].into_iter().fold(
         FxHashMap::default(),
         |mut errors, path| {
             if let Err(e) = std::fs::create_dir_all(path) {

@@ -1489,7 +1489,7 @@ impl SearchableItem for TerminalView {
 /// Gets the working directory for the given workspace, respecting the user's settings.
 /// Falls back to home directory when no project directory is available.
 pub fn default_working_directory(workspace: &Workspace, cx: &App) -> Option<PathBuf> {
-    current_project_directory(workspace, cx).or_else(dirs::home_dir)
+    current_project_directory(workspace, cx).or_else(|| Some(util::paths::home_dir().clone()))
 }
 
 fn current_project_directory(workspace: &Workspace, cx: &App) -> Option<PathBuf> {

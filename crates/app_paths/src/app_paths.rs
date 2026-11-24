@@ -9,7 +9,7 @@ use std::sync::OnceLock;
 
 use ignore::gitignore;
 use util::paths::SanitizedPath;
-pub use util::paths::home_dir;
+use util::paths::home_dir;
 
 /// The application name, used for the XDG data, cache, and state
 /// directories and the log file name. Must match the editor binary name.
