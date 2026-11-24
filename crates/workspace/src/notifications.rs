@@ -417,14 +417,11 @@ impl EventEmitter<SuppressEvent> for LanguageServerPrompt {}
 
 pub fn markdown_style(window: &Window) -> MarkdownStyle {
     let ui_font_family = font::ui_font().family.clone();
-    let ui_font_fallbacks = font::ui_font().fallbacks.clone();
     let buffer_font_family = font::buffer_font().family.clone();
-    let buffer_font_fallbacks = font::buffer_font().fallbacks.clone();
 
     let mut base_text_style = window.text_style();
     base_text_style.refine(&TextStyleRefinement {
         font_family: Some(ui_font_family),
-        font_fallbacks: ui_font_fallbacks,
         color: Some(theme::theme().colors().text),
         ..Default::default()
     });
@@ -435,7 +432,6 @@ pub fn markdown_style(window: &Window) -> MarkdownStyle {
         inline_code: TextStyleRefinement {
             background_color: Some(theme::theme().colors().editor_background.opacity(0.5)),
             font_family: Some(buffer_font_family),
-            font_fallbacks: buffer_font_fallbacks,
             ..Default::default()
         },
         link: TextStyleRefinement {

@@ -1694,7 +1694,6 @@ pub(crate) fn git_commit_editor_style(font_size: gpui::Pixels) -> EditorStyle {
         text: TextStyle {
             color: theme::theme().colors().text,
             font_family: font::buffer_font().family.clone(),
-            font_fallbacks: font::buffer_font().fallbacks.clone(),
             font_features: font::buffer_font().features.clone(),
             font_size: AbsoluteLength::from(font_size),
             font_weight: font::buffer_font().weight,

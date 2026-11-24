@@ -1,4 +1,3 @@
-mod font_fallbacks;
 mod font_features;
 mod line;
 mod line_layout;
@@ -26,10 +25,7 @@ use derive_more::Add;
 use derive_more::Deref;
 use derive_more::FromStr;
 use derive_more::Sub;
-#[allow(clippy::wildcard_imports)]
-pub use font_fallbacks::*;
-#[allow(clippy::wildcard_imports)]
-pub use font_features::*;
+pub use font_features::FontFeatures;
 use itertools::Itertools as _;
 #[allow(clippy::wildcard_imports)]
 pub use line::*;
@@ -800,9 +796,6 @@ pub struct Font {
     /// The font features to use.
     pub features: FontFeatures,
 
-    /// The fallbacks fonts to use.
-    pub fallbacks: Option<FontFallbacks>,
-
     /// The font weight.
     pub weight: FontWeight,
 
@@ -823,7 +816,6 @@ pub fn font(family: impl Into<SharedString>) -> Font {
         features: FontFeatures::default(),
         weight: FontWeight::default(),
         style: FontStyle::default(),
-        fallbacks: None,
     }
 }
 

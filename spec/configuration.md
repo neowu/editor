@@ -98,7 +98,7 @@ migrator, or Vim/Helix mode.
   - terminal: no title breadcrumbs, no count badge, no bell sound (the tab
     still marks the bell), does not open on startup, always docked at the
     bottom (no `dock` or `default_width` setting); always uses the buffer
-    font family, fallbacks and size with normal weight and ligatures off (no
+    font family and size with normal weight and ligatures off (no
     terminal font settings); line height is 1.3; the cursor always blinks
     (programs cannot turn blinking off); alternate scroll is always on; new
     shells start in the active project directory, then the first project,

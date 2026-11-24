@@ -1063,7 +1063,6 @@ impl Element for TerminalElement {
             let minimum_contrast = terminal_settings.minimum_contrast;
 
             let font_family = font::buffer_font().family.clone();
-            let font_fallbacks = font::buffer_font().fallbacks.clone();
             let font_features = FontFeatures::disable_ligatures();
             let font_weight = FontWeight::NORMAL;
             let line_height = terminal_settings.line_height;
@@ -1089,7 +1088,6 @@ impl Element for TerminalElement {
                 font_family,
                 font_features,
                 font_weight,
-                font_fallbacks,
                 font_size: font_size.into(),
                 font_style: FontStyle::Normal,
                 line_height: px(line_height).into(),

@@ -1,10 +1,7 @@
 use std::ptr;
 
-use gpui::FontFallbacks;
 use gpui::FontFeatures;
-use objc2_core_foundation::CFArray;
 use objc2_core_foundation::CFDictionary;
-use objc2_core_foundation::CFLocale;
 use objc2_core_foundation::CFMutableArray;
 use objc2_core_foundation::CFNumber;
 use objc2_core_foundation::CFRetained;
@@ -12,36 +9,14 @@ use objc2_core_foundation::CFString;
 use objc2_core_foundation::CFType;
 use objc2_core_text::CTFont;
 use objc2_core_text::CTFontDescriptor;
-use objc2_core_text::CTFontSymbolicTraits;
-use objc2_core_text::kCTFontCascadeListAttribute;
-use objc2_core_text::kCTFontFamilyNameAttribute;
 use objc2_core_text::kCTFontFeatureSettingsAttribute;
 use objc2_core_text::kCTFontOpenTypeFeatureTag;
 use objc2_core_text::kCTFontOpenTypeFeatureValue;
-use objc2_core_text::kCTFontSlantTrait;
-use objc2_core_text::kCTFontTraitsAttribute;
-use objc2_core_text::kCTFontURLAttribute;
-use objc2_core_text::kCTFontWeightTrait;
 
-use crate::font;
-
-pub(crate) fn apply_features_and_fallbacks(
-    font: &mut CFRetained<CTFont>,
-    features: &FontFeatures,
-    fallbacks: Option<&FontFallbacks>,
-) {
+pub(crate) fn apply_features(font: &mut CFRetained<CTFont>, features: &FontFeatures) {
     let feature_array = generate_feature_array(features);
-    let mut keys: Vec<&CFString> = vec![unsafe { kCTFontFeatureSettingsAttribute }];
-    let mut values: Vec<&CFType> = vec![feature_array.as_ref()];
-    let fallback_array;
-    if let Some(fallbacks) = fallbacks
-        && !fallbacks.fallback_list().is_empty()
-    {
-        fallback_array = generate_fallback_array(fallbacks, font);
-        keys.push(unsafe { kCTFontCascadeListAttribute });
-        values.push(fallback_array.as_ref());
-    }
-    let attributes: CFRetained<CFDictionary<CFString, CFType>> = CFDictionary::from_slices(&keys, &values);
+    let attributes: CFRetained<CFDictionary<CFString, CFType>> =
+        CFDictionary::from_slices(&[unsafe { kCTFontFeatureSettingsAttribute }], &[feature_array.as_ref()]);
     unsafe {
         let descriptor = CTFontDescriptor::with_attributes(attributes.as_opaque());
         *font = font.copy_with_attributes(0.0, ptr::null(), Some(&descriptor));
@@ -62,43 +37,23 @@ fn generate_feature_array(features: &FontFeatures) -> CFRetained<CFMutableArray<
     feature_array
 }
 
-fn generate_fallback_array(fallbacks: &FontFallbacks, font: &CTFont) -> CFRetained<CFMutableArray<CTFontDescriptor>> {
-    let is_italic = unsafe { font.symbolic_traits() }.contains(CTFontSymbolicTraits::TraitItalic);
-    let weight = font::trait_value(&font::traits(font), unsafe { kCTFontWeightTrait }).unwrap_or(0.0);
-    let weight_value = CFNumber::new_f64(weight);
-    let slant_value = CFNumber::new_f64(if is_italic { 1.0 } else { 0.0 });
-    let traits: CFRetained<CFDictionary<CFString, CFType>> = CFDictionary::from_slices(
-        &[unsafe { kCTFontWeightTrait }, unsafe { kCTFontSlantTrait }],
-        &[weight_value.as_ref(), slant_value.as_ref()],
-    );
+#[cfg(test)]
+mod tests {
+    use gpui::FontFeatures;
 
-    let fallback_array: CFRetained<CFMutableArray<CTFontDescriptor>> = CFMutableArray::empty();
-    for user_fallback in fallbacks.fallback_list() {
-        let name = CFString::from_str(user_fallback);
-        let attributes: CFRetained<CFDictionary<CFString, CFType>> = CFDictionary::from_slices(
-            &[unsafe { kCTFontFamilyNameAttribute }, unsafe { kCTFontTraitsAttribute }],
-            &[name.as_ref(), traits.as_ref()],
-        );
-        let descriptor = unsafe { CTFontDescriptor::with_attributes(attributes.as_opaque()) };
-        fallback_array.append(&*descriptor);
-    }
+    use super::apply_features;
+    use super::generate_feature_array;
+    use crate::font;
 
-    append_system_fallbacks(&fallback_array, font);
-    fallback_array
-}
+    #[test]
+    fn apply_features_keeps_the_font() {
+        let features = FontFeatures::disable_ligatures();
+        assert_eq!(generate_feature_array(&features).len(), 1);
 
-fn append_system_fallbacks(fallback_array: &CFMutableArray<CTFontDescriptor>, font: &CTFont) {
-    let preferred_languages = CFLocale::preferred_languages();
-    let Some(default_fallbacks) = (unsafe { font.default_cascade_list_for_languages(preferred_languages.as_deref()) })
-    else {
-        return;
-    };
-    // SAFETY: Core Text documents the cascade list as holding font descriptors.
-    let default_fallbacks: CFRetained<CFArray<CTFontDescriptor>> =
-        unsafe { CFRetained::cast_unchecked(default_fallbacks) };
-    for descriptor in default_fallbacks.iter() {
-        if unsafe { descriptor.attribute(kCTFontURLAttribute) }.is_some() {
-            fallback_array.append(&*descriptor);
-        }
+        let mut font = font::family_fonts("Menlo").unwrap().remove(0);
+        let name = unsafe { font.post_script_name() }.to_string();
+        apply_features(&mut font, &features);
+        assert_eq!(unsafe { font.post_script_name() }.to_string(), name);
+        assert!(font::glyph_for_char(&font, 'm').is_some());
     }
 }

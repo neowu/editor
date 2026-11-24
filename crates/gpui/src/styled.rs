@@ -730,14 +730,13 @@ pub trait Styled: Sized {
 
     /// Sets the font of this element and its children.
     fn font(mut self, font: Font) -> Self {
-        let Font { family, features, fallbacks, weight, style } = font;
+        let Font { family, features, weight, style } = font;
 
         let text_style = self.text_style();
         text_style.font_family = Some(family);
         text_style.font_features = Some(features);
         text_style.font_weight = Some(weight);
         text_style.font_style = Some(style);
-        text_style.font_fallbacks = fallbacks;
 
         self
     }

@@ -824,17 +824,14 @@ fn unclosed_code_fence(markdown: &str) -> Option<String> {
 pub fn hover_markdown_style(window: &Window) -> MarkdownStyle {
     let ui_font_family = font::ui_font().family.clone();
     let ui_font_features = font::ui_font().features.clone();
-    let ui_font_fallbacks = font::ui_font().fallbacks.clone();
     let buffer_font_family = font::buffer_font().family.clone();
     let buffer_font_features = font::buffer_font().features.clone();
-    let buffer_font_fallbacks = font::buffer_font().fallbacks.clone();
     let buffer_font_weight = font::buffer_font().weight;
 
     let mut base_text_style = window.text_style();
     base_text_style.refine(&TextStyleRefinement {
         font_family: Some(ui_font_family),
         font_features: Some(ui_font_features),
-        font_fallbacks: ui_font_fallbacks,
         color: Some(theme::theme().colors().editor_foreground),
         ..Default::default()
     });
@@ -849,7 +846,6 @@ pub fn hover_markdown_style(window: &Window) -> MarkdownStyle {
             background_color: Some(theme::theme().colors().background),
             font_family: Some(buffer_font_family),
             font_features: Some(buffer_font_features),
-            font_fallbacks: buffer_font_fallbacks,
             font_weight: Some(buffer_font_weight),
             ..Default::default()
         },
@@ -875,17 +871,14 @@ pub fn hover_markdown_style(window: &Window) -> MarkdownStyle {
 
 pub fn diagnostics_markdown_style(window: &Window) -> MarkdownStyle {
     let ui_font_family = font::ui_font().family.clone();
-    let ui_font_fallbacks = font::ui_font().fallbacks.clone();
     let ui_font_features = font::ui_font().features.clone();
     let buffer_font_family = font::buffer_font().family.clone();
     let buffer_font_features = font::buffer_font().features.clone();
-    let buffer_font_fallbacks = font::buffer_font().fallbacks.clone();
 
     let mut base_text_style = window.text_style();
     base_text_style.refine(&TextStyleRefinement {
         font_family: Some(ui_font_family),
         font_features: Some(ui_font_features),
-        font_fallbacks: ui_font_fallbacks,
         color: Some(theme::theme().colors().editor_foreground),
         ..Default::default()
     });
@@ -896,7 +889,6 @@ pub fn diagnostics_markdown_style(window: &Window) -> MarkdownStyle {
             background_color: Some(theme::theme().colors().editor_background.opacity(0.5)),
             font_family: Some(buffer_font_family),
             font_features: Some(buffer_font_features),
-            font_fallbacks: buffer_font_fallbacks,
             ..Default::default()
         },
         rule_color: theme::theme().colors().border,

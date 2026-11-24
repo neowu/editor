@@ -11,7 +11,6 @@ use anyhow::anyhow;
 use gpui::Bounds;
 use gpui::DevicePixels;
 use gpui::Font;
-use gpui::FontFallbacks;
 use gpui::FontFeatures;
 use gpui::FontId;
 use gpui::FontMetrics;
@@ -68,7 +67,7 @@ use smallvec::SmallVec;
 
 use crate::font;
 use crate::font::SyncFont;
-use crate::open_type::apply_features_and_fallbacks;
+use crate::open_type::apply_features;
 
 /// Apple text system using CoreText for font shaping.
 pub(crate) struct AppleTextSystem(RwLock<AppleTextSystemState>);
@@ -77,7 +76,6 @@ pub(crate) struct AppleTextSystem(RwLock<AppleTextSystemState>);
 struct FontKey {
     font_family: SharedString,
     font_features: FontFeatures,
-    font_fallbacks: Option<FontFallbacks>,
 }
 
 struct AppleTextSystemState {
@@ -130,15 +128,11 @@ impl PlatformTextSystem for AppleTextSystem {
             Ok(*font_id)
         } else {
             let mut lock = RwLockUpgradableReadGuard::upgrade(lock);
-            let font_key = FontKey {
-                font_family: font.family.clone(),
-                font_features: font.features.clone(),
-                font_fallbacks: font.fallbacks.clone(),
-            };
+            let font_key = FontKey { font_family: font.family.clone(), font_features: font.features.clone() };
             let candidates = if let Some(font_ids) = lock.font_ids_by_font_key.get(&font_key) {
                 font_ids.as_slice()
             } else {
-                let font_ids = lock.load_family(&font.family, &font.features, font.fallbacks.as_ref())?;
+                let font_ids = lock.load_family(&font.family, &font.features)?;
                 lock.font_ids_by_font_key.insert(font_key.clone(), font_ids);
                 lock.font_ids_by_font_key[&font_key].as_ref()
             };
@@ -235,12 +229,7 @@ impl AppleTextSystemState {
         Ok(())
     }
 
-    fn load_family(
-        &mut self,
-        name: &str,
-        features: &FontFeatures,
-        fallbacks: Option<&FontFallbacks>,
-    ) -> Result<SmallVec<[FontId; 4]>> {
+    fn load_family(&mut self, name: &str, features: &FontFeatures) -> Result<SmallVec<[FontId; 4]>> {
         let name = gpui::font_name_with_fallbacks(name, ".AppleSystemUIFont");
 
         let mut font_ids = SmallVec::new();
@@ -253,7 +242,7 @@ impl AppleTextSystemState {
             .collect();
         let family = if memory_fonts.is_empty() { font::family_fonts(name)? } else { memory_fonts };
         for mut font in family {
-            apply_features_and_fallbacks(&mut font, features, fallbacks);
+            apply_features(&mut font, features);
             // Text measurement in the editor relies on the 'm' glyph.
             let display_name = unsafe { font.display_name() }.to_string();
             let postscript_name = unsafe { font.post_script_name() }.to_string();
@@ -269,7 +258,7 @@ impl AppleTextSystemState {
 
             // Dedup is scoped to this single `load_family` call (issue #55472).
             // The same family can be reloaded later under a different `FontKey`
-            // (different features/fallbacks); a global check against
+            // (different features); a global check against
             // `font_ids_by_postscript_name` would skip every already-registered
             // font and leave the second call's `font_ids` empty.
             if !postscript_names_seen.insert(postscript_name.clone()) {

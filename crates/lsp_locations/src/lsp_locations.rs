@@ -638,7 +638,6 @@ fn render_matched_line(location_match: &LocationMatch, cx: &App) -> StyledText {
         color: theme::theme().colors().text,
         font_family: font::buffer_font().family.clone(),
         font_features: font::buffer_font().features.clone(),
-        font_fallbacks: font::buffer_font().fallbacks.clone(),
         font_size: font::buffer_font_size(cx).into(),
         font_weight: font::buffer_font().weight,
         line_height: relative(1.),

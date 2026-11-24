@@ -25,7 +25,6 @@ const MAX_FONT_SIZE: Pixels = px(100.0);
 static UI_FONT: LazyLock<Font> = LazyLock::new(|| Font {
     family: ".SystemUIFont".into(),
     features: FontFeatures::disable_ligatures(),
-    fallbacks: None,
     weight: FontWeight::NORMAL,
     style: FontStyle::Normal,
 });
@@ -33,7 +32,6 @@ static UI_FONT: LazyLock<Font> = LazyLock::new(|| Font {
 static BUFFER_FONT: LazyLock<Font> = LazyLock::new(|| Font {
     family: "JetBrainsMono Nerd Font".into(),
     features: FontFeatures(Arc::default()),
-    fallbacks: None,
     weight: FontWeight::NORMAL,
     style: FontStyle::Normal,
 });

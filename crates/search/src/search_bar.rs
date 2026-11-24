@@ -125,7 +125,6 @@ pub(crate) fn render_text_input(editor: &Entity<Editor>, color_override: Option<
         color,
         font_family: font::buffer_font().family.clone(),
         font_features: font::buffer_font().features.clone(),
-        font_fallbacks: font::buffer_font().fallbacks.clone(),
         font_size: rems(0.875).into(),
         font_weight: font::buffer_font().weight,
         line_height: relative(1.3),

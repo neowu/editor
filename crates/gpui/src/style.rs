@@ -25,7 +25,6 @@ use crate::DevicePixels;
 use crate::Edges;
 use crate::EdgesRefinement;
 use crate::Font;
-use crate::FontFallbacks;
 use crate::FontFeatures;
 use crate::FontStyle;
 use crate::FontWeight;
@@ -416,9 +415,6 @@ pub struct TextStyle {
     /// The font features to use.
     pub font_features: FontFeatures,
 
-    /// The fallback fonts to use.
-    pub font_fallbacks: Option<FontFallbacks>,
-
     /// The font size to use, in pixels or rems.
     pub font_size: AbsoluteLength,
 
@@ -459,7 +455,6 @@ impl Default for TextStyle {
             color: black(),
             font_family: ".SystemUIFont".into(),
             font_features: FontFeatures::default(),
-            font_fallbacks: None,
             font_size: rems(1.).into(),
             line_height: phi(),
             font_weight: FontWeight::default(),
@@ -514,7 +509,6 @@ impl TextStyle {
         Font {
             family: self.font_family.clone(),
             features: self.font_features.clone(),
-            fallbacks: self.font_fallbacks.clone(),
             weight: self.font_weight,
             style: self.font_style,
         }
@@ -532,7 +526,6 @@ impl TextStyle {
             font: Font {
                 family: self.font_family.clone(),
                 features: self.font_features.clone(),
-                fallbacks: self.font_fallbacks.clone(),
                 weight: self.font_weight,
                 style: self.font_style,
             },
