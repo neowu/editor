@@ -396,11 +396,6 @@ impl Modifiers {
     pub fn function() -> Modifiers {
         Modifiers { function: true, ..Default::default() }
     }
-
-    /// Checks if this [`Modifiers`] is a subset of another [`Modifiers`].
-    pub fn is_subset_of(&self, other: &Modifiers) -> bool {
-        (*other & *self) == *self
-    }
 }
 
 impl BitOr for Modifiers {

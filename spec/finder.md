@@ -4,6 +4,9 @@
   A bar at its bottom shows the three modes with their keys (`cmd-1/2/3`,
   also clickable). There is no separate symbol picker or tab switcher, and no
   `ctrl-tab` (`cmd-t` opens a new tab).
+- `cmd-p` toggles the finder: pressing it again while open closes it. There
+  is no hold-modifier quick switch (releasing a modifier never confirms). Navigate with
+  `up`/`down` (or type) and confirm with `enter`.
 - The finder belongs to Editor mode: in Git History and Terminal mode `cmd-p`
   (and Go to File) does nothing and focus stays where it is.
 - Switching mode keeps the query and the window's frame: every mode has the

@@ -614,10 +614,12 @@ pub(super) fn keymap() -> Vec<KeyBinding> {
     k.bind("cmd-d", workspace::pane::SplitRight::default());
     k.bind("cmd-shift-d", workspace::pane::SplitDown::default());
     k.bind("cmd-alt-r", terminal_view::RerunTask);
+
     k.group(Some("ConfigureContextServerModal > Editor"));
     k.bind("escape", actions::menu::Cancel);
     k.bind("enter", editor::actions::Newline);
     k.bind("cmd-enter", actions::menu::Confirm);
+
     k.group(Some("MarkdownPreview"));
     k.bind("pageup", markdown_preview::ScrollPageUp);
     k.bind("pagedown", markdown_preview::ScrollPageDown);
@@ -629,39 +631,48 @@ pub(super) fn keymap() -> Vec<KeyBinding> {
     k.bind("cmd-down", markdown_preview::ScrollToBottom);
     k.bind("cmd-shift-v", markdown_preview::CloseAndReturnToEditor);
     k.bind("cmd-f", actions::buffer_search::Deploy::default());
+
     k.group(Some("InvalidBuffer"));
     k.bind("ctrl-shift-enter", workspace::OpenWithSystem);
+
     k.group(Some("StashDiff > Editor"));
     k.bind("ctrl-space", git_ui::commit_view::ApplyCurrentStash);
     k.bind("ctrl-shift-space", git_ui::commit_view::PopCurrentStash);
     k.bind("ctrl-shift-backspace", git_ui::commit_view::DropCurrentStash);
+
     k.group(Some("GitBranchSelector || (GitBranchSelector > Picker > Editor)"));
     k.bind("cmd-shift-backspace", git_ui::branch_picker::DeleteBranch);
     k.bind("cmd-alt-shift-backspace", git_ui::branch_picker::ForceDeleteBranch);
     k.bind("cmd-shift-i", git_ui::branch_picker::CycleBranchFilter);
     k.bind("cmd-k", git_ui::branch_picker::ToggleFilterMenu);
+
     k.group(Some("ImageViewer"));
     k.bind("cmd-=", image_viewer::ZoomIn);
     k.bind("cmd-+", image_viewer::ZoomIn);
     k.bind("cmd--", image_viewer::ZoomOut);
     k.bind("cmd-0", image_viewer::ResetZoom);
     k.bind("cmd-shift-0", image_viewer::FitToView);
+
     k.group(Some("WorktreePicker || (WorktreePicker > Picker > Editor)"));
     k.bind("cmd-shift-backspace", git_ui_core::worktree_picker::DeleteWorktree);
     k.bind("cmd-alt-shift-backspace", git_ui_core::worktree_picker::ForceDeleteWorktree);
+
     k.group(Some("GitGraph"));
     k.bind("tab", git_ui::git_graph::FocusNextTabStop);
     k.bind("shift-tab", git_ui::git_graph::FocusPreviousTabStop);
     k.bind("cmd-f", actions::buffer_search::Deploy::default());
     k.bind("cmd-r", git_ui::git_graph::Refresh);
+
     k.group(Some("GitGraphSearchBar > Editor"));
     k.bind("tab", git_ui::git_graph::FocusNextTabStop);
     k.bind("shift-tab", git_ui::git_graph::FocusPreviousTabStop);
+
     k.group(Some("Picker > Editor"));
     k.bind("cmd-shift-s", picker::ToggleMultiSelect);
+
     k.group(Some("Finder || (Finder > Picker > Editor) || (Finder > Picker > menu)"));
-    k.bind("cmd-shift-p", finder::SelectPrevious);
     k.bind("tab", picker::MultiSelectNext);
+
     k.group(Some("TextFinder || (TextFinder > Picker > Editor) || (TextFinder > Picker > menu)"));
     k.bind("alt-cmd-f", search::text_finder::ToProjectSearch);
     k.bind("tab", picker::MultiSelectNext);

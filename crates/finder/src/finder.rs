@@ -11,7 +11,6 @@ use std::sync::atomic;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use actions::menu;
 use actions::search::ToggleIncludeIgnored;
 use editor::Editor;
 use file_icons::FileIcons;
@@ -29,8 +28,6 @@ use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;
 use gpui::KeyContext;
-use gpui::Modifiers;
-use gpui::ModifiersChangedEvent;
 use gpui::ParentElement as _;
 use gpui::Render;
 use gpui::Styled as _;
@@ -103,8 +100,6 @@ mod tabs;
 actions!(
     finder,
     [
-        /// Selects the previous item in the finder.
-        SelectPrevious,
         /// Opens the selected file in the editor without dismissing the finder,
         /// so additional files can be opened in sequence.
         OpenWithoutDismiss,
@@ -160,7 +155,6 @@ pub struct Finder {
     width: Rems,
     /// The active mode's picker.
     picker_focus_handle: FocusHandle,
-    init_modifiers: Option<Modifiers>,
 }
 
 pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
@@ -175,18 +169,12 @@ impl Finder {
             if !workspace.mode().has_finder() {
                 return;
             }
-            let Some(finder) = workspace.active_modal::<Self>(cx) else {
-                let seed_query = Self::seed_query(workspace, window, cx);
-                Self::open(workspace, action.separate_history, action.include_ignored, seed_query, window, cx).detach();
+            if workspace.active_modal::<Self>(cx).is_some() {
+                workspace.hide_modal(window, cx);
                 return;
-            };
-
-            finder.update(cx, |finder, _| {
-                if finder.mode == Mode::Files {
-                    finder.init_modifiers = Some(window.modifiers());
-                }
-            });
-            window.dispatch_action(menu::SelectNext.boxed_clone(), cx);
+            }
+            let seed_query = Self::seed_query(workspace, window, cx);
+            Self::open(workspace, action.separate_history, action.include_ignored, seed_query, window, cx).detach();
         });
     }
 
@@ -277,15 +265,7 @@ impl Finder {
             }
             picker.delegate.refresh_history(window, cx);
         });
-        Self {
-            picker,
-            symbols: None,
-            tabs: None,
-            mode: Mode::Files,
-            width,
-            picker_focus_handle,
-            init_modifiers: window.modifiers().modified().then_some(window.modifiers()),
-        }
+        Self { picker, symbols: None, tabs: None, mode: Mode::Files, width, picker_focus_handle }
     }
 
     /// A mode's picker. It is embedded, so the finder draws the chrome and
@@ -353,9 +333,6 @@ impl Finder {
             }
         };
         self.mode = mode;
-        // A mode switched to with the modifier still held must not confirm
-        // when the modifier is released.
-        self.init_modifiers = None;
         cx.notify();
     }
 
@@ -384,28 +361,6 @@ impl Finder {
                     .key_binding(KeyBinding::for_action_in(mode.action().as_ref(), &self.picker_focus_handle, cx))
                     .on_click(cx.listener(move |this, _, window, cx| this.set_mode(mode, window, cx)))
             }))
-    }
-
-    fn handle_modifiers_changed(&mut self, event: &ModifiersChangedEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if self.mode != Mode::Files {
-            return;
-        }
-        let Some(init_modifiers) = self.init_modifiers.take() else {
-            return;
-        };
-        if self.picker.read(cx).delegate.has_changed_selected_index
-            && (!event.modified() || !init_modifiers.is_subset_of(event))
-        {
-            self.init_modifiers = None;
-            window.dispatch_action(menu::Confirm.boxed_clone(), cx);
-        }
-    }
-
-    fn handle_select_prev(&mut self, _: &SelectPrevious, window: &mut Window, cx: &mut Context<Self>) {
-        if self.mode == Mode::Files {
-            self.init_modifiers = Some(window.modifiers());
-        }
-        window.dispatch_action(Box::new(menu::SelectPrevious), cx);
     }
 
     fn handle_toggle_ignored(&mut self, _: &ToggleIncludeIgnored, window: &mut Window, cx: &mut Context<Self>) {
@@ -471,7 +426,6 @@ impl Focusable for Finder {
 
 static FINDER_ACTIONS: std::sync::LazyLock<gpui::ActionTable<Finder>> = std::sync::LazyLock::new(|| {
     let mut t = gpui::ActionTable::<Finder>::default();
-    t.add(Finder::handle_select_prev);
     t.add(Finder::handle_toggle_ignored);
     t.add(Finder::open_without_dismiss);
     t.add(Finder::handle_close_selected_tab);
@@ -488,7 +442,6 @@ impl Render for Finder {
         v_flex()
             .key_context(key_context)
             .elevation_3()
-            .on_modifiers_changed(cx.listener(Self::handle_modifiers_changed))
             .action_table(&cx.entity(), &FINDER_ACTIONS)
             .map(|this| match self.mode {
                 Mode::Files => this.child(self.picker.clone()),
@@ -512,7 +465,6 @@ pub struct FileFinderDelegate {
     matches: Matches,
     selected_matches: Vec<SelectedMatch>,
     selected_index: usize,
-    has_changed_selected_index: bool,
     cancel_flag: Arc<AtomicBool>,
     search_in_flight: Arc<AtomicBool>,
     history_items: Vec<FoundPath>,
@@ -1035,7 +987,6 @@ impl FileFinderDelegate {
             currently_opened_path,
             matches: Matches::default(),
             selected_matches: Vec::new(),
-            has_changed_selected_index: false,
             selected_index: 0,
             cancel_flag: Arc::new(AtomicBool::new(false)),
             search_in_flight: Arc::new(AtomicBool::new(false)),
@@ -1731,7 +1682,6 @@ impl PickerDelegate for FileFinderDelegate {
     }
 
     fn set_selected_index(&mut self, ix: usize, _: &mut Window, cx: &mut Context<Picker<Self>>) {
-        self.has_changed_selected_index = true;
         self.selected_index = ix;
         cx.notify();
     }
