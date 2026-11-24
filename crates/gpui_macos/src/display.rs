@@ -1,7 +1,5 @@
-use std::ptr::NonNull;
 use std::time::Duration;
 
-use anyhow::Result;
 use gpui::Bounds;
 use gpui::DisplayId;
 use gpui::Pixels;
@@ -12,15 +10,12 @@ use gpui::refresh_interval_from_hz;
 use gpui::size;
 use objc2::class;
 use objc2::msg_send;
-use objc2_core_foundation::CFRetained;
-use objc2_core_foundation::CFUUID;
 use objc2_core_graphics::CGDirectDisplayID;
 use objc2_core_graphics::CGDisplayBounds;
 use objc2_core_graphics::CGDisplayCopyDisplayMode;
 use objc2_core_graphics::CGDisplayMode;
 use objc2_core_graphics::CGError;
 use objc2_core_graphics::CGGetActiveDisplayList;
-use uuid::Uuid;
 
 use crate::ns::NSPoint;
 use crate::ns::NSRect;
@@ -112,40 +107,9 @@ impl MacDisplay {
     }
 }
 
-#[link(name = "ApplicationServices", kind = "framework")]
-unsafe extern "C" {
-    fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> *mut CFUUID;
-}
-
 impl PlatformDisplay for MacDisplay {
     fn id(&self) -> DisplayId {
         DisplayId::new(self.0 as u64)
-    }
-
-    fn uuid(&self) -> Result<Uuid> {
-        let cfuuid = NonNull::new(unsafe { CGDisplayCreateUUIDFromDisplayID(self.0) })
-            .ok_or_else(|| anyhow::anyhow!("AppKit returned a null from CGDisplayCreateUUIDFromDisplayID"))?;
-        // SAFETY: the function follows the Create rule, so we own this reference.
-        let cfuuid = unsafe { CFRetained::from_raw(cfuuid) };
-        let bytes = cfuuid.uuid_bytes();
-        Ok(Uuid::from_bytes([
-            bytes.byte0,
-            bytes.byte1,
-            bytes.byte2,
-            bytes.byte3,
-            bytes.byte4,
-            bytes.byte5,
-            bytes.byte6,
-            bytes.byte7,
-            bytes.byte8,
-            bytes.byte9,
-            bytes.byte10,
-            bytes.byte11,
-            bytes.byte12,
-            bytes.byte13,
-            bytes.byte14,
-            bytes.byte15,
-        ]))
     }
 
     fn bounds(&self) -> Bounds<Pixels> {

@@ -171,7 +171,6 @@ tree-sitter-rust = "0.24.2"
 unicode-segmentation = "1.10"
 url = "2.2"
 usvg = { version = "0.50", default-features = false }
-uuid = { version = "1.1", features = ["serde"] }
 which = "8"
 
 [workspace.lints.clippy]

@@ -61,7 +61,6 @@ taffy = {
 thiserror.workspace = true
 skrifa = { version = "0.49", default-features = false, features = ["std"] }
 usvg.workspace = true
-uuid = { workspace = true, features = ["v4"] }
 
 [lints]
 workspace = true

@@ -1398,7 +1398,6 @@ dependencies = [
  "taffy",
  "thiserror",
  "usvg",
- "uuid",
 ]
 
 [[package]]
@@ -1432,7 +1431,6 @@ dependencies = [
  "rustc-hash",
  "smallvec",
  "strum",
- "uuid",
 ]
 
 [[package]]
@@ -4268,7 +4266,6 @@ checksum = "3c14b15dffa2f4bd712103e857140aa04a4f2ff6e955c77d7eb8e53ee02a3b64"
 dependencies = [
  "getrandom",
  "js-sys",
- "serde_core",
  "wasm-bindgen",
 ]
 

@@ -36,7 +36,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use smallvec::SmallVec;
 use strum::EnumIter;
-use uuid::Uuid;
 
 use crate::Action;
 use crate::AnyWindowHandle;
@@ -218,10 +217,6 @@ pub trait Platform: 'static {
 pub trait PlatformDisplay: Debug {
     /// Get the ID for this display.
     fn id(&self) -> DisplayId;
-
-    /// Returns a stable identifier for this display that can be persisted and used
-    /// across system restarts.
-    fn uuid(&self) -> Result<Uuid>;
 
     /// Get the bounds for this display.
     fn bounds(&self) -> Bounds<Pixels>;

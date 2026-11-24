@@ -9,7 +9,6 @@ use std::path;
 use std::sync::Arc;
 
 use smallvec::SmallVec;
-use uuid::Uuid;
 
 use super::FocusHandle;
 use super::FocusId;
@@ -74,8 +73,6 @@ pub enum ElementId {
     Integer(u64),
     /// A string based ID.
     Name(SharedString),
-    /// A UUID.
-    Uuid(Uuid),
     /// An ID that's equated with a focus handle.
     FocusHandle(FocusId),
     /// A combination of a name and an integer.
@@ -105,7 +102,6 @@ impl Display for ElementId {
             ElementId::Name(name) => write!(f, "{name}")?,
             ElementId::FocusHandle(_) => write!(f, "FocusHandle")?,
             ElementId::NamedInteger(s, i) => write!(f, "{s}-{i}")?,
-            ElementId::Uuid(uuid) => write!(f, "{uuid}")?,
             ElementId::Path(path) => write!(f, "{}", path.display())?,
             ElementId::CodeLocation(location) => write!(f, "{location}")?,
             ElementId::NamedChild(id, name) => write!(f, "{id}-{name}")?,
@@ -200,12 +196,6 @@ impl From<(SharedString, usize)> for ElementId {
 impl From<(&'static str, u64)> for ElementId {
     fn from((name, id): (&'static str, u64)) -> Self {
         ElementId::NamedInteger(SharedString::new_static(name), id)
-    }
-}
-
-impl From<Uuid> for ElementId {
-    fn from(value: Uuid) -> Self {
-        Self::Uuid(value)
     }
 }
 
