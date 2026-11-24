@@ -85,6 +85,10 @@ Directions the fork deliberately doesn't follow, even in kept crates:
   The fork already keeps per-prefix path hashes on the element id stack
   (`extend_path_hash`), which the node matching keys on; the risk is stale
   layout, so the port needs its own old-vs-fresh layout comparison test.
+  Measured ceiling in the fork (2026-11-24): 6–9% of draw time on editor
+  frames, about 17% on picker frames, because cached views already keep an
+  editor frame to about 90 layout nodes. Not worth an own implementation
+  ahead of upstream.
 - Open candidates from earlier passes, worth taking if wanted: #57638
   (`./` and `../` relative paths in the open path prompt), #66103
   (open single files in the same window), #64624

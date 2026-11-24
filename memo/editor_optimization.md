@@ -1,371 +1,184 @@
-# Editor element: paint / prepaint / action findings
+# Frame cost: where a frame goes, and what layout retention could save
 
-Measured 2026-11-22 while deciding whether pickers need a lighter text input
-than `Editor`. Input for the action redesign.
+Remeasured 2026-11-24 at `daafc2bf` to answer one question: upstream is
+keeping Taffy nodes between frames (#67222, `spec/upstream.md`); is that the
+right direction, and is it worth implementing here instead of waiting?
+
+## Answer
+
+- Right direction, small prize. Rebuilding and recomputing the layout tree
+  every frame is real waste, and retention is the way to remove it.
+- In this fork it can save at most about 6-9% of draw time on editor frames
+  (roughly 130-160 us of a 1.7-2.5 ms frame) and about 17% on picker frames
+  (about 250 us of 1.45 ms). That is the ceiling: everything Taffy computes
+  plus the per-frame clear, assuming every node hits its cache.
+- The ceiling is low because cached views already prune the tree. An editor
+  frame lays out about 90 nodes; clean panels, panes, the status bar and the
+  tab bar are single leaf nodes.
+- The measured-node follow-up upstream is waiting on matters even less here:
+  measure callbacks are 0.4-2.4% of draw. The full editor is not a measured
+  node; its cost is prepaint, which retention does not touch.
+- Not worth an own implementation. It is a change to core layout with a
+  stale-layout failure mode, upstream is writing it anyway, and an own
+  version would have to be reconciled with their stack later. Keep the
+  decision to wait and port the stack once it settles.
+- Larger levers found in the same measurement, all in owned code: the
+  minimap re-render (about 40% of draw time while typing, 20% while
+  scrolling) and the editor element as a whole (45-65% of draw on editor
+  frames).
 
 ## How it was measured
 
-- Workload: open the command palette, type, close; repeated 6 times
-  (about 120 frames), driven by `edctl`.
-- Temporary instrumentation (removed): a counting global allocator and timers
-  around `EditorElement::{request_layout, prepaint, paint}`, plus allocation
-  backtraces for one frame.
-- Build: dev profile (opt-level 3, no LTO), automation recording on.
-- Caveat: the counting allocator wrapped the system allocator, not mimalloc,
-  so allocation-heavy timings are pessimistic. Allocation counts are exact.
-- Scope: only the editor element was instrumented. Nothing here shows the
-  editor is the largest cost in a frame; other elements were not measured.
-  For scale, a whole frame's draw was about 0.65-0.85 ms p50 in the same
-  workload (`edctl perf`).
+- Temporary probes (removed): timers around `Window::draw`, view `render`
+  calls, the layout engine (`request_layout`, `compute_layout`, measure
+  callbacks, `layout_bounds`, `clear`) and
+  `EditorElement::{request_layout, prepaint, paint}` by editor mode, written
+  out per frame. The per-node timers (`request_layout`, `layout_bounds`) ran
+  in separate passes so they don't inflate the others.
+- Build: dev profile (opt-level 3, no LTO), `--features mimalloc`, automation
+  on. MacBook Pro M5 Max, built-in display, 1200x700 window, project panel
+  open, one pane. No release build was measured.
+- Project: 38 Rust files, no `Cargo.toml` (rust-analyzer starts but has
+  nothing to index). `hunks.rs` is 545 lines with 61 modified hunks; `big.rs`
+  is 3.4k lines, unmodified.
+- Workloads (`edctl`, one event per call), each after a warm-up:
+  - palette: open the command palette, type `toggle`, close; 25 times.
+  - cursor: down, right, up, 40 each, in `hunks.rs`.
+  - typing: 30 `x`, 30 backspace, twice, in `big.rs`.
+  - scroll: 40 wheel events down, 40 page-ups, in `big.rs`.
+- Two probed passes plus two with per-node timers; the pairs agree within
+  about 3%. Two more passes without probes gave the `edctl perf` table; the
+  probes cost nothing measurable.
+- The project's `.ed/workspace.json` restores tabs even with
+  `launch --fresh`, which made early runs differ; it is deleted before each
+  run.
 
-## Single-line editor (picker query box)
+## Whole frame (`edctl perf`, no probes, two runs)
 
-| | Value |
-|---|---|
-| `size_of::<Editor>()` | 8,144 bytes |
-| Create (`Editor::single_line`) | 0.18-0.25 ms, 178 allocations |
-| Memory held after creation | about 75 KB (172 KB allocated, 97 KB freed) |
-| Minimal entity (String + focus handle), for comparison | 0.002 ms, 2 allocations, 120 bytes |
-| `request_layout` p50 | 1.2 us, 1 allocation |
-| `prepaint` p50 / p95 | 105 us / 227 us, 50-85 allocations |
-| `paint` p50 / p95 (before the action table) | 25 us / 38 us, about 260 allocations |
-| First frame after app launch | prepaint 1.4 ms, paint 0.64 ms (font and shaping warm-up) |
-| First frame of later opens | prepaint about 0.15-0.18 ms, paint about 0.03 ms |
+| | palette | cursor | typing | scroll |
+|---|---|---|---|---|
+| frames drawn | 458 / 455 | 1342 / 1338 | 949 / 965 | 112 / 116 |
+| instructions per frame | 13.4M | 10.9M / 10.8M | 56.7M / 57.3M | 20.3M / 19.8M |
+| draw p50 (ms) | 1.48 / 1.46 | 1.78 / 1.71 | 1.52 / 1.53 | 2.79 / 2.71 |
+| draw p95 (ms) | 4.20 / 4.17 | 2.81 / 2.66 | 3.85 / 3.84 | 4.59 / 4.97 |
+| build p50 (ms) | 0.95 / 0.94 | 1.16 / 1.12 | 1.06 / 1.05 | 1.82 / 1.76 |
+| paint p50 (ms) | 0.35 / 0.34 | 0.43 / 0.41 | 0.28 / 0.27 | 0.60 / 0.56 |
 
-A picker's editor exists only while the picker is open. About 30 call sites
-create single-line editors (search bars, project panel rename, go-to-line,
-outline filter, terminal, git UI); how many are alive at once was not counted.
+- Typing draws about 8 frames per key and its frames are bimodal (edit
+  frames against animation frames), so its p50 moves between runs; the
+  breakdown below uses means for it.
+- Typing's instructions per frame are process-wide and mostly outside
+  drawing. Not looked into here; see `memo/research/performance.md`.
+- The cursor row is the workload of the 2026-11-23 table at the end, but on
+  a different file, so the two are not a before/after.
 
-Conclusion at the time: not worth replacing with a simple text input for
-speed or memory. The saving is tens of KB per input and about 0.1 ms per
-frame, against maintaining a second text-editing implementation. gpui has no
-text input element; the only `EntityInputHandler` is the editor's.
+## Where a frame goes
 
-## Paint: where the allocations were
+Per frame in microseconds: p50 for palette, cursor and scroll, mean for
+typing. Average of the two probed passes.
 
-Per frame, single-line editor, before the change:
+| | palette | cursor | typing | scroll |
+|---|---|---|---|---|
+| draw | 1440 | 1660 | 1730 | 2540 |
+| build (render, layout, prepaint) | 944 | 1098 | 1342 | 1692 |
+| paint | 329 | 391 | 277 | 564 |
+| view and component `render` | 203 | 175 | 102 | 170 |
+| layout: `request_layout` in the engine | 46 | 27 | 24 | 29 |
+| layout: `compute_layout` without measure | 242 | 129 | 113 | 137 |
+| layout: measure callbacks | 38 | 11 | 11 | 11 |
+| layout: `layout_bounds` | 18 | 13 | 11 | 13 |
+| layout: `clear` | 25 | 18 | 14 | 19 |
+| full editor prepaint | 0 | 549 | 942 | 1031 |
+| full editor paint | 0 | 220 | 137 | 386 |
+| minimap prepaint + paint (inside the two rows above) | 0 | 0 | 712 | 573 |
+| single-line editor prepaint / paint | 76 / 14 | - | - | - |
 
-| Step in `paint` | Time p50 | Allocations |
-|---|---|---|
-| `register_actions` | 13.8 us | 248 |
-| `register_key_listeners` | 0.1 us | 1 |
-| `paint_mouse_listeners` | 0.3 us | 3 (6 listeners in the backtrace sample) |
-| `paint_text` | 2.1 us | 0 |
-| scrollbars and the rest | under 0.2 us | 0 |
+Counts per frame (p50): layout nodes 211 / 90 / 91 / 91, `compute_layout`
+calls 15 / 4 / 5 / 5 (one per root and per re-rendered cached view), measure
+calls 89 / 16 / 16 / 16, `render` calls 103 / 43 / 44 / 44.
 
-Cause: `register_actions` called `register_action` about 250 times per frame.
-Each call did `window.on_action(type, closure)`, which wraps the closure in a
-new `Rc` and pushes it onto the dispatch node. All of it is dropped when the
-frame is replaced. Every painted editor paid this every frame.
+Share of total draw time:
 
-Other per-paint allocations seen in the backtrace sample: key context
-construction (`key_context`, 3), `set_key_context` (1), `handle_input` (1),
-`all_buffers` in `rust_analyzer_ext::apply_related_actions` (1), a few
-`format!` calls, and UI snapshot recording (automation only).
+| | palette | cursor | typing | scroll |
+|---|---|---|---|---|
+| compute without measure | 15.8% | 8.1% | 6.6% | 5.3% |
+| measure callbacks | 2.4% | 1.9% | 0.6% | 0.4% |
+| engine `request_layout` | 3.0% | 1.8% | 1.4% | 1.1% |
+| `layout_bounds` | 1.2% | 0.8% | 0.6% | 0.5% |
+| `clear` | 1.7% | 1.1% | 0.8% | 0.7% |
+| all of the layout engine | 24% | 14% | 10% | 8% |
+| `render` | 13% | 10% | 6% | 7% |
+| full editor (layout, prepaint, paint) | 12% | 45% | 61% | 64% |
 
-## Prepaint: no single hot spot
+## Reading for layout retention
 
-About 92 us summed over these ranges of `prepaint` (line numbers in
-`crates/editor/src/element.rs` at the time of measuring):
+- What retention removes is "compute without measure" and `clear`, for the
+  nodes whose style and children did not change. `request_layout` stays (it
+  gains a lookup and a style comparison per node) and so does
+  `layout_bounds`. The follow-up adds the measure row.
+- Editor frames (cursor, typing, scroll) should get close to the ceiling,
+  since moving the cursor, editing and scrolling change no styles outside
+  the editor element. Picker frames get less than theirs: the result list
+  changes on every keystroke.
+- Upstream reports 2-8% fewer instructions on synthetic full-refresh trees,
+  which matches a ceiling of this size.
+- The numbers are for one pane at 1200x700. More dirty views in a frame
+  (split panes editing the same buffer, a larger window with more visible
+  rows in a re-rendered list) raise the node count and the saving with it;
+  not measured.
+- Compute costs about 1.4 us per node here (129 us for 90 nodes in 4 calls).
+  Why it is that high per node was not looked into; if layout ever needs to
+  be cheaper before the port, that is the place to look first.
+- Not measured: a release build, and the actual saving. Only the ceiling was
+  measured; nothing was prototyped.
 
-| Range | Roughly what it covers | Time p50 | Allocations |
-|---|---|---|---|
-| start-1349 | snapshot, font metrics, gutter dimensions, wrap width | 9.9 us | 0 |
-| 1349-1425 | hitboxes, autoscroll, scroll position, visible rows | 9.0 us | 5 |
-| 1425-1448 | row infos, start/end anchors | 2.2 us | 2 |
-| 1448-1627 | highlighted rows and ranges, selections layout | 12.9 us | 17 |
-| 1627-1658 | selection head, run indicators, gutter | 8.9 us | 5 |
-| 1658-1700 | line numbers, expand/crease toggles, diff hunks | 6.4 us | 2 |
-| 1700-1745 | background segments, line layout | 11.4 us | 4 |
-| 1745-1780 | longest line, scrollbar info, sticky header | 6.5 us | 4 |
-| 1780-1931 | indent guides, blocks, sticky buffer header | 4.6 us | 5 |
-| 1931-2067 | inline diagnostics, blame, prepaint lines, cursors, overlays | 3.3 us | 3 |
-| 2067-2114 | scrollbars, cursor popovers, gutter menu | 0.8 us | 0 |
-| 2114-2178 | run indicators, hover popovers, context menu, toggles, wrap guides, minimap | 13.7 us | 3 |
-| 2178-end | invisible glyph shaping, position map | 2.7 us | 2 |
+## Reading for the editor
 
-Allocation call sites from one sampled frame (85 allocations):
+- The minimap is cached, but an edit or a scroll re-renders it. Typing
+  re-rendered it on about half the frames at about 1.4 ms each; scrolling on
+  nearly every frame at about 0.6 ms. Cursor moves leave it alone (0.1
+  re-renders per frame).
+- Full editor prepaint is 0.55 ms on a cursor move in a 61-hunk file, and
+  roughly 0.5 ms on a scroll frame once the minimap is taken out. Paint is
+  0.22 ms and 0.39 ms.
+- Single-line editor (picker query box): prepaint 76 us p50, paint 14 us.
+  On 2026-11-23 prepaint was 86-94 us, and before the action tables paint
+  was 25 us. Still not worth a second text input implementation.
+- `render` is 6-13% of draw, about 4 us per call. It counts stateless
+  components as well as views.
 
-- 35 directly in the `prepaint` closure body (not attributed further).
-- 17 through a `fmt` call inside `prepaint` (a `format!`-style site, not
-  pinned down).
-- About 15 in selection resolution: `itertools::tee` in
-  `selections_collection::resolve_selections_*` and
-  `summaries_for_anchors`.
-- A few each in `layout_selections`, `layout_lines`, `layout_visible_cursors`,
-  `layout_line_numbers`, `parse_drawn_buffers`.
+## Earlier work, kept for reference
 
-A single-line editor still runs every step, including ones that cannot apply
-to it (gutter, minimap, blame, indent guides, blocks, sticky headers). Most
-return quickly, but the walk itself is the 92 us.
+Details are in the code and `spec/`; only what was measured or left open is
+kept here.
 
-## What was changed (action tables)
-
-- gpui: `Window::on_action_table(action_types, listener)` registers one
-  bubble-phase listener for a static, sorted `&'static [TypeId]`; the listener
-  gets the index of the matching type. Stored per dispatch node as
-  `DispatchActionTable` (`crates/gpui/src/key_dispatch.rs`). Dispatch,
-  `available_actions` and `is_action_available` consult tables after the
-  node's individual listeners.
-- editor: unconditional actions live in two `LazyLock` tables in
-  `crates/editor/src/element/actions.rs`: `ACTIONS` (all editors) and
-  `EDIT_ACTIONS` (not read-only). `register_actions` registers each table with
-  one call.
-- Still registered one by one, every frame:
-  - dynamic `editor.editor_actions` (added by other crates through
-    `Editor::register_action`)
-  - rust-analyzer actions (Rust buffers only)
-  - multibuffer excerpt expansion (3)
-  - `accept_inlay_hint`, `toggle_diagnostics` (LSP data enabled)
-  - `toggle_minimap`
-  - blame: `open_git_blame_commit`, `blame_revision`,
-    `blame_previous_revision`
-  - `wrap_selections_in_tag`, `format_selections` (not read-only)
-
-Result for `register_actions`:
-
-| | Before | After |
-|---|---|---|
-| Single-line editor | 248 allocations, 13.8 us | 6 allocations, 3.0 us |
-| Main editor | not measured | 16 allocations, 2.9 us |
-
-Whole-frame A/B (`edctl perf`, 512 frames, two runs each) showed no
-measurable difference: draw p50 0.644 / 0.843 ms old against 0.682 / 0.823 ms
-new, instructions per frame 12.65M / 12.96M old against 12.78M / 12.77M new.
-Run-to-run noise is about 2%, larger than the change. With mimalloc the real
-saving is probably a few microseconds per editor per frame.
-
-## Notes for an action redesign
-
-- Per-frame registration is what costs: anything built in `paint` and thrown
-  away each frame. Tables remove the allocation but the editor still re-runs
-  the conditions every frame (`buffer_kind`, `lsp_data_enabled`,
-  `can_accept_inlay_hint`, `supports_minimap`, `blame()`,
-  `blame_revision_target`, `blame_previous_revision_target`, `read_only`,
-  `enable_wrap_selections_in_tag`, `can_format_selections`). These were not
-  timed individually; all of `register_actions` is now about 3 us.
-- Conditional registration does two jobs:
-  1. Key fall-through. An unregistered action lets the keystroke continue to
-     parent nodes. A static handler that does not apply must call
-     `cx.propagate()` to stay equivalent.
-  2. Availability. `available_actions` / `is_action_available` drive the
-     command palette and anything that shows whether an action can run. A
-     fully static list makes inapplicable actions appear available.
-- Tables are bubble-phase only. The old per-action listeners were also invoked
-  in the capture phase and ignored it.
-- Within a node, individual listeners run before tables, and tables in
-  registration order. Table builders reject duplicate action types; `ACTIONS`
-  and `EDIT_ACTIONS` are tested to be disjoint. Nothing checks duplicates
-  between a table and the individually registered actions.
-- Dispatch clones a node's whole `action_listeners` Vec for each phase
-  (`crates/gpui/src/window/dispatch.rs`); tables are walked by index without
-  cloning.
-- `editor_actions` is a `BTreeMap` of boxed closures that each call
-  `window.on_action` per frame, so every externally registered editor action
-  still costs one `Rc` per frame per editor.
-- The dispatch tree is rebuilt every frame (`next_frame.dispatch_tree`), so
-  any design that keeps registrations per frame pays at least a push per
-  entry. Keeping the action set on the entity or the type, with the node only
-  pointing at it, avoids that.
-
-## Redesign step 1: static tables for workspace, pane and editor actions (2026-11-22)
-
-Supersedes the gpui side of "What was changed" above, and the notes there on
-table-only bubble order, duplicate checks and `editor_actions`.
-
-- `gpui::ActionTable<V>` replaces the `&'static [TypeId]` + listener form.
-  Tables live in `static`s; a dispatch node holds the view's entity and a
-  `&'static` table, so attaching allocates nothing beyond the node's Vec.
-  Handlers are `Send + Sync` boxes with no per-view state. Duplicate action
-  types are allowed and run in registration order.
-- `add_if(condition, handler)`: the condition is checked at dispatch (false
-  means skipped, as if unregistered) and by `available_actions` /
-  `is_action_available`. Nothing is evaluated per frame.
-- Workspace: `main` builds one `WorkspaceActions`, each crate's `init` adds
-  its handlers to it, and `install` appends the workspace's own and stores
-  the table in a `static`. Nothing is registered per window or after
-  startup; `Workspace::register_action` and `register_action_renderer` are
-  gone. Before, each render rebuilt every handler as a `Box` plus an `Rc`,
-  on a root view that renders every frame. Not measured.
-- Workspace conditions (`register_action_if`): the 3 save actions (active
-  item is editable), `git::FileHistory`, `git::OpenFileDiff`, the git graph
-  `Open` / `OpenAtCommit` (active repository), and the LSP command selector
-  toggle. The former renderer callbacks became these.
-- Pane: one static table attached by `Pane::render`. Only `OpenPreview` /
-  `OpenPreviewToTheSide` are conditional, on `has_preview`, a flag cached at
-  the pane's last render so the editor context menu can ask for them while
-  the editor is updated.
-- Editor: one table for all editors, installed at startup
-  (`editor::install_actions`). `go_to_line` and `lsp_locations` add their
-  handlers to it first, so they run before the editor's own and propagate
-  to them. `Editor::register_action`, `register_action_renderer` and the
-  per-editor `editor_actions` map are gone. Edit actions carry a "not
-  read-only" condition; multibuffer, inlay hint, diagnostics, minimap,
-  blame, Rust and full-mode actions carry their own.
-- Blame revision actions: the exact target needs `&mut Editor` and the
-  window, so the condition is only "blame is on" and the handlers propagate
-  when the cursor is not on a blamed line. They are listed as available
-  more often than they do anything.
-- Handlers that captured per-window state now look it up from the
-  workspace: the title bar's project menu (`Workspace::titlebar_item`) and
-  the language server button's menu (status bar item, registered in
-  `language_tools`). The app crate's duplicate panel `ToggleFocus` handlers
-  are gone; the panel crates register them. `git::FileHistory` for a panel
-  selection is handled by the git panel and project panel themselves, no
-  longer by a workspace handler that checked focus.
-- Superseded: conditions are no longer lazy. They are evaluated when the
-  table is attached at paint and recorded on the dispatch node; see
-  `spec/model.md`. The double-lease constraint below and the palette
-  deferral are gone, and the fallback (context menu entry actions) was
-  dropped.
-- Cost of lazy conditions: an availability query panics (double lease)
-  when made while any entity a condition reads is being updated. That is
-  the views on the focus path, and for workspace conditions also the
-  active item, its buffer and the project. Current call sites are safe:
-  the command palette defers its query, the editor context menu computes
-  `FormatSelections` directly, and the pane preview condition reads the
-  cached flag. A new `is_action_available` call inside a render or update
-  needs the same care.
-- Other costs: the rendered frame holds the workspace and pane strongly
-  (was weak), so a closed pane lives until the next frame. Both tables are
-  install-once statics; `Workspace::render` panics without `install`, while
-  the editor falls back to its built-in table. Dispatch with real
-  conditions has no unit test (tests substitute the `applies` check); it
-  was checked with `edctl` in a read-only editor (edit and save actions
-  unavailable and ignored, navigation still handled) and with
-  `GoToDefinition` falling through to the editor's own handler.
-- Still per frame: project panel and git panel `.on_action` lists and the
-  pane search actions (`register_pane_search_actions`), all on cached
-  views, so only paid when dirty.
-
-## Prepaint follow-up (2026-11-23)
-
-From reading the four most expensive ranges above. Measured below.
-
-- One snapshot per pass: `layout_selections`, the diff hunk cursor row and
-  `active_run_indicators` each re-synced the display map; they now read the
-  prepaint snapshot.
-- `layout_mouse_context_menu` laid out two rows and `layout_hover_popovers`
-  cloned the `EditorStyle` before checking that anything was shown; both
-  check first.
-- Selection resolution: `itertools::tee` replaced by `SmallVec` collects,
-  `pending()` returns early without a pending selection, and the newest
-  selection is matched by id instead of being resolved again.
-- `MultiBuffer::language_settings` no longer clones the multibuffer snapshot
-  (called from `soft_wrap_mode` and `wrap_guides` every frame).
-- `bg_segments_per_row` returns early with no highlights and only empty
-  selections; header selection data is skipped when headers are hidden.
-- Wrap guides use one space's shaped width times the column instead of
-  shaping a run of spaces per guide.
-- The diff hunk cursor row reuses the newest selection head from
-  `layout_selections`. Recomputing it late in prepaint cost about 20 us in a
-  full editor (a second `SelectionLayout::new`), against about nothing when it
-  ran right after the first.
-- Font metrics: `FontMetrics` carries the width and advance of `m` and `0`
-  in font units (0 when the glyph is missing), so `em_width`, `em_advance`,
-  `ch_width` and `ch_advance` scale a cached value instead of calling
-  CoreText. Font size changes need no invalidation.
-
-### Measured
-
-- Temporary instrumentation (removed): timers and a per-thread allocation
-  count at the range boundaries of `prepaint`, with a counting wrapper around
-  mimalloc. Dev profile, `--features mimalloc`, 1200x700 window.
-- Workload (`edctl`): open the command palette, type `toggle`, close, 25
-  times (about 300 single-line frames); then down / right / up 40 times in a
-  10-line Rust file with one diff hunk (460 full-editor frames, minimap on;
-  the minimap's nested prepaint is counted in its parent).
-- Each build ran twice; both p50 values are given. The first run of a pair
-  is usually the slower one, and runs differ by up to about 10%.
-
-Single-line editor, p50 us (allocations):
-
-| Range | Before | Without font cache | Final |
-|---|---|---|---|
-| whole prepaint | 114.7 / 115.2 (60) | 96.8 / 99.7 (21) | 86.3 / 94.4 (21) |
-| snapshot, font metrics, wrap width | 14.2 / 17.8 (0) | 16.0 / 15.4 (0) | 7.0 / 6.6 (0) |
-| highlights, selections | 18.5 / 18.9 (22) | 9.6 / 9.3 (4) | 9.5 / 8.9 (4) |
-| background segments, line layout | 10.7 / 11.1 (4) | 11.7 / 11.0 (4) | 12.0 / 11.2 (4) |
-| run indicators .. minimap | 12.2 / 12.2 (3) | 1.5 / 1.3 (0) | 1.4 / 1.2 (0) |
-
-Full editor, p50 us (allocations):
-
-| Range | Before | Without font cache | Final |
-|---|---|---|---|
-| whole prepaint | 1039.8 / 937.8 (219) | 923.0 / 844.1 (144) | 858.4 / 798.0 (144) |
-| snapshot, font metrics, wrap width | 59.2 / 47.2 (1) | 58.2 / 47.2 (1) | 23.4 / 20.1 (1) |
-| highlights, selections | 102.5 / 88.8 (22) | 66.7 / 55.9 (4) | 64.5 / 57.4 (4) |
-| background segments, line layout | 153.2 / 142.6 (40) | 152.7 / 144.6 (39) | 144.5 (39, second run) |
-| run indicators .. minimap | 353.7 / 333.8 (87) | 261.6 / 246.3 (51) | 250.1 / 241.8 (51) |
-
-- Largest single savings: the context menu check (about 11 us single-line,
-  about 90 us full, which includes the minimap editor's own prepaint), the
-  font cache (about 8 us single-line, about 27 us full, where the gutter
-  also asks for the `0` measures), and selection resolution (about 9 us
-  single-line, about 30 us full).
-- Line layout did not change, as expected.
-- Removing the extra display-map syncs from the gutter range changed nothing
-  measurable (173 us before and after): syncing an unchanged map is cheap.
-- What is left in a full editor: gutter and diff hunks about 175 us, line
-  layout about 145 us, longest line / blocks / cursors about 110 us, and the
-  minimap range about 240 us.
-
-## Gutter and minimap follow-up (2026-11-23)
-
-From reading the gutter / diff hunk range and the minimap range above.
-
-Gutter and diff hunks:
-
-- `layout_expand_toggles` cloned the multibuffer snapshot every frame for
-  `widest_line_number`; it now returns early without expandable rows and reads
-  the prepaint snapshot.
-- `render_crease_toggle` ran `starts_indent` (scans following lines) on every
-  visible row; unfolded rows that are neither active nor in a hovered gutter
-  now return first. `render_crease_trailer` looks up the crease before the
-  fold state.
-- Line numbers take the row from `row_info.multibuffer_row` instead of a
-  display-to-buffer point conversion per row.
-- `layout_word_diff_highlights` returns before its conversions when no visible
-  hunk has word diffs; `active_run_indicators` returns early without
-  runnables.
-- Gutter width is `ch_advance` times the digit count instead of shaping a
-  run of spaces. With a proportional font the gutter is a digit wide per
-  digit rather than a space wide.
-- Not done: `active_run_indicators` by row lookup. Runnables are only kept
-  for about three screens, and the row keys go stale for the 50 ms debounce
-  after an edit while the anchors don't.
-
-Minimap:
-
-- The minimap built a second snapshot of its parent for background
-  highlights; it shares the display map, so it uses its own.
-- No longest-line layout in a minimap. The main editor reuses the visible
-  line's layout when the longest row is on screen.
-- No crease trailers, gutter diff hunks (with their hitboxes) or word diff
-  highlights in a minimap.
-- The minimap view is cached (`spec/editor.md`). The parent decides in
-  `layout_minimap` whether it must render again; a notify during prepaint
-  would only take effect a frame later, hence
-  `Window::invalidate_cached_view`. The minimap no longer draws the active
-  line, so cursor moves leave it untouched.
-- Risk: a hunk changing only between staged and unstaged relies on the
-  multibuffer bumping `edit_count` for the diff change; not checked.
-
-### Measured
-
-`edctl perf`, dev profile, 1200x700, fresh launch, a 545-line Rust file with
-60 modified hunks, cursor at the top; down / right / up 40 times each. Two
-runs per build; the pair with matching frame counts is given (the other
-"after" run drew 1162 frames, so runs are not equally loaded).
-
-| | Before | After |
-|---|---|---|
-| frames drawn | 1442 | 1437 |
-| instructions per frame | 18.06M | 10.10M |
-| draw p50 / p95 | 1.879 / 3.700 ms | 1.407 / 2.536 ms |
-| build (render, layout, prepaint) p50 | 1.517 ms | 0.963 ms |
-| paint p50 | 0.273 ms | 0.299 ms |
-
-The other pair: 18.20M against 10.59M instructions per frame, build p50
-1.529 against 1.032 ms. Not split between the small cuts and the cache; the
-prepaint ranges were not timed again.
+- Single-line editor (2026-11-22): `size_of::<Editor>()` 8,144 bytes, create
+  0.18-0.25 ms and 178 allocations, about 75 KB held. A minimal entity
+  (String + focus handle) is 0.002 ms, 2 allocations, 120 bytes. Not
+  remeasured.
+- Action registration (2026-11-22): `register_actions` cost 248 allocations
+  and 13.8 us per editor per frame, about 250 `on_action` calls each making
+  an `Rc`. Now static tables attached per dispatch node, with conditions
+  evaluated when the table is attached at paint (`spec/action.md`,
+  `spec/model.md`). Whole-frame difference was below the 2% run-to-run noise.
+  - Blame revision actions are conditional only on "blame is on", so they
+    are listed as available more often than they do anything.
+  - Dispatch with real conditions has no unit test.
+  - Still registered per frame, on cached views: project panel and git panel
+    `.on_action` lists, and the pane search actions.
+- Prepaint (2026-11-23): one display snapshot per pass, early returns for
+  the context menu and hover popovers, selection resolution without
+  `itertools::tee`, `em`/`ch` measures cached in `FontMetrics`. Single-line
+  prepaint 115 -> 86-94 us (60 -> 21 allocations); full editor in a 10-line
+  file 940-1040 -> 800-860 us (219 -> 144 allocations).
+- Gutter and minimap (2026-11-23): early returns in the gutter (expand
+  toggles, crease toggles, word diffs, run indicators), no longest-line,
+  crease trailer or diff hunk work in the minimap, and the minimap as a
+  cached view. Cursor moves in a 545-line file with 60 hunks: instructions
+  per frame 18.06M -> 10.10M, draw p50 1.879 -> 1.407 ms, build p50
+  1.517 -> 0.963 ms.
+  - Not done: `active_run_indicators` by row lookup. Runnables are kept for
+    about three screens, and row keys go stale for the 50 ms debounce after
+    an edit while anchors don't.
+  - Risk, not checked: a hunk that changes only between staged and unstaged
+    relies on the multibuffer bumping `edit_count` to refresh the minimap.
