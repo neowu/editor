@@ -12,9 +12,3 @@ select multiple revision, merge the file change into one?
 # rust
 - crates/editor/src/rust_analyzer_ext.rs:104, expand_macro_recursively, think about how to make it easier to use, and add cmd+click for references
 - crates/project/src/lsp_store/lsp_ext_command.rs coupled with rust, should abstraction?
-
-# merge
-Picker modals → one crate: language_selector, encoding_selector, lsp_command_selector, go_to_line, command_palette, recent_projects (about 3.7k total, each used by one crate).
-Previews → one crate: svg_preview, image_viewer, markdown_preview (about 3.9k).
-LSP UI: lsp_locations, activity_indicator, diagnostics, possibly with language_tools.
-Tiny single-consumer crates into their consumer: assets (31 lines), icons, time_format, trash, refineable.

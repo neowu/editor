@@ -13,9 +13,6 @@ use anyhow::Result;
 use anyhow::anyhow;
 use serde::de;
 
-use crate::abs_path::AbsPath;
-use crate::abs_path::AbsPathBuf;
-
 /// A file system path that is guaranteed to be relative and normalized.
 ///
 /// Paths are stored in POSIX ('/'-delimited) format.
@@ -238,11 +235,6 @@ impl RelPath {
     pub fn as_std_path(&self) -> &Path {
         Path::new(&self.0)
     }
-
-    /// Resolves this relative path against an absolute base path.
-    pub fn absolutize(&self, base: impl AsRef<AbsPath>) -> AbsPathBuf {
-        base.as_ref().join(self.as_unix_str())
-    }
 }
 
 #[derive(Debug)]
@@ -408,7 +400,7 @@ impl<'a> From<&'a RelPath> for Cow<'a, RelPath> {
 impl From<&RelPath> for Arc<RelPath> {
     fn from(rel_path: &RelPath) -> Self {
         let bytes: Arc<str> = Arc::from(&rel_path.0);
-        // SAFETY: `AbsPath` is a `repr(transparent)` wrapper around `Path`.
+        // SAFETY: `RelPath` is a `repr(transparent)` wrapper around `str`.
         unsafe { Arc::from_raw(Arc::into_raw(bytes) as *const RelPath) }
     }
 }

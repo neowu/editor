@@ -18,7 +18,6 @@ use anyhow::Context as _;
 
 use crate::rel_path::RelPath;
 
-pub mod abs_path;
 pub mod rel_path;
 
 pub fn try_from_bytes<'a, T>(bytes: &'a [u8]) -> anyhow::Result<T>

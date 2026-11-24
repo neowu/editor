@@ -22,7 +22,6 @@ pub mod path_list;
 pub mod paths;
 pub mod size;
 pub mod string;
-pub mod time;
 
 use std::cmp;
 use std::cmp::Ordering;
