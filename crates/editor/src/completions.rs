@@ -450,6 +450,8 @@ impl Editor {
                         menu.initial_position.to_offset(&snapshot) == position.to_offset(&snapshot)
                     };
                     if position_matches {
+                        // A refresh still in flight would replace the reused menu with stale items.
+                        self.completion_tasks.clear();
                         return;
                     }
                 }
