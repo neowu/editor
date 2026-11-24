@@ -109,7 +109,7 @@ impl<V: ModalView> ModalViewHandle for Entity<V> {
     }
 }
 
-pub struct ActiveModal {
+pub(crate) struct ActiveModal {
     modal: Box<dyn ModalViewHandle>,
     _subscriptions: [Subscription; 2],
     previous_focus_handle: Option<FocusHandle>,

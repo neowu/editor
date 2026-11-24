@@ -99,116 +99,261 @@ pub mod notification;
 pub mod request;
 
 mod code_action;
-#[allow(clippy::wildcard_imports)]
-pub use code_action::*;
+pub use code_action::CodeAction;
+pub use code_action::CodeActionCapabilityResolveSupport;
+pub use code_action::CodeActionClientCapabilities;
+pub use code_action::CodeActionContext;
+pub use code_action::CodeActionKind;
+pub use code_action::CodeActionKindLiteralSupport;
+pub use code_action::CodeActionLiteralSupport;
+pub use code_action::CodeActionOptions;
+pub use code_action::CodeActionOrCommand;
+pub use code_action::CodeActionParams;
+pub use code_action::CodeActionProviderCapability;
+pub use code_action::CodeActionResponse;
 
 mod code_lens;
-#[allow(clippy::wildcard_imports)]
-pub use code_lens::*;
+pub use code_lens::CodeLens;
+pub use code_lens::CodeLensClientCapabilities;
+pub use code_lens::CodeLensOptions;
+pub use code_lens::CodeLensParams;
+pub use code_lens::CodeLensWorkspaceClientCapabilities;
 
 mod color;
-#[allow(clippy::wildcard_imports)]
-pub use color::*;
+pub use color::Color;
+pub use color::ColorInformation;
+pub use color::ColorPresentation;
+pub use color::ColorPresentationParams;
+pub use color::ColorProviderCapability;
+pub use color::ColorProviderOptions;
+pub use color::DocumentColorClientCapabilities;
+pub use color::DocumentColorParams;
+pub use color::StaticTextDocumentColorProviderOptions;
 
 mod completion;
-#[allow(clippy::wildcard_imports)]
-pub use completion::*;
+pub use completion::CompletionClientCapabilities;
+pub use completion::CompletionContext;
+pub use completion::CompletionItem;
+pub use completion::CompletionItemCapability;
+pub use completion::CompletionItemCapabilityResolveSupport;
+pub use completion::CompletionItemKind;
+pub use completion::CompletionItemLabelDetails;
+pub use completion::CompletionItemTag;
+pub use completion::CompletionListCapability;
+pub use completion::CompletionListItemDefaults;
+pub use completion::CompletionListItemDefaultsEditRange;
+pub use completion::CompletionOptions;
+pub use completion::CompletionParams;
+pub use completion::CompletionRegistrationOptions;
+pub use completion::CompletionResponse;
+pub use completion::CompletionTextEdit;
+pub use completion::CompletionTriggerKind;
+pub use completion::InsertReplaceEdit;
+pub use completion::InsertTextFormat;
+pub use completion::InsertTextMode;
+pub use completion::InsertTextModeSupport;
 
 mod document_diagnostic;
-#[allow(clippy::wildcard_imports)]
-pub use document_diagnostic::*;
+pub use document_diagnostic::DiagnosticClientCapabilities;
+pub use document_diagnostic::DiagnosticOptions;
+pub use document_diagnostic::DiagnosticServerCancellationData;
+pub use document_diagnostic::DiagnosticServerCapabilities;
+pub use document_diagnostic::DocumentDiagnosticParams;
+pub use document_diagnostic::DocumentDiagnosticReport;
+pub use document_diagnostic::DocumentDiagnosticReportKind;
+pub use document_diagnostic::DocumentDiagnosticReportResult;
+pub use document_diagnostic::FullDocumentDiagnosticReport;
+pub use document_diagnostic::UnchangedDocumentDiagnosticReport;
 
 mod document_highlight;
-#[allow(clippy::wildcard_imports)]
-pub use document_highlight::*;
+pub use document_highlight::DocumentHighlight;
+pub use document_highlight::DocumentHighlightClientCapabilities;
+pub use document_highlight::DocumentHighlightKind;
+pub use document_highlight::DocumentHighlightParams;
 
 mod document_link;
-#[allow(clippy::wildcard_imports)]
-pub use document_link::*;
+pub use document_link::DocumentLink;
+pub use document_link::DocumentLinkClientCapabilities;
+pub use document_link::DocumentLinkOptions;
+pub use document_link::DocumentLinkParams;
 
 mod document_symbols;
-#[allow(clippy::wildcard_imports)]
-pub use document_symbols::*;
+pub use document_symbols::DocumentSymbol;
+pub use document_symbols::DocumentSymbolClientCapabilities;
+pub use document_symbols::DocumentSymbolParams;
+pub use document_symbols::DocumentSymbolResponse;
+pub use document_symbols::SymbolInformation;
 
 mod file_operations;
-#[allow(clippy::wildcard_imports)]
-pub use file_operations::*;
+pub use file_operations::CreateFilesParams;
+pub use file_operations::DeleteFilesParams;
+pub use file_operations::FileOperationFilter;
+pub use file_operations::FileOperationPatternKind;
+pub use file_operations::FileOperationRegistrationOptions;
+pub use file_operations::FileRename;
+pub use file_operations::RenameFilesParams;
+pub use file_operations::WorkspaceFileOperationsClientCapabilities;
+pub use file_operations::WorkspaceFileOperationsServerCapabilities;
 
 mod folding_range;
-#[allow(clippy::wildcard_imports)]
-pub use folding_range::*;
+pub use folding_range::FoldingProviderOptions;
+pub use folding_range::FoldingRange;
+pub use folding_range::FoldingRangeCapability;
+pub use folding_range::FoldingRangeClientCapabilities;
+pub use folding_range::FoldingRangeKind;
+pub use folding_range::FoldingRangeKindCapability;
+pub use folding_range::FoldingRangeParams;
+pub use folding_range::FoldingRangeProviderCapability;
 
 mod formatting;
-#[allow(clippy::wildcard_imports)]
-pub use formatting::*;
+pub use formatting::DocumentFormattingClientCapabilities;
+pub use formatting::DocumentFormattingParams;
+pub use formatting::DocumentOnTypeFormattingClientCapabilities;
+pub use formatting::DocumentOnTypeFormattingOptions;
+pub use formatting::DocumentOnTypeFormattingParams;
+pub use formatting::DocumentRangeFormattingClientCapabilities;
+pub use formatting::DocumentRangeFormattingParams;
+pub use formatting::FormattingOptions;
 
 mod hover;
-#[allow(clippy::wildcard_imports)]
-pub use hover::*;
+pub use hover::Hover;
+pub use hover::HoverClientCapabilities;
+pub use hover::HoverContents;
+pub use hover::HoverParams;
+pub use hover::HoverProviderCapability;
 
 mod inlay_hint;
-#[allow(clippy::wildcard_imports)]
-pub use inlay_hint::*;
+pub use inlay_hint::InlayHint;
+pub use inlay_hint::InlayHintClientCapabilities;
+pub use inlay_hint::InlayHintKind;
+pub use inlay_hint::InlayHintLabel;
+pub use inlay_hint::InlayHintLabelPart;
+pub use inlay_hint::InlayHintLabelPartTooltip;
+pub use inlay_hint::InlayHintParams;
+pub use inlay_hint::InlayHintResolveClientCapabilities;
+pub use inlay_hint::InlayHintServerCapabilities;
+pub use inlay_hint::InlayHintTooltip;
+pub use inlay_hint::InlayHintWorkspaceClientCapabilities;
 
 mod inline_value;
-#[allow(clippy::wildcard_imports)]
-pub use inline_value::*;
+pub use inline_value::InlineValue;
+pub use inline_value::InlineValueClientCapabilities;
+pub use inline_value::InlineValueParams;
+pub use inline_value::InlineValueServerCapabilities;
+pub use inline_value::InlineValueWorkspaceClientCapabilities;
 
 mod moniker;
-#[allow(clippy::wildcard_imports)]
-pub use moniker::*;
+pub use moniker::Moniker;
+pub use moniker::MonikerClientCapabilities;
+pub use moniker::MonikerParams;
+pub use moniker::MonikerServerCapabilities;
 
 mod progress;
-#[allow(clippy::wildcard_imports)]
-pub use progress::*;
+pub use progress::ProgressParams;
+pub use progress::ProgressParamsValue;
+pub use progress::ProgressToken;
+pub use progress::WorkDoneProgress;
+pub use progress::WorkDoneProgressCancelParams;
+pub use progress::WorkDoneProgressCreateParams;
+pub use progress::WorkDoneProgressParams;
 
 mod references;
-#[allow(clippy::wildcard_imports)]
-pub use references::*;
+pub use references::ReferenceClientCapabilities;
+pub use references::ReferenceContext;
+pub use references::ReferenceParams;
 
 mod rename;
-#[allow(clippy::wildcard_imports)]
-pub use rename::*;
+pub use rename::PrepareRenameResponse;
+pub use rename::PrepareSupportDefaultBehavior;
+pub use rename::RenameClientCapabilities;
+pub use rename::RenameOptions;
+pub use rename::RenameParams;
 
 pub mod selection_range;
-#[allow(clippy::wildcard_imports)]
-pub use selection_range::*;
+pub use selection_range::SelectionRange;
+pub use selection_range::SelectionRangeClientCapabilities;
+pub use selection_range::SelectionRangeParams;
+pub use selection_range::SelectionRangeProviderCapability;
 
 mod semantic_tokens;
-#[allow(clippy::wildcard_imports)]
-pub use semantic_tokens::*;
+pub use semantic_tokens::SemanticTokenModifier;
+pub use semantic_tokens::SemanticTokenType;
+pub use semantic_tokens::SemanticTokensClientCapabilities;
+pub use semantic_tokens::SemanticTokensClientCapabilitiesRequests;
+pub use semantic_tokens::SemanticTokensDelta;
+pub use semantic_tokens::SemanticTokensDeltaParams;
+pub use semantic_tokens::SemanticTokensEdit;
+pub use semantic_tokens::SemanticTokensFullDeltaResult;
+pub use semantic_tokens::SemanticTokensFullOptions;
+pub use semantic_tokens::SemanticTokensLegend;
+pub use semantic_tokens::SemanticTokensOptions;
+pub use semantic_tokens::SemanticTokensParams;
+pub use semantic_tokens::SemanticTokensRangeParams;
+pub use semantic_tokens::SemanticTokensRangeResult;
+pub use semantic_tokens::SemanticTokensRegistrationOptions;
+pub use semantic_tokens::SemanticTokensResult;
+pub use semantic_tokens::SemanticTokensServerCapabilities;
+pub use semantic_tokens::SemanticTokensWorkspaceClientCapabilities;
+pub use semantic_tokens::TokenFormat;
 
 mod signature_help;
-#[allow(clippy::wildcard_imports)]
-pub use signature_help::*;
+pub use signature_help::SignatureHelp;
+pub use signature_help::SignatureHelpClientCapabilities;
+pub use signature_help::SignatureHelpOptions;
+pub use signature_help::SignatureHelpParams;
+pub use signature_help::SignatureInformation;
 
 mod type_hierarchy;
-#[allow(clippy::wildcard_imports)]
-pub use type_hierarchy::*;
+pub use type_hierarchy::TypeHierarchyClientCapabilities;
+pub use type_hierarchy::TypeHierarchyItem;
+pub use type_hierarchy::TypeHierarchyPrepareParams;
+pub use type_hierarchy::TypeHierarchySubtypesParams;
+pub use type_hierarchy::TypeHierarchySupertypesParams;
 
 mod linked_editing;
-#[allow(clippy::wildcard_imports)]
-pub use linked_editing::*;
+pub use linked_editing::LinkedEditingRangeClientCapabilities;
+pub use linked_editing::LinkedEditingRangeParams;
+pub use linked_editing::LinkedEditingRangeServerCapabilities;
+pub use linked_editing::LinkedEditingRanges;
 
 mod window;
-#[allow(clippy::wildcard_imports)]
-pub use window::*;
+pub use window::LogMessageParams;
+pub use window::MessageActionItem;
+pub use window::MessageActionItemCapabilities;
+pub use window::MessageType;
+pub use window::ShowDocumentClientCapabilities;
+pub use window::ShowDocumentParams;
+pub use window::ShowDocumentResult;
+pub use window::ShowMessageParams;
+pub use window::ShowMessageRequestClientCapabilities;
+pub use window::ShowMessageRequestParams;
+pub use window::WindowClientCapabilities;
 
 mod workspace_diagnostic;
-#[allow(clippy::wildcard_imports)]
-pub use workspace_diagnostic::*;
+pub use workspace_diagnostic::DiagnosticWorkspaceClientCapabilities;
+pub use workspace_diagnostic::PreviousResultId;
+pub use workspace_diagnostic::WorkspaceDiagnosticParams;
+pub use workspace_diagnostic::WorkspaceDiagnosticReportResult;
+pub use workspace_diagnostic::WorkspaceDocumentDiagnosticReport;
+pub use workspace_diagnostic::WorkspaceFullDocumentDiagnosticReport;
+pub use workspace_diagnostic::WorkspaceUnchangedDocumentDiagnosticReport;
 
 mod workspace_folders;
-#[allow(clippy::wildcard_imports)]
-pub use workspace_folders::*;
+pub use workspace_folders::DidChangeWorkspaceFoldersParams;
+pub use workspace_folders::WorkspaceFolder;
+pub use workspace_folders::WorkspaceFoldersChangeEvent;
+pub use workspace_folders::WorkspaceFoldersServerCapabilities;
 
 mod workspace_symbols;
-#[allow(clippy::wildcard_imports)]
-pub use workspace_symbols::*;
+pub use workspace_symbols::WorkspaceSymbol;
+pub use workspace_symbols::WorkspaceSymbolClientCapabilities;
+pub use workspace_symbols::WorkspaceSymbolParams;
+pub use workspace_symbols::WorkspaceSymbolResponse;
 
 mod trace;
-#[allow(clippy::wildcard_imports)]
-pub use trace::*;
+pub use trace::LogTraceParams;
+pub use trace::SetTraceParams;
+pub use trace::TraceValue;
 
 /* ----------------- Auxiliary types ----------------- */
 

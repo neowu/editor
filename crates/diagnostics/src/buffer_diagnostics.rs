@@ -314,7 +314,7 @@ impl BufferDiagnosticsEditor {
         let multibuffer_context = EXCERPT_CONTEXT_LINES;
         let buffer_snapshot = buffer.read(cx).snapshot();
         let buffer_snapshot_max = buffer_snapshot.max_point();
-        let max_severity = lsp::DiagnosticSeverity::WARNING;
+        let max_severity = lsp_types::DiagnosticSeverity::WARNING;
 
         cx.spawn_in(window, async move |buffer_diagnostics_editor, cx| {
             // Fetch the diagnostics for the whole of the buffer

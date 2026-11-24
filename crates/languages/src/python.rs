@@ -25,10 +25,10 @@ use language::language_settings::LanguageSettings;
 use language::language_settings::RewrapBehavior;
 use language::language_settings::SemanticTokenRules;
 use language::language_settings::WordsCompletionMode;
-use lsp::CompletionItemKind;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
-use lsp::Uri;
+use lsp_types::CompletionItemKind;
+use lsp_types::Uri;
 use serde_json::Value;
 use serde_json::json;
 use task::SpawnInTerminal;
@@ -160,7 +160,7 @@ impl LspAdapter for TyLspAdapter {
 
     async fn label_for_completion(
         &self,
-        item: &lsp::CompletionItem,
+        item: &lsp_types::CompletionItem,
         language: &Arc<language::Language>,
     ) -> Option<language::CodeLabel> {
         let label = &item.label;

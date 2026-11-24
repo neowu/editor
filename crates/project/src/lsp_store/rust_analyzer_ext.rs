@@ -9,7 +9,7 @@ use language::ServerHealth;
 use lsp::LanguageServer;
 use lsp::LanguageServerId;
 use lsp::LanguageServerName;
-use lsp::notification::Notification;
+use lsp_types::notification::Notification;
 use util::rel_path::RelPath;
 use worktree::PathChange;
 

@@ -22,6 +22,7 @@ imara-diff.workspace = true
 language_core.workspace = true
 log.workspace = true
 lsp.workspace = true
+lsp_types.workspace = true
 parking_lot.workspace = true
 regex.workspace = true
 rustc-hash.workspace = true

@@ -6,10 +6,10 @@
 use std::fmt;
 use std::fmt::Display;
 
-use lsp::notification::DidChangeTextDocument;
-use lsp::notification::DidSaveTextDocument;
-use lsp::request::Request;
-use lsp::request::WorkspaceSymbolRequest;
+use lsp_types::notification::DidChangeTextDocument;
+use lsp_types::notification::DidSaveTextDocument;
+use lsp_types::request::Request;
+use lsp_types::request::WorkspaceSymbolRequest;
 mod capabilities;
 mod code_actions;
 pub mod code_lens;
@@ -120,13 +120,13 @@ use lsp::LanguageServerId;
 use lsp::LanguageServerName;
 use lsp::LanguageServerSelector;
 use lsp::LspRequestFuture as _;
-use lsp::MessageActionItem;
-use lsp::MessageType;
-use lsp::OneOf;
-use lsp::Uri;
 pub use lsp_store::inlay_hints::CacheInlayHints;
 pub use lsp_store::inlay_hints::CacheInlayHintsTask;
 pub use lsp_store::inlay_hints::InvalidationStrategy;
+use lsp_types::MessageActionItem;
+use lsp_types::MessageType;
+use lsp_types::OneOf;
+use lsp_types::Uri;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -220,17 +220,17 @@ impl Display for ProgressToken {
 }
 
 impl ProgressToken {
-    fn from_lsp(value: lsp::NumberOrString) -> Self {
+    fn from_lsp(value: lsp_types::NumberOrString) -> Self {
         match value {
-            lsp::NumberOrString::Number(number) => Self::Number(number),
-            lsp::NumberOrString::String(string) => Self::String(SharedString::new(string)),
+            lsp_types::NumberOrString::Number(number) => Self::Number(number),
+            lsp_types::NumberOrString::String(string) => Self::String(SharedString::new(string)),
         }
     }
 
-    fn to_lsp(&self) -> lsp::NumberOrString {
+    fn to_lsp(&self) -> lsp_types::NumberOrString {
         match self {
-            Self::Number(number) => lsp::NumberOrString::Number(*number),
-            Self::String(string) => lsp::NumberOrString::String(string.to_string()),
+            Self::Number(number) => lsp_types::NumberOrString::Number(*number),
+            Self::String(string) => lsp_types::NumberOrString::String(string.to_string()),
         }
     }
 }
@@ -266,7 +266,7 @@ pub struct LocalLspStore {
     watched_manifest_filenames: FxHashSet<ManifestName>,
     language_server_paths_watched_for_rename: FxHashMap<LanguageServerId, RenamePathsWatchedForServer>,
     language_server_dynamic_registrations: FxHashMap<LanguageServerId, DynamicRegistrations>,
-    initial_server_capabilities: FxHashMap<LanguageServerId, lsp::ServerCapabilities>,
+    initial_server_capabilities: FxHashMap<LanguageServerId, lsp_types::ServerCapabilities>,
     next_diagnostic_group_id: usize,
     #[allow(clippy::type_complexity)]
     diagnostics: FxHashMap<
@@ -655,7 +655,7 @@ impl LocalLspStore {
     ) -> Vec<LanguageServerId> {
         let old_path = old_file.abs_path(cx);
 
-        let Ok(file_url) = lsp::Uri::from_file_path(old_path.as_path()) else {
+        let Ok(file_url) = lsp_types::Uri::from_file_path(old_path.as_path()) else {
             return Vec::new();
         };
         self.unregister_buffer_from_language_servers(buffer, &file_url, cx)
@@ -664,7 +664,7 @@ impl LocalLspStore {
     pub(crate) fn unregister_buffer_from_language_servers(
         &mut self,
         buffer: &Entity<Buffer>,
-        file_url: &lsp::Uri,
+        file_url: &lsp_types::Uri,
         cx: &mut App,
     ) -> Vec<LanguageServerId> {
         let abs_path = file_url.to_file_path().ok();
@@ -854,7 +854,7 @@ pub struct LspStore {
     _maintain_buffer_languages: Task<()>,
     diagnostic_summaries:
         FxHashMap<WorktreeId, FxHashMap<Arc<RelPath>, FxHashMap<LanguageServerId, DiagnosticSummary>>>,
-    pub lsp_server_capabilities: FxHashMap<LanguageServerId, lsp::ServerCapabilities>,
+    pub lsp_server_capabilities: FxHashMap<LanguageServerId, lsp_types::ServerCapabilities>,
     semantic_token_config: SemanticTokenConfig,
     lsp_data: FxHashMap<BufferId, BufferLspData>,
     buffer_reload_tasks: FxHashMap<BufferId, Task<anyhow::Result<()>>>,
@@ -986,7 +986,7 @@ pub enum LspStoreEvent {
     },
     SnippetEdit {
         buffer_id: BufferId,
-        edits: Vec<(lsp::Range, Snippet)>,
+        edits: Vec<(lsp_types::Range, Snippet)>,
     },
     WorkspaceEditApplied(ProjectTransaction),
 }
@@ -2036,7 +2036,7 @@ impl LspStore {
                 server_id: LanguageServerId,
                 lsp_adapter: Arc<CachedLspAdapter>,
                 worktree: WeakEntity<Worktree>,
-                lsp_symbols: Vec<(String, language::SymbolKind, lsp::Location, Option<String>)>,
+                lsp_symbols: Vec<(String, language::SymbolKind, lsp_types::Location, Option<String>)>,
             }
 
             let mut requests = Vec::new();
@@ -2078,7 +2078,7 @@ impl LspStore {
                 requests.push(
                     server
                         .request::<WorkspaceSymbolRequest>(
-                            lsp::WorkspaceSymbolParams { query: query.to_owned(), ..Default::default() },
+                            lsp_types::WorkspaceSymbolParams { query: query.to_owned(), ..Default::default() },
                             request_timeout,
                         )
                         .map(move |response| {
@@ -2088,7 +2088,7 @@ impl LspStore {
                                 .log_err()
                                 .flatten()
                                 .map_or_default(|symbol_response| match symbol_response {
-                                    lsp::WorkspaceSymbolResponse::Flat(flat_responses) => flat_responses
+                                    lsp_types::WorkspaceSymbolResponse::Flat(flat_responses) => flat_responses
                                         .into_iter()
                                         .map(|lsp_symbol| {
                                             (
@@ -2099,7 +2099,7 @@ impl LspStore {
                                             )
                                         })
                                         .collect::<Vec<_>>(),
-                                    lsp::WorkspaceSymbolResponse::Nested(nested_responses) => nested_responses
+                                    lsp_types::WorkspaceSymbolResponse::Nested(nested_responses) => nested_responses
                                         .into_iter()
                                         .filter_map(|lsp_symbol| {
                                             let location = match lsp_symbol.location {
@@ -2195,7 +2195,7 @@ impl LspStore {
         let buffer = buffer.read(cx);
         let file = File::from_dyn(buffer.file())?;
         let abs_path = file.abs_path(cx);
-        let uri = lsp::Uri::from_file_path(&abs_path)
+        let uri = lsp_types::Uri::from_file_path(&abs_path)
             .ok()
             .with_context(|| format!("Failed to convert path to URI: {}", abs_path.display()))
             .log_err()?;
@@ -2218,7 +2218,7 @@ impl LspStore {
             let line_ending_changed = line_ending != previous_snapshot.snapshot.line_ending();
 
             let build_full_change = || {
-                vec![lsp::TextDocumentContentChangeEvent {
+                vec![lsp_types::TextDocumentContentChangeEvent {
                     range: None,
                     range_length: None,
                     text: next_snapshot.text_with_line_endings(),
@@ -2232,8 +2232,8 @@ impl LspStore {
                         let edit_start = edit.new.start.0;
                         let edit_end = edit_start + (edit.old.end.0 - edit.old.start.0);
                         let new_text = next_snapshot.text_for_range(edit.new.start.1..edit.new.end.1).collect();
-                        lsp::TextDocumentContentChangeEvent {
-                            range: Some(lsp::Range::new(point_to_lsp(edit_start), point_to_lsp(edit_end))),
+                        lsp_types::TextDocumentContentChangeEvent {
+                            range: Some(lsp_types::Range::new(point_to_lsp(edit_start), point_to_lsp(edit_end))),
                             range_length: None,
                             text: line_ending.apply(new_text),
                         }
@@ -2243,8 +2243,8 @@ impl LspStore {
 
             let document_sync_kind =
                 language_server.capabilities().text_document_sync.as_ref().and_then(|sync| match sync {
-                    lsp::TextDocumentSyncCapability::Kind(kind) => Some(*kind),
-                    lsp::TextDocumentSyncCapability::Options(options) => options.change,
+                    lsp_types::TextDocumentSyncCapability::Kind(kind) => Some(*kind),
+                    lsp_types::TextDocumentSyncCapability::Options(options) => options.change,
                 });
 
             let build_change = || {
@@ -2252,8 +2252,8 @@ impl LspStore {
             };
 
             let content_changes: Vec<_> = match document_sync_kind {
-                Some(lsp::TextDocumentSyncKind::FULL) => build_full_change(),
-                Some(lsp::TextDocumentSyncKind::INCREMENTAL) => build_change(),
+                Some(lsp_types::TextDocumentSyncKind::FULL) => build_full_change(),
+                Some(lsp_types::TextDocumentSyncKind::INCREMENTAL) => build_change(),
                 _ => {
                     continue;
                 }
@@ -2263,8 +2263,8 @@ impl LspStore {
             buffer_snapshots.push(LspBufferSnapshot { version: next_version, snapshot: next_snapshot.clone() });
 
             language_server
-                .notify::<DidChangeTextDocument>(lsp::DidChangeTextDocumentParams {
-                    text_document: lsp::VersionedTextDocumentIdentifier::new(uri.clone(), next_version),
+                .notify::<DidChangeTextDocument>(lsp_types::DidChangeTextDocumentParams {
+                    text_document: lsp_types::VersionedTextDocumentIdentifier::new(uri.clone(), next_version),
                     content_changes,
                 })
                 .ok();
@@ -2278,14 +2278,14 @@ impl LspStore {
         let file = File::from_dyn(buffer.read(cx).file())?;
         let worktree_id = file.worktree_id(cx);
         let abs_path = file.abs_path(cx);
-        let text_document = lsp::TextDocumentIdentifier { uri: file_path_to_lsp_url(&abs_path).log_err()? };
+        let text_document = lsp_types::TextDocumentIdentifier { uri: file_path_to_lsp_url(&abs_path).log_err()? };
         let local = &self.local;
 
         for server in local.language_servers_for_worktree(worktree_id) {
             if let Some(include_text) = include_text(server.as_ref()) {
                 let text = include_text.then(|| buffer.read(cx).text());
                 server
-                    .notify::<DidSaveTextDocument>(lsp::DidSaveTextDocumentParams {
+                    .notify::<DidSaveTextDocument>(lsp_types::DidSaveTextDocumentParams {
                         text_document: text_document.clone(),
                         text,
                     })
@@ -2378,7 +2378,7 @@ impl LspStore {
                 Ok(abs_path) => abs_path,
                 Err(err) => return Task::ready(Err(err)),
             };
-            let Ok(symbol_uri) = lsp::Uri::from_file_path(symbol_abs_path) else {
+            let Ok(symbol_uri) = lsp_types::Uri::from_file_path(symbol_abs_path) else {
                 return Task::ready(Err(anyhow!("invalid symbol path")));
             };
 
@@ -2388,7 +2388,7 @@ impl LspStore {
 
     pub(crate) fn open_local_buffer_via_lsp(
         &self,
-        abs_path: lsp::Uri,
+        abs_path: lsp_types::Uri,
         language_server_id: LanguageServerId,
         cx: &Context<Self>,
     ) -> Task<Result<Entity<Buffer>>> {
@@ -2772,10 +2772,10 @@ impl PartialEq for LanguageServerPromptRequest {
 
 #[derive(Clone, Debug)]
 pub struct LanguageServerShowDocumentRequest {
-    pub uri: lsp::Uri,
+    pub uri: lsp_types::Uri,
     pub external: bool,
     pub take_focus: bool,
-    pub selection: Option<lsp::Range>,
+    pub selection: Option<lsp_types::Range>,
     pub(crate) response_channel: async_channel::Sender<bool>,
 }
 

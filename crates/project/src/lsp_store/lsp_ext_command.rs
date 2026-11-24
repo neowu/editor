@@ -11,8 +11,8 @@ use language::point_to_lsp;
 use lsp::AdapterServerCapabilities;
 use lsp::LanguageServer;
 use lsp::LanguageServerId;
-use lsp::notification::Notification;
-use lsp::request::Request;
+use lsp_types::notification::Notification;
+use lsp_types::request::Request;
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use serde::Serialize;
@@ -43,8 +43,8 @@ impl Request for LspExtExpandMacro {
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ExpandMacroParams {
-    pub text_document: lsp::TextDocumentIdentifier,
-    pub position: lsp::Position,
+    pub text_document: lsp_types::TextDocumentIdentifier,
+    pub position: lsp_types::Position,
 }
 
 #[derive(Default, Deserialize, Serialize, Debug)]
@@ -111,8 +111,8 @@ impl Request for LspOpenDocs {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenDocsParams {
-    pub text_document: lsp::TextDocumentIdentifier,
-    pub position: lsp::Position,
+    pub text_document: lsp_types::TextDocumentIdentifier,
+    pub position: lsp_types::Position,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -151,8 +151,11 @@ impl LspCommand for OpenDocs {
     }
 
     fn to_lsp(&self, path: &Path, _: &Buffer, _: &Arc<LanguageServer>, _: &App) -> Result<OpenDocsParams> {
-        let uri = lsp::Uri::from_file_path(path).map_err(|()| anyhow::anyhow!("{path:?} is not a valid URI"))?;
-        Ok(OpenDocsParams { text_document: lsp::TextDocumentIdentifier { uri }, position: point_to_lsp(self.position) })
+        let uri = lsp_types::Uri::from_file_path(path).map_err(|()| anyhow::anyhow!("{path:?} is not a valid URI"))?;
+        Ok(OpenDocsParams {
+            text_document: lsp_types::TextDocumentIdentifier { uri },
+            position: point_to_lsp(self.position),
+        })
     }
 
     async fn response_from_lsp(
@@ -176,8 +179,8 @@ pub struct GoToParentModule {
 pub struct LspGoToParentModule;
 
 impl Request for LspGoToParentModule {
-    type Params = lsp::TextDocumentPositionParams;
-    type Result = Option<Vec<lsp::LocationLink>>;
+    type Params = lsp_types::TextDocumentPositionParams;
+    type Result = Option<Vec<lsp_types::LocationLink>>;
     const METHOD: &'static str = "experimental/parentModule";
 }
 
@@ -203,19 +206,20 @@ impl LspCommand for GoToParentModule {
         _: &Buffer,
         _: &Arc<LanguageServer>,
         _: &App,
-    ) -> Result<lsp::TextDocumentPositionParams> {
+    ) -> Result<lsp_types::TextDocumentPositionParams> {
         make_lsp_text_document_position(path, self.position)
     }
 
     async fn response_from_lsp(
         self,
-        links: Option<Vec<lsp::LocationLink>>,
+        links: Option<Vec<lsp_types::LocationLink>>,
         lsp_store: Entity<LspStore>,
         buffer: Entity<Buffer>,
         server_id: LanguageServerId,
         cx: AsyncApp,
     ) -> anyhow::Result<Vec<LocationLink>> {
-        location_links_from_lsp(links.map(lsp::GotoDefinitionResponse::Link), lsp_store, buffer, server_id, cx).await
+        location_links_from_lsp(links.map(lsp_types::GotoDefinitionResponse::Link), lsp_store, buffer, server_id, cx)
+            .await
     }
 }
 
@@ -266,9 +270,9 @@ impl Request for Runnables {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RunnablesParams {
-    pub text_document: lsp::TextDocumentIdentifier,
+    pub text_document: lsp_types::TextDocumentIdentifier,
     #[serde(default)]
-    pub position: Option<lsp::Position>,
+    pub position: Option<lsp_types::Position>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -276,7 +280,7 @@ pub struct RunnablesParams {
 pub struct Runnable {
     pub label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub location: Option<lsp::LocationLink>,
+    pub location: Option<lsp_types::LocationLink>,
     #[serde(flatten)]
     pub args: RunnableArgs,
 }
@@ -386,7 +390,7 @@ impl LspCommand for GetLspRunnables {
     fn to_lsp(&self, path: &Path, buffer: &Buffer, _: &Arc<LanguageServer>, _: &App) -> Result<RunnablesParams> {
         let url = file_path_to_lsp_url(path)?;
         Ok(RunnablesParams {
-            text_document: lsp::TextDocumentIdentifier::new(url),
+            text_document: lsp_types::TextDocumentIdentifier::new(url),
             position: self.position.map(|anchor| point_to_lsp(anchor.to_point_utf16(&buffer.snapshot()))),
         })
     }
@@ -425,7 +429,7 @@ impl Notification for LspExtRunFlycheck {
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct RunFlycheckParams {
-    pub text_document: Option<lsp::TextDocumentIdentifier>,
+    pub text_document: Option<lsp_types::TextDocumentIdentifier>,
 }
 
 #[cfg(test)]

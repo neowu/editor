@@ -16,7 +16,7 @@ use language::Buffer;
 use language::point_to_lsp;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
-use lsp::request::DocumentLinkResolve;
+use lsp_types::request::DocumentLinkResolve;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use text::Anchor;
@@ -310,14 +310,14 @@ impl LspStore {
         server_id: LanguageServerId,
         cached_link: &LspDocumentLink,
         cx: &mut Context<Self>,
-    ) -> Task<Option<lsp::DocumentLink>> {
+    ) -> Task<Option<lsp_types::DocumentLink>> {
         let snapshot = buffer.read(cx).snapshot();
-        let lsp_link = lsp::DocumentLink {
-            range: lsp::Range {
+        let lsp_link = lsp_types::DocumentLink {
+            range: lsp_types::Range {
                 start: point_to_lsp(cached_link.range.start.to_point_utf16(&snapshot)),
                 end: point_to_lsp(cached_link.range.end.to_point_utf16(&snapshot)),
             },
-            target: cached_link.target.as_ref().and_then(|s| lsp::Uri::from_str(s).ok()),
+            target: cached_link.target.as_ref().and_then(|s| lsp_types::Uri::from_str(s).ok()),
             tooltip: cached_link.tooltip.as_deref().map(str::to_owned),
             data: cached_link.data.clone(),
         };
@@ -346,7 +346,7 @@ impl LspStore {
         buffer_id: BufferId,
         server_id: LanguageServerId,
         link_id: DocumentLinkId,
-        resolved: &lsp::DocumentLink,
+        resolved: &lsp_types::DocumentLink,
     ) -> Option<LspDocumentLink> {
         let document_links = self.lsp_data.get_mut(&buffer_id)?.document_links.as_mut()?;
         let link = document_links.links.get_mut(&server_id)?.get_mut(&link_id)?;
@@ -360,6 +360,6 @@ impl LspStore {
     }
 }
 
-fn can_resolve_link(capabilities: &lsp::ServerCapabilities) -> bool {
+fn can_resolve_link(capabilities: &lsp_types::ServerCapabilities) -> bool {
     capabilities.document_link_provider.as_ref().and_then(|opts| opts.resolve_provider).unwrap_or(false)
 }

@@ -143,16 +143,16 @@ impl DiagnosticEntry<PointUtf16> {
     /// Returns a raw LSP diagnostic used to provide diagnostic context to LSP
     /// codeAction request. `uri` names the file this entry belongs to, which the
     /// related information of that same file is reported against.
-    pub fn to_lsp_diagnostic_stub(&self, uri: &lsp::Uri) -> Result<lsp::Diagnostic> {
+    pub fn to_lsp_diagnostic_stub(&self, uri: &lsp_types::Uri) -> Result<lsp_types::Diagnostic> {
         let range = range_to_lsp(self.range.clone())?;
 
         let related_information = if let Some(information) = &self.related_information {
             let mut locations = Vec::with_capacity(information.len());
             for information in information.iter() {
-                locations.push(lsp::DiagnosticRelatedInformation {
+                locations.push(lsp_types::DiagnosticRelatedInformation {
                     location: match &information.location {
                         RelatedLocation::InBuffer(range) => {
-                            lsp::Location { uri: uri.clone(), range: range_to_lsp(range.clone())? }
+                            lsp_types::Location { uri: uri.clone(), range: range_to_lsp(range.clone())? }
                         }
                         RelatedLocation::InAnotherFile(location) => location.clone(),
                     },
@@ -164,7 +164,7 @@ impl DiagnosticEntry<PointUtf16> {
             None
         };
 
-        Ok(lsp::Diagnostic {
+        Ok(lsp_types::Diagnostic {
             range,
             code: self.diagnostic.code.clone(),
             severity: Some(self.diagnostic.severity),

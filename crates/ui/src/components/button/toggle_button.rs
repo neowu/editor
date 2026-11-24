@@ -33,7 +33,7 @@ use crate::prelude::v_flex;
 
 /// The position of a [`ToggleButton`] within a group of buttons.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct ToggleButtonPosition {
+pub(super) struct ToggleButtonPosition {
     /// The toggle button is one of the leftmost of the group.
     leftmost: bool,
     /// The toggle button is one of the rightmost of the group.

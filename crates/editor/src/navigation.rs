@@ -2013,7 +2013,7 @@ impl Editor {
 
     fn compute_target_location(
         &self,
-        lsp_location: lsp::Location,
+        lsp_location: lsp_types::Location,
         server_id: LanguageServerId,
         window: &Window,
         cx: &Context<Self>,

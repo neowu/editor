@@ -13,6 +13,7 @@ gpui.workspace = true
 itertools.workspace = true
 language.workspace = true
 lsp.workspace = true
+lsp_types.workspace = true
 path.workspace = true
 project.workspace = true
 rustc-hash.workspace = true

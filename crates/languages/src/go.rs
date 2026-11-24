@@ -11,15 +11,22 @@ use async_trait::async_trait;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::Task;
+use language::BufferSnapshot;
+use language::CodeLabel;
 use language::ContextProvider;
+use language::HighlightId;
+use language::Language;
+use language::LspAdapter;
 use language::LspAdapterDelegate;
+use language::ResolvedRunnable;
+use language::RunContext;
+use language::RunnableMatchCapture;
+use language::RunnableResolver;
 use language::language_settings::Formatter;
 use language::language_settings::LanguageSettings;
 use language::language_settings::RewrapBehavior;
 use language::language_settings::SemanticTokenRules;
 use language::language_settings::WordsCompletionMode;
-#[allow(clippy::wildcard_imports)]
-pub(crate) use language::*;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
 use regex::Regex;
@@ -85,7 +92,7 @@ impl LspAdapter for GoLspAdapter {
 
     async fn label_for_completion(
         &self,
-        completion: &lsp::CompletionItem,
+        completion: &lsp_types::CompletionItem,
         language: &Arc<Language>,
     ) -> Option<CodeLabel> {
         let label = &completion.label;
@@ -96,7 +103,7 @@ impl LspAdapter for GoLspAdapter {
         let name_offset = label.rfind('.').unwrap_or(0);
 
         match completion.kind.zip(completion.detail.as_ref()) {
-            Some((lsp::CompletionItemKind::MODULE, detail)) => {
+            Some((lsp_types::CompletionItemKind::MODULE, detail)) => {
                 let text = format!("{label} {detail}");
                 let source = format!("import {text}");
                 let runs = language.highlight_text(source.as_str(), 7..7 + text[name_offset..].len()).collect();
@@ -107,7 +114,7 @@ impl LspAdapter for GoLspAdapter {
                     .unwrap_or(0..label.len());
                 return Some(CodeLabel::new(text, filter_range, runs));
             }
-            Some((lsp::CompletionItemKind::CONSTANT | lsp::CompletionItemKind::VARIABLE, detail)) => {
+            Some((lsp_types::CompletionItemKind::CONSTANT | lsp_types::CompletionItemKind::VARIABLE, detail)) => {
                 let text = format!("{label} {detail}");
                 let source = format!("var {} {}", &text[name_offset..], detail);
                 let runs = adjust_runs(
@@ -121,7 +128,7 @@ impl LspAdapter for GoLspAdapter {
                     .unwrap_or(0..label.len());
                 return Some(CodeLabel::new(text, filter_range, runs));
             }
-            Some((lsp::CompletionItemKind::STRUCT, _)) => {
+            Some((lsp_types::CompletionItemKind::STRUCT, _)) => {
                 let text = format!("{label} struct {{}}");
                 let source = format!("type {}", &text[name_offset..]);
                 let runs = adjust_runs(
@@ -135,7 +142,7 @@ impl LspAdapter for GoLspAdapter {
                     .unwrap_or(0..label.len());
                 return Some(CodeLabel::new(text, filter_range, runs));
             }
-            Some((lsp::CompletionItemKind::INTERFACE, _)) => {
+            Some((lsp_types::CompletionItemKind::INTERFACE, _)) => {
                 let text = format!("{label} interface {{}}");
                 let source = format!("type {}", &text[name_offset..]);
                 let runs = adjust_runs(
@@ -149,7 +156,7 @@ impl LspAdapter for GoLspAdapter {
                     .unwrap_or(0..label.len());
                 return Some(CodeLabel::new(text, filter_range, runs));
             }
-            Some((lsp::CompletionItemKind::FIELD, detail)) => {
+            Some((lsp_types::CompletionItemKind::FIELD, detail)) => {
                 let text = format!("{label} {detail}");
                 let source = format!("type T struct {{ {} }}", &text[name_offset..]);
                 let runs = adjust_runs(
@@ -163,7 +170,7 @@ impl LspAdapter for GoLspAdapter {
                     .unwrap_or(0..label.len());
                 return Some(CodeLabel::new(text, filter_range, runs));
             }
-            Some((lsp::CompletionItemKind::FUNCTION | lsp::CompletionItemKind::METHOD, detail)) => {
+            Some((lsp_types::CompletionItemKind::FUNCTION | lsp_types::CompletionItemKind::METHOD, detail)) => {
                 if let Some(signature) = detail.strip_prefix("func") {
                     let text = format!("{label}{signature}");
                     let source = format!("func {} {{}}", &text[name_offset..]);

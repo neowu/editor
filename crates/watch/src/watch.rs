@@ -42,8 +42,8 @@ use std::task::Context;
 use std::task::Poll;
 use std::task::Waker;
 
-#[allow(clippy::wildcard_imports)]
-pub use error::*;
+pub use error::NoReceiverError;
+pub use error::NoSenderError;
 use parking_lot::RwLock;
 use parking_lot::RwLockReadGuard;
 use parking_lot::RwLockUpgradableReadGuard;

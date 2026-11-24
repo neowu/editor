@@ -29,10 +29,10 @@ use language::PointUtf16;
 use language::ToOffset as _;
 use language::Transaction;
 use language::language_settings::COMPLETIONS;
-use lsp::CompletionContext;
-use lsp::CompletionTriggerKind;
 use lsp::LSP_REQUEST_TIMEOUT;
-use lsp::request::ResolveCompletionItem;
+use lsp_types::CompletionContext;
+use lsp_types::CompletionTriggerKind;
+use lsp_types::request::ResolveCompletionItem;
 use rustc_hash::FxHashSet;
 use text::LineEnding;
 use util::ResultExt as _;
@@ -149,10 +149,10 @@ pub enum CompletionDocumentation {
     SingleLineAndMultiLinePlainText { single_line: SharedString, plain_text: Option<SharedString> },
 }
 
-impl From<lsp::Documentation> for CompletionDocumentation {
-    fn from(docs: lsp::Documentation) -> Self {
+impl From<lsp_types::Documentation> for CompletionDocumentation {
+    fn from(docs: lsp_types::Documentation) -> Self {
         match docs {
-            lsp::Documentation::String(text) => {
+            lsp_types::Documentation::String(text) => {
                 if text.lines().count() <= 1 {
                     CompletionDocumentation::SingleLine(text.trim().to_owned().into())
                 } else {
@@ -160,8 +160,8 @@ impl From<lsp::Documentation> for CompletionDocumentation {
                 }
             }
 
-            lsp::Documentation::MarkupContent(lsp::MarkupContent { kind, value }) => match kind {
-                lsp::MarkupKind::PlainText => {
+            lsp_types::Documentation::MarkupContent(lsp_types::MarkupContent { kind, value }) => match kind {
+                lsp_types::MarkupKind::PlainText => {
                     if value.lines().count() <= 1 {
                         CompletionDocumentation::SingleLine(value.into())
                     } else {
@@ -169,7 +169,7 @@ impl From<lsp::Documentation> for CompletionDocumentation {
                     }
                 }
 
-                lsp::MarkupKind::Markdown => CompletionDocumentation::MultiLineMarkdown(value.into()),
+                lsp_types::MarkupKind::Markdown => CompletionDocumentation::MultiLineMarkdown(value.into()),
             },
         }
     }
@@ -539,8 +539,8 @@ impl LspStore {
                 .text_edit
                 .as_ref()
                 .map(|edit| match edit {
-                    lsp::CompletionTextEdit::Edit(e) => e.new_text.clone(),
-                    lsp::CompletionTextEdit::InsertAndReplace(e) => e.new_text.clone(),
+                    lsp_types::CompletionTextEdit::Edit(e) => e.new_text.clone(),
+                    lsp_types::CompletionTextEdit::InsertAndReplace(e) => e.new_text.clone(),
                 })
                 .or_else(|| lsp_completion.insert_text.clone());
             if let Some(mut resolved_new_text) = resolved_new_text {

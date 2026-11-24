@@ -17,8 +17,14 @@ pub use gpui::SharedString;
 pub use gpui::Styled;
 pub use gpui::Window;
 pub use gpui::div;
-#[allow(clippy::wildcard_imports)]
-pub use gpui::prelude::*;
+pub use gpui::prelude::BorrowAppContext;
+pub use gpui::prelude::FluentBuilder;
+pub use gpui::prelude::IntoElement;
+pub use gpui::prelude::Refineable;
+pub use gpui::prelude::Render;
+pub use gpui::prelude::StatefulInteractiveElement;
+pub use gpui::prelude::StyledImage;
+pub use gpui::prelude::VisualContext;
 pub use gpui::px;
 pub use gpui::relative;
 pub use gpui::rems;
@@ -50,16 +56,11 @@ pub use crate::styles::StyledTypography;
 pub use crate::styles::TextSize;
 pub use crate::styles::rems_from_px;
 pub use crate::styles::vh;
-#[allow(clippy::wildcard_imports)]
-pub use crate::traits::clickable::*;
-#[allow(clippy::wildcard_imports)]
-pub use crate::traits::disableable::*;
-#[allow(clippy::wildcard_imports)]
-pub use crate::traits::fixed::*;
-#[allow(clippy::wildcard_imports)]
-pub use crate::traits::styled_ext::*;
-#[allow(clippy::wildcard_imports)]
-pub use crate::traits::toggleable::*;
-#[allow(clippy::wildcard_imports)]
-pub use crate::traits::visible_on_hover::*;
+pub use crate::traits::clickable::Clickable;
+pub use crate::traits::disableable::Disableable;
+pub use crate::traits::fixed::FixedWidth;
+pub use crate::traits::styled_ext::StyledExt;
+pub use crate::traits::toggleable::ToggleState;
+pub use crate::traits::toggleable::Toggleable;
+pub use crate::traits::visible_on_hover::VisibleOnHover;
 pub use crate::v_flex;

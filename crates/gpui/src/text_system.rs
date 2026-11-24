@@ -27,12 +27,23 @@ use derive_more::FromStr;
 use derive_more::Sub;
 pub use font_features::FontFeatures;
 use itertools::Itertools as _;
-#[allow(clippy::wildcard_imports)]
-pub use line::*;
-#[allow(clippy::wildcard_imports)]
-pub use line_layout::*;
-#[allow(clippy::wildcard_imports)]
-pub use line_wrapper::*;
+pub use line::DecorationRun;
+pub use line::ShapedLine;
+pub use line::WrappedLine;
+pub use line_layout::FontRun;
+pub use line_layout::LineLayout;
+pub(crate) use line_layout::LineLayoutCache;
+pub(crate) use line_layout::LineLayoutIndex;
+pub use line_layout::ShapedGlyph;
+pub use line_layout::ShapedRun;
+pub use line_layout::WrapBoundary;
+pub use line_layout::WrappedLineLayout;
+pub use line_wrapper::Boundary;
+pub(crate) use line_wrapper::CharWidthCache;
+pub use line_wrapper::IndentAdjustment;
+pub use line_wrapper::LineFragment;
+pub use line_wrapper::LineWrapper;
+pub use line_wrapper::TruncateFrom;
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 use parking_lot::RwLockUpgradableReadGuard;

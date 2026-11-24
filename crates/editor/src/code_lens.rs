@@ -71,7 +71,7 @@ fn try_show_references(
     if arguments.len() < 3 {
         return false;
     }
-    let Ok(locations) = serde_json::from_value::<Vec<lsp::Location>>(arguments[2].clone()) else {
+    let Ok(locations) = serde_json::from_value::<Vec<lsp_types::Location>>(arguments[2].clone()) else {
         return false;
     };
     if locations.is_empty() {

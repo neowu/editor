@@ -9,13 +9,13 @@ pub enum DiagnosticSeverity {
 }
 
 impl DiagnosticSeverity {
-    pub const fn into_lsp(self) -> Option<lsp::DiagnosticSeverity> {
+    pub const fn into_lsp(self) -> Option<lsp_types::DiagnosticSeverity> {
         match self {
             DiagnosticSeverity::Off => None,
-            DiagnosticSeverity::Error => Some(lsp::DiagnosticSeverity::ERROR),
-            DiagnosticSeverity::Warning => Some(lsp::DiagnosticSeverity::WARNING),
-            DiagnosticSeverity::Info => Some(lsp::DiagnosticSeverity::INFORMATION),
-            DiagnosticSeverity::Hint => Some(lsp::DiagnosticSeverity::HINT),
+            DiagnosticSeverity::Error => Some(lsp_types::DiagnosticSeverity::ERROR),
+            DiagnosticSeverity::Warning => Some(lsp_types::DiagnosticSeverity::WARNING),
+            DiagnosticSeverity::Info => Some(lsp_types::DiagnosticSeverity::INFORMATION),
+            DiagnosticSeverity::Hint => Some(lsp_types::DiagnosticSeverity::HINT),
         }
     }
 }
@@ -33,13 +33,13 @@ pub enum GoToDiagnosticSeverity {
     Hint = 0,
 }
 
-impl From<lsp::DiagnosticSeverity> for GoToDiagnosticSeverity {
-    fn from(severity: lsp::DiagnosticSeverity) -> Self {
+impl From<lsp_types::DiagnosticSeverity> for GoToDiagnosticSeverity {
+    fn from(severity: lsp_types::DiagnosticSeverity) -> Self {
         match severity {
-            lsp::DiagnosticSeverity::ERROR => Self::Error,
-            lsp::DiagnosticSeverity::WARNING => Self::Warning,
-            lsp::DiagnosticSeverity::INFORMATION => Self::Information,
-            lsp::DiagnosticSeverity::HINT => Self::Hint,
+            lsp_types::DiagnosticSeverity::ERROR => Self::Error,
+            lsp_types::DiagnosticSeverity::WARNING => Self::Warning,
+            lsp_types::DiagnosticSeverity::INFORMATION => Self::Information,
+            lsp_types::DiagnosticSeverity::HINT => Self::Hint,
             _ => Self::Error,
         }
     }
@@ -77,7 +77,7 @@ impl Default for GoToDiagnosticSeverityFilter {
 }
 
 impl GoToDiagnosticSeverityFilter {
-    pub fn matches(&self, severity: lsp::DiagnosticSeverity) -> bool {
+    pub fn matches(&self, severity: lsp_types::DiagnosticSeverity) -> bool {
         let severity: GoToDiagnosticSeverity = severity.into();
         match self {
             Self::Only(target) => *target == severity,

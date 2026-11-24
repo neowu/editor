@@ -170,7 +170,7 @@ impl Element for Anchored {
 
         let edges = match self.fit_mode {
             AnchoredFitMode::SnapToWindowWithMargin(edges) => edges,
-            _ => Edges::default(),
+            AnchoredFitMode::SwitchAnchor => Edges::default(),
         };
 
         // Snap the horizontal edges of the anchored element to the horizontal edges of the window if
@@ -226,9 +226,7 @@ impl IntoElement for Anchored {
 
 /// Which algorithm to use when fitting the anchored element to be inside the window.
 #[derive(Copy, Clone, PartialEq, Eq)]
-pub enum AnchoredFitMode {
-    /// Snap the anchored element to the window edge.
-    SnapToWindow,
+pub(super) enum AnchoredFitMode {
     /// Snap to window edge and leave some margins.
     SnapToWindowWithMargin(Edges<Pixels>),
     /// Switch which corner anchor this anchored element is attached to.

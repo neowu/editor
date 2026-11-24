@@ -17,7 +17,7 @@ use crate::BufferRow;
 
 pub type RowChunkId = usize;
 
-/// An range of rows, exclusive as [`lsp::Range`] and
+/// An range of rows, exclusive as [`lsp_types::Range`] and
 /// <https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#range>
 /// denote.
 ///

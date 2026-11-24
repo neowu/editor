@@ -371,11 +371,11 @@ impl SpellCheckActions {
         CodeAction {
             server_id: LanguageServerId(usize::MAX),
             range,
-            lsp_action: LspAction::Action(Box::new(lsp::CodeAction {
+            lsp_action: LspAction::Action(Box::new(lsp_types::CodeAction {
                 title,
-                kind: Some(lsp::CodeActionKind::QUICKFIX),
+                kind: Some(lsp_types::CodeActionKind::QUICKFIX),
                 data: Some(data),
-                ..lsp::CodeAction::default()
+                ..lsp_types::CodeAction::default()
             })),
             resolved: true,
         }

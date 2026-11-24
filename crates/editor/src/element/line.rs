@@ -45,7 +45,7 @@ use crate::scroll::ScrollPixelOffset;
 pub(crate) struct LineWithInvisibles {
     pub(super) fragments: SmallVec<[LineFragment; 1]>,
     pub(super) invisibles: Vec<Invisible>,
-    pub(super) diagnostic_underline_severity_ranges: Vec<(Range<usize>, lsp::DiagnosticSeverity)>,
+    pub(super) diagnostic_underline_severity_ranges: Vec<(Range<usize>, lsp_types::DiagnosticSeverity)>,
     pub(super) point_diagnostics: Vec<PointDiagnostic>,
     pub(super) len: usize,
     pub(crate) width: Pixels,

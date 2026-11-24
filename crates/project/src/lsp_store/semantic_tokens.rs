@@ -44,7 +44,7 @@ use crate::lsp_store::missing_servers_to_query;
 type StylizerKey = (LanguageServerId, LanguageName);
 
 pub(super) struct SemanticTokenConfig {
-    stylizers: FxHashMap<StylizerKey, (lsp::SemanticTokensLegend, SemanticTokenStylizer)>,
+    stylizers: FxHashMap<StylizerKey, (lsp_types::SemanticTokensLegend, SemanticTokenStylizer)>,
 }
 
 impl SemanticTokenConfig {
@@ -316,7 +316,7 @@ impl LspStore {
         &self,
         server_id: LanguageServerId,
         language: &LanguageName,
-    ) -> Option<&lsp::SemanticTokensLegend> {
+    ) -> Option<&lsp_types::SemanticTokensLegend> {
         let local = &self.local;
         if let Some(LanguageServerState::Running { adapter, .. }) = local.language_servers.get(&server_id) {
             let context = document_selector_context_for_language(language, adapter);
@@ -348,11 +348,11 @@ impl LspStore {
 }
 
 const fn semantic_tokens_provider_legend(
-    provider: &lsp::SemanticTokensServerCapabilities,
-) -> &lsp::SemanticTokensLegend {
+    provider: &lsp_types::SemanticTokensServerCapabilities,
+) -> &lsp_types::SemanticTokensLegend {
     match provider {
-        lsp::SemanticTokensServerCapabilities::SemanticTokensOptions(options) => &options.legend,
-        lsp::SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(options) => {
+        lsp_types::SemanticTokensServerCapabilities::SemanticTokensOptions(options) => &options.legend,
+        lsp_types::SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(options) => {
             &options.semantic_tokens_options.legend
         }
     }
@@ -388,7 +388,7 @@ pub struct SemanticTokenStylizer {
 impl SemanticTokenStylizer {
     pub fn new(
         server_id: LanguageServerId,
-        legend: &lsp::SemanticTokensLegend,
+        legend: &lsp_types::SemanticTokensLegend,
         language_rules: &SemanticTokenRules,
     ) -> Self {
         let token_types: FxHashMap<TokenType, SharedString> = legend
@@ -637,7 +637,7 @@ mod tests {
 
     #[test]
     fn stylizer_uses_only_language_rules_with_earlier_rules_first() {
-        let legend = lsp::SemanticTokensLegend {
+        let legend = lsp_types::SemanticTokensLegend {
             token_types: vec!["function".into(), "struct".into()],
             token_modifiers: Vec::new(),
         };

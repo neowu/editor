@@ -4,11 +4,19 @@ use std::sync::Arc;
 
 use futures::FutureExt as _;
 use gpui::App;
+use language::ContextProvider;
+use language::Language;
+use language::LanguageConfig;
+use language::LanguageQueries;
+use language::LanguageRegistry;
+use language::LoadedLanguage;
+use language::LspAdapter;
+use language::ManifestName;
+use language::ManifestProvider;
+use language::PLAIN_TEXT;
 use language::language_settings::AllLanguageSettings;
 use language::language_settings::LanguageSettings;
 use language::language_settings::SemanticTokenRules;
-#[allow(clippy::wildcard_imports)]
-pub use language::*;
 use language_core::QueryFile;
 use language_core::QueryFileContents;
 use project::Fs;

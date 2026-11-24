@@ -8,7 +8,7 @@ use language::LanguageName;
 use lsp::AdapterServerCapabilities;
 use lsp::LanguageServer;
 use lsp::LanguageServerId;
-use lsp::request::Request;
+use lsp_types::request::Request;
 use rustc_hash::FxHashSet;
 
 use super::LanguageServerState;
@@ -39,7 +39,7 @@ pub(super) fn document_selector_context_for_language(
 }
 
 pub(super) fn document_selector_matches(
-    document_selector: Option<&lsp::DocumentSelector>,
+    document_selector: Option<&lsp_types::DocumentSelector>,
     context: &DocumentSelectorContext,
 ) -> bool {
     let Some(document_selector) = document_selector else {
@@ -148,7 +148,7 @@ pub(super) fn completion_trigger_characters_for_buffer(
     adapter: &CachedLspAdapter,
     buffer: &Buffer,
 ) -> BTreeSet<String> {
-    fn extend_triggers(triggers: &mut BTreeSet<String>, options: &lsp::CompletionOptions) {
+    fn extend_triggers(triggers: &mut BTreeSet<String>, options: &lsp_types::CompletionOptions) {
         if let Some(characters) = &options.trigger_characters {
             triggers.extend(characters.iter().cloned());
         }
@@ -178,11 +178,11 @@ pub(super) fn completion_trigger_characters_for_buffer(
     triggers
 }
 
-pub(super) fn lsp_ranges_conflict(a: &lsp::Range, b: &lsp::Range) -> bool {
+pub(super) fn lsp_ranges_conflict(a: &lsp_types::Range, b: &lsp_types::Range) -> bool {
     if a.start == a.end || b.start == b.end { a.start <= b.end && b.start <= a.end } else { lsp_ranges_overlap(a, b) }
 }
 
-pub(super) fn lsp_ranges_overlap(a: &lsp::Range, b: &lsp::Range) -> bool {
+pub(super) fn lsp_ranges_overlap(a: &lsp_types::Range, b: &lsp_types::Range) -> bool {
     a.start < b.end && b.start < a.end
 }
 

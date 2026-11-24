@@ -41,8 +41,62 @@ use anyhow::Context as _;
 use anyhow::Result;
 use async_trait::async_trait;
 pub use available_languages::AvailableLanguage;
-#[allow(clippy::wildcard_imports)]
-pub use buffer::*;
+pub use buffer::Anchor;
+pub use buffer::AutoIndentExclusion;
+pub use buffer::AutoindentMode;
+pub use buffer::Bias;
+pub use buffer::BracketMatch;
+pub use buffer::Buffer;
+pub use buffer::BufferChunks;
+pub use buffer::BufferEvent;
+pub use buffer::BufferId;
+pub use buffer::BufferRow;
+pub use buffer::BufferSnapshot;
+pub use buffer::Capability;
+pub use buffer::CharClassifier;
+pub use buffer::CharKind;
+pub use buffer::CharScopeContext;
+pub use buffer::Chunk;
+pub use buffer::CursorShape;
+pub use buffer::DiagnosticSet;
+pub use buffer::DiagnosticSeverity;
+pub use buffer::Diff;
+pub use buffer::DiskState;
+pub use buffer::Edit;
+pub use buffer::EditedBufferSnapshot;
+pub use buffer::File;
+pub use buffer::HighlightedText;
+pub use buffer::HighlightedTextBuilder;
+pub use buffer::IndentKind;
+pub use buffer::IndentSize;
+pub use buffer::LanguageAwareStyling;
+pub use buffer::LineIndent;
+pub use buffer::LocalFile;
+pub use buffer::OffsetRangeExt;
+pub use buffer::OffsetUtf16;
+pub use buffer::ParseStatus;
+pub use buffer::Patch;
+pub use buffer::Point;
+pub use buffer::PointUtf16;
+pub use buffer::Rope;
+pub use buffer::Runnable;
+pub use buffer::Selection;
+pub use buffer::SelectionGoal;
+pub use buffer::Subscription;
+pub use buffer::TextBuffer;
+pub use buffer::TextBufferSnapshot;
+pub use buffer::TextDimension;
+pub use buffer::TextSummary;
+pub use buffer::ToOffset;
+pub use buffer::ToOffsetUtf16;
+pub use buffer::ToPoint;
+pub use buffer::ToPointUtf16;
+pub use buffer::Transaction;
+pub use buffer::TransactionId;
+pub use buffer::TreeSitterData;
+pub use buffer::Unclipped;
+pub use buffer::WordsQuery;
+pub use buffer::row_chunk;
 pub use diagnostic::Diagnostic;
 pub use diagnostic::DiagnosticMessage;
 pub use diagnostic::DiagnosticSourceKind;
@@ -109,19 +163,20 @@ pub use language_registry::QueryFiles;
 pub use language_registry::ServerHealth;
 pub use library::LibraryProvider;
 pub use library::LibraryRoot;
-use lsp::CodeActionKind;
-use lsp::InitializeParams;
 use lsp::LanguageServerBinary;
 pub use lsp::LanguageServerId;
 pub use lsp::LanguageServerName;
-use lsp::Uri;
 pub use lsp_adapter_delegate::LspAdapterDelegate;
+use lsp_types::CodeActionKind;
+use lsp_types::InitializeParams;
+use lsp_types::Uri;
 pub use manifest::ManifestDelegate;
 pub use manifest::ManifestName;
 pub use manifest::ManifestProvider;
 pub use manifest::ManifestQuery;
-#[allow(clippy::wildcard_imports)]
-pub use outline::*;
+pub use outline::Outline;
+pub use outline::OutlineItem;
+pub use outline::highlight_ranges_from_text;
 use parking_lot::Mutex;
 use regex::Regex;
 pub use runnable::ResolvedRunnable;
@@ -244,34 +299,34 @@ pub static PLAIN_TEXT: LazyLock<Arc<Language>> = LazyLock::new(|| {
     ))
 });
 
-pub const fn lsp_to_symbol_kind(kind: lsp::SymbolKind) -> SymbolKind {
+pub const fn lsp_to_symbol_kind(kind: lsp_types::SymbolKind) -> SymbolKind {
     match kind {
-        lsp::SymbolKind::FILE => SymbolKind::File,
-        lsp::SymbolKind::MODULE => SymbolKind::Module,
-        lsp::SymbolKind::NAMESPACE => SymbolKind::Namespace,
-        lsp::SymbolKind::PACKAGE => SymbolKind::Package,
-        lsp::SymbolKind::CLASS => SymbolKind::Class,
-        lsp::SymbolKind::METHOD => SymbolKind::Method,
-        lsp::SymbolKind::PROPERTY => SymbolKind::Property,
-        lsp::SymbolKind::FIELD => SymbolKind::Field,
-        lsp::SymbolKind::CONSTRUCTOR => SymbolKind::Constructor,
-        lsp::SymbolKind::ENUM => SymbolKind::Enum,
-        lsp::SymbolKind::INTERFACE => SymbolKind::Interface,
-        lsp::SymbolKind::FUNCTION => SymbolKind::Function,
-        lsp::SymbolKind::VARIABLE => SymbolKind::Variable,
-        lsp::SymbolKind::CONSTANT => SymbolKind::Constant,
-        lsp::SymbolKind::STRING => SymbolKind::String,
-        lsp::SymbolKind::NUMBER => SymbolKind::Number,
-        lsp::SymbolKind::BOOLEAN => SymbolKind::Boolean,
-        lsp::SymbolKind::ARRAY => SymbolKind::Array,
-        lsp::SymbolKind::OBJECT => SymbolKind::Object,
-        lsp::SymbolKind::KEY => SymbolKind::Key,
-        lsp::SymbolKind::NULL => SymbolKind::Null,
-        lsp::SymbolKind::ENUM_MEMBER => SymbolKind::EnumMember,
-        lsp::SymbolKind::STRUCT => SymbolKind::Struct,
-        lsp::SymbolKind::EVENT => SymbolKind::Event,
-        lsp::SymbolKind::OPERATOR => SymbolKind::Operator,
-        lsp::SymbolKind::TYPE_PARAMETER => SymbolKind::TypeParameter,
+        lsp_types::SymbolKind::FILE => SymbolKind::File,
+        lsp_types::SymbolKind::MODULE => SymbolKind::Module,
+        lsp_types::SymbolKind::NAMESPACE => SymbolKind::Namespace,
+        lsp_types::SymbolKind::PACKAGE => SymbolKind::Package,
+        lsp_types::SymbolKind::CLASS => SymbolKind::Class,
+        lsp_types::SymbolKind::METHOD => SymbolKind::Method,
+        lsp_types::SymbolKind::PROPERTY => SymbolKind::Property,
+        lsp_types::SymbolKind::FIELD => SymbolKind::Field,
+        lsp_types::SymbolKind::CONSTRUCTOR => SymbolKind::Constructor,
+        lsp_types::SymbolKind::ENUM => SymbolKind::Enum,
+        lsp_types::SymbolKind::INTERFACE => SymbolKind::Interface,
+        lsp_types::SymbolKind::FUNCTION => SymbolKind::Function,
+        lsp_types::SymbolKind::VARIABLE => SymbolKind::Variable,
+        lsp_types::SymbolKind::CONSTANT => SymbolKind::Constant,
+        lsp_types::SymbolKind::STRING => SymbolKind::String,
+        lsp_types::SymbolKind::NUMBER => SymbolKind::Number,
+        lsp_types::SymbolKind::BOOLEAN => SymbolKind::Boolean,
+        lsp_types::SymbolKind::ARRAY => SymbolKind::Array,
+        lsp_types::SymbolKind::OBJECT => SymbolKind::Object,
+        lsp_types::SymbolKind::KEY => SymbolKind::Key,
+        lsp_types::SymbolKind::NULL => SymbolKind::Null,
+        lsp_types::SymbolKind::ENUM_MEMBER => SymbolKind::EnumMember,
+        lsp_types::SymbolKind::STRUCT => SymbolKind::Struct,
+        lsp_types::SymbolKind::EVENT => SymbolKind::Event,
+        lsp_types::SymbolKind::OPERATOR => SymbolKind::Operator,
+        lsp_types::SymbolKind::TYPE_PARAMETER => SymbolKind::TypeParameter,
         _ => SymbolKind::Null,
     }
 }
@@ -299,7 +354,7 @@ pub struct PromptResponseContext {
     /// The original message shown to the user.
     pub message: String,
     /// The action (button) the user selected.
-    pub selected_action: lsp::MessageActionItem,
+    pub selected_action: lsp_types::MessageActionItem,
 }
 
 /// Represents a Language Server, with certain cached sync properties.
@@ -352,7 +407,7 @@ impl CachedLspAdapter {
         self.adapter.code_action_kinds()
     }
 
-    pub fn process_diagnostics(&self, params: &mut lsp::PublishDiagnosticsParams, server_id: LanguageServerId) {
+    pub fn process_diagnostics(&self, params: &mut lsp_types::PublishDiagnosticsParams, server_id: LanguageServerId) {
         self.adapter.process_diagnostics(params, server_id);
     }
 
@@ -360,13 +415,13 @@ impl CachedLspAdapter {
         self.adapter.diagnostic_message_to_markdown(message)
     }
 
-    pub async fn process_completions(&self, completion_items: &mut [lsp::CompletionItem]) {
+    pub async fn process_completions(&self, completion_items: &mut [lsp_types::CompletionItem]) {
         self.adapter.process_completions(completion_items).await;
     }
 
     pub async fn labels_for_completions(
         &self,
-        completion_items: &[lsp::CompletionItem],
+        completion_items: &[lsp_types::CompletionItem],
         language: &Arc<Language>,
     ) -> Result<Vec<Option<CodeLabel>>> {
         Arc::clone(&self.adapter).labels_for_completions(completion_items, language).await
@@ -438,10 +493,10 @@ pub trait LspAdapter: 'static + Send + Sync {
         })
     }
 
-    fn process_diagnostics(&self, _: &mut lsp::PublishDiagnosticsParams, _: LanguageServerId) {}
+    fn process_diagnostics(&self, _: &mut lsp_types::PublishDiagnosticsParams, _: LanguageServerId) {}
 
     /// Post-processes completions provided by the language server.
-    async fn process_completions(&self, _: &mut [lsp::CompletionItem]) {}
+    async fn process_completions(&self, _: &mut [lsp_types::CompletionItem]) {}
 
     fn diagnostic_message_to_markdown(&self, _message: &str) -> Option<String> {
         None
@@ -456,7 +511,7 @@ pub trait LspAdapter: 'static + Send + Sync {
 
     async fn labels_for_completions(
         self: Arc<Self>,
-        completions: &[lsp::CompletionItem],
+        completions: &[lsp_types::CompletionItem],
         language: &Arc<Language>,
     ) -> Result<Vec<Option<CodeLabel>>> {
         let mut labels = Vec::new();
@@ -470,7 +525,7 @@ pub trait LspAdapter: 'static + Send + Sync {
         Ok(labels)
     }
 
-    async fn label_for_completion(&self, _: &lsp::CompletionItem, _: &Arc<Language>) -> Option<CodeLabel> {
+    async fn label_for_completion(&self, _: &lsp_types::CompletionItem, _: &Arc<Language>) -> Option<CodeLabel> {
         None
     }
 
@@ -494,7 +549,7 @@ pub trait LspAdapter: 'static + Send + Sync {
         None
     }
 
-    /// Returns initialization options that are going to be sent to a LSP server as a part of [`lsp::InitializeParams`]
+    /// Returns initialization options that are going to be sent to a LSP server as a part of [`lsp_types::InitializeParams`]
     async fn initialization_options(
         self: Arc<Self>,
         _: &Arc<LspAdapterDelegate>,
@@ -1036,14 +1091,14 @@ pub(crate) fn parse_text(grammar: &Grammar, text: &Rope, old_tree: Option<Tree>)
 }
 
 pub trait CodeLabelExt {
-    fn fallback_for_completion(item: &lsp::CompletionItem, language: Option<&Language>) -> CodeLabel;
+    fn fallback_for_completion(item: &lsp_types::CompletionItem, language: Option<&Language>) -> CodeLabel;
 }
 
 impl CodeLabelExt for CodeLabel {
-    fn fallback_for_completion(item: &lsp::CompletionItem, language: Option<&Language>) -> CodeLabel {
+    fn fallback_for_completion(item: &lsp_types::CompletionItem, language: Option<&Language>) -> CodeLabel {
         let highlight_id = item.kind.and_then(|kind| {
             let grammar = language?.grammar()?;
-            use lsp::CompletionItemKind as Kind;
+            use lsp_types::CompletionItemKind as Kind;
             match kind {
                 Kind::CLASS => grammar.highlight_id_for_name("type"),
                 Kind::CONSTANT => grammar.highlight_id_for_name("constant"),
@@ -1091,25 +1146,25 @@ impl CodeLabelExt for CodeLabel {
     }
 }
 
-pub const fn point_to_lsp(point: PointUtf16) -> lsp::Position {
-    lsp::Position::new(point.row, point.column)
+pub const fn point_to_lsp(point: PointUtf16) -> lsp_types::Position {
+    lsp_types::Position::new(point.row, point.column)
 }
 
-pub const fn point_from_lsp(point: lsp::Position) -> Unclipped<PointUtf16> {
+pub const fn point_from_lsp(point: lsp_types::Position) -> Unclipped<PointUtf16> {
     Unclipped(PointUtf16::new(point.line, point.character))
 }
 
-pub fn range_to_lsp(range: Range<PointUtf16>) -> Result<lsp::Range> {
+pub fn range_to_lsp(range: Range<PointUtf16>) -> Result<lsp_types::Range> {
     anyhow::ensure!(
         range.start <= range.end,
         "Inverted range provided to an LSP request: {:?}-{:?}",
         range.start,
         range.end
     );
-    Ok(lsp::Range { start: point_to_lsp(range.start), end: point_to_lsp(range.end) })
+    Ok(lsp_types::Range { start: point_to_lsp(range.start), end: point_to_lsp(range.end) })
 }
 
-pub fn range_from_lsp(range: lsp::Range) -> Range<Unclipped<PointUtf16>> {
+pub fn range_from_lsp(range: lsp_types::Range) -> Range<Unclipped<PointUtf16>> {
     let mut start = point_from_lsp(range.start);
     let mut end = point_from_lsp(range.end);
     if start > end {

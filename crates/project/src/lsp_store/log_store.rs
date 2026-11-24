@@ -24,9 +24,9 @@ use lsp::LanguageServer;
 use lsp::LanguageServerId;
 use lsp::LanguageServerName;
 use lsp::LanguageServerSelector;
-use lsp::MessageType;
 use lsp::RequestId;
-use lsp::TraceValue;
+use lsp_types::MessageType;
+use lsp_types::TraceValue;
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
 

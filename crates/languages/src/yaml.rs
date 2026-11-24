@@ -14,7 +14,7 @@ use language::language_settings::WordsCompletionMode;
 use language::language_settings::all_language_settings;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
-use lsp::Uri;
+use lsp_types::Uri;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
 

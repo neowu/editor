@@ -37,7 +37,7 @@ pub enum KnockoutIconName {
 
 impl KnockoutIconName {
     /// Returns the path to this icon.
-    pub fn path(&self) -> Arc<str> {
+    pub fn path(self) -> Arc<str> {
         let file_stem: &'static str = self.into();
         format!("icons/knockouts/{file_stem}.svg").into()
     }

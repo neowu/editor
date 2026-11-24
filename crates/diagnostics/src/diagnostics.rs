@@ -373,7 +373,7 @@ impl ProjectDiagnosticsEditor {
         let buffer_snapshot = buffer.read(cx).snapshot();
         let buffer_id = buffer_snapshot.buffer_id();
 
-        let max_severity = lsp::DiagnosticSeverity::WARNING;
+        let max_severity = lsp_types::DiagnosticSeverity::WARNING;
 
         cx.spawn_in(window, async move |this, cx| {
             let diagnostics = buffer_snapshot

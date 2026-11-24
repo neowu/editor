@@ -30,14 +30,19 @@ use std::time::Instant;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-#[allow(clippy::wildcard_imports)]
-pub use async_context::*;
-#[allow(clippy::wildcard_imports)]
-pub use context::*;
+pub use async_context::AsyncApp;
+pub use async_context::AsyncWindowContext;
+pub use context::Context;
 use derive_more::Deref;
 use derive_more::DerefMut;
-#[allow(clippy::wildcard_imports)]
-pub use entity_map::*;
+pub use entity_map::AnyEntity;
+pub use entity_map::AnyWeakEntity;
+pub use entity_map::Entity;
+pub use entity_map::EntityId;
+pub(crate) use entity_map::EntityMap;
+pub(crate) use entity_map::Lease;
+pub(crate) use entity_map::Slot;
+pub use entity_map::WeakEntity;
 use futures::Future;
 use futures::FutureExt as _;
 use futures::channel::oneshot;

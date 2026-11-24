@@ -91,8 +91,7 @@ use workspace::item::ProjectItem;
 use workspace::item::SerializableItem;
 use workspace::item::TabContentParams;
 
-#[allow(clippy::wildcard_imports)]
-pub use crate::image_info::*;
+pub use crate::image_info::ImageInfo;
 
 actions!(
     image_viewer,

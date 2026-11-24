@@ -51,7 +51,7 @@ use crate::decode_webp_image;
 use crate::px;
 
 /// The delay before showing the loading state.
-pub const LOADING_DELAY: Duration = Duration::from_millis(200);
+pub(super) const LOADING_DELAY: Duration = Duration::from_millis(200);
 
 /// A type alias to the resource loader that the `img()` element uses.
 ///

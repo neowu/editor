@@ -7,8 +7,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-#[allow(clippy::wildcard_imports)]
-pub use decorated_icon::*;
+pub use decorated_icon::DecoratedIcon;
 use gpui::AnimationElement;
 use gpui::Hsla;
 use gpui::ImgResourceLoader;
@@ -18,10 +17,9 @@ use gpui::Resource;
 use gpui::Transformation;
 use gpui::img;
 use gpui::svg;
-#[allow(clippy::wildcard_imports)]
-pub use icon_decoration::*;
-#[allow(clippy::wildcard_imports)]
-pub use icons::*;
+pub use icon_decoration::IconDecoration;
+pub use icon_decoration::IconDecorationKind;
+pub use icons::IconName;
 
 use crate::Indicator;
 use crate::prelude::App;

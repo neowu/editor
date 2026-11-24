@@ -18,8 +18,12 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use anyhow::Result;
-#[allow(clippy::wildcard_imports)]
-pub use app_menu::*;
+pub use app_menu::Menu;
+pub use app_menu::MenuItem;
+pub use app_menu::OsAction;
+pub use app_menu::OsMenu;
+pub use app_menu::SystemMenuType;
+pub(crate) use app_menu::init_app_menus;
 use async_task::Runnable;
 use futures::channel::oneshot;
 use image::DynamicImage;
@@ -27,8 +31,12 @@ use image::Frame;
 use image::Rgba;
 use image::codecs::gif::GifDecoder;
 use image::codecs::webp::WebPDecoder;
-#[allow(clippy::wildcard_imports)]
-pub use keystroke::*;
+pub use keystroke::AsKeystroke;
+pub use keystroke::Capslock;
+pub use keystroke::InvalidKeystrokeError;
+pub use keystroke::KeybindingKeystroke;
+pub use keystroke::Keystroke;
+pub use keystroke::Modifiers;
 use raw_window_handle::HasDisplayHandle;
 use raw_window_handle::HasWindowHandle;
 use rustc_hash::FxHashMap;

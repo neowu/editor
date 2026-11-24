@@ -96,8 +96,6 @@ struct StateInner {
     alignment: ListAlignment,
     overdraw: Pixels,
     reset: bool,
-    #[allow(clippy::type_complexity)]
-    scroll_handler: Option<Box<dyn FnMut(&ListScrollEvent, &mut Window, &mut App)>>,
     scrollbar_drag_start_height: Option<Pixels>,
     measuring_behavior: ListMeasuringBehavior,
     pending_scroll: Option<PendingScroll>,
@@ -145,18 +143,6 @@ pub enum ListAlignment {
     Bottom,
 }
 
-/// A scroll event that has been converted to be in terms of the list's items.
-pub struct ListScrollEvent {
-    /// The range of items currently visible in the list, after applying the scroll event.
-    pub visible_range: Range<usize>,
-
-    /// The number of items that are currently visible in the list, after applying the scroll event.
-    pub count: usize,
-
-    /// Whether the list has been scrolled.
-    pub is_scrolled: bool,
-}
-
 /// The sizing behavior to apply during layout.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ListSizingBehavior {
@@ -169,7 +155,7 @@ pub enum ListSizingBehavior {
 
 /// The measuring behavior to apply during layout.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ListMeasuringBehavior {
+pub(super) enum ListMeasuringBehavior {
     /// Measure all items in the list.
     /// Note: This can be expensive for the first frame in a large list.
     Measure(bool),
@@ -279,7 +265,6 @@ impl ListState {
             logical_scroll_top: None,
             alignment,
             overdraw,
-            scroll_handler: None,
             reset: false,
             scrollbar_drag_start_height: None,
             measuring_behavior: ListMeasuringBehavior::default(),
@@ -709,21 +694,12 @@ impl StateInner {
         (height - bounds.size.height).max(px(0.))
     }
 
-    fn visible_range(items: &SumTree<ListItem>, height: Pixels, scroll_top: &ListOffset) -> Range<usize> {
-        let mut cursor = items.cursor::<ListItemSummary>(());
-        cursor.seek(&Count(scroll_top.item_ix), Bias::Right);
-        let start_y = cursor.start().height + scroll_top.offset_in_item;
-        cursor.seek_forward(&Height(start_y + height), Bias::Left);
-        scroll_top.item_ix..cursor.start().count + 1
-    }
-
     fn scroll(
         &mut self,
         scroll_top: &ListOffset,
         height: Pixels,
         delta: Point<Pixels>,
         current_view: EntityId,
-        window: &mut Window,
         cx: &mut App,
     ) {
         // Drop scroll events after a reset, since we can't calculate
@@ -747,19 +723,6 @@ impl StateInner {
             // this scroll on the next layout.
             self.rebase_pending_scroll(scroll_top);
             self.logical_scroll_top = Some(scroll_top);
-        }
-
-        if let Some(handler) = self.scroll_handler.as_mut() {
-            let visible_range = Self::visible_range(&self.items, height, scroll_top);
-            handler(
-                &ListScrollEvent {
-                    visible_range,
-                    count: self.items.summary().count,
-                    is_scrolled: self.logical_scroll_top.is_some(),
-                },
-                window,
-                cx,
-            );
         }
 
         cx.notify(current_view);
@@ -1287,7 +1250,7 @@ impl Element for List {
             if phase == DispatchPhase::Bubble && hitbox_id.should_handle_scroll(window) {
                 accumulated_scroll_delta = accumulated_scroll_delta.coalesce(event.delta);
                 let pixel_delta = accumulated_scroll_delta.pixel_delta(px(20.));
-                list_state.0.borrow_mut().scroll(&scroll_top, height, pixel_delta, current_view, window, cx);
+                list_state.0.borrow_mut().scroll(&scroll_top, height, pixel_delta, current_view, cx);
             }
         });
 

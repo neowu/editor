@@ -46,8 +46,24 @@ use buffer_store::BufferStore;
 use buffer_store::BufferStoreEvent;
 pub use buffer_store::ProjectTransaction;
 pub use environment::ProjectEnvironment;
-#[allow(clippy::wildcard_imports)]
-pub use fs::*;
+pub use fs::CopyOptions;
+pub use fs::CreateOptions;
+pub use fs::Fs;
+pub use fs::JobEvent;
+pub use fs::JobId;
+pub use fs::JobInfo;
+pub use fs::MTime;
+pub use fs::Metadata;
+pub use fs::PathEvent;
+pub use fs::PathEventKind;
+pub use fs::RemoveOptions;
+pub use fs::RenameOptions;
+pub use fs::TrashId;
+pub use fs::TrashRestoreError;
+pub use fs::Watcher;
+pub use fs::copy_recursive;
+pub use fs::file_current_path;
+pub use fs::fs_watcher;
 use futures::StreamExt as _;
 use futures::future::try_join_all;
 pub use git_store::ConflictRegion;
@@ -89,15 +105,9 @@ use language::ToPointUtf16;
 use language::Transaction;
 use language::Unclipped;
 use language::language_settings::InlayHintKind;
-use lsp::CodeActionKind;
-use lsp::CompletionContext;
-use lsp::CompletionItemKind;
-use lsp::DocumentHighlightKind;
-use lsp::InsertTextMode;
 use lsp::LanguageServerId;
 use lsp::LanguageServerName;
 use lsp::LanguageServerSelector;
-use lsp::request::Request;
 use lsp_command::GetDocumentHighlights;
 use lsp_command::GetDocumentSymbols;
 use lsp_command::InlayHints;
@@ -120,6 +130,12 @@ pub use lsp_store::LspStore;
 pub use lsp_store::LspStoreEvent;
 use lsp_store::OpenLspBufferHandle;
 pub use lsp_store::ProgressToken;
+use lsp_types::CodeActionKind;
+use lsp_types::CompletionContext;
+use lsp_types::CompletionItemKind;
+use lsp_types::DocumentHighlightKind;
+use lsp_types::InsertTextMode;
+use lsp_types::request::Request;
 pub use manifest_tree::ManifestProvidersStore;
 pub use manifest_tree::ManifestTree;
 pub use project_search::Search;
@@ -213,7 +229,7 @@ pub enum Event {
     LanguageServerAdded(LanguageServerId, LanguageServerName, Option<WorktreeId>),
     LanguageServerRemoved(LanguageServerId),
     LanguageServerLog(LanguageServerId, LanguageServerLogType, String),
-    // [`lsp::notification::DidOpenTextDocument`] was sent to this server using the buffer data.
+    // [`lsp_types::notification::DidOpenTextDocument`] was sent to this server using the buffer data.
     // ed's buffer-related data is updated accordingly.
     LanguageServerBufferRegistered {
         server_id: LanguageServerId,
@@ -276,7 +292,7 @@ pub enum Event {
         server_id: Option<LanguageServerId>,
     },
     RevealInProjectPanel(ProjectEntryId),
-    SnippetEdit(BufferId, Vec<(lsp::Range, Snippet)>),
+    SnippetEdit(BufferId, Vec<(lsp_types::Range, Snippet)>),
     ExpandedAllForEntry(WorktreeId, ProjectEntryId),
     EntryRenamed {
         transaction: ProjectTransaction,
@@ -426,9 +442,9 @@ pub enum CompletionSource {
         /// The id of the language server that produced this completion.
         server_id: LanguageServerId,
         /// The raw completion provided by the language server.
-        lsp_completion: Box<lsp::CompletionItem>,
+        lsp_completion: Box<lsp_types::CompletionItem>,
         /// A set of defaults for this completion item.
-        lsp_defaults: Option<Arc<lsp::CompletionListItemDefaults>>,
+        lsp_defaults: Option<Arc<lsp_types::CompletionListItemDefaults>>,
         /// Whether this completion has been resolved, to ensure it happens once per completion.
         resolved: bool,
     },
@@ -452,7 +468,7 @@ impl CompletionSource {
         }
     }
 
-    pub fn lsp_completion(&self, apply_defaults: bool) -> Option<Cow<'_, lsp::CompletionItem>> {
+    pub fn lsp_completion(&self, apply_defaults: bool) -> Option<Cow<'_, lsp_types::CompletionItem>> {
         if let Self::Lsp { lsp_completion, lsp_defaults, .. } = self {
             if apply_defaults && let Some(lsp_defaults) = lsp_defaults {
                 let mut completion_with_defaults = *lsp_completion.clone();
@@ -471,20 +487,24 @@ impl CompletionSource {
                     }
                     if completion_with_defaults.text_edit.is_none() {
                         match default_edit_range {
-                            Some(lsp::CompletionListItemDefaultsEditRange::Range(range)) => {
+                            Some(lsp_types::CompletionListItemDefaultsEditRange::Range(range)) => {
                                 completion_with_defaults.text_edit =
-                                    Some(lsp::CompletionTextEdit::Edit(lsp::TextEdit {
+                                    Some(lsp_types::CompletionTextEdit::Edit(lsp_types::TextEdit {
                                         range: *range,
                                         new_text: completion_with_defaults.label.clone(),
                                     }));
                             }
-                            Some(lsp::CompletionListItemDefaultsEditRange::InsertAndReplace { insert, replace }) => {
-                                completion_with_defaults.text_edit =
-                                    Some(lsp::CompletionTextEdit::InsertAndReplace(lsp::InsertReplaceEdit {
+                            Some(lsp_types::CompletionListItemDefaultsEditRange::InsertAndReplace {
+                                insert,
+                                replace,
+                            }) => {
+                                completion_with_defaults.text_edit = Some(
+                                    lsp_types::CompletionTextEdit::InsertAndReplace(lsp_types::InsertReplaceEdit {
                                         new_text: completion_with_defaults.label.clone(),
                                         insert: *insert,
                                         replace: *replace,
-                                    }));
+                                    }),
+                                );
                             }
                             None => {}
                         }
@@ -573,11 +593,11 @@ pub struct CodeAction {
 pub enum LspAction {
     /// An action with the full data, may have a command or may not.
     /// May require resolving.
-    Action(Box<lsp::CodeAction>),
+    Action(Box<lsp_types::CodeAction>),
     /// A command data to run as an action.
-    Command(lsp::Command),
+    Command(lsp_types::Command),
     /// A code lens data to run as an action.
-    CodeLens(lsp::CodeLens),
+    CodeLens(lsp_types::CodeLens),
 }
 
 impl LspAction {
@@ -589,15 +609,15 @@ impl LspAction {
         }
     }
 
-    pub fn action_kind(&self) -> Option<lsp::CodeActionKind> {
+    pub fn action_kind(&self) -> Option<lsp_types::CodeActionKind> {
         match self {
             Self::Action(action) => action.kind.clone(),
-            Self::Command(_) => Some(lsp::CodeActionKind::new("command")),
-            Self::CodeLens(_) => Some(lsp::CodeActionKind::new("code lens")),
+            Self::Command(_) => Some(lsp_types::CodeActionKind::new("command")),
+            Self::CodeLens(_) => Some(lsp_types::CodeActionKind::new("code lens")),
         }
     }
 
-    pub fn edit(&self) -> Option<&lsp::WorkspaceEdit> {
+    pub fn edit(&self) -> Option<&lsp_types::WorkspaceEdit> {
         match self {
             Self::Action(action) => action.edit.as_ref(),
             Self::Command(_) => None,
@@ -605,7 +625,7 @@ impl LspAction {
         }
     }
 
-    pub fn command(&self) -> Option<&lsp::Command> {
+    pub fn command(&self) -> Option<&lsp_types::Command> {
         match self {
             Self::Action(action) => action.command.as_ref(),
             Self::Command(command) => Some(command),
@@ -617,7 +637,7 @@ impl LspAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolveState {
     Resolved,
-    CanResolve(LanguageServerId, Option<lsp::LSPAny>),
+    CanResolve(LanguageServerId, Option<lsp_types::LSPAny>),
     Resolving,
 }
 impl InlayHint {
@@ -643,8 +663,8 @@ pub enum InlayHintLabel {
 pub struct InlayHintLabelPart {
     pub value: String,
     pub tooltip: Option<InlayHintLabelPartTooltip>,
-    pub location: Option<(LanguageServerId, lsp::Location)>,
-    pub command: Option<(LanguageServerId, lsp::Command)>,
+    pub location: Option<(LanguageServerId, lsp_types::Location)>,
+    pub command: Option<(LanguageServerId, lsp_types::Command)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -733,8 +753,8 @@ pub struct DirectoryItem {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DocumentColor {
-    pub lsp_range: lsp::Range,
-    pub color: lsp::Color,
+    pub lsp_range: lsp_types::Range,
+    pub color: lsp_types::Color,
     pub resolved: bool,
     pub color_presentations: Vec<ColorPresentation>,
 }
@@ -756,8 +776,8 @@ impl Hash for DocumentColor {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ColorPresentation {
     pub label: SharedString,
-    pub text_edit: Option<lsp::TextEdit>,
-    pub additional_text_edits: Vec<lsp::TextEdit>,
+    pub text_edit: Option<lsp_types::TextEdit>,
+    pub additional_text_edits: Vec<lsp_types::TextEdit>,
 }
 
 impl Hash for ColorPresentation {
@@ -825,7 +845,7 @@ pub enum LspPullDiagnostics {
         /// The id of the language server that produced diagnostics.
         server_id: LanguageServerId,
         /// URI of the resource,.
-        uri: lsp::Uri,
+        uri: lsp_types::Uri,
         /// The ID provided by the dynamic registration that produced diagnostics.
         registration_id: Option<SharedString>,
         /// The diagnostics produced by this language server.
@@ -842,7 +862,7 @@ pub enum PulledDiagnostics {
     },
     Changed {
         result_id: Option<SharedString>,
-        diagnostics: Vec<lsp::Diagnostic>,
+        diagnostics: Vec<lsp_types::Diagnostic>,
     },
 }
 
@@ -1803,7 +1823,7 @@ impl Project {
 
     pub fn open_local_buffer_via_lsp(
         &mut self,
-        abs_path: lsp::Uri,
+        abs_path: lsp_types::Uri,
         language_server_id: LanguageServerId,
         cx: &mut Context<Self>,
     ) -> Task<Result<Entity<Buffer>>> {
@@ -2304,8 +2324,8 @@ impl Project {
             .filter_map(|server_id| lsp_store.lsp_server_capabilities.get(&server_id))
             .any(|capabilities| {
                 capabilities.document_highlight_provider.as_ref().is_some_and(|capability| match capability {
-                    lsp::OneOf::Left(supported) => *supported,
-                    lsp::OneOf::Right(_) => true,
+                    lsp_types::OneOf::Left(supported) => *supported,
+                    lsp_types::OneOf::Right(_) => true,
                 })
             })
     }
@@ -2560,7 +2580,7 @@ impl Completion {
     pub fn kind(&self) -> Option<CompletionItemKind> {
         let lsp_completion = self
             .source
-            // `lsp::CompletionListItemDefaults` has no `kind` field
+            // `lsp_types::CompletionListItemDefaults` has no `kind` field
             .lsp_completion(false)?;
         lsp_completion.kind
     }
@@ -2580,10 +2600,10 @@ impl Completion {
         let kind_key = self
             .kind()
             .and_then(|lsp_completion_kind| match lsp_completion_kind {
-                lsp::CompletionItemKind::KEYWORD => Some(0),
-                lsp::CompletionItemKind::VARIABLE => Some(1),
-                lsp::CompletionItemKind::CONSTANT => Some(2),
-                lsp::CompletionItemKind::PROPERTY => Some(3),
+                lsp_types::CompletionItemKind::KEYWORD => Some(0),
+                lsp_types::CompletionItemKind::VARIABLE => Some(1),
+                lsp_types::CompletionItemKind::CONSTANT => Some(2),
+                lsp_types::CompletionItemKind::PROPERTY => Some(3),
                 _ => None,
             })
             .unwrap_or(DEFAULT_KIND_KEY);
@@ -2602,16 +2622,18 @@ impl Completion {
     /// Whether this completion is a snippet or snippet-style LSP completion.
     pub fn is_snippet(&self) -> bool {
         self.source
-            // `lsp::CompletionListItemDefaults` has `insert_text_format` field
+            // `lsp_types::CompletionListItemDefaults` has `insert_text_format` field
             .lsp_completion(true)
-            .is_some_and(|lsp_completion| lsp_completion.insert_text_format == Some(lsp::InsertTextFormat::SNIPPET))
+            .is_some_and(|lsp_completion| {
+                lsp_completion.insert_text_format == Some(lsp_types::InsertTextFormat::SNIPPET)
+            })
     }
 
     /// Returns the corresponding color for this completion.
     ///
     /// Will return `None` if this completion's kind is not [`CompletionItemKind::COLOR`].
     pub fn color(&self) -> Option<Hsla> {
-        // `lsp::CompletionListItemDefaults` has no `kind` field
+        // `lsp_types::CompletionListItemDefaults` has no `kind` field
         let lsp_completion = self.source.lsp_completion(false)?;
         if lsp_completion.kind? == CompletionItemKind::COLOR {
             return color_extractor::extract_color(&lsp_completion);
@@ -2634,8 +2656,8 @@ mod tests {
     #[test]
     fn document_color_hash_agrees_with_equality_on_signed_zero() {
         let color = |red, green, blue, alpha| DocumentColor {
-            lsp_range: lsp::Range::default(),
-            color: lsp::Color { red, green, blue, alpha },
+            lsp_range: lsp_types::Range::default(),
+            color: lsp_types::Color { red, green, blue, alpha },
             resolved: false,
             color_presentations: Vec::new(),
         };

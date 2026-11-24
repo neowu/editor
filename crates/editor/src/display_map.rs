@@ -115,8 +115,10 @@ pub use block_map::CustomBlockId;
 pub use block_map::EditorMargins;
 pub use block_map::RenderBlock;
 pub use block_map::StickyHeaderExcerpt;
-#[allow(clippy::wildcard_imports)]
-pub use crease_map::*;
+pub use crease_map::Crease;
+pub use crease_map::CreaseId;
+pub use crease_map::CreaseMap;
+pub use crease_map::CreaseSnapshot;
 pub use fold_map::ChunkRenderer;
 pub use fold_map::ChunkRendererContext;
 pub use fold_map::ChunkRendererId;
@@ -1190,7 +1192,7 @@ pub enum ChunkReplacement {
 pub struct HighlightedChunk<'a> {
     pub text: &'a str,
     pub style: Option<HighlightStyle>,
-    pub(crate) diagnostic_underline_severity: Option<lsp::DiagnosticSeverity>,
+    pub(crate) diagnostic_underline_severity: Option<lsp_types::DiagnosticSeverity>,
     pub is_tab: bool,
     pub is_inlay: bool,
     pub replacement: Option<ChunkReplacement>,
@@ -1358,13 +1360,13 @@ impl DisplaySnapshot {
         self.diagnostics_max_severity.into_lsp().is_some()
     }
 
-    fn diagnostic_severity_is_visible(&self, severity: lsp::DiagnosticSeverity) -> bool {
+    fn diagnostic_severity_is_visible(&self, severity: lsp_types::DiagnosticSeverity) -> bool {
         self.diagnostics_max_severity.into_lsp().is_some_and(|max_severity| severity <= max_severity)
     }
 
     pub(crate) fn diagnostic_underline_style(
         &self,
-        severity: lsp::DiagnosticSeverity,
+        severity: lsp_types::DiagnosticSeverity,
         underline: bool,
         is_unnecessary: bool,
         editor_style: &EditorStyle,
@@ -1372,7 +1374,7 @@ impl DisplaySnapshot {
         (underline
             && editor_style.show_underlines
             && self.diagnostic_severity_is_visible(severity)
-            && !(is_unnecessary && severity > lsp::DiagnosticSeverity::WARNING))
+            && !(is_unnecessary && severity > lsp_types::DiagnosticSeverity::WARNING))
             .then(|| UnderlineStyle {
                 color: Some(diagnostic_style(severity, &editor_style.status)),
                 thickness: 1.0.into(),
@@ -1594,7 +1596,7 @@ impl DisplaySnapshot {
                 // track the current underline style so that we can apply it to
                 // inlay hints within the diagnostic's span
                 let mut current_diagnostic_underline: Option<UnderlineStyle> = None;
-                let mut current_diagnostic_severity: Option<lsp::DiagnosticSeverity> = None;
+                let mut current_diagnostic_severity: Option<lsp_types::DiagnosticSeverity> = None;
 
                 move |chunk| {
                     let syntax_highlight_style =
@@ -2063,12 +2065,12 @@ impl DisplaySnapshot {
     }
 }
 
-const fn diagnostic_style(severity: lsp::DiagnosticSeverity, colors: &StatusColors) -> Hsla {
+const fn diagnostic_style(severity: lsp_types::DiagnosticSeverity, colors: &StatusColors) -> Hsla {
     match severity {
-        lsp::DiagnosticSeverity::ERROR => colors.error,
-        lsp::DiagnosticSeverity::WARNING => colors.warning,
-        lsp::DiagnosticSeverity::INFORMATION => colors.info,
-        lsp::DiagnosticSeverity::HINT => colors.hint,
+        lsp_types::DiagnosticSeverity::ERROR => colors.error,
+        lsp_types::DiagnosticSeverity::WARNING => colors.warning,
+        lsp_types::DiagnosticSeverity::INFORMATION => colors.info,
+        lsp_types::DiagnosticSeverity::HINT => colors.hint,
         _ => colors.ignored,
     }
 }

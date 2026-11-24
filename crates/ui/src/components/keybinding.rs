@@ -354,7 +354,7 @@ impl LabelKey {
 }
 
 #[derive(IntoElement)]
-pub struct KeyIcon {
+pub(super) struct KeyIcon {
     icon: IconName,
     color: Option<Color>,
     size: Option<AbsoluteLength>,
@@ -371,11 +371,11 @@ impl RenderOnce for KeyIcon {
 }
 
 impl KeyIcon {
-    pub const fn new(icon: IconName, color: Option<Color>) -> Self {
+    pub(super) const fn new(icon: IconName, color: Option<Color>) -> Self {
         Self { icon, color, size: None }
     }
 
-    pub fn size(mut self, size: impl Into<Option<AbsoluteLength>>) -> Self {
+    pub(super) fn size(mut self, size: impl Into<Option<AbsoluteLength>>) -> Self {
         self.size = size.into();
         self
     }

@@ -37,12 +37,12 @@ use language::RelatedLocation;
 use language::ToPointUtf16 as _;
 use language::Unclipped;
 use language::range_from_lsp;
-use lsp::DiagnosticServerCapabilities;
-use lsp::DiagnosticSeverity;
-use lsp::DiagnosticTag;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServer;
 use lsp::LanguageServerId;
+use lsp_types::DiagnosticServerCapabilities;
+use lsp_types::DiagnosticSeverity;
+use lsp_types::DiagnosticTag;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use serde::Serialize;
@@ -158,7 +158,7 @@ pub(super) fn lsp_workspace_diagnostics_refresh(
                         .into_iter()
                         .filter_map(|(abs_path, result_id)| {
                             let uri = file_path_to_lsp_url(&abs_path).ok()?;
-                            Some(lsp::PreviousResultId { uri, value: result_id.to_string() })
+                            Some(lsp_types::PreviousResultId { uri, value: result_id.to_string() })
                         })
                         .collect()
                 }) else {
@@ -169,13 +169,13 @@ pub(super) fn lsp_workspace_diagnostics_refresh(
                 let mut refresh_requested = false;
                 let mut request = pin!(
                     server
-                        .request::<lsp::WorkspaceDiagnosticRequest>(
-                            lsp::WorkspaceDiagnosticParams {
+                        .request::<lsp_types::request::WorkspaceDiagnosticRequest>(
+                            lsp_types::WorkspaceDiagnosticParams {
                                 previous_result_ids,
                                 identifier: identifier.clone(),
-                                work_done_progress_params: lsp::WorkDoneProgressParams::default(),
-                                partial_result_params: lsp::PartialResultParams {
-                                    partial_result_token: Some(lsp::ProgressToken::String(token)),
+                                work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
+                                partial_result_params: lsp_types::PartialResultParams {
+                                    partial_result_token: Some(lsp_types::ProgressToken::String(token)),
                                 },
                             },
                             Duration::MAX,
@@ -301,8 +301,10 @@ pub(super) fn lsp_workspace_diagnostics_refresh(
 
 const fn diagnostics_inter_file_dependencies(options: &DiagnosticServerCapabilities) -> bool {
     match options {
-        lsp::DiagnosticServerCapabilities::Options(diagnostic_options) => diagnostic_options.inter_file_dependencies,
-        lsp::DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
+        lsp_types::DiagnosticServerCapabilities::Options(diagnostic_options) => {
+            diagnostic_options.inter_file_dependencies
+        }
+        lsp_types::DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
             registration_options.diagnostic_options.inter_file_dependencies
         }
     }
@@ -310,20 +312,20 @@ const fn diagnostics_inter_file_dependencies(options: &DiagnosticServerCapabilit
 
 fn buffer_diagnostic_identifier(options: &DiagnosticServerCapabilities) -> Option<SharedString> {
     match &options {
-        lsp::DiagnosticServerCapabilities::Options(diagnostic_options) => {
+        lsp_types::DiagnosticServerCapabilities::Options(diagnostic_options) => {
             diagnostic_options.identifier.as_deref().map(SharedString::new)
         }
-        lsp::DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
+        lsp_types::DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
             let diagnostic_options = &registration_options.diagnostic_options;
             diagnostic_options.identifier.as_deref().map(SharedString::new)
         }
     }
 }
 
-fn workspace_diagnostic_options(options: &DiagnosticServerCapabilities) -> Option<&lsp::DiagnosticOptions> {
+fn workspace_diagnostic_options(options: &DiagnosticServerCapabilities) -> Option<&lsp_types::DiagnosticOptions> {
     let diagnostic_options = match options {
-        lsp::DiagnosticServerCapabilities::Options(diagnostic_options) => diagnostic_options,
-        lsp::DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
+        lsp_types::DiagnosticServerCapabilities::Options(diagnostic_options) => diagnostic_options,
+        lsp_types::DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
             &registration_options.diagnostic_options
         }
     };
@@ -369,8 +371,8 @@ impl DiagnosticSummary {
 /// of the document it was published for into that document's coordinates so that they
 /// are converted and followed like the diagnostic's own range.
 fn related_information_from_lsp(
-    diagnostic: &lsp::Diagnostic,
-    document_uri: &lsp::Uri,
+    diagnostic: &lsp_types::Diagnostic,
+    document_uri: &lsp_types::Uri,
 ) -> Option<Arc<[RelatedInformation<Unclipped<PointUtf16>>]>> {
     let infos = diagnostic.related_information.as_ref()?;
     if infos.is_empty() {
@@ -686,7 +688,7 @@ impl LspStore {
                             .or_insert_with(Vec::new)
                             .push(DocumentDiagnosticsUpdate {
                                 server_id,
-                                diagnostics: lsp::PublishDiagnosticsParams { uri, diagnostics, version: None },
+                                diagnostics: lsp_types::PublishDiagnosticsParams { uri, diagnostics, version: None },
                                 result_id: result_id.map(SharedString::new),
                                 disk_based_sources,
                                 registration_id: new_registration_id,
@@ -815,7 +817,7 @@ impl LspStore {
         &mut self,
         abs_path: PathBuf,
         server_ids: Vec<LanguageServerId>,
-        retain_diagnostic: impl Fn(&lsp::Uri, &Diagnostic, &App) -> bool + Clone,
+        retain_diagnostic: impl Fn(&lsp_types::Uri, &Diagnostic, &App) -> bool + Clone,
         cx: &mut Context<Self>,
     ) {
         if server_ids.is_empty() {
@@ -843,7 +845,7 @@ impl LspStore {
     pub fn merge_diagnostic_entries(
         &mut self,
         diagnostic_updates: Vec<DocumentDiagnosticsUpdate<'_, DocumentDiagnostics>>,
-        merge: impl Fn(&lsp::Uri, &Diagnostic, &App) -> bool + Clone,
+        merge: impl Fn(&lsp_types::Uri, &Diagnostic, &App) -> bool + Clone,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
         let mut updated_diagnostics_paths = FxHashMap::default();
@@ -858,7 +860,7 @@ impl LspStore {
             let worktree_id = worktree.read(cx).id();
             let project_path = ProjectPath { worktree_id, path: relative_path };
 
-            let document_uri = lsp::Uri::from_file_path(abs_path)
+            let document_uri = lsp_types::Uri::from_file_path(abs_path)
                 .map_err(|()| anyhow!("Failed to convert buffer path {abs_path:?} to lsp Uri"))?;
             if let Some(buffer_handle) = self.buffer_store.read(cx).get_by_path(&project_path) {
                 let snapshot = buffer_handle.read(cx).snapshot();
@@ -1036,8 +1038,8 @@ impl LspStore {
     pub fn merge_lsp_diagnostics(
         &mut self,
         source_kind: DiagnosticSourceKind,
-        lsp_diagnostics: Vec<DocumentDiagnosticsUpdate<lsp::PublishDiagnosticsParams>>,
-        merge: impl Fn(&lsp::Uri, &Diagnostic, &App) -> bool + Clone,
+        lsp_diagnostics: Vec<DocumentDiagnosticsUpdate<lsp_types::PublishDiagnosticsParams>>,
+        merge: impl Fn(&lsp_types::Uri, &Diagnostic, &App) -> bool + Clone,
         cx: &mut Context<Self>,
     ) -> Result<()> {
         let updates = lsp_diagnostics
@@ -1069,7 +1071,7 @@ impl LspStore {
         document_abs_path: PathBuf,
         source_kind: DiagnosticSourceKind,
         server_id: LanguageServerId,
-        mut lsp_diagnostics: lsp::PublishDiagnosticsParams,
+        mut lsp_diagnostics: lsp_types::PublishDiagnosticsParams,
         disk_based_sources: &[String],
         registration_id: Option<SharedString>,
     ) -> DocumentDiagnostics {
@@ -1116,14 +1118,14 @@ impl LspStore {
                 primary_diagnostic_group_ids.insert((source, diagnostic.code.clone(), range.clone()), group_id);
 
                 let message = match &diagnostic.message {
-                    lsp::DiagnosticMessage::String(message) => DiagnosticMessage::plain_with_adapter_markdown(
+                    lsp_types::DiagnosticMessage::String(message) => DiagnosticMessage::plain_with_adapter_markdown(
                         message.trim(),
                         adapter
                             .as_ref()
                             .and_then(|adapter| adapter.diagnostic_message_to_markdown(message))
                             .map(SharedString::from),
                     ),
-                    lsp::DiagnosticMessage::MarkupContent(markup) => DiagnosticMessage::from_lsp_markup(markup),
+                    lsp_types::DiagnosticMessage::MarkupContent(markup) => DiagnosticMessage::from_lsp_markup(markup),
                 };
                 diagnostics.push(DiagnosticEntry {
                     range,
@@ -1327,7 +1329,7 @@ impl LspStore {
     pub(super) fn apply_workspace_diagnostic_report(
         &mut self,
         server_id: LanguageServerId,
-        report: lsp::WorkspaceDiagnosticReportResult,
+        report: lsp_types::WorkspaceDiagnosticReportResult,
         registration_id: Option<SharedString>,
         cx: &mut Context<Self>,
     ) {
@@ -1395,7 +1397,7 @@ impl LspStore {
                         .or_insert_with(Vec::new)
                         .push(DocumentDiagnosticsUpdate {
                             server_id,
-                            diagnostics: lsp::PublishDiagnosticsParams { uri, diagnostics, version },
+                            diagnostics: lsp_types::PublishDiagnosticsParams { uri, diagnostics, version },
                             result_id: result_id.map(SharedString::new),
                             disk_based_sources,
                             registration_id: new_registration_id,

@@ -50,7 +50,7 @@ pub mod table_row;
 
 /// Represents an unchecked table row, which is a vector of elements.
 /// Will be converted into `TableRow<T>` internally.
-pub type UncheckedTableRow<T> = Vec<T>;
+pub(super) type UncheckedTableRow<T> = Vec<T>;
 
 struct UniformListData {
     #[allow(clippy::type_complexity)]
@@ -359,7 +359,7 @@ fn render_header_cell(
         })
 }
 
-pub fn render_table_row(
+pub(super) fn render_table_row(
     row_index: usize,
     items: TableRow<impl IntoElement>,
     table_context: TableRenderContext,

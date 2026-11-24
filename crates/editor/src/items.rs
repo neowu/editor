@@ -40,7 +40,7 @@ use language::CharScopeContext;
 use language::LocalFile as _;
 use language::PLAIN_TEXT;
 use language::Point;
-use lsp::DiagnosticSeverity;
+use lsp_types::DiagnosticSeverity;
 use multi_buffer::BufferOffset;
 use multi_buffer::MultiBufferOffset;
 use multi_buffer::MultiBufferRow;

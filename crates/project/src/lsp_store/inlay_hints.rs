@@ -18,7 +18,7 @@ use language::row_chunk::RowChunk;
 use language::row_chunk::RowChunks;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
-use lsp::request::InlayHintResolveRequest;
+use lsp_types::request::InlayHintResolveRequest;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use text::Anchor;

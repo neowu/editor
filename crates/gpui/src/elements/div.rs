@@ -97,7 +97,7 @@ const DEFAULT_TOOLTIP_SHOW_DELAY: Duration = Duration::from_millis(500);
 const HOVERABLE_TOOLTIP_HIDE_DELAY: Duration = Duration::from_millis(500);
 
 /// The styling information for a given group.
-pub struct GroupStyle {
+pub(crate) struct GroupStyle {
     /// The identifier for this group.
     pub group: SharedString,
 
@@ -2471,7 +2471,7 @@ pub struct Interactivity {
 /// The per-frame state of an interactive element. Used for tracking stateful interactions like clicks
 /// and scroll offsets.
 #[derive(Default)]
-pub struct InteractiveElementState {
+pub(super) struct InteractiveElementState {
     pub(crate) focus_handle: Option<FocusHandle>,
     pub(crate) clicked_state: Option<Rc<RefCell<ElementClickedState>>>,
     pub(crate) hover_state: Option<Rc<RefCell<ElementHoverState>>>,
@@ -2492,7 +2492,7 @@ pub struct InteractiveElementState {
 
 /// Whether or not the element or a group that contains it is clicked by the mouse.
 #[derive(Copy, Clone, Default, Eq, PartialEq)]
-pub struct ElementClickedState {
+pub(super) struct ElementClickedState {
     /// True if this element's group has been clicked, false otherwise.
     pub group: bool,
 
@@ -2508,7 +2508,7 @@ impl ElementClickedState {
 
 /// Whether or not the element or a group that contains it is hovered.
 #[derive(Copy, Clone, Default, Eq, PartialEq)]
-pub struct ElementHoverState {
+pub(super) struct ElementHoverState {
     /// True if this element's group is hovered, false otherwise.
     pub group: bool,
 

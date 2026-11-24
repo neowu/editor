@@ -19,10 +19,10 @@ use language::ToOffset as _;
 use language::Transaction;
 use language::Unclipped;
 use language::range_from_lsp;
-use lsp::Edit;
 use lsp::LanguageServer;
 use lsp::LanguageServerId;
-use lsp::TextEdit;
+use lsp_types::Edit;
+use lsp_types::TextEdit;
 use snippet::Snippet;
 use text::Anchor;
 use text::LineEnding;
@@ -38,7 +38,7 @@ impl LocalLspStore {
     pub async fn deserialize_text_edits(
         this: Entity<LspStore>,
         buffer_to_edit: Entity<Buffer>,
-        edits: Vec<lsp::TextEdit>,
+        edits: Vec<lsp_types::TextEdit>,
         push_to_history: bool,
         _: Arc<CachedLspAdapter>,
         language_server: Arc<LanguageServer>,
@@ -73,7 +73,7 @@ impl LocalLspStore {
     pub fn edits_from_lsp(
         &mut self,
         buffer: &Entity<Buffer>,
-        lsp_edits: impl 'static + Send + IntoIterator<Item = lsp::TextEdit>,
+        lsp_edits: impl 'static + Send + IntoIterator<Item = lsp_types::TextEdit>,
         server_id: LanguageServerId,
         version: Option<i32>,
         cx: &mut Context<LspStore>,
@@ -153,7 +153,7 @@ impl LocalLspStore {
 
     pub(crate) async fn deserialize_workspace_edit(
         this: Entity<LspStore>,
-        edit: lsp::WorkspaceEdit,
+        edit: lsp_types::WorkspaceEdit,
         push_to_history: bool,
         language_server: Arc<LanguageServer>,
         cx: &mut AsyncApp,
@@ -163,15 +163,15 @@ impl LocalLspStore {
         let mut operations = Vec::new();
         if let Some(document_changes) = edit.document_changes {
             match document_changes {
-                lsp::DocumentChanges::Edits(edits) => {
-                    operations.extend(edits.into_iter().map(lsp::DocumentChangeOperation::Edit));
+                lsp_types::DocumentChanges::Edits(edits) => {
+                    operations.extend(edits.into_iter().map(lsp_types::DocumentChangeOperation::Edit));
                 }
-                lsp::DocumentChanges::Operations(ops) => operations = ops,
+                lsp_types::DocumentChanges::Operations(ops) => operations = ops,
             }
         } else if let Some(changes) = edit.changes {
             operations.extend(changes.into_iter().map(|(uri, edits)| {
-                lsp::DocumentChangeOperation::Edit(lsp::TextDocumentEdit {
-                    text_document: lsp::OptionalVersionedTextDocumentIdentifier { uri, version: None },
+                lsp_types::DocumentChangeOperation::Edit(lsp_types::TextDocumentEdit {
+                    text_document: lsp_types::OptionalVersionedTextDocumentIdentifier { uri, version: None },
                     edits: edits.into_iter().map(Edit::Plain).collect(),
                 })
             }));
@@ -180,7 +180,7 @@ impl LocalLspStore {
         let mut project_transaction = ProjectTransaction::default();
         for operation in operations {
             match operation {
-                lsp::DocumentChangeOperation::Op(lsp::ResourceOp::Create(op)) => {
+                lsp_types::DocumentChangeOperation::Op(lsp_types::ResourceOp::Create(op)) => {
                     let abs_path = op.uri.to_file_path().map_err(|()| anyhow!("can't convert URI to path"))?;
 
                     if let Some(parent_path) = abs_path.parent() {
@@ -200,7 +200,7 @@ impl LocalLspStore {
                     }
                 }
 
-                lsp::DocumentChangeOperation::Op(lsp::ResourceOp::Rename(op)) => {
+                lsp_types::DocumentChangeOperation::Op(lsp_types::ResourceOp::Rename(op)) => {
                     let source_abs_path =
                         op.old_uri.to_file_path().map_err(|()| anyhow!("can't convert URI to path"))?;
                     let target_abs_path =
@@ -256,7 +256,7 @@ impl LocalLspStore {
                     }
                 }
 
-                lsp::DocumentChangeOperation::Op(lsp::ResourceOp::Delete(op)) => {
+                lsp_types::DocumentChangeOperation::Op(lsp_types::ResourceOp::Delete(op)) => {
                     let abs_path = op.uri.to_file_path().map_err(|()| anyhow!("can't convert URI to path"))?;
                     let options = op.options.map_or_default(|options| fs::RemoveOptions {
                         recursive: options.recursive.unwrap_or(false),
@@ -269,7 +269,7 @@ impl LocalLspStore {
                     }
                 }
 
-                lsp::DocumentChangeOperation::Edit(op) => {
+                lsp_types::DocumentChangeOperation::Edit(op) => {
                     let buffer_to_edit = this
                         .update(cx, |this, cx| {
                             this.open_local_buffer_via_lsp(
@@ -364,10 +364,10 @@ impl LocalLspStore {
 
     pub(super) async fn on_lsp_workspace_edit(
         this: WeakEntity<LspStore>,
-        params: lsp::ApplyWorkspaceEditParams,
+        params: lsp_types::ApplyWorkspaceEditParams,
         server_id: LanguageServerId,
         cx: &mut AsyncApp,
-    ) -> Result<lsp::ApplyWorkspaceEditResponse> {
+    ) -> Result<lsp_types::ApplyWorkspaceEditResponse> {
         let this = this.upgrade().context("project project closed")?;
         let language_server = this
             .read_with(cx, |this, _| this.language_server_for_id(server_id))
@@ -383,6 +383,6 @@ impl LocalLspStore {
                 this.local.last_workspace_edits_by_language_server.insert(server_id, transaction);
             }
         });
-        Ok(lsp::ApplyWorkspaceEditResponse { applied: true, failed_change: None, failure_reason: None })
+        Ok(lsp_types::ApplyWorkspaceEditResponse { applied: true, failed_change: None, failure_reason: None })
     }
 }

@@ -8,8 +8,12 @@ use gpui::SharedString;
 use gpui::WindowBackgroundAppearance;
 
 pub use crate::built_in::theme;
-#[allow(clippy::wildcard_imports)]
-pub use crate::styles::*;
+pub use crate::styles::AccentColors;
+pub use crate::styles::CursorColors;
+pub use crate::styles::StatusColors;
+pub use crate::styles::SystemColors;
+pub use crate::styles::ThemeColors;
+pub use crate::styles::ThemeStyles;
 pub use crate::syntax_theme::SyntaxTheme;
 
 /// The appearance of the theme.

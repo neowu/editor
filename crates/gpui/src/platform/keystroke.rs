@@ -63,7 +63,7 @@ impl Display for InvalidKeystrokeError {
 }
 
 /// Sentence explaining what keystroke parser expects, starting with "Expected ..."
-pub const KEYSTROKE_PARSE_EXPECTED_MESSAGE: &str = "Expected a sequence of modifiers \
+pub(super) const KEYSTROKE_PARSE_EXPECTED_MESSAGE: &str = "Expected a sequence of modifiers \
     (`ctrl`, `alt`, `shift`, `fn`, `cmd`, `super`, or `win`) \
     followed by a key, separated by `-`.";
 

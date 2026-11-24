@@ -4,10 +4,9 @@ mod context;
 use std::any::TypeId;
 use std::collections::HashMap;
 
-#[allow(clippy::wildcard_imports)]
-pub use binding::*;
-#[allow(clippy::wildcard_imports)]
-pub use context::*;
+pub use binding::KeyBinding;
+pub use context::KeyBindingContextPredicate;
+pub use context::KeyContext;
 use gpui_util::TypeIdHashBuilder;
 use rustc_hash::FxHashSet;
 use smallvec::SmallVec;
@@ -35,7 +34,7 @@ pub struct Keymap {
 
 /// Index of a binding within a keymap.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
-pub struct BindingIndex(usize);
+pub(crate) struct BindingIndex(usize);
 
 fn disabled_binding_matches_context(disabled_binding: &KeyBinding, binding: &KeyBinding) -> bool {
     match (&disabled_binding.context_predicate, &binding.context_predicate) {

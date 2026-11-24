@@ -26,7 +26,7 @@ use crate::Transformation;
 use crate::bounds_tree::BoundsTree;
 use crate::point;
 
-pub type DrawOrder = u32;
+pub(crate) type DrawOrder = u32;
 
 /// A boolean stored as a `u32` so that GPU-facing structs contain no
 /// compiler-inserted padding bytes, which would be undefined behavior to

@@ -14,13 +14,13 @@ use gpui::Entity;
 use gpui::Task;
 use gpui::WeakEntity;
 use language::Buffer;
-use lsp::CodeActionKind;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServer;
 use lsp::LanguageServerId;
-use lsp::request::CodeActionResolveRequest;
-use lsp::request::CodeLensResolve;
-use lsp::request::ExecuteCommand;
+use lsp_types::CodeActionKind;
+use lsp_types::request::CodeActionResolveRequest;
+use lsp_types::request::CodeLensResolve;
+use lsp_types::request::ExecuteCommand;
 use rustc_hash::FxHashSet;
 use text::Anchor;
 use util::defer;
@@ -133,7 +133,7 @@ impl LocalLspStore {
     pub(super) async fn get_server_code_actions_from_action_kinds(
         lsp_store: &WeakEntity<LspStore>,
         language_server_id: LanguageServerId,
-        code_action_kinds: Vec<lsp::CodeActionKind>,
+        code_action_kinds: Vec<lsp_types::CodeActionKind>,
         buffer: &Entity<Buffer>,
         cx: &mut AsyncApp,
     ) -> Result<Vec<CodeAction>> {
@@ -215,7 +215,7 @@ impl LocalLspStore {
 
             language_server
                 .request::<ExecuteCommand>(
-                    lsp::ExecuteCommandParams {
+                    lsp_types::ExecuteCommandParams {
                         command: command.command.clone(),
                         arguments: command.arguments.clone().unwrap_or_default(),
                         ..Default::default()
@@ -320,10 +320,10 @@ impl LspStore {
 
             let _result = lang_server
                 .request::<ExecuteCommand>(
-                    lsp::ExecuteCommandParams {
+                    lsp_types::ExecuteCommandParams {
                         command: command.command.clone(),
                         arguments: command.arguments.clone().unwrap_or_default(),
-                        ..lsp::ExecuteCommandParams::default()
+                        ..lsp_types::ExecuteCommandParams::default()
                     },
                     request_timeout,
                 )
@@ -356,7 +356,11 @@ impl LspStore {
         cx.background_spawn(async move {
             server
                 .request::<ExecuteCommand>(
-                    lsp::ExecuteCommandParams { command, arguments, ..lsp::ExecuteCommandParams::default() },
+                    lsp_types::ExecuteCommandParams {
+                        command,
+                        arguments,
+                        ..lsp_types::ExecuteCommandParams::default()
+                    },
                     request_timeout,
                 )
                 .await

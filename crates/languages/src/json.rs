@@ -21,7 +21,7 @@ use language::language_settings::RewrapBehavior;
 use language::language_settings::WordsCompletionMode;
 use lsp::LanguageServerBinary;
 use lsp::LanguageServerName;
-use lsp::Uri;
+use lsp_types::Uri;
 use project::Fs;
 use rustc_hash::FxHashMap;
 use serde_json::Value;
@@ -152,7 +152,7 @@ impl LspAdapter for JsonLspAdapter {
             .collect()
     }
 
-    async fn process_completions(&self, items: &mut [lsp::CompletionItem]) {
+    async fn process_completions(&self, items: &mut [lsp_types::CompletionItem]) {
         unquote_filter_texts(items);
     }
 }
@@ -195,7 +195,7 @@ fn schema_associations(jsonc_globs: &[SharedString]) -> Value {
 /// json-language-server quotes `filterText` (`"status_bar"`), or the label of items
 /// without one (`"dark"`), but the completion query never includes the opening
 /// quote, which skews fuzzy match scores.
-fn unquote_filter_texts(items: &mut [lsp::CompletionItem]) {
+fn unquote_filter_texts(items: &mut [lsp_types::CompletionItem]) {
     for item in items {
         let filter_text = item.filter_text.as_deref().unwrap_or(&item.label);
         if filter_text.starts_with('"')

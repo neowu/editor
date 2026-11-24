@@ -127,7 +127,6 @@ where
     let track_color = config.track_color;
     let track_corner_radii = inner_corner_radii(parent_style, window.rem_size());
     let has_border = config.border;
-    let reveal_policy = config.reveal_policy;
 
     let state = window.use_keyed_state(element_id, cx, |_, cx| {
         let parent_id = cx.entity_id();
@@ -138,7 +137,6 @@ where
         state.0.update(cx, |state, _cx| {
             state.update_colors(track_color, has_border);
             state.track_corner_radii = track_corner_radii;
-            state.reveal_policy = reveal_policy;
         });
     });
     state
@@ -383,24 +381,8 @@ pub enum ScrollbarStyle {
     Editor,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ScrollbarRevealPolicy {
-    #[default]
-    ScrollOrContentChange,
-    ScrollOnly,
-}
-
-impl ScrollbarRevealPolicy {
-    const fn should_reveal(self, geometry_changed: bool, scroll_position_changed: bool) -> bool {
-        match self {
-            Self::ScrollOrContentChange => geometry_changed,
-            Self::ScrollOnly => scroll_position_changed,
-        }
-    }
-}
-
 impl ScrollbarStyle {
-    pub const fn to_pixels(&self) -> Pixels {
+    pub const fn to_pixels(self) -> Pixels {
         match self {
             ScrollbarStyle::Regular => px(6.),
             ScrollbarStyle::Editor => px(15.),
@@ -422,7 +404,6 @@ pub struct Scrollbars<T: ScrollableHandle = ScrollHandle> {
     scrollable_handle: Handle<T>,
     visibility: Point<ReservedSpace>,
     style: Option<ScrollbarStyle>,
-    reveal_policy: ScrollbarRevealPolicy,
     track_color: Option<Hsla>,
     border: bool,
 }
@@ -444,7 +425,6 @@ impl Scrollbars {
             tracked_entity: None,
             visibility: show_along.apply_to(Point::default(), ReservedSpace::Thumb),
             style: None,
-            reveal_policy: ScrollbarRevealPolicy::default(),
             track_color: None,
             border: false,
         }
@@ -481,15 +461,7 @@ impl<ScrollHandle: ScrollableHandle> Scrollbars<ScrollHandle> {
         tracked_scroll_handle: &TrackedHandle,
     ) -> Scrollbars<TrackedHandle> {
         let Self {
-            id,
-            tracked_entity: tracked_entity_id,
-            visibility,
-            get_visibility,
-            track_color,
-            border,
-            style,
-            reveal_policy,
-            ..
+            id, tracked_entity: tracked_entity_id, visibility, get_visibility, track_color, border, style, ..
         } = self;
 
         Scrollbars {
@@ -501,7 +473,6 @@ impl<ScrollHandle: ScrollableHandle> Scrollbars<ScrollHandle> {
             border,
             get_visibility,
             style,
-            reveal_policy,
         }
     }
 
@@ -636,7 +607,6 @@ struct ScrollbarState<T: ScrollableHandle = ScrollHandle> {
     visibility: Point<ReservedSpace>,
     track_color: Option<TrackColors>,
     track_corner_radii: Corners<Pixels>,
-    reveal_policy: ScrollbarRevealPolicy,
     show_state: VisibilityState,
     style: ScrollbarStyle,
     mouse_in_parent: bool,
@@ -670,7 +640,6 @@ impl<T: ScrollableHandle> ScrollbarState<T> {
             track_corner_radii,
             show_behavior,
             style: config.style.unwrap_or_default(),
-            reveal_policy: config.reveal_policy,
             show_state: VisibilityState::from_behavior(show_behavior),
             mouse_in_parent: true,
             last_prepaint_state: None,
@@ -1036,7 +1005,6 @@ impl PartialEq for ScrollbarLayout {
 pub struct ScrollbarPrepaintState {
     parent_bounds_hitbox: Hitbox,
     thumbs: SmallVec<[ScrollbarLayout; 2]>,
-    position: ScrollbarPosition,
 }
 
 impl ScrollbarPrepaintState {
@@ -1054,40 +1022,14 @@ impl ScrollbarPrepaintState {
         })
     }
 
-    fn should_show_scrollbars(&self, previous: Option<&Self>, reveal_policy: ScrollbarRevealPolicy) -> bool {
-        let Some(previous) = previous else {
-            return true;
-        };
-        let scroll_position_changed = self
-            .thumbs
-            .iter()
-            .any(|thumb| self.position.changed_independently_of_content(previous.position, thumb.axis));
-
-        reveal_policy.should_reveal(self != previous, scroll_position_changed)
+    fn should_show_scrollbars(&self, previous: Option<&Self>) -> bool {
+        previous.is_none_or(|previous| self != previous)
     }
 }
 
 impl PartialEq for ScrollbarPrepaintState {
     fn eq(&self, other: &Self) -> bool {
         self.thumbs == other.thumbs
-    }
-}
-
-#[derive(Clone, Copy)]
-struct ScrollbarPosition {
-    offset: Point<Pixels>,
-    max_offset: Point<Pixels>,
-}
-
-impl ScrollbarPosition {
-    fn changed_independently_of_content(self, previous: Self, axis: ScrollbarAxis) -> bool {
-        let offset_delta = self.offset.along(axis) - previous.offset.along(axis);
-        if offset_delta == Pixels::ZERO {
-            return false;
-        }
-
-        let max_offset_delta = self.max_offset.along(axis) - previous.max_offset.along(axis);
-        offset_delta != -max_offset_delta
     }
 }
 
@@ -1124,10 +1066,6 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
         cx: &mut App,
     ) -> Self::PrepaintState {
         let prepaint_state = self.state.read(cx).disabled().not().then(|| ScrollbarPrepaintState {
-            position: {
-                let scroll_handle = self.state.read(cx).scroll_handle();
-                ScrollbarPosition { offset: scroll_handle.offset(), max_offset: scroll_handle.max_offset() }
-            },
             thumbs: {
                 let state = self.state.read(cx);
                 let thumb_ranges = state.thumb_ranges().collect::<SmallVec<[_; 2]>>();
@@ -1209,7 +1147,7 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
         });
         if prepaint_state.as_ref().is_some_and(|state| {
             let scrollbar_state = self.state.read(cx);
-            state.should_show_scrollbars(scrollbar_state.last_prepaint_state.as_ref(), scrollbar_state.reveal_policy)
+            state.should_show_scrollbars(scrollbar_state.last_prepaint_state.as_ref())
         }) {
             self.state.update(cx, |state, cx| state.show_scrollbars(window, cx));
         }

@@ -526,9 +526,9 @@ impl EditorElement {
                                 let start_display = diagnostic.range.start.to_display_point(&snapshot.display_snapshot);
                                 let end_display = diagnostic.range.end.to_display_point(&snapshot.display_snapshot);
                                 let color = match diagnostic.diagnostic.severity {
-                                    lsp::DiagnosticSeverity::ERROR => theme.status().error,
-                                    lsp::DiagnosticSeverity::WARNING => theme.status().warning,
-                                    lsp::DiagnosticSeverity::INFORMATION => theme.status().info,
+                                    lsp_types::DiagnosticSeverity::ERROR => theme.status().error,
+                                    lsp_types::DiagnosticSeverity::WARNING => theme.status().warning,
+                                    lsp_types::DiagnosticSeverity::INFORMATION => theme.status().info,
                                     _ => theme.status().hint,
                                 };
                                 ColoredRange { start: start_display.row(), end: end_display.row(), color }

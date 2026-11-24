@@ -2,8 +2,8 @@ use std::sync::LazyLock;
 
 use gpui::Hsla;
 use gpui::Rgba;
-use lsp::CompletionItem;
-use lsp::Documentation;
+use lsp_types::CompletionItem;
+use lsp_types::Documentation;
 use regex::Regex;
 use regex::RegexBuilder;
 

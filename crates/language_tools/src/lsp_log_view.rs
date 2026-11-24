@@ -30,10 +30,10 @@ use language::LanguageServerId;
 use lsp::LanguageServer;
 use lsp::LanguageServerName;
 use lsp::LanguageServerSelector;
-use lsp::MessageType;
-use lsp::SetTraceParams;
-use lsp::TraceValue;
-use lsp::notification::SetTrace;
+use lsp_types::MessageType;
+use lsp_types::SetTraceParams;
+use lsp_types::TraceValue;
+use lsp_types::notification::SetTrace;
 use project::LanguageServerStatus;
 use project::Project;
 use project::lsp_store::log_store;
@@ -154,7 +154,7 @@ pub(crate) struct LogMenuItem {
     pub worktree_root_name: String,
     pub rpc_trace_enabled: bool,
     pub selected_entry: LogKind,
-    pub trace_level: lsp::TraceValue,
+    pub trace_level: lsp_types::TraceValue,
     pub project: WeakEntity<Project>,
 }
 
@@ -377,7 +377,7 @@ impl LspLogView {
                         streams.generation == state.generation && streams.log_kinds.contains(&LogKind::Rpc)
                     }),
                     selected_entry: self.active_entry_kind,
-                    trace_level: lsp::TraceValue::Off,
+                    trace_level: lsp_types::TraceValue::Off,
                 }
             })
             .collect::<Vec<_>>();
@@ -1138,7 +1138,7 @@ impl Default for LspLogToolbarItemView {
 
 struct ServerInfo {
     id: LanguageServerId,
-    capabilities: lsp::ServerCapabilities,
+    capabilities: lsp_types::ServerCapabilities,
     status: LanguageServerStatus,
 }
 

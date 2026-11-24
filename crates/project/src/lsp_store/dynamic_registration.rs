@@ -2,7 +2,7 @@
 //! which let language servers toggle their capabilities at runtime.
 //!
 //! Multiple registrations of the same capability may coexist: the most recent one is
-//! "active" and mirrored into the server's [`lsp::ServerCapabilities`], while the rest
+//! "active" and mirrored into the server's [`lsp_types::ServerCapabilities`], while the rest
 //! (including the statically declared capability, if any) are kept to be restored when
 //! the active registration is unregistered.
 
@@ -13,11 +13,11 @@ use anyhow::Result;
 use gpui::Context;
 use gpui::SharedString;
 use indexmap::IndexMap;
-use lsp::DiagnosticServerCapabilities;
 use lsp::LanguageServer;
 use lsp::LanguageServerId;
-use lsp::OneOf;
-use lsp::TextDocumentSyncSaveOptions;
+use lsp_types::DiagnosticServerCapabilities;
+use lsp_types::OneOf;
+use lsp_types::TextDocumentSyncSaveOptions;
 use rustc_hash::FxBuildHasher;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -65,8 +65,8 @@ impl CapabilityRegistrationChange {
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(super) struct DynamicTextDocumentRegistration {
-    pub(super) document_selector: Option<lsp::DocumentSelector>,
-    pub(super) server_capabilities: lsp::ServerCapabilities,
+    pub(super) document_selector: Option<lsp_types::DocumentSelector>,
+    pub(super) server_capabilities: lsp_types::ServerCapabilities,
 }
 
 pub(super) type TextDocumentRegistrations =
@@ -76,10 +76,10 @@ pub(super) type TextDocumentRegistrations =
 pub(super) struct DynamicRegistrations {
     pub(super) did_change_watched_files: FxHashSet<String>,
     pub(super) text_documents: TextDocumentRegistrations,
-    workspace_folders: CapabilityRegistrations<lsp::WorkspaceFoldersServerCapabilities>,
-    workspace_symbol: CapabilityRegistrations<OneOf<bool, lsp::WorkspaceSymbolOptions>>,
-    file_operations: CapabilityRegistrations<lsp::WorkspaceFileOperationsServerCapabilities>,
-    execute_command: CapabilityRegistrations<lsp::ExecuteCommandOptions>,
+    workspace_folders: CapabilityRegistrations<lsp_types::WorkspaceFoldersServerCapabilities>,
+    workspace_symbol: CapabilityRegistrations<OneOf<bool, lsp_types::WorkspaceSymbolOptions>>,
+    file_operations: CapabilityRegistrations<lsp_types::WorkspaceFileOperationsServerCapabilities>,
+    execute_command: CapabilityRegistrations<lsp_types::ExecuteCommandOptions>,
 }
 
 impl LspStore {
@@ -89,12 +89,12 @@ impl LspStore {
         method: &str,
         registration_id: String,
         options: T,
-        document_selector: Option<lsp::DocumentSelector>,
-        capability_of: impl Fn(&mut lsp::ServerCapabilities) -> &mut Option<T>,
+        document_selector: Option<lsp_types::DocumentSelector>,
+        capability_of: impl Fn(&mut lsp_types::ServerCapabilities) -> &mut Option<T>,
     ) -> CapabilityRegistrationChange {
         let server_id = server.server_id();
         let local = &mut self.local;
-        let mut server_capabilities = lsp::ServerCapabilities::default();
+        let mut server_capabilities = lsp_types::ServerCapabilities::default();
         *capability_of(&mut server_capabilities) = Some(options);
         let new_registration = DynamicTextDocumentRegistration { document_selector, server_capabilities };
         let registrations = local
@@ -131,8 +131,8 @@ impl LspStore {
     fn unregister_dynamic_text_document_capability<T: Clone + PartialEq>(
         &mut self,
         server: &LanguageServer,
-        unregistration: &lsp::Unregistration,
-        capability_of: impl Fn(&mut lsp::ServerCapabilities) -> &mut Option<T>,
+        unregistration: &lsp_types::Unregistration,
+        capability_of: impl Fn(&mut lsp_types::ServerCapabilities) -> &mut Option<T>,
     ) -> Option<CapabilityRegistrationChange> {
         let server_id = server.server_id();
         let local = &mut self.local;
@@ -172,7 +172,7 @@ impl LspStore {
         registration_id: String,
         options: T,
         registrations_of: impl FnOnce(&mut DynamicRegistrations) -> &mut CapabilityRegistrations<T>,
-        capability_of: impl Fn(&mut lsp::ServerCapabilities) -> &mut Option<T>,
+        capability_of: impl Fn(&mut lsp_types::ServerCapabilities) -> &mut Option<T>,
     ) -> bool {
         let server_id = server.server_id();
         let local = &mut self.local;
@@ -196,9 +196,9 @@ impl LspStore {
     fn unregister_dynamic_capability<T: Clone + PartialEq>(
         &mut self,
         server: &LanguageServer,
-        unregistration: &lsp::Unregistration,
+        unregistration: &lsp_types::Unregistration,
         registrations_of: impl FnOnce(&mut DynamicRegistrations) -> &mut CapabilityRegistrations<T>,
-        capability_of: impl FnOnce(&mut lsp::ServerCapabilities) -> &mut Option<T>,
+        capability_of: impl FnOnce(&mut lsp_types::ServerCapabilities) -> &mut Option<T>,
     ) -> Option<bool> {
         let server_id = server.server_id();
         let local = &mut self.local;
@@ -274,7 +274,7 @@ impl LspStore {
     pub(super) fn register_server_capabilities(
         &mut self,
         server_id: LanguageServerId,
-        params: lsp::RegistrationParams,
+        params: lsp_types::RegistrationParams,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
         let server = self.language_server_for_id(server_id).with_context(|| format!("no server {server_id} found"))?;
@@ -298,7 +298,7 @@ impl LspStore {
                 }
                 "workspace/didChangeWorkspaceFolders" => {
                     // In this case register options is an empty object, we can ignore it
-                    let caps = lsp::WorkspaceFoldersServerCapabilities {
+                    let caps = lsp_types::WorkspaceFoldersServerCapabilities {
                         supported: Some(true),
                         change_notifications: Some(OneOf::Right(reg.id.clone())),
                     };
@@ -437,7 +437,7 @@ impl LspStore {
                     let document_selector = parse_text_document_registration(reg.register_options.as_ref())?;
                     let options = parse_register_capabilities(reg.register_options)?;
                     let provider = match options {
-                        OneOf::Left(value) => lsp::CodeActionProviderCapability::Simple(value),
+                        OneOf::Left(value) => lsp_types::CodeActionProviderCapability::Simple(value),
                         OneOf::Right(caps) => caps,
                     };
                     self.register_dynamic_text_document_capability(
@@ -481,7 +481,7 @@ impl LspStore {
                 "textDocument/completion" => {
                     if let Some(registration_options) = reg
                         .register_options
-                        .map(serde_json::from_value::<lsp::CompletionRegistrationOptions>)
+                        .map(serde_json::from_value::<lsp_types::CompletionRegistrationOptions>)
                         .transpose()?
                     {
                         self.register_dynamic_text_document_capability(
@@ -499,7 +499,7 @@ impl LspStore {
                     let document_selector = parse_text_document_registration(reg.register_options.as_ref())?;
                     let options = parse_register_capabilities(reg.register_options)?;
                     let provider = match options {
-                        OneOf::Left(value) => lsp::HoverProviderCapability::Simple(value),
+                        OneOf::Left(value) => lsp_types::HoverProviderCapability::Simple(value),
                         OneOf::Right(caps) => caps,
                     };
                     self.register_dynamic_text_document_capability(
@@ -515,14 +515,14 @@ impl LspStore {
                     if let Some(sync_kind) = reg
                         .register_options
                         .and_then(|opts| opts.get("syncKind").cloned())
-                        .map(serde_json::from_value::<lsp::TextDocumentSyncKind>)
+                        .map(serde_json::from_value::<lsp_types::TextDocumentSyncKind>)
                         .transpose()?
                     {
                         server.update_capabilities(|capabilities| {
                             let mut sync_options = take_text_document_sync_options(capabilities);
                             sync_options.change = Some(sync_kind);
                             capabilities.text_document_sync =
-                                Some(lsp::TextDocumentSyncCapability::Options(sync_options));
+                                Some(lsp_types::TextDocumentSyncCapability::Options(sync_options));
                         });
                         self.notify_server_capabilities_updated(&server);
                     }
@@ -546,9 +546,9 @@ impl LspStore {
                         server.update_capabilities(|capabilities| {
                             let mut sync_options = take_text_document_sync_options(capabilities);
                             sync_options.save =
-                                Some(TextDocumentSyncSaveOptions::SaveOptions(lsp::SaveOptions { include_text }));
+                                Some(TextDocumentSyncSaveOptions::SaveOptions(lsp_types::SaveOptions { include_text }));
                             capabilities.text_document_sync =
-                                Some(lsp::TextDocumentSyncCapability::Options(sync_options));
+                                Some(lsp_types::TextDocumentSyncCapability::Options(sync_options));
                         });
                         self.notify_server_capabilities_updated(&server);
                     }
@@ -621,7 +621,7 @@ impl LspStore {
                     let document_selector = parse_text_document_registration(reg.register_options.as_ref())?;
                     let options = parse_register_capabilities(reg.register_options)?;
                     let provider = match options {
-                        OneOf::Left(value) => lsp::ColorProviderCapability::Simple(value),
+                        OneOf::Left(value) => lsp_types::ColorProviderCapability::Simple(value),
                         OneOf::Right(caps) => caps,
                     };
                     if self
@@ -642,7 +642,7 @@ impl LspStore {
                     let document_selector = parse_text_document_registration(reg.register_options.as_ref())?;
                     let options = parse_register_capabilities(reg.register_options)?;
                     let provider = match options {
-                        OneOf::Left(value) => lsp::FoldingRangeProviderCapability::Simple(value),
+                        OneOf::Left(value) => lsp_types::FoldingRangeProviderCapability::Simple(value),
                         OneOf::Right(caps) => caps,
                     };
                     if self
@@ -680,14 +680,14 @@ impl LspStore {
                     let document_selector = parse_text_document_registration(reg.register_options.as_ref())?;
                     if let Some(caps) = reg
                         .register_options
-                        .map(serde_json::from_value::<lsp::SemanticTokensRegistrationOptions>)
+                        .map(serde_json::from_value::<lsp_types::SemanticTokensRegistrationOptions>)
                         .transpose()?
                         && self
                             .register_dynamic_text_document_capability(
                                 &server,
                                 &reg.method,
                                 reg.id,
-                                lsp::SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(caps),
+                                lsp_types::SemanticTokensServerCapabilities::SemanticTokensRegistrationOptions(caps),
                                 document_selector,
                                 |capabilities| &mut capabilities.semantic_tokens_provider,
                             )
@@ -708,7 +708,7 @@ impl LspStore {
     pub(super) fn unregister_server_capabilities(
         &mut self,
         server_id: LanguageServerId,
-        params: lsp::UnregistrationParams,
+        params: lsp_types::UnregistrationParams,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<()> {
         let server = self.language_server_for_id(server_id).with_context(|| format!("no server {server_id} found"))?;
@@ -831,7 +831,8 @@ impl LspStore {
                     server.update_capabilities(|capabilities| {
                         let mut sync_options = take_text_document_sync_options(capabilities);
                         sync_options.change = None;
-                        capabilities.text_document_sync = Some(lsp::TextDocumentSyncCapability::Options(sync_options));
+                        capabilities.text_document_sync =
+                            Some(lsp_types::TextDocumentSyncCapability::Options(sync_options));
                     });
                     self.notify_server_capabilities_updated(&server);
                 }
@@ -839,7 +840,8 @@ impl LspStore {
                     server.update_capabilities(|capabilities| {
                         let mut sync_options = take_text_document_sync_options(capabilities);
                         sync_options.save = None;
-                        capabilities.text_document_sync = Some(lsp::TextDocumentSyncCapability::Options(sync_options));
+                        capabilities.text_document_sync =
+                            Some(lsp_types::TextDocumentSyncCapability::Options(sync_options));
                     });
                     self.notify_server_capabilities_updated(&server);
                 }
@@ -932,7 +934,7 @@ impl LspStore {
 
 // Servers like Biome unregister capabilities they never registered and re-register existing IDs
 // whenever their configuration loads, so neither is worth a warning.
-fn log_unknown_unregistration(unregistration: &lsp::Unregistration) {
+fn log_unknown_unregistration(unregistration: &lsp_types::Unregistration) {
     log::debug!(
         "Ignoring unregistration of unknown {} registration with ID {}",
         unregistration.method,
@@ -978,8 +980,8 @@ fn remove_text_document_registration(
 /// The most recent registration wins; with none left, the statically declared capability applies.
 fn active_text_document_capability<T>(
     registrations: &IndexMap<String, DynamicTextDocumentRegistration, FxBuildHasher>,
-    initial_capabilities: Option<&lsp::ServerCapabilities>,
-    capability_of: impl Fn(&mut lsp::ServerCapabilities) -> &mut Option<T>,
+    initial_capabilities: Option<&lsp_types::ServerCapabilities>,
+    capability_of: impl Fn(&mut lsp_types::ServerCapabilities) -> &mut Option<T>,
 ) -> Option<T> {
     if let Some((_, registration)) = registrations.last() {
         capability_of(&mut registration.server_capabilities.clone()).take()
@@ -993,7 +995,7 @@ fn active_text_document_capability<T>(
 fn update_active_capability<T: PartialEq>(
     server: &LanguageServer,
     active: Option<T>,
-    capability_of: impl Fn(&mut lsp::ServerCapabilities) -> &mut Option<T>,
+    capability_of: impl Fn(&mut lsp_types::ServerCapabilities) -> &mut Option<T>,
 ) -> bool {
     let mut current_capabilities = server.capabilities();
     if *capability_of(&mut current_capabilities) == active {
@@ -1038,10 +1040,10 @@ fn remove_capability_registration<T: PartialEq>(
 
 fn parse_text_document_registration(
     register_options: Option<&serde_json::Value>,
-) -> Result<Option<lsp::DocumentSelector>> {
+) -> Result<Option<lsp_types::DocumentSelector>> {
     Ok(register_options
         .cloned()
-        .map(serde_json::from_value::<lsp::TextDocumentRegistrationOptions>)
+        .map(serde_json::from_value::<lsp_types::TextDocumentRegistrationOptions>)
         .transpose()?
         .and_then(|options| options.document_selector))
 }
@@ -1057,13 +1059,15 @@ fn parse_register_capabilities<T: DeserializeOwned>(
     })
 }
 
-fn take_text_document_sync_options(capabilities: &mut lsp::ServerCapabilities) -> lsp::TextDocumentSyncOptions {
+fn take_text_document_sync_options(
+    capabilities: &mut lsp_types::ServerCapabilities,
+) -> lsp_types::TextDocumentSyncOptions {
     match capabilities.text_document_sync.take() {
-        Some(lsp::TextDocumentSyncCapability::Options(sync_options)) => sync_options,
-        Some(lsp::TextDocumentSyncCapability::Kind(sync_kind)) => {
-            lsp::TextDocumentSyncOptions { change: Some(sync_kind), ..Default::default() }
+        Some(lsp_types::TextDocumentSyncCapability::Options(sync_options)) => sync_options,
+        Some(lsp_types::TextDocumentSyncCapability::Kind(sync_kind)) => {
+            lsp_types::TextDocumentSyncOptions { change: Some(sync_kind), ..Default::default() }
         }
-        None => lsp::TextDocumentSyncOptions::default(),
+        None => lsp_types::TextDocumentSyncOptions::default(),
     }
 }
 
@@ -1081,18 +1085,20 @@ mod tests {
     use super::remove_capability_registration;
     use super::remove_text_document_registration;
 
-    fn definition_registration(document_selector: Option<lsp::DocumentSelector>) -> DynamicTextDocumentRegistration {
+    fn definition_registration(
+        document_selector: Option<lsp_types::DocumentSelector>,
+    ) -> DynamicTextDocumentRegistration {
         DynamicTextDocumentRegistration {
             document_selector,
-            server_capabilities: lsp::ServerCapabilities {
+            server_capabilities: lsp_types::ServerCapabilities {
                 definition_provider: Some(OneOf::Left(true)),
-                ..lsp::ServerCapabilities::default()
+                ..lsp_types::ServerCapabilities::default()
             },
         }
     }
 
-    fn rust_selector() -> lsp::DocumentSelector {
-        vec![lsp::DocumentFilter { language: Some("rust".to_owned()), scheme: None, pattern: None }]
+    fn rust_selector() -> lsp_types::DocumentSelector {
+        vec![lsp_types::DocumentFilter { language: Some("rust".to_owned()), scheme: None, pattern: None }]
     }
 
     fn capability_registrations(entries: &[(Option<&str>, i32)]) -> CapabilityRegistrations<i32> {
@@ -1186,13 +1192,13 @@ mod tests {
     #[test]
     fn active_text_document_capability_prefers_latest_registration() {
         fn definition_of(
-            capabilities: &mut lsp::ServerCapabilities,
-        ) -> &mut Option<OneOf<bool, lsp::DefinitionOptions>> {
+            capabilities: &mut lsp_types::ServerCapabilities,
+        ) -> &mut Option<OneOf<bool, lsp_types::DefinitionOptions>> {
             &mut capabilities.definition_provider
         }
-        let initial = lsp::ServerCapabilities {
+        let initial = lsp_types::ServerCapabilities {
             definition_provider: Some(OneOf::Left(false)),
-            ..lsp::ServerCapabilities::default()
+            ..lsp_types::ServerCapabilities::default()
         };
         let mut registrations = IndexMap::default();
         assert_eq!(active_text_document_capability(&registrations, None, definition_of), None);

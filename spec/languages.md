@@ -214,6 +214,9 @@
   invalid params), decided by error type and code, never message text. A
   server's own error answer is not logged (terraform-ls answers "no definition
   here" with one); it shows in the LSP log's RPC trace.
+- The `lsp` crate exposes only its own client types (`LanguageServer`,
+  `LanguageServerId`, ...); protocol types are imported from `lsp_types`
+  directly, not re-exported through `lsp`.
 - `initialize` sends the workspace as `workspaceFolders` plus `rootUri` (for
   servers that predate workspace folders); the long-deprecated `rootPath` is
   not sent.

@@ -98,7 +98,7 @@ pub enum HoverLink {
     /// Navigate to an LSP-given location whose buffer may not be loaded yet.
     /// Used by inlay-hint hover, code-lens references, and document-link
     /// targets that point inside a workspace file (e.g. `file:///foo#9,16`).
-    LspLocation(lsp::Location, LanguageServerId),
+    LspLocation(lsp_types::Location, LanguageServerId),
 }
 
 /// Convert a `documentLink` target URI into a [`HoverLink`], reusing the
@@ -108,13 +108,16 @@ pub enum HoverLink {
 pub fn document_link_target_to_hover_link(target: &str, server_id: LanguageServerId) -> HoverLink {
     if let Ok(url) = url::Url::parse(target)
         && url.scheme() == "file"
-        && let Ok(uri) = lsp::Uri::from_str(target)
+        && let Ok(uri) = lsp_types::Uri::from_str(target)
     {
         let position = url
             .fragment()
             .and_then(source_position_from_fragment)
-            .map_or_default(|(line, character)| lsp::Position { line, character });
-        return HoverLink::LspLocation(lsp::Location { uri, range: lsp::Range::new(position, position) }, server_id);
+            .map_or_default(|(line, character)| lsp_types::Position { line, character });
+        return HoverLink::LspLocation(
+            lsp_types::Location { uri, range: lsp_types::Range::new(position, position) },
+            server_id,
+        );
     }
     HoverLink::Url(target.to_owned())
 }
@@ -129,7 +132,7 @@ pub struct InlayHighlight {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TriggerPoint {
     Text(Anchor),
-    InlayHint(InlayHighlight, lsp::Location, LanguageServerId),
+    InlayHint(InlayHighlight, lsp_types::Location, LanguageServerId),
 }
 
 impl TriggerPoint {

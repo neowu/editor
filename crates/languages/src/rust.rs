@@ -17,14 +17,27 @@ use gpui::App;
 use gpui::AppContext as _;
 use gpui::AsyncApp;
 use gpui::SharedString;
+use language::ClientCommand;
+use language::CodeLabel;
+use language::ContextProvider;
+use language::HighlightId;
+use language::Language;
+use language::LanguageServerId;
+use language::LanguageServerName;
+use language::LibraryProvider;
+use language::LibraryRoot;
+use language::LspAdapter;
+use language::LspAdapterDelegate;
+use language::ManifestName;
+use language::ManifestProvider;
+use language::ManifestQuery;
+use language::Rope;
 use language::language_settings::LanguageSettings;
 use language::language_settings::RewrapBehavior;
 use language::language_settings::SemanticTokenRules;
 use language::language_settings::WordsCompletionMode;
-#[allow(clippy::wildcard_imports)]
-pub(crate) use language::*;
-use lsp::InitializeParams;
 use lsp::LanguageServerBinary;
+use lsp_types::InitializeParams;
 use project::lsp_store::rust_analyzer_ext::CARGO_DIAGNOSTICS_SOURCE_NAME;
 use regex::Regex;
 use rustc_hash::FxHashMap;
@@ -209,7 +222,7 @@ impl LspAdapter for RustLspAdapter {
         Ok(Some(initialization_options(&clippy_configs)))
     }
 
-    fn process_diagnostics(&self, params: &mut lsp::PublishDiagnosticsParams, _: LanguageServerId) {
+    fn process_diagnostics(&self, params: &mut lsp_types::PublishDiagnosticsParams, _: LanguageServerId) {
         static REGEX: LazyLock<Regex> =
             LazyLock::new(|| Regex::new(r"(?m)`([^`]+)\n`$").expect("Failed to create REGEX"));
 
@@ -217,8 +230,8 @@ impl LspAdapter for RustLspAdapter {
         for diagnostic in &mut params.diagnostics {
             for message in diagnostic.related_information.iter_mut().flatten().map(|info| &mut info.message).chain(
                 match &mut diagnostic.message {
-                    lsp::DiagnosticMessage::String(message) => Some(message),
-                    lsp::DiagnosticMessage::MarkupContent(_) => None,
+                    lsp_types::DiagnosticMessage::String(message) => Some(message),
+                    lsp_types::DiagnosticMessage::MarkupContent(_) => None,
                 },
             ) {
                 if let Cow::Owned(sanitized) = REGEX.replace_all(message, "`$1`") {
@@ -235,7 +248,7 @@ impl LspAdapter for RustLspAdapter {
 
     async fn label_for_completion(
         &self,
-        completion: &lsp::CompletionItem,
+        completion: &lsp_types::CompletionItem,
         language: &Arc<Language>,
     ) -> Option<CodeLabel> {
         // rust-analyzer calls these detail left and detail right in terms of where it expects things to be rendered
@@ -259,7 +272,7 @@ impl LspAdapter for RustLspAdapter {
             CodeLabel::new(text, filter_range, runs)
         };
         let mut label = match (detail_right, completion.kind) {
-            (Some(signature), Some(lsp::CompletionItemKind::FIELD)) => {
+            (Some(signature), Some(lsp_types::CompletionItemKind::FIELD)) => {
                 let name = &completion.label;
                 let text = format!("{name}: {signature}");
                 let prefix = "struct S { ";
@@ -267,9 +280,10 @@ impl LspAdapter for RustLspAdapter {
                 let runs = language.highlight_text(&source, prefix.len()..prefix.len() + text.len()).collect();
                 mk_label(text, &|| 0..completion.label.len(), runs)
             }
-            (Some(signature), Some(lsp::CompletionItemKind::CONSTANT | lsp::CompletionItemKind::VARIABLE))
-                if completion.insert_text_format != Some(lsp::InsertTextFormat::SNIPPET) =>
-            {
+            (
+                Some(signature),
+                Some(lsp_types::CompletionItemKind::CONSTANT | lsp_types::CompletionItemKind::VARIABLE),
+            ) if completion.insert_text_format != Some(lsp_types::InsertTextFormat::SNIPPET) => {
                 let name = &completion.label;
                 let text = format!("{name}: {signature}");
                 let prefix = "let ";
@@ -277,7 +291,10 @@ impl LspAdapter for RustLspAdapter {
                 let runs = language.highlight_text(&source, prefix.len()..prefix.len() + text.len()).collect();
                 mk_label(text, &|| 0..completion.label.len(), runs)
             }
-            (function_signature, Some(lsp::CompletionItemKind::FUNCTION | lsp::CompletionItemKind::METHOD)) => {
+            (
+                function_signature,
+                Some(lsp_types::CompletionItemKind::FUNCTION | lsp_types::CompletionItemKind::METHOD),
+            ) => {
                 const FUNCTION_PREFIXES: [&str; 6] =
                     ["async fn", "async unsafe fn", "const fn", "const unsafe fn", "unsafe fn", "fn"];
                 let fn_prefixed = FUNCTION_PREFIXES
@@ -320,10 +337,12 @@ impl LspAdapter for RustLspAdapter {
                 let mut label;
                 let mut runs = vec![];
 
-                if completion.insert_text_format == Some(lsp::InsertTextFormat::SNIPPET)
+                if completion.insert_text_format == Some(lsp_types::InsertTextFormat::SNIPPET)
                     && let Some(
-                        lsp::CompletionTextEdit::InsertAndReplace(lsp::InsertReplaceEdit { new_text, .. })
-                        | lsp::CompletionTextEdit::Edit(lsp::TextEdit { new_text, .. }),
+                        lsp_types::CompletionTextEdit::InsertAndReplace(lsp_types::InsertReplaceEdit {
+                            new_text, ..
+                        })
+                        | lsp_types::CompletionTextEdit::Edit(lsp_types::TextEdit { new_text, .. }),
                     ) = completion.text_edit.as_ref()
                     && let Ok(mut snippet) = snippet::Snippet::parse(new_text)
                     && snippet.tabstops.len() > 1
@@ -390,12 +409,14 @@ impl LspAdapter for RustLspAdapter {
                     runs.extend(language.highlight_text(label.as_str(), 0..label.len()));
                 } else {
                     let highlight_name = kind.and_then(|kind| match kind {
-                        lsp::CompletionItemKind::STRUCT
-                        | lsp::CompletionItemKind::INTERFACE
-                        | lsp::CompletionItemKind::ENUM => Some("type"),
-                        lsp::CompletionItemKind::ENUM_MEMBER => Some("variant"),
-                        lsp::CompletionItemKind::KEYWORD => Some("keyword"),
-                        lsp::CompletionItemKind::VALUE | lsp::CompletionItemKind::CONSTANT => Some("constant"),
+                        lsp_types::CompletionItemKind::STRUCT
+                        | lsp_types::CompletionItemKind::INTERFACE
+                        | lsp_types::CompletionItemKind::ENUM => Some("type"),
+                        lsp_types::CompletionItemKind::ENUM_MEMBER => Some("variant"),
+                        lsp_types::CompletionItemKind::KEYWORD => Some("keyword"),
+                        lsp_types::CompletionItemKind::VALUE | lsp_types::CompletionItemKind::CONSTANT => {
+                            Some("constant")
+                        }
                         _ => None,
                     });
 
@@ -404,7 +425,7 @@ impl LspAdapter for RustLspAdapter {
                     if let Some(highlight_name) = highlight_name {
                         let highlight_id = language.grammar()?.highlight_id_for_name(highlight_name)?;
                         runs.push((0..label.rfind('(').unwrap_or(completion.label.len()), highlight_id));
-                    } else if detail_left.is_none() && kind != Some(lsp::CompletionItemKind::SNIPPET) {
+                    } else if detail_left.is_none() && kind != Some(lsp_types::CompletionItemKind::SNIPPET) {
                         return None;
                     }
                 }
@@ -535,9 +556,9 @@ fn initialization_options(paths: &[PathBuf]) -> serde_json::Value {
 
 /// Removes exact duplicates, keeping the first of each. Clippy repeats spanless lints once per
 /// crate and target, all at the same place.
-fn dedup_diagnostics(diagnostics: &mut Vec<lsp::Diagnostic>) {
-    let mut kept: Vec<lsp::Diagnostic> = Vec::with_capacity(diagnostics.len());
-    let mut kept_by_range: FxHashMap<lsp::Range, SmallVec<[usize; 1]>> = FxHashMap::default();
+fn dedup_diagnostics(diagnostics: &mut Vec<lsp_types::Diagnostic>) {
+    let mut kept: Vec<lsp_types::Diagnostic> = Vec::with_capacity(diagnostics.len());
+    let mut kept_by_range: FxHashMap<lsp_types::Range, SmallVec<[usize; 1]>> = FxHashMap::default();
     for diagnostic in diagnostics.drain(..) {
         let same_range = kept_by_range.entry(diagnostic.range).or_default();
         if same_range.iter().any(|&ix| kept[ix] == diagnostic) {
@@ -649,12 +670,12 @@ mod tests {
     use super::initialization_options;
     use super::str;
 
-    fn diagnostic(line: u32, message: &str) -> lsp::Diagnostic {
-        lsp::Diagnostic {
-            range: lsp::Range::new(lsp::Position::new(line, 0), lsp::Position::new(line, 0)),
-            severity: Some(lsp::DiagnosticSeverity::WARNING),
-            message: lsp::DiagnosticMessage::String(message.to_owned()),
-            ..lsp::Diagnostic::default()
+    fn diagnostic(line: u32, message: &str) -> lsp_types::Diagnostic {
+        lsp_types::Diagnostic {
+            range: lsp_types::Range::new(lsp_types::Position::new(line, 0), lsp_types::Position::new(line, 0)),
+            severity: Some(lsp_types::DiagnosticSeverity::WARNING),
+            message: lsp_types::DiagnosticMessage::String(message.to_owned()),
+            ..lsp_types::Diagnostic::default()
         }
     }
 
@@ -680,9 +701,12 @@ mod tests {
 
     #[test]
     fn dedup_diagnostics_keeps_diagnostics_differing_in_any_field() {
-        let error = lsp::Diagnostic { severity: Some(lsp::DiagnosticSeverity::ERROR), ..diagnostic(0, "same") };
-        let with_code =
-            lsp::Diagnostic { code: Some(lsp::NumberOrString::String("code".to_owned())), ..diagnostic(0, "same") };
+        let error =
+            lsp_types::Diagnostic { severity: Some(lsp_types::DiagnosticSeverity::ERROR), ..diagnostic(0, "same") };
+        let with_code = lsp_types::Diagnostic {
+            code: Some(lsp_types::NumberOrString::String("code".to_owned())),
+            ..diagnostic(0, "same")
+        };
         let mut diagnostics = vec![diagnostic(0, "same"), error.clone(), with_code.clone()];
         dedup_diagnostics(&mut diagnostics);
         assert_eq!(diagnostics, vec![diagnostic(0, "same"), error, with_code]);
@@ -690,8 +714,8 @@ mod tests {
 
     #[test]
     fn process_diagnostics_removes_duplicates() {
-        let mut params = lsp::PublishDiagnosticsParams {
-            uri: lsp::Uri::from_file_path("/p/clippy.toml").unwrap(),
+        let mut params = lsp_types::PublishDiagnosticsParams {
+            uri: lsp_types::Uri::from_file_path("/p/clippy.toml").unwrap(),
             diagnostics: vec![diagnostic(0, "dup"), diagnostic(0, "dup")],
             version: None,
         };

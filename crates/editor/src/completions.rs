@@ -1144,7 +1144,7 @@ fn snippet_completions(
                 let start = snapshot.anchor_before(start);
                 let range = start..buffer_anchor;
                 let lsp_start = to_lsp(&start);
-                let lsp_range = lsp::Range { start: lsp_start, end: lsp_end };
+                let lsp_range = lsp_types::Range { start: lsp_start, end: lsp_end };
                 Completion {
                     replace_range: range,
                     new_text: snippet.body.clone(),
@@ -1152,20 +1152,25 @@ fn snippet_completions(
                         insert_range: None,
                         server_id: LanguageServerId(usize::MAX),
                         resolved: true,
-                        lsp_completion: Box::new(lsp::CompletionItem {
+                        lsp_completion: Box::new(lsp_types::CompletionItem {
                             label: matching_prefix.clone(),
                             kind: Some(CompletionItemKind::SNIPPET),
                             label_details: snippet.description.as_ref().map(|description| {
-                                lsp::CompletionItemLabelDetails { detail: Some(description.clone()), description: None }
+                                lsp_types::CompletionItemLabelDetails {
+                                    detail: Some(description.clone()),
+                                    description: None,
+                                }
                             }),
                             insert_text_format: Some(InsertTextFormat::SNIPPET),
-                            text_edit: Some(lsp::CompletionTextEdit::InsertAndReplace(lsp::InsertReplaceEdit {
-                                new_text: snippet.body.clone(),
-                                insert: lsp_range,
-                                replace: lsp_range,
-                            })),
+                            text_edit: Some(lsp_types::CompletionTextEdit::InsertAndReplace(
+                                lsp_types::InsertReplaceEdit {
+                                    new_text: snippet.body.clone(),
+                                    insert: lsp_range,
+                                    replace: lsp_range,
+                                },
+                            )),
                             sort_text: Some(char::MAX.to_string()),
-                            ..lsp::CompletionItem::default()
+                            ..lsp_types::CompletionItem::default()
                         }),
                         lsp_defaults: None,
                     },

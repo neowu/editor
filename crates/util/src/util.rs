@@ -30,8 +30,15 @@ use std::ops::RangeInclusive;
 use std::sync::LazyLock;
 
 use anyhow::Result;
-#[allow(clippy::wildcard_imports)]
-pub use gpui_util::*;
+pub use gpui_util::Deferred;
+pub use gpui_util::ResultExt;
+pub use gpui_util::TryFutureExt;
+pub use gpui_util::TypeIdHashBuilder;
+pub use gpui_util::canonical_float_bits;
+pub use gpui_util::defer;
+pub use gpui_util::is_utf8_char_boundary;
+pub use gpui_util::new_std_command;
+pub use gpui_util::post_inc;
 use itertools::Either;
 pub use path::PathExt;
 pub use path::normalize_path;

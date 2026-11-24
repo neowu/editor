@@ -356,7 +356,7 @@ impl RedistributableColumnsState {
 }
 
 /// Returns `true` when the column at `idx` is hidden by `hidden`.
-pub fn is_column_hidden(hidden: Option<&TableRow<bool>>, idx: usize) -> bool {
+pub(super) fn is_column_hidden(hidden: Option<&TableRow<bool>>, idx: usize) -> bool {
     hidden.and_then(|mask| mask.get(idx).copied()).unwrap_or(false)
 }
 

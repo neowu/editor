@@ -19,7 +19,7 @@ use language::BufferId;
 use language::Diagnostic;
 use language::DiagnosticEntryRef;
 use language::LanguageRegistry;
-use lsp::DiagnosticSeverity;
+use lsp_types::DiagnosticSeverity;
 use markdown::Markdown;
 use markdown::MarkdownElement;
 use text::Point;
@@ -114,7 +114,8 @@ fn append_source_and_code(markdown: &mut String, diagnostic: &Diagnostic) {
     if diagnostic.source.is_none() && diagnostic.code.is_none() {
         return;
     }
-    let is_lsp_markdown = diagnostic.message.lsp_markup().is_some_and(|(kind, _)| kind == &lsp::MarkupKind::Markdown);
+    let is_lsp_markdown =
+        diagnostic.message.lsp_markup().is_some_and(|(kind, _)| kind == &lsp_types::MarkupKind::Markdown);
     if is_lsp_markdown {
         markdown.push_str("\n\n(");
     } else {

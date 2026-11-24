@@ -25,21 +25,37 @@ use std::sync::LazyLock;
 use std::time::Duration;
 use std::time::Instant;
 
-#[allow(clippy::wildcard_imports)]
-pub use anchor::*;
+pub use anchor::Anchor;
+pub use anchor::AnchorRangeExt;
+pub use anchor::OffsetRangeExt;
 use anyhow::Context as _;
 use clock::Lamport;
 use locator::Locator;
 pub use patch::Patch;
 use regex::Regex;
-#[allow(clippy::wildcard_imports)]
-pub use rope::*;
+pub use rope::Bytes;
+pub use rope::Chunk;
+pub use rope::ChunkBitmaps;
+pub use rope::ChunkSlice;
+pub use rope::ChunkSummary;
+pub use rope::ChunkWithBitmaps;
+pub use rope::Chunks;
+pub use rope::Cursor;
+pub use rope::DimensionPair;
+pub use rope::Lines;
+pub use rope::OffsetUtf16;
+pub use rope::Point;
+pub use rope::PointUtf16;
+pub use rope::Rope;
+pub use rope::TextDimension;
+pub use rope::TextSummary;
+pub use rope::Unclipped;
 use rustc_hash::FxHashMap;
-#[allow(clippy::wildcard_imports)]
-pub use selection::*;
+pub use selection::Selection;
+pub use selection::SelectionGoal;
 use smallvec::SmallVec;
-#[allow(clippy::wildcard_imports)]
-pub use subscription::*;
+pub use subscription::Subscription;
+pub use subscription::Topic;
 pub use sum_tree::Bias;
 use sum_tree::Dimensions;
 use sum_tree::FilterCursor;

@@ -443,7 +443,7 @@ impl ArenaClearNeeded {
     /// Panics if passed a different App than the draw ran against, since
     /// clearing another App's arena could free memory its draws still
     /// reference.
-    pub fn clear(self, cx: &mut App) {
+    pub fn clear(self, cx: &App) {
         assert!(
             ptr::eq(self.arena, &raw const *cx.element_arena),
             "ArenaClearNeeded::clear called with a different App than the draw ran against"

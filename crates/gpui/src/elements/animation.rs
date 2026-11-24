@@ -2,8 +2,10 @@ use std::rc::Rc;
 use std::time::Duration;
 use std::time::Instant;
 
-#[allow(clippy::wildcard_imports)]
-pub use easing::*;
+pub use easing::ease_in_out;
+pub use easing::ease_out_quint;
+pub use easing::linear;
+pub use easing::pulsating_between;
 use smallvec::SmallVec;
 
 use crate::AnyElement;

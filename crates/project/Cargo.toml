@@ -29,6 +29,7 @@ itertools.workspace = true
 language.workspace = true
 log.workspace = true
 lsp.workspace = true
+lsp_types.workspace = true
 parking_lot.workspace = true
 path.workspace = true
 app_paths.workspace = true

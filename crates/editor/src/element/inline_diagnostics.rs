@@ -48,7 +48,7 @@ use crate::scroll::ScrollPixelOffset;
 pub(super) struct PointDiagnostic {
     pub(super) column: u32,
     underline: UnderlineStyle,
-    pub(super) severity: lsp::DiagnosticSeverity,
+    pub(super) severity: lsp_types::DiagnosticSeverity,
 }
 
 pub(super) struct DiagnosticUnderline {
@@ -57,7 +57,7 @@ pub(super) struct DiagnosticUnderline {
     pub(super) style: UnderlineStyle,
     pub(super) bounds: Bounds<ScaledPixels>,
     pub(super) span: Range<ScaledPixels>,
-    pub(super) severity: lsp::DiagnosticSeverity,
+    pub(super) severity: lsp_types::DiagnosticSeverity,
     pub(super) is_point: bool,
 }
 
@@ -175,7 +175,7 @@ impl EditorElement {
             editor
                 .inline_diagnostics
                 .iter()
-                .filter(|(_, diagnostic)| diagnostic.severity <= lsp::DiagnosticSeverity::ERROR)
+                .filter(|(_, diagnostic)| diagnostic.severity <= lsp_types::DiagnosticSeverity::ERROR)
                 .filter(|(_, diagnostic)| match active_diagnostics_group {
                     Some(active_diagnostics_group) => {
                         // Active diagnostics are all shown in the editor already, no need to display them inline
@@ -197,11 +197,11 @@ impl EditorElement {
             return FxHashMap::default();
         }
 
-        let severity_to_color = |sev: &lsp::DiagnosticSeverity| match *sev {
-            lsp::DiagnosticSeverity::ERROR => Color::Error,
-            lsp::DiagnosticSeverity::WARNING => Color::Warning,
-            lsp::DiagnosticSeverity::INFORMATION => Color::Info,
-            lsp::DiagnosticSeverity::HINT => Color::Hint,
+        let severity_to_color = |sev: &lsp_types::DiagnosticSeverity| match *sev {
+            lsp_types::DiagnosticSeverity::ERROR => Color::Error,
+            lsp_types::DiagnosticSeverity::WARNING => Color::Warning,
+            lsp_types::DiagnosticSeverity::INFORMATION => Color::Info,
+            lsp_types::DiagnosticSeverity::HINT => Color::Hint,
             _ => Color::Error,
         };
 

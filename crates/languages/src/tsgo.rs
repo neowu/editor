@@ -100,10 +100,10 @@ impl LspAdapter for TsgoLspAdapter {
 
     async fn label_for_completion(
         &self,
-        item: &lsp::CompletionItem,
+        item: &lsp_types::CompletionItem,
         language: &Arc<language::Language>,
     ) -> Option<language::CodeLabel> {
-        use lsp::CompletionItemKind as Kind;
+        use lsp_types::CompletionItemKind as Kind;
         let label_len = item.label.len();
         let grammar = language.grammar()?;
         let highlight_id = match item.kind? {

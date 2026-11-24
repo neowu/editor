@@ -13,7 +13,7 @@ use gpui::Task;
 use language::Buffer;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
-use lsp::request::CodeLensResolve;
+use lsp_types::request::CodeLensResolve;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 

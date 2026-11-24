@@ -46,28 +46,28 @@ use lsp::LanguageServerBinary;
 use lsp::LanguageServerId;
 use lsp::LanguageServerName;
 use lsp::LanguageServerSelector;
-use lsp::MessageActionItem;
-use lsp::Uri;
-use lsp::WorkDoneProgressCancelParams;
-use lsp::notification::DidChangeConfiguration;
-use lsp::notification::LogMessage;
-use lsp::notification::LogTrace;
-use lsp::notification::Progress;
-use lsp::notification::PublishDiagnostics;
-use lsp::notification::ShowMessage;
-use lsp::notification::WorkDoneProgressCancel;
-use lsp::request::ApplyWorkspaceEdit;
-use lsp::request::CodeLensRefresh;
-use lsp::request::InlayHintRefreshRequest;
-use lsp::request::RegisterCapability;
-use lsp::request::SemanticTokensRefresh;
-use lsp::request::ShowDocument;
-use lsp::request::ShowMessageRequest;
-use lsp::request::UnregisterCapability;
-use lsp::request::WorkDoneProgressCreate;
-use lsp::request::WorkspaceConfiguration;
-use lsp::request::WorkspaceDiagnosticRefresh;
-use lsp::request::WorkspaceFoldersRequest;
+use lsp_types::MessageActionItem;
+use lsp_types::Uri;
+use lsp_types::WorkDoneProgressCancelParams;
+use lsp_types::notification::DidChangeConfiguration;
+use lsp_types::notification::LogMessage;
+use lsp_types::notification::LogTrace;
+use lsp_types::notification::Progress;
+use lsp_types::notification::PublishDiagnostics;
+use lsp_types::notification::ShowMessage;
+use lsp_types::notification::WorkDoneProgressCancel;
+use lsp_types::request::ApplyWorkspaceEdit;
+use lsp_types::request::CodeLensRefresh;
+use lsp_types::request::InlayHintRefreshRequest;
+use lsp_types::request::RegisterCapability;
+use lsp_types::request::SemanticTokensRefresh;
+use lsp_types::request::ShowDocument;
+use lsp_types::request::ShowMessageRequest;
+use lsp_types::request::UnregisterCapability;
+use lsp_types::request::WorkDoneProgressCreate;
+use lsp_types::request::WorkspaceConfiguration;
+use lsp_types::request::WorkspaceDiagnosticRefresh;
+use lsp_types::request::WorkspaceFoldersRequest;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -185,18 +185,18 @@ fn command_override(json: &str, server: &str) -> Result<Option<(String, Vec<OsSt
 
 pub(super) fn include_text(server: &lsp::LanguageServer) -> Option<bool> {
     match server.capabilities().text_document_sync.as_ref()? {
-        lsp::TextDocumentSyncCapability::Options(opts) => match opts.save.as_ref()? {
+        lsp_types::TextDocumentSyncCapability::Options(opts) => match opts.save.as_ref()? {
             // Server wants didSave but didn't specify includeText.
-            lsp::TextDocumentSyncSaveOptions::Supported(true) => Some(false),
+            lsp_types::TextDocumentSyncSaveOptions::Supported(true) => Some(false),
             // Server doesn't want didSave at all.
-            lsp::TextDocumentSyncSaveOptions::Supported(false) => None,
+            lsp_types::TextDocumentSyncSaveOptions::Supported(false) => None,
             // Server provided SaveOptions.
-            lsp::TextDocumentSyncSaveOptions::SaveOptions(save_options) => {
+            lsp_types::TextDocumentSyncSaveOptions::SaveOptions(save_options) => {
                 Some(save_options.include_text.unwrap_or(false))
             }
         },
         // We do not have any save info. Kind affects didChange only.
-        lsp::TextDocumentSyncCapability::Kind(_) => None,
+        lsp_types::TextDocumentSyncCapability::Kind(_) => None,
     }
 }
 
@@ -330,7 +330,7 @@ impl LocalLspStore {
                     );
 
                     let did_change_configuration_params =
-                        lsp::DidChangeConfigurationParams { settings: workspace_config };
+                        lsp_types::DidChangeConfigurationParams { settings: workspace_config };
                     let language_server = cx
                         .update(|cx| {
                             let request_timeout = LSP_REQUEST_TIMEOUT;
@@ -708,8 +708,8 @@ impl LocalLspStore {
                         let message = params.message.clone();
                         let (tx, rx) = async_channel::bounded::<MessageActionItem>(1);
                         let level = match params.typ {
-                            lsp::MessageType::ERROR => PromptLevel::Critical,
-                            lsp::MessageType::WARNING => PromptLevel::Warning,
+                            lsp_types::MessageType::ERROR => PromptLevel::Critical,
+                            lsp_types::MessageType::WARNING => PromptLevel::Warning,
                             _ => PromptLevel::Info,
                         };
                         let request =
@@ -750,7 +750,7 @@ impl LocalLspStore {
                             cx.emit(LspStoreEvent::LanguageServerShowDocument(request));
                         })?;
                         let success = rx.recv().await.unwrap_or(false);
-                        Ok(lsp::ShowDocumentResult { success })
+                        Ok(lsp_types::ShowDocumentResult { success })
                     }
                 }
             })
@@ -767,8 +767,8 @@ impl LocalLspStore {
 
                     let (tx, _) = async_channel::bounded(1);
                     let level = match params.typ {
-                        lsp::MessageType::ERROR => PromptLevel::Critical,
-                        lsp::MessageType::WARNING => PromptLevel::Warning,
+                        lsp_types::MessageType::ERROR => PromptLevel::Critical,
+                        lsp_types::MessageType::WARNING => PromptLevel::Warning,
                         _ => PromptLevel::Info,
                     };
                     let request = LanguageServerPromptRequest::new(level, params.message, vec![], name, tx);
@@ -1080,7 +1080,7 @@ impl LspStore {
                                         .await
                                         .ok()?;
                                         server
-                                            .notify::<DidChangeConfiguration>(lsp::DidChangeConfigurationParams {
+                                            .notify::<DidChangeConfiguration>(lsp_types::DidChangeConfigurationParams {
                                                 settings,
                                             })
                                             .ok()?;
@@ -1137,13 +1137,13 @@ impl LspStore {
 
     fn on_lsp_progress(
         &mut self,
-        progress_params: lsp::ProgressParams,
+        progress_params: lsp_types::ProgressParams,
         language_server_id: LanguageServerId,
         disk_based_diagnostics_progress_token: Option<String>,
         cx: &mut Context<Self>,
     ) {
         match progress_params.value {
-            lsp::ProgressParamsValue::WorkDone(progress) => {
+            lsp_types::ProgressParamsValue::WorkDone(progress) => {
                 self.handle_work_done_progress(
                     progress,
                     language_server_id,
@@ -1152,8 +1152,8 @@ impl LspStore {
                     cx,
                 );
             }
-            lsp::ProgressParamsValue::WorkspaceDiagnostic(report) => {
-                let lsp::NumberOrString::String(token) = progress_params.token else {
+            lsp_types::ProgressParamsValue::WorkspaceDiagnostic(report) => {
+                let lsp_types::NumberOrString::String(token) = progress_params.token else {
                     return;
                 };
                 let registration_id = token.split_once(WORKSPACE_DIAGNOSTICS_TOKEN_START).map(|(_, id)| id.to_owned());
@@ -1176,7 +1176,7 @@ impl LspStore {
 
     fn handle_work_done_progress(
         &mut self,
-        progress: lsp::WorkDoneProgress,
+        progress: lsp_types::WorkDoneProgress,
         language_server_id: LanguageServerId,
         disk_based_diagnostics_progress_token: Option<String>,
         token: ProgressToken,
@@ -1199,7 +1199,7 @@ impl LspStore {
         };
 
         match progress {
-            lsp::WorkDoneProgress::Begin(report) => {
+            lsp_types::WorkDoneProgress::Begin(report) => {
                 if is_disk_based_diagnostics_progress {
                     self.disk_based_diagnostics_started(language_server_id, cx);
                 }
@@ -1217,7 +1217,7 @@ impl LspStore {
                     cx,
                 );
             }
-            lsp::WorkDoneProgress::Report(report) => self.on_lsp_work_progress(
+            lsp_types::WorkDoneProgress::Report(report) => self.on_lsp_work_progress(
                 language_server_id,
                 token,
                 LanguageServerProgress {
@@ -1230,7 +1230,7 @@ impl LspStore {
                 },
                 cx,
             ),
-            lsp::WorkDoneProgress::End(_) => {
+            lsp_types::WorkDoneProgress::End(_) => {
                 language_server_status.progress_tokens.remove(&token);
                 self.on_lsp_work_end(language_server_id, token.clone(), cx);
                 if is_disk_based_diagnostics_progress {
@@ -1712,7 +1712,7 @@ impl LspStore {
                 let buffer_id = buffer.buffer_id();
                 if local.registered_buffers.contains_key(&buffer_id) {
                     let abs_path = file.abs_path(cx);
-                    let Ok(uri) = lsp::Uri::from_file_path(&abs_path) else {
+                    let Ok(uri) = lsp_types::Uri::from_file_path(&abs_path) else {
                         log::error!("failed to convert path to URI: {abs_path:?}");
                         continue;
                     };

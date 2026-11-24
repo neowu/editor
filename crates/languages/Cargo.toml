@@ -15,6 +15,7 @@ language.workspace = true
 language_core.workspace = true
 log.workspace = true
 lsp.workspace = true
+lsp_types.workspace = true
 project.workspace = true
 regex.workspace = true
 rust-embed.workspace = true

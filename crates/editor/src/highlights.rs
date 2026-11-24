@@ -121,7 +121,7 @@ impl Editor {
                     let multibuffer_snapshot = buffer.snapshot(cx);
                     for highlight in highlights {
                         for range in multibuffer_snapshot.buffer_range_to_excerpt_ranges(highlight.range) {
-                            if highlight.kind == lsp::DocumentHighlightKind::WRITE {
+                            if highlight.kind == lsp_types::DocumentHighlightKind::WRITE {
                                 write_ranges.push(range);
                             } else {
                                 read_ranges.push(range);

@@ -82,7 +82,7 @@ pub(super) struct InlineDiagnostic {
     pub(super) group_id: usize,
     pub(super) is_primary: bool,
     pub(super) start: Point,
-    pub(super) severity: lsp::DiagnosticSeverity,
+    pub(super) severity: lsp_types::DiagnosticSeverity,
 }
 
 #[derive(Debug, PartialEq, Eq)]

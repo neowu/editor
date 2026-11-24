@@ -4,10 +4,10 @@ use std::fmt::Formatter;
 use std::ops::Range;
 
 use gpui::SharedString;
-use lsp::DiagnosticSeverity;
-use lsp::MarkupContent;
-use lsp::MarkupKind;
-use lsp::NumberOrString;
+use lsp_types::DiagnosticSeverity;
+use lsp_types::MarkupContent;
+use lsp_types::MarkupKind;
+use lsp_types::NumberOrString;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
@@ -95,11 +95,11 @@ impl DiagnosticMessage {
         self.text == other.text && self.markdown() == other.markdown()
     }
 
-    pub fn to_lsp_message(&self) -> lsp::DiagnosticMessage {
+    pub fn to_lsp_message(&self) -> lsp_types::DiagnosticMessage {
         if let Some((kind, value)) = self.lsp_markup() {
-            lsp::DiagnosticMessage::MarkupContent(MarkupContent { kind: kind.clone(), value: value.to_owned() })
+            lsp_types::DiagnosticMessage::MarkupContent(MarkupContent { kind: kind.clone(), value: value.to_owned() })
         } else {
-            lsp::DiagnosticMessage::String(self.text.to_string())
+            lsp_types::DiagnosticMessage::String(self.text.to_string())
         }
     }
 }
@@ -211,7 +211,7 @@ pub struct Diagnostic {
     pub registration_id: Option<SharedString>,
     /// A machine-readable code that identifies this diagnostic.
     pub code: Option<NumberOrString>,
-    pub code_description: Option<lsp::Uri>,
+    pub code_description: Option<lsp_types::Uri>,
     /// Whether this diagnostic is a hint, warning, or error.
     pub severity: DiagnosticSeverity,
     /// The human-readable message associated with this diagnostic.
@@ -265,7 +265,7 @@ pub enum RelatedLocation<T> {
     InBuffer(Range<T>),
     /// A location in another file, as the language server published it. There is
     /// nothing in this buffer to anchor it to.
-    InAnotherFile(lsp::Location),
+    InAnotherFile(lsp_types::Location),
 }
 
 impl<T: Clone> RelatedInformation<T> {

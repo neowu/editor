@@ -181,7 +181,7 @@ impl Element for ImageCacheElement {
 ///
 /// Dropping the entry cancels a pending load. Image caches must remove loaded
 /// images from windows before discarding the entry.
-pub struct ImageCacheItem(CachedLoad<Result<Arc<RenderImage>, ImageCacheError>>);
+pub(super) struct ImageCacheItem(CachedLoad<Result<Arc<RenderImage>, ImageCacheError>>);
 
 impl fmt::Debug for ImageCacheItem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -191,18 +191,18 @@ impl fmt::Debug for ImageCacheItem {
 
 impl ImageCacheItem {
     /// Starts loading an image into a new cache entry.
-    pub fn new(source: &Resource, cx: &mut App) -> Self {
+    pub(super) fn new(source: &Resource, cx: &mut App) -> Self {
         let future = AssetLogger::<ImageAssetLoader>::load(source.clone(), cx);
         Self(CachedLoad::new(future, cx))
     }
 
     /// Returns the cached result without subscribing to completion notifications.
-    pub fn get(&self) -> Option<Result<Arc<RenderImage>, ImageCacheError>> {
+    pub(super) fn get(&self) -> Option<Result<Arc<RenderImage>, ImageCacheError>> {
         self.0.get()
     }
 
     /// Returns the cached result or subscribes the current view to completion.
-    pub fn use_image(&self, window: &Window) -> Option<Result<Arc<RenderImage>, ImageCacheError>> {
+    pub(super) fn use_image(&self, window: &Window) -> Option<Result<Arc<RenderImage>, ImageCacheError>> {
         self.0.use_by(window.current_view())
     }
 }

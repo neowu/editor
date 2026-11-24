@@ -23,7 +23,7 @@ use itertools::Itertools as _;
 use language::LanguageAwareStyling;
 use language::OffsetRangeExt as _;
 use language::Selection;
-use lsp::CodeActionKind;
+use lsp_types::CodeActionKind;
 use multi_buffer::Anchor;
 use multi_buffer::AnchorRangeExt as _;
 use multi_buffer::MultiBufferOffset;

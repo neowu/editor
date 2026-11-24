@@ -41,7 +41,7 @@ use language::CharKind;
 use language::DiagnosticEntry;
 use language::Language;
 use language::LanguageRegistry;
-use lsp::DiagnosticSeverity;
+use lsp_types::DiagnosticSeverity;
 use markdown::Markdown;
 use markdown::MarkdownElement;
 use markdown::MarkdownStyle;

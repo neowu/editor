@@ -31,15 +31,15 @@ use language::language_settings::LanguageServerFormatterSpecifier;
 use language::language_settings::LanguageSettings;
 use language::point_to_lsp;
 use language::range_to_lsp;
-use lsp::CodeActionKind;
-use lsp::Edit;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServer;
-use lsp::OneOf;
-use lsp::TextEdit;
-use lsp::request::ExecuteCommand;
-use lsp::request::Formatting;
-use lsp::request::RangeFormatting;
+use lsp_types::CodeActionKind;
+use lsp_types::Edit;
+use lsp_types::OneOf;
+use lsp_types::TextEdit;
+use lsp_types::request::ExecuteCommand;
+use lsp_types::request::Formatting;
+use lsp_types::request::RangeFormatting;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use text::Anchor;
@@ -98,14 +98,14 @@ fn buffer_supports_lsp_range_formatting(
         .any(|capabilities| server_capabilities_support_range_formatting(capabilities.server_capabilities))
 }
 
-fn server_capabilities_support_formatting(capabilities: &lsp::ServerCapabilities) -> bool {
+fn server_capabilities_support_formatting(capabilities: &lsp_types::ServerCapabilities) -> bool {
     matches!(
         capabilities.document_formatting_provider.as_ref(),
         Some(provider) if *provider != OneOf::Left(false)
     )
 }
 
-fn server_capabilities_support_range_formatting(capabilities: &lsp::ServerCapabilities) -> bool {
+fn server_capabilities_support_range_formatting(capabilities: &lsp_types::ServerCapabilities) -> bool {
     matches!(
         capabilities.document_range_formatting_provider.as_ref(),
         Some(provider) if *provider != OneOf::Left(false)
@@ -550,15 +550,18 @@ impl LocalLspStore {
                         let mut operations = Vec::new();
                         if let Some(document_changes) = edit.document_changes {
                             match document_changes {
-                                lsp::DocumentChanges::Edits(edits) => {
-                                    operations.extend(edits.into_iter().map(lsp::DocumentChangeOperation::Edit));
+                                lsp_types::DocumentChanges::Edits(edits) => {
+                                    operations.extend(edits.into_iter().map(lsp_types::DocumentChangeOperation::Edit));
                                 }
-                                lsp::DocumentChanges::Operations(ops) => operations = ops,
+                                lsp_types::DocumentChanges::Operations(ops) => operations = ops,
                             }
                         } else if let Some(changes) = edit.changes {
                             operations.extend(changes.into_iter().map(|(uri, edits)| {
-                                lsp::DocumentChangeOperation::Edit(lsp::TextDocumentEdit {
-                                    text_document: lsp::OptionalVersionedTextDocumentIdentifier { uri, version: None },
+                                lsp_types::DocumentChangeOperation::Edit(lsp_types::TextDocumentEdit {
+                                    text_document: lsp_types::OptionalVersionedTextDocumentIdentifier {
+                                        uri,
+                                        version: None,
+                                    },
                                     edits: edits.into_iter().map(Edit::Plain).collect(),
                                 })
                             }));
@@ -571,8 +574,8 @@ impl LocalLspStore {
                         }
                         for operation in operations {
                             let op = match operation {
-                                lsp::DocumentChangeOperation::Edit(op) => op,
-                                lsp::DocumentChangeOperation::Op(_) => {
+                                lsp_types::DocumentChangeOperation::Edit(op) => op,
+                                lsp_types::DocumentChangeOperation::Op(_) => {
                                     log::warn!(
                                         "Code actions which create, delete, or rename files are not supported on format. Skipping {}",
                                         describe_code_action(&action),
@@ -684,7 +687,7 @@ impl LocalLspStore {
 
                     let execute_command_result = server
                         .request::<ExecuteCommand>(
-                            lsp::ExecuteCommandParams {
+                            lsp_types::ExecuteCommandParams {
                                 command: command.command.clone(),
                                 arguments: command.arguments.clone().unwrap_or_default(),
                                 ..Default::default()
@@ -780,7 +783,7 @@ impl LocalLspStore {
         }
 
         let uri = file_path_to_lsp_url(abs_path)?;
-        let text_document = lsp::TextDocumentIdentifier::new(uri);
+        let text_document = lsp_types::TextDocumentIdentifier::new(uri);
 
         let request_timeout = LSP_REQUEST_TIMEOUT;
         let lsp_edits = {
@@ -799,7 +802,7 @@ impl LocalLspStore {
                 anyhow::Ok(())
             })??;
 
-            let mut edits = None::<Vec<lsp::TextEdit>>;
+            let mut edits = None::<Vec<lsp_types::TextEdit>>;
             for range in lsp_ranges {
                 if edits.as_ref().is_some_and(|edits| {
                     edits.iter().any(|kept| kept.range.start <= range.start && range.end <= kept.range.end)
@@ -812,11 +815,11 @@ impl LocalLspStore {
                 }
                 if let Some(range_edits) = language_server
                     .request::<RangeFormatting>(
-                        lsp::DocumentRangeFormattingParams {
+                        lsp_types::DocumentRangeFormattingParams {
                             text_document: text_document.clone(),
                             range,
                             options: lsp_command::lsp_formatting_options(settings),
-                            work_done_progress_params: lsp::WorkDoneProgressParams::default(),
+                            work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
                         },
                         request_timeout,
                     )
@@ -887,7 +890,7 @@ impl LocalLspStore {
         cx: &mut AsyncApp,
     ) -> Result<Vec<(Range<Anchor>, Arc<str>)>> {
         let uri = file_path_to_lsp_url(abs_path)?;
-        let text_document = lsp::TextDocumentIdentifier::new(uri);
+        let text_document = lsp_types::TextDocumentIdentifier::new(uri);
 
         let (formatting_supported, range_formatting_supported) = this.read_with(cx, |this, cx| {
             let buffer = buffer.read(cx);
@@ -902,10 +905,10 @@ impl LocalLspStore {
         let lsp_edits = if formatting_supported {
             let response = language_server
                 .request::<Formatting>(
-                    lsp::DocumentFormattingParams {
+                    lsp_types::DocumentFormattingParams {
                         text_document,
                         options: lsp_command::lsp_formatting_options(settings),
-                        work_done_progress_params: lsp::WorkDoneProgressParams::default(),
+                        work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
                     },
                     request_timeout,
                 )
@@ -918,9 +921,9 @@ impl LocalLspStore {
 
             let buffer_end = buffer.read_with(cx, |buffer, _| point_to_lsp(buffer.max_point_utf16()));
             let should_apply_diff_based_edits = edits.len() == 1
-                && edits
-                    .first()
-                    .is_some_and(|edit| edit.range == lsp::Range::new(lsp::Position::new(0, 0), buffer_end));
+                && edits.first().is_some_and(|edit| {
+                    edit.range == lsp_types::Range::new(lsp_types::Position::new(0, 0), buffer_end)
+                });
 
             if should_apply_diff_based_edits {
                 let Some(text_edit) = edits.into_iter().next() else {
@@ -932,7 +935,7 @@ impl LocalLspStore {
                     diff.edits
                         .into_iter()
                         .map(|(range, text)| TextEdit {
-                            range: lsp::Range::new(
+                            range: lsp_types::Range::new(
                                 point_to_lsp(rope.offset_to_point_utf16(range.start)),
                                 point_to_lsp(rope.offset_to_point_utf16(range.end)),
                             ),
@@ -944,15 +947,15 @@ impl LocalLspStore {
                 Some(edits).filter(|edits| !edits.is_empty())
             }
         } else if range_formatting_supported {
-            let buffer_start = lsp::Position::new(0, 0);
+            let buffer_start = lsp_types::Position::new(0, 0);
             let buffer_end = buffer.read_with(cx, |b, _| point_to_lsp(b.max_point_utf16()));
             language_server
                 .request::<RangeFormatting>(
-                    lsp::DocumentRangeFormattingParams {
+                    lsp_types::DocumentRangeFormattingParams {
                         text_document: text_document.clone(),
-                        range: lsp::Range::new(buffer_start, buffer_end),
+                        range: lsp_types::Range::new(buffer_start, buffer_end),
                         options: lsp_command::lsp_formatting_options(settings),
-                        work_done_progress_params: lsp::WorkDoneProgressParams::default(),
+                        work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
                     },
                     request_timeout,
                 )

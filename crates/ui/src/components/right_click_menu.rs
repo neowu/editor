@@ -108,7 +108,7 @@ pub fn right_click_menu<M: ManagedView>(id: impl Into<ElementId>) -> RightClickM
     }
 }
 
-pub struct MenuHandleElementState<M> {
+pub(super) struct MenuHandleElementState<M> {
     menu: Rc<RefCell<Option<Entity<M>>>>,
     position: Rc<RefCell<Point<Pixels>>>,
 }

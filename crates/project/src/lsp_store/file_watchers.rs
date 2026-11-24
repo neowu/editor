@@ -25,18 +25,18 @@ use gpui::Context;
 use gpui::Entity;
 use gpui::Task;
 use gpui::WeakEntity;
-use lsp::DidChangeWatchedFilesRegistrationOptions;
-use lsp::FileOperationFilter;
-use lsp::FileOperationPatternKind;
-use lsp::FileOperationRegistrationOptions;
-use lsp::FileRename;
-use lsp::FileSystemWatcher;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServerId;
-use lsp::RenameFilesParams;
-use lsp::WillRenameFiles;
-use lsp::notification::DidChangeWatchedFiles;
-use lsp::notification::DidRenameFiles;
+use lsp_types::DidChangeWatchedFilesRegistrationOptions;
+use lsp_types::FileOperationFilter;
+use lsp_types::FileOperationPatternKind;
+use lsp_types::FileOperationRegistrationOptions;
+use lsp_types::FileRename;
+use lsp_types::FileSystemWatcher;
+use lsp_types::RenameFilesParams;
+use lsp_types::notification::DidChangeWatchedFiles;
+use lsp_types::notification::DidRenameFiles;
+use lsp_types::request::WillRenameFiles;
 use rustc_hash::FxHashMap;
 use util::ResultExt as _;
 use util::paths::SanitizedPath;
@@ -236,7 +236,7 @@ impl LocalLspStore {
         }
 
         let (path, pattern) = match &watcher.glob_pattern {
-            lsp::GlobPattern::String(s) => {
+            lsp_types::GlobPattern::String(s) => {
                 let watcher_path = SanitizedPath::new(s);
                 let path = glob_literal_prefix(watcher_path.as_path());
                 let pattern = watcher_path.as_path().strip_prefix(&path).map_or_else(
@@ -253,10 +253,10 @@ impl LocalLspStore {
                 );
                 (path, pattern)
             }
-            lsp::GlobPattern::Relative(rp) => {
+            lsp_types::GlobPattern::Relative(rp) => {
                 let Ok(mut base_uri) = match &rp.base_uri {
-                    lsp::OneOf::Left(workspace_folder) => &workspace_folder.uri,
-                    lsp::OneOf::Right(base_uri) => base_uri,
+                    lsp_types::OneOf::Left(workspace_folder) => &workspace_folder.uri,
+                    lsp_types::OneOf::Right(base_uri) => base_uri,
                 }
                 .to_file_path() else {
                     return;
@@ -312,7 +312,7 @@ impl LocalLspStore {
             let tree = worktree.read(cx);
             let worktree_root_path = tree.abs_path();
             match &watcher.glob_pattern {
-                lsp::GlobPattern::String(s) => {
+                lsp_types::GlobPattern::String(s) => {
                     let watcher_path = SanitizedPath::new(s);
                     let relative = watcher_path.as_path().strip_prefix(&worktree_root_path).ok()?;
                     let literal_prefix = glob_literal_prefix(relative);
@@ -322,10 +322,10 @@ impl LocalLspStore {
                         relative.to_string_lossy().into_owned(),
                     ))
                 }
-                lsp::GlobPattern::Relative(rp) => {
+                lsp_types::GlobPattern::Relative(rp) => {
                     let base_uri = match &rp.base_uri {
-                        lsp::OneOf::Left(workspace_folder) => &workspace_folder.uri,
-                        lsp::OneOf::Right(base_uri) => base_uri,
+                        lsp_types::OneOf::Left(workspace_folder) => &workspace_folder.uri,
+                        lsp_types::OneOf::Right(base_uri) => base_uri,
                     }
                     .to_file_path()
                     .ok()?;
@@ -408,8 +408,8 @@ impl LspStore {
         (|| {
             let local_store = &self.local;
 
-            let old_uri = lsp::Uri::from_file_path(old_path).ok().map(|uri| uri.to_string())?;
-            let new_uri = lsp::Uri::from_file_path(new_path).ok().map(|uri| uri.to_string())?;
+            let old_uri = lsp_types::Uri::from_file_path(old_path).ok().map(|uri| uri.to_string())?;
+            let new_uri = lsp_types::Uri::from_file_path(new_path).ok().map(|uri| uri.to_string())?;
 
             for language_server in local_store.language_servers_for_worktree(worktree_id) {
                 let Some(filter) =
@@ -438,8 +438,8 @@ impl LspStore {
         is_dir: bool,
         cx: AsyncApp,
     ) -> Task<ProjectTransaction> {
-        let old_uri = lsp::Uri::from_file_path(old_path).ok().map(|uri| uri.to_string());
-        let new_uri = lsp::Uri::from_file_path(new_path).ok().map(|uri| uri.to_string());
+        let old_uri = lsp_types::Uri::from_file_path(old_path).ok().map(|uri| uri.to_string());
+        let new_uri = lsp_types::Uri::from_file_path(new_path).ok().map(|uri| uri.to_string());
         cx.spawn(async move |cx| {
             let mut tasks = vec![];
             this.update(cx, |this, cx| {
@@ -512,15 +512,15 @@ impl LspStore {
                 .into_iter()
                 .filter_map(|event| {
                     let typ = match event.kind? {
-                        PathEventKind::Created => lsp::FileChangeType::CREATED,
-                        PathEventKind::Removed => lsp::FileChangeType::DELETED,
-                        PathEventKind::Changed | PathEventKind::Rescan => lsp::FileChangeType::CHANGED,
+                        PathEventKind::Created => lsp_types::FileChangeType::CREATED,
+                        PathEventKind::Removed => lsp_types::FileChangeType::DELETED,
+                        PathEventKind::Changed | PathEventKind::Rescan => lsp_types::FileChangeType::CHANGED,
                     };
-                    Some(lsp::FileEvent { uri: file_path_to_lsp_url(&event.path).log_err()?, typ })
+                    Some(lsp_types::FileEvent { uri: file_path_to_lsp_url(&event.path).log_err()?, typ })
                 })
                 .collect::<Vec<_>>();
             if !changes.is_empty() {
-                server.notify::<DidChangeWatchedFiles>(lsp::DidChangeWatchedFilesParams { changes }).ok();
+                server.notify::<DidChangeWatchedFiles>(lsp_types::DidChangeWatchedFilesParams { changes }).ok();
             }
             Some(())
         })();
@@ -555,22 +555,22 @@ impl LspStore {
                     .get_mut(server_id)
                     .and_then(|paths| paths.worktree_paths.get_mut(&worktree_id))
             {
-                let params = lsp::DidChangeWatchedFilesParams {
+                let params = lsp_types::DidChangeWatchedFilesParams {
                     changes: changes
                         .iter()
                         .filter_map(|(path, _, change)| {
                             let typ = match change {
                                 PathChange::Loaded => return None,
-                                PathChange::Added => lsp::FileChangeType::CREATED,
-                                PathChange::Removed => lsp::FileChangeType::DELETED,
-                                PathChange::Updated => lsp::FileChangeType::CHANGED,
-                                PathChange::AddedOrUpdated => lsp::FileChangeType::CHANGED,
+                                PathChange::Added => lsp_types::FileChangeType::CREATED,
+                                PathChange::Removed => lsp_types::FileChangeType::DELETED,
+                                PathChange::Updated => lsp_types::FileChangeType::CHANGED,
+                                PathChange::AddedOrUpdated => lsp_types::FileChangeType::CHANGED,
                             };
                             if !watched_paths.is_match(path.as_std_path()) {
                                 return None;
                             }
-                            let uri = lsp::Uri::from_file_path(worktree_handle.read(cx).absolutize(path)).ok()?;
-                            Some(lsp::FileEvent { uri, typ })
+                            let uri = lsp_types::Uri::from_file_path(worktree_handle.read(cx).absolutize(path)).ok()?;
+                            Some(lsp_types::FileEvent { uri, typ })
                         })
                         .collect(),
                 };

@@ -15,6 +15,7 @@ itertools.workspace = true
 language.workspace = true
 log.workspace = true
 lsp.workspace = true
+lsp_types.workspace = true
 markdown.workspace = true
 project.workspace = true
 rustc-hash.workspace = true
