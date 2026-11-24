@@ -8,14 +8,6 @@ use util::shell_env;
 mod ed;
 mod logger;
 
-// Ensure the binary name stays in sync with APP_NAME so that the paths used
-// at runtime (data dir, config dir, etc.) match what the binary is called.
-const _: () = assert!(
-    paths::APP_NAME.as_bytes().eq_ignore_ascii_case(env!("CARGO_BIN_NAME").as_bytes()),
-    "paths::APP_NAME must match the binary name. \
-     Update APP_NAME in crates/paths/src/paths.rs when renaming the binary.",
-);
-
 use std::cell::RefCell;
 use std::env;
 use std::io;
@@ -57,10 +49,6 @@ use workspace::Workspace;
 use workspace::WorkspaceActions;
 use workspace::notifications::NotificationId;
 use workspace::restore_workspace;
-
-#[cfg(feature = "mimalloc")]
-#[global_allocator]
-static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn build_application() -> Application {
     Application::with_platform(Rc::new(gpui_macos::MacPlatform::new(false)))

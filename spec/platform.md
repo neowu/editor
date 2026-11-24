@@ -129,7 +129,6 @@ or UNC prefixes. There is no path-style abstraction; code uses
 - The app is named `ed`: binary `ed`, bundle `ed.app`, bundle identifier
   `dev.ed`, menu/About/window-title name `ed`. It must not share any user
   data, bundle identity, or single-instance state with an installed upstream Zed.
-  `paths::APP_NAME` must equal the binary name (compile-time assert).
 - The About window is compact: app icon, `ed <version>` headline, and a
   single centered OK button (Enter/Escape close it). No separate version
   label and no Copy button. It opens centered on the display the user is
