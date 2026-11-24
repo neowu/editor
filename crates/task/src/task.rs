@@ -8,7 +8,6 @@ mod task_template;
 use std::borrow::Cow;
 use std::collections::hash_map;
 use std::path::PathBuf;
-use std::str::FromStr;
 
 use gpui::SharedString;
 use rustc_hash::FxHashMap;
@@ -123,7 +122,7 @@ pub enum VariableName {
     /// Name of the Git ref (branch, remote ref, or tag) associated with the task context.
     GitRef,
     /// Custom variable, provided by the plugin or other external source.
-    /// Will be printed with `CUSTOM_` prefix to avoid potential conflicts with other variables.
+    /// Names must not collide with the built-in ones; providers prefix theirs (`RUST_`, `GO_`, ...).
     Custom(Cow<'static, str>),
 }
 
@@ -138,46 +137,8 @@ impl VariableName {
     }
 }
 
-impl FromStr for VariableName {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let without_prefix = s.strip_prefix(ED_VARIABLE_NAME_PREFIX).ok_or(())?;
-        let value = match without_prefix {
-            "FILE" => Self::File,
-            "FILENAME" => Self::Filename,
-            "RELATIVE_FILE" => Self::RelativeFile,
-            "RELATIVE_DIR" => Self::RelativeDir,
-            "DIRNAME" => Self::Dirname,
-            "STEM" => Self::Stem,
-            "WORKTREE_ROOT" => Self::WorktreeRoot,
-            "SYMBOL" => Self::Symbol,
-            "RUNNABLE_SYMBOL" => Self::RunnableSymbol,
-            "SELECTED_TEXT" => Self::SelectedText,
-            "LANGUAGE" => Self::Language,
-            "ROW" => Self::Row,
-            "COLUMN" => Self::Column,
-            "MAIN_GIT_WORKTREE" => Self::MainGitWorktree,
-            "GIT_SHA" => Self::GitSha,
-            "GIT_SHA_SHORT" => Self::GitShaShort,
-            "GIT_REPOSITORY_NAME" => Self::GitRepositoryName,
-            "GIT_REPOSITORY_PATH" => Self::GitRepositoryPath,
-            "GIT_REF" => Self::GitRef,
-            _ => {
-                if let Some(custom_name) = without_prefix.strip_prefix(ED_CUSTOM_VARIABLE_NAME_PREFIX) {
-                    Self::Custom(Cow::Owned(custom_name.to_owned()))
-                } else {
-                    return Err(());
-                }
-            }
-        };
-        Ok(value)
-    }
-}
-
 /// A prefix that all [`VariableName`] variants are prefixed with when used in environment variables and similar template contexts.
 pub const ED_VARIABLE_NAME_PREFIX: &str = "ED_";
-const ED_CUSTOM_VARIABLE_NAME_PREFIX: &str = "CUSTOM_";
 
 impl Display for VariableName {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> fmt::Result {
@@ -201,7 +162,7 @@ impl Display for VariableName {
             Self::GitRepositoryName => write!(f, "{ED_VARIABLE_NAME_PREFIX}GIT_REPOSITORY_NAME"),
             Self::GitRepositoryPath => write!(f, "{ED_VARIABLE_NAME_PREFIX}GIT_REPOSITORY_PATH"),
             Self::GitRef => write!(f, "{ED_VARIABLE_NAME_PREFIX}GIT_REF"),
-            Self::Custom(s) => write!(f, "{ED_VARIABLE_NAME_PREFIX}{ED_CUSTOM_VARIABLE_NAME_PREFIX}{s}"),
+            Self::Custom(s) => write!(f, "{ED_VARIABLE_NAME_PREFIX}{s}"),
         }
     }
 }

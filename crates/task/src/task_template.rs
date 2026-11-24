@@ -212,12 +212,20 @@ mod tests {
     use crate::VariableName;
 
     #[test]
+    fn variable_names_print_with_ed_prefix() {
+        use std::borrow::Cow;
+
+        use crate::VariableName;
+        assert_eq!(VariableName::Dirname.template_value(), "$ED_DIRNAME");
+        assert_eq!(VariableName::Custom(Cow::Borrowed("RUST_PACKAGE")).template_value(), "$ED_RUST_PACKAGE");
+    }
+    #[test]
     fn substitutes_template_variables() {
-        let variables = FxHashMap::from_iter([("ED_FILE".to_owned(), "/a/b.rs"), ("ED_CUSTOM_row".to_owned(), "7")]);
+        let variables = FxHashMap::from_iter([("ED_FILE".to_owned(), "/a/b.rs"), ("ED_row".to_owned(), "7")]);
         let substitute = |template: &str| substitute_all_template_variables_in_str(template, &variables);
 
-        assert_eq!(substitute("cat $ED_FILE:$ED_CUSTOM_row").unwrap(), "cat /a/b.rs:7");
-        assert_eq!(substitute("é\\^$ED_CUSTOM_row\\$é").unwrap(), "é\\^7\\$é");
+        assert_eq!(substitute("cat $ED_FILE:$ED_row").unwrap(), "cat /a/b.rs:7");
+        assert_eq!(substitute("é\\^$ED_row\\$é").unwrap(), "é\\^7\\$é");
         assert_eq!(substitute("$ED_NOPE"), None);
         assert_eq!(substitute("$ED_"), None);
         // Nothing but `$ED_*` is interpreted.

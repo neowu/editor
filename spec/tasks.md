@@ -46,7 +46,12 @@ clients as JSON.
   unset one fails the template, and nothing else is interpreted (no `${..}`,
   defaults or `$$` escape; any other `$` reaches the shell as written). Only
   the template's own env values are substituted, not the project environment.
-  Task variables are not exported to the task's environment.
+  Task variables are not exported to the task's environment, so `ED_` is only
+  the template marker. Language variables share that namespace (`$ED_<name>`,
+  no extra prefix) and avoid built-in names by their own prefix (`RUST_`, ...).
+- Template cwd defaults to the worktree root. File-based templates (cargo,
+  go, ...) set `$ED_DIRNAME` instead so the tool finds the nearest
+  manifest/workspace even when the opened folder isn't the project root.
 - A task always runs in the terminal dock with the default system shell, saves nothing first, and leaves its tab
   open with no summary lines when it finishes. Running a task whose tab
   already exists waits for that run to finish, then replaces the tab's output.

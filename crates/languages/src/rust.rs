@@ -531,8 +531,6 @@ const RUST_DOC_TEST_NAME_TASK_VARIABLE: VariableName = VariableName::Custom(Cow:
 
 const RUST_TEST_NAME_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("RUST_TEST_NAME"));
 
-const RUST_MANIFEST_DIRNAME_TASK_VARIABLE: VariableName = VariableName::Custom(Cow::Borrowed("RUST_MANIFEST_DIRNAME"));
-
 impl ContextProvider for RustContextProvider {
     fn build_context(
         &self,
@@ -562,30 +560,20 @@ impl ContextProvider for RustContextProvider {
                 variables.insert(RUST_PACKAGE_TASK_VARIABLE.clone(), package_name);
             }
             if let Some(path) = local_abs_path.as_ref()
-                && let Some((target, manifest_path)) = target_info_from_abs_path(path, project_env.as_ref()).await?
+                && let Some(target) = target_info_from_abs_path(path, project_env.as_ref()).await?
             {
-                if let Some(target) = target {
-                    variables.extend(TaskVariables::from_iter([
-                        (RUST_PACKAGE_TASK_VARIABLE.clone(), target.package_name),
-                        (RUST_BIN_NAME_TASK_VARIABLE.clone(), target.target_name),
-                        (RUST_BIN_KIND_TASK_VARIABLE.clone(), target.target_kind.to_string()),
-                    ]));
-                    if target.required_features.is_empty() {
-                        variables.insert(RUST_BIN_REQUIRED_FEATURES_FLAG_TASK_VARIABLE, String::new());
-                        variables.insert(RUST_BIN_REQUIRED_FEATURES_TASK_VARIABLE, String::new());
-                    } else {
-                        variables
-                            .insert(RUST_BIN_REQUIRED_FEATURES_FLAG_TASK_VARIABLE.clone(), "--features".to_owned());
-                        variables.insert(
-                            RUST_BIN_REQUIRED_FEATURES_TASK_VARIABLE.clone(),
-                            target.required_features.join(","),
-                        );
-                    }
-                }
-                variables.extend(TaskVariables::from_iter([(
-                    RUST_MANIFEST_DIRNAME_TASK_VARIABLE.clone(),
-                    manifest_path.to_string_lossy().into_owned(),
-                )]));
+                variables.extend(TaskVariables::from_iter([
+                    (RUST_PACKAGE_TASK_VARIABLE.clone(), target.package_name),
+                    (RUST_BIN_NAME_TASK_VARIABLE.clone(), target.target_name),
+                    (RUST_BIN_KIND_TASK_VARIABLE.clone(), target.target_kind.to_string()),
+                ]));
+                let (flag, features) = if target.required_features.is_empty() {
+                    (String::new(), String::new())
+                } else {
+                    ("--features".to_owned(), target.required_features.join(","))
+                };
+                variables.insert(RUST_BIN_REQUIRED_FEATURES_FLAG_TASK_VARIABLE, flag);
+                variables.insert(RUST_BIN_REQUIRED_FEATURES_TASK_VARIABLE, features);
             }
             Ok(variables)
         })
@@ -597,14 +585,14 @@ impl ContextProvider for RustContextProvider {
                 label: format!("Check (package: {})", RUST_PACKAGE_TASK_VARIABLE.template_value()),
                 command: "cargo".into(),
                 args: vec!["check".into(), "-p".into(), RUST_PACKAGE_TASK_VARIABLE.template_value()],
-                cwd: Some("$ED_DIRNAME".to_owned()),
+                cwd: Some(VariableName::Dirname.template_value()),
                 ..TaskTemplate::default()
             },
             TaskTemplate {
                 label: "Check all targets (workspace)".into(),
                 command: "cargo".into(),
                 args: vec!["check".into(), "--workspace".into(), "--all-targets".into()],
-                cwd: Some("$ED_DIRNAME".to_owned()),
+                cwd: Some(VariableName::Dirname.template_value()),
                 ..TaskTemplate::default()
             },
             TaskTemplate {
@@ -624,7 +612,7 @@ impl ContextProvider for RustContextProvider {
                     RUST_TEST_NAME_TASK_VARIABLE.template_value(),
                 ],
                 tags: vec!["rust-test".to_owned()],
-                cwd: Some(RUST_MANIFEST_DIRNAME_TASK_VARIABLE.template_value()),
+                cwd: Some(VariableName::Dirname.template_value()),
                 ..TaskTemplate::default()
             },
             TaskTemplate {
@@ -645,7 +633,7 @@ impl ContextProvider for RustContextProvider {
                     RUST_DOC_TEST_NAME_TASK_VARIABLE.template_value(),
                 ],
                 tags: vec!["rust-doc-test".to_owned()],
-                cwd: Some(RUST_MANIFEST_DIRNAME_TASK_VARIABLE.template_value()),
+                cwd: Some(VariableName::Dirname.template_value()),
                 ..TaskTemplate::default()
             },
             TaskTemplate {
@@ -663,7 +651,7 @@ impl ContextProvider for RustContextProvider {
                     RUST_TEST_MOD_FILTER_TASK_VARIABLE.template_value(),
                 ],
                 tags: vec!["rust-mod-test".to_owned()],
-                cwd: Some(RUST_MANIFEST_DIRNAME_TASK_VARIABLE.template_value()),
+                cwd: Some(VariableName::Dirname.template_value()),
                 ..TaskTemplate::default()
             },
             TaskTemplate {
@@ -683,7 +671,7 @@ impl ContextProvider for RustContextProvider {
                     RUST_BIN_REQUIRED_FEATURES_FLAG_TASK_VARIABLE.template_value(),
                     RUST_BIN_REQUIRED_FEATURES_TASK_VARIABLE.template_value(),
                 ],
-                cwd: Some(RUST_MANIFEST_DIRNAME_TASK_VARIABLE.template_value()),
+                cwd: Some(VariableName::Dirname.template_value()),
                 tags: vec!["rust-main".to_owned()],
                 ..TaskTemplate::default()
             },
@@ -691,21 +679,21 @@ impl ContextProvider for RustContextProvider {
                 label: format!("Test (package: {})", RUST_PACKAGE_TASK_VARIABLE.template_value()),
                 command: "cargo".into(),
                 args: vec!["test".into(), "-p".into(), RUST_PACKAGE_TASK_VARIABLE.template_value()],
-                cwd: Some(RUST_MANIFEST_DIRNAME_TASK_VARIABLE.template_value()),
+                cwd: Some(VariableName::Dirname.template_value()),
                 ..TaskTemplate::default()
             },
             TaskTemplate {
                 label: "Run".into(),
                 command: "cargo".into(),
                 args: vec!["run".into()],
-                cwd: Some(RUST_MANIFEST_DIRNAME_TASK_VARIABLE.template_value()),
+                cwd: Some(VariableName::Dirname.template_value()),
                 ..TaskTemplate::default()
             },
             TaskTemplate {
                 label: "Clean".into(),
                 command: "cargo".into(),
                 args: vec!["clean".into()],
-                cwd: Some(RUST_MANIFEST_DIRNAME_TASK_VARIABLE.template_value()),
+                cwd: Some(VariableName::Dirname.template_value()),
                 ..TaskTemplate::default()
             },
         ];
@@ -728,7 +716,6 @@ struct CargoMetadata {
 struct CargoPackage {
     id: String,
     targets: Vec<CargoTarget>,
-    manifest_path: Arc<Path>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -777,7 +764,7 @@ struct TargetInfo {
 async fn target_info_from_abs_path(
     abs_path: &Path,
     project_env: Option<&FxHashMap<String, String>>,
-) -> Result<Option<(Option<TargetInfo>, Arc<Path>)>> {
+) -> Result<Option<TargetInfo>> {
     let directory = abs_path.parent().ok_or_else(|| anyhow::anyhow!("failed to get parent directory"))?;
     if !has_cargo_manifest(directory).await? {
         return Ok(None);
@@ -817,49 +804,17 @@ async fn has_cargo_manifest(directory: &Path) -> Result<bool> {
     Ok(false)
 }
 
-fn target_info_from_metadata(metadata: CargoMetadata, abs_path: &Path) -> Option<(Option<TargetInfo>, Arc<Path>)> {
-    let mut manifest_path = None;
-    for package in metadata.packages {
-        let Some(manifest_dir_path) = package.manifest_path.parent() else {
-            continue;
-        };
-
-        let Some(path_from_manifest_dir) = abs_path.strip_prefix(manifest_dir_path).ok() else {
-            continue;
-        };
-        let candidate_path_length = path_from_manifest_dir.components().count();
-        // Pick the most specific manifest path
-        if let Some((path, current_length)) = &mut manifest_path {
-            if candidate_path_length > *current_length {
-                *path = Arc::from(manifest_dir_path);
-                *current_length = candidate_path_length;
-            }
-        } else {
-            manifest_path = Some((Arc::from(manifest_dir_path), candidate_path_length));
-        }
-
-        for target in package.targets {
-            let Some(bin_kind) = target.kind.iter().find_map(|kind| TargetKind::try_from(kind.as_ref()).ok()) else {
-                continue;
-            };
-            let target_path = PathBuf::from(target.src_path);
-            if target_path == abs_path {
-                return manifest_path.map(|(path, _)| {
-                    (
-                        package_name_from_pkgid(&package.id).map(|package_name| TargetInfo {
-                            package_name: package_name.to_owned(),
-                            target_name: target.name,
-                            required_features: target.required_features,
-                            target_kind: bin_kind,
-                        }),
-                        path,
-                    )
-                });
-            }
-        }
-    }
-
-    manifest_path.map(|(path, _)| (None, path))
+fn target_info_from_metadata(metadata: CargoMetadata, abs_path: &Path) -> Option<TargetInfo> {
+    metadata.packages.into_iter().find_map(|package| {
+        let target = package.targets.into_iter().find(|target| Path::new(&target.src_path) == abs_path)?;
+        let target_kind = target.kind.iter().find_map(|kind| TargetKind::try_from(kind.as_ref()).ok())?;
+        Some(TargetInfo {
+            package_name: package_name_from_pkgid(&package.id)?.to_owned(),
+            target_name: target.name,
+            required_features: target.required_features,
+            target_kind,
+        })
+    })
 }
 
 async fn human_readable_package_name(
@@ -1001,6 +956,40 @@ pub(crate) fn languages() -> Vec<LanguageDef> {
 
 #[cfg(test)]
 mod tests {
+    use super::CargoMetadata;
+    use super::TargetInfo;
+    use super::TargetKind;
+    use super::target_info_from_metadata;
+
+    #[test]
+    fn target_info_matches_bin_and_example_src_path() {
+        let metadata = serde_json::json!({"packages": [
+            {"id": "path+file:///w/a#0.1.0", "targets": [
+                {"name": "a", "kind": ["lib"], "src_path": "/w/a/src/lib.rs"},
+            ]},
+            {"id": "path+file:///w/b#0.1.0", "targets": [
+                {"name": "b", "kind": ["bin"], "src_path": "/w/b/src/main.rs"},
+                {"name": "demo", "kind": ["example"], "src_path": "/w/b/examples/demo.rs", "required-features": ["x"]},
+            ]},
+        ]});
+        let info = |path: &str| {
+            let metadata: CargoMetadata = serde_json::from_value(metadata.clone()).unwrap();
+            target_info_from_metadata(metadata, Path::new(path))
+        };
+        assert_eq!(
+            info("/w/b/examples/demo.rs"),
+            Some(TargetInfo {
+                package_name: "b".into(),
+                target_name: "demo".into(),
+                target_kind: TargetKind::Example,
+                required_features: vec!["x".into()],
+            })
+        );
+        assert_eq!(info("/w/b/src/main.rs").map(|t| t.target_kind), Some(TargetKind::Bin));
+        assert_eq!(info("/w/a/src/lib.rs"), None);
+        assert_eq!(info("/w/b/src/other.rs"), None);
+    }
+
     #[test]
     fn semantic_token_rules_map_to_theme_styles() {
         let rules = super::semantic_token_rules().rules;

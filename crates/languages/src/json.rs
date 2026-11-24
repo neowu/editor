@@ -71,7 +71,7 @@ impl ContextProvider for JsonTaskProvider {
                         ..TaskTemplate::default()
                     })
                     .chain([TaskTemplate {
-                        label: "package script $ED_CUSTOM_script".to_owned(),
+                        label: "package script $ED_script".to_owned(),
                         command: command.clone(),
                         args: vec!["run".into(), VariableName::Custom("script".into()).template_value()],
                         cwd: Some(VariableName::Dirname.template_value()),
@@ -92,7 +92,7 @@ impl ContextProvider for JsonTaskProvider {
                         ..TaskTemplate::default()
                     })
                     .chain([TaskTemplate {
-                        label: "composer script $ED_CUSTOM_script".to_owned(),
+                        label: "composer script $ED_script".to_owned(),
                         command: "composer".to_owned(),
                         args: vec![
                             "-d".into(),
