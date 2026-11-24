@@ -1851,13 +1851,14 @@ impl PartialOrd for Pixels {
 
 impl Ord for Pixels {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.0.total_cmp(&other.0)
+        // Agrees with equality on `0.0` and `-0.0`; only NaN falls back to the total order.
+        self.0.partial_cmp(&other.0).unwrap_or_else(|| self.0.total_cmp(&other.0))
     }
 }
 
 impl Hash for Pixels {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.to_bits().hash(state);
+        gpui_util::canonical_float_bits(self.0).hash(state);
     }
 }
 
@@ -2867,6 +2868,17 @@ mod tests {
     use super::px;
     use super::rems;
     use super::size;
+
+    #[test]
+    fn pixels_hash_and_order_agree_with_equality_on_signed_zero() {
+        use std::hash::BuildHasher as _;
+
+        let hasher = std::hash::RandomState::new();
+        assert_eq!(Pixels(0.), Pixels(-0.));
+        assert_eq!(hasher.hash_one(Pixels(0.)), hasher.hash_one(Pixels(-0.)));
+        assert_eq!(Pixels(-0.).cmp(&Pixels(0.)), std::cmp::Ordering::Equal);
+        assert!(Pixels(-1.) < Pixels(0.) && Pixels(0.) < Pixels(1.));
+    }
 
     #[test]
     fn point_constructor() {

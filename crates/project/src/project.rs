@@ -752,10 +752,10 @@ impl Eq for DocumentColor {}
 impl Hash for DocumentColor {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.lsp_range.hash(state);
-        self.color.red.to_bits().hash(state);
-        self.color.green.to_bits().hash(state);
-        self.color.blue.to_bits().hash(state);
-        self.color.alpha.to_bits().hash(state);
+        util::canonical_float_bits(self.color.red).hash(state);
+        util::canonical_float_bits(self.color.green).hash(state);
+        util::canonical_float_bits(self.color.blue).hash(state);
+        util::canonical_float_bits(self.color.alpha).hash(state);
         self.resolved.hash(state);
         self.color_presentations.hash(state);
     }
@@ -2643,4 +2643,33 @@ impl Completion {
 
 fn library_read_only_error() -> anyhow::Error {
     anyhow!("External library sources are read-only")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::hash::BuildHasher as _;
+    use std::hash::RandomState;
+
+    use super::*;
+
+    #[test]
+    fn document_color_hash_agrees_with_equality_on_signed_zero() {
+        let color = |red, green, blue, alpha| DocumentColor {
+            lsp_range: lsp::Range::default(),
+            color: lsp::Color { red, green, blue, alpha },
+            resolved: false,
+            color_presentations: Vec::new(),
+        };
+        let positive = color(0.0, 0.0, 0.0, 0.0);
+        let hasher = RandomState::new();
+        for negated in [
+            color(-0.0, 0.0, 0.0, 0.0),
+            color(0.0, -0.0, 0.0, 0.0),
+            color(0.0, 0.0, -0.0, 0.0),
+            color(0.0, 0.0, 0.0, -0.0),
+        ] {
+            assert!(positive == negated);
+            assert_eq!(hasher.hash_one(&positive), hasher.hash_one(&negated));
+        }
+    }
 }

@@ -26,6 +26,13 @@ pub fn post_inc<T: From<u8> + AddAssign<T> + Copy>(value: &mut T) -> T {
     prev
 }
 
+/// The bits of `value` with the sign of zero dropped, so a hash built on them agrees with
+/// `f32` equality, where `0.0 == -0.0`.
+pub fn canonical_float_bits(value: f32) -> u32 {
+    // `-0.0 + 0.0` is `0.0`; every other value is unchanged.
+    (value + 0.0).to_bits()
+}
+
 pub trait ResultExt<E> {
     type Ok;
 
@@ -197,5 +204,19 @@ impl Hasher for TypeIdHasher {
     #[inline]
     fn finish(&self) -> u64 {
         self.value
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canonical_float_bits_drops_only_the_sign_of_zero() {
+        assert_eq!(canonical_float_bits(-0.0), 0.0_f32.to_bits());
+        assert_eq!(canonical_float_bits(0.0), 0.0_f32.to_bits());
+        for value in [1.5_f32, -1.5, f32::MIN_POSITIVE, -f32::MIN_POSITIVE, f32::INFINITY, f32::NEG_INFINITY] {
+            assert_eq!(canonical_float_bits(value), value.to_bits());
+        }
     }
 }

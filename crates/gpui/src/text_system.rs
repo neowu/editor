@@ -781,9 +781,9 @@ impl Hash for RenderGlyphParams {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.font_id.0.hash(state);
         self.glyph_id.0.hash(state);
-        self.font_size.0.to_bits().hash(state);
+        self.font_size.hash(state);
         self.subpixel_variant.hash(state);
-        self.scale_factor.to_bits().hash(state);
+        gpui_util::canonical_float_bits(self.scale_factor).hash(state);
         self.is_emoji.hash(state);
         self.dilation.hash(state);
     }
@@ -966,6 +966,27 @@ mod tests {
     use super::TextSystem;
     use crate::NoopTextSystem;
     use crate::px;
+
+    #[test]
+    fn render_glyph_params_hash_agrees_with_equality_on_signed_zero() {
+        use std::hash::BuildHasher as _;
+
+        let params = |font_size, scale_factor| super::RenderGlyphParams {
+            font_id: FontId(1),
+            glyph_id: super::GlyphId(2),
+            font_size,
+            subpixel_variant: crate::Point::default(),
+            scale_factor,
+            is_emoji: false,
+            dilation: 0,
+        };
+        let hasher = std::hash::RandomState::new();
+        let positive = params(px(0.), 0.);
+        for negated in [params(-px(0.), 0.), params(px(0.), -0.)] {
+            assert!(positive == negated);
+            assert_eq!(hasher.hash_one(&positive), hasher.hash_one(&negated));
+        }
+    }
 
     #[test]
     fn em_and_ch_metrics_match_glyph_queries_at_any_size() {
