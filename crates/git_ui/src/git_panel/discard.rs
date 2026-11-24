@@ -166,13 +166,7 @@ impl GitPanel {
         }
     }
 
-    fn revert_entries(
-        &self,
-        entries: Vec<GitStatusEntry>,
-        skip_prompt: bool,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn revert_entries(&self, entries: Vec<GitStatusEntry>, skip_prompt: bool, window: &Window, cx: &Context<Self>) {
         if entries.is_empty() {
             return;
         }
@@ -209,12 +203,11 @@ impl GitPanel {
                     ),
                     None,
                     &[confirm_text, "Cancel"],
-                    cx,
                 ))
             } else {
                 let (message, confirm_text) = bulk_revert_prompt(tracked.len(), untracked.len())?;
 
-                Some(window.prompt(PromptLevel::Warning, &message, None, &[confirm_text, "Cancel"], cx))
+                Some(window.prompt(PromptLevel::Warning, &message, None, &[confirm_text, "Cancel"]))
             };
 
             // Resolve paths NOW, before entering async context.

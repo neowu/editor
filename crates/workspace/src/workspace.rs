@@ -1477,7 +1477,6 @@ impl Workspace {
                             "Do you want to save all changes in the following files?",
                             Some(&detail),
                             &["Save all", "Discard all", "Cancel"],
-                            cx,
                         )
                     })?;
                     match answer.await.log_err() {

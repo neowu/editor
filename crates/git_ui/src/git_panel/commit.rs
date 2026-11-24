@@ -151,7 +151,7 @@ impl GitPanel {
             return;
         }
         let error_spawn = |message, window: &mut Window, cx: &mut App| {
-            let prompt = window.prompt(PromptLevel::Warning, message, None, &["OK"], cx);
+            let prompt = window.prompt(PromptLevel::Warning, message, None, &["OK"]);
             cx.spawn(async move |_| {
                 prompt.await.ok();
             })

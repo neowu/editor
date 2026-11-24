@@ -232,10 +232,7 @@ impl Interactivity {
     /// See [`Context::listener`](crate::Context::listener) to get access to a view's state from this callback.
     pub fn on_mouse_down_out(&mut self, listener: impl Fn(&MouseDownEvent, &mut Window, &mut App) + 'static) {
         self.mouse_down_listeners.push(Box::new(move |event, phase, hitbox, window, cx| {
-            if phase == DispatchPhase::Capture
-                && !window.has_active_prompt()
-                && !hitbox.contains(&window.mouse_position())
-            {
+            if phase == DispatchPhase::Capture && !hitbox.contains(&window.mouse_position()) {
                 (listener)(event, window, cx);
             }
         }));

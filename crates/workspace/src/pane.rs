@@ -197,7 +197,7 @@ pub(crate) async fn confirm_close_running_items(
     }
     let answer = cx.update(|window, cx| {
         let detail = items.iter().map(|item| item.tab_content_text(0, cx)).join("\n");
-        window.prompt(PromptLevel::Warning, RUNNING_PROCESS_MESSAGE, Some(&detail), &["Close", "Cancel"], cx)
+        window.prompt(PromptLevel::Warning, RUNNING_PROCESS_MESSAGE, Some(&detail), &["Close", "Cancel"])
     })?;
     Ok(answer.await == Ok(0))
 }
@@ -1646,7 +1646,6 @@ impl Pane {
                         "Do you want to save changes to the following files?",
                         Some(&detail),
                         &["Save all", "Discard all", "Cancel"],
-                        cx,
                     )
                 })?;
                 match answer.await {
@@ -1686,7 +1685,6 @@ impl Pane {
                                     &format!("Unable to save file: {err}"),
                                     Some(&detail),
                                     &["Close Without Saving", "Cancel"],
-                                    cx,
                                 )
                             })?;
                             match answer.await {
@@ -1882,7 +1880,7 @@ impl Pane {
             if has_deleted_file && is_singleton {
                 let answer = pane.update_in(cx, |pane, window, cx| {
                     pane.activate_item(item_ix, true, true, window, cx);
-                    window.prompt(PromptLevel::Warning, DELETED_MESSAGE, None, &["Save", "Close", "Cancel"], cx)
+                    window.prompt(PromptLevel::Warning, DELETED_MESSAGE, None, &["Save", "Close", "Cancel"])
                 })?;
                 match answer.await {
                     Ok(0) => {
@@ -1902,13 +1900,7 @@ impl Pane {
             }
             let answer = pane.update_in(cx, |pane, window, cx| {
                 pane.activate_item(item_ix, true, true, window, cx);
-                window.prompt(
-                    PromptLevel::Warning,
-                    CONFLICT_MESSAGE,
-                    None,
-                    &["Overwrite", "Discard Edits", "Cancel"],
-                    cx,
-                )
+                window.prompt(PromptLevel::Warning, CONFLICT_MESSAGE, None, &["Overwrite", "Discard Edits", "Cancel"])
             })?;
             match answer.await {
                 Ok(0) => {
@@ -1929,7 +1921,7 @@ impl Pane {
                         pane.save_modals_spawned.insert(item_id).then(|| {
                             pane.activate_item(item_ix, true, true, window, cx);
                             let prompt = dirty_message_for(item.project_path(cx));
-                            window.prompt(PromptLevel::Warning, &prompt, None, &["Save", "Don't Save", "Cancel"], cx)
+                            window.prompt(PromptLevel::Warning, &prompt, None, &["Save", "Don't Save", "Cancel"])
                         })
                     })?;
                     if let Some(answer_task) = answer_task {

@@ -305,7 +305,7 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
         msg: &str,
         detail: Option<&str>,
         answers: &[PromptButton],
-    ) -> Option<oneshot::Receiver<usize>>;
+    ) -> oneshot::Receiver<usize>;
     fn activate(&self);
     /// Requests that the operating system draw attention to this window.
     fn request_attention(&self) {}

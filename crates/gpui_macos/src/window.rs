@@ -1532,7 +1532,7 @@ impl PlatformWindow for MacWindow {
         msg: &str,
         detail: Option<&str>,
         answers: &[PromptButton],
-    ) -> Option<oneshot::Receiver<usize>> {
+    ) -> oneshot::Receiver<usize> {
         use objc2_foundation::NSInteger;
         use objc2_foundation::NSString;
 
@@ -1607,7 +1607,7 @@ impl PlatformWindow for MacWindow {
             })
             .detach();
 
-        Some(done_rx)
+        done_rx
     }
 
     fn activate(&self) {

@@ -505,8 +505,8 @@ impl WorktreePickerDelegate {
                             }
                         })?;
 
-                        let answer = cx.update(|window, cx| {
-                            window.prompt(PromptLevel::Warning, &prompt_message, None, &["Force Delete", "Cancel"], cx)
+                        let answer = cx.update(|window, _| {
+                            window.prompt(PromptLevel::Warning, &prompt_message, None, &["Force Delete", "Cancel"])
                         })?;
 
                         if answer.await != Ok(0) {

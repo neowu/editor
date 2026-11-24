@@ -1065,7 +1065,7 @@ where
                 display
             });
             if let Ok(prompt) =
-                cx.update(|window, cx| window.prompt(PromptLevel::Critical, &msg, Some(&detail), &["OK"], cx))
+                cx.update(|window, _| window.prompt(PromptLevel::Critical, &msg, Some(&detail), &["OK"]))
             {
                 prompt.await.ok();
             }

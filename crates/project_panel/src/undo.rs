@@ -856,8 +856,8 @@ impl Inner {
         let prompt = ProjectPanel::build_removal_prompt(names, dirty_buffers);
         let answer = self
             .panel
-            .update_in(cx, |_panel, window, cx| {
-                window.prompt(PromptLevel::Info, &prompt.message, None, &[prompt.confirmation_label, "Cancel"], cx)
+            .update_in(cx, |_panel, window, _| {
+                window.prompt(PromptLevel::Info, &prompt.message, None, &[prompt.confirmation_label, "Cancel"])
             })?
             .await?;
 

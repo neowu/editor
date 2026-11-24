@@ -340,7 +340,7 @@ impl AsyncWindowContext {
         T: Clone + Into<PromptButton>,
     {
         self.app
-            .update_window(self.window, |_, window, cx| window.prompt(level, message, detail, answers, cx))
+            .update_window(self.window, |_, window, _| window.prompt(level, message, detail, answers))
             .unwrap_or_else(|_| oneshot::channel().1)
     }
 }

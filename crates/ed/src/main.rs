@@ -86,8 +86,7 @@ fn files_not_created_on_launch(errors: FxHashMap<io::ErrorKind, Vec<&Path>>) {
         if let Ok(window) = cx.open_window(gpui::WindowOptions::default(), |_, cx| cx.new(|_| gpui::Empty)) {
             window
                 .update(cx, |_, window, cx| {
-                    let response =
-                        window.prompt(gpui::PromptLevel::Critical, message, Some(&error_details), &["Exit"], cx);
+                    let response = window.prompt(gpui::PromptLevel::Critical, message, Some(&error_details), &["Exit"]);
 
                     cx.spawn_in(window, async move |_, cx| {
                         response.await?;

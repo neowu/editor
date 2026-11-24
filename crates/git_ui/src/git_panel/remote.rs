@@ -142,7 +142,6 @@ impl GitPanel {
                 "Unable to initialize a git repository",
                 Some("Open a directory first"),
                 &["OK"],
-                cx,
             );
             cx.background_executor()
                 .spawn(async move {

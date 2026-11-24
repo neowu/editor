@@ -110,7 +110,6 @@ mod focus;
 mod handle;
 mod hitbox;
 mod paint;
-mod prompts;
 
 pub use dispatch::DispatchEventResult;
 use dispatch::PendingInput;
@@ -136,8 +135,6 @@ pub use paint::PaintQuad;
 pub use paint::fill;
 pub use paint::outline;
 pub use paint::quad;
-#[allow(clippy::wildcard_imports)]
-pub use prompts::*;
 
 /// Default window size used when no explicit size is provided.
 /// How often a window presents again to advance its scene's animated sprites
@@ -709,7 +706,6 @@ pub struct Window {
     pending_input: Option<PendingInput>,
     pending_modifier: ModifierState,
     pub(crate) pending_input_observers: SingleSubscriberSet<AnyObserver>,
-    prompt: Option<RenderablePromptHandle>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -1154,7 +1150,6 @@ impl Window {
             pending_input: None,
             pending_modifier: ModifierState::default(),
             pending_input_observers: SingleSubscriberSet::new(),
-            prompt: None,
             image_cache_stack: Vec::new(),
         })
     }
@@ -1919,20 +1914,9 @@ impl Window {
 
         self.prepaint_deferred_draws(cx);
 
-        let mut prompt_element = None;
         let mut active_drag_element = None;
         let mut tooltip_element = None;
-        if let Some(prompt) = self.prompt.take() {
-            let mut element = prompt.view.any_view().into_any_element();
-            let prompt_layout_id = element.request_layout(self, cx);
-            self.layout_engine
-                .as_mut()
-                .expect("layout engine is present outside compute_layout")
-                .stretch_auto_size_to_fill(prompt_layout_id, self.viewport_size, scale_factor);
-            element.prepaint_as_root(Point::default(), self.viewport_size.into(), self, cx);
-            prompt_element = Some(element);
-            self.prompt = Some(prompt);
-        } else if let Some(active_drag) = cx.active_drag.take() {
+        if let Some(active_drag) = cx.active_drag.take() {
             let mut element = active_drag.view.clone().into_any_element();
             let offset = self.mouse_position() - active_drag.cursor_offset;
             element.prepaint_as_root(offset, AvailableSpace::min_size(), self, cx);
@@ -1951,9 +1935,7 @@ impl Window {
 
         self.paint_deferred_draws(cx);
 
-        if let Some(mut prompt_element) = prompt_element {
-            prompt_element.paint(self, cx);
-        } else if let Some(mut drag_element) = active_drag_element {
+        if let Some(mut drag_element) = active_drag_element {
             drag_element.paint(self, cx);
         } else if let Some(mut tooltip_element) = tooltip_element {
             tooltip_element.paint(self, cx);
@@ -2928,30 +2910,17 @@ impl Window {
     /// The provided message will be presented, along with buttons for each answer.
     /// When a button is clicked, the returned Receiver will receive the index of the clicked button.
     pub fn prompt<T>(
-        &mut self,
+        &self,
         level: PromptLevel,
         message: &str,
         detail: Option<&str>,
         answers: &[T],
-        cx: &mut App,
     ) -> oneshot::Receiver<usize>
     where
         T: Clone + Into<PromptButton>,
     {
         let answers = answers.iter().map(|answer| answer.clone().into()).collect::<Vec<_>>();
-        self.platform_window.prompt(level, message, detail, &answers).unwrap_or_else(|| {
-            let (sender, receiver) = oneshot::channel();
-            let handle = PromptHandle::new(sender);
-            self.prompt = Some(fallback_prompt_renderer(level, message, detail, &answers, handle, self, cx));
-            receiver
-        })
-    }
-
-    /// Returns whether a prompt rendered by GPUI is currently active in this window.
-    ///
-    /// This is only true for prompts rendered in the window, not for platform-native prompt dialogs.
-    pub const fn has_active_prompt(&self) -> bool {
-        self.prompt.is_some()
+        self.platform_window.prompt(level, message, detail, &answers)
     }
 
     /// Returns a generic event listener that invokes the given listener with the view and context associated with the given view handle.

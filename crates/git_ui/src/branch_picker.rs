@@ -986,8 +986,8 @@ impl BranchListDelegate {
                         (!force).then(|| force_delete_prompt_for_branch_delete_error(&error, entry.name())).flatten();
 
                     if let Some(prompt_message) = force_delete_prompt {
-                        let answer = cx.update(|window, cx| {
-                            window.prompt(PromptLevel::Warning, &prompt_message, None, &["Force Delete", "Cancel"], cx)
+                        let answer = cx.update(|window, _| {
+                            window.prompt(PromptLevel::Warning, &prompt_message, None, &["Force Delete", "Cancel"])
                         })?;
 
                         if answer.await != Ok(0) {

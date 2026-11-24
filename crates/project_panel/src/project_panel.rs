@@ -1749,7 +1749,7 @@ impl ProjectPanel {
                 None
             } else {
                 let prompt = format!("Discard changes to {}?", MarkdownInlineCode(&file_name));
-                Some(window.prompt(PromptLevel::Info, &prompt, None, &["Restore", "Cancel"], cx))
+                Some(window.prompt(PromptLevel::Info, &prompt, None, &["Restore", "Cancel"]))
             };
 
             cx.spawn_in(window, async move |panel, cx| {

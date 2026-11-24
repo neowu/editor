@@ -150,8 +150,8 @@ impl ProjectPanel {
                         MarkdownInlineCode(filename)
                     );
                     let answer = cx
-                        .update(|window, cx| {
-                            window.prompt(PromptLevel::Info, &prompt_message, None, &["Replace", "Cancel"], cx)
+                        .update(|window, _| {
+                            window.prompt(PromptLevel::Info, &prompt_message, None, &["Replace", "Cancel"])
                         })?
                         .await?;
 

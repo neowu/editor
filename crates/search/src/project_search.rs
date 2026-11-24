@@ -1624,13 +1624,12 @@ impl ProjectSearchView {
 
             let should_search = if should_prompt_to_save {
                 let options = &["Save", "Don't Save", "Cancel"];
-                let result_channel = this.update_in(cx, |_, window, cx| {
+                let result_channel = this.update_in(cx, |_, window, _| {
                     window.prompt(
                         gpui::PromptLevel::Warning,
                         "Project search buffer contains unsaved edits. Do you want to save it?",
                         None,
                         options,
-                        cx,
                     )
                 })?;
                 let result = result_channel.await?;

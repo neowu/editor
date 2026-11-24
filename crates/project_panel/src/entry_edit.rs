@@ -532,13 +532,7 @@ impl ProjectPanel {
                 let names = file_paths.iter().map(|(_, _, name)| name.as_str()).collect::<Vec<_>>();
                 let prompt = ProjectPanel::build_removal_prompt(&names, dirty_buffers);
 
-                Some(window.prompt(
-                    PromptLevel::Info,
-                    &prompt.message,
-                    None,
-                    &[prompt.confirmation_label, "Cancel"],
-                    cx,
-                ))
+                Some(window.prompt(PromptLevel::Info, &prompt.message, None, &[prompt.confirmation_label, "Cancel"]))
             };
             let next_selection = self.find_next_selection_after_deletion(items_to_delete, cx);
             cx.spawn_in(window, async move |panel, cx| {

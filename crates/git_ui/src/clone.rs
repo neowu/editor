@@ -67,13 +67,12 @@ pub fn clone_and_open(
                 .ok()?;
 
             let prompt_answer = if has_worktrees {
-                cx.update(|window, cx| {
+                cx.update(|window, _| {
                     window.prompt(
                         gpui::PromptLevel::Info,
                         &format!("Git Clone: {repo_name}"),
                         None,
                         &["Add repo to project", "Open repo in new project"],
-                        cx,
                     )
                 })
                 .ok()?

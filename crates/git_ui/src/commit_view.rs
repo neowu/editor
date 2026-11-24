@@ -1049,7 +1049,6 @@ impl CommitView {
             &format!("{str_action} stash@{{{stash}}}?"),
             None,
             &[str_action, "Cancel"],
-            cx,
         );
 
         let workspace_weak = workspace.weak_handle();

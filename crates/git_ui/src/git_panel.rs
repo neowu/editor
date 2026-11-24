@@ -169,11 +169,11 @@ actions!(
     ]
 );
 
-fn prompt<T>(msg: &str, detail: Option<&str>, window: &mut Window, cx: &mut App) -> Task<anyhow::Result<T>>
+fn prompt<T>(msg: &str, detail: Option<&str>, window: &Window, cx: &App) -> Task<anyhow::Result<T>>
 where
     T: IntoEnumIterator + VariantNames + 'static,
 {
-    let rx = window.prompt(PromptLevel::Info, msg, detail, T::VARIANTS, cx);
+    let rx = window.prompt(PromptLevel::Info, msg, detail, T::VARIANTS);
     cx.spawn(async move |_| Ok(T::iter().nth(rx.await?).expect("prompt answer is a variant index")))
 }
 
