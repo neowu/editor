@@ -68,14 +68,20 @@ Directions the fork deliberately doesn't follow, even in kept crates:
 
 ## Status
 
-- Last reviewed upstream commit: `2fc98e1e9b` (2026-11-23). The next pass
-  starts at `git log --reverse 2fc98e1e9b..upstream/main`.
+- Last reviewed upstream commit: `4aa53044` (2026-11-23). The next pass
+  starts at `git log --reverse 4aa53044..upstream/main`.
 - Renderer series, partly taken: #66806 and #66807 are ported. Still open:
   #66809 (path rendering without MSAA or an intermediate texture) with
   #66811 (depth buffer to cut overdraw), the main Metal win; they trade
   2–8× stroke tessellation CPU and some ordering risk. #66810 (batching) and
   #66812 (shadow approximation) are optional on top.
-- Open candidates from earlier passes, worth taking if wanted: #66103
+- Layout series, not taken yet: #67222 keeps Taffy nodes between frames so
+  unchanged subtrees reuse their cached layout (2–8% fewer instructions per
+  frame on synthetic trees). It is the first of a stack; measured nodes
+  (text, lists, the editor) are still measured every frame until the
+  follow-up lands. Port the stack together once it settles.
+- Open candidates from earlier passes, worth taking if wanted: #57638
+  (`./` and `../` relative paths in the open path prompt), #66103
   (open single files in the same window), #64624
   (UAX #14 line breaking), #53089 (git auto fetch), #66284 (no worktree hooks
   in restricted mode), #66423 (drag git panel files to the terminal), #66296
