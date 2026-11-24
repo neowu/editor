@@ -2664,7 +2664,7 @@ impl GitGraph {
         let hovered_entry_idx = self.hovered_entry_idx;
         let selected_entry_idx = self.selected_entry_idx;
         let context_menu_target_index = self.context_menu.as_ref().and_then(|menu| menu.target_entry_index);
-        let is_focused = self.focus_handle.is_focused(window);
+        let is_focused = self.focus_handle.is_focused(window) || table_state.focus_handle.is_focused(window);
         let graph_canvas_bounds = Rc::clone(&self.graph_canvas_bounds);
 
         gpui::canvas(
@@ -2921,7 +2921,7 @@ impl GitGraph {
         let hovered_entry_idx = self.hovered_entry_idx;
         let selected_entry_idx = self.selected_entry_idx;
         let context_menu_entry_idx = self.context_menu.as_ref().and_then(|menu| menu.target_entry_index);
-        let is_focused = self.focus_handle.is_focused(window);
+        let is_focused = self.focus_handle.is_focused(window) || table_state.focus_handle.is_focused(window);
         let hover_bg = theme.colors().element_hover.opacity(0.6);
         let selected_bg = if is_focused { theme.colors().element_selected } else { theme.colors().element_hover };
 
