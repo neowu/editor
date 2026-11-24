@@ -2730,6 +2730,7 @@ version = "0.1.0"
 dependencies = [
  "actions",
  "anyhow",
+ "editor",
  "gpui",
  "language",
  "project",

@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use editor::Editor;
+use editor::EditorEvent;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::Entity;
@@ -9,15 +11,13 @@ use gpui::prelude::Context;
 use gpui::prelude::InteractiveElement as _;
 use gpui::prelude::IntoElement;
 use gpui::prelude::Render;
-use ui::ErasedEditor;
-use ui::ErasedEditorEvent;
 use ui::prelude::Window;
 use ui::prelude::div;
 
 /// The head of a [`Picker`](crate::Picker).
 pub(crate) enum Head {
     /// Picker has an editor that allows the user to filter the list.
-    Editor(Arc<dyn ErasedEditor>),
+    Editor(Entity<Editor>),
 
     /// Picker has no head, it's just a list of items.
     Empty(Entity<EmptyHead>),
@@ -26,32 +26,23 @@ pub(crate) enum Head {
 impl Head {
     pub(crate) fn editor<V: 'static>(
         placeholder_text: Arc<str>,
-        edit_handler: impl FnMut(&mut V, ErasedEditorEvent, &mut Window, &mut Context<V>) + 'static,
+        edit_handler: impl FnMut(&mut V, &Entity<Editor>, &EditorEvent, &mut Window, &mut Context<V>) + 'static,
         window: &mut Window,
         cx: &mut Context<V>,
     ) -> Self {
-        let editor = (ui::ERASED_EDITOR_FACTORY.get().expect("editor factory is initialized"))(window, cx);
+        let editor = cx.new(|cx| Editor::single_line(window, cx));
         Self::with_editor(editor, placeholder_text, edit_handler, window, cx)
     }
 
     pub(crate) fn with_editor<V: 'static>(
-        editor: Arc<dyn ErasedEditor>,
+        editor: Entity<Editor>,
         placeholder_text: Arc<str>,
-        mut edit_handler: impl FnMut(&mut V, ErasedEditorEvent, &mut Window, &mut Context<V>) + 'static,
+        edit_handler: impl FnMut(&mut V, &Entity<Editor>, &EditorEvent, &mut Window, &mut Context<V>) + 'static,
         window: &mut Window,
         cx: &mut Context<V>,
     ) -> Self {
-        editor.set_placeholder_text(placeholder_text.as_ref(), window, cx);
-        let this = cx.weak_entity();
-        editor
-            .subscribe(
-                Box::new(move |event, window, cx| {
-                    this.update(cx, |this, cx| (edit_handler)(this, event, window, cx)).ok();
-                }),
-                window,
-                cx,
-            )
-            .detach();
+        editor.update(cx, |editor, cx| editor.set_placeholder_text(&placeholder_text, window, cx));
+        cx.subscribe_in(&editor, window, edit_handler).detach();
         Self::Editor(editor)
     }
 

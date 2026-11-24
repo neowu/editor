@@ -288,7 +288,6 @@ pub struct DisplayMap {
     crease_map: CreaseMap,
     pub(crate) fold_placeholder: FoldPlaceholder,
     pub clip_at_line_ends: bool,
-    pub(crate) masked: bool,
     pub(crate) diagnostics_max_severity: DiagnosticSeverity,
     pub(crate) companion: Option<(WeakEntity<DisplayMap>, Entity<Companion>)>,
     lsp_folding_crease_ids: FxHashMap<BufferId, Vec<CreaseId>>,
@@ -454,7 +453,6 @@ impl DisplayMap {
             inlay_highlights: TreeMap::default(),
             semantic_token_highlights: Arc::default(),
             clip_at_line_ends: false,
-            masked: false,
             companion: None,
             lsp_folding_crease_ids: FxHashMap::default(),
         }
@@ -653,7 +651,6 @@ impl DisplayMap {
             inlay_highlights: self.inlay_highlights.clone(),
             semantic_token_highlights: Arc::clone(&self.semantic_token_highlights),
             clip_at_line_ends: self.clip_at_line_ends,
-            masked: self.masked,
             use_lsp_folding_ranges: !self.lsp_folding_crease_ids.is_empty(),
             fold_placeholder: self.fold_placeholder.clone(),
         }
@@ -674,7 +671,6 @@ impl DisplayMap {
             inlay_highlights: self.inlay_highlights.clone(),
             semantic_token_highlights: Arc::clone(&self.semantic_token_highlights),
             clip_at_line_ends: self.clip_at_line_ends,
-            masked: self.masked,
             use_lsp_folding_ranges: !self.lsp_folding_crease_ids.is_empty(),
             fold_placeholder: self.fold_placeholder.clone(),
         }
@@ -1281,7 +1277,6 @@ pub struct DisplaySnapshot {
     inlay_highlights: InlayHighlights,
     semantic_token_highlights: SemanticTokensHighlights,
     clip_at_line_ends: bool,
-    masked: bool,
     diagnostics_max_severity: DiagnosticSeverity,
     pub(crate) fold_placeholder: FoldPlaceholder,
     /// When true, LSP folding ranges are used via the crease map and the
@@ -1357,7 +1352,6 @@ impl DisplaySnapshot {
             && (self.inlay_highlights.ptr_eq(&earlier.inlay_highlights)
                 || self.inlay_highlights == earlier.inlay_highlights)
             && self.diagnostics_max_severity == earlier.diagnostics_max_severity
-            && self.masked == earlier.masked
     }
 
     pub(crate) const fn diagnostics_visible(&self) -> bool {
@@ -1566,7 +1560,6 @@ impl DisplaySnapshot {
             .chunks(
                 BlockRow(display_row.0)..BlockRow(self.max_point().row().next_row().0),
                 LanguageAwareStyling { tree_sitter: false, diagnostics: false },
-                self.masked,
                 Highlights::default(),
             )
             .map(|h| h.text)
@@ -1581,7 +1574,6 @@ impl DisplaySnapshot {
         self.block_snapshot.chunks(
             BlockRow(display_rows.start.0)..BlockRow(display_rows.end.0),
             language_aware,
-            self.masked,
             Highlights {
                 text_highlights: Some(&self.text_highlights),
                 inlay_highlights: Some(&self.inlay_highlights),

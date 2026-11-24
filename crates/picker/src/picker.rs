@@ -10,6 +10,11 @@ use actions::editor::MoveDown;
 use actions::editor::MoveUp;
 use actions::menu;
 use anyhow::Result;
+use editor::Editor;
+use editor::EditorEvent;
+use editor::SelectionEffects;
+use editor::actions::SelectAll;
+use editor::scroll::Autoscroll;
 use gpui::Action;
 use gpui::AnyElement;
 use gpui::App;
@@ -17,6 +22,7 @@ use gpui::Bounds;
 use gpui::ClickEvent;
 use gpui::Context;
 use gpui::DismissEvent;
+use gpui::Entity;
 use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;
@@ -44,7 +50,6 @@ use head::Head;
 use ui::Checkbox;
 use ui::Divider;
 use ui::DocumentationAside;
-use ui::ErasedEditorEvent;
 use ui::KeyBinding;
 use ui::Tooltip;
 use ui::prelude::Div;
@@ -64,7 +69,6 @@ mod shape;
 
 pub use language::HighlightedText;
 pub use language::HighlightedTextBuilder;
-pub use ui::ErasedEditor;
 
 pub const DEFAULT_MODAL_WIDTH: Rems = Rems(34.0);
 pub const DEFAULT_MODAL_MAX_HEIGHT: Rems = Rems(24.0);
@@ -298,7 +302,7 @@ pub trait PickerDelegate: Sized + 'static {
     /// full control over the search bar.
     fn render_editor(
         &self,
-        _editor: &Arc<dyn ErasedEditor>,
+        _editor: &Entity<Editor>,
         _window: &mut Window,
         _cx: &mut Context<Picker<Self>>,
     ) -> Option<Div> {
@@ -374,7 +378,7 @@ impl<D: PickerDelegate> Picker<D> {
     /// the caller.
     pub fn list_with_query_editor(
         delegate: D,
-        query_editor: Arc<dyn ErasedEditor>,
+        query_editor: Entity<Editor>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -776,16 +780,19 @@ impl<D: PickerDelegate> Picker<D> {
         }
     }
 
-    fn on_input_editor_event(&mut self, event: ErasedEditorEvent, window: &mut Window, cx: &mut Context<Self>) {
-        let Head::Editor(editor) = &self.head else {
-            panic!("unexpected call");
-        };
+    fn on_input_editor_event(
+        &mut self,
+        editor: &Entity<Editor>,
+        event: &EditorEvent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         match event {
-            ErasedEditorEvent::BufferEdited => {
-                let query = editor.text(cx);
+            EditorEvent::BufferEdited => {
+                let query = editor.read(cx).text(cx);
                 self.update_matches(query, window, cx);
             }
-            ErasedEditorEvent::Blurred => {
+            EditorEvent::Blurred => {
                 // Opening a footer/search-bar menu blurs the editor; don't
                 // dismiss the picker while such a menu is open/focused.
                 let menu_focused = self.delegate.has_another_open_menu(window, cx);
@@ -793,6 +800,7 @@ impl<D: PickerDelegate> Picker<D> {
                     self.cancel(&menu::Cancel, window, cx);
                 }
             }
+            _ => {}
         }
     }
 
@@ -810,7 +818,7 @@ impl<D: PickerDelegate> Picker<D> {
             Head::Editor(editor) => {
                 let placeholder = self.delegate.placeholder_text(window, cx);
 
-                editor.set_placeholder_text(placeholder.as_ref(), window, cx);
+                editor.update(cx, |editor, cx| editor.set_placeholder_text(&placeholder, window, cx));
                 cx.notify();
             }
             Head::Empty(_) => {}
@@ -894,15 +902,20 @@ impl<D: PickerDelegate> Picker<D> {
 
     pub fn query(&self, cx: &App) -> String {
         match &self.head {
-            Head::Editor(editor) => editor.text(cx),
+            Head::Editor(editor) => editor.read(cx).text(cx),
             Head::Empty(_) => String::new(),
         }
     }
 
     pub fn set_query(&self, query: &str, window: &mut Window, cx: &mut App) {
         if let Head::Editor(editor) = &self.head {
-            editor.set_text(query, window, cx);
-            editor.move_selection_to_end(window, cx);
+            editor.update(cx, |editor, cx| {
+                editor.set_text(query, window, cx);
+                let end = editor.buffer().read(cx).len(cx);
+                editor.change_selections(SelectionEffects::scroll(Autoscroll::Next), window, cx, |s| {
+                    s.select_ranges(Some(end..end));
+                });
+            });
         }
     }
 
@@ -910,7 +923,7 @@ impl<D: PickerDelegate> Picker<D> {
     /// backspace clears it). Matches the buffer search bar's seeded-query behavior.
     pub fn select_query(&self, window: &mut Window, cx: &mut App) {
         if let Head::Editor(editor) = &self.head {
-            editor.select_all(window, cx);
+            editor.update(cx, |editor, cx| editor.select_all(&SelectAll, window, cx));
         }
     }
 

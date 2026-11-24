@@ -43,7 +43,6 @@ use time::OffsetDateTime;
 use ui::Banner;
 use ui::ContextMenu;
 use ui::Divider;
-use ui::ErasedEditor;
 use ui::HighlightedLabel;
 use ui::Indicator;
 use ui::KeyBinding;
@@ -1062,11 +1061,10 @@ impl PickerDelegate for BranchListDelegate {
 
     fn render_editor(
         &self,
-        editor: &Arc<dyn ErasedEditor>,
+        editor: &Entity<Editor>,
         _window: &mut Window,
         _cx: &mut Context<Picker<Self>>,
     ) -> Option<Div> {
-        let editor = editor.as_any().downcast_ref::<Entity<Editor>>().expect("picker editor is an Editor");
         let editor_start = matches!(self.editor_position(), PickerEditorPosition::Start);
         let editor_bottom = matches!(self.editor_position(), PickerEditorPosition::End);
 

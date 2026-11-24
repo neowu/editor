@@ -277,8 +277,7 @@ impl TextFinder {
 
     fn new(delegate: Delegate, seed_query: Option<QuerySeed>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         let query_editor = cx.new(|cx| Editor::single_line(window, cx));
-        let erased_query_editor = query_editor.update(cx, |editor, cx| editor.erased(cx));
-        let picker = cx.new(|cx| Picker::list_with_query_editor(delegate, erased_query_editor, window, cx));
+        let picker = cx.new(|cx| Picker::list_with_query_editor(delegate, query_editor.clone(), window, cx));
         let picker_weak = picker.downgrade();
         let picker_focus_handle = picker.focus_handle(cx);
         picker.update(cx, |picker, cx| {

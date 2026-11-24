@@ -3,7 +3,6 @@
 //! This crate provides a set of UI primitives and components that are used to build all of the elements in ed's UI.
 
 mod components;
-mod erased_editor;
 pub mod font;
 pub mod prelude;
 mod styles;
@@ -12,8 +11,6 @@ pub mod utils;
 
 #[allow(clippy::wildcard_imports)]
 pub use components::*;
-#[allow(clippy::wildcard_imports)]
-pub use erased_editor::*;
 #[allow(clippy::wildcard_imports)]
 pub use prelude::*;
 #[allow(clippy::wildcard_imports)]

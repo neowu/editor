@@ -2,11 +2,12 @@ use std::any::Any;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
 use std::sync::Mutex;
 
+use editor::Editor;
 use gpui::Action as _;
 use gpui::ActionTable;
+use gpui::Entity;
 use gpui::Focusable as _;
 use gpui::canvas;
 use ui::Color;
@@ -15,7 +16,6 @@ use ui::Disableable as _;
 use ui::Divider;
 use ui::DocumentationAside;
 use ui::DocumentationSide;
-use ui::ErasedEditor;
 use ui::FluentBuilder as _;
 use ui::InteractiveElement as _;
 use ui::IntoElement;
@@ -98,7 +98,7 @@ impl<D: PickerDelegate> Picker<D> {
         t.add(Self::multi_select_next);
     }
 
-    fn render_editor(&self, editor: &Arc<dyn ErasedEditor>, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
+    fn render_editor(&self, editor: &Entity<Editor>, window: &mut Window, cx: &mut Context<Self>) -> gpui::Div {
         if let Some(custom) = self.delegate.render_editor(editor, window, cx) {
             return custom;
         }
@@ -112,7 +112,7 @@ impl<D: PickerDelegate> Picker<D> {
                     .px_2p5()
                     .flex_none()
                     .overflow_hidden()
-                    .child(div().flex_1().child(editor.render(window, cx)))
+                    .child(div().flex_1().child(editor.clone()))
                     .children(self.delegate.searchbar_trailer(window, cx))
                     .when(self.delegate.supports_multi_select(), |this| {
                         this.child(self.render_multi_select_toggle(cx))
@@ -169,7 +169,7 @@ impl<D: PickerDelegate> Picker<D> {
             .action_table(&cx.entity(), self.actions)
             .children(match &self.head {
                 Head::Editor(editor) => (editor_position == PickerEditorPosition::Start).then(|| {
-                    let editor = Arc::clone(editor);
+                    let editor = editor.clone();
                     self.render_editor(&editor, window, cx)
                 }),
                 Head::Empty(empty_head) => Some(h_flex().child(empty_head.clone())),
@@ -223,7 +223,7 @@ impl<D: PickerDelegate> Picker<D> {
             .children(self.delegate.render_footer(window, cx))
             .children(match &self.head {
                 Head::Editor(editor) => (editor_position == PickerEditorPosition::End).then(|| {
-                    let editor = Arc::clone(editor);
+                    let editor = editor.clone();
                     self.render_editor(&editor, window, cx)
                 }),
                 Head::Empty(empty_head) => Some(div().child(empty_head.clone())),

@@ -54,9 +54,8 @@ ed (binary: wires everything, opens windows)
 - `ui` components are almost all `RenderOnce`: plain values built during a
   parent's `render`, holding no state between frames. Stateful widgets are
   views in feature crates.
-- `ui` sits below `editor`. Crates that need a text input without depending
-  on `editor` (`picker`) use `ui::ErasedEditor`, created through
-  `ui::ERASED_EDITOR_FACTORY`, which `editor` registers at init.
+- `ui` sits below `editor`; `picker` sits above it and hosts a single-line
+  `Entity<Editor>` directly as its query input.
 - An action type is declared in the crate that owns its behaviour, as long as
   every crate that names it (to dispatch, bind a menu item or show a tooltip)
   depends on that crate. The `actions` crate holds only the rest: actions

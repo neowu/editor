@@ -49,7 +49,6 @@ mod completions;
 mod config;
 mod cursor_motion;
 mod diagnostics;
-mod erased_editor;
 mod events;
 mod highlights;
 mod input;
@@ -657,8 +656,6 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         })
         .detach_and_log_err(cx);
     });
-    _ = ui::ERASED_EDITOR_FACTORY
-        .set(|window, cx| cx.new(|cx| Editor::single_line(window, cx)).update(cx, |editor, cx| editor.erased(cx)));
 }
 
 pub struct SearchWithinRange;
@@ -3142,13 +3139,6 @@ impl Editor {
 
     pub fn minimap(&self) -> Option<&Entity<Self>> {
         self.minimap.as_ref().filter(|_| self.minimap_visibility.visible())
-    }
-
-    pub fn set_masked(&mut self, masked: bool, cx: &mut Context<Self>) {
-        if self.display_map.read(cx).masked != masked {
-            self.display_map.update(cx, |map, _| map.masked = masked);
-        }
-        cx.notify();
     }
 
     pub fn insert_uuid_v4(&mut self, _: &InsertUuidV4, window: &mut Window, cx: &mut Context<Self>) {

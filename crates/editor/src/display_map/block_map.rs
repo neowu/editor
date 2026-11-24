@@ -63,7 +63,6 @@ use crate::display_map::dimensions::RowDelta;
 use crate::display_map::wrap_map::WrapRow;
 
 const NEWLINES: &[u8; rope::Chunk::MASK_BITS] = &[b'\n'; _];
-const BULLETS: &[u8; rope::Chunk::MASK_BITS] = &[b'*'; _];
 
 /// Tracks custom blocks such as diagnostics that should be displayed within buffer.
 ///
@@ -558,7 +557,6 @@ pub struct BlockChunks<'a> {
     output_row: BlockRow,
     max_output_row: BlockRow,
     line_count_overflow: RowDelta,
-    masked: bool,
 }
 
 #[derive(Clone)]
@@ -1964,7 +1962,6 @@ impl BlockSnapshot {
         &'a self,
         rows: Range<BlockRow>,
         language_aware: LanguageAwareStyling,
-        masked: bool,
         highlights: Highlights<'a>,
     ) -> BlockChunks<'a> {
         let max_output_row = cmp::min(rows.end, self.transforms.summary().output_rows);
@@ -1990,7 +1987,6 @@ impl BlockSnapshot {
             output_row: rows.start,
             line_count_overflow: RowDelta(0),
             max_output_row,
-            masked,
         }
     }
 
@@ -2319,23 +2315,13 @@ impl<'a> Iterator for BlockChunks<'a> {
         let (prefix_rows, prefix_bytes) = offset_for_row(self.input_chunk.text, transform_end - self.output_row);
         self.output_row += prefix_rows;
 
-        let (mut prefix, suffix) = self.input_chunk.text.split_at(prefix_bytes);
+        let (prefix, suffix) = self.input_chunk.text.split_at(prefix_bytes);
         self.input_chunk.text = suffix;
         self.input_chunk.tabs >>= prefix_bytes.saturating_sub(1);
         self.input_chunk.chars >>= prefix_bytes.saturating_sub(1);
         self.input_chunk.newlines >>= prefix_bytes.saturating_sub(1);
 
-        let (tabs, chars, newlines) = if self.masked {
-            // Not great for multibyte text because to keep cursor math correct we
-            // need to have the same number of chars in the input as output.
-            let bullet_len = prefix.chars().count();
-            prefix = unsafe { str::from_utf8_unchecked(&BULLETS[..bullet_len]) };
-            (0, 1_u128.unbounded_shl(bullet_len as u32).wrapping_sub(1), 0)
-        } else {
-            (self.input_chunk.tabs, self.input_chunk.chars, self.input_chunk.newlines)
-        };
-
-        let chunk = Chunk { text: prefix, tabs, chars, newlines, ..self.input_chunk.clone() };
+        let chunk = Chunk { text: prefix, ..self.input_chunk.clone() };
 
         if self.output_row == transform_end {
             self.advance();
