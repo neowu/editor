@@ -2303,3 +2303,40 @@ mod same_text_highlights_tests {
         assert!(!same_text_highlights(&a, &highlights(Vec::new())));
     }
 }
+
+/// Sorts edits by old start and merges overlapping or touching ones, in place.
+fn consolidate_edits<D: Ord + Copy>(mut edits: Vec<text::Edit<D>>) -> Vec<text::Edit<D>> {
+    edits.sort_unstable_by(|a, b| a.old.start.cmp(&b.old.start).then_with(|| b.old.end.cmp(&a.old.end)));
+    edits.dedup_by(|edit, prev| {
+        if prev.old.end < edit.old.start {
+            return false;
+        }
+        prev.old.end = prev.old.end.max(edit.old.end);
+        prev.new.start = prev.new.start.min(edit.new.start);
+        prev.new.end = prev.new.end.max(edit.new.end);
+        true
+    });
+    edits
+}
+
+#[cfg(test)]
+mod consolidate_edits_tests {
+    use std::ops::Range;
+
+    use super::consolidate_edits;
+
+    fn edit(old: Range<u32>, new: Range<u32>) -> text::Edit<u32> {
+        text::Edit { old, new }
+    }
+
+    #[test]
+    fn sorts_and_merges_overlapping_or_touching() {
+        assert!(consolidate_edits::<u32>(vec![]).is_empty());
+        let edits =
+            vec![edit(10..12, 10..14), edit(0..2, 0..2), edit(1..5, 1..6), edit(5..6, 6..7), edit(20..20, 21..25)];
+        assert_eq!(consolidate_edits(edits), vec![edit(0..6, 0..7), edit(10..12, 10..14), edit(20..20, 21..25)]);
+        // Contained edits and identical starts collapse into the widest one.
+        let edits = vec![edit(3..4, 3..4), edit(0..8, 0..9), edit(0..2, 0..2)];
+        assert_eq!(consolidate_edits(edits), vec![edit(0..8, 0..9)]);
+    }
+}

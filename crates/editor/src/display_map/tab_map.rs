@@ -11,6 +11,7 @@ use multi_buffer::MultiBufferSnapshot;
 use sum_tree::Bias;
 
 use super::Highlights;
+use super::consolidate_edits;
 use super::fold_map;
 use super::fold_map::Chunk;
 use super::fold_map::FoldChunks;
@@ -159,32 +160,13 @@ impl TabMap {
             version: new_version,
         };
 
-        let _old_alloc_ptr = fold_edits.as_ptr();
         // Combine any edits that overlap due to the expansion.
-        let mut fold_edits = fold_edits.into_iter();
-        let mut first_edit = fold_edits.next().expect("fold edits are non-empty");
-        // This code relies on reusing allocations from the Vec<_> - at the time of writing .flatten() prevents them.
-        #[allow(clippy::filter_map_identity)]
-        let mut v: Vec<_> = fold_edits
-            .scan(&mut first_edit, |state, edit| {
-                if state.old.end >= edit.old.start {
-                    state.old.end = edit.old.end;
-                    state.new.end = edit.new.end;
-                    Some(None) // Skip this edit, it's merged
-                } else {
-                    let new_state = edit;
-                    let result = Some(Some(state.clone())); // Yield the previous edit
-                    **state = new_state;
-                    result
-                }
-            })
-            .filter_map(|x| x)
-            .collect();
-        v.push(first_edit);
+        let fold_edits = consolidate_edits(fold_edits);
         let tab_edits = {
             let mut old_cursor = old_snapshot.tab_point_cursor();
             let mut new_cursor = new_snapshot.tab_point_cursor();
-            v.into_iter()
+            fold_edits
+                .into_iter()
                 .map(|fold_edit| {
                     let old_start = fold_edit.old.start.to_point(&old_snapshot.fold_snapshot);
                     let old_end = fold_edit.old.end.to_point(&old_snapshot.fold_snapshot);

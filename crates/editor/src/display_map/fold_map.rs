@@ -3,7 +3,6 @@ use std::cmp;
 use std::cmp::Ordering;
 use std::fmt;
 use std::iter;
-use std::mem;
 use std::ops::Add;
 use std::ops::AddAssign;
 use std::ops::Deref;
@@ -46,6 +45,7 @@ use ui::font;
 use util::post_inc;
 
 use super::Highlights;
+use super::consolidate_edits;
 use super::inlay_map::InlayBufferRows;
 use super::inlay_map::InlayChunks;
 use super::inlay_map::InlayEdit;
@@ -225,7 +225,7 @@ impl FoldMapWriter<'_> {
             new_tree
         };
 
-        let edits = consolidate_inlay_edits(edits);
+        let edits = consolidate_edits(edits);
         let edits = self.0.sync(snapshot.clone(), edits);
         (self.0.snapshot.clone(), edits)
     }
@@ -292,7 +292,7 @@ impl FoldMapWriter<'_> {
             folds
         };
 
-        let edits = consolidate_inlay_edits(edits);
+        let edits = consolidate_edits(edits);
         let edits = self.0.sync(snapshot.clone(), edits);
         (self.0.snapshot.clone(), edits)
     }
@@ -325,7 +325,7 @@ impl FoldMapWriter<'_> {
             }
         }
 
-        let edits = consolidate_inlay_edits(edits);
+        let edits = consolidate_edits(edits);
         let edits = self.0.sync(inlay_snapshot, edits);
         (self.0.snapshot.clone(), edits)
     }
@@ -633,7 +633,7 @@ impl FoldMap {
                     });
                 }
 
-                fold_edits = consolidate_fold_edits(fold_edits);
+                fold_edits = consolidate_edits(fold_edits);
             }
 
             self.snapshot.transforms = new_transforms;
@@ -954,63 +954,6 @@ fn intersecting_folds<'a>(
     });
     cursor.next();
     cursor
-}
-
-fn consolidate_inlay_edits(mut edits: Vec<InlayEdit>) -> Vec<InlayEdit> {
-    edits.sort_unstable_by(|a, b| a.old.start.cmp(&b.old.start).then_with(|| b.old.end.cmp(&a.old.end)));
-
-    let mut inlay_edits = edits.into_iter();
-
-    if let Some(mut first_edit) = inlay_edits.next() {
-        // This code relies on reusing allocations from the Vec<_> - at the time of writing .flatten() prevents them.
-        #[allow(clippy::filter_map_identity)]
-        let mut v: Vec<_> = inlay_edits
-            .scan(&mut first_edit, |prev_edit, edit| {
-                if prev_edit.old.end >= edit.old.start {
-                    prev_edit.old.end = prev_edit.old.end.max(edit.old.end);
-                    prev_edit.new.start = prev_edit.new.start.min(edit.new.start);
-                    prev_edit.new.end = prev_edit.new.end.max(edit.new.end);
-                    Some(None) // Skip this edit, it's merged
-                } else {
-                    let prev = mem::replace(*prev_edit, edit);
-                    Some(Some(prev)) // Yield the previous edit
-                }
-            })
-            .filter_map(|x| x)
-            .collect();
-        v.push(first_edit.clone());
-        v
-    } else {
-        vec![]
-    }
-}
-
-fn consolidate_fold_edits(mut edits: Vec<FoldEdit>) -> Vec<FoldEdit> {
-    edits.sort_unstable_by(|a, b| a.old.start.cmp(&b.old.start).then_with(|| b.old.end.cmp(&a.old.end)));
-    let mut fold_edits = edits.into_iter();
-
-    if let Some(mut first_edit) = fold_edits.next() {
-        // This code relies on reusing allocations from the Vec<_> - at the time of writing .flatten() prevents them.
-        #[allow(clippy::filter_map_identity)]
-        let mut v: Vec<_> = fold_edits
-            .scan(&mut first_edit, |prev_edit, edit| {
-                if prev_edit.old.end >= edit.old.start {
-                    prev_edit.old.end = prev_edit.old.end.max(edit.old.end);
-                    prev_edit.new.start = prev_edit.new.start.min(edit.new.start);
-                    prev_edit.new.end = prev_edit.new.end.max(edit.new.end);
-                    Some(None) // Skip this edit, it's merged
-                } else {
-                    let prev = mem::replace(*prev_edit, edit);
-                    Some(Some(prev)) // Yield the previous edit
-                }
-            })
-            .filter_map(|x| x)
-            .collect();
-        v.push(first_edit.clone());
-        v
-    } else {
-        vec![]
-    }
 }
 
 #[derive(Clone, Debug, Default)]

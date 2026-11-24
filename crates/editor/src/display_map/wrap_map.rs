@@ -30,6 +30,7 @@ use sum_tree::SumTree;
 use text::Patch;
 
 use super::Highlights;
+use super::consolidate_edits;
 use super::dimensions::RowDelta;
 use super::fold_map::Chunk;
 use super::fold_map::FoldRows;
@@ -697,7 +698,7 @@ impl WrapSnapshot {
             });
         }
 
-        wrap_edits = consolidate_wrap_edits(wrap_edits);
+        wrap_edits = consolidate_edits(wrap_edits);
         Patch::new(wrap_edits)
     }
 
@@ -1220,32 +1221,5 @@ impl<'a> sum_tree::Dimension<'a, TransformSummary> for WrapPoint {
 
     fn add_summary(&mut self, summary: &'a TransformSummary, (): ()) {
         self.0 += summary.output.lines;
-    }
-}
-
-fn consolidate_wrap_edits(edits: Vec<WrapEdit>) -> Vec<WrapEdit> {
-    let _old_alloc_ptr = edits.as_ptr();
-    let mut wrap_edits = edits.into_iter();
-
-    if let Some(mut first_edit) = wrap_edits.next() {
-        // This code relies on reusing allocations from the Vec<_> - at the time of writing .flatten() prevents them.
-        #[allow(clippy::filter_map_identity)]
-        let mut v: Vec<_> = wrap_edits
-            .scan(&mut first_edit, |prev_edit, edit| {
-                if prev_edit.old.end >= edit.old.start {
-                    prev_edit.old.end = edit.old.end;
-                    prev_edit.new.end = edit.new.end;
-                    Some(None) // Skip this edit, it's merged
-                } else {
-                    let prev = mem::replace(*prev_edit, edit);
-                    Some(Some(prev)) // Yield the previous edit
-                }
-            })
-            .filter_map(|x| x)
-            .collect();
-        v.push(first_edit.clone());
-        v
-    } else {
-        vec![]
     }
 }
