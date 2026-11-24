@@ -20,7 +20,7 @@ use crate::npx;
 /// The TypeScript 7 native language server (`tsc --lsp --stdio`), for TypeScript,
 /// TSX and JavaScript. Older TypeScript versions are not supported.
 pub(crate) struct TsgoLspAdapter {
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
 }
 
 impl TsgoLspAdapter {
@@ -29,7 +29,7 @@ impl TsgoLspAdapter {
     const NPX_PACKAGE: &str = "typescript@^7";
     const ARGUMENTS: &[&str] = &["--lsp", "--stdio"];
 
-    pub(crate) fn new(fs: Arc<dyn Fs>) -> Self {
+    pub(crate) const fn new(fs: Arc<Fs>) -> Self {
         TsgoLspAdapter { fs }
     }
 
@@ -69,7 +69,7 @@ impl LspAdapter for TsgoLspAdapter {
 
     /// Uses the project's `typescript` when it is 7 or newer and refuses to start for
     /// older versions. Projects without `typescript` run the latest 7.x through npx.
-    async fn find_binary(&self, delegate: &Arc<dyn LspAdapterDelegate>, _: &AsyncApp) -> Result<LanguageServerBinary> {
+    async fn find_binary(&self, delegate: &Arc<LspAdapterDelegate>, _: &AsyncApp) -> Result<LanguageServerBinary> {
         if let Some(installed) = self.installed_typescript(delegate.worktree_root_path()).await {
             let supported = major_version(&installed.version).is_some_and(|major| major >= Self::MIN_MAJOR_VERSION);
             anyhow::ensure!(

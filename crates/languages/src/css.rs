@@ -29,7 +29,7 @@ impl LspAdapter for CssLspAdapter {
 
     async fn check_if_user_installed(
         &self,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         npx::node_server_binary(delegate, &["vscode-langservers-extracted"], "vscode-css-language-server", &["--stdio"])
@@ -38,7 +38,7 @@ impl LspAdapter for CssLspAdapter {
 
     async fn initialization_options(
         self: Arc<Self>,
-        _: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<LspAdapterDelegate>,
         _: &mut AsyncApp,
     ) -> Result<Option<serde_json::Value>> {
         Ok(Some(json!({
@@ -48,7 +48,7 @@ impl LspAdapter for CssLspAdapter {
 
     async fn workspace_configuration(
         self: Arc<Self>,
-        _: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<LspAdapterDelegate>,
         _: Option<Uri>,
         _: &mut AsyncApp,
     ) -> Result<serde_json::Value> {

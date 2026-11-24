@@ -155,7 +155,7 @@ impl LazyGlobSet {
 impl LanguageServerWatchedPaths {
     fn spawn_abs_path_watcher(
         abs_path: Arc<Path>,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         language_server_id: LanguageServerId,
         cx: &Context<LspStore>,
     ) -> Task<()> {

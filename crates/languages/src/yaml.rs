@@ -35,7 +35,7 @@ impl LspAdapter for YamlLspAdapter {
 
     async fn check_if_user_installed(
         &self,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         let bin = Self::SERVER_NAME;
@@ -44,7 +44,7 @@ impl LspAdapter for YamlLspAdapter {
 
     async fn workspace_configuration(
         self: Arc<Self>,
-        _: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<LspAdapterDelegate>,
         _: Option<Uri>,
         cx: &mut AsyncApp,
     ) -> Result<Value> {

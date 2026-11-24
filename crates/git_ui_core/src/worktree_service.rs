@@ -449,7 +449,7 @@ fn start_worktree_creations(
 /// (removed) so the project isn't left in a half-migrated state.
 pub async fn await_and_rollback_on_failure(
     creation_infos: Vec<(Entity<Repository>, PathBuf, Receiver<anyhow::Result<()>>)>,
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     cx: &mut AsyncWindowContext,
 ) -> anyhow::Result<Vec<PathBuf>> {
     let mut created_paths: Vec<PathBuf> = Vec::new();
@@ -748,7 +748,7 @@ async fn do_create_worktree(
         )
     })??;
 
-    let fs = cx.update(|_, cx| <dyn Fs>::global(cx))?;
+    let fs = cx.update(|_, cx| Fs::global(cx))?;
 
     let created_paths = await_and_rollback_on_failure(creation_infos, fs, cx).await?;
 

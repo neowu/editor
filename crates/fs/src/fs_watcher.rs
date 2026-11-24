@@ -28,7 +28,7 @@ use crate::fsevents;
 const PENDING_PATH_RETRY_INTERVAL: Duration = Duration::from_secs(2);
 
 pub(crate) async fn watch(
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     native_watcher: Arc<OsWatcher>,
     executor: BackgroundExecutor,
     path: &Path,
@@ -85,7 +85,7 @@ pub(crate) async fn watch(
 
 pub struct FsWatcher {
     native_watcher: Arc<OsWatcher>,
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     executor: BackgroundExecutor,
     tx: async_channel::Sender<()>,
     pending_path_events: Arc<Mutex<Vec<PathEvent>>>,
@@ -102,7 +102,7 @@ struct FsWatcherRegistration {
 impl FsWatcher {
     pub(crate) fn new(
         native_watcher: Arc<OsWatcher>,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         executor: BackgroundExecutor,
         tx: async_channel::Sender<()>,
         pending_path_events: Arc<Mutex<Vec<PathEvent>>>,
@@ -316,7 +316,7 @@ impl WatchKey {
 
 async fn poll_path_until_created(
     native_watcher: Arc<OsWatcher>,
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     executor: BackgroundExecutor,
     path: Arc<Path>,
     tx: async_channel::Sender<()>,
@@ -337,16 +337,12 @@ async fn poll_path_until_created(
 
         // Probe case sensitivity now that the path exists, rather than at add
         // time when it didn't.
-        let case_insensitive = if fs.is_fake() {
-            !fs.is_path_case_sensitive(&path)
-        } else {
-            async_macos::unblock({
-                let path = Arc::clone(&path);
-                let fs = Arc::clone(&fs);
-                move || !fs.is_path_case_sensitive(&path)
-            })
-            .await
-        };
+        let case_insensitive = async_macos::unblock({
+            let path = Arc::clone(&path);
+            let fs = Arc::clone(&fs);
+            move || !fs.is_path_case_sensitive(&path)
+        })
+        .await;
         let key = WatchKey::for_registration(SanitizedPath::new(&path), case_insensitive);
 
         if registrations.lock().contains_key(&key) {
@@ -361,7 +357,7 @@ async fn poll_path_until_created(
             let native_watcher = Arc::clone(&native_watcher);
             move || register_existing_path(&native_watcher, path, case_insensitive, tx, pending_path_events)
         };
-        let registration = if fs.is_fake() { register() } else { async_macos::unblock(register).await };
+        let registration = async_macos::unblock(register).await;
 
         match registration {
             Ok(registration) => {

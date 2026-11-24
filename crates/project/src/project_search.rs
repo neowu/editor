@@ -4,6 +4,7 @@ use std::io;
 use std::io::Cursor;
 use std::io::ErrorKind;
 use std::io::Read as _;
+use std::io::Seek as _;
 use std::mem;
 use std::ops::Range;
 use std::path::Path;
@@ -24,7 +25,6 @@ use file_content::FILE_ANALYSIS_BYTES;
 use file_content::decode_byte_header;
 use file_content::detect_encoding;
 use fs::Fs;
-use fs::ReadSeek;
 use futures::FutureExt as _;
 use futures::StreamExt as _;
 use futures::channel::oneshot;
@@ -67,7 +67,7 @@ pub struct Search {
 /// Represents search setup, before it is actually kicked off with Search::into_results.
 enum SearchKind {
     /// Search for candidates by inspecting file contents on file system, avoiding loading the buffer unless we know that a given file contains a match.
-    Local { fs: Arc<dyn Fs>, worktrees: Vec<Entity<Worktree>> },
+    Local { fs: Arc<Fs>, worktrees: Vec<Entity<Worktree>> },
     /// Run search against a known set of candidates.
     OpenBuffersOnly,
 }
@@ -99,7 +99,7 @@ impl SearchResultsHandle {
 #[derive(Clone)]
 enum FindSearchCandidates {
     Local {
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         /// Start off with all paths in project and filter them based on:
         /// - Include filters
         /// - Exclude filters
@@ -117,7 +117,7 @@ enum FindSearchCandidates {
 
 impl Search {
     pub fn local(
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         buffer_store: Entity<BufferStore>,
         worktree_store: Entity<WorktreeStore>,
         limit: usize,
@@ -610,7 +610,7 @@ impl Worker {
 
 struct RequestHandler<'worker> {
     query: &'worker SearchQuery,
-    fs: Option<&'worker dyn Fs>,
+    fs: Option<&'worker Fs>,
     open_entries: &'worker FxHashMap<ProjectEntryId, Rope>,
     confirm_contents_will_match_tx: &'worker Sender<MatchingEntry>,
 }
@@ -644,12 +644,12 @@ impl RequestHandler<'_> {
         async move {
             let abs_path = entry.worktree_root.join(entry.path.path.as_std_path());
             let fs = self.fs.context("no filesystem for an open-buffers-only search")?;
-            let Some(mut file) = fs.open_sync(&abs_path).await.log_err() else {
+            let Some(mut file) = fs.open_sync(&abs_path).log_err() else {
                 return anyhow::Ok(());
             };
 
             let mut file_start = Vec::with_capacity(8 * 1024);
-            (&mut *file).take(8 * 1024).read_to_end(&mut file_start)?;
+            (&mut file).take(8 * 1024).read_to_end(&mut file_start)?;
             let (bom_encoding, byte_content) =
                 decode_byte_header(&file_start[..file_start.len().min(FILE_ANALYSIS_BYTES)]);
             if byte_content == ByteContent::Binary {
@@ -662,19 +662,19 @@ impl RequestHandler<'_> {
             let encoding = bom_encoding.or_else(|| byte_content.encoding());
 
             let first_match = if is_plain_utf8 {
-                match self.query.detect(&mut Cursor::new(file_start).chain(&mut *file)).await {
+                match self.query.detect(&mut Cursor::new(file_start).chain(&mut file)).await {
                     Ok(line_hint) => line_hint,
                     Err(error)
                         if error
                             .downcast_ref::<io::Error>()
                             .is_some_and(|error| error.kind() == ErrorKind::InvalidData) =>
                     {
-                        self.detect_in_decoded_file(&mut *file, encoding).await?
+                        self.detect_in_decoded_file(&mut file, encoding).await?
                     }
                     Err(error) => return Err(error),
                 }
             } else {
-                self.detect_in_decoded_file(&mut *file, encoding).await?
+                self.detect_in_decoded_file(&mut file, encoding).await?
             };
 
             if first_match.is_some() {
@@ -689,7 +689,7 @@ impl RequestHandler<'_> {
 
     async fn detect_in_decoded_file(
         &self,
-        file: &mut (dyn ReadSeek + Send),
+        file: &mut std::fs::File,
         encoding: Option<&'static Encoding>,
     ) -> anyhow::Result<Option<MatchPositionHint>> {
         file.rewind()?;

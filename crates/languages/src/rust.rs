@@ -56,7 +56,7 @@ pub(crate) struct RustLspAdapter;
 const SERVER_NAME: LanguageServerName = LanguageServerName::new_static("rust-analyzer");
 
 impl RustLspAdapter {
-    async fn rustup_rust_analyzer_for_worktree(delegate: &dyn LspAdapterDelegate) -> Option<PathBuf> {
+    async fn rustup_rust_analyzer_for_worktree(delegate: &LspAdapterDelegate) -> Option<PathBuf> {
         if !Self::workspace_has_rust_toolchain_override(delegate).await {
             return None;
         }
@@ -91,9 +91,9 @@ impl RustLspAdapter {
         Some(path).filter(|p| !p.as_os_str().is_empty())
     }
 
-    async fn workspace_has_rust_toolchain_override(delegate: &dyn LspAdapterDelegate) -> bool {
+    async fn workspace_has_rust_toolchain_override(delegate: &LspAdapterDelegate) -> bool {
         for file_name in ["rust-toolchain.toml", "rust-toolchain"] {
-            if fs::metadata(delegate.resolve_relative_path(PathBuf::from(file_name))).await.is_ok() {
+            if fs::metadata(delegate.worktree_root_path().join(file_name)).await.is_ok() {
                 return true;
             }
         }
@@ -161,7 +161,7 @@ impl LspAdapter for RustLspAdapter {
 
     async fn check_if_user_installed(
         &self,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         cx: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         let delegate = Arc::clone(delegate);
@@ -213,7 +213,7 @@ impl LspAdapter for RustLspAdapter {
 
     async fn initialization_options(
         self: Arc<Self>,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         _: &mut AsyncApp,
     ) -> Result<Option<serde_json::Value>> {
         let clippy_configs = existing_clippy_configs(delegate.worktree_root_path()).await;

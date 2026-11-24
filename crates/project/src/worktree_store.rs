@@ -128,7 +128,7 @@ pub struct WorktreeStore {
     #[allow(clippy::type_complexity)]
     loading_worktrees: FxHashMap<Arc<SanitizedPath>, Shared<Task<Result<Entity<Worktree>, Arc<anyhow::Error>>>>>,
     initial_scan_complete: (watch::Sender<bool>, watch::Receiver<bool>),
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
 }
 
 #[derive(Debug)]
@@ -145,7 +145,7 @@ pub enum WorktreeStoreEvent {
 impl EventEmitter<WorktreeStoreEvent> for WorktreeStore {}
 
 impl WorktreeStore {
-    pub fn local(retain_worktrees: bool, fs: Arc<dyn Fs>, next_worktree_id: WorktreeIdCounter) -> Self {
+    pub fn local(retain_worktrees: bool, fs: Arc<Fs>, next_worktree_id: WorktreeIdCounter) -> Self {
         Self {
             next_entry_id: Arc::default(),
             next_worktree_id,
@@ -420,7 +420,7 @@ impl WorktreeStore {
                 let fs = Arc::clone(fs);
                 let case_sensitive = new_worktree.read(cx).fs_is_case_sensitive();
 
-                let do_rename = async move |fs: &dyn Fs, old_path: &Path, new_path: &Path, overwrite| {
+                let do_rename = async move |fs: &Fs, old_path: &Path, new_path: &Path, overwrite| {
                     fs.rename(old_path, new_path, fs::RenameOptions { overwrite, ..fs::RenameOptions::default() })
                         .await
                         .with_context(|| format!("renaming {old_path:?} into {new_path:?}"))
@@ -543,7 +543,7 @@ impl WorktreeStore {
 
     fn create_local_worktree(
         &self,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         abs_path: Arc<SanitizedPath>,
         visible: bool,
         library_name: Option<Arc<str>>,
@@ -705,7 +705,7 @@ impl WorktreeStore {
         })
     }
 
-    pub fn fs(&self) -> Arc<dyn Fs> {
+    pub fn fs(&self) -> Arc<Fs> {
         Arc::clone(&self.fs)
     }
 

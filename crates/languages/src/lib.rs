@@ -42,7 +42,7 @@ mod yaml;
 pub(crate) use package_json::PackageJson;
 pub(crate) use package_json::PackageJsonData;
 
-pub fn init(languages: Arc<LanguageRegistry>, fs: Arc<dyn Fs>, cx: &mut App) {
+pub fn init(languages: Arc<LanguageRegistry>, fs: Arc<Fs>, cx: &mut App) {
     let biome: Arc<dyn LspAdapter> = Arc::new(biome::BiomeLspAdapter::new(Arc::clone(&fs)));
     let definitions = [
         bash::languages(),

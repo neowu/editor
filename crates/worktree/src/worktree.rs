@@ -17,6 +17,7 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::future::Future;
 use std::io::Read;
+use std::io::Seek as _;
 use std::mem;
 use std::ops::Bound;
 use std::ops::Deref;
@@ -177,7 +178,7 @@ pub struct Worktree {
     is_scanning: (watch::Sender<bool>, watch::Receiver<bool>),
     snapshot_subscriptions: VecDeque<(usize, oneshot::Sender<()>)>,
     _background_scanner_tasks: Vec<Task<()>>,
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     fs_case_sensitive: bool,
     visible: bool,
     library_name: Option<Arc<str>>,
@@ -277,7 +278,7 @@ pub struct LocalSnapshot {
     git_repositories: TreeMap<ProjectEntryId, LocalRepositoryEntry>,
     /// The file handle of the worktree root
     /// (so we can find it after it's been moved).
-    root_file_handle: Option<Arc<dyn fs::FileHandle>>,
+    root_file_handle: Option<Arc<std::fs::File>>,
     /// Maps canonical absolute paths of externally watched symlinked directories
     /// to their relative paths within the worktree, used to translate FSEvents
     /// canonical-path events back to worktree-relative paths.
@@ -484,7 +485,7 @@ impl Worktree {
     pub async fn local(
         path: impl Into<Arc<Path>>,
         visible: bool,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         next_entry_id: Arc<AtomicUsize>,
         scanning_enabled: bool,
         worktree_id: WorktreeId,
@@ -496,8 +497,8 @@ impl Worktree {
         let fs_case_sensitive = fs.is_case_sensitive().await;
 
         let root_file_handle = if metadata.as_ref().is_some() {
-            fs.open_handle(&abs_path)
-                .await
+            fs.open_sync(&abs_path)
+                .map(Arc::new)
                 .with_context(|| format!("failed to open local worktree root at {}", abs_path.display()))
                 .log_err()
         } else {
@@ -676,7 +677,7 @@ impl Worktree {
         }
     }
 
-    pub fn fs(&self) -> &Arc<dyn Fs> {
+    pub const fn fs(&self) -> &Arc<Fs> {
         &self.fs
     }
 
@@ -1549,36 +1550,6 @@ impl Snapshot {
         path.ancestors().find_map(|ancestor| self.entry_for_path(ancestor)).is_some_and(|entry| entry.is_ignored)
     }
 
-    /// Resolves a path to an executable using the following heuristics:
-    ///
-    /// 1. If the path starts with `~`, it is expanded to the user's home directory.
-    /// 2. If the path is relative and contains more than one component,
-    ///    it is joined to the worktree root path.
-    /// 3. If the path is relative and exists in the worktree
-    ///    (even if falls under an exclusion filter),
-    ///    it is joined to the worktree root path.
-    /// 4. Otherwise the path is returned unmodified.
-    ///
-    /// Relative paths that do not exist in the worktree may
-    /// still be found using the `PATH` environment variable.
-    pub fn resolve_relative_path(&self, path: PathBuf) -> PathBuf {
-        if let Some(path_str) = path.to_str() {
-            if let Some(remaining_path) = path_str.strip_prefix("~/") {
-                return home_dir().join(remaining_path);
-            } else if path_str == "~" {
-                return home_dir().clone();
-            }
-        }
-
-        if let Ok(rel_path) = RelPath::new(&path)
-            && (path.components().count() > 1 || self.entry_for_path(&rel_path).is_some())
-        {
-            self.abs_path().join(path)
-        } else {
-            path
-        }
-    }
-
     pub fn entry_for_id(&self, id: ProjectEntryId) -> Option<&Entry> {
         let entry = self.entries_by_id.get(&id, ())?;
         self.entry_for_path(&entry.path)
@@ -1613,7 +1584,7 @@ impl LocalSnapshot {
             .find(|entry| entry.work_directory.path_key() == PathKey(path.into()))
     }
 
-    async fn insert_entry(&mut self, mut entry: Entry, fs: &dyn Fs) -> Entry {
+    async fn insert_entry(&mut self, mut entry: Entry, fs: &Fs) -> Entry {
         log::trace!("insert entry {:?}", entry.path);
         if entry.is_file() && entry.path.file_name() == Some(GITIGNORE) {
             let abs_path = self.absolutize(&entry.path);
@@ -1661,7 +1632,7 @@ impl LocalSnapshot {
         inodes
     }
 
-    async fn ignore_stack_for_abs_path(&self, abs_path: &Path, is_dir: bool, fs: &dyn Fs) -> IgnoreStack {
+    async fn ignore_stack_for_abs_path(&self, abs_path: &Path, is_dir: bool, fs: &Fs) -> IgnoreStack {
         let mut new_ignores = Vec::new();
         let mut repo_excludes = Vec::new();
         let mut repo_root = None;
@@ -1727,7 +1698,7 @@ impl LocalSnapshot {
 }
 
 impl BackgroundScannerState {
-    async fn enqueue_scan_dir(&self, abs_path: Arc<Path>, entry: &Entry, scan_job_tx: &Sender<ScanJob>, fs: &dyn Fs) {
+    async fn enqueue_scan_dir(&self, abs_path: Arc<Path>, entry: &Entry, scan_job_tx: &Sender<ScanJob>, fs: &Fs) {
         let path = Arc::clone(&entry.path);
         let ignore_stack = self.snapshot.ignore_stack_for_abs_path(&abs_path, true, fs).await;
         let mut ancestor_inodes = self.snapshot.ancestor_inodes_for_path(&path);
@@ -1788,7 +1759,7 @@ impl BackgroundScannerState {
         }
     }
 
-    async fn insert_entry(&mut self, entry: Entry, fs: &dyn Fs, watcher: &dyn Watcher) -> Entry {
+    async fn insert_entry(&mut self, entry: Entry, fs: &Fs, watcher: &dyn Watcher) -> Entry {
         let entry = self.snapshot.insert_entry(entry, fs).await;
         if entry.path.file_name() == Some(DOT_GIT) {
             self.insert_git_repository(Arc::clone(&entry.path), fs, watcher).await;
@@ -1951,7 +1922,7 @@ impl BackgroundScannerState {
         removed_dir_abs_paths
     }
 
-    async fn insert_git_repository(&mut self, dot_git_path: Arc<RelPath>, fs: &dyn Fs, watcher: &dyn Watcher) {
+    async fn insert_git_repository(&mut self, dot_git_path: Arc<RelPath>, fs: &Fs, watcher: &dyn Watcher) {
         let work_dir_path: Arc<RelPath> = if let Some(parent_dir) = dot_git_path.parent() {
             // Guard against repositories inside the repository metadata
             if parent_dir.components().any(|component| component == DOT_GIT) {
@@ -1987,7 +1958,7 @@ impl BackgroundScannerState {
         &mut self,
         work_directory: WorkDirectory,
         dot_git_abs_path: Arc<Path>,
-        fs: &dyn Fs,
+        fs: &Fs,
         watcher: &dyn Watcher,
     ) -> Result<LocalRepositoryEntry> {
         let work_dir_entry = self
@@ -2050,7 +2021,7 @@ impl BackgroundScannerState {
 /// and, for repositories using the reftable backend, the `reftable` directory. On
 /// platforms with recursive watchers these calls are deduplicated against the existing
 /// recursive registration, making them effectively free.
-async fn watch_git_dir_subdirectories(git_dir_abs_path: &Path, fs: &dyn Fs, watcher: &dyn Watcher) {
+async fn watch_git_dir_subdirectories(git_dir_abs_path: &Path, fs: &Fs, watcher: &dyn Watcher) {
     let reftable_dir_abs_path = git_dir_abs_path.join(REFTABLE_DIR);
     if fs.is_dir(&reftable_dir_abs_path).await {
         watcher.add(&reftable_dir_abs_path).context("failed to add reftable directory to watcher").log_err();
@@ -2063,7 +2034,7 @@ async fn watch_git_dir_subdirectories(git_dir_abs_path: &Path, fs: &dyn Fs, watc
 ///
 /// Each directory is watched before its children are enumerated, so that a child
 /// created concurrently is either seen by the enumeration or reported by the watch.
-async fn watch_dir_tree(root_abs_path: PathBuf, fs: &dyn Fs, watcher: &dyn Watcher) {
+async fn watch_dir_tree(root_abs_path: PathBuf, fs: &Fs, watcher: &dyn Watcher) {
     let mut dirs_to_watch = vec![root_abs_path];
     while let Some(dir_abs_path) = dirs_to_watch.pop() {
         if !fs.is_dir(&dir_abs_path).await {
@@ -2084,7 +2055,7 @@ async fn watch_dir_tree(root_abs_path: PathBuf, fs: &dyn Fs, watcher: &dyn Watch
     }
 }
 
-async fn is_dot_git(path: &Path, fs: &dyn Fs) -> bool {
+async fn is_dot_git(path: &Path, fs: &Fs) -> bool {
     if let Some(file_name) = path.file_name()
         && file_name == DOT_GIT
     {
@@ -2104,16 +2075,16 @@ async fn is_dot_git(path: &Path, fs: &dyn Fs) -> bool {
 }
 
 /// Whether the path is a file or a symlink, without resolving the link.
-async fn is_file_or_symlink(path: &Path, fs: &dyn Fs) -> bool {
+async fn is_file_or_symlink(path: &Path, fs: &Fs) -> bool {
     fs.is_file(path).await || fs.read_link(path).await.is_ok()
 }
 
-async fn build_gitignore(abs_path: &Path, fs: &dyn Fs) -> Result<Gitignore> {
+async fn build_gitignore(abs_path: &Path, fs: &Fs) -> Result<Gitignore> {
     let parent = abs_path.parent().unwrap_or_else(|| Path::new("/"));
     build_gitignore_with_root(abs_path, parent, fs).await
 }
 
-async fn build_gitignore_with_root(abs_path: &Path, root: &Path, fs: &dyn Fs) -> Result<Gitignore> {
+async fn build_gitignore_with_root(abs_path: &Path, root: &Path, fs: &Fs) -> Result<Gitignore> {
     let contents =
         fs.load(abs_path).await.with_context(|| format!("failed to load gitignore file at {}", abs_path.display()))?;
     let mut builder = GitignoreBuilder::new(root);
@@ -2607,7 +2578,7 @@ impl<'a> sum_tree::Dimension<'a, EntrySummary> for PathKey {
 
 struct BackgroundScanner {
     state: async_lock::Mutex<BackgroundScannerState>,
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     fs_case_sensitive: bool,
     status_updates_tx: UnboundedSender<ScanState>,
     executor: BackgroundExecutor,
@@ -2988,7 +2959,7 @@ impl BackgroundScanner {
             .snapshot
             .root_file_handle
             .clone()
-            .and_then(|handle| match handle.current_path(&self.fs) {
+            .and_then(|handle| match fs::file_current_path(&handle) {
                 Ok(new_path) => Some(new_path),
                 Err(e) => {
                     log::error!("Failed to refresh worktree root path: {e:#}");
@@ -4257,7 +4228,7 @@ impl BackgroundScanner {
 }
 
 async fn discover_ancestor_git_repo(
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     root_abs_path: &SanitizedPath,
 ) -> (FxHashMap<Arc<Path>, (Arc<Gitignore>, bool)>, Option<Arc<Gitignore>>, Option<(PathBuf, WorkDirectory)>) {
     let mut exclude = None;
@@ -4763,11 +4734,11 @@ fn resolve_commondir_path(repository_dir_abs_path: &Path, commondir_path: &str) 
     if commondir_path.is_absolute() { commondir_path.into() } else { repository_dir_abs_path.join(commondir_path) }
 }
 
-pub async fn discover_root_repo_common_dir(root_abs_path: &Path, fs: &dyn Fs) -> Option<Arc<Path>> {
+pub async fn discover_root_repo_common_dir(root_abs_path: &Path, fs: &Fs) -> Option<Arc<Path>> {
     discover_root_repo_metadata(root_abs_path, fs).await.map(|(common_dir, _)| common_dir)
 }
 
-async fn discover_root_repo_metadata(root_abs_path: &Path, fs: &dyn Fs) -> Option<(Arc<Path>, bool)> {
+async fn discover_root_repo_metadata(root_abs_path: &Path, fs: &Fs) -> Option<(Arc<Path>, bool)> {
     let root_dot_git = root_abs_path.join(DOT_GIT);
     if !fs.metadata(&root_dot_git).await.is_ok_and(|m| m.is_some()) {
         return None;
@@ -4778,7 +4749,7 @@ async fn discover_root_repo_metadata(root_abs_path: &Path, fs: &dyn Fs) -> Optio
     Some((common_dir, is_linked_worktree))
 }
 
-async fn discover_git_paths(dot_git_abs_path: &Arc<Path>, fs: &dyn Fs) -> (Arc<Path>, Arc<Path>) {
+async fn discover_git_paths(dot_git_abs_path: &Arc<Path>, fs: &Fs) -> (Arc<Path>, Arc<Path>) {
     let mut repository_dir_abs_path = Arc::clone(dot_git_abs_path);
     let mut common_dir_abs_path = Arc::clone(dot_git_abs_path);
 
@@ -4818,21 +4789,17 @@ const STREAM_BLOCK_BYTES: usize = 1024 * 1024;
 /// Reads and decodes a file straight into a [`Rope`].
 /// The returned rope has already had its line endings normalized, the
 /// [`LineEnding`] detected before normalizing is returned alongside it.
-pub async fn decode_file_text_to_rope(
-    fs: &dyn Fs,
-    abs_path: &Path,
-) -> Result<(Rope, LineEnding, &'static Encoding, bool)> {
-    let mut file = fs.open_sync(abs_path).await.with_context(|| format!("opening file {abs_path:?}"))?;
+pub async fn decode_file_text_to_rope(fs: &Fs, abs_path: &Path) -> Result<(Rope, LineEnding, &'static Encoding, bool)> {
+    let mut file = fs.open_sync(abs_path).with_context(|| format!("opening file {abs_path:?}"))?;
 
     let (prefix, reached_eof) =
-        read_byte_header(&mut *file).with_context(|| format!("reading bytes of the file {abs_path:?}"))?;
+        read_byte_header(&mut file).with_context(|| format!("reading bytes of the file {abs_path:?}"))?;
     let (bom_encoding, byte_content) = decode_byte_header(&prefix);
     anyhow::ensure!(byte_content != ByteContent::Binary, "Binary files are not supported");
 
     if bom_encoding.is_none()
         && byte_content == ByteContent::Unknown
-        && let Some((rope, line_ending)) =
-            stream_utf8_into_rope(&mut *file, prefix, reached_eof, abs_path, true).await?
+        && let Some((rope, line_ending)) = stream_utf8_into_rope(&mut file, prefix, reached_eof, abs_path, true).await?
     {
         return Ok((rope, line_ending, encoding_rs::UTF_8, false));
     }
@@ -4841,11 +4808,11 @@ pub async fn decode_file_text_to_rope(
     let encoding = if let Some(encoding) = bom_encoding.or_else(|| byte_content.encoding()) {
         encoding
     } else {
-        let encoding = detect_encoding(&mut *file).await?;
+        let encoding = detect_encoding(&mut file).await?;
         file.rewind()?;
         encoding
     };
-    let mut reader = DecodingReader::new(&mut *file, encoding);
+    let mut reader = DecodingReader::new(&mut file, encoding);
     let (rope, line_ending) = stream_utf8_into_rope(&mut reader, Vec::new(), false, abs_path, false)
         .await?
         .with_context(|| format!("decoding the file {abs_path:?}"))?;

@@ -4,23 +4,17 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::btree_map as std_collections_btree_map;
 use std::collections::btree_map;
-use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::mem;
-use std::path::Path;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::vec;
 
 use anyhow::Context as _;
 use anyhow::Result;
-use async_macos::command;
-use async_trait::async_trait;
 use fs::Fs;
 use futures::Future;
 use futures::FutureExt as _;
 use futures::StreamExt as _;
-use futures::future::Shared;
 use futures::future::join_all;
 use futures::select;
 use gpui::App;
@@ -78,11 +72,9 @@ use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use util::ResultExt as _;
-use util::rel_path::RelPath;
 use util::union_json_value_into;
 use worktree::File;
 use worktree::Worktree;
-use worktree::WorktreeId;
 
 use super::LanguageServerLogType;
 use super::LanguageServerProgress;
@@ -144,117 +136,37 @@ pub(super) fn subscribe_to_binary_statuses(languages: &Arc<LanguageRegistry>, cx
     })
 }
 
-pub struct LocalLspAdapterDelegate {
-    lsp_store: WeakEntity<LspStore>,
-    worktree: worktree::Snapshot,
-    fs: Arc<dyn Fs>,
+fn new_lsp_adapter_delegate(
     language_registry: Arc<LanguageRegistry>,
-    load_shell_env_task: Shared<Task<Option<FxHashMap<String, String>>>>,
+    environment: &Entity<ProjectEnvironment>,
+    lsp_store: &WeakEntity<LspStore>,
+    worktree: &Entity<Worktree>,
+    fs: Arc<Fs>,
+    cx: &mut App,
+) -> Arc<LspAdapterDelegate> {
+    let load_shell_env_task = environment.update(cx, |env, cx| env.worktree_environment(worktree.clone(), cx));
+    LspAdapterDelegate::new(
+        worktree.read(cx).abs_path(),
+        lsp_store.entity_id(),
+        fs,
+        language_registry,
+        load_shell_env_task,
+    )
 }
 
-impl LocalLspAdapterDelegate {
-    pub fn new(
-        language_registry: Arc<LanguageRegistry>,
-        environment: &Entity<ProjectEnvironment>,
-        lsp_store: WeakEntity<LspStore>,
-        worktree: &Entity<Worktree>,
-        fs: Arc<dyn Fs>,
-        cx: &mut App,
-    ) -> Arc<Self> {
-        let load_shell_env_task = environment.update(cx, |env, cx| env.worktree_environment(worktree.clone(), cx));
-
-        Arc::new(Self { lsp_store, worktree: worktree.read(cx).snapshot(), fs, language_registry, load_shell_env_task })
-    }
-
-    pub fn from_local_lsp(local: &LocalLspStore, worktree: &Entity<Worktree>, cx: &mut App) -> Arc<Self> {
-        Self::new(
-            Arc::clone(&local.languages),
-            &local.environment,
-            local.weak.clone(),
-            worktree,
-            Arc::clone(&local.fs),
-            cx,
-        )
-    }
-}
-
-#[async_trait]
-impl LspAdapterDelegate for LocalLspAdapterDelegate {
-    fn worktree_id(&self) -> WorktreeId {
-        self.worktree.id()
-    }
-
-    fn worktree_root_path(&self) -> &Path {
-        self.worktree.abs_path().as_ref()
-    }
-
-    fn resolve_relative_path(&self, path: PathBuf) -> PathBuf {
-        self.worktree.resolve_relative_path(path)
-    }
-
-    async fn shell_env(&self) -> FxHashMap<String, String> {
-        let task = self.load_shell_env_task.clone();
-        task.await.unwrap_or_default()
-    }
-
-    async fn which(&self, command: &OsStr) -> Option<PathBuf> {
-        let mut worktree_abs_path = self.worktree_root_path().to_path_buf();
-        if self.fs.is_file(&worktree_abs_path).await {
-            worktree_abs_path.pop();
-        }
-
-        let env = self.shell_env().await;
-
-        let shell_path = env.get("PATH").cloned();
-
-        which::which_in(command, shell_path.as_ref(), worktree_abs_path).ok()
-    }
-
-    async fn try_exec(&self, command: LanguageServerBinary) -> Result<()> {
-        let mut working_dir = self.worktree_root_path().to_path_buf();
-        if self.fs.is_file(&working_dir).await {
-            working_dir.pop();
-        }
-        let output = command::new_command(&command.path)
-            .args(command.arguments)
-            .envs(command.env.clone().unwrap_or_default())
-            .current_dir(working_dir)
-            .output()
-            .await?;
-
-        anyhow::ensure!(
-            output.status.success(),
-            "{}, stdout: {:?}, stderr: {:?}",
-            output.status,
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        Ok(())
-    }
-
-    fn status_source_id(&self) -> gpui::EntityId {
-        self.lsp_store.entity_id()
-    }
-
-    fn update_status(&self, server_name: LanguageServerName, status: language::BinaryStatus) {
-        self.language_registry.update_lsp_binary_status_for_entity(self.status_source_id(), server_name, status);
-    }
-
-    fn registered_lsp_adapters(&self) -> Vec<Arc<dyn LspAdapter>> {
-        self.language_registry
-            .all_lsp_adapters()
-            .into_iter()
-            .map(|adapter| Arc::clone(&adapter.adapter) as Arc<dyn LspAdapter>)
-            .sorted_by_key(|adapter| adapter.name())
-            .collect()
-    }
-
-    async fn read_text_file(&self, path: &RelPath) -> Result<String> {
-        let entry =
-            self.worktree.entry_for_path(path).with_context(|| format!("no worktree entry for path {path:?}"))?;
-        let abs_path = self.worktree.absolutize(&entry.path);
-        self.fs.load(&abs_path).await
-    }
+pub(super) fn lsp_adapter_delegate_for(
+    local: &LocalLspStore,
+    worktree: &Entity<Worktree>,
+    cx: &mut App,
+) -> Arc<LspAdapterDelegate> {
+    new_lsp_adapter_delegate(
+        Arc::clone(&local.languages),
+        &local.environment,
+        &local.weak,
+        worktree,
+        Arc::clone(&local.fs),
+        cx,
+    )
 }
 
 /// Per-project language server command overrides, relative to the worktree root.
@@ -296,7 +208,7 @@ impl LocalLspStore {
     pub(super) fn get_or_insert_language_server(
         &mut self,
         worktree_handle: &Entity<Worktree>,
-        delegate: Arc<LocalLspAdapterDelegate>,
+        delegate: Arc<LspAdapterDelegate>,
         disposition: &Arc<LaunchDisposition>,
         language_name: &LanguageName,
         start_mode: LanguageServerStartMode,
@@ -336,7 +248,7 @@ impl LocalLspStore {
     fn start_language_server(
         &mut self,
         worktree_handle: &Entity<Worktree>,
-        delegate: Arc<LocalLspAdapterDelegate>,
+        delegate: Arc<LspAdapterDelegate>,
         adapter: Arc<CachedLspAdapter>,
         key: LanguageServerSeed,
         language_name: LanguageName,
@@ -355,7 +267,7 @@ impl LocalLspStore {
         );
 
         let binary =
-            self.get_language_server_binary(Arc::clone(&adapter), Arc::<LocalLspAdapterDelegate>::clone(&delegate), cx);
+            self.get_language_server_binary(Arc::clone(&adapter), Arc::<LspAdapterDelegate>::clone(&delegate), cx);
         let pending_workspace_folders = Arc::<Mutex<BTreeSet<Uri>>>::default();
 
         let pending_server = cx.spawn({
@@ -383,7 +295,7 @@ impl LocalLspStore {
 
         let startup = {
             let server_name = adapter.name.0.clone();
-            let delegate = delegate as Arc<dyn LspAdapterDelegate>;
+            let delegate = delegate as Arc<LspAdapterDelegate>;
             let key = key.clone();
             let adapter = Arc::clone(&adapter);
             let lsp_store = self.weak.clone();
@@ -508,7 +420,7 @@ impl LocalLspStore {
     fn get_language_server_binary(
         &self,
         adapter: Arc<CachedLspAdapter>,
-        delegate: Arc<LocalLspAdapterDelegate>,
+        delegate: Arc<LspAdapterDelegate>,
         cx: &App,
     ) -> Task<Result<(LanguageServerBinary, bool)>> {
         cx.spawn(async move |cx| {
@@ -522,7 +434,7 @@ impl LocalLspStore {
                 let path = delegate.which(program.as_ref()).await.unwrap_or_else(|| program.into());
                 LanguageServerBinary { path, arguments, env: None }
             } else {
-                let delegate = Arc::clone(&delegate) as Arc<dyn LspAdapterDelegate>;
+                let delegate = Arc::clone(&delegate) as Arc<LspAdapterDelegate>;
                 adapter.find_binary(&delegate, cx).await?
             };
             log::info!(
@@ -542,7 +454,7 @@ impl LocalLspStore {
     fn setup_lsp_messages(
         lsp_store: WeakEntity<LspStore>,
         language_server: &LanguageServer,
-        delegate: Arc<dyn LspAdapterDelegate>,
+        delegate: Arc<LspAdapterDelegate>,
         adapter: Arc<CachedLspAdapter>,
     ) {
         let name = language_server.name();
@@ -954,7 +866,7 @@ impl LocalLspStore {
 
     async fn initialization_options_for_adapter(
         adapter: Arc<dyn LspAdapter>,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         cx: &mut AsyncApp,
     ) -> Result<Option<serde_json::Value>> {
         let mut initialization_config = Arc::clone(&adapter).initialization_options(delegate, cx).await?;
@@ -988,7 +900,7 @@ impl LocalLspStore {
 
     async fn workspace_configuration_for_adapter(
         adapter: Arc<dyn LspAdapter>,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         requested_uri: Option<Uri>,
         cx: &mut AsyncApp,
     ) -> Result<serde_json::Value> {
@@ -1032,10 +944,10 @@ impl LspStore {
             let fs = Arc::clone(&local.fs);
             move |worktree_id, cx: &mut App| {
                 let worktree = worktree_store.read(cx).worktree_for_id(worktree_id, cx)?;
-                Some(LocalLspAdapterDelegate::new(
+                Some(new_lsp_adapter_delegate(
                     Arc::clone(&languages),
                     &environment,
-                    weak.clone(),
+                    &weak,
                     &worktree,
                     Arc::clone(&fs),
                     cx,
@@ -1138,11 +1050,11 @@ impl LspStore {
                         .iter()
                         .filter_map(|(seed, state)| {
                             let worktree = lsp_store.worktree_store.read(cx).worktree_for_id(seed.worktree_id, cx);
-                            let delegate: Arc<dyn LspAdapterDelegate> = worktree.map(|worktree| {
-                                LocalLspAdapterDelegate::new(
+                            let delegate: Arc<LspAdapterDelegate> = worktree.map(|worktree| {
+                                new_lsp_adapter_delegate(
                                     Arc::clone(&local.languages),
                                     &local.environment,
-                                    cx.weak_entity(),
+                                    &cx.weak_entity(),
                                     &worktree,
                                     Arc::clone(&local.fs),
                                     cx,

@@ -10,7 +10,6 @@ path = "src/fs.rs"
 async_macos.workspace = true
 anyhow.workspace = true
 async-channel.workspace = true
-async-trait.workspace = true
 dispatch2.workspace = true
 futures.workspace = true
 git.workspace = true

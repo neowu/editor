@@ -117,7 +117,7 @@ fn worktree_root(worktree_store: &Entity<WorktreeStore>, location: &Location, cx
 
 fn combine_task_variables(
     mut captured_variables: TaskVariables,
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     worktree_store: Entity<WorktreeStore>,
     location: Location,
     project_env: Option<FxHashMap<String, String>>,

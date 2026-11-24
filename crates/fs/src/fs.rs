@@ -40,8 +40,6 @@ use anyhow::Result;
 use async_macos::command::Stdio;
 use async_macos::command::new_command;
 use async_macos::unblock;
-use futures::AsyncRead;
-use futures::AsyncReadExt as _;
 use futures::Stream;
 use futures::StreamExt as _;
 use futures::future::BoxFuture;
@@ -66,10 +64,6 @@ pub trait Watcher: Send + Sync {
     fn remove(&self, path: &Path) -> Result<()>;
 }
 
-pub trait ReadSeek: io::Read + io::Seek {}
-
-impl<T: io::Read + io::Seek + ?Sized> ReadSeek for T {}
-
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum PathEventKind {
     Removed,
@@ -88,75 +82,6 @@ impl From<PathEvent> for PathBuf {
     fn from(event: PathEvent) -> Self {
         event.path
     }
-}
-
-// async_trait marks its boxed futures `#[must_use]`
-#[allow(clippy::double_must_use)]
-#[async_trait::async_trait]
-pub trait Fs: Send + Sync {
-    async fn create_dir(&self, path: &Path) -> Result<()>;
-    async fn create_symlink(&self, path: &Path, target: PathBuf) -> Result<()>;
-    async fn create_file(&self, path: &Path, options: CreateOptions) -> Result<()>;
-    async fn create_file_with(&self, path: &Path, content: Pin<&mut (dyn AsyncRead + Send)>) -> Result<()>;
-    async fn copy_file(&self, source: &Path, target: &Path, options: CopyOptions) -> Result<()>;
-    async fn rename(&self, source: &Path, target: &Path, options: RenameOptions) -> Result<()>;
-
-    /// Removes a directory from the filesystem.
-    /// There is no expectation that the directory will be preserved in the
-    /// system trash.
-    async fn remove_dir(&self, path: &Path, options: RemoveOptions) -> Result<()>;
-
-    /// Moves a file or directory to the system trash.
-    /// Returns a [`TrashId`] that can be passed to [`Fs::restore`].
-    async fn trash(&self, path: &Path, options: RemoveOptions) -> Result<TrashId>;
-
-    /// Removes a file from the filesystem.
-    /// There is no expectation that the file will be preserved in the system
-    /// trash.
-    async fn remove_file(&self, path: &Path, options: RemoveOptions) -> Result<()>;
-
-    async fn open_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>>;
-    async fn open_sync(&self, path: &Path) -> Result<Box<dyn ReadSeek + Send + Sync>>;
-    async fn load(&self, path: &Path) -> Result<String> {
-        Ok(String::from_utf8(self.load_bytes(path).await?)?)
-    }
-    async fn load_bytes(&self, path: &Path) -> Result<Vec<u8>>;
-    async fn atomic_write(&self, path: PathBuf, text: String) -> Result<()>;
-    async fn save(&self, path: &Path, text: &Rope, line_ending: LineEnding) -> Result<()>;
-    async fn write(&self, path: &Path, content: &[u8]) -> Result<()>;
-    async fn canonicalize(&self, path: &Path) -> Result<PathBuf>;
-    async fn is_file(&self, path: &Path) -> bool;
-    async fn is_dir(&self, path: &Path) -> bool;
-    async fn metadata(&self, path: &Path) -> Result<Option<Metadata>>;
-    async fn read_link(&self, path: &Path) -> Result<PathBuf>;
-    async fn read_dir(&self, path: &Path) -> Result<Pin<Box<dyn Send + Stream<Item = Result<PathBuf>>>>>;
-
-    /// Whether `path` exists, without following a final symlink. Synchronous
-    /// because watches are registered synchronously by the worktree scanner.
-    fn path_exists(&self, path: &Path) -> bool;
-    /// Whether the volume holding `path` compares file names case-sensitively.
-    fn is_path_case_sensitive(&self, path: &Path) -> bool;
-
-    async fn watch(
-        &self,
-        path: &Path,
-        latency: Duration,
-    ) -> (Pin<Box<dyn Send + Stream<Item = Vec<PathEvent>>>>, Arc<dyn Watcher>);
-
-    fn open_repo(&self, abs_dot_git: &Path, git_binary_path: Option<&Path>) -> Result<Arc<dyn GitRepository>>;
-    async fn git_init(&self, abs_work_directory: &Path, fallback_branch_name: String) -> Result<()>;
-    async fn git_clone(&self, abs_work_directory: &Path, repo_url: &str) -> Result<()>;
-    async fn git_config(&self, abs_work_directory: &Path, args: Vec<String>) -> Result<String>;
-    fn is_fake(&self) -> bool;
-    async fn is_case_sensitive(&self) -> bool;
-    fn subscribe_to_jobs(&self) -> JobEventReceiver;
-
-    /// Returns the original absolute path of the item identified by `trash_id`.
-    fn original_path_for_trash_id(&self, trash_id: TrashId) -> Option<PathBuf>;
-
-    /// Restores the item identified by `trash_id`, moving it from the system's
-    /// trash back to its original path.
-    async fn restore(&self, trash_id: TrashId) -> result::Result<PathBuf, TrashRestoreError>;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -185,21 +110,9 @@ impl From<trash::TrashError> for TrashRestoreError {
     }
 }
 
-struct GlobalFs(Arc<dyn Fs>);
+struct GlobalFs(Arc<Fs>);
 
 impl Global for GlobalFs {}
-
-impl dyn Fs {
-    /// Returns the global [`Fs`].
-    pub fn global(cx: &App) -> Arc<Self> {
-        Arc::clone(&GlobalFs::global(cx).0)
-    }
-
-    /// Sets the global [`Fs`].
-    pub fn set_global(fs: Arc<Self>, cx: &mut App) {
-        cx.set_global(GlobalFs(fs));
-    }
-}
 
 #[derive(Copy, Clone, Default)]
 pub struct CreateOptions {
@@ -314,7 +227,7 @@ impl MTime {
 
 slotmap::new_key_type! { pub struct TrashId; }
 
-pub struct RealFs {
+pub struct Fs {
     this: Weak<Self>,
     executor: BackgroundExecutor,
     native_watcher: Arc<fs_watcher::OsWatcher>,
@@ -324,42 +237,23 @@ pub struct RealFs {
     is_case_sensitive: AtomicU8,
 }
 
-pub trait FileHandle: Send + Sync + Debug {
-    fn current_path(&self, fs: &Arc<dyn Fs>) -> Result<PathBuf>;
-}
+/// Current path of an open file, following renames and moves since it was opened.
+pub fn file_current_path(file: &File) -> Result<PathBuf> {
+    use std::ffi::CStr;
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt as _;
 
-impl FileHandle for File {
-    fn current_path(&self, _: &Arc<dyn Fs>) -> Result<PathBuf> {
-        use std::ffi::CStr;
-        use std::ffi::OsStr;
-        use std::os::unix::ffi::OsStrExt as _;
+    let fd = file.as_fd();
+    let mut path_buf = MaybeUninit::<[u8; libc::PATH_MAX as usize]>::uninit();
 
-        let fd = self.as_fd();
-        let mut path_buf = MaybeUninit::<[u8; libc::PATH_MAX as usize]>::uninit();
+    let result = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETPATH, path_buf.as_mut_ptr()) };
+    anyhow::ensure!(result != -1, "fcntl returned -1");
 
-        let result = unsafe { libc::fcntl(fd.as_raw_fd(), libc::F_GETPATH, path_buf.as_mut_ptr()) };
-        anyhow::ensure!(result != -1, "fcntl returned -1");
-
-        // SAFETY: `fcntl` will initialize the path buffer.
-        let c_str = unsafe { CStr::from_ptr(path_buf.as_ptr().cast()) };
-        anyhow::ensure!(!c_str.is_empty(), "Could find a path for the file handle");
-        let path = PathBuf::from(OsStr::from_bytes(c_str.to_bytes()));
-        Ok(path)
-    }
-}
-
-impl RealFs {
-    pub fn new(executor: BackgroundExecutor) -> Arc<Self> {
-        Arc::new_cyclic(|this| Self {
-            this: Weak::clone(this),
-            native_watcher: fs_watcher::OsWatcher::new(executor.clone()),
-            executor,
-            next_job_id: Arc::new(AtomicUsize::new(0)),
-            job_event_subscribers: Arc::new(Mutex::new(Vec::new())),
-            trash: Arc::new(Mutex::new(SlotMap::with_key())),
-            is_case_sensitive: AtomicU8::default(),
-        })
-    }
+    // SAFETY: `fcntl` will initialize the path buffer.
+    let c_str = unsafe { CStr::from_ptr(path_buf.as_ptr().cast()) };
+    anyhow::ensure!(!c_str.is_empty(), "Could find a path for the file handle");
+    let path = PathBuf::from(OsStr::from_bytes(c_str.to_bytes()));
+    Ok(path)
 }
 
 fn rename_without_replace(source: &Path, target: &Path) -> io::Result<()> {
@@ -417,19 +311,34 @@ fn read_dir_entries(path: PathBuf) -> Result<impl Send + Iterator<Item = Result<
     }))
 }
 
-#[async_trait::async_trait]
-impl Fs for RealFs {
-    async fn create_dir(&self, path: &Path) -> Result<()> {
+impl Fs {
+    pub fn new(executor: BackgroundExecutor) -> Arc<Self> {
+        Arc::new_cyclic(|this| Self {
+            this: Weak::clone(this),
+            native_watcher: fs_watcher::OsWatcher::new(executor.clone()),
+            executor,
+            next_job_id: Arc::new(AtomicUsize::new(0)),
+            job_event_subscribers: Arc::new(Mutex::new(Vec::new())),
+            trash: Arc::new(Mutex::new(SlotMap::with_key())),
+            is_case_sensitive: AtomicU8::default(),
+        })
+    }
+
+    /// Returns the global [`Fs`].
+    pub fn global(cx: &App) -> Arc<Self> {
+        Arc::clone(&GlobalFs::global(cx).0)
+    }
+
+    /// Sets the global [`Fs`].
+    pub fn set_global(fs: Arc<Self>, cx: &mut App) {
+        cx.set_global(GlobalFs(fs));
+    }
+
+    pub async fn create_dir(&self, path: &Path) -> Result<()> {
         Ok(async_macos::fs::create_dir_all(path).await?)
     }
 
-    async fn create_symlink(&self, path: &Path, target: PathBuf) -> Result<()> {
-        async_macos::fs::symlink(target, path).await?;
-
-        Ok(())
-    }
-
-    async fn create_file(&self, path: &Path, options: CreateOptions) -> Result<()> {
+    pub async fn create_file(&self, path: &Path, options: CreateOptions) -> Result<()> {
         let mut open_options = fs::OpenOptions::new();
         open_options.write(true).create(true);
         if options.overwrite {
@@ -442,14 +351,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn create_file_with(&self, path: &Path, mut content: Pin<&mut (dyn AsyncRead + Send)>) -> Result<()> {
-        let mut bytes = Vec::new();
-        content.read_to_end(&mut bytes).await?;
-        async_macos::fs::write(path, bytes).await.with_context(|| format!("Failed to create file at {path:?}"))?;
-        Ok(())
-    }
-
-    async fn copy_file(&self, source: &Path, target: &Path, options: CopyOptions) -> Result<()> {
+    pub async fn copy_file(&self, source: &Path, target: &Path, options: CopyOptions) -> Result<()> {
         if !options.overwrite && async_macos::fs::metadata(target).await.is_ok() {
             if options.ignore_if_exists {
                 return Ok(());
@@ -461,7 +363,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn rename(&self, source: &Path, target: &Path, options: RenameOptions) -> Result<()> {
+    pub async fn rename(&self, source: &Path, target: &Path, options: RenameOptions) -> Result<()> {
         if options.create_parents
             && let Some(parent) = target.parent()
         {
@@ -514,7 +416,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn remove_dir(&self, path: &Path, options: RemoveOptions) -> Result<()> {
+    pub async fn remove_dir(&self, path: &Path, options: RemoveOptions) -> Result<()> {
         let result = if options.recursive {
             async_macos::fs::remove_dir_all(path).await
         } else {
@@ -523,19 +425,19 @@ impl Fs for RealFs {
         match result {
             Ok(()) => Ok(()),
             Err(err) if err.kind() == io::ErrorKind::NotFound && options.ignore_if_not_exists => Ok(()),
-            Err(err) => return Err(err.into()),
+            Err(err) => Err(err.into()),
         }
     }
 
-    async fn remove_file(&self, path: &Path, options: RemoveOptions) -> Result<()> {
+    pub async fn remove_file(&self, path: &Path, options: RemoveOptions) -> Result<()> {
         match async_macos::fs::remove_file(path).await {
             Ok(()) => Ok(()),
             Err(err) if err.kind() == io::ErrorKind::NotFound && options.ignore_if_not_exists => Ok(()),
-            Err(err) => return Err(err.into()),
+            Err(err) => Err(err.into()),
         }
     }
 
-    async fn trash(&self, path: &Path, _options: RemoveOptions) -> Result<TrashId> {
+    pub async fn trash(&self, path: &Path, _options: RemoveOptions) -> Result<TrashId> {
         // We must make the path absolute or trash will make a weird abomination
         // of the ed working directory (not usually the worktree) and whatever
         // the path variable holds.
@@ -549,18 +451,11 @@ impl Fs for RealFs {
         Ok(self.trash.lock().insert(item))
     }
 
-    async fn open_sync(&self, path: &Path) -> Result<Box<dyn ReadSeek + Send + Sync>> {
-        Ok(Box::new(File::open(path)?))
+    pub fn open_sync(&self, path: &Path) -> Result<File> {
+        Ok(File::open(path)?)
     }
 
-    async fn open_handle(&self, path: &Path) -> Result<Arc<dyn FileHandle>> {
-        let mut options = fs::OpenOptions::new();
-        options.read(true);
-
-        Ok(Arc::new(options.open(path)?))
-    }
-
-    async fn load(&self, path: &Path) -> Result<String> {
+    pub async fn load(&self, path: &Path) -> Result<String> {
         let path = path.to_path_buf();
         self.executor
             .spawn(async move {
@@ -569,13 +464,13 @@ impl Fs for RealFs {
             .await
     }
 
-    async fn load_bytes(&self, path: &Path) -> Result<Vec<u8>> {
+    pub async fn load_bytes(&self, path: &Path) -> Result<Vec<u8>> {
         let path = path.to_path_buf();
         let bytes = self.executor.spawn(async move { fs::read(path) }).await?;
         Ok(bytes)
     }
 
-    async fn atomic_write(&self, path: PathBuf, data: String) -> Result<()> {
+    pub async fn atomic_write(&self, path: PathBuf, data: String) -> Result<()> {
         unblock(move || {
             // Use the directory of the destination as temp dir to avoid
             // invalid cross-device link error, and XDG_CACHE_DIR for fallback.
@@ -590,7 +485,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn save(&self, path: &Path, text: &Rope, line_ending: LineEnding) -> Result<()> {
+    pub async fn save(&self, path: &Path, text: &Rope, line_ending: LineEnding) -> Result<()> {
         let buffer_size = text.summary().len.min(10 * 1024);
         if let Some(path) = path.parent() {
             self.create_dir(path).await.with_context(|| format!("Failed to create directory at {path:?}"))?;
@@ -610,7 +505,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn write(&self, path: &Path, content: &[u8]) -> Result<()> {
+    pub async fn write(&self, path: &Path, content: &[u8]) -> Result<()> {
         if let Some(path) = path.parent() {
             self.create_dir(path).await.with_context(|| format!("Failed to create directory at {path:?}"))?;
         }
@@ -624,7 +519,7 @@ impl Fs for RealFs {
             .await
     }
 
-    async fn canonicalize(&self, path: &Path) -> Result<PathBuf> {
+    pub async fn canonicalize(&self, path: &Path) -> Result<PathBuf> {
         let path = path.to_owned();
         self.executor
             .spawn(async move {
@@ -635,17 +530,17 @@ impl Fs for RealFs {
             .await
     }
 
-    async fn is_file(&self, path: &Path) -> bool {
+    pub async fn is_file(&self, path: &Path) -> bool {
         let path = path.to_owned();
         self.executor.spawn(async move { fs::metadata(path).is_ok_and(|metadata| metadata.is_file()) }).await
     }
 
-    async fn is_dir(&self, path: &Path) -> bool {
+    pub async fn is_dir(&self, path: &Path) -> bool {
         let path = path.to_owned();
         self.executor.spawn(async move { fs::metadata(path).is_ok_and(|metadata| metadata.is_dir()) }).await
     }
 
-    async fn metadata(&self, path: &Path) -> Result<Option<Metadata>> {
+    pub async fn metadata(&self, path: &Path) -> Result<Option<Metadata>> {
         let path_buf = path.to_owned();
         let symlink_metadata = match self.executor.spawn(async move { fs::symlink_metadata(&path_buf) }).await {
             Ok(metadata) => metadata,
@@ -696,36 +591,36 @@ impl Fs for RealFs {
         }))
     }
 
-    async fn read_link(&self, path: &Path) -> Result<PathBuf> {
+    pub async fn read_link(&self, path: &Path) -> Result<PathBuf> {
         let path = path.to_owned();
         let path = self.executor.spawn(async move { fs::read_link(&path) }).await?;
         Ok(path)
     }
 
-    async fn read_dir(&self, path: &Path) -> Result<Pin<Box<dyn Send + Stream<Item = Result<PathBuf>>>>> {
+    pub async fn read_dir(&self, path: &Path) -> Result<Pin<Box<dyn Send + Stream<Item = Result<PathBuf>>>>> {
         let path = path.to_owned();
         let entries = self.executor.spawn(async move { read_dir_entries(path) }).await?;
         Ok(Box::pin(iter(entries)))
     }
 
-    fn path_exists(&self, path: &Path) -> bool {
+    pub fn path_exists(&self, path: &Path) -> bool {
         fs::symlink_metadata(path).is_ok()
     }
 
-    fn is_path_case_sensitive(&self, path: &Path) -> bool {
+    pub fn is_path_case_sensitive(&self, path: &Path) -> bool {
         !fs_watcher::case_insensitive_path(path)
     }
 
-    async fn watch(
+    pub async fn watch(
         &self,
         path: &Path,
         latency: Duration,
     ) -> (Pin<Box<dyn Send + Stream<Item = Vec<PathEvent>>>>, Arc<dyn Watcher>) {
-        let this = self.this.upgrade().expect("RealFs is only constructed inside an Arc");
+        let this = self.this.upgrade().expect("Fs is only constructed inside an Arc");
         fs_watcher::watch(this, Arc::clone(&self.native_watcher), self.executor.clone(), path, latency).await
     }
 
-    fn open_repo(&self, dotgit_path: &Path, git_binary_path: Option<&Path>) -> Result<Arc<dyn GitRepository>> {
+    pub fn open_repo(&self, dotgit_path: &Path, git_binary_path: Option<&Path>) -> Result<Arc<dyn GitRepository>> {
         Ok(Arc::new(RealGitRepository::new(
             dotgit_path,
             git_binary_path.map(|x| x.to_path_buf()),
@@ -733,7 +628,7 @@ impl Fs for RealFs {
         )?))
     }
 
-    async fn git_init(&self, abs_work_directory_path: &Path, fallback_branch_name: String) -> Result<()> {
+    pub async fn git_init(&self, abs_work_directory_path: &Path, fallback_branch_name: String) -> Result<()> {
         let result = new_command("git")
             .current_dir(abs_work_directory_path)
             .args(["config", "--global", "--get", "init.defaultBranch"])
@@ -758,7 +653,7 @@ impl Fs for RealFs {
         Ok(())
     }
 
-    async fn git_clone(&self, abs_work_directory: &Path, repo_url: &str) -> Result<()> {
+    pub async fn git_clone(&self, abs_work_directory: &Path, repo_url: &str) -> Result<()> {
         let job_id = self.next_job_id.fetch_add(1, Ordering::SeqCst);
         let job_info =
             JobInfo { id: job_id, start: Instant::now(), message: SharedString::from(format!("Cloning {repo_url}")) };
@@ -794,7 +689,7 @@ impl Fs for RealFs {
     /// Runs `git config` with the given arguments.
     /// Will return `Ok` if the commands exit status is `0`, with the stdout
     /// contents. Otherwise returns `Err` with the stderr contents.
-    async fn git_config(&self, abs_work_directory: &Path, args: Vec<String>) -> Result<String> {
+    pub async fn git_config(&self, abs_work_directory: &Path, args: Vec<String>) -> Result<String> {
         let output = new_command("git")
             .current_dir(abs_work_directory)
             .args(std::iter::once(String::from("config")).chain(args))
@@ -809,11 +704,7 @@ impl Fs for RealFs {
         String::from_utf8(output.stdout).map_err(Into::into)
     }
 
-    fn is_fake(&self) -> bool {
-        false
-    }
-
-    fn subscribe_to_jobs(&self) -> JobEventReceiver {
+    pub fn subscribe_to_jobs(&self) -> JobEventReceiver {
         let (sender, receiver) = mpsc::unbounded();
         self.job_event_subscribers.lock().push(sender);
         receiver
@@ -823,7 +714,7 @@ impl Fs for RealFs {
     /// that have the same name except for the casing.
     ///
     /// It creates both files in a temporary directory it removes at the end.
-    async fn is_case_sensitive(&self) -> bool {
+    pub async fn is_case_sensitive(&self) -> bool {
         const UNINITIALIZED: u8 = 0;
         const CASE_SENSITIVE: u8 = 1;
         const NOT_CASE_SENSITIVE: u8 = 2;
@@ -870,11 +761,11 @@ impl Fs for RealFs {
         res
     }
 
-    fn original_path_for_trash_id(&self, trash_id: TrashId) -> Option<PathBuf> {
+    pub fn original_path_for_trash_id(&self, trash_id: TrashId) -> Option<PathBuf> {
         self.trash.lock().get(trash_id).map(trash::TrashItem::original_path)
     }
 
-    async fn restore(&self, trash_id: TrashId) -> result::Result<PathBuf, TrashRestoreError> {
+    pub async fn restore(&self, trash_id: TrashId) -> result::Result<PathBuf, TrashRestoreError> {
         let item = self.trash.lock().get(trash_id).cloned().ok_or(TrashRestoreError::AlreadyRestored)?;
         let restored_item_path = item.original_path();
 
@@ -893,12 +784,7 @@ impl Fs for RealFs {
     }
 }
 
-pub async fn copy_recursive<'a>(
-    fs: &'a dyn Fs,
-    source: &'a Path,
-    target: &'a Path,
-    options: CopyOptions,
-) -> Result<()> {
+pub async fn copy_recursive<'a>(fs: &'a Fs, source: &'a Path, target: &'a Path, options: CopyOptions) -> Result<()> {
     for (item, is_dir) in read_dir_items(fs, source).await? {
         let Ok(item_relative_path) = item.strip_prefix(source) else {
             continue;
@@ -924,17 +810,13 @@ pub async fn copy_recursive<'a>(
 /// Recursively reads all of the paths in the given directory.
 ///
 /// Returns a vector of tuples of (path, is_dir).
-pub async fn read_dir_items<'a>(fs: &'a dyn Fs, source: &'a Path) -> Result<Vec<(PathBuf, bool)>> {
+pub async fn read_dir_items<'a>(fs: &'a Fs, source: &'a Path) -> Result<Vec<(PathBuf, bool)>> {
     let mut items = Vec::new();
     read_recursive(fs, source, &mut items).await?;
     Ok(items)
 }
 
-fn read_recursive<'a>(
-    fs: &'a dyn Fs,
-    source: &'a Path,
-    output: &'a mut Vec<(PathBuf, bool)>,
-) -> BoxFuture<'a, Result<()>> {
+fn read_recursive<'a>(fs: &'a Fs, source: &'a Path, output: &'a mut Vec<(PathBuf, bool)>) -> BoxFuture<'a, Result<()>> {
     use futures::future::FutureExt as _;
 
     async move {
@@ -959,3 +841,22 @@ fn read_recursive<'a>(
 // todo(windows)
 // can we get file id not open the file twice?
 // https://github.com/rust-lang/rust/issues/63010
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_current_path_follows_renames() {
+        let dir = TempDir::new().unwrap();
+        let dir_path = fs::canonicalize(dir.path()).unwrap();
+        let old = dir_path.join("old.txt");
+        let new = dir_path.join("new.txt");
+        fs::write(&old, "x").unwrap();
+
+        let file = File::open(&old).unwrap();
+        assert_eq!(file_current_path(&file).unwrap(), old);
+        fs::rename(&old, &new).unwrap();
+        assert_eq!(file_current_path(&file).unwrap(), new);
+    }
+}

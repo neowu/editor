@@ -29,7 +29,7 @@ impl LspAdapter for HtmlLspAdapter {
 
     async fn check_if_user_installed(
         &self,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         npx::node_server_binary(
@@ -43,7 +43,7 @@ impl LspAdapter for HtmlLspAdapter {
 
     async fn initialization_options(
         self: Arc<Self>,
-        _: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<LspAdapterDelegate>,
         _: &mut AsyncApp,
     ) -> Result<Option<serde_json::Value>> {
         Ok(Some(json!({

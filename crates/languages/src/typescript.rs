@@ -38,7 +38,7 @@ use crate::PackageJsonData;
 use crate::tsgo::TsgoLspAdapter;
 
 pub(crate) struct TypeScriptContextProvider {
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     last_package_json: PackageJsonContents,
 }
 
@@ -269,13 +269,13 @@ impl PackageJsonData {
 }
 
 impl TypeScriptContextProvider {
-    pub(crate) fn new(fs: Arc<dyn Fs>) -> Self {
+    pub(crate) fn new(fs: Arc<Fs>) -> Self {
         Self { fs, last_package_json: PackageJsonContents::default() }
     }
 
     fn combined_package_json_data(
         &self,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         worktree_root: &Path,
         file_relative_path: &RelPath,
         cx: &App,
@@ -301,7 +301,7 @@ impl TypeScriptContextProvider {
         &self,
         directory_path: &Path,
         existing_package_json: PackageJsonContents,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         cx: &App,
     ) -> Task<anyhow::Result<PackageJsonData>> {
         let package_json_path = directory_path.join("package.json");
@@ -342,7 +342,7 @@ impl TypeScriptContextProvider {
 
 async fn detect_package_manager(
     worktree_root: PathBuf,
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     package_json_data: Option<PackageJsonData>,
 ) -> &'static str {
     if let Some(package_json_data) = package_json_data
@@ -513,7 +513,7 @@ fn semantic_token_rules() -> SemanticTokenRules {
         .expect("failed to parse typescript semantic_token_rules.json")
 }
 
-pub(crate) fn languages(fs: Arc<dyn Fs>, biome: Arc<dyn LspAdapter>) -> Vec<LanguageDef> {
+pub(crate) fn languages(fs: Arc<Fs>, biome: Arc<dyn LspAdapter>) -> Vec<LanguageDef> {
     let rules = semantic_token_rules();
     let tsgo: Arc<dyn LspAdapter> = Arc::new(TsgoLspAdapter::new(Arc::clone(&fs)));
     let context: Arc<dyn ContextProvider> = Arc::new(TypeScriptContextProvider::new(fs));

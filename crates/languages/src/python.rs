@@ -57,7 +57,7 @@ const VENV_BIN_DIR: &str = "bin";
 /// `.venv` first, then the shell `PATH`, then `uvx <tool>`, which runs the
 /// latest release from uv's cache, downloading it on first use.
 async fn python_tool_binary(
-    delegate: &Arc<dyn LspAdapterDelegate>,
+    delegate: &Arc<LspAdapterDelegate>,
     tool: &str,
     arguments: &[&str],
 ) -> Option<LanguageServerBinary> {
@@ -197,7 +197,7 @@ impl LspAdapter for TyLspAdapter {
 
     async fn workspace_configuration(
         self: Arc<Self>,
-        _: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<LspAdapterDelegate>,
         _: Option<Uri>,
         _: &mut AsyncApp,
     ) -> Result<Value> {
@@ -206,7 +206,7 @@ impl LspAdapter for TyLspAdapter {
 
     async fn check_if_user_installed(
         &self,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         python_tool_binary(delegate, "ty", &["server"]).await
@@ -227,7 +227,7 @@ impl LspAdapter for RuffLspAdapter {
 
     async fn check_if_user_installed(
         &self,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         python_tool_binary(delegate, "ruff", &["server"]).await

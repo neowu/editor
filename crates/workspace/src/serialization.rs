@@ -339,7 +339,7 @@ pub(super) fn open_items(
 }
 
 /// The most recently opened project, if its folders still exist.
-pub async fn last_opened_workspace_location(fs: &dyn fs::Fs, cx: &AsyncApp) -> Option<SessionWorkspace> {
+pub async fn last_opened_workspace_location(fs: &fs::Fs, cx: &AsyncApp) -> Option<SessionWorkspace> {
     let recent = cx.update(|cx| ProjectsStore::global(cx).recent());
     let workspace = recent_project_workspaces(recent, fs).await.into_iter().next()?;
     Some(SessionWorkspace { paths: workspace.paths })

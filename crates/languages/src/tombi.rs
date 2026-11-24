@@ -30,7 +30,7 @@ impl LspAdapter for TombiLspAdapter {
 
     async fn check_if_user_installed(
         &self,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         npx::node_server_binary(delegate, &[Self::PACKAGE_NAME], Self::PACKAGE_NAME, &["lsp"]).await

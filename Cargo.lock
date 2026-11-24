@@ -1097,7 +1097,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-channel",
- "async-trait",
  "async_macos",
  "dispatch2",
  "futures",
@@ -1882,6 +1881,7 @@ dependencies = [
  "unicase",
  "util",
  "watch",
+ "which",
 ]
 
 [[package]]
@@ -2887,7 +2887,6 @@ dependencies = [
  "anyhow",
  "async-channel",
  "async-lock",
- "async-trait",
  "async_macos",
  "buffer_diff",
  "clock",

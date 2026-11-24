@@ -60,7 +60,7 @@ impl LspAdapter for GoLspAdapter {
 
     async fn check_if_user_installed(
         &self,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         let path = delegate.which(Self::SERVER_NAME.as_ref()).await?;
@@ -69,7 +69,7 @@ impl LspAdapter for GoLspAdapter {
 
     async fn initialization_options(
         self: Arc<Self>,
-        _: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<LspAdapterDelegate>,
         _: &mut AsyncApp,
     ) -> Result<Option<serde_json::Value>> {
         Ok(Some(json!({

@@ -172,6 +172,8 @@ or UNC prefixes. There is no path-style abstraction; code uses
   `gpui` fails to compile for any other target.
 - System-specification reports are removed: no `--system-specs` flag or
   copy-system-specs action.
+- `fs::Fs` is a concrete struct over the real filesystem, not a trait: there is
+  no fake filesystem, and tests use real temp directories.
 - The filesystem-watcher debug window, recording API, and JSON exports are removed.
   Filesystem watching and rescan error logging remain available.
   - Watch registrations are keyed by path components, so equivalent spellings

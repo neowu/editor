@@ -37,7 +37,6 @@ use ed::open_listener::derive_paths_with_position;
 use ed::open_listener::open_paths_with_positions;
 use editor::Editor;
 use fs::Fs;
-use fs::RealFs;
 use futures::FutureExt as _;
 use futures::StreamExt as _;
 use futures::channel::oneshot;
@@ -185,7 +184,7 @@ fn main() {
         return;
     }
 
-    let fs: Arc<dyn Fs> = RealFs::new(app.background_executor());
+    let fs: Arc<Fs> = Fs::new(app.background_executor());
     if !stdout_is_a_pty() {
         app.background_executor()
             .spawn(async {
@@ -214,7 +213,7 @@ fn main() {
     app.run(move |cx| {
         initialize_keymap(cx);
 
-        <dyn Fs>::set_global(Arc::clone(&fs), cx);
+        Fs::set_global(Arc::clone(&fs), cx);
 
         OpenListener::set_global(cx, open_listener.clone());
 

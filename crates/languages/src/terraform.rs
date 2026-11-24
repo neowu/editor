@@ -30,7 +30,7 @@ impl LspAdapter for TerraformLspAdapter {
 
     async fn check_if_user_installed(
         &self,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         let path = delegate.which(Self::SERVER_NAME.as_ref()).await?;

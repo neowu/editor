@@ -261,7 +261,7 @@ impl ModalView for RecentProjects {
 impl RecentProjects {
     fn new(
         delegate: RecentProjectsDelegate,
-        fs: Option<Arc<dyn Fs>>,
+        fs: Option<Arc<Fs>>,
         rem_width: f32,
         window: &mut Window,
         cx: &mut Context<Self>,

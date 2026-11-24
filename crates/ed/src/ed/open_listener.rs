@@ -185,7 +185,7 @@ fn navigate_to_positions(
 }
 
 pub(crate) async fn derive_paths_with_position(
-    fs: &dyn Fs,
+    fs: &Fs,
     path_strings: impl IntoIterator<Item = impl AsRef<str>>,
 ) -> Vec<PathWithPosition> {
     let path_strings: Vec<_> = path_strings.into_iter().collect();

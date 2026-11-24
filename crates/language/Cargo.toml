@@ -38,6 +38,7 @@ two-face = { version = "0.5.2", default-features = false, features = ["syntect-o
 unicase = "2.6"
 util.workspace = true
 watch.workspace = true
+which.workspace = true
 
 [lints]
 workspace = true

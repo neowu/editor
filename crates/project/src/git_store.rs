@@ -279,7 +279,7 @@ pub enum GitAccess {
 struct GitStoreState {
     next_repository_id: Arc<AtomicU64>,
     project_environment: Entity<ProjectEnvironment>,
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     _fs_watches: Box<[Task<()>]>,
 }
 
@@ -398,7 +398,7 @@ impl Deref for Repository {
 
 #[derive(Clone)]
 pub struct RepositoryState {
-    pub fs: Arc<dyn Fs>,
+    pub fs: Arc<Fs>,
     pub backend: Arc<dyn GitRepository>,
     pub environment: Arc<FxHashMap<String, String>>,
 }
@@ -408,7 +408,7 @@ impl RepositoryState {
         work_directory_abs_path: Arc<Path>,
         dot_git_abs_path: Arc<Path>,
         project_environment: WeakEntity<ProjectEnvironment>,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         cx: &mut AsyncApp,
     ) -> anyhow::Result<Self> {
         let environment = project_environment
@@ -498,48 +498,44 @@ impl GitStore {
         worktree_store: &Entity<WorktreeStore>,
         buffer_store: Entity<BufferStore>,
         environment: Entity<ProjectEnvironment>,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         cx: &mut Context<Self>,
     ) -> Self {
-        let _fs_watches = if fs.is_fake() {
-            Box::new([])
-        } else {
-            paths::git_global_config_files()
-                .into_iter()
-                .map(|path| {
-                    let fs = Arc::clone(&fs);
+        let _fs_watches = paths::git_global_config_files()
+            .into_iter()
+            .map(|path| {
+                let fs = Arc::clone(&fs);
 
-                    cx.spawn(async move |this, cx| {
-                        let watcher = fs.watch(&path, Duration::from_millis(100));
-                        let (mut watcher, _) = watcher.await;
-                        while watcher.next().await.is_some() {
-                            let Ok(()) = this.update(cx, |this, cx| {
-                                let GitStoreState { project_environment, fs, .. } = &this.state;
-                                let project_environment = project_environment.downgrade();
-                                let fs = Arc::clone(fs);
-                                let repositories_to_respawn = this
-                                    .repositories
-                                    .iter()
-                                    .filter_map(|(repository_id, repo)| {
-                                        repo.read(cx).job_sender.is_closed().then_some((*repository_id, repo.clone()))
-                                    })
-                                    .collect::<Vec<_>>();
-                                for (_, repo) in repositories_to_respawn {
-                                    repo.update(cx, |repo, cx| {
-                                        repo.respawn_local_worker(project_environment.clone(), Arc::clone(&fs), cx);
-                                        repo.schedule_scan(cx);
-                                    });
-                                }
-                                cx.emit(GitStoreEvent::GlobalConfigurationUpdated);
-                            }) else {
-                                return;
-                            };
-                        }
-                    })
+                cx.spawn(async move |this, cx| {
+                    let watcher = fs.watch(&path, Duration::from_millis(100));
+                    let (mut watcher, _) = watcher.await;
+                    while watcher.next().await.is_some() {
+                        let Ok(()) = this.update(cx, |this, cx| {
+                            let GitStoreState { project_environment, fs, .. } = &this.state;
+                            let project_environment = project_environment.downgrade();
+                            let fs = Arc::clone(fs);
+                            let repositories_to_respawn = this
+                                .repositories
+                                .iter()
+                                .filter_map(|(repository_id, repo)| {
+                                    repo.read(cx).job_sender.is_closed().then_some((*repository_id, repo.clone()))
+                                })
+                                .collect::<Vec<_>>();
+                            for (_, repo) in repositories_to_respawn {
+                                repo.update(cx, |repo, cx| {
+                                    repo.respawn_local_worker(project_environment.clone(), Arc::clone(&fs), cx);
+                                    repo.schedule_scan(cx);
+                                });
+                            }
+                            cx.emit(GitStoreEvent::GlobalConfigurationUpdated);
+                        }) else {
+                            return;
+                        };
+                    }
                 })
-                .collect::<Vec<_>>()
-                .into_boxed_slice()
-        };
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
 
         Self::new(
             worktree_store.clone(),
@@ -886,7 +882,7 @@ impl GitStore {
         worktree_id: WorktreeId,
         project_environment: Entity<ProjectEnvironment>,
         updated_git_repositories: UpdatedGitRepositoriesSet,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         cx: &mut Context<Self>,
     ) {
         let mut removed_ids = Vec::new();
@@ -1584,7 +1580,7 @@ impl Repository {
     fn respawn_local_worker(
         &mut self,
         project_environment: WeakEntity<ProjectEnvironment>,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         cx: &mut Context<Self>,
     ) {
         let work_directory_abs_path = Arc::clone(&self.snapshot.work_directory_abs_path);
@@ -1622,7 +1618,7 @@ impl Repository {
         repository_dir_abs_path: Arc<Path>,
         common_dir_abs_path: Arc<Path>,
         project_environment: WeakEntity<ProjectEnvironment>,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         cx: &mut Context<Self>,
     ) {
         self.snapshot.work_directory_abs_path = work_directory_abs_path;
@@ -1639,7 +1635,7 @@ impl Repository {
         common_dir_abs_path: Arc<Path>,
         dot_git_abs_path: Arc<Path>,
         project_environment: WeakEntity<ProjectEnvironment>,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         git_store: WeakEntity<GitStore>,
         object_read_limiter: Arc<Semaphore>,
         cx: &mut Context<Self>,
@@ -3226,7 +3222,7 @@ impl Repository {
 /// 2. Following that to the worktree-specific git directory
 /// 3. Reading the `commondir` file to find the shared `.git` directory
 /// 4. Deriving the main repo's identity path from the common dir
-pub async fn resolve_git_worktree_to_main_repo(fs: &dyn Fs, path: &Path) -> Option<PathBuf> {
+pub async fn resolve_git_worktree_to_main_repo(fs: &Fs, path: &Path) -> Option<PathBuf> {
     let dot_git = path.join(".git");
     let metadata = fs.metadata(&dot_git).await.ok()??;
     if metadata.is_dir {
@@ -3256,7 +3252,7 @@ pub fn worktrees_directory_for_repo(repository_anchor_path: &Path) -> Result<Pat
     Ok(parent.join("worktrees").join(repo_name))
 }
 
-async fn remove_empty_managed_worktree_ancestors(fs: &dyn Fs, child_path: &Path, base_path: &Path) {
+async fn remove_empty_managed_worktree_ancestors(fs: &Fs, child_path: &Path, base_path: &Path) {
     let mut current = child_path;
     while let Some(parent) = current.parent() {
         if parent == base_path {
@@ -3341,7 +3337,7 @@ pub fn linked_worktree_short_name(main_worktree_path: &Path, linked_worktree_pat
     Some(name.into())
 }
 
-async fn append_pattern_to_ignore_file(fs: Arc<dyn Fs>, file_path: PathBuf, pattern: String) -> Result<()> {
+async fn append_pattern_to_ignore_file(fs: Arc<Fs>, file_path: PathBuf, pattern: String) -> Result<()> {
     let existing_content = match fs.load(&file_path).await {
         Ok(content) => content,
         Err(error)

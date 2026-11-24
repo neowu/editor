@@ -16,7 +16,7 @@ use crate::npx;
 /// (quick fixes, `source.fixAll.biome`, `source.organizeImports.biome`).
 /// Formatting stays on the Biome CLI (see `project::biome`).
 pub(crate) struct BiomeLspAdapter {
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
 }
 
 impl BiomeLspAdapter {
@@ -24,7 +24,7 @@ impl BiomeLspAdapter {
     const NPX_PACKAGE: &str = "@biomejs/biome";
     const ARGUMENTS: &[&str] = &["lsp-proxy"];
 
-    pub(crate) fn new(fs: Arc<dyn Fs>) -> Self {
+    pub(crate) const fn new(fs: Arc<Fs>) -> Self {
         BiomeLspAdapter { fs }
     }
 }
@@ -43,7 +43,7 @@ impl LspAdapter for BiomeLspAdapter {
     /// at or above the worktree root, `biome` on `PATH`, then npx.
     async fn check_if_user_installed(
         &self,
-        delegate: &Arc<dyn LspAdapterDelegate>,
+        delegate: &Arc<LspAdapterDelegate>,
         _: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         for dir in delegate.worktree_root_path().ancestors() {

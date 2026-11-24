@@ -18,6 +18,7 @@ mod language_registry;
 
 pub mod language_settings;
 mod library;
+mod lsp_adapter_delegate;
 mod manifest;
 mod outline;
 mod runnable;
@@ -27,14 +28,11 @@ mod task_context;
 mod text_diff;
 mod worktree_id;
 
-use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::iter;
 use std::mem;
 use std::ops::Range;
-use std::path::Path;
-use std::path::PathBuf;
 use std::str;
 use std::sync::Arc;
 use std::sync::LazyLock;
@@ -56,7 +54,6 @@ pub use fallback_highlight::FallbackHighlighter;
 use gpui::App;
 use gpui::AsyncApp;
 use gpui::Entity;
-use gpui::EntityId;
 use gpui::SharedString;
 pub use language_core::BlockCommentConfig;
 pub use language_core::BracketPair;
@@ -118,6 +115,7 @@ use lsp::LanguageServerBinary;
 pub use lsp::LanguageServerId;
 pub use lsp::LanguageServerName;
 use lsp::Uri;
+pub use lsp_adapter_delegate::LspAdapterDelegate;
 pub use manifest::ManifestDelegate;
 pub use manifest::ManifestName;
 pub use manifest::ManifestProvider;
@@ -158,7 +156,6 @@ pub use tree_sitter::Parser;
 use tree_sitter::QueryCursor;
 use tree_sitter::StreamingIterator as _;
 pub use tree_sitter::Tree;
-use util::rel_path::RelPath;
 pub use worktree_id::WorktreeId;
 
 pub use crate::language_settings::IndentGuideSettings;
@@ -348,11 +345,7 @@ impl CachedLspAdapter {
         self.adapter.name()
     }
 
-    pub async fn find_binary(
-        &self,
-        delegate: &Arc<dyn LspAdapterDelegate>,
-        cx: &AsyncApp,
-    ) -> Result<LanguageServerBinary> {
+    pub async fn find_binary(&self, delegate: &Arc<LspAdapterDelegate>, cx: &AsyncApp) -> Result<LanguageServerBinary> {
         self.adapter.find_binary(delegate, cx).await
     }
 
@@ -397,24 +390,6 @@ impl CachedLspAdapter {
     }
 }
 
-/// [`LspAdapterDelegate`] allows [`LspAdapter]` implementations to interface with the application.
-// async_trait marks its boxed futures `#[must_use]`
-#[allow(clippy::double_must_use)]
-#[async_trait]
-pub trait LspAdapterDelegate: Send + Sync {
-    fn worktree_id(&self) -> WorktreeId;
-    fn worktree_root_path(&self) -> &Path;
-    fn resolve_relative_path(&self, path: PathBuf) -> PathBuf;
-    fn status_source_id(&self) -> EntityId;
-    fn update_status(&self, language: LanguageServerName, status: BinaryStatus);
-    fn registered_lsp_adapters(&self) -> Vec<Arc<dyn LspAdapter>>;
-
-    async fn which(&self, command: &OsStr) -> Option<PathBuf>;
-    async fn shell_env(&self) -> FxHashMap<String, String>;
-    async fn read_text_file(&self, path: &RelPath) -> Result<String>;
-    async fn try_exec(&self, binary: LanguageServerBinary) -> Result<()>;
-}
-
 /// Error from [`LspAdapter::find_binary`] when the server's binary isn't installed.
 /// Reported as [`BinaryStatus::NotInstalled`] instead of a failure.
 #[derive(Debug)]
@@ -439,7 +414,7 @@ pub trait LspAdapter: 'static + Send + Sync {
     /// so returning `None` means the server is not available.
     async fn check_if_user_installed(
         &self,
-        _delegate: &Arc<dyn LspAdapterDelegate>,
+        _delegate: &Arc<LspAdapterDelegate>,
         _cx: &AsyncApp,
     ) -> Option<LanguageServerBinary> {
         None
@@ -453,7 +428,7 @@ pub trait LspAdapter: 'static + Send + Sync {
 
     /// Finds the binary to start the server with. Adapters override this instead of
     /// [`Self::check_if_user_installed`] to explain why the server can't start.
-    async fn find_binary(&self, delegate: &Arc<dyn LspAdapterDelegate>, cx: &AsyncApp) -> Result<LanguageServerBinary> {
+    async fn find_binary(&self, delegate: &Arc<LspAdapterDelegate>, cx: &AsyncApp) -> Result<LanguageServerBinary> {
         self.check_if_user_installed(delegate, cx).await.ok_or_else(|| {
             ServerNotInstalled(format!(
                 "language server {} is not installed: `{}` was not found on your PATH",
@@ -523,7 +498,7 @@ pub trait LspAdapter: 'static + Send + Sync {
     /// Returns initialization options that are going to be sent to a LSP server as a part of [`lsp::InitializeParams`]
     async fn initialization_options(
         self: Arc<Self>,
-        _: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<LspAdapterDelegate>,
         _cx: &mut AsyncApp,
     ) -> Result<Option<Value>> {
         Ok(None)
@@ -531,7 +506,7 @@ pub trait LspAdapter: 'static + Send + Sync {
 
     async fn workspace_configuration(
         self: Arc<Self>,
-        _: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<LspAdapterDelegate>,
         _: Option<Uri>,
         _cx: &mut AsyncApp,
     ) -> Result<Value> {
@@ -541,7 +516,7 @@ pub trait LspAdapter: 'static + Send + Sync {
     async fn additional_initialization_options(
         self: Arc<Self>,
         _target_language_server_id: LanguageServerName,
-        _: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<LspAdapterDelegate>,
     ) -> Result<Option<Value>> {
         Ok(None)
     }
@@ -549,7 +524,7 @@ pub trait LspAdapter: 'static + Send + Sync {
     async fn additional_workspace_configuration(
         self: Arc<Self>,
         _target_language_server_id: LanguageServerName,
-        _: &Arc<dyn LspAdapterDelegate>,
+        _: &Arc<LspAdapterDelegate>,
         _cx: &mut AsyncApp,
     ) -> Result<Option<Value>> {
         Ok(None)

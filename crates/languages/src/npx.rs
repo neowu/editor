@@ -8,7 +8,7 @@ use lsp::LanguageServerBinary;
 /// the latest `packages` run through `npx`, which prefers a version installed
 /// in the project and otherwise downloads into npm's cache on first use.
 pub(crate) async fn node_server_binary(
-    delegate: &Arc<dyn LspAdapterDelegate>,
+    delegate: &Arc<LspAdapterDelegate>,
     packages: &[&str],
     bin: &str,
     arguments: &[&str],
@@ -27,7 +27,7 @@ pub(crate) async fn node_server_binary(
 
 /// Runs `bin` from `packages` through `npx`, ignoring any `bin` on the shell `PATH`.
 pub(crate) async fn npx_binary(
-    delegate: &Arc<dyn LspAdapterDelegate>,
+    delegate: &Arc<LspAdapterDelegate>,
     packages: &[&str],
     bin: &str,
     arguments: &[&str],

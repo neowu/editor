@@ -104,6 +104,7 @@ use language::LanguageRegistry;
 use language::LanguageServerStatusUpdate;
 use language::LocalFile as _;
 use language::Location;
+use language::LspAdapterDelegate;
 use language::ManifestDelegate;
 use language::ManifestName;
 use language::PointUtf16;
@@ -136,8 +137,8 @@ pub use semantic_tokens::TokenType;
 use serde::Serialize;
 use serde_json::Value;
 use server_lifecycle::LanguageServerStartMode;
-pub use server_lifecycle::LocalLspAdapterDelegate;
 use server_lifecycle::include_text;
+use server_lifecycle::lsp_adapter_delegate_for;
 use server_lifecycle::subscribe_to_binary_statuses;
 use snippet::Snippet;
 use sum_tree::Dimensions;
@@ -255,7 +256,7 @@ pub struct LocalLspStore {
     weak: WeakEntity<LspStore>,
     pub worktree_store: Entity<WorktreeStore>,
     environment: Entity<ProjectEnvironment>,
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     languages: Arc<LanguageRegistry>,
     language_server_ids: FxHashMap<LanguageServerSeed, UnifiedLanguageServer>,
     pub language_servers: FxHashMap<LanguageServerId, LanguageServerState>,
@@ -492,7 +493,7 @@ impl LocalLspStore {
             .reuse_existing_language_server(&self.lsp_tree, &worktree, &language_name, cx)
             .map(|(delegate, apply)| (delegate, apply(&mut self.lsp_tree)))
             .unwrap_or_else(|| {
-                let lsp_delegate = LocalLspAdapterDelegate::from_local_lsp(self, &worktree, cx);
+                let lsp_delegate = lsp_adapter_delegate_for(self, &worktree, cx);
                 let delegate: Arc<dyn ManifestDelegate> =
                     Arc::new(ManifestQueryDelegate::new(worktree.read(cx).snapshot()));
 
@@ -599,7 +600,7 @@ impl LocalLspStore {
         language_name: &'lang_name LanguageName,
         cx: &mut App,
     ) -> Option<(
-        Arc<LocalLspAdapterDelegate>,
+        Arc<LspAdapterDelegate>,
         impl FnOnce(&mut LanguageServerTree) -> Vec<LanguageServerTreeNode> + use<'lang_name>,
     )> {
         if worktree.read(cx).is_visible() {
@@ -642,7 +643,7 @@ impl LocalLspStore {
             servers
         };
 
-        let delegate = LocalLspAdapterDelegate::from_local_lsp(self, worktree, cx);
+        let delegate = lsp_adapter_delegate_for(self, worktree, cx);
         Some((delegate, apply))
     }
 
@@ -1058,7 +1059,7 @@ impl LspStore {
         environment: Entity<ProjectEnvironment>,
         manifest_tree: Entity<ManifestTree>,
         languages: Arc<LanguageRegistry>,
-        fs: Arc<dyn Fs>,
+        fs: Arc<Fs>,
         cx: &mut Context<Self>,
     ) -> Self {
         cx.subscribe(&buffer_store, Self::on_buffer_store_event).detach();

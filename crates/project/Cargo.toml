@@ -12,7 +12,6 @@ aho-corasick.workspace = true
 anyhow.workspace = true
 async-channel.workspace = true
 async-lock.workspace = true
-async-trait.workspace = true
 buffer_diff.workspace = true
 clock.workspace = true
 encoding_rs.workspace = true
@@ -46,7 +45,7 @@ text.workspace = true
 usvg.workspace = true
 util.workspace = true
 watch.workspace = true
-which = "8"
+which.workspace = true
 worktree.workspace = true
 
 [lints]

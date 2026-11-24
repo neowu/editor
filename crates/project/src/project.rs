@@ -192,7 +192,7 @@ pub struct Project {
 
     task_store: Entity<TaskStore>,
 
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     git_store: Entity<GitStore>,
 
     worktree_store: Entity<WorktreeStore>,
@@ -859,7 +859,7 @@ pub enum PulledDiagnostics {
 }
 
 impl Project {
-    pub fn local(languages: Arc<LanguageRegistry>, fs: Arc<dyn Fs>, cx: &mut App) -> Entity<Self> {
+    pub fn local(languages: Arc<LanguageRegistry>, fs: Arc<Fs>, cx: &mut App) -> Entity<Self> {
         cx.new(|cx: &mut Context<Self>| {
             let worktree_store = cx.new(|cx| WorktreeStore::local(false, Arc::clone(&fs), WorktreeIdCounter::get(cx)));
             cx.subscribe(&worktree_store, Self::on_worktree_store_event).detach();
@@ -977,7 +977,7 @@ impl Project {
     }
 
     #[inline]
-    pub fn fs(&self) -> &Arc<dyn Fs> {
+    pub const fn fs(&self) -> &Arc<Fs> {
         &self.fs
     }
 

@@ -600,7 +600,7 @@ pub fn init(app_state: Arc<AppState>, workspace_actions: &mut WorkspaceActions, 
 pub struct AppState {
     pub languages: Arc<LanguageRegistry>,
 
-    pub fs: Arc<dyn fs::Fs>,
+    pub fs: Arc<fs::Fs>,
 }
 
 struct GlobalAppState(Arc<AppState>);

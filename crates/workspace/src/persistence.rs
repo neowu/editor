@@ -145,7 +145,7 @@ impl ProjectsFile {
 
 /// In-memory copy of `projects.json`, rewritten in full on every change.
 pub struct ProjectsStore {
-    fs: Arc<dyn Fs>,
+    fs: Arc<Fs>,
     path: PathBuf,
     state: Arc<Mutex<ProjectsFile>>,
     /// Projects marked open at launch, before restored windows update the flags.
@@ -158,7 +158,7 @@ struct GlobalProjectsStore(Arc<ProjectsStore>);
 impl Global for GlobalProjectsStore {}
 
 impl ProjectsStore {
-    fn load(fs: Arc<dyn Fs>, path: PathBuf) -> ProjectsStore {
+    fn load(fs: Arc<Fs>, path: PathBuf) -> ProjectsStore {
         let file = std_fs::read_to_string(&path).map_or_default(|text| ProjectsFile::parse(&text));
         ProjectsStore {
             fs,
@@ -222,7 +222,7 @@ impl ProjectsStore {
     }
 }
 
-pub(crate) fn init(fs: Arc<dyn Fs>, cx: &mut App) {
+pub(crate) fn init(fs: Arc<Fs>, cx: &mut App) {
     let store = ProjectsStore::load(fs, paths::data_dir().join(PROJECTS_FILE_NAME));
     cx.set_global(GlobalProjectsStore(Arc::new(store)));
     track_session(cx);
@@ -301,7 +301,7 @@ pub(crate) fn parse_workspace_state(text: &str) -> Option<SerializedWorkspace> {
     serde_json::from_str(text).log_err()
 }
 
-pub(crate) async fn load_local_workspace_state(fs: &dyn Fs, root: &Path) -> Option<SerializedWorkspace> {
+pub(crate) async fn load_local_workspace_state(fs: &Fs, root: &Path) -> Option<SerializedWorkspace> {
     let text = fs.load(&workspace_state_path(root)).await.ok()?;
     parse_workspace_state(&text)
 }
@@ -330,7 +330,7 @@ pub struct RecentWorkspace {
     pub timestamp: OffsetDateTime,
 }
 
-async fn all_paths_exist_with_a_directory(paths: &[PathBuf], fs: &dyn Fs) -> bool {
+async fn all_paths_exist_with_a_directory(paths: &[PathBuf], fs: &Fs) -> bool {
     let mut any_dir = false;
     for path in paths {
         match fs.metadata(path).await.ok().flatten() {
@@ -348,7 +348,7 @@ async fn all_paths_exist_with_a_directory(paths: &[PathBuf], fs: &dyn Fs) -> boo
 /// Recent projects for recent-project UIs, most recent first. Local projects
 /// whose folders are gone are skipped, and git worktrees of one repository are
 /// grouped under the repository's main worktree.
-pub async fn recent_project_workspaces(recent: Vec<RecentProject>, fs: &dyn Fs) -> Vec<RecentWorkspace> {
+pub async fn recent_project_workspaces(recent: Vec<RecentProject>, fs: &Fs) -> Vec<RecentWorkspace> {
     let mut result = Vec::new();
     for project in recent {
         let paths = project.location.path_list();
@@ -362,7 +362,7 @@ pub async fn recent_project_workspaces(recent: Vec<RecentProject>, fs: &dyn Fs) 
 }
 
 /// Removes every recent entry grouped with `target`.
-pub async fn delete_recent_workspace_group(target: &RecentWorkspace, fs: &dyn Fs, cx: &mut AsyncApp) {
+pub async fn delete_recent_workspace_group(target: &RecentWorkspace, fs: &Fs, cx: &mut AsyncApp) {
     let store = cx.update(|cx| ProjectsStore::global(cx));
     let mut doomed = Vec::new();
     for workspace in recent_project_workspaces_ungrouped(store.recent(), fs).await {
@@ -373,7 +373,7 @@ pub async fn delete_recent_workspace_group(target: &RecentWorkspace, fs: &dyn Fs
     cx.update(|cx| store.remove_recent(|location| doomed.contains(location), cx)).await;
 }
 
-async fn recent_project_workspaces_ungrouped(recent: Vec<RecentProject>, fs: &dyn Fs) -> Vec<RecentWorkspace> {
+async fn recent_project_workspaces_ungrouped(recent: Vec<RecentProject>, fs: &Fs) -> Vec<RecentWorkspace> {
     let mut result = Vec::new();
     for project in recent {
         let paths = project.location.path_list();
@@ -387,7 +387,7 @@ fn same_group(left: &RecentWorkspace, right: &RecentWorkspace) -> bool {
     left.identity_paths == right.identity_paths
 }
 
-async fn resolve_local_workspace_identity(fs: &dyn Fs, paths: &PathList) -> Option<PathList> {
+async fn resolve_local_workspace_identity(fs: &Fs, paths: &PathList) -> Option<PathList> {
     let raw_paths = paths.paths();
     let resolved_paths =
         future::join_all(raw_paths.iter().map(|path| git_store::resolve_git_worktree_to_main_repo(fs, path))).await;

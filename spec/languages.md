@@ -232,6 +232,10 @@
   `npx --yes --package <pkg> <bin>`, unpinned: npx prefers a version installed
   in the project, else the latest release from npm's cache, downloading it on
   first use.
+- Adapters reach the worktree through `language::LspAdapterDelegate`, a concrete
+  struct (worktree root, shell env, `which`, binary status), not a trait.
+  `LspAdapter` stays a trait object, so it keeps `async_trait` until `dyn`
+  async traits are stable.
 - A missing server is not an error: its binary status is "Not Installed"
   (`BinaryStatus::NotInstalled`, raised by `find_binary` returning
   `ServerNotInstalled`). The LSP menu still lists it, greyed out like a stopped
