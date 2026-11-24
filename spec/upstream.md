@@ -79,7 +79,12 @@ Directions the fork deliberately doesn't follow, even in kept crates:
   unchanged subtrees reuse their cached layout (2–8% fewer instructions per
   frame on synthetic trees). It is the first of a stack; measured nodes
   (text, lists, the editor) are still measured every frame until the
-  follow-up lands. Port the stack together once it settles.
+  follow-up lands. Decided 2026-11-24 to wait: port the stack together once
+  the measured-node follow-up and any fixes have landed upstream. On review,
+  check `git log upstream/main -- crates/gpui/src/taffy.rs` from `90549abc`.
+  The fork already keeps per-prefix path hashes on the element id stack
+  (`extend_path_hash`), which the node matching keys on; the risk is stale
+  layout, so the port needs its own old-vs-fresh layout comparison test.
 - Open candidates from earlier passes, worth taking if wanted: #57638
   (`./` and `../` relative paths in the open path prompt), #66103
   (open single files in the same window), #64624
