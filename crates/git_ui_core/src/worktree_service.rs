@@ -413,8 +413,7 @@ fn start_worktree_creations(
 
     let worktree_name = worktree_name.unwrap_or_else(|| {
         let existing_refs: Vec<&str> = existing_worktree_names.iter().map(String::as_str).collect();
-        worktree_names::generate_worktree_name(&existing_refs, worktree_names::random_seed())
-            .unwrap_or_else(|| "worktree".to_owned())
+        worktree_names::generate_worktree_name(&existing_refs).unwrap_or_else(|| "worktree".to_owned())
     });
 
     for repo in git_repos {

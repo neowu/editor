@@ -14,6 +14,7 @@ editor.workspace = true
 fs.workspace = true
 futures.workspace = true
 fuzzy.workspace = true
+getrandom = "0.4"
 git.workspace = true
 gpui.workspace = true
 language.workspace = true

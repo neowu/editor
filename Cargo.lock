@@ -1317,6 +1317,7 @@ dependencies = [
  "fs",
  "futures",
  "fuzzy",
+ "getrandom",
  "git",
  "gpui",
  "language",
