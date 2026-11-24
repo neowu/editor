@@ -28,6 +28,7 @@ use crate::IntoElement;
 use crate::IsZero as _;
 use crate::LayoutId;
 use crate::ListSizingBehavior;
+use crate::MeasureState;
 use crate::Overflow;
 use crate::Pixels;
 use crate::Point;
@@ -236,6 +237,15 @@ impl UniformListScrollHandle {
     }
 }
 
+/// What a list sized by its content is measured from.
+#[derive(Clone, Copy, PartialEq)]
+struct InferredContent {
+    item_size: Size<Pixels>,
+    max_items: usize,
+}
+
+impl MeasureState for InferredContent {}
+
 impl Styled for UniformList {
     fn style(&mut self) -> &mut StyleRefinement {
         &mut self.interactivity.base_style
@@ -261,18 +271,32 @@ impl Element for UniformList {
         let layout_id =
             self.interactivity.request_layout(global_id, window, cx, |style, window, cx| match self.sizing_behavior {
                 ListSizingBehavior::Infer => window.with_text_style(style.text_style().cloned(), |window| {
-                    window.request_measured_layout(style, move |known_dimensions, available_space, _window, _cx| {
-                        let desired_height = item_size.height * max_items;
-                        let width = known_dimensions.width.unwrap_or(match available_space.width {
-                            AvailableSpace::Definite(x) => x,
-                            AvailableSpace::MinContent | AvailableSpace::MaxContent => item_size.width,
-                        });
-                        let height = match available_space.height {
-                            AvailableSpace::Definite(height) => desired_height.min(height),
-                            AvailableSpace::MinContent | AvailableSpace::MaxContent => desired_height,
-                        };
-                        size(width, height)
-                    })
+                    let content = InferredContent { item_size, max_items };
+                    let (layout_id, _) = window.request_retained_measured_layout(
+                        style,
+                        |kept: &InferredContent| *kept == content,
+                        || {
+                            (
+                                Rc::new(content),
+                                move |known_dimensions: Size<Option<Pixels>>,
+                                      available_space: Size<AvailableSpace>,
+                                      _: &mut Window,
+                                      _: &mut App| {
+                                    let desired_height = item_size.height * max_items;
+                                    let width = known_dimensions.width.unwrap_or(match available_space.width {
+                                        AvailableSpace::Definite(x) => x,
+                                        AvailableSpace::MinContent | AvailableSpace::MaxContent => item_size.width,
+                                    });
+                                    let height = match available_space.height {
+                                        AvailableSpace::Definite(height) => desired_height.min(height),
+                                        AvailableSpace::MinContent | AvailableSpace::MaxContent => desired_height,
+                                    };
+                                    size(width, height)
+                                },
+                            )
+                        },
+                    );
+                    layout_id
                 }),
                 ListSizingBehavior::Auto => {
                     window.with_text_style(style.text_style().cloned(), |window| window.request_layout(style, None, cx))

@@ -75,20 +75,13 @@ Directions the fork deliberately doesn't follow, even in kept crates:
   #66811 (depth buffer to cut overdraw), the main Metal win; they trade
   2–8× stroke tessellation CPU and some ordering risk. #66810 (batching) and
   #66812 (shadow approximation) are optional on top.
-- Layout series, not taken yet: #67222 keeps Taffy nodes between frames so
-  unchanged subtrees reuse their cached layout (2–8% fewer instructions per
-  frame on synthetic trees). It is the first of a stack; measured nodes
-  (text, lists, the editor) are still measured every frame until the
-  follow-up lands. Decided 2026-11-24 to wait: port the stack together once
-  the measured-node follow-up and any fixes have landed upstream. On review,
-  check `git log upstream/main -- crates/gpui/src/taffy.rs` from `90549abc`.
-  The fork already keeps per-prefix path hashes on the element id stack
-  (`extend_path_hash`), which the node matching keys on; the risk is stale
-  layout, so the port needs its own old-vs-fresh layout comparison test.
-  Measured ceiling in the fork (2026-11-24): 6–9% of draw time on editor
-  frames, about 17% on picker frames, because cached views already keep an
-  editor frame to about 90 layout nodes. Not worth an own implementation
-  ahead of upstream.
+- Layout series: #67222 (Taffy nodes kept between frames) is ported, adapted
+  (`gpui/rendering.md`, "Layout nodes"). Upstream's follow-up for measured
+  nodes had not landed; the fork has its own (`request_retained_measured_layout`,
+  whole-tree skip), so when the follow-up or fixes land (`git log upstream/main
+  -- crates/gpui/src/taffy.rs` from `90549abc`), take fixes to node matching
+  and eviction and compare, rather than port, the measured-node design.
+  Upstream's `PathHash` newtype and its window-level tests were not taken.
 - Open candidates from earlier passes, worth taking if wanted: #57638
   (`./` and `../` relative paths in the open path prompt), #66103
   (open single files in the same window), #64624

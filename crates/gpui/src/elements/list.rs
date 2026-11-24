@@ -35,6 +35,7 @@ use crate::GlobalElementId;
 use crate::Hitbox;
 use crate::HitboxBehavior;
 use crate::IntoElement;
+use crate::MeasureState;
 use crate::Overflow;
 use crate::Pixels;
 use crate::Point;
@@ -1126,6 +1127,15 @@ pub struct ListOffset {
     pub offset_in_item: Pixels,
 }
 
+/// What a list sized by its content is measured from.
+#[derive(Clone, Copy, PartialEq)]
+struct InferredContent {
+    max_element_width: Pixels,
+    total_height: Pixels,
+}
+
+impl MeasureState for InferredContent {}
+
 impl Element for List {
     type RequestLayoutState = ();
     type PrepaintState = ListPrepaintState;
@@ -1165,17 +1175,31 @@ impl Element for List {
                     let summary = state.items.summary();
                     let total_height = summary.height;
 
-                    window.request_measured_layout(style, move |known_dimensions, available_space, _window, _cx| {
-                        let width = known_dimensions.width.unwrap_or(match available_space.width {
-                            AvailableSpace::Definite(x) => x,
-                            AvailableSpace::MinContent | AvailableSpace::MaxContent => max_element_width,
-                        });
-                        let height = match available_space.height {
-                            AvailableSpace::Definite(height) => total_height.min(height),
-                            AvailableSpace::MinContent | AvailableSpace::MaxContent => total_height,
-                        };
-                        size(width, height)
-                    })
+                    let content = InferredContent { max_element_width, total_height };
+                    let (layout_id, _) = window.request_retained_measured_layout(
+                        style,
+                        |kept: &InferredContent| *kept == content,
+                        || {
+                            (
+                                Rc::new(content),
+                                move |known_dimensions: Size<Option<Pixels>>,
+                                      available_space: Size<AvailableSpace>,
+                                      _: &mut Window,
+                                      _: &mut App| {
+                                    let width = known_dimensions.width.unwrap_or(match available_space.width {
+                                        AvailableSpace::Definite(x) => x,
+                                        AvailableSpace::MinContent | AvailableSpace::MaxContent => max_element_width,
+                                    });
+                                    let height = match available_space.height {
+                                        AvailableSpace::Definite(height) => total_height.min(height),
+                                        AvailableSpace::MinContent | AvailableSpace::MaxContent => total_height,
+                                    };
+                                    size(width, height)
+                                },
+                            )
+                        },
+                    );
+                    layout_id
                 })
             }
             ListSizingBehavior::Auto => {

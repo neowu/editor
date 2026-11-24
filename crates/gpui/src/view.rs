@@ -362,6 +362,8 @@ impl<V: View> Element for ViewElement<V> {
     }
 }
 
+const CACHED_VIEW_PLACEHOLDER: &str = "cached-view";
+
 #[inline(never)]
 fn request_layout_view(
     entity_id: EntityId,
@@ -374,7 +376,11 @@ fn request_layout_view(
         if let Some(style) = cached_style {
             let mut root_style = Style::default();
             root_style.refine(style);
-            let layout_id = window.request_layout(root_style, None, cx);
+            // Requested every frame, under an id path of its own: the view's
+            // content is only requested when it renders, and layout nodes
+            // outlive a clean view only under a path that requests nothing.
+            let layout_id =
+                window.with_id(CACHED_VIEW_PLACEHOLDER, |window| window.request_layout(root_style, None, cx));
             (layout_id, None)
         } else {
             let mut element = render(window, cx);

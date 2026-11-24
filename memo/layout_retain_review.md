@@ -1,0 +1,27 @@
+# GPUI layout retention review
+
+Reviewed the working tree against `97d16d8f` on 2026-11-24. **Keep layout retention and fix two cases where a clean root can return stale bounds.** Matching by element path and request order is a good fit for this fork. It lets GPUI reuse Taffy's cache without giving every anonymous element a persistent ID. The recorded single-pane dev runs found about 25% fewer instructions per palette frame, 11% on cursor movement, 6% on scroll and 3% on typing. [Design](../spec/gpui/rendering.md#layout-nodes) · [Benchmark conditions and results](editor_optimization.md#layout-retention-result)
+
+**Status 2026-11-24:** both findings confirmed and fixed. 1: a scale factor change drops the whole engine (`TaffyLayoutEngine::reset` from `Window::bounds_changed`), simpler than dirtying measured nodes since switching displays is rare. 2: as proposed, tracked per root as `computed_spaces_differ`. The eviction measurement is still open.
+
+## 1. A display-scale change can halve a measured element's bounds
+
+**Fix before landing.** Measure a default-style leaf at `MaxContent` on both axes, first at 1× and then at 2×. The retained engine returned **20 × 5 logical px** on the second frame. A fresh engine returned **40 × 10**, the same logical size as at 1×. Moving a window between displays changes its scale, and GPUI uses intrinsic constraints like these for list item measurement. [Window scale update](../crates/gpui/src/window.rs#L1496) · [Uniform list measurement](../crates/gpui/src/elements/uniform_list.rs#L590)
+
+`LayoutStyle::matches` detects the new scale, but a default style converts to the same Taffy style at either scale. The node therefore stays clean. `MaxContent` also compares equal across scales, so the root skips computation and GPUI divides the old device-pixel bounds by the new scale. Mark a retained measured node dirty when its scale changes, even if its converted style compares equal. That also invalidates its ancestors and the device-pixel measurements in Taffy's own cache. The cost falls on display-scale changes. [Style comparison](../crates/gpui/src/taffy.rs#L315) · [Root skip](../crates/gpui/src/taffy.rs#L453) · [Bounds conversion](../crates/gpui/src/taffy.rs#L631)
+
+## 2. A root measured twice can carry the first width into later frames
+
+**Fix the skip condition.** In frame one, lay out a 200 px wrapping text leaf at 80 px wide, then at `MaxContent`. In frame two, request only `MaxContent`. With the existing wrapped-text test measure, the retained root returned **80 × 30** and kept three lines. A fresh root returned **200 × 10** and one line. This sequence is the reverse of the multi-pass difference already recorded in the spec. [Wrapped-text test measure](../crates/gpui/src/taffy.rs#L1057) · [Documented differences](../spec/gpui/rendering.md#layout-nodes)
+
+Text can answer an unconstrained measurement from its most recent wrapped layout. The skip condition records only the last available space, so it treats the final result of two probes as a valid first result next frame. Record whether the previous layout of this root used multiple compute calls. If it did, let the first compute on its next appearance take the existing reset-and-measure path. Single-pass roots keep their fast path. GPUI supports repeated root measurement, and editor blocks already use it to quantize their height. The width mismatch above was reproduced at the engine level. [Text cache rule](../crates/gpui/src/elements/text.rs#L461) · [Skip and reset logic](../crates/gpui/src/taffy.rs#L460) · [Editor block caller](../crates/editor/src/element/blocks.rs#L238)
+
+## The 240-frame eviction tradeoff
+
+Keeping a clean view's tree across intermittent renders earns its place. The recorded typing runs put build p50 at 1.11–1.14 ms with retention across clean frames, versus 1.42–1.46 ms with one-frame eviction. The open question is how much memory the 240-frame grace period costs for paths that disappear permanently, such as rows scrolled out of a picker. Both kinds of path receive the same grace period, and frame cleanup visits the scope table on every draw. [Typing comparison](editor_optimization.md#layout-retention-result) · [Scope eviction](../crates/gpui/src/taffy.rs#L181) · [Picker row IDs](../crates/picker/src/picker.rs#L951)
+
+On the 64-bit review build, GPUI's node metadata alone occupied 376 bytes per node, before Taffy's storage, the scope table and retained text. At 10,000 dormant nodes that is about 3.6 MiB for GPUI metadata alone. Keep the current policy pending a long scroll through distinct rows in a large picker or project with several panes open. Measure peak live nodes, retained memory and frame-cleanup time through eviction before adding a cap or a more complicated ownership scheme.
+
+## Verification
+
+The checkout targets macOS. I ran the engine tests in an isolated Linux copy with the platform compile guard omitted. All 17 existing Taffy tests passed, including the randomized comparison with a fresh tree. That comparison fixes scale at 1× and computes each root once per frame. Both added regression cases failed against the reviewed implementation and passed alongside the existing tests with the two proposed changes in the scratch copy. The broader scratch run had one unrelated failure because the host lacks Apple Color Emoji. The timing and screenshot evidence above comes from the existing benchmark memo. [Test harness](../crates/gpui/src/taffy.rs#L1187) · [Randomized comparison](../crates/gpui/src/taffy.rs#L1602)

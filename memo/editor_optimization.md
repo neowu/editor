@@ -1,10 +1,52 @@
-# Frame cost: where a frame goes, and what layout retention could save
+# Frame cost: where a frame goes, and layout retention
 
-Remeasured 2026-11-24 at `daafc2bf` to answer one question: upstream is
-keeping Taffy nodes between frames (#67222, `spec/upstream.md`); is that the
-right direction, and is it worth implementing here instead of waiting?
+Measured 2026-11-24 at `daafc2bf` to decide whether keeping Taffy nodes
+between frames (upstream #67222, `spec/upstream.md`) was worth doing here.
+It was then done the same day; the result is first, the measurement that led
+to it follows unchanged.
 
-## Answer
+## Layout retention: result
+
+Design and rules are in `spec/gpui/rendering.md` ("Layout nodes"). Same
+machine, project and workloads as below, dev profile. Baseline `97d16d8f` and
+the change were run alternately, two passes each (base / base -> new / new):
+
+| | palette | cursor | typing | scroll |
+|---|---|---|---|---|
+| instructions per frame | 14.3M / 14.4M -> 10.3M / 11.1M | 11.8M / 11.7M -> 10.2M / 10.5M | 61.0M / 61.3M -> 59.3M / 59.6M | 21.5M / 21.6M -> 20.0M / 20.5M |
+| build p50 (ms) | 0.79 / 0.77 -> 0.59 / 0.64 | 1.33 / 1.33 -> 0.97 / 1.24 | 1.45 / 1.39 -> 1.14 / 1.11 | 1.64 / 1.78 -> 1.54 / 1.45 |
+| draw p50 (ms) | 1.27 / 1.22 -> 1.08 / 1.08 | 2.08 / 2.04 -> 1.60 / 2.06 | 1.92 / 1.84 -> 1.68 / 1.64 | 2.53 / 2.76 -> 2.33 / 2.27 |
+
+- Instructions per frame: palette -25%, cursor -11%, scroll -6%, typing -3%
+  (typing is dominated by work outside drawing). Build p50: palette -22%,
+  typing -20%, scroll -13%.
+- Timings moved between passes more than in the morning table (the cursor
+  workload drew 770-1010 frames per pass against 1340 then), so compare
+  within this table only. The first new cursor pass drew 1006 frames against
+  about 780 for the other three; its times are not comparable, its
+  instructions are.
+- Palette and typing gained more than the ceiling estimated below. That
+  estimate only counted time inside the layout engine; a skipped tree also
+  skips its text measurement, and the per-frame hash maps for bounds are
+  gone. The gain was not broken down further.
+- Counters from a temporary probe (removed), per frame: a cursor move
+  requests 93 nodes, 90 of them matched, and all 4 trees are skipped with
+  about 2 measure calls. Typing with upstream's eviction rule matched only
+  60 of 145 requests and made 55-70 measure calls, because the project panel,
+  tab bar, status bar and title bar re-render on edit frames and are clean on
+  the animation frames between. With that rule typing's build p50 stayed at
+  1.42-1.46 ms; with the nodes of clean views kept it is 1.11-1.14 ms.
+- Checked against the baseline build in 16 UI states (cursor, palette, finder,
+  resize down and back, typing, scroll, dock toggle, split): element trees
+  identical, screenshots pixel-identical except a code-action button that
+  appears asynchronously in both.
+- Not measured: a release build, more than one pane, memory held by the
+  nodes of clean views.
+- Found on the way, not done: the project panel, tab bar, status bar and
+  title bar re-render on every edit. Their layout is now skipped, their
+  `render` and paint are not.
+
+## Earlier answer (before the port)
 
 - Right direction, small prize. Rebuilding and recomputing the layout tree
   every frame is real waste, and retention is the way to remove it.

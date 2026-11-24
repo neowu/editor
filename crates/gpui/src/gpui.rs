@@ -125,6 +125,7 @@ pub use svg_renderer::*;
 pub(crate) use tab_stop::TabStopMap;
 pub use taffy::AvailableSpace;
 pub use taffy::LayoutId;
+pub use taffy::MeasureState;
 use taffy::TaffyLayoutEngine;
 #[allow(clippy::wildcard_imports)]
 pub use text_system::*;

@@ -66,6 +66,7 @@ use crate::KeyContext;
 use crate::KeyEvent;
 use crate::LayoutId;
 use crate::LineLayoutIndex;
+use crate::MeasureState;
 use crate::Modifiers;
 use crate::ModifiersChangedEvent;
 use crate::MouseEvent;
@@ -1493,7 +1494,12 @@ impl Window {
     /// the platform window, then notifies observers. Normally called automatically
     /// by the platform's resize callback, but exposed publicly for test infrastructure.
     pub fn bounds_changed(&mut self, cx: &mut App) {
-        self.scale_factor = self.platform_window.scale_factor();
+        let scale_factor = self.platform_window.scale_factor();
+        if scale_factor != self.scale_factor {
+            self.scale_factor = scale_factor;
+            // Moving between displays is rare: lay everything out from scratch.
+            self.layout_engine.as_mut().expect("layout engine is present outside compute_layout").reset();
+        }
         self.viewport_size = self.platform_window.content_size();
         self.mouse_position = self.platform_window.mouse_position();
 
@@ -2567,8 +2573,10 @@ impl Window {
         let rem_size = self.rem_size();
         let scale_factor = self.scale_factor();
 
+        let scope = self.element_id_stack.hash();
         self.layout_engine.as_mut().expect("layout engine is present outside compute_layout").request_layout(
-            style,
+            scope,
+            &style,
             rem_size,
             scale_factor,
             &cx.layout_id_buffer,
@@ -2577,10 +2585,12 @@ impl Window {
 
     /// Add a node to the layout tree for the current frame. Instead of taking a `Style` and children,
     /// this variant takes a function that is invoked during layout so you can use arbitrary logic to
-    /// determine the element's size. One place this is used internally is when measuring text.
+    /// determine the element's size.
     ///
     /// The given closure is invoked at layout time with the known dimensions and available space and
-    /// returns a `Size`.
+    /// returns a `Size`. It is taken to measure differently from the one the element passed last
+    /// frame, so the node and its ancestors are laid out again every frame; see
+    /// [`Self::request_retained_measured_layout`] for the alternative.
     ///
     /// This method should only be called as part of the request_layout or prepaint phase of element drawing.
     pub fn request_measured_layout<F>(&mut self, style: Style, measure: F) -> LayoutId
@@ -2589,12 +2599,46 @@ impl Window {
     {
         let rem_size = self.rem_size();
         let scale_factor = self.scale_factor();
+        let scope = self.element_id_stack.hash();
         self.layout_engine.as_mut().expect("layout engine is present outside compute_layout").request_measured_layout(
-            style,
+            scope,
+            &style,
             rem_size,
             scale_factor,
-            measure,
+            Box::new(measure),
         )
+    }
+
+    /// Like [`Self::request_measured_layout`], for a measure function that can be kept between frames.
+    ///
+    /// `new` returns the measure function along with a state describing what it measures. When the
+    /// element in this position passed a state of the same type last frame and `retain` accepts
+    /// it, that frame's measure function stays in place, the sizes cached from it stay valid, and
+    /// its state is returned; `new` isn't called. `retain` must reject the state unless the old
+    /// function measures exactly as the one `new` would return.
+    ///
+    /// A measure function that leaves results in its state for the element to paint must say so
+    /// with [`MeasureState::RESETS`].
+    pub fn request_retained_measured_layout<S, F>(
+        &mut self,
+        style: Style,
+        retain: impl FnOnce(&S) -> bool,
+        new: impl FnOnce() -> (Rc<S>, F),
+    ) -> (LayoutId, Rc<S>)
+    where
+        S: MeasureState,
+        F: Fn(Size<Option<Pixels>>, Size<AvailableSpace>, &mut Window, &mut App) -> Size<Pixels> + 'static,
+    {
+        let rem_size = self.rem_size();
+        let scale_factor = self.scale_factor();
+        let scope = self.element_id_stack.hash();
+        self.layout_engine
+            .as_mut()
+            .expect("layout engine is present outside compute_layout")
+            .request_retained_measured_layout(scope, &style, rem_size, scale_factor, retain, || {
+                let (state, measure) = new();
+                (state, Box::new(measure) as Box<crate::taffy::MeasureFn>)
+            })
     }
 
     /// Compute the layout for the given id within the given available space.

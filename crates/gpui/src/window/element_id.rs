@@ -45,7 +45,7 @@ impl ElementIdStack {
     }
 
     /// The hash of the whole path on the stack.
-    fn hash(&self) -> u64 {
+    pub(crate) fn hash(&self) -> u64 {
         self.hashes.last().copied().unwrap_or(crate::EMPTY_PATH_HASH)
     }
 
