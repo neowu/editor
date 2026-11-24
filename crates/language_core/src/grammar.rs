@@ -4,7 +4,6 @@ use std::sync::atomic::Ordering::SeqCst;
 use anyhow::Context as _;
 use anyhow::Result;
 use gpui_shared_string::SharedString;
-use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 use tree_sitter::Query;
 
@@ -75,7 +74,7 @@ pub struct Grammar {
     pub text_object_config: Option<TextObjectConfig>,
     pub injection_config: Option<InjectionConfig>,
     pub override_config: Option<OverrideConfig>,
-    pub highlight_map: Mutex<HighlightMap>,
+    pub highlight_map: HighlightMap,
 }
 
 pub struct HighlightsConfig {
@@ -286,7 +285,7 @@ impl Grammar {
             runnable_config: None,
             error_query,
             ts_language: parseable_language.resolve().expect("resolving a native parseable language cannot fail"),
-            highlight_map: Mutex::default(),
+            highlight_map: HighlightMap::default(),
         }
     }
 
@@ -299,17 +298,13 @@ impl Grammar {
         self.id
     }
 
-    pub fn highlight_map(&self) -> HighlightMap {
-        self.highlight_map.lock().clone()
-    }
-
-    pub fn highlight_map_matches(&self, highlight_map: &HighlightMap) -> bool {
-        self.highlight_map.lock().same(highlight_map)
+    pub const fn highlight_map(&self) -> &HighlightMap {
+        &self.highlight_map
     }
 
     pub fn highlight_id_for_name(&self, name: &str) -> Option<HighlightId> {
         let capture_id = self.highlights_config.as_ref()?.query.capture_index_for_name(name)?;
-        self.highlight_map.lock().get(CaptureId(capture_id))
+        self.highlight_map.get(CaptureId(capture_id))
     }
 
     /// Load all queries from `LanguageQueries` into this grammar, mutating the

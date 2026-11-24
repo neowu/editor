@@ -260,7 +260,7 @@ impl ModalView for RecentProjects {
 impl RecentProjects {
     fn new(
         delegate: RecentProjectsDelegate,
-        fs: Option<Arc<Fs>>,
+        fs: Arc<Fs>,
         rem_width: f32,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -291,7 +291,6 @@ impl RecentProjects {
         // workspaces once that finishes rather than blocking the UI.
         let recent = ProjectsStore::global(cx).recent();
         cx.spawn_in(window, async move |this, cx| {
-            let Some(fs) = fs else { return };
             let workspaces = workspace::recent_project_workspaces(recent, fs.as_ref()).await;
             this.update_in(cx, move |this, window, cx| {
                 this.picker.update(cx, move |picker, cx| {
@@ -314,7 +313,7 @@ impl RecentProjects {
     ) {
         let weak = cx.entity().downgrade();
         let open_folders = get_open_folders(workspace, cx);
-        let fs = Some(Arc::clone(&workspace.app_state().fs));
+        let fs = Fs::global(cx);
 
         let create_new_window = create_new_window.unwrap_or(false);
 
@@ -338,13 +337,8 @@ impl RecentProjects {
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<Self> {
-        let (open_folders, fs) = workspace.upgrade().map_or_else(
-            || (Vec::new(), None),
-            |workspace| {
-                let workspace = workspace.read(cx);
-                (get_open_folders(workspace, cx), Some(Arc::clone(&workspace.app_state().fs)))
-            },
-        );
+        let open_folders = workspace.upgrade().map_or_default(|workspace| get_open_folders(workspace.read(cx), cx));
+        let fs = Fs::global(cx);
 
         let create_new_window = create_new_window.unwrap_or(false);
 
@@ -615,9 +609,8 @@ impl RecentProjectsDelegate {
             let Some(recent_workspace) = self.workspaces.get(selected_match.candidate_id).cloned() else {
                 return;
             };
-            let fs = self.workspace.upgrade().map(|ws| Arc::clone(&ws.read(cx).app_state().fs));
+            let fs = Fs::global(cx);
             cx.spawn_in(window, async move |this, cx| {
-                let Some(fs) = fs else { return };
                 workspace::delete_recent_workspace_group(&recent_workspace, fs.as_ref(), cx).await;
                 let recent = cx.update(|_, cx| ProjectsStore::global(cx).recent()).unwrap_or_default();
                 let workspaces = workspace::recent_project_workspaces(recent, fs.as_ref()).await;

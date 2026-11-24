@@ -42,7 +42,6 @@ use gpui::UpdateGlobal as _;
 use language::LanguageRegistry;
 use rustc_hash::FxHashMap;
 use util::ResultExt as _;
-use workspace::AppState;
 use workspace::SessionWorkspace;
 use workspace::Toast;
 use workspace::Workspace;
@@ -185,10 +184,10 @@ fn main() {
         move |urls| open_listener.open(RawOpenRequest { urls, diff_paths: Vec::new(), ..Default::default() })
     });
     app.on_reopen(move |cx| {
-        if let Some(app_state) = AppState::try_global(cx) {
+        if LanguageRegistry::try_global(cx).is_some() {
             cx.spawn({
                 async move |cx| {
-                    if let Err(e) = restore_or_create_workspace(app_state, cx).await {
+                    if let Err(e) = restore_or_create_workspace(cx).await {
                         fail_to_open_window_async(e, cx);
                     }
                 }
@@ -210,8 +209,7 @@ fn main() {
 
         ed::init(cx);
 
-        let app_state = Arc::new(AppState { languages, fs: Arc::clone(&fs) });
-        AppState::set_global(Arc::clone(&app_state), cx);
+        LanguageRegistry::set_global(languages, cx);
 
         // Every workspace shares one set of action handlers, collected here from each crate.
         let mut workspace_actions = WorkspaceActions::default();
@@ -223,7 +221,7 @@ fn main() {
         image_viewer::init(cx);
         diagnostics::init(&mut workspace_actions, cx);
 
-        workspace::init(Arc::clone(&app_state), &mut workspace_actions, cx);
+        workspace::init(&mut workspace_actions, cx);
 
         finder::init(&mut workspace_actions, cx);
         project_panel::init(&mut workspace_actions);
@@ -254,9 +252,7 @@ fn main() {
         markdown_preview::init(cx);
         svg_preview::init(cx);
 
-        app_state.languages.set_theme(theme::theme());
-
-        initialize_workspace(Arc::clone(&app_state), &mut workspace_actions, cx);
+        initialize_workspace(&mut workspace_actions, cx);
         workspace_actions.install();
         control_server::init(cx);
 
@@ -275,13 +271,12 @@ fn main() {
 
         let restore_task = match open_rx.try_recv().ok().map(OpenRequest::parse) {
             Some(request) => {
-                handle_open_request(request, Arc::clone(&app_state), cx);
+                handle_open_request(request, cx);
                 Task::ready(())
             }
             None => cx.spawn({
-                let app_state = Arc::clone(&app_state);
                 async move |cx| {
-                    if let Err(e) = restore_or_create_workspace(app_state, cx).await {
+                    if let Err(e) = restore_or_create_workspace(cx).await {
                         fail_to_open_window_async(e, cx);
                     }
                 }
@@ -298,8 +293,6 @@ fn main() {
 
         let restore_finished = cx.background_spawn(restore_task).shared();
 
-        let app_state = app_state;
-
         cx.spawn(async move |cx| {
             let _first_window_subscription = _first_window_subscription;
             let first_window_placed = first_window_rx.shared();
@@ -312,7 +305,7 @@ fn main() {
                     _ = first_window_placed.clone() => {}
                 }
                 cx.update(|cx| {
-                    handle_open_request(OpenRequest::parse(urls), Arc::clone(&app_state), cx);
+                    handle_open_request(OpenRequest::parse(urls), cx);
                 });
             }
         })
@@ -320,17 +313,17 @@ fn main() {
     });
 }
 
-fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &App) {
+fn handle_open_request(request: OpenRequest, cx: &App) {
     if request.open_paths.is_empty() && request.diff_paths.is_empty() {
         return;
     }
+    let fs = Fs::global(cx);
     let task = cx.spawn(async move |cx| {
-        let paths_with_position = derive_paths_with_position(app_state.fs.as_ref(), request.open_paths).await;
+        let paths_with_position = derive_paths_with_position(fs.as_ref(), request.open_paths).await;
         let (_window, results) = open_paths_with_positions(
             &paths_with_position,
             &request.diff_paths,
             request.diff_all,
-            app_state,
             workspace::OpenOptions::default(),
             cx,
         )
@@ -350,11 +343,11 @@ fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &App)
     .detach();
 }
 
-pub(crate) async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &mut AsyncApp) -> Result<()> {
-    if let Some(session_workspaces) = restorable_workspaces(cx, &app_state).await {
+pub(crate) async fn restore_or_create_workspace(cx: &mut AsyncApp) -> Result<()> {
+    if let Some(session_workspaces) = restorable_workspaces(cx).await {
         let mut error_count = 0;
         for session_workspace in session_workspaces {
-            let result = restore_workspace(session_workspace, Arc::clone(&app_state), cx).await.map(|_| ());
+            let result = restore_workspace(session_workspace, cx).await.map(|_| ());
 
             if let Err(error) = result {
                 log::error!("Failed to restore workspace: {error:#}");
@@ -389,21 +382,16 @@ pub(crate) async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &m
             if !toast_shown {
                 log::error!("All workspace restorations failed. Opening fallback empty workspace.");
                 cx.update(|cx| {
-                    workspace::open_new(
-                        workspace::OpenOptions::default(),
-                        Arc::clone(&app_state),
-                        cx,
-                        |workspace, _window, cx| {
-                            workspace.show_toast(Toast::new(NotificationId::unique::<()>(), message), cx);
-                        },
-                    )
+                    workspace::open_new(workspace::OpenOptions::default(), cx, |workspace, _window, cx| {
+                        workspace.show_toast(Toast::new(NotificationId::unique::<()>(), message), cx);
+                    })
                 })
                 .await?;
             }
         }
     } else {
         cx.update(|cx| {
-            workspace::open_new(workspace::OpenOptions::default(), app_state, cx, |workspace, window, cx| {
+            workspace::open_new(workspace::OpenOptions::default(), cx, |workspace, window, cx| {
                 Editor::new_file(workspace, &workspace::NewFile, window, cx);
             })
         })
@@ -413,10 +401,11 @@ pub(crate) async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &m
     Ok(())
 }
 
-async fn restorable_workspaces(cx: &AsyncApp, app_state: &Arc<AppState>) -> Option<Vec<SessionWorkspace>> {
+async fn restorable_workspaces(cx: &AsyncApp) -> Option<Vec<SessionWorkspace>> {
     let session = cx.update(|cx| workspace::last_session_workspaces(cx));
     if session.is_empty() {
-        workspace::last_opened_workspace_location(app_state.fs.as_ref(), cx).await.map(|workspace| vec![workspace])
+        let fs = cx.update(|cx| Fs::global(cx));
+        workspace::last_opened_workspace_location(fs.as_ref(), cx).await.map(|workspace| vec![workspace])
     } else {
         Some(session)
     }

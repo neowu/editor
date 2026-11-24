@@ -75,7 +75,6 @@ use gpui::EntityId;
 use gpui::EventEmitter;
 use gpui::FocusHandle;
 use gpui::Focusable;
-use gpui::Global;
 use gpui::KeyContext;
 use gpui::Keystroke;
 use gpui::ManagedView;
@@ -569,42 +568,28 @@ pub struct OpenTerminal {
     pub working_directory: PathBuf,
 }
 
-pub fn init(app_state: Arc<AppState>, workspace_actions: &mut WorkspaceActions, cx: &mut App) {
+pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     toast_layer::init(workspace_actions);
-    persistence::init(Arc::clone(&app_state.fs), cx);
+    persistence::init(fs::Fs::global(cx), cx);
 
     cx.on_app_quit(flush_windows_serialization_on_quit).detach();
 
     cx.on_action(|_: &CloseWindow, cx| Workspace::close_global(cx))
         .on_action(|action: &Open, cx: &mut App| {
-            let app_state = AppState::global(cx);
             prompt_and_open_paths(
-                app_state,
                 PathPromptOptions { files: true, directories: true, multiple: true, prompt: None },
                 action.create_new_window.unwrap_or(false),
                 cx,
             );
         })
         .on_action(|_: &OpenFiles, cx: &mut App| {
-            let app_state = AppState::global(cx);
             prompt_and_open_paths(
-                app_state,
                 PathPromptOptions { files: true, directories: true, multiple: true, prompt: None },
                 true,
                 cx,
             );
         });
 }
-
-pub struct AppState {
-    pub languages: Arc<LanguageRegistry>,
-
-    pub fs: Arc<fs::Fs>,
-}
-
-struct GlobalAppState(Arc<AppState>);
-
-impl Global for GlobalAppState {}
 
 /// Tracks worktree creation progress for the workspace.
 /// Read by the title bar to show a loading indicator on the worktree button.
@@ -621,19 +606,6 @@ pub struct PreviousWorkspaceState {
     pub open_file_paths: Vec<PathBuf>,
     pub active_file_path: Option<PathBuf>,
     pub focused_dock: Option<DockPosition>,
-}
-
-impl AppState {
-    #[track_caller]
-    pub fn global(cx: &App) -> Arc<Self> {
-        Arc::clone(&cx.global::<GlobalAppState>().0)
-    }
-    pub fn try_global(cx: &App) -> Option<Arc<Self>> {
-        cx.try_global::<GlobalAppState>().map(|state| Arc::clone(&state.0))
-    }
-    pub fn set_global(state: Arc<AppState>, cx: &mut App) {
-        cx.set_global(GlobalAppState(state));
-    }
 }
 
 /// What fills the window below the title bar.
@@ -838,7 +810,6 @@ pub struct Workspace {
     last_window_title: Option<String>,
     dirty_items: FxHashMap<EntityId, Subscription>,
 
-    app_state: Arc<AppState>,
     dispatching_keystrokes: Rc<RefCell<DispatchingKeystrokes>>,
     _subscriptions: Vec<Subscription>,
 
@@ -878,12 +849,7 @@ pub enum OpenMode {
 }
 
 impl Workspace {
-    pub fn new(
-        project: Entity<Project>,
-        app_state: Arc<AppState>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn new(project: Entity<Project>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         cx.subscribe_in(&project, window, move |this, _, event, window, cx| {
             match event {
                 &project::Event::WorktreeRemoved(_) => {
@@ -1082,8 +1048,6 @@ impl Workspace {
             last_window_title: None,
             dirty_items: FxHashMap::default(),
 
-            app_state,
-
             _schedule_serialize_workspace: None,
             _serialize_workspace_task: None,
 
@@ -1111,18 +1075,18 @@ impl Workspace {
     #[allow(clippy::type_complexity)]
     pub fn new_local(
         abs_paths: Vec<PathBuf>,
-        app_state: Arc<AppState>,
         requesting_window: Option<WindowHandle<Workspace>>,
         init: Option<Box<dyn FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + Send>>,
         open_mode: OpenMode,
         cx: &mut App,
     ) -> Task<anyhow::Result<OpenResult>> {
-        let project_handle = Project::local(Arc::clone(&app_state.languages), Arc::clone(&app_state.fs), cx);
+        let fs = fs::Fs::global(cx);
+        let project_handle = Project::local(LanguageRegistry::global(cx), Arc::clone(&fs), cx);
 
         cx.spawn(async move |cx| {
             let mut paths_to_open = Vec::with_capacity(abs_paths.len());
             for path in abs_paths {
-                if let Ok(canonical) = app_state.fs.canonicalize(&path).await {
+                if let Ok(canonical) = fs.canonicalize(&path).await {
                     paths_to_open.push(canonical);
                 } else {
                     paths_to_open.push(path);
@@ -1130,7 +1094,7 @@ impl Workspace {
             }
 
             let serialized_workspace = match paths_to_open.first() {
-                Some(root) => persistence::load_local_workspace_state(app_state.fs.as_ref(), root).await,
+                Some(root) => persistence::load_local_workspace_state(fs.as_ref(), root).await,
                 None => None,
             };
 
@@ -1154,30 +1118,11 @@ impl Workspace {
                 OpenMode::Activate => requesting_window,
             };
 
-            let (window, workspace): (WindowHandle<Workspace>, Entity<Workspace>) = if let Some(window) =
-                window_to_replace
-            {
-                let workspace = window.update(cx, |_, window, cx| {
-                    replace_window_workspace(window, cx, |window, cx| {
-                        let mut workspace = Workspace::new(project_handle.clone(), Arc::clone(&app_state), window, cx);
-
-                        // Call init callback to add items before window renders
-                        if let Some(init) = init {
-                            init(&mut workspace, window, cx);
-                        }
-
-                        workspace
-                    })
-                })?;
-                (window, workspace)
-            } else {
-                let options = cx.update(build_window_options);
-                let window = cx.open_window(options, {
-                    let app_state = Arc::clone(&app_state);
-                    let project_handle = project_handle.clone();
-                    move |window, cx| {
-                        cx.new(|cx| {
-                            let mut workspace = Workspace::new(project_handle, app_state, window, cx);
+            let (window, workspace): (WindowHandle<Workspace>, Entity<Workspace>) =
+                if let Some(window) = window_to_replace {
+                    let workspace = window.update(cx, |_, window, cx| {
+                        replace_window_workspace(window, cx, |window, cx| {
+                            let mut workspace = Workspace::new(project_handle.clone(), window, cx);
 
                             // Call init callback to add items before window renders
                             if let Some(init) = init {
@@ -1186,11 +1131,28 @@ impl Workspace {
 
                             workspace
                         })
-                    }
-                })?;
-                let workspace = window.update(cx, |_, _, cx| cx.entity())?;
-                (window, workspace)
-            };
+                    })?;
+                    (window, workspace)
+                } else {
+                    let options = cx.update(build_window_options);
+                    let window = cx.open_window(options, {
+                        let project_handle = project_handle.clone();
+                        move |window, cx| {
+                            cx.new(|cx| {
+                                let mut workspace = Workspace::new(project_handle, window, cx);
+
+                                // Call init callback to add items before window renders
+                                if let Some(init) = init {
+                                    init(&mut workspace, window, cx);
+                                }
+
+                                workspace
+                            })
+                        }
+                    })?;
+                    let workspace = window.update(cx, |_, _, cx| cx.entity())?;
+                    (window, workspace)
+                };
 
             let opened_items = window
                 .update(cx, |_, window, cx| open_items(serialized_workspace, project_paths, window, cx))?
@@ -1305,10 +1267,6 @@ impl Workspace {
         }
         cx.notify();
         true
-    }
-
-    pub const fn app_state(&self) -> &Arc<AppState> {
-        &self.app_state
     }
 
     pub fn set_panels_task(&mut self, task: Task<Result<()>>) {
@@ -2814,8 +2772,7 @@ pub fn with_active_or_new_workspace(
                 .log_err();
         });
     } else {
-        let app_state = AppState::global(cx);
-        open_new(OpenOptions::default(), app_state, cx, move |workspace, window, cx| f(workspace, window, cx))
+        open_new(OpenOptions::default(), cx, move |workspace, window, cx| f(workspace, window, cx))
             .detach_and_log_err(cx);
     }
 }

@@ -632,11 +632,7 @@ impl Editor {
                 None
             } else {
                 let Ok((mut menu, matches_task)) = editor.update(cx, |editor, cx| {
-                    let languages = editor
-                        .workspace
-                        .as_ref()
-                        .and_then(|workspace| workspace.upgrade())
-                        .map(|workspace| Arc::clone(&workspace.read(cx).app_state().languages));
+                    let languages = language::LanguageRegistry::try_global(cx);
                     let menu = CompletionsMenu::new(
                         id,
                         requested_source.unwrap_or(if load_provider_completions {

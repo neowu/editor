@@ -2687,7 +2687,7 @@ impl BufferSnapshot {
         let captures = self
             .syntax
             .captures(range, &self.text, |grammar| grammar.highlights_config.as_ref().map(|config| &config.query));
-        let highlight_maps = captures.grammars().iter().map(|grammar| grammar.highlight_map()).collect();
+        let highlight_maps = captures.grammars().iter().map(|grammar| grammar.highlight_map().clone()).collect();
         (captures, highlight_maps)
     }
 
@@ -2765,17 +2765,15 @@ impl BufferSnapshot {
         let captures = self.syntax.captures(range.clone(), &self.text, |grammar| {
             grammar.highlights_config.as_ref().map(|config| &config.query)
         });
-        let sources = captures
-            .grammars()
-            .iter()
-            .map(|&grammar| (Arc::clone(grammar), grammar.highlight_map()))
-            .collect::<SmallVec<[(Arc<Grammar>, HighlightMap); 2]>>();
+        let highlight_maps =
+            captures.grammars().iter().map(|&grammar| grammar.highlight_map()).collect::<SmallVec<[_; 2]>>();
         let mut runs = Vec::<(Range<usize>, HighlightId)>::new();
         for region in flattened_highlight_regions(captures, range.clone()) {
-            let highlight_id = region.stack.iter().rev().find_map(|capture| {
-                let (_, highlight_map) = sources.get(capture.grammar_index)?;
-                highlight_map.get(capture.capture_id)
-            });
+            let highlight_id = region
+                .stack
+                .iter()
+                .rev()
+                .find_map(|capture| highlight_maps.get(capture.grammar_index)?.get(capture.capture_id));
             let Some(highlight_id) = highlight_id else {
                 continue;
             };
@@ -2813,7 +2811,7 @@ impl BufferSnapshot {
             merged.sort_unstable_by_key(|(run_range, _)| run_range.start);
             runs = merged;
         }
-        ResolvedHighlights { sources, runs: runs.into() }
+        ResolvedHighlights { runs: runs.into() }
     }
 
     /// Invokes the given callback for each line of text in the given range of the buffer.

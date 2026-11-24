@@ -41,8 +41,8 @@ pub fn clone_and_open(
                 .to_owned();
 
             let clone_task = workspace
-                .update(cx, |workspace, cx| {
-                    let fs = Arc::clone(&workspace.app_state().fs);
+                .update(cx, |_, cx| {
+                    let fs = fs::Fs::global(cx);
                     let destination_dir = destination_dir.clone();
                     let repo_url = repo_url.clone();
                     cx.spawn(async move |_workspace, _cx| fs.git_clone(destination_dir.as_path(), &repo_url).await)
@@ -111,35 +111,29 @@ pub fn clone_and_open(
                 }
                 1 => {
                     workspace
-                        .update(cx, move |workspace, cx| {
-                            let app_state = Arc::clone(workspace.app_state());
+                        .update(cx, move |_, cx| {
                             let destination_path = destination_dir.clone();
                             let on_success = Arc::clone(&on_success);
 
-                            workspace::open_new(
-                                workspace::OpenOptions::default(),
-                                app_state,
-                                cx,
-                                move |workspace, window, cx| {
-                                    cx.activate(true);
+                            workspace::open_new(workspace::OpenOptions::default(), cx, move |workspace, window, cx| {
+                                cx.activate(true);
 
-                                    let create_task = workspace.project().update(cx, |project, cx| {
-                                        project.create_worktree(destination_path.as_path(), true, cx)
-                                    });
+                                let create_task = workspace.project().update(cx, |project, cx| {
+                                    project.create_worktree(destination_path.as_path(), true, cx)
+                                });
 
-                                    let workspace_weak = cx.weak_entity();
-                                    cx.spawn_in(window, async move |_window, cx| {
-                                        if create_task.await.log_err().is_some() {
-                                            workspace_weak
-                                                .update_in(cx, |workspace, window, cx| {
-                                                    (on_success)(workspace, window, cx);
-                                                })
-                                                .ok();
-                                        }
-                                    })
-                                    .detach();
-                                },
-                            )
+                                let workspace_weak = cx.weak_entity();
+                                cx.spawn_in(window, async move |_window, cx| {
+                                    if create_task.await.log_err().is_some() {
+                                        workspace_weak
+                                            .update_in(cx, |workspace, window, cx| {
+                                                (on_success)(workspace, window, cx);
+                                            })
+                                            .ok();
+                                    }
+                                })
+                                .detach();
+                            })
                             .detach();
                         })
                         .ok();

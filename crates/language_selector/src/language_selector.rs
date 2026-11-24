@@ -69,7 +69,7 @@ impl LanguageSelector {
     }
 
     fn toggle(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) -> Option<()> {
-        let registry = Arc::clone(&workspace.app_state().languages);
+        let registry = LanguageRegistry::global(cx);
         let buffer = workspace.shown_pane().read(cx).active_item()?.act_as::<Editor>(cx)?.read(cx).active_buffer(cx)?;
         let project = workspace.project().clone();
 

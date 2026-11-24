@@ -16,6 +16,7 @@ use globset::GlobSet;
 use gpui::App;
 use gpui::BackgroundExecutor;
 use gpui::EntityId;
+use gpui::Global;
 use gpui::Subscription;
 pub use language_core::BinaryStatus;
 pub use language_core::LanguageName;
@@ -29,7 +30,6 @@ use parking_lot::RwLock;
 use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
 use text::Rope;
-use theme::Theme;
 use util::post_inc;
 
 use crate::CachedLspAdapter;
@@ -44,7 +44,6 @@ use crate::ManifestName;
 use crate::PLAIN_TEXT;
 use crate::available_languages::AvailableLanguage;
 use crate::available_languages::AvailableLanguages;
-use crate::fallback_highlight;
 use crate::language_settings::all_language_settings;
 use crate::task_context::ContextProvider;
 
@@ -62,7 +61,6 @@ struct LanguageRegistryState {
     all_lsp_adapters: FxHashMap<LanguageServerName, Arc<CachedLspAdapter>>,
     loading_languages: FxHashMap<LanguageId, Vec<oneshot::Sender<Result<Arc<Language>>>>>,
     subscription: watch::Sender<()>,
-    theme: Option<&'static Theme>,
     version: usize,
     reload_count: usize,
 }
@@ -100,7 +98,24 @@ pub struct LoadedLanguage {
 
 pub type LanguageLoader = Arc<dyn Fn() -> BoxFuture<'static, Result<LoadedLanguage>> + Send + Sync + 'static>;
 
+struct GlobalLanguageRegistry(Arc<LanguageRegistry>);
+
+impl Global for GlobalLanguageRegistry {}
+
 impl LanguageRegistry {
+    #[track_caller]
+    pub fn global(cx: &App) -> Arc<Self> {
+        Arc::clone(&cx.global::<GlobalLanguageRegistry>().0)
+    }
+
+    pub fn try_global(cx: &App) -> Option<Arc<Self>> {
+        cx.try_global::<GlobalLanguageRegistry>().map(|registry| Arc::clone(&registry.0))
+    }
+
+    pub fn set_global(registry: Arc<Self>, cx: &mut App) {
+        cx.set_global(GlobalLanguageRegistry(registry));
+    }
+
     pub fn new(executor: BackgroundExecutor) -> Self {
         let this = Self {
             state: RwLock::new(LanguageRegistryState {
@@ -111,7 +126,6 @@ impl LanguageRegistry {
                 lsp_adapters: FxHashMap::default(),
                 all_lsp_adapters: FxHashMap::default(),
                 subscription: watch::channel(()).0,
-                theme: Option::default(),
                 version: 0,
                 reload_count: 0,
             }),
@@ -189,15 +203,6 @@ impl LanguageRegistry {
     /// Returns the number of times that the registry has been reloaded.
     pub fn reload_count(&self) -> usize {
         self.state.read().reload_count
-    }
-
-    pub fn set_theme(&self, theme: &'static Theme) {
-        let mut state = self.state.write();
-        state.theme = Some(theme);
-        for language in &state.languages {
-            language.set_theme(theme.syntax());
-        }
-        fallback_highlight::set_theme(theme.syntax());
     }
 
     pub fn language_for_name(self: &Arc<Self>, name: &str) -> impl Future<Output = Result<Arc<Language>>> + use<> {
@@ -448,9 +453,6 @@ impl LanguageRegistryState {
     }
 
     fn add(&mut self, language: Arc<Language>) {
-        if let Some(theme) = self.theme {
-            language.set_theme(theme.syntax());
-        }
         self.languages.push(language);
         self.version += 1;
         self.subscription.send(()).ok();

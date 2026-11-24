@@ -254,6 +254,15 @@ mod tests {
     }
 
     #[test]
+    fn loaded_grammar_resolves_highlights_without_a_registry() {
+        let json = Language::new(load_config("json"), Some(tree_sitter_json::LANGUAGE.into()))
+            .with_queries(load_queries("json"));
+        let grammar = json.unwrap().grammar().cloned().unwrap();
+        assert!(grammar.highlight_id_for_name("string").is_some());
+        assert!(grammar.highlight_id_for_name("no_such_capture").is_none());
+    }
+
+    #[test]
     fn language_settings_differ_where_languages_need_it() {
         let fallback = LanguageSettings::fallback();
         assert_eq!(rust::settings(), fallback);

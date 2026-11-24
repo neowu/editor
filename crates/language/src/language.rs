@@ -150,7 +150,6 @@ pub use text_diff::text_diff;
 pub use text_diff::text_diff_with_options;
 pub use text_diff::unified_diff_with_offsets;
 pub use text_diff::word_diff_ranges;
-use theme::SyntaxTheme;
 pub use tree_sitter::Node;
 pub use tree_sitter::Parser;
 use tree_sitter::QueryCursor;
@@ -612,13 +611,13 @@ impl Language {
         if let Some(grammar) = self.grammar.take() {
             let grammar = Arc::into_inner(grammar).context("cannot mutate grammar")?;
             let grammar = grammar.with_queries(queries, &mut self.config)?;
-            self.grammar = Some(Arc::new(grammar));
+            self.grammar = Some(Arc::new(resolve_highlight_map(grammar)));
         }
         Ok(self)
     }
 
     pub fn with_highlights_query(self, source: &str) -> Result<Self> {
-        self.with_grammar_query(|grammar| grammar.with_highlights_query(source))
+        self.with_grammar_query(|grammar| grammar.with_highlights_query(source).map(resolve_highlight_map))
     }
 
     pub fn with_runnable_query(self, source: &str) -> Result<Self> {
@@ -732,7 +731,7 @@ impl Language {
         if range.start == 0 && range.end >= text_len {
             return highlights;
         }
-        ResolvedHighlights { sources: highlights.sources.clone(), runs: highlights.runs_in_range(range).collect() }
+        ResolvedHighlights { runs: highlights.runs_in_range(range).collect() }
     }
 
     fn compute_resolved_highlights(
@@ -778,10 +777,7 @@ impl Language {
                 _ => runs.push((region.range, highlight_id)),
             }
         }
-        ResolvedHighlights {
-            sources: std::iter::once((Arc::clone(grammar), highlight_map)).collect(),
-            runs: runs.into(),
-        }
+        ResolvedHighlights { runs: runs.into() }
     }
 
     pub fn path_suffixes(&self) -> &[SharedString] {
@@ -790,14 +786,6 @@ impl Language {
 
     pub fn should_autoclose_before(&self, c: char) -> bool {
         c.is_whitespace() || self.config.autoclose_before.contains(c)
-    }
-
-    pub fn set_theme(&self, theme: &SyntaxTheme) {
-        if let Some(grammar) = self.grammar.as_ref()
-            && let Some(highlights_config) = &grammar.highlights_config
-        {
-            *grammar.highlight_map.lock() = build_highlight_map(highlights_config.query.capture_names(), theme);
-        }
     }
 
     pub const fn grammar(&self) -> Option<&Arc<Grammar>> {
@@ -821,11 +809,19 @@ impl Language {
     }
 }
 
-#[inline]
-pub fn build_highlight_map(capture_names: &[&str], theme: &SyntaxTheme) -> HighlightMap {
+/// Maps captures to the theme's highlight ids, which are the same in both appearances.
+pub fn build_highlight_map(capture_names: &[&str]) -> HighlightMap {
+    let theme = theme::theme().syntax();
     HighlightMap::from_ids(
         capture_names.iter().map(|capture_name| theme.highlight_id(capture_name).map(HighlightId::new)),
     )
+}
+
+fn resolve_highlight_map(mut grammar: Grammar) -> Grammar {
+    if let Some(highlights_config) = &grammar.highlights_config {
+        grammar.highlight_map = build_highlight_map(highlights_config.query.capture_names());
+    }
+    grammar
 }
 
 impl LanguageScope {
@@ -1127,7 +1123,21 @@ pub fn range_from_lsp(range: lsp::Range) -> Range<Unclipped<PointUtf16>> {
 mod tests {
     use anyhow::Context as _;
 
+    use super::CaptureId;
     use super::ServerNotInstalled;
+    use super::build_highlight_map;
+
+    #[test]
+    fn build_highlight_map_resolves_captures_against_the_theme() {
+        let syntax = theme::theme().syntax();
+        let map = build_highlight_map(&["keyword", "string.escape.unicode", "no_such_capture"]);
+        let name = |capture| syntax.get_capture_name(map.get(CaptureId(capture))?);
+        assert_eq!(name(0), Some("keyword"));
+        // Falls back to the closest parent capture the theme styles.
+        assert_eq!(name(1), Some("string.escape"));
+        assert_eq!(name(2), None);
+        assert_eq!(name(3), None);
+    }
 
     #[test]
     fn server_not_installed_is_recognized_through_anyhow() {

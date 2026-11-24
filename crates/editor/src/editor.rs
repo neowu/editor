@@ -642,15 +642,13 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     .detach();
 
     cx.on_action(move |_: &workspace::NewFile, cx| {
-        let app_state = workspace::AppState::global(cx);
-        workspace::open_new(workspace::OpenOptions::default(), app_state, cx, |workspace, window, cx| {
+        workspace::open_new(workspace::OpenOptions::default(), cx, |workspace, window, cx| {
             Editor::new_file(workspace, &workspace::NewFile, window, cx);
         })
         .detach_and_log_err(cx);
     })
     .on_action(move |_: &workspace::NewWindow, cx| {
-        let app_state = workspace::AppState::global(cx);
-        workspace::open_new(workspace::OpenOptions::default(), app_state, cx, |workspace, window, cx| {
+        workspace::open_new(workspace::OpenOptions::default(), cx, |workspace, window, cx| {
             cx.activate(true);
             Editor::new_file(workspace, &workspace::NewFile, window, cx);
         })

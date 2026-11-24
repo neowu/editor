@@ -69,8 +69,11 @@
   and no `Arc` around the theme, the syntax theme or the accents (a fixed
   array). Tests cannot install another theme.
 - Both syntax themes list the same captures in the same order, so a
-  `HighlightId` means the same capture in either and grammar highlight maps
-  are resolved once, never on a switch. A `&'static SyntaxTheme` held across
+  `HighlightId` means the same capture in either and highlight maps are
+  resolved once from `theme::theme()`, when a grammar loads its highlights
+  query (and lazily for the fallback highlighter), never on a switch. Nothing
+  hands the theme to the language registry, and cached highlight runs are
+  never checked against the map. A `&'static SyntaxTheme` held across
   frames is the theme of one appearance, so holders re-read it when rendering.
 - Colours resolved outside rendering are refreshed lazily, by whoever holds
   them noticing the switch when it next renders, not by a theme-changed event:

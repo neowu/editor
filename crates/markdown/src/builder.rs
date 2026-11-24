@@ -424,16 +424,11 @@ impl MarkdownElementBuilder {
         // Compute the base text style once
         let text_style = self.text_style();
 
-        if let Some(language) = self.code_block_stack.last().and_then(Option::as_ref)
+        if self.code_block_stack.last().is_some_and(Option::is_some)
             && let Some(resolved) = highlights
         {
-            let runs = if resolved.is_current() {
-                Arc::clone(&resolved.runs)
-            } else {
-                language.highlight_text_resolved(text, 0..text.len()).runs
-            };
             let mut offset = 0;
-            for (run_range, highlight_id) in runs.iter() {
+            for (run_range, highlight_id) in resolved.runs.iter() {
                 if run_range.start > offset {
                     self.pending_line.runs.push(text_style.to_run(run_range.start - offset));
                 }

@@ -1152,8 +1152,7 @@ fn highlight_code_block(block: PendingCodeBlock, code_block_highlights: &mut Cod
             runs.next();
         }
         if !text_runs.is_empty() {
-            code_block_highlights
-                .insert(*event_index, ResolvedHighlights { sources: resolved.sources.clone(), runs: text_runs.into() });
+            code_block_highlights.insert(*event_index, ResolvedHighlights { runs: text_runs.into() });
         }
     }
 }

@@ -41,11 +41,6 @@ impl HighlightMap {
     pub fn get(&self, capture_id: CaptureId) -> Option<HighlightId> {
         self.0.get(capture_id.0 as usize).copied().flatten()
     }
-
-    #[inline]
-    pub fn same(&self, other: &HighlightMap) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
-    }
 }
 
 impl Default for HighlightMap {

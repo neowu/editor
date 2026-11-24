@@ -17,7 +17,6 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use ui::Window;
 
-use super::AppState;
 use super::Event;
 use super::OpenMode;
 use super::Pane;
@@ -347,14 +346,12 @@ pub async fn last_opened_workspace_location(fs: &fs::Fs, cx: &AsyncApp) -> Optio
 
 pub async fn restore_workspace(
     session_workspace: SessionWorkspace,
-    app_state: Arc<AppState>,
     cx: &mut AsyncApp,
 ) -> anyhow::Result<WindowHandle<Workspace>> {
     let window_handle = cx
         .update(|cx| {
             Workspace::new_local(
                 session_workspace.paths.ordered_paths().cloned().collect(),
-                Arc::clone(&app_state),
                 None,
                 None,
                 OpenMode::NewWindow,

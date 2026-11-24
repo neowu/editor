@@ -54,6 +54,10 @@
     grammar and JavaScript the TSX grammar.
   - The grammar is passed to the registry with the loaded language. There is
     no grammar-name registry and `config.toml` has no `grammar` key.
+- One `LanguageRegistry` per process, a gpui global set at startup
+  (`LanguageRegistry::global(cx)`), like `Fs::global(cx)`. There is no
+  `AppState`: nothing threads the registry or the fs through workspace
+  constructors or open functions.
 - Markdown uses the upstream `tree-sitter-md` crate from crates.io (no fork).
   Outlines use LSP document symbols by default
   (`lsp_document_symbols: true`), but Markdown overrides this to tree-sitter

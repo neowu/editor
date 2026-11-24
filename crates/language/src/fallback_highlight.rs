@@ -13,7 +13,6 @@ use clock::Global;
 use language_core::HighlightId;
 use language_core::HighlightMap;
 use parking_lot::Mutex;
-use parking_lot::RwLock;
 use smallvec::SmallVec;
 use syntect::parsing::ParseState;
 use syntect::parsing::Scope;
@@ -25,7 +24,6 @@ use syntect::parsing::SyntaxSetBuilder;
 use text::BufferSnapshot as TextBufferSnapshot;
 use text::Point;
 use text::ToPoint as _;
-use theme::SyntaxTheme;
 use two_face::syntax;
 
 use crate::Language;
@@ -164,12 +162,7 @@ static SCOPE_CLASSES: LazyLock<ScopeRules> = LazyLock::new(|| {
     }
 });
 
-static HIGHLIGHT_MAP: LazyLock<RwLock<HighlightMap>> = LazyLock::new(Default::default);
-
-/// Resolves the fallback captures against the given theme.
-pub(crate) fn set_theme(theme: &SyntaxTheme) {
-    *HIGHLIGHT_MAP.write() = build_highlight_map(CAPTURE_NAMES, theme);
-}
+static HIGHLIGHT_MAP: LazyLock<HighlightMap> = LazyLock::new(|| build_highlight_map(CAPTURE_NAMES));
 
 fn classify(stack: &[Scope]) -> Option<u8> {
     let classes = &*SCOPE_CLASSES;
@@ -306,7 +299,6 @@ impl FallbackHighlighter {
         }
         cache.tokenize_through(self.syntax, text, end.row);
 
-        let highlight_map = HIGHLIGHT_MAP.read();
         let mut runs = Vec::<(Range<usize>, HighlightId)>::new();
         for row in start.row..=end.row {
             let Some(line) = cache.lines.get(row as usize) else {
@@ -319,7 +311,7 @@ impl FallbackHighlighter {
                 if run_range.is_empty() {
                     continue;
                 }
-                let Some(highlight_id) = highlight_map.get(language_core::CaptureId(class as u32)) else {
+                let Some(highlight_id) = HIGHLIGHT_MAP.get(language_core::CaptureId(class as u32)) else {
                     continue;
                 };
                 match runs.last_mut() {
@@ -493,7 +485,6 @@ pub(crate) fn highlight_injection(
     let end_row = range.end.to_point(text).row;
     let mut state = Checkpoint { parse: ParseState::new(syntax.reference), scopes: ScopeStack::new() };
     let mut line_text = String::new();
-    let highlight_map = HIGHLIGHT_MAP.read();
     for row in start_row..=end_row {
         let line_runs = tokenize_line(syntax.set, &mut line_text, text, row, &mut state);
         let line_start = text.point_to_offset(Point::new(row, 0));
@@ -506,7 +497,7 @@ pub(crate) fn highlight_injection(
             if run_range.is_empty() {
                 continue;
             }
-            if let Some(highlight_id) = highlight_map.get(language_core::CaptureId(class as u32)) {
+            if let Some(highlight_id) = HIGHLIGHT_MAP.get(language_core::CaptureId(class as u32)) {
                 runs.push((run_range, highlight_id));
             }
         }
@@ -519,11 +510,10 @@ mod tests {
 
     use std::time::Instant;
 
-    use gpui::HighlightStyle;
     use text::Buffer as TextBuffer;
     use text::BufferId;
+    use theme::SyntaxTheme;
 
-    use super::CAPTURE_NAMES;
     use super::FallbackHighlighter;
     use super::Language;
     use super::LazyLock;
@@ -531,13 +521,11 @@ mod tests {
     use super::Point;
     use super::Range;
     use super::SYNTAX_SET;
-    use super::SyntaxTheme;
     use super::TextBufferSnapshot;
     use super::highlight_injection;
-    use super::set_theme;
 
-    fn theme() -> SyntaxTheme {
-        SyntaxTheme::new(CAPTURE_NAMES.iter().map(|name| (name.to_string(), HighlightStyle::default())))
+    fn theme() -> &'static SyntaxTheme {
+        theme::theme().syntax()
     }
 
     fn highlighted(
@@ -556,12 +544,11 @@ mod tests {
     #[test]
     fn highlights_c_and_tracks_edits() {
         let theme = theme();
-        set_theme(&theme);
         let mut buffer = TextBuffer::new(BufferId::new(1).unwrap(), "int main() {\n    return 0; // done\n}\n");
         let highlighter = FallbackHighlighter::for_buffer(None, Some("main.c"), buffer.snapshot()).unwrap();
         assert_eq!(highlighter.syntax_name(), "C");
 
-        let runs = highlighted(&highlighter, buffer.snapshot(), &theme);
+        let runs = highlighted(&highlighter, buffer.snapshot(), theme);
         assert!(runs.contains(&("int".into(), "keyword".into())), "{runs:?}");
         assert!(runs.contains(&("return".into(), "keyword".into())), "{runs:?}");
         assert!(runs.contains(&("0".into(), "number".into())), "{runs:?}");
@@ -569,21 +556,20 @@ mod tests {
 
         // Opening a block comment turns the following lines into a comment.
         buffer.edit([(0..0, "/*\n")]);
-        let runs = highlighted(&highlighter, buffer.snapshot(), &theme);
+        let runs = highlighted(&highlighter, buffer.snapshot(), theme);
         assert!(runs.iter().all(|(text, capture)| capture == "comment" || text.trim().is_empty()), "{runs:?}");
 
         buffer.undo();
-        let runs = highlighted(&highlighter, buffer.snapshot(), &theme);
+        let runs = highlighted(&highlighter, buffer.snapshot(), theme);
         assert!(runs.contains(&("return".into(), "keyword".into())), "{runs:?}");
     }
 
     #[test]
     fn highlights_regex_query() {
         let theme = theme();
-        set_theme(&theme);
         let buffer = TextBuffer::new(BufferId::new(1).unwrap(), r"^fn\s+(\w+)\(.*$");
         let highlighter = FallbackHighlighter::for_syntax_name("Regular Expression", buffer.snapshot()).unwrap();
-        let runs = highlighted(&highlighter, buffer.snapshot(), &theme);
+        let runs = highlighted(&highlighter, buffer.snapshot(), theme);
         assert!(runs.iter().any(|(text, _)| text == "^"), "{runs:?}");
         assert!(runs.iter().any(|(text, _)| text == r"\s"), "{runs:?}");
     }
@@ -591,11 +577,10 @@ mod tests {
     #[test]
     fn highlights_multiline_toml_inline_table() {
         let theme = theme();
-        set_theme(&theme);
         let source = "a = {\n  version = \"1\", # c\n  b = [\n    \"x\",\n  ],\n}\nk = 1\n";
         let buffer = TextBuffer::new(BufferId::new(1).unwrap(), source);
         let highlighter = FallbackHighlighter::for_buffer(None, Some("Cargo.toml"), buffer.snapshot()).unwrap();
-        let runs = highlighted(&highlighter, buffer.snapshot(), &theme);
+        let runs = highlighted(&highlighter, buffer.snapshot(), theme);
         assert!(runs.contains(&("version".into(), "tag".into())), "{runs:?}");
         assert!(runs.contains(&("\"1\"".into(), "string".into())), "{runs:?}");
         assert!(runs.contains(&("# c".into(), "comment".into())), "{runs:?}");
@@ -606,7 +591,6 @@ mod tests {
     #[test]
     fn highlights_injection() {
         let theme = theme();
-        set_theme(&theme);
         let source = "# q\n```sql\nSELECT 1\nFROM t;\n```\n";
         let buffer = TextBuffer::new(BufferId::new(1).unwrap(), source);
         let text = buffer.snapshot();
@@ -656,11 +640,10 @@ mod tests {
     #[test]
     fn incremental_matches_fresh_highlighting() {
         let theme = theme();
-        set_theme(&theme);
         let line = "fn main() { let s = \"a /* b\"; } // c\n";
         let mut buffer = TextBuffer::new(BufferId::new(1).unwrap(), line.repeat(200));
         let highlighter = FallbackHighlighter::for_buffer(None, Some("main.rs"), buffer.snapshot()).unwrap();
-        highlighted(&highlighter, buffer.snapshot(), &theme);
+        highlighted(&highlighter, buffer.snapshot(), theme);
 
         let mut rng = 7_u64;
         let mut next = |bound: usize| {
@@ -688,7 +671,7 @@ mod tests {
                 continue;
             }
             let fresh = FallbackHighlighter::for_buffer(None, Some("main.rs"), snapshot).unwrap();
-            assert_eq!(highlighted(&highlighter, snapshot, &theme), highlighted(&fresh, snapshot, &theme));
+            assert_eq!(highlighted(&highlighter, snapshot, theme), highlighted(&fresh, snapshot, theme));
         }
     }
 
@@ -696,7 +679,6 @@ mod tests {
     #[ignore = "benchmark"]
     #[expect(clippy::print_stderr, clippy::use_debug, reason = "benchmark output")]
     fn bench_large_file() {
-        set_theme(&theme());
         let source = "static int add(int a, int b) {\n    /* sum */ return a + b; // ok\n}\n";
         let buffer = TextBuffer::new(BufferId::new(1).unwrap(), source.repeat(10_000));
         let snapshot = buffer.snapshot();

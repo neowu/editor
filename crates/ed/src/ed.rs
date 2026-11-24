@@ -79,7 +79,6 @@ use ui::prelude::Styled as _;
 use ui::prelude::VisualContext as _;
 use ui::prelude::v_flex;
 use util::ResultExt as _;
-use workspace::AppState;
 use workspace::CloseIntent;
 use workspace::CloseProject;
 use workspace::CloseWindow;
@@ -124,8 +123,8 @@ pub(crate) fn init(cx: &mut App) {
     // does not exist in that scenario and these actions would error.
     if !crate::stdout_is_a_pty() {
         cx.on_action(|_: &OpenLog, cx| {
-            with_active_or_new_workspace(cx, |workspace, window, cx| {
-                open_log_file(workspace, window, cx);
+            with_active_or_new_workspace(cx, |_, window, cx| {
+                open_log_file(window, cx);
             });
         })
         .on_action(|_: &workspace::RevealLogInFileManager, cx| {
@@ -138,7 +137,7 @@ pub(crate) fn init(cx: &mut App) {
     });
 }
 
-pub(crate) fn initialize_workspace(app_state: Arc<AppState>, workspace_actions: &mut WorkspaceActions, cx: &mut App) {
+pub(crate) fn initialize_workspace(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     sync_theme_appearance(cx.window_appearance(), cx);
 
     cx.observe_new(|_: &mut Workspace, window, cx| {
@@ -163,7 +162,7 @@ pub(crate) fn initialize_workspace(app_state: Arc<AppState>, workspace_actions: 
     })
     .detach();
 
-    register_actions(app_state, workspace_actions);
+    register_actions(workspace_actions);
 
     cx.observe_new(move |workspace: &mut Workspace, window, cx| {
         let Some(window) = window else {
@@ -254,7 +253,7 @@ fn initialize_panels(window: &Window, cx: &Context<Workspace>) -> Task<anyhow::R
     })
 }
 
-fn register_actions(app_state: Arc<AppState>, workspace_actions: &mut WorkspaceActions) {
+fn register_actions(workspace_actions: &mut WorkspaceActions) {
     workspace_actions.register_action(|_, _: &Minimize, window, _| {
         window.minimize_window();
     });
@@ -305,20 +304,18 @@ fn register_actions(app_state: Arc<AppState>, workspace_actions: &mut WorkspaceA
         font::reset_buffer_font_size(cx);
     });
     workspace_actions.register_action({
-        let app_state = Arc::clone(&app_state);
         move |_, _: &NewWindow, _, cx| {
-            open_new(workspace::OpenOptions::default(), Arc::clone(&app_state), cx, |_, _, cx| {
+            open_new(workspace::OpenOptions::default(), cx, |_, _, cx| {
                 cx.activate(true);
             })
             .detach();
         }
     });
     workspace_actions.register_action({
-        move |workspace, _: &CloseProject, window, cx| {
+        move |_, _: &CloseProject, window, cx| {
             let Some(window_handle) = window.window_handle().downcast::<Workspace>() else {
                 return;
             };
-            let app_state = Arc::clone(workspace.app_state());
             cx.spawn_in(window, async move |workspace, cx| {
                 let should_continue = workspace
                     .update_in(cx, |workspace, window, cx| {
@@ -327,14 +324,7 @@ fn register_actions(app_state: Arc<AppState>, workspace_actions: &mut WorkspaceA
                     .await?;
                 if should_continue {
                     cx.update(|_, cx| {
-                        Workspace::new_local(
-                            Vec::new(),
-                            app_state,
-                            Some(window_handle),
-                            None,
-                            workspace::OpenMode::Activate,
-                            cx,
-                        )
+                        Workspace::new_local(Vec::new(), Some(window_handle), None, workspace::OpenMode::Activate, cx)
                     })?
                     .await?;
                 }
@@ -505,11 +495,10 @@ fn quit(_: &Quit, cx: &mut App) {
     .detach_and_log_err(cx);
 }
 
-fn open_log_file(workspace: &Workspace, window: &Window, cx: &Context<Workspace>) {
+fn open_log_file(window: &Window, cx: &Context<Workspace>) {
     const MAX_LINES: usize = 1000;
-    let app_state = workspace.app_state();
-    let languages = Arc::clone(&app_state.languages);
-    let fs = Arc::clone(&app_state.fs);
+    let languages = language::LanguageRegistry::global(cx);
+    let fs = fs::Fs::global(cx);
     cx.spawn_in(window, async move |workspace, cx| {
         let log = {
             let result = futures::join!(
@@ -637,7 +626,7 @@ fn open_bundled_file(
         return;
     }
 
-    let language = workspace.app_state().languages.language_for_name(language);
+    let language = language::LanguageRegistry::global(cx).language_for_name(language);
     cx.spawn_in(window, async move |workspace, cx| {
         let language = language.await.log_err();
         workspace

@@ -7,11 +7,8 @@ use std::sync::Arc;
 use lru::LruCache;
 use parking_lot::Mutex;
 use rustc_hash::FxHasher;
-use smallvec::SmallVec;
 
-use crate::grammar::Grammar;
 use crate::highlight_map::HighlightId;
-use crate::highlight_map::HighlightMap;
 
 pub const MAX_TEXT_HIGHLIGHT_ENTRY_BYTES: usize = MAX_TEXT_HIGHLIGHT_CACHE_BYTES / 8;
 
@@ -37,7 +34,6 @@ impl TextHighlightKey {
 
 #[derive(Clone, Default)]
 pub struct ResolvedHighlights {
-    pub sources: SmallVec<[(Arc<Grammar>, HighlightMap); 2]>,
     pub runs: Arc<[(Range<usize>, HighlightId)]>,
 }
 
@@ -55,13 +51,8 @@ impl ResolvedHighlights {
         })
     }
 
-    pub fn is_current(&self) -> bool {
-        self.sources.iter().all(|(grammar, highlight_map)| grammar.highlight_map_matches(highlight_map))
-    }
-
     pub fn cost_bytes(&self) -> usize {
-        self.sources.len() * size_of::<(Arc<Grammar>, HighlightMap)>()
-            + self.runs.len() * size_of::<(Range<usize>, HighlightId)>()
+        self.runs.len() * size_of::<(Range<usize>, HighlightId)>()
     }
 }
 
@@ -87,9 +78,6 @@ impl TextHighlightCache {
     ) -> Option<ResolvedHighlights> {
         let mut cache = self.0.lock();
         let entry = cache.get(key)?;
-        if !entry.highlights.is_current() {
-            return None;
-        }
         if !chunks_match_text(&entry.text, text_chunks) {
             return None;
         }
@@ -120,11 +108,7 @@ impl fmt::Debug for ChunkHighlightCache {
 impl ChunkHighlightCache {
     pub fn get(&self, chunk_id: usize) -> Option<ResolvedHighlights> {
         let mut lru = self.0.lock();
-        let highlights = lru.get(&chunk_id)?;
-        if !highlights.is_current() {
-            return None;
-        }
-        Some(highlights.clone())
+        lru.get(&chunk_id).cloned()
     }
 
     pub fn insert(&self, chunk_id: usize, highlights: ResolvedHighlights) {

@@ -839,11 +839,8 @@ async fn open_worktree_workspace(
         },
     );
 
-    let app_state = source_workspace.read_with(cx, |workspace, _| Arc::clone(workspace.app_state()));
     let new_workspace = cx
-        .update(|_, cx| {
-            Workspace::new_local(all_paths.clone(), app_state, Some(window_handle), init, OpenMode::Activate, cx)
-        })?
+        .update(|_, cx| Workspace::new_local(all_paths.clone(), Some(window_handle), init, OpenMode::Activate, cx))?
         .await?
         .workspace;
 

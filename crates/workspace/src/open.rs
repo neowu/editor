@@ -29,7 +29,6 @@ use util::paths::SanitizedPath;
 use util::rel_path::RelPath;
 
 use super::AddFolderToProject;
-use super::AppState;
 use super::CloseIntent;
 use super::OpenMode;
 use super::OpenVisible;
@@ -151,14 +150,11 @@ impl Workspace {
             open_mode = OpenMode::Activate;
         }
 
-        let app_state = Arc::clone(&self.app_state);
-
         cx.spawn(async move |_, cx| {
             let OpenResult { workspace, .. } = cx
                 .update(|cx| {
                     open_paths(
                         &paths,
-                        app_state,
                         OpenOptions {
                             requesting_window,
                             open_mode,
@@ -186,7 +182,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<Vec<Option<anyhow::Result<Box<dyn ItemHandle>>>>> {
-        let fs = Arc::clone(&self.app_state.fs);
+        let fs = fs::Fs::global(cx);
 
         let caller_ordered_abs_paths = abs_paths.clone();
 
@@ -873,12 +869,7 @@ impl Workspace {
     }
 }
 
-pub(super) fn prompt_and_open_paths(
-    app_state: Arc<AppState>,
-    options: PathPromptOptions,
-    create_new_window: bool,
-    cx: &mut App,
-) {
+pub(super) fn prompt_and_open_paths(options: PathPromptOptions, create_new_window: bool, cx: &mut App) {
     if let Some(workspace_window) = workspace_windows(cx).into_iter().next() {
         workspace_window
             .update(cx, |workspace, window, cx| {
@@ -886,7 +877,7 @@ pub(super) fn prompt_and_open_paths(
             })
             .ok();
     } else {
-        let task = Workspace::new_local(Vec::new(), app_state, None, None, OpenMode::Activate, cx);
+        let task = Workspace::new_local(Vec::new(), None, None, OpenMode::Activate, cx);
         cx.spawn(async move |cx| {
             let OpenResult { window, .. } = task.await?;
             window.update(cx, |workspace, window, cx| {
@@ -1001,13 +992,9 @@ pub struct OpenResult {
 }
 
 #[allow(clippy::type_complexity)]
-pub fn open_paths(
-    abs_paths: &[PathBuf],
-    app_state: Arc<AppState>,
-    open_options: OpenOptions,
-    cx: &mut App,
-) -> Task<anyhow::Result<OpenResult>> {
+pub fn open_paths(abs_paths: &[PathBuf], open_options: OpenOptions, cx: &mut App) -> Task<anyhow::Result<OpenResult>> {
     let abs_paths = abs_paths.to_vec();
+    let fs = fs::Fs::global(cx);
 
     cx.spawn(async move |cx| {
         let (mut existing, mut open_visible) = find_existing_workspace(&abs_paths, &open_options, cx).await;
@@ -1015,7 +1002,7 @@ pub fn open_paths(
         // Fallback: if no workspace contains the paths and all paths are files,
         // prefer an existing local workspace window (active window first).
         if open_options.should_reuse_existing_window() && existing.is_none() {
-            let all_paths = abs_paths.iter().map(|path| app_state.fs.metadata(path));
+            let all_paths = abs_paths.iter().map(|path| fs.metadata(path));
             let all_metadatas =
                 futures::future::join_all(all_paths).await.into_iter().filter_map(|result| result.ok().flatten());
 
@@ -1063,14 +1050,7 @@ pub fn open_paths(
         } else {
             let result = cx
                 .update(move |cx| {
-                    Workspace::new_local(
-                        abs_paths,
-                        Arc::clone(&app_state),
-                        open_options.requesting_window,
-                        None,
-                        open_options.open_mode,
-                        cx,
-                    )
+                    Workspace::new_local(abs_paths, open_options.requesting_window, None, open_options.open_mode, cx)
                 })
                 .await;
 
@@ -1090,13 +1070,11 @@ pub fn open_paths(
 
 pub fn open_new(
     open_options: OpenOptions,
-    app_state: Arc<AppState>,
     cx: &mut App,
     init: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + 'static + Send,
 ) -> Task<anyhow::Result<()>> {
     let addition = open_options.open_mode;
-    let task =
-        Workspace::new_local(Vec::new(), app_state, open_options.requesting_window, Some(Box::new(init)), addition, cx);
+    let task = Workspace::new_local(Vec::new(), open_options.requesting_window, Some(Box::new(init)), addition, cx);
     cx.spawn(async move |cx| {
         let OpenResult { window, .. } = task.await?;
         window

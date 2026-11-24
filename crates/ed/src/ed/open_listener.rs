@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::sync::Arc;
 
 use anyhow::Context as _;
 use anyhow::Result;
@@ -16,7 +15,6 @@ use gpui::Global;
 use gpui::WindowHandle;
 use util::ResultExt as _;
 use util::paths::PathWithPosition;
-use workspace::AppState;
 use workspace::OpenResult;
 use workspace::Workspace;
 use workspace::item::ItemHandle;
@@ -77,19 +75,19 @@ pub(crate) async fn open_paths_with_positions(
     path_positions: &[PathWithPosition],
     diff_paths: &[[String; 2]],
     diff_all: bool,
-    app_state: Arc<AppState>,
     open_options: workspace::OpenOptions,
     cx: &mut AsyncApp,
 ) -> Result<(WindowHandle<Workspace>, Vec<Option<Result<Box<dyn ItemHandle>>>>)> {
     let paths = path_positions.iter().map(|path_with_position| path_with_position.path.clone()).collect::<Vec<_>>();
 
+    let fs = cx.update(|cx| Fs::global(cx));
     let OpenResult { window, opened_items: mut items, .. } =
-        cx.update(|cx| workspace::open_paths(&paths, Arc::clone(&app_state), open_options, cx)).await?;
+        cx.update(|cx| workspace::open_paths(&paths, open_options, cx)).await?;
 
     if diff_all && !diff_paths.is_empty() {
         let mut diff_pairs = Vec::with_capacity(diff_paths.len());
         for diff_pair in diff_paths {
-            let parsed = derive_paths_with_position(app_state.fs.as_ref(), diff_pair).await;
+            let parsed = derive_paths_with_position(fs.as_ref(), diff_pair).await;
             let (Some(old_parsed), Some(new_parsed)) = (parsed.first(), parsed.get(1)) else {
                 continue;
             };
@@ -105,14 +103,10 @@ pub(crate) async fn open_paths_with_positions(
     } else {
         let workspace_weak = window.entity(cx)?.downgrade();
         let canonicalize = async |parsed: &PathWithPosition| {
-            app_state
-                .fs
-                .canonicalize(&parsed.path)
-                .await
-                .with_context(|| format!("opening --diff path {:?}", parsed.path))
+            fs.canonicalize(&parsed.path).await.with_context(|| format!("opening --diff path {:?}", parsed.path))
         };
         for diff_pair in diff_paths {
-            let parsed = derive_paths_with_position(app_state.fs.as_ref(), diff_pair).await;
+            let parsed = derive_paths_with_position(fs.as_ref(), diff_pair).await;
             let (Some(old_parsed), Some(new_parsed)) = (parsed.first(), parsed.get(1)) else {
                 continue;
             };
