@@ -23,7 +23,7 @@ use crate::OpenDocs;
 use crate::hover_links::HoverLink;
 use crate::lsp_ext::find_specific_language_server_in_selection;
 
-fn is_rust_language(language: &Language) -> bool {
+pub(crate) fn is_rust_language(language: &Language) -> bool {
     language.name() == "Rust"
 }
 
@@ -215,4 +215,23 @@ pub(crate) fn open_docs(editor: &mut Editor, _: &OpenDocs, window: &mut Window, 
         anyhow::Ok(())
     })
     .detach_and_log_err(cx);
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use language::LanguageConfig;
+
+    use super::*;
+
+    fn language(name: &'static str) -> Arc<Language> {
+        Arc::new(Language::new(LanguageConfig { name: name.into(), ..Default::default() }, None))
+    }
+
+    #[test]
+    fn rust_language_is_matched_by_name() {
+        assert!(is_rust_language(&language("Rust")));
+        assert!(!is_rust_language(&language("Markdown")));
+    }
 }

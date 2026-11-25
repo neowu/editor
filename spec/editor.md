@@ -251,6 +251,9 @@
   it omits "Run" / "Run Test" lenses), and gopls's `test` codelens is left at
   its default (off). Lens commands handled client-side are limited to showing
   locations.
+- The mouse context menu offers "Expand Macro" (`editor::ExpandMacroRecursively`)
+  whenever the language at the clicked position is Rust. It doesn't ask
+  rust-analyzer whether a macro is there, so off a macro the item does nothing.
 - Text inside highlights (search matches, selections, etc.) is recolored to
   keep `theme::contrast::MINIMUM_CONTRAST` against the highlight background.
   The Markdown preview applies the same rule to its search matches and

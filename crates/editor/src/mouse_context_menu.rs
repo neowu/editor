@@ -21,6 +21,7 @@ use crate::Cut;
 use crate::DisplayPoint;
 use crate::DisplaySnapshot;
 use crate::Editor;
+use crate::ExpandMacroRecursively;
 use crate::FindAllReferences;
 use crate::GoToDeclaration;
 use crate::GoToDefinition;
@@ -36,6 +37,7 @@ use crate::ToDisplayPoint as _;
 use crate::ToggleCodeActions;
 use crate::actions::Format;
 use crate::actions::FormatSelections;
+use crate::rust_analyzer_ext;
 use crate::selections_collection::SelectionsCollection;
 
 #[derive(Debug)]
@@ -205,6 +207,8 @@ pub(crate) fn deploy_context_menu(
         let can_edit = !editor.read_only(cx);
         let format_selections = can_edit && editor.can_format_selections(cx);
 
+        let is_rust = buffer.language_at(anchor).is_some_and(|language| rust_analyzer_ext::is_rust_language(language));
+
         let can_preview = window.is_action_available(&OpenPreview, cx);
 
         ui::ContextMenu::build(window, cx, |menu, _window, _cx| {
@@ -215,6 +219,7 @@ pub(crate) fn deploy_context_menu(
                 .action("Go to Type Definition", Box::new(GoToTypeDefinition::default()))
                 .action("Go to Implementation", Box::new(GoToImplementation::default()))
                 .action("Find All References", Box::new(FindAllReferences::default()))
+                .when(is_rust, |builder| builder.action("Expand Macro", Box::new(ExpandMacroRecursively)))
                 .separator()
                 .action_disabled_when(!can_edit, "Rename Symbol", Box::new(Rename))
                 .action_disabled_when(!can_edit, "Format Buffer", Box::new(Format))
