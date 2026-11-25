@@ -193,7 +193,7 @@ const UPDATE_DEBOUNCE: Duration = Duration::from_millis(50);
 const DEFAULT_WIDTH: Pixels = px(360.);
 const INDENT_SIZE: Pixels = px(20.);
 
-type Outline = OutlineItem<language::Anchor>;
+type Outline = OutlineItem<Anchor>;
 type OutlineChildren = FxHashMap<(Range<Anchor>, usize), bool>;
 type HighlightStyleData = Arc<OnceLock<Vec<(Range<usize>, HighlightStyle)>>>;
 
@@ -1007,7 +1007,7 @@ impl OutlinePanel {
             });
             let filter_update_subscription =
                 cx.subscribe_in(&filter_editor, window, |outline_panel: &mut Self, _, event, window, cx| {
-                    if matches!(event, editor::EditorEvent::BufferEdited) {
+                    if matches!(event, EditorEvent::BufferEdited) {
                         outline_panel.update_cached_entries(Some(UPDATE_DEBOUNCE), window, cx);
                     }
                 });
@@ -1961,7 +1961,7 @@ impl OutlinePanel {
         ))
     }
 
-    fn excerpt_label(&self, range: &ExcerptRange<language::Anchor>, cx: &App) -> Option<String> {
+    fn excerpt_label(&self, range: &ExcerptRange<Anchor>, cx: &App) -> Option<String> {
         let buffer_snapshot = self.buffer_snapshot_for_id(range.context.start.buffer_id, cx)?;
         let excerpt_range = range.context.to_point(&buffer_snapshot);
         Some(format!("Lines {}- {}", excerpt_range.start.row + 1, excerpt_range.end.row + 1))
@@ -2303,7 +2303,7 @@ impl OutlinePanel {
         depth: usize,
         icon_element: AnyElement,
         is_active: bool,
-        label_element: gpui::AnyElement,
+        label_element: AnyElement,
         window: &Window,
         cx: &Context<OutlinePanel>,
     ) -> Stateful<Div> {
@@ -2763,7 +2763,7 @@ impl OutlinePanel {
     fn outline_location(
         &self,
         selection_anchor: Anchor,
-        multi_buffer_snapshot: editor::MultiBufferSnapshot,
+        multi_buffer_snapshot: MultiBufferSnapshot,
         editor_snapshot: editor::EditorSnapshot,
         selection_display_point: DisplayPoint,
         cx: &App,

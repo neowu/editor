@@ -133,7 +133,7 @@ impl LocalBufferStore {
         this: &mut BufferStore,
         entry_id: ProjectEntryId,
         path: &Arc<RelPath>,
-        worktree: &Entity<worktree::Worktree>,
+        worktree: &Entity<Worktree>,
         snapshot: &worktree::Snapshot,
         cx: &mut Context<BufferStore>,
     ) -> Option<()> {
@@ -519,7 +519,7 @@ impl BufferStore {
     }
 
     pub fn buffers(&self) -> impl '_ + Iterator<Item = Entity<Buffer>> {
-        self.opened_buffers.values().filter_map(gpui::WeakEntity::upgrade)
+        self.opened_buffers.values().filter_map(WeakEntity::upgrade)
     }
 
     pub(crate) fn is_searchable(&self, id: BufferId) -> bool {

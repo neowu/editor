@@ -14,7 +14,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 use std::mem;
-use std::ops;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::panic::Location;
@@ -43,7 +42,6 @@ pub(crate) use entity_map::EntityMap;
 pub(crate) use entity_map::Lease;
 pub(crate) use entity_map::Slot;
 pub use entity_map::WeakEntity;
-use futures::Future;
 use futures::FutureExt as _;
 use futures::channel::oneshot;
 use futures::future;
@@ -674,7 +672,7 @@ impl App {
         &mut self,
         options: crate::WindowOptions,
         build_root_view: impl FnOnce(&mut Window, &mut App) -> Entity<V>,
-    ) -> anyhow::Result<WindowHandle<V>> {
+    ) -> Result<WindowHandle<V>> {
         self.update(|cx| {
             let id = cx.windows.insert(None);
             let handle = WindowHandle::new(id);
@@ -1341,7 +1339,7 @@ impl App {
                 let future = on_quit(cx);
                 future.boxed_local()
             }),
-            std::panic::Location::caller(),
+            Location::caller(),
         ))
     }
 
@@ -1815,7 +1813,7 @@ impl<T: 'static> borrow::BorrowMut<T> for GpuiBorrow<'_, T> {
     }
 }
 
-impl<T: 'static> ops::Deref for GpuiBorrow<'_, T> {
+impl<T: 'static> Deref for GpuiBorrow<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -1823,7 +1821,7 @@ impl<T: 'static> ops::Deref for GpuiBorrow<'_, T> {
     }
 }
 
-impl<T: 'static> ops::DerefMut for GpuiBorrow<'_, T> {
+impl<T: 'static> DerefMut for GpuiBorrow<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
         self.inner.as_mut().expect("borrow is live until drop")
     }

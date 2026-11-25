@@ -1,5 +1,4 @@
 use std::ops::Range;
-use std::result;
 use std::str::FromStr as _;
 use std::sync::Arc;
 use std::time::Duration;
@@ -45,7 +44,7 @@ pub struct LspDocumentLink {
 
 pub type BufferDocumentLinks = FxHashMap<LanguageServerId, FxHashMap<DocumentLinkId, LspDocumentLink>>;
 
-pub(super) type DocumentLinksTask = Shared<Task<result::Result<Option<BufferDocumentLinks>, Arc<anyhow::Error>>>>;
+pub(super) type DocumentLinksTask = Shared<Task<Result<Option<BufferDocumentLinks>, Arc<anyhow::Error>>>>;
 
 pub(super) type DocumentLinkResolveTask = Shared<Task<Option<(DocumentLinkId, LspDocumentLink)>>>;
 

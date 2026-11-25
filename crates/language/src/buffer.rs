@@ -11,9 +11,7 @@ use std::cmp::Ordering;
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use std::future::Future;
 use std::iter;
-use std::iter::Iterator;
 use std::iter::Peekable;
 use std::mem;
 use std::num::NonZeroU32;
@@ -1550,7 +1548,7 @@ impl Buffer {
         let old_text = self.as_rope().clone();
         let line_ending = self.line_ending();
         let base_version = self.version();
-        let modified_rows = modified_rows.map(<[std::ops::Range<u32>]>::to_vec);
+        let modified_rows = modified_rows.map(<[Range<u32>]>::to_vec);
         cx.background_spawn(async move {
             let ranges = trailing_whitespace_ranges(&old_text, modified_rows.as_deref());
             let empty = Arc::<str>::from("");

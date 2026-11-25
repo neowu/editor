@@ -348,7 +348,7 @@ pub(crate) fn handle_from(
 
     struct JsxAutoCloseEditContext {
         buffer: Entity<language::Buffer>,
-        config: language::JsxTagAutoCloseConfig,
+        config: JsxTagAutoCloseConfig,
         edits: Vec<Range<Anchor>>,
     }
 

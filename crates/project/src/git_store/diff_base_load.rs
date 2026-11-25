@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::mem;
 
 use anyhow::Context as _;

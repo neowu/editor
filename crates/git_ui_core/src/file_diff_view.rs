@@ -263,7 +263,7 @@ impl Item for FileDiffView {
         format!("{old_filename} ↔ {new_filename}").into()
     }
 
-    fn tab_tooltip_text(&self, cx: &App) -> Option<ui::SharedString> {
+    fn tab_tooltip_text(&self, cx: &App) -> Option<SharedString> {
         let path = |buffer: &Entity<Buffer>| {
             buffer.read(cx).file().map_or_else(
                 || MultiBuffer::DEFAULT_TITLE.into(),

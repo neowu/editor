@@ -254,7 +254,7 @@ impl BlameEntry {
         Some((sha, RepoPath::new(filename).ok()?))
     }
 
-    pub fn author_offset_date_time(&self) -> Result<time::OffsetDateTime> {
+    pub fn author_offset_date_time(&self) -> Result<OffsetDateTime> {
         if let (Some(author_time), Some(author_tz)) = (self.author_time, &self.author_tz) {
             let format = format_description!("[offset_hour][offset_minute]");
             let offset = UtcOffset::parse(author_tz, &format)?;
@@ -263,7 +263,7 @@ impl BlameEntry {
             Ok(date_time_utc.to_offset(offset))
         } else {
             // Directly return current time in UTC if there's no committer time or timezone
-            Ok(time::OffsetDateTime::now_utc())
+            Ok(OffsetDateTime::now_utc())
         }
     }
 }

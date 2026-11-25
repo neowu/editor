@@ -183,7 +183,7 @@ impl LspAdapter for TyLspAdapter {
 
     async fn label_for_symbol(
         &self,
-        symbol: &language::Symbol,
+        symbol: &Symbol,
         language: &Arc<language::Language>,
     ) -> Option<language::CodeLabel> {
         label_for_python_symbol(symbol, language)
@@ -280,7 +280,7 @@ pub(crate) fn settings() -> LanguageSettings {
         preferred_line_length: 120,
         wrap_guides: vec![120],
         formatter: Formatter::LanguageServer(LanguageServerFormatterSpecifier::Specific { name: "ruff".into() }),
-        code_actions_on_format: std::iter::once(("source.organizeImports.ruff".into(), true)).collect(),
+        code_actions_on_format: iter::once(("source.organizeImports.ruff".into(), true)).collect(),
         remove_trailing_whitespace_on_save: true,
         ensure_final_newline_on_save: true,
         lsp_document_symbols: true,

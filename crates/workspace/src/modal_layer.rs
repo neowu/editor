@@ -54,7 +54,7 @@ pub fn deregister_reopenable_picker(focus_handle: &FocusHandle, cx: &mut App) {
 
 fn focus_handle_is_reopenable(focus_handle: &FocusHandle, cx: &App) -> bool {
     cx.try_global::<ReopenablePickerRegistry>().is_some_and(|registry| {
-        registry.handles.iter().filter_map(gpui::WeakFocusHandle::upgrade).any(|handle| &handle == focus_handle)
+        registry.handles.iter().filter_map(WeakFocusHandle::upgrade).any(|handle| &handle == focus_handle)
     })
 }
 

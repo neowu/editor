@@ -41,7 +41,7 @@ impl LocalLspStore {
         kind: CodeActionKind,
         push_to_history: bool,
         cx: &mut AsyncApp,
-    ) -> anyhow::Result<ProjectTransaction> {
+    ) -> Result<ProjectTransaction> {
         // Do not allow multiple concurrent code actions requests for the
         // same buffer.
         lsp_store.update(cx, |this, cx| {
@@ -103,7 +103,7 @@ impl LocalLspStore {
         action: &mut CodeAction,
         can_resolve: bool,
         request_timeout: Duration,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         match &mut action.lsp_action {
             LspAction::Action(lsp_action) => {
                 if !action.resolved
@@ -133,14 +133,14 @@ impl LocalLspStore {
     pub(super) async fn get_server_code_actions_from_action_kinds(
         lsp_store: &WeakEntity<LspStore>,
         language_server_id: LanguageServerId,
-        code_action_kinds: Vec<lsp_types::CodeActionKind>,
+        code_action_kinds: Vec<CodeActionKind>,
         buffer: &Entity<Buffer>,
         cx: &mut AsyncApp,
     ) -> Result<Vec<CodeAction>> {
         let actions = lsp_store
             .update(cx, move |this, cx| {
                 let request = GetCodeActions {
-                    range: text::Anchor::min_max_range_for_buffer(buffer.read(cx).buffer_id()),
+                    range: Anchor::min_max_range_for_buffer(buffer.read(cx).buffer_id()),
                     kinds: Some(code_action_kinds),
                 };
                 let server = LanguageServerToQuery::Other(language_server_id);
@@ -158,7 +158,7 @@ impl LocalLspStore {
         push_to_history: bool,
         project_transaction: &mut ProjectTransaction,
         cx: &mut AsyncApp,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let request_timeout = LSP_REQUEST_TIMEOUT;
         let server_id = language_server.server_id();
         let can_resolve_actions = lsp_store.update(cx, |lsp_store, cx| {
@@ -374,7 +374,7 @@ impl LspStore {
         kind: CodeActionKind,
         push_to_history: bool,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<ProjectTransaction>> {
+    ) -> Task<Result<ProjectTransaction>> {
         {
             cx.spawn(async move |lsp_store, cx| {
                 let buffers = buffers.into_iter().collect::<Vec<_>>();

@@ -12,7 +12,7 @@ use serde::Deserialize as _;
 
 use crate::shell::ShellKind;
 
-fn parse_env_map_from_noisy_output(output: &str) -> Result<rustc_hash::FxHashMap<String, String>> {
+fn parse_env_map_from_noisy_output(output: &str) -> Result<FxHashMap<String, String>> {
     for (position, _) in output.match_indices('{') {
         let candidate = &output[position..];
         let mut deserializer = serde_json::Deserializer::from_str(candidate);
@@ -38,7 +38,7 @@ pub async fn capture(
     shell_path: impl AsRef<Path>,
     args: &[String],
     directory: impl AsRef<Path>,
-) -> Result<rustc_hash::FxHashMap<String, String>> {
+) -> Result<FxHashMap<String, String>> {
     return capture_unix(shell_path.as_ref(), args, directory.as_ref()).await;
 }
 
@@ -52,7 +52,7 @@ fn parse_env_output(
     status: process::ExitStatus,
     successful_capture_warning: impl FnOnce() -> String,
     failed_capture_error: impl FnOnce() -> String,
-) -> Result<rustc_hash::FxHashMap<String, String>> {
+) -> Result<FxHashMap<String, String>> {
     match parse_env_map_from_noisy_output(env_output) {
         Ok(env_map) => {
             if !status.success() {
@@ -73,11 +73,7 @@ fn parse_env_output(
     }
 }
 
-async fn capture_unix(
-    shell_path: &Path,
-    args: &[String],
-    directory: &Path,
-) -> Result<rustc_hash::FxHashMap<String, String>> {
+async fn capture_unix(shell_path: &Path, args: &[String], directory: &Path) -> Result<FxHashMap<String, String>> {
     use gpui_util::new_std_command;
 
     let shell_kind = ShellKind::new(shell_path);
@@ -134,7 +130,7 @@ async fn capture_unix(
     )
 }
 
-async fn spawn_and_read_fd(command: process::Command, child_fd: RawFd) -> anyhow::Result<(Vec<u8>, process::Output)> {
+async fn spawn_and_read_fd(command: process::Command, child_fd: RawFd) -> Result<(Vec<u8>, process::Output)> {
     use std::io::Read as _;
     use std::process::Stdio;
 

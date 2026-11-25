@@ -1909,7 +1909,7 @@ impl NewlineConfig {
     fn insert_extra_newline_brackets(
         buffer: &MultiBufferSnapshot,
         range: Range<MultiBufferOffset>,
-        language: &language::LanguageScope,
+        language: &LanguageScope,
     ) -> bool {
         let leading_whitespace_len = buffer
             .reversed_chars_at(range.start)
@@ -2476,10 +2476,10 @@ impl EntityInputHandler for Editor {
     fn bounds_for_range(
         &mut self,
         range_utf16: Range<usize>,
-        element_bounds: gpui::Bounds<Pixels>,
+        element_bounds: Bounds<Pixels>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Option<gpui::Bounds<Pixels>> {
+    ) -> Option<Bounds<Pixels>> {
         let text_layout_details = self.text_layout_details(window, cx);
         let CharacterDimensions { em_width, em_advance, line_height } = self.character_dimensions(window, cx);
 

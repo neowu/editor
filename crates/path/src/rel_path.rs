@@ -95,7 +95,7 @@ impl RelPath {
     ///
     /// Returns an error if the path is not already in the correct format.
     #[track_caller]
-    pub fn from_unix_str<S: AsRef<Path> + ?Sized>(path: &S) -> anyhow::Result<&Self> {
+    pub fn from_unix_str<S: AsRef<Path> + ?Sized>(path: &S) -> Result<&Self> {
         let path = path.as_ref();
         match Self::new(path)? {
             Cow::Borrowed(path) => Ok(path),

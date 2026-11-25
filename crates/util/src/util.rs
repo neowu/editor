@@ -200,7 +200,7 @@ fn load_shell_from_passwd() -> Result<()> {
 }
 
 /// Returns a shell escaped path for the current ed executable.
-pub fn get_shell_safe_ed_path(shell_kind: shell::ShellKind) -> anyhow::Result<String> {
+pub fn get_shell_safe_ed_path(shell_kind: shell::ShellKind) -> Result<String> {
     use anyhow::Context as _;
     use paths::PathExt as _;
     let ed_path = env::current_exe().context("Failed to determine current ed executable path.")?;
@@ -439,11 +439,11 @@ pub fn default<D: Default>() -> D {
 pub enum ConnectionResult<O> {
     Timeout,
     ConnectionReset,
-    Result(anyhow::Result<O>),
+    Result(Result<O>),
 }
 
 impl<O> ConnectionResult<O> {
-    pub fn into_response(self) -> anyhow::Result<O> {
+    pub fn into_response(self) -> Result<O> {
         match self {
             ConnectionResult::Timeout => anyhow::bail!("Request timed out"),
             ConnectionResult::ConnectionReset => anyhow::bail!("Server reset the connection"),
@@ -452,8 +452,8 @@ impl<O> ConnectionResult<O> {
     }
 }
 
-impl<O> From<anyhow::Result<O>> for ConnectionResult<O> {
-    fn from(result: anyhow::Result<O>) -> Self {
+impl<O> From<Result<O>> for ConnectionResult<O> {
+    fn from(result: Result<O>) -> Self {
         ConnectionResult::Result(result)
     }
 }

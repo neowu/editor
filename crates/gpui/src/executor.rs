@@ -2,7 +2,6 @@ use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use std::future::Future;
 use std::marker::PhantomData;
 use std::mem;
 use std::mem::ManuallyDrop;
@@ -135,7 +134,7 @@ where
 {
     #[track_caller]
     fn detach_and_log_err(self, cx: &App) {
-        let location = core::panic::Location::caller();
+        let location = Location::caller();
         cx.foreground_executor().spawn(self.log_tracked_err(*location)).detach();
     }
 }
@@ -236,7 +235,7 @@ impl BackgroundExecutor {
 
     /// How many CPUs are available to the dispatcher.
     pub fn num_cpus(&self) -> usize {
-        std::thread::available_parallelism().map_or(1, std::num::NonZero::get)
+        thread::available_parallelism().map_or(1, std::num::NonZero::get)
     }
 
     /// Whether we're on the main thread.

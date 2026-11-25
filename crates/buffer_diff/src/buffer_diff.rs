@@ -647,7 +647,7 @@ impl BufferDiffSnapshot {
         let (index_text, head_text) = match (index_text, head_text) {
             (Some(index_text), Some(head_text)) if file_exists || !stage => (index_text, head_text),
             (index_text, head_text) => {
-                let index_len = index_text.as_ref().map_or(0, language::Rope::len);
+                let index_len = index_text.as_ref().map_or(0, Rope::len);
                 let new_index_text: Option<Rope> = if stage {
                     log::debug!("stage all");
                     file_exists.then(|| buffer.as_rope().clone())
@@ -1082,9 +1082,9 @@ fn compare_hunks(
     let mut base_text_start: Option<Anchor> = None;
     let mut base_text_end: Option<Anchor> = None;
 
-    let mut last_unchanged_new_hunk_end: Option<text::Anchor> = None;
+    let mut last_unchanged_new_hunk_end: Option<Anchor> = None;
     let mut has_changes = false;
-    let mut extended_end_candidate: Option<text::Anchor> = None;
+    let mut extended_end_candidate: Option<Anchor> = None;
     let base_text_changed = old_base_text.buffer_id() != new_base_text.buffer_id()
         || new_base_text.version().changed_since(old_base_text.version());
 
@@ -1201,7 +1201,7 @@ fn compare_hunks(
 
     let extended_range = if has_changes && let Some(changed_range) = changed_range.clone() {
         let extended_start = *last_unchanged_new_hunk_end
-            .unwrap_or_else(|| text::Anchor::min_for_buffer(new_snapshot.buffer_id()))
+            .unwrap_or_else(|| Anchor::min_for_buffer(new_snapshot.buffer_id()))
             .min(&changed_range.start, new_snapshot);
         let extended_start = new_snapshot
             .anchored_edits_since_in_range::<usize>(old_snapshot.version(), extended_start..changed_range.start)
@@ -1210,7 +1210,7 @@ fn compare_hunks(
             .unwrap_or(changed_range.start);
 
         let extended_end = *extended_end_candidate
-            .unwrap_or_else(|| text::Anchor::max_for_buffer(new_snapshot.buffer_id()))
+            .unwrap_or_else(|| Anchor::max_for_buffer(new_snapshot.buffer_id()))
             .max(&changed_range.end, new_snapshot);
         let extended_end = new_snapshot
             .anchored_edits_since_in_range::<usize>(old_snapshot.version(), changed_range.end..extended_end)
@@ -1234,9 +1234,9 @@ impl Debug for BufferDiff {
 
 #[derive(Clone, Debug, Default)]
 pub struct DiffChanged {
-    pub changed_range: Option<Range<text::Anchor>>,
+    pub changed_range: Option<Range<Anchor>>,
     pub base_text_changed_range: Option<Range<usize>>,
-    pub extended_range: Option<Range<text::Anchor>>,
+    pub extended_range: Option<Range<Anchor>>,
     pub base_text_changed: bool,
 }
 
@@ -1499,7 +1499,7 @@ impl BufferDiff {
 
         let language = base_text_snapshot.language();
         let diff_options = Some(DiffOptions {
-            language_scope: language.map(language::Language::default_scope),
+            language_scope: language.map(Language::default_scope),
             max_word_diff_line_count: MAX_WORD_DIFF_LINE_COUNT,
             ..Default::default()
         });
@@ -1578,7 +1578,7 @@ impl BufferDiff {
                     &new_base_text,
                 ),
                 _ => {
-                    let full_range = text::Anchor::min_max_range_for_buffer(self.buffer_id);
+                    let full_range = Anchor::min_max_range_for_buffer(self.buffer_id);
                     let full_base_range = 0..new_base_text.len();
                     DiffChanged {
                         changed_range: Some(full_range.clone()),

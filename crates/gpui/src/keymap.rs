@@ -268,7 +268,6 @@ impl Keymap {
 #[allow(unreachable_pub, reason = "actions! emits pub structs")]
 mod tests {
     use super::*;
-    use crate::Keystroke;
 
     actions!(keymap_test, [First, Second]);
 

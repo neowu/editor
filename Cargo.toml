@@ -350,7 +350,6 @@ infinite_loop = "warn"
 inline_asm_x86_att_syntax = "warn"
 inline_asm_x86_intel_syntax = "warn"
 large_include_file = "warn"
-let_underscore_untyped = "warn"
 lossy_float_literal = "warn"
 map_err_ignore = "warn"
 map_with_unused_argument_over_ranges = "warn"
@@ -399,8 +398,18 @@ redundant_feature_names = "warn"
 wildcard_dependencies = "warn"
 
 [workspace.lints.rust]
+ambiguous_negative_literals = "warn"
+explicit_outlives_requirements = "warn"
+meta_variable_misuse = "warn"
+redundant_imports = "warn"
+redundant_lifetimes = "warn"
+unit_bindings = "warn"
 unreachable_pub = "warn"
 unused_crate_dependencies = "warn"
+unused_import_braces = "warn"
+unused_lifetimes = "warn"
+unused_macro_rules = "warn"
+unused_qualifications = "warn"
 
 [profile.dev]
 opt-level = 3

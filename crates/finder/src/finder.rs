@@ -1130,7 +1130,7 @@ impl FileFinderDelegate {
             })
             .collect::<Vec<_>>();
 
-        let search_id = util::post_inc(&mut self.search_count);
+        let search_id = post_inc(&mut self.search_count);
         self.cancel_flag.store(true, atomic::Ordering::Release);
         self.cancel_flag = Arc::new(AtomicBool::new(false));
         let cancel_flag = Arc::clone(&self.cancel_flag);

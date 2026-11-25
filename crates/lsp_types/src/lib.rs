@@ -388,17 +388,17 @@ pub struct CancelParams {
 /// The LSP any type.
 ///
 /// @since 3.17.0.
-pub type LSPAny = serde_json::Value;
+pub type LSPAny = Value;
 
 /// LSP object definition.
 ///
 /// @since 3.17.0.
-pub type LSPObject = serde_json::Map<String, serde_json::Value>;
+pub type LSPObject = serde_json::Map<String, Value>;
 
 /// LSP arrays.
 ///
 /// @since 3.17.0.
-pub type LSPArray = Vec<serde_json::Value>;
+pub type LSPArray = Vec<Value>;
 
 /// Position in a text document expressed as zero-based line and character offset.
 /// A position is between two characters like an 'insert' cursor in a editor.
@@ -495,7 +495,7 @@ impl PositionEncodingKind {
 
 impl From<String> for PositionEncodingKind {
     fn from(from: String) -> Self {
-        PositionEncodingKind(std::borrow::Cow::from(from))
+        PositionEncodingKind(Cow::from(from))
     }
 }
 
@@ -604,7 +604,7 @@ pub struct Diagnostic {
     ///
     /// @since 3.16.0.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<serde_json::Value>,
+    pub data: Option<Value>,
 }
 
 fn deserialize_optional_uri<'de, D>(deserializer: D) -> Result<Option<Uri>, D::Error>
@@ -1640,8 +1640,8 @@ impl<T> TagSupport<T> {
     /// This is currently the case for vscode 1.41.1.
     fn deserialize_compat<'de, S>(serializer: S) -> Result<Option<TagSupport<T>>, S::Error>
     where
-        S: serde::Deserializer<'de>,
-        T: serde::Deserialize<'de>,
+        S: Deserializer<'de>,
+        T: Deserialize<'de>,
     {
         Ok(match Option::<Value>::deserialize(serializer).map_err(Error_::custom)? {
             Some(Value::Bool(false)) => None,
@@ -2617,10 +2617,10 @@ pub struct WatchKind: u8 {
 }
 }
 
-impl<'de> serde::Deserialize<'de> for WatchKind {
+impl<'de> Deserialize<'de> for WatchKind {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         let i = u8::deserialize(deserializer)?;
         WatchKind::from_bits(i)
@@ -2628,7 +2628,7 @@ impl<'de> serde::Deserialize<'de> for WatchKind {
     }
 }
 
-impl serde::Serialize for WatchKind {
+impl Serialize for WatchKind {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

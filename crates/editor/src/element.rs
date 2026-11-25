@@ -272,9 +272,9 @@ impl EditorElement {
             + ScrollPixelOffset::from(window.rem_size() * 0.1))
         .into();
 
-        let absolute_offset = gpui::point(start_x, start_y);
-        button.layout_as_root(gpui::AvailableSpace::min_size(), window, cx);
-        button.prepaint_as_root(absolute_offset, gpui::AvailableSpace::min_size(), window, cx);
+        let absolute_offset = point(start_x, start_y);
+        button.layout_as_root(AvailableSpace::min_size(), window, cx);
+        button.prepaint_as_root(absolute_offset, AvailableSpace::min_size(), window, cx);
         Some(button)
     }
 
@@ -370,7 +370,7 @@ impl EditorElement {
         row_range: Range<MultiBufferRow>,
         line_height: Pixels,
         snapshot: &DisplaySnapshot,
-    ) -> (f64, gpui::Pixels, Range<DisplayRow>) {
+    ) -> (f64, Pixels, Range<DisplayRow>) {
         let start_point = Point::new(row_range.start.0, 0);
         let end_point = Point::new(row_range.end.0, 0);
 
@@ -830,7 +830,7 @@ impl EditorElement {
 
                 let mut paint_highlight = |highlight_row_start: DisplayRow,
                                            highlight_row_end: DisplayRow,
-                                           highlight: crate::LineHighlight,
+                                           highlight: LineHighlight,
                                            edges| {
                     let mut origin_x = layout.hitbox.left();
                     let mut width = layout.hitbox.size.width;
@@ -2341,7 +2341,7 @@ impl Element for EditorElement {
     fn paint(
         &mut self,
         global_id: Option<&GlobalElementId>,
-        bounds: Bounds<gpui::Pixels>,
+        bounds: Bounds<Pixels>,
         _: &mut Self::RequestLayoutState,
         layout: &mut Self::PrepaintState,
         window: &mut Window,

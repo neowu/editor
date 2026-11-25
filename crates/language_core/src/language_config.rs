@@ -341,7 +341,7 @@ pub struct BracketPairContent {
 }
 
 impl<'de> Deserialize<'de> for BracketPairConfig {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -384,7 +384,7 @@ pub struct WrapCharactersConfig {
 
 pub fn deserialize_regex<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Regex>, D::Error> {
     let source = Option::<String>::deserialize(d)?;
-    if let Some(source) = source { Ok(Some(regex::Regex::new(&source).map_err(de::Error::custom)?)) } else { Ok(None) }
+    if let Some(source) = source { Ok(Some(Regex::new(&source).map_err(de::Error::custom)?)) } else { Ok(None) }
 }
 
 pub fn serialize_regex<S>(regex: &Option<Regex>, serializer: S) -> Result<S::Ok, S::Error>
@@ -399,5 +399,5 @@ where
 
 pub fn deserialize_regex_vec<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<Regex>, D::Error> {
     let sources = Vec::<String>::deserialize(d)?;
-    sources.into_iter().map(|source| regex::Regex::new(&source)).collect::<Result<_, _>>().map_err(de::Error::custom)
+    sources.into_iter().map(|source| Regex::new(&source)).collect::<Result<_, _>>().map_err(de::Error::custom)
 }

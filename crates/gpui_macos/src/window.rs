@@ -1533,7 +1533,6 @@ impl PlatformWindow for MacWindow {
         detail: Option<&str>,
         answers: &[PromptButton],
     ) -> oneshot::Receiver<usize> {
-        use objc2_foundation::NSInteger;
         use objc2_foundation::NSString;
 
         // NSAlert's first button keeps Return and Cancel keeps Escape, but the keyboard

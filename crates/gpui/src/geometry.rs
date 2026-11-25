@@ -1967,7 +1967,7 @@ impl DevicePixels {
     }
 }
 
-impl fmt::Debug for DevicePixels {
+impl Debug for DevicePixels {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} px (device)", self.0)
     }

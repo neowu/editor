@@ -1228,7 +1228,7 @@ impl Element for List {
     fn paint(
         &mut self,
         _id: Option<&GlobalElementId>,
-        bounds: Bounds<crate::Pixels>,
+        bounds: Bounds<Pixels>,
         (): &mut Self::RequestLayoutState,
         prepaint: &mut Self::PrepaintState,
         window: &mut Window,

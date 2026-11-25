@@ -35,7 +35,7 @@ pub enum ToolbarItemEvent {
 pub trait ToolbarItemView: Render + EventEmitter<ToolbarItemEvent> {
     fn set_active_pane_item(
         &mut self,
-        active_pane_item: Option<&dyn crate::ItemHandle>,
+        active_pane_item: Option<&dyn ItemHandle>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> ToolbarItemLocation;

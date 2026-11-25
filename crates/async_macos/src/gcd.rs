@@ -2,7 +2,6 @@
 //! thread is needed.
 
 use std::ffi::c_void;
-use std::future::Future;
 use std::io;
 use std::os::fd::AsRawFd as _;
 use std::os::fd::OwnedFd;

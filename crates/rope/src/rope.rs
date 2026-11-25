@@ -1237,7 +1237,7 @@ impl ops::Add<Self> for TextSummary {
     }
 }
 
-impl<'a> ops::AddAssign<&'a Self> for TextSummary {
+impl<'a> AddAssign<&'a Self> for TextSummary {
     fn add_assign(&mut self, other: &'a Self) {
         let joined_chars = self.last_line_chars + other.first_line_chars;
         if joined_chars > self.longest_row_chars {
@@ -1268,7 +1268,7 @@ impl<'a> ops::AddAssign<&'a Self> for TextSummary {
     }
 }
 
-impl ops::AddAssign<Self> for TextSummary {
+impl AddAssign<Self> for TextSummary {
     fn add_assign(&mut self, other: Self) {
         *self += &other;
     }
@@ -1295,7 +1295,7 @@ impl<D1: TextDimension, D2: TextDimension> TextDimension for Dimensions<D1, D2, 
     }
 }
 
-impl<'a> sum_tree::Dimension<'a, ChunkSummary> for TextSummary {
+impl<'a> Dimension<'a, ChunkSummary> for TextSummary {
     fn zero(_cx: ()) -> Self {
         TextSummary::default()
     }
@@ -1319,7 +1319,7 @@ impl TextDimension for TextSummary {
     }
 }
 
-impl<'a> sum_tree::Dimension<'a, ChunkSummary> for usize {
+impl<'a> Dimension<'a, ChunkSummary> for usize {
     fn zero(_cx: ()) -> Self {
         Default::default()
     }
@@ -1343,7 +1343,7 @@ impl TextDimension for usize {
     }
 }
 
-impl<'a> sum_tree::Dimension<'a, ChunkSummary> for OffsetUtf16 {
+impl<'a> Dimension<'a, ChunkSummary> for OffsetUtf16 {
     fn zero(_cx: ()) -> Self {
         OffsetUtf16::default()
     }
@@ -1367,7 +1367,7 @@ impl TextDimension for OffsetUtf16 {
     }
 }
 
-impl<'a> sum_tree::Dimension<'a, ChunkSummary> for Point {
+impl<'a> Dimension<'a, ChunkSummary> for Point {
     fn zero(_cx: ()) -> Self {
         Point::default()
     }
@@ -1391,7 +1391,7 @@ impl TextDimension for Point {
     }
 }
 
-impl<'a> sum_tree::Dimension<'a, ChunkSummary> for PointUtf16 {
+impl<'a> Dimension<'a, ChunkSummary> for PointUtf16 {
     fn zero(_cx: ()) -> Self {
         PointUtf16::default()
     }
@@ -1429,27 +1429,27 @@ impl<K: Default, V: Default> Default for DimensionPair<K, V> {
     }
 }
 
-impl<K, V> cmp::Ord for DimensionPair<K, V>
+impl<K, V> Ord for DimensionPair<K, V>
 where
-    K: cmp::Ord,
+    K: Ord,
 {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         self.key.cmp(&other.key)
     }
 }
 
-impl<K, V> cmp::PartialOrd for DimensionPair<K, V>
+impl<K, V> PartialOrd for DimensionPair<K, V>
 where
-    K: cmp::PartialOrd,
+    K: PartialOrd,
 {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
         self.key.partial_cmp(&other.key)
     }
 }
 
-impl<K, V> cmp::PartialEq for DimensionPair<K, V>
+impl<K, V> PartialEq for DimensionPair<K, V>
 where
-    K: cmp::PartialEq,
+    K: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         self.key.eq(&other.key)
@@ -1468,10 +1468,10 @@ where
     }
 }
 
-impl<R, R2, K, V> ops::AddAssign<DimensionPair<R, R2>> for DimensionPair<K, V>
+impl<R, R2, K, V> AddAssign<DimensionPair<R, R2>> for DimensionPair<K, V>
 where
-    K: ops::AddAssign<R>,
-    V: ops::AddAssign<R2>,
+    K: AddAssign<R>,
+    V: AddAssign<R2>,
 {
     fn add_assign(&mut self, rhs: DimensionPair<R, R2>) {
         self.key += rhs.key;
@@ -1491,13 +1491,13 @@ impl<D> AddAssign<DimensionPair<Point, D>> for Point {
     }
 }
 
-impl<K, V> cmp::Eq for DimensionPair<K, V> where K: cmp::Eq {}
+impl<K, V> Eq for DimensionPair<K, V> where K: Eq {}
 
-impl<'a, K, V, S> sum_tree::Dimension<'a, S> for DimensionPair<K, V>
+impl<'a, K, V, S> Dimension<'a, S> for DimensionPair<K, V>
 where
     S: sum_tree::Summary,
-    K: sum_tree::Dimension<'a, S>,
-    V: sum_tree::Dimension<'a, S>,
+    K: Dimension<'a, S>,
+    V: Dimension<'a, S>,
 {
     fn zero(cx: S::Context<'_>) -> Self {
         Self { key: K::zero(cx), value: Some(V::zero(cx)) }

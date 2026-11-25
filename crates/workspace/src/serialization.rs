@@ -347,7 +347,7 @@ pub async fn last_opened_workspace_location(fs: &fs::Fs, cx: &AsyncApp) -> Optio
 pub async fn restore_workspace(
     session_workspace: SessionWorkspace,
     cx: &mut AsyncApp,
-) -> anyhow::Result<WindowHandle<Workspace>> {
+) -> Result<WindowHandle<Workspace>> {
     let window_handle = cx
         .update(|cx| {
             Workspace::new_local(

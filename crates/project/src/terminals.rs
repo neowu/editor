@@ -26,7 +26,7 @@ use util::rel_path::RelPath;
 use crate::Project;
 
 pub struct Terminals {
-    pub(crate) local_handles: Vec<WeakEntity<terminal::Terminal>>,
+    pub(crate) local_handles: Vec<WeakEntity<Terminal>>,
 }
 
 impl Project {

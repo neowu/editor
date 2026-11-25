@@ -95,7 +95,7 @@ actions!(
 );
 
 pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
-    editor::set_diagnostic_renderer(diagnostic_renderer::DiagnosticRenderer {}, cx);
+    editor::set_diagnostic_renderer(DiagnosticRenderer {}, cx);
     ProjectDiagnosticsEditor::register(workspace_actions);
     BufferDiagnosticsEditor::register(workspace_actions);
 }
@@ -680,11 +680,7 @@ impl Item for ProjectDiagnosticsEditor {
 }
 
 impl DiagnosticsEditor for WeakEntity<ProjectDiagnosticsEditor> {
-    fn get_diagnostics_for_buffer(
-        &self,
-        buffer_id: text::BufferId,
-        cx: &App,
-    ) -> Vec<language::DiagnosticEntry<text::Anchor>> {
+    fn get_diagnostics_for_buffer(&self, buffer_id: BufferId, cx: &App) -> Vec<DiagnosticEntry<text::Anchor>> {
         self.read_with(cx, |project_diagnostics_editor, _cx| {
             project_diagnostics_editor.diagnostics.get(&buffer_id).cloned().unwrap_or_default()
         })

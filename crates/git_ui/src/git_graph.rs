@@ -761,7 +761,7 @@ impl GraphData {
 }
 
 pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
-    cx.observe_new(|workspace: &mut workspace::Workspace, window, cx| {
+    cx.observe_new(|workspace: &mut Workspace, window, cx| {
         // Git History follows the folder picked in the title bar while shown.
         if let Some(window) = window {
             let git_store = workspace.project().read(cx).git_store().clone();
@@ -1611,10 +1611,10 @@ impl GitGraph {
     fn render_ref_chip(
         &self,
         name: SharedString,
-        accent_color: gpui::Hsla,
+        accent_color: Hsla,
         is_head: bool,
         commit_idx: usize,
-        background: gpui::Hsla,
+        background: Hsla,
         cx: &Context<Self>,
     ) -> AnyElement {
         let chip_id = SharedString::from(format!("git-graph-ref-chip-{commit_idx}-{name}"));
@@ -1631,7 +1631,7 @@ impl GitGraph {
     fn render_ref_count_chip(
         &self,
         hidden_refs: Vec<SharedString>,
-        accent_color: gpui::Hsla,
+        accent_color: Hsla,
         commit_idx: usize,
         cx: &Context<Self>,
     ) -> AnyElement {

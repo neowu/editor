@@ -63,7 +63,6 @@ use gpui::actions;
 use gpui::div;
 use itertools::Itertools as _;
 use language::Buffer;
-use multi_buffer;
 use project::Project;
 use project::ProjectPath;
 use project::SearchResults;
@@ -544,7 +543,7 @@ impl ProjectSearch {
     fn clear(&mut self, cx: &mut Context<Self>) {
         self.pending_search = None;
         self.match_ranges.clear();
-        self.excerpts.update(cx, editor::MultiBuffer::clear);
+        self.excerpts.update(cx, MultiBuffer::clear);
         self.search_state = SearchState::Idle;
         self.phase = SearchPhase::Idle;
         self.reuses_excerpts = false;
@@ -803,7 +802,7 @@ impl ReusedResults {
 
 async fn apply_reused_chunk(
     project_search: &WeakEntity<ProjectSearch>,
-    buffers_with_ranges: Vec<(Entity<language::Buffer>, Vec<Range<text::Anchor>>)>,
+    buffers_with_ranges: Vec<(Entity<Buffer>, Vec<Range<text::Anchor>>)>,
     reused_results: &mut ReusedResults,
     cx: &mut AsyncApp,
 ) -> Option<()> {
@@ -919,7 +918,7 @@ async fn apply_reused_chunk(
 pub enum ViewEvent {
     UpdateTab,
     Activate,
-    EditorEvent(editor::EditorEvent),
+    EditorEvent(EditorEvent),
     Dismiss,
 }
 
@@ -1013,7 +1012,7 @@ impl Render for ProjectSearchView {
 }
 
 impl Focusable for ProjectSearchView {
-    fn focus_handle(&self, _: &App) -> gpui::FocusHandle {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
@@ -1387,7 +1386,7 @@ impl ProjectSearchView {
         }));
 
         subscriptions.push(cx.subscribe(&results_editor, |this, _, event: &EditorEvent, cx| {
-            if matches!(event, editor::EditorEvent::SelectionsChanged { .. }) {
+            if matches!(event, EditorEvent::SelectionsChanged { .. }) {
                 this.update_match_index(cx);
             }
             // Reraise editor events for workspace item activation purposes
@@ -1483,7 +1482,7 @@ impl ProjectSearchView {
     /// If no search exists in the workspace, create a new one.
     pub fn deploy_search(
         workspace: &mut Workspace,
-        action: &workspace::DeploySearch,
+        action: &DeploySearch,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
@@ -1527,19 +1526,14 @@ impl ProjectSearchView {
     }
 
     // Add another search tab to the workspace.
-    fn new_search(
-        workspace: &mut Workspace,
-        _: &workspace::NewSearch,
-        window: &mut Window,
-        cx: &mut Context<Workspace>,
-    ) {
+    fn new_search(workspace: &mut Workspace, _: &NewSearch, window: &mut Window, cx: &mut Context<Workspace>) {
         Self::existing_or_new_search(workspace, None, &DeploySearch::default(), window, cx);
     }
 
     fn existing_or_new_search(
         workspace: &mut Workspace,
         existing: Option<Entity<ProjectSearchView>>,
-        action: &workspace::DeploySearch,
+        action: &DeploySearch,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
@@ -1753,8 +1747,7 @@ impl ProjectSearchView {
             filters_enabled: self.filters_enabled,
             included_opened_only: self.included_opened_only,
             opened_buffers: self.included_opened_only.then(|| {
-                let mut buffer_ids =
-                    open_buffers.unwrap_or_default().iter().map(gpui::Entity::entity_id).collect::<Vec<_>>();
+                let mut buffer_ids = open_buffers.unwrap_or_default().iter().map(Entity::entity_id).collect::<Vec<_>>();
                 buffer_ids.sort_unstable();
                 buffer_ids.dedup();
                 buffer_ids
@@ -2816,9 +2809,7 @@ impl ToolbarItemView for ProjectSearchBar {
         cx.notify();
         self.subscription = None;
         self.active_project_search = None;
-        if let Some(search) =
-            active_pane_item.and_then(<dyn workspace::ItemHandle + 'static>::downcast::<ProjectSearchView>)
-        {
+        if let Some(search) = active_pane_item.and_then(<dyn ItemHandle + 'static>::downcast::<ProjectSearchView>) {
             self.subscription = Some(cx.observe(&search, |_, _, cx| cx.notify()));
             self.active_project_search = Some(search);
             ToolbarItemLocation::PrimaryLeft {}

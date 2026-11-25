@@ -115,7 +115,7 @@ impl LspAdapter for JsonLspAdapter {
         self: Arc<Self>,
         _: &Arc<LspAdapterDelegate>,
         _: &mut AsyncApp,
-    ) -> Result<Option<serde_json::Value>> {
+    ) -> Result<Option<Value>> {
         Ok(Some(json!({
             "provideFormatter": true
         })))

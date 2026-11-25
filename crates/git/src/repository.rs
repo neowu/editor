@@ -153,7 +153,7 @@ struct CommitDataRequest {
 }
 
 pub struct CommitDataReader {
-    request_tx: async_channel::Sender<CommitDataRequest>,
+    request_tx: Sender<CommitDataRequest>,
     _task: Task<()>,
 }
 
@@ -738,7 +738,7 @@ pub trait GitRepository: Send + Sync {
         content: Option<Vec<u8>>,
         env: Arc<FxHashMap<String, String>>,
         is_executable: bool,
-    ) -> BoxFuture<'_, anyhow::Result<()>>;
+    ) -> BoxFuture<'_, Result<()>>;
 
     /// Returns the URL of the remote with the given name.
     fn remote_url(&self, name: &str) -> BoxFuture<'_, Option<String>> {
@@ -1336,7 +1336,7 @@ impl GitRepository for RealGitRepository {
         content: Option<Vec<u8>>,
         env: Arc<FxHashMap<String, String>>,
         is_executable: bool,
-    ) -> BoxFuture<'_, anyhow::Result<()>> {
+    ) -> BoxFuture<'_, Result<()>> {
         let git = self.git_binary();
         self.executor
             .spawn(async move {

@@ -607,7 +607,7 @@ pub trait LspAdapter: 'static + Send + Sync {
         Ok(original)
     }
 
-    fn client_command(&self, _command_name: &str, _arguments: &[serde_json::Value]) -> Option<ClientCommand> {
+    fn client_command(&self, _command_name: &str, _arguments: &[Value]) -> Option<ClientCommand> {
         None
     }
 

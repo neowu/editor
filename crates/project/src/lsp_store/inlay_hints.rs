@@ -273,7 +273,7 @@ impl LspStore {
         buffer: Entity<Buffer>,
         server_id: LanguageServerId,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<InlayHint>> {
+    ) -> Task<Result<InlayHint>> {
         if !self.text_document_capability_matches_for_server(
             &buffer,
             server_id,

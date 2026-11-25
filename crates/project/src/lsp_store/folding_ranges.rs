@@ -1,5 +1,4 @@
 use std::ops::Range;
-use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -31,7 +30,7 @@ pub struct LspFoldingRange {
     pub collapsed_text: Option<SharedString>,
 }
 
-pub(super) type FoldingRangeTask = Shared<Task<result::Result<Vec<LspFoldingRange>, Arc<anyhow::Error>>>>;
+pub(super) type FoldingRangeTask = Shared<Task<Result<Vec<LspFoldingRange>, Arc<anyhow::Error>>>>;
 
 #[derive(Debug, Default)]
 pub(super) struct FoldingRangeData {

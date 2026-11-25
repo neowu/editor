@@ -276,7 +276,7 @@ impl Item for MultiDiffView {
         Some(Icon::new(IconName::Diff).color(Color::Muted))
     }
 
-    fn tab_tooltip_text(&self, _cx: &App) -> Option<ui::SharedString> {
+    fn tab_tooltip_text(&self, _cx: &App) -> Option<SharedString> {
         Some(self.title())
     }
 
@@ -339,7 +339,7 @@ impl Item for MultiDiffView {
         project: Entity<Project>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> gpui::Task<Result<()>> {
+    ) -> Task<Result<()>> {
         self.editor.update(cx, |editor, cx| editor.save(options, project, window, cx))
     }
 }

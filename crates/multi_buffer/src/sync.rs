@@ -202,7 +202,7 @@ impl MultiBuffer {
 
     pub(super) fn sync_diff_transforms(
         snapshot: &mut MultiBufferSnapshot,
-        excerpt_edits: Vec<text::Edit<ExcerptOffset>>,
+        excerpt_edits: Vec<Edit<ExcerptOffset>>,
         change_kind: DiffChangeKind,
     ) -> Vec<Edit<MultiBufferOffset>> {
         if excerpt_edits.is_empty() {

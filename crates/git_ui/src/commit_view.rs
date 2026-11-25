@@ -809,7 +809,7 @@ impl CommitView {
     }
 
     /// The buffer of `editor` when it shows one of this commit's file revisions.
-    fn revision_buffer(&self, editor: &Entity<Editor>, cx: &App) -> Option<Entity<language::Buffer>> {
+    fn revision_buffer(&self, editor: &Entity<Editor>, cx: &App) -> Option<Entity<Buffer>> {
         let buffer = editor.read(cx).buffer().read(cx).as_singleton()?;
         self.multibuffer.read(cx).buffer(buffer.read(cx).buffer_id())
     }
@@ -918,7 +918,7 @@ impl CommitView {
         });
     }
 
-    fn open_file_at_head(&self, file: &Arc<dyn language::File>, window: &mut Window, cx: &mut Context<Self>) {
+    fn open_file_at_head(&self, file: &Arc<dyn File>, window: &mut Window, cx: &mut Context<Self>) {
         let repo_path = RepoPath::from_rel_path(file.path());
         open_file_in_project(&self.workspace, &self.repository, &repo_path, window, cx);
     }
@@ -1032,7 +1032,7 @@ impl CommitView {
                 Entity<CommitView>,
                 WeakEntity<Workspace>,
                 &mut AsyncWindowContext,
-            ) -> anyhow::Result<()>
+            ) -> Result<()>
             + 'static,
     {
         let Some(commit_view) =
@@ -1083,7 +1083,7 @@ impl CommitView {
         commit_view: Entity<CommitView>,
         workspace: WeakEntity<Workspace>,
         cx: &mut AsyncWindowContext,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         workspace
             .update_in(cx, |workspace, window, cx| {
                 let commit_view_id = commit_view.entity_id();
@@ -1100,7 +1100,7 @@ impl CommitView {
     }
 }
 
-impl language::File for GitBlob {
+impl File for GitBlob {
     fn as_local(&self) -> Option<&dyn language::LocalFile> {
         None
     }
@@ -1154,7 +1154,7 @@ async fn load_commit_file(
         is_binary,
         worktree_id,
         display_name: format!("{short_sha} - {file_name}"),
-    }) as Arc<dyn language::File>;
+    }) as Arc<dyn File>;
 
     let buffer = build_buffer(new_text, blob, language_registry, &mut cx).await?;
     let buffer_diff = if is_binary {
@@ -1213,7 +1213,7 @@ async fn load_commit_file(
 pub(crate) async fn build_buffer(
     mut text: String,
     blob: Arc<dyn File>,
-    language_registry: &Arc<language::LanguageRegistry>,
+    language_registry: &Arc<LanguageRegistry>,
     cx: &mut AsyncWindowContext,
 ) -> Result<Entity<Buffer>> {
     let line_ending = LineEnding::detect(&text);
@@ -1326,7 +1326,7 @@ impl Item for CommitView {
         Some(Box::new(self.editor.clone()))
     }
 
-    fn for_each_project_item(&self, cx: &App, f: &mut dyn FnMut(gpui::EntityId, &dyn project::ProjectItem)) {
+    fn for_each_project_item(&self, cx: &App, f: &mut dyn FnMut(EntityId, &dyn project::ProjectItem)) {
         self.editor.read(cx).for_each_project_item(cx, f);
     }
 

@@ -94,7 +94,7 @@ use crate::lsp_store::LspDocumentLink;
 use crate::lsp_store::LspFoldingRange;
 use crate::lsp_store::LspStore;
 
-fn code_action_kind_matches(requested: &lsp_types::CodeActionKind, actual: &lsp_types::CodeActionKind) -> bool {
+fn code_action_kind_matches(requested: &CodeActionKind, actual: &CodeActionKind) -> bool {
     let requested_str = requested.as_str();
     let actual_str = actual.as_str();
 
@@ -238,7 +238,7 @@ pub(crate) struct GetCompletions {
 #[derive(Clone, Debug)]
 pub(crate) struct GetCodeActions {
     pub range: Range<Anchor>,
-    pub kinds: Option<Vec<lsp_types::CodeActionKind>>,
+    pub kinds: Option<Vec<CodeActionKind>>,
 }
 
 #[derive(Debug)]
@@ -339,7 +339,7 @@ impl LspCommand for PrepareRename {
         (!applicable_capabilities.any(|capabilities| {
             matches!(
                 capabilities.server_capabilities.rename_provider.as_ref(),
-                Some(lsp_types::OneOf::Right(RenameOptions { prepare_provider: Some(true), .. }))
+                Some(OneOf::Right(RenameOptions { prepare_provider: Some(true), .. }))
             )
         }))
         .then_some(PrepareRenameResponse::OnlyUnpreparedRenameSupported)
@@ -494,8 +494,8 @@ impl LspCommand for GetDeclarations {
         _: &Buffer,
         _: &Arc<LanguageServer>,
         _: &App,
-    ) -> Result<lsp_types::request::GotoDeclarationParams> {
-        Ok(lsp_types::request::GotoDeclarationParams {
+    ) -> Result<request::GotoDeclarationParams> {
+        Ok(request::GotoDeclarationParams {
             text_document_position_params: make_lsp_text_document_position(path, self.position)?,
             work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
             partial_result_params: lsp_types::PartialResultParams::default(),
@@ -504,7 +504,7 @@ impl LspCommand for GetDeclarations {
 
     async fn response_from_lsp(
         self,
-        message: Option<lsp_types::request::GotoDeclarationResponse>,
+        message: Option<request::GotoDeclarationResponse>,
         lsp_store: Entity<LspStore>,
         buffer: Entity<Buffer>,
         server_id: LanguageServerId,
@@ -535,8 +535,8 @@ impl LspCommand for GetImplementations {
         _: &Buffer,
         _: &Arc<LanguageServer>,
         _: &App,
-    ) -> Result<lsp_types::request::GotoImplementationParams> {
-        Ok(lsp_types::request::GotoImplementationParams {
+    ) -> Result<request::GotoImplementationParams> {
+        Ok(request::GotoImplementationParams {
             text_document_position_params: make_lsp_text_document_position(path, self.position)?,
             work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
             partial_result_params: lsp_types::PartialResultParams::default(),
@@ -545,7 +545,7 @@ impl LspCommand for GetImplementations {
 
     async fn response_from_lsp(
         self,
-        message: Option<lsp_types::request::GotoImplementationResponse>,
+        message: Option<request::GotoImplementationResponse>,
         lsp_store: Entity<LspStore>,
         buffer: Entity<Buffer>,
         server_id: LanguageServerId,
@@ -576,8 +576,8 @@ impl LspCommand for GetTypeDefinitions {
         _: &Buffer,
         _: &Arc<LanguageServer>,
         _: &App,
-    ) -> Result<lsp_types::request::GotoTypeDefinitionParams> {
-        Ok(lsp_types::request::GotoTypeDefinitionParams {
+    ) -> Result<request::GotoTypeDefinitionParams> {
+        Ok(request::GotoTypeDefinitionParams {
             text_document_position_params: make_lsp_text_document_position(path, self.position)?,
             work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
             partial_result_params: lsp_types::PartialResultParams::default(),
@@ -586,7 +586,7 @@ impl LspCommand for GetTypeDefinitions {
 
     async fn response_from_lsp(
         self,
-        message: Option<lsp_types::request::GotoTypeDefinitionResponse>,
+        message: Option<request::GotoTypeDefinitionResponse>,
         project: Entity<LspStore>,
         buffer: Entity<Buffer>,
         server_id: LanguageServerId,
@@ -998,7 +998,7 @@ impl LspCommand for GetHover {
 }
 
 impl GetCompletions {
-    pub(crate) fn can_resolve_completions(capabilities: &lsp_types::ServerCapabilities) -> bool {
+    pub(crate) fn can_resolve_completions(capabilities: &ServerCapabilities) -> bool {
         capabilities.completion_provider.as_ref().and_then(|options| options.resolve_provider).unwrap_or(false)
     }
 }
@@ -1448,7 +1448,7 @@ impl InlayHints {
         server_id: LanguageServerId,
         resolve_state: ResolveState,
         force_no_type_left_padding: bool,
-    ) -> anyhow::Result<InlayHint> {
+    ) -> Result<InlayHint> {
         let kind = lsp_hint.kind.and_then(|kind| match kind {
             lsp_types::InlayHintKind::TYPE => Some(InlayHintKind::Type),
             lsp_types::InlayHintKind::PARAMETER => Some(InlayHintKind::Parameter),
@@ -1658,15 +1658,15 @@ impl InlayHints {
 
     pub(crate) fn check_capabilities(capabilities: &ServerCapabilities) -> bool {
         capabilities.inlay_hint_provider.as_ref().is_some_and(|inlay_hint_provider| match inlay_hint_provider {
-            lsp_types::OneOf::Left(enabled) => *enabled,
-            lsp_types::OneOf::Right(_) => true,
+            OneOf::Left(enabled) => *enabled,
+            OneOf::Right(_) => true,
         })
     }
 }
 
 impl LspCommand for InlayHints {
     type Response = Vec<InlayHint>;
-    type LspRequest = lsp_types::request::InlayHintRequest;
+    type LspRequest = request::InlayHintRequest;
 
     fn display_name(&self) -> &'static str {
         "Inlay hints"
@@ -1697,7 +1697,7 @@ impl LspCommand for InlayHints {
         buffer: Entity<Buffer>,
         server_id: LanguageServerId,
         mut cx: AsyncApp,
-    ) -> anyhow::Result<Vec<InlayHint>> {
+    ) -> Result<Vec<InlayHint>> {
         let (lsp_adapter, lsp_server) = language_server_for_buffer(&lsp_store, &buffer, server_id, &mut cx)?;
         // TypeScript servers may add padding to the left for type hints, turning
         // `const foo: boolean` into `const foo : boolean` which looks odd.
@@ -1749,7 +1749,7 @@ impl LspCommand for InlayHints {
 
 impl LspCommand for SemanticTokensFull {
     type Response = SemanticTokensResponse;
-    type LspRequest = lsp_types::request::SemanticTokensFullRequest;
+    type LspRequest = request::SemanticTokensFullRequest;
 
     fn display_name(&self) -> &'static str {
         "Semantic tokens full"
@@ -1793,7 +1793,7 @@ impl LspCommand for SemanticTokensFull {
         _: Entity<Buffer>,
         _: LanguageServerId,
         _: AsyncApp,
-    ) -> anyhow::Result<SemanticTokensResponse> {
+    ) -> Result<SemanticTokensResponse> {
         match message {
             Some(lsp_types::SemanticTokensResult::Tokens(tokens)) => Ok(SemanticTokensResponse::Full {
                 data: tokens.data,
@@ -1809,7 +1809,7 @@ impl LspCommand for SemanticTokensFull {
 
 impl LspCommand for SemanticTokensDelta {
     type Response = SemanticTokensResponse;
-    type LspRequest = lsp_types::request::SemanticTokensFullDeltaRequest;
+    type LspRequest = request::SemanticTokensFullDeltaRequest;
 
     fn display_name(&self) -> &'static str {
         "Semantic tokens delta"
@@ -1854,7 +1854,7 @@ impl LspCommand for SemanticTokensDelta {
         _: Entity<Buffer>,
         _: LanguageServerId,
         _: AsyncApp,
-    ) -> anyhow::Result<SemanticTokensResponse> {
+    ) -> Result<SemanticTokensResponse> {
         match message {
             Some(lsp_types::SemanticTokensFullDeltaResult::Tokens(tokens)) => Ok(SemanticTokensResponse::Full {
                 data: tokens.data,
@@ -1882,7 +1882,7 @@ impl LspCommand for SemanticTokensDelta {
 
 impl LspCommand for GetCodeLens {
     type Response = Vec<CodeAction>;
-    type LspRequest = lsp_types::request::CodeLensRequest;
+    type LspRequest = request::CodeLensRequest;
 
     fn display_name(&self) -> &'static str {
         "Code Lens"
@@ -1907,7 +1907,7 @@ impl LspCommand for GetCodeLens {
         buffer: Entity<Buffer>,
         server_id: LanguageServerId,
         cx: AsyncApp,
-    ) -> anyhow::Result<Vec<CodeAction>> {
+    ) -> Result<Vec<CodeAction>> {
         let snapshot = buffer.read_with(&cx, |buffer, _| buffer.snapshot());
         let code_lenses = message.unwrap_or_default();
 

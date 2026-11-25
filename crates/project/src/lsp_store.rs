@@ -655,7 +655,7 @@ impl LocalLspStore {
     ) -> Vec<LanguageServerId> {
         let old_path = old_file.abs_path(cx);
 
-        let Ok(file_url) = lsp_types::Uri::from_file_path(old_path.as_path()) else {
+        let Ok(file_url) = Uri::from_file_path(old_path.as_path()) else {
             return Vec::new();
         };
         self.unregister_buffer_from_language_servers(buffer, &file_url, cx)
@@ -664,7 +664,7 @@ impl LocalLspStore {
     pub(crate) fn unregister_buffer_from_language_servers(
         &mut self,
         buffer: &Entity<Buffer>,
-        file_url: &lsp_types::Uri,
+        file_url: &Uri,
         cx: &mut App,
     ) -> Vec<LanguageServerId> {
         let abs_path = file_url.to_file_path().ok();
@@ -857,7 +857,7 @@ pub struct LspStore {
     pub lsp_server_capabilities: FxHashMap<LanguageServerId, lsp_types::ServerCapabilities>,
     semantic_token_config: SemanticTokenConfig,
     lsp_data: FxHashMap<BufferId, BufferLspData>,
-    buffer_reload_tasks: FxHashMap<BufferId, Task<anyhow::Result<()>>>,
+    buffer_reload_tasks: FxHashMap<BufferId, Task<Result<()>>>,
     disk_change_flycheck_tasks: FxHashMap<LanguageServerId, Task<()>>,
     next_hint_id: Arc<AtomicUsize>,
 }
@@ -1814,7 +1814,7 @@ impl LspStore {
     pub fn applicable_inlay_chunks(
         &mut self,
         buffer: &Entity<Buffer>,
-        ranges: &[Range<text::Anchor>],
+        ranges: &[Range<Anchor>],
         cx: &mut Context<Self>,
     ) -> Vec<Range<BufferRow>> {
         let buffer_snapshot = buffer.read(cx).snapshot();
@@ -1839,13 +1839,12 @@ impl LspStore {
         &mut self,
         invalidate: InvalidationStrategy,
         buffer: Entity<Buffer>,
-        ranges: Vec<Range<text::Anchor>>,
-        known_chunks: Option<(clock::Global, FxHashSet<Range<BufferRow>>)>,
+        ranges: Vec<Range<Anchor>>,
+        known_chunks: Option<(Global, FxHashSet<Range<BufferRow>>)>,
         cx: &mut Context<Self>,
     ) -> FxHashMap<Range<BufferRow>, Task<Result<CacheInlayHints>>> {
         let next_hint_id = Arc::clone(&self.next_hint_id);
-        let capability_probe =
-            InlayHints { range: text::Anchor::min_max_range_for_buffer(buffer.read(cx).buffer_id()) };
+        let capability_probe = InlayHints { range: Anchor::min_max_range_for_buffer(buffer.read(cx).buffer_id()) };
         let current_servers = self.language_server_ids_for_request(&buffer, &capability_probe, cx);
         let lsp_data = self.latest_lsp_data(&buffer, cx);
         let query_version = lsp_data.buffer_version.clone();
@@ -2195,7 +2194,7 @@ impl LspStore {
         let buffer = buffer.read(cx);
         let file = File::from_dyn(buffer.file())?;
         let abs_path = file.abs_path(cx);
-        let uri = lsp_types::Uri::from_file_path(&abs_path)
+        let uri = Uri::from_file_path(&abs_path)
             .ok()
             .with_context(|| format!("Failed to convert path to URI: {}", abs_path.display()))
             .log_err()?;
@@ -2378,7 +2377,7 @@ impl LspStore {
                 Ok(abs_path) => abs_path,
                 Err(err) => return Task::ready(Err(err)),
             };
-            let Ok(symbol_uri) = lsp_types::Uri::from_file_path(symbol_abs_path) else {
+            let Ok(symbol_uri) = Uri::from_file_path(symbol_abs_path) else {
                 return Task::ready(Err(anyhow!("invalid symbol path")));
             };
 
@@ -2388,7 +2387,7 @@ impl LspStore {
 
     pub(crate) fn open_local_buffer_via_lsp(
         &self,
-        abs_path: lsp_types::Uri,
+        abs_path: Uri,
         language_server_id: LanguageServerId,
         cx: &Context<Self>,
     ) -> Task<Result<Entity<Buffer>>> {
@@ -2772,7 +2771,7 @@ impl PartialEq for LanguageServerPromptRequest {
 
 #[derive(Clone, Debug)]
 pub struct LanguageServerShowDocumentRequest {
-    pub uri: lsp_types::Uri,
+    pub uri: Uri,
     pub external: bool,
     pub take_focus: bool,
     pub selection: Option<lsp_types::Range>,

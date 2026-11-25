@@ -605,7 +605,7 @@ impl ProjectPanel {
                 reverse_search,
             )
             .find_single_ended(|ele| predicate(*ele, worktree_id))
-            .map(project::GitEntryRef::to_owned)
+            .map(GitEntryRef::to_owned)
         })
     }
 
@@ -643,7 +643,7 @@ impl ProjectPanel {
                     .take_while_inclusive(|(count, entry)| entry.entry != root_entry || *count == 0_usize)
                     .map(|(_, entry)| entry)
                     .find(|ele| predicate(*ele, tree_id))
-                    .map(project::GitEntryRef::to_owned);
+                    .map(GitEntryRef::to_owned);
 
                 let second_iter = GitTraversal::new(&repo_snapshots, worktree.entries(true, 0_usize));
 
@@ -652,13 +652,13 @@ impl ProjectPanel {
                         .take_while_inclusive(|ele| ele.id != start.entry_id)
                         .filter(|ele| predicate(*ele, tree_id))
                         .last()
-                        .map(project::GitEntryRef::to_owned)
+                        .map(GitEntryRef::to_owned)
                 } else {
                     second_iter
                         .take_while(|ele| ele.id != start.entry_id)
                         .filter(|ele| predicate(*ele, tree_id))
                         .last()
-                        .map(project::GitEntryRef::to_owned)
+                        .map(GitEntryRef::to_owned)
                 };
 
                 if reverse_search { Some((second, first)) } else { Some((first, second)) }

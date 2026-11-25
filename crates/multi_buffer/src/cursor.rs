@@ -1,6 +1,5 @@
 use std::cell::OnceCell;
 use std::cmp;
-use std::ops;
 use std::ops::AddAssign;
 use std::ops::Range;
 use std::ops::Sub;
@@ -67,7 +66,7 @@ pub(super) struct MultiBufferRegion<'a, MBD, BD> {
 
 impl<'a, MBD, BD> MultiBufferCursor<'a, MBD, BD>
 where
-    MBD: MultiBufferDimension + Ord + Sub + ops::AddAssign<<MBD as Sub>::Output>,
+    MBD: MultiBufferDimension + Ord + Sub + AddAssign<<MBD as Sub>::Output>,
     BD: TextDimension + AddAssign<<MBD as Sub>::Output>,
 {
     pub(super) fn seek(&mut self, position: &MBD) {
@@ -353,7 +352,7 @@ where
     }
 }
 
-impl<'a> sum_tree::Dimension<'a, DiffTransformSummary> for MultiBufferOffset {
+impl<'a> Dimension<'a, DiffTransformSummary> for MultiBufferOffset {
     fn zero((): ()) -> Self {
         MultiBufferOffset::ZERO
     }
@@ -381,7 +380,7 @@ where
     }
 }
 
-impl<'a, MBD: MultiBufferDimension> sum_tree::Dimension<'a, DiffTransformSummary> for ExcerptDimension<MBD> {
+impl<'a, MBD: MultiBufferDimension> Dimension<'a, DiffTransformSummary> for ExcerptDimension<MBD> {
     fn zero((): ()) -> Self {
         ExcerptDimension(MBD::default())
     }
@@ -400,7 +399,7 @@ where
     }
 }
 
-impl<'a, MBD: MultiBufferDimension> sum_tree::Dimension<'a, DiffTransformSummary> for OutputDimension<MBD> {
+impl<'a, MBD: MultiBufferDimension> Dimension<'a, DiffTransformSummary> for OutputDimension<MBD> {
     fn zero((): ()) -> Self {
         OutputDimension(MBD::default())
     }

@@ -12,7 +12,6 @@ use std::vec;
 use anyhow::Context as _;
 use anyhow::Result;
 use fs::Fs;
-use futures::Future;
 use futures::FutureExt as _;
 use futures::StreamExt as _;
 use futures::future::join_all;
@@ -183,7 +182,7 @@ fn command_override(json: &str, server: &str) -> Result<Option<(String, Vec<OsSt
     Ok(Some((program, argv.map(Into::into).collect())))
 }
 
-pub(super) fn include_text(server: &lsp::LanguageServer) -> Option<bool> {
+pub(super) fn include_text(server: &LanguageServer) -> Option<bool> {
     match server.capabilities().text_document_sync.as_ref()? {
         lsp_types::TextDocumentSyncCapability::Options(opts) => match opts.save.as_ref()? {
             // Server wants didSave but didn't specify includeText.
@@ -279,7 +278,7 @@ impl LocalLspStore {
                 let (binary, overridden) = binary.await?;
 
                 let code_action_kinds = adapter.code_action_kinds();
-                let server = lsp::LanguageServer::new(
+                let server = LanguageServer::new(
                     stderr_capture,
                     server_id,
                     server_name,
@@ -846,7 +845,7 @@ impl LocalLspStore {
         }
     }
 
-    async fn shutdown_server(server_state: LanguageServerState) -> anyhow::Result<()> {
+    async fn shutdown_server(server_state: LanguageServerState) -> Result<()> {
         match server_state {
             LanguageServerState::Running { server, .. } => {
                 if let Some(shutdown) = server.shutdown() {
@@ -1098,7 +1097,7 @@ impl LspStore {
 
             log::debug!("Refreshing workspace configurations for servers {refreshed_servers:?}");
             // A server may stop while its workspace configuration is being refreshed.
-            let _: Vec<Option<()>> = join_all(servers).await;
+            _ = join_all(servers).await;
 
             Some(())
         }
@@ -1712,7 +1711,7 @@ impl LspStore {
                 let buffer_id = buffer.buffer_id();
                 if local.registered_buffers.contains_key(&buffer_id) {
                     let abs_path = file.abs_path(cx);
-                    let Ok(uri) = lsp_types::Uri::from_file_path(&abs_path) else {
+                    let Ok(uri) = Uri::from_file_path(&abs_path) else {
                         log::error!("failed to convert path to URI: {abs_path:?}");
                         continue;
                     };

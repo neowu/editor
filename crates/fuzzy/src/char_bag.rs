@@ -1,5 +1,3 @@
-use std::iter::FromIterator;
-
 pub(crate) fn simple_lowercase(c: char) -> char {
     c.to_lowercase().next().unwrap_or(c)
 }

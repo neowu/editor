@@ -15,7 +15,6 @@ use std::collections::VecDeque;
 use std::collections::hash_map;
 use std::ffi::OsStr;
 use std::fmt;
-use std::future::Future;
 use std::io::Read;
 use std::io::Seek as _;
 use std::mem;
@@ -173,8 +172,8 @@ impl fmt::Debug for LoadedBinaryFile {
 
 pub struct Worktree {
     snapshot: LocalSnapshot,
-    scan_requests_tx: async_channel::Sender<ScanRequest>,
-    path_prefixes_to_scan_tx: async_channel::Sender<PathPrefixScanRequest>,
+    scan_requests_tx: Sender<ScanRequest>,
+    path_prefixes_to_scan_tx: Sender<PathPrefixScanRequest>,
     is_scanning: (watch::Sender<bool>, watch::Receiver<bool>),
     snapshot_subscriptions: VecDeque<(usize, oneshot::Sender<()>)>,
     _background_scanner_tasks: Vec<Task<()>>,
@@ -2359,9 +2358,7 @@ impl<'a> sum_tree::Dimension<'a, PathSummary<GitSummary>> for GitSummary {
     }
 }
 
-impl<'a> sum_tree::SeekTarget<'a, PathSummary<GitSummary>, Dimensions<TraversalProgress<'a>, GitSummary>>
-    for PathTarget<'_>
-{
+impl<'a> SeekTarget<'a, PathSummary<GitSummary>, Dimensions<TraversalProgress<'a>, GitSummary>> for PathTarget<'_> {
     fn cmp(&self, cursor_location: &Dimensions<TraversalProgress<'a>, GitSummary>, (): ()) -> Ordering {
         self.cmp_path(cursor_location.0.max_path)
     }
@@ -2462,7 +2459,7 @@ impl sum_tree::Item for Entry {
     }
 }
 
-impl sum_tree::KeyedItem for Entry {
+impl KeyedItem for Entry {
     type Key = PathKey;
 
     fn key(&self) -> Self::Key {
@@ -2524,7 +2521,7 @@ impl sum_tree::Item for PathEntry {
     }
 }
 
-impl sum_tree::KeyedItem for PathEntry {
+impl KeyedItem for PathEntry {
     type Key = ProjectEntryId;
 
     fn key(&self) -> Self::Key {
@@ -2730,7 +2727,7 @@ impl BackgroundScanner {
             self.process_events(paths.into_iter().filter(|event| event.kind.is_some()).collect()).await;
         }
         if let Some(abs_path) = containing_git_repository {
-            self.process_events(vec![PathEvent { path: abs_path, kind: Some(fs::PathEventKind::Changed) }]).await;
+            self.process_events(vec![PathEvent { path: abs_path, kind: Some(PathEventKind::Changed) }]).await;
         }
 
         // Continue processing events until the worktree is dropped.
@@ -2776,7 +2773,7 @@ impl BackgroundScanner {
                         if let Some(abs_path) = self.fs.canonicalize(&abs_path).await.log_err() {
                             self.process_events(vec![PathEvent {
                                 path: abs_path,
-                                kind: Some(fs::PathEventKind::Changed),
+                                kind: Some(PathEventKind::Changed),
                             }])
                             .await;
                         }
@@ -3160,7 +3157,7 @@ impl BackgroundScanner {
         events.sort_unstable_by(|left, right| left.path.cmp(&right.path));
         events.dedup_by(|left, right| {
             if left.path == right.path || left.path.starts_with(&right.path) {
-                if matches!(left.kind, Some(fs::PathEventKind::Rescan)) {
+                if matches!(left.kind, Some(PathEventKind::Rescan)) {
                     right.kind = left.kind;
                 }
                 true
@@ -3227,7 +3224,7 @@ impl BackgroundScanner {
 
                 relative_paths.push(EventRoot {
                     path: relative_path.into_arc(),
-                    was_rescanned: matches!(event.kind, Some(fs::PathEventKind::Rescan)),
+                    was_rescanned: matches!(event.kind, Some(PathEventKind::Rescan)),
                 });
             }
 
@@ -4716,7 +4713,7 @@ impl ProjectEntryId {
     }
 }
 
-fn parse_gitfile(content: &str) -> anyhow::Result<&Path> {
+fn parse_gitfile(content: &str) -> Result<&Path> {
     let path = content.strip_prefix("gitdir:").with_context(|| format!("parsing gitfile content {content:?}"))?;
     Ok(Path::new(path.trim()))
 }
@@ -4774,7 +4771,7 @@ async fn discover_git_paths(dot_git_abs_path: &Arc<Path>, fs: &Fs) -> (Arc<Path>
 
 struct NullWatcher;
 
-impl fs::Watcher for NullWatcher {
+impl Watcher for NullWatcher {
     fn add(&self, _path: &Path) -> Result<()> {
         Ok(())
     }

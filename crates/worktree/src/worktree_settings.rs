@@ -132,7 +132,6 @@ fn inclusion_parent_patterns(pattern: &str) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use util::rel_path::RelPath;
 
     use super::*;
 

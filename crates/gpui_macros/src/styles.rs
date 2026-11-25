@@ -40,7 +40,7 @@ impl Parse for StyleableMacroInput {
 }
 
 pub(crate) fn style_helpers(input: TokenStream) -> TokenStream {
-    let _ = parse_macro_input!(input as StyleableMacroInput);
+    _ = parse_macro_input!(input as StyleableMacroInput);
     let methods = generate_methods();
     let output = quote! {
         #(#methods)*

@@ -945,7 +945,7 @@ fn open_markdown_link_in_preview(
             .context("opening Markdown preview link buffer")?;
 
         workspace.update_in(cx, |workspace, window, cx| {
-            if let Some(source_view) = source_view.as_ref().and_then(gpui::WeakEntity::upgrade)
+            if let Some(source_view) = source_view.as_ref().and_then(WeakEntity::upgrade)
                 && source_view.read(cx).is_previewing(&buffer, cx)
             {
                 source_view.update(cx, |view, cx| {
@@ -966,7 +966,7 @@ fn open_markdown_link_in_preview(
             let preview = MarkdownPreviewView::create_markdown_view(workspace, editor, window, cx);
             let pane = source_view
                 .as_ref()
-                .and_then(gpui::WeakEntity::upgrade)
+                .and_then(WeakEntity::upgrade)
                 .and_then(|view| workspace.pane_for(&view))
                 .unwrap_or_else(|| workspace.shown_pane().clone());
             pane.update(cx, |pane, cx| {
@@ -1203,7 +1203,7 @@ impl Item for MarkdownPreviewView {
     fn save_as(
         &mut self,
         project: Entity<Project>,
-        path: project::ProjectPath,
+        path: ProjectPath,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<()>> {
@@ -1303,7 +1303,7 @@ impl Render for MarkdownPreviewView {
                             return None;
                         }
                         Some(ContextMenu::build(window, cx, move |menu, _, _cx| {
-                            menu.when_some(focus, ui::ContextMenu::context)
+                            menu.when_some(focus, ContextMenu::context)
                                 .when_some(selected_text, |menu, text| {
                                     menu.entry("Copy", Some(Box::new(markdown::Copy)), move |_, cx| {
                                         cx.write_to_clipboard(ClipboardItem::new_string(text.to_string()));

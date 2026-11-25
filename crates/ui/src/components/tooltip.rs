@@ -50,7 +50,7 @@ impl From<SharedString> for Title {
 }
 
 impl RenderOnce for Title {
-    fn render(self, window: &mut Window, cx: &mut App) -> impl gpui::IntoElement {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         match self {
             Title::Str(title) => title.into_any_element(),
             Title::Callback(element) => element(window, cx),

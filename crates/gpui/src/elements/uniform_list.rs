@@ -493,7 +493,7 @@ impl Element for UniformList {
     fn paint(
         &mut self,
         global_id: Option<&GlobalElementId>,
-        bounds: Bounds<crate::Pixels>,
+        bounds: Bounds<Pixels>,
         request_layout: &mut Self::RequestLayoutState,
         hitbox: &mut Option<Hitbox>,
         window: &mut Window,
@@ -634,7 +634,7 @@ impl UniformList {
 }
 
 impl InteractiveElement for UniformList {
-    fn interactivity(&mut self) -> &mut crate::Interactivity {
+    fn interactivity(&mut self) -> &mut Interactivity {
         &mut self.interactivity
     }
 }

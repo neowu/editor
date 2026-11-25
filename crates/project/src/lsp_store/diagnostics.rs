@@ -301,10 +301,8 @@ pub(super) fn lsp_workspace_diagnostics_refresh(
 
 const fn diagnostics_inter_file_dependencies(options: &DiagnosticServerCapabilities) -> bool {
     match options {
-        lsp_types::DiagnosticServerCapabilities::Options(diagnostic_options) => {
-            diagnostic_options.inter_file_dependencies
-        }
-        lsp_types::DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
+        DiagnosticServerCapabilities::Options(diagnostic_options) => diagnostic_options.inter_file_dependencies,
+        DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
             registration_options.diagnostic_options.inter_file_dependencies
         }
     }
@@ -312,10 +310,10 @@ const fn diagnostics_inter_file_dependencies(options: &DiagnosticServerCapabilit
 
 fn buffer_diagnostic_identifier(options: &DiagnosticServerCapabilities) -> Option<SharedString> {
     match &options {
-        lsp_types::DiagnosticServerCapabilities::Options(diagnostic_options) => {
+        DiagnosticServerCapabilities::Options(diagnostic_options) => {
             diagnostic_options.identifier.as_deref().map(SharedString::new)
         }
-        lsp_types::DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
+        DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
             let diagnostic_options = &registration_options.diagnostic_options;
             diagnostic_options.identifier.as_deref().map(SharedString::new)
         }
@@ -324,8 +322,8 @@ fn buffer_diagnostic_identifier(options: &DiagnosticServerCapabilities) -> Optio
 
 fn workspace_diagnostic_options(options: &DiagnosticServerCapabilities) -> Option<&lsp_types::DiagnosticOptions> {
     let diagnostic_options = match options {
-        lsp_types::DiagnosticServerCapabilities::Options(diagnostic_options) => diagnostic_options,
-        lsp_types::DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
+        DiagnosticServerCapabilities::Options(diagnostic_options) => diagnostic_options,
+        DiagnosticServerCapabilities::RegistrationOptions(registration_options) => {
             &registration_options.diagnostic_options
         }
     };
@@ -627,11 +625,7 @@ impl LspStore {
         }
     }
 
-    pub fn pull_diagnostics_for_buffer(
-        &mut self,
-        buffer: Entity<Buffer>,
-        cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<()>> {
+    pub fn pull_diagnostics_for_buffer(&mut self, buffer: Entity<Buffer>, cx: &mut Context<Self>) -> Task<Result<()>> {
         let mut diagnostics_task = self.pull_diagnostics(buffer.clone(), cx);
         cx.spawn(async move |lsp_store, cx| {
             let mut retriggers_left = DOCUMENT_DIAGNOSTICS_RETRIGGER_LIMIT;
@@ -847,7 +841,7 @@ impl LspStore {
         diagnostic_updates: Vec<DocumentDiagnosticsUpdate<'_, DocumentDiagnostics>>,
         merge: impl Fn(&lsp_types::Uri, &Diagnostic, &App) -> bool + Clone,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let mut updated_diagnostics_paths = FxHashMap::default();
         for mut update in diagnostic_updates {
             let abs_path = &update.diagnostics.document_abs_path;
@@ -1432,7 +1426,7 @@ impl LspStore {
         server_id: LanguageServerId,
         cleared_registration_id: SharedString,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let mut affected_abs_paths: FxHashSet<PathBuf> = FxHashSet::default();
 
         self.buffer_store.update(cx, |buffer_store, cx| {

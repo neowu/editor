@@ -135,7 +135,7 @@ impl SanitizedPath {
 
     pub fn unchecked_new<T: AsRef<Path> + ?Sized>(path: &T) -> &Self {
         // safe because `Path` and `SanitizedPath` have the same repr and Drop impl
-        unsafe { &*(std::ptr::from_ref::<Path>(path.as_ref()) as *const Self) }
+        unsafe { &*(ptr::from_ref::<Path>(path.as_ref()) as *const Self) }
     }
 
     pub fn from_arc(path: Arc<Path>) -> Arc<Self> {
@@ -155,7 +155,7 @@ impl SanitizedPath {
 
     pub const fn cast_arc_ref(path: &Arc<Self>) -> &Arc<Path> {
         // safe because `Path` and `SanitizedPath` have the same repr and Drop impl
-        unsafe { &*std::ptr::from_ref(path).cast::<Arc<Path>>() }
+        unsafe { &*ptr::from_ref(path).cast::<Arc<Path>>() }
     }
 
     pub fn starts_with(&self, prefix: &Self) -> bool {
@@ -478,11 +478,7 @@ impl PathMatcher {
             .iter()
             .filter_map(|glob| {
                 let glob = glob.glob();
-                Some((
-                    glob.to_owned(),
-                    RelPath::new(glob.as_ref()).ok().map(std::borrow::Cow::into_owned)?,
-                    glob.ends_with('/'),
-                ))
+                Some((glob.to_owned(), RelPath::new(glob.as_ref()).ok().map(Cow::into_owned)?, glob.ends_with('/')))
             })
             .collect();
         let mut glob_builder = GlobSetBuilder::new();

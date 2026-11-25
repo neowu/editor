@@ -11,7 +11,6 @@ use ui::IconName;
 use ui::IconSize;
 use ui::SharedString;
 use util::ResultExt as _;
-use workspace;
 use workspace::Workspace;
 
 #[allow(clippy::type_complexity)]

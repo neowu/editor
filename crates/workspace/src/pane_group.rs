@@ -279,7 +279,7 @@ impl PaneGroup {
 /// A point just inside the pane next to `bounds` in `direction`, level with
 /// `center`. Split panes are cards `CARD_GAP` apart, so the probe crosses the gap.
 fn neighbor_probe(bounds: Bounds<Pixels>, center: Point<Pixels>, direction: SplitDirection) -> Point<Pixels> {
-    let distance_to_next = crate::CARD_GAP + px(crate::HANDLE_HITBOX_SIZE);
+    let distance_to_next = crate::CARD_GAP + px(HANDLE_HITBOX_SIZE);
     match direction {
         SplitDirection::Left => Point::new(bounds.left() - distance_to_next, center.y),
         SplitDirection::Right => Point::new(bounds.right() + distance_to_next, center.y),
@@ -758,7 +758,6 @@ mod element {
     use gpui::size;
     use parking_lot::Mutex;
     use smallvec::SmallVec;
-    use ui::prelude;
     use ui::prelude::ElementId;
     use util::ResultExt as _;
 
@@ -1049,7 +1048,7 @@ mod element {
         fn paint(
             &mut self,
             _id: Option<&GlobalElementId>,
-            bounds: gpui::Bounds<prelude::Pixels>,
+            bounds: Bounds<Pixels>,
             (): &mut Self::RequestLayoutState,
             layout: &mut Self::PrepaintState,
             window: &mut Window,

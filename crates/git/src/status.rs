@@ -112,7 +112,7 @@ impl FileStatus {
     /// https://git-scm.com/docs/git-status#_output.
     ///
     /// NOTE: That instead of '', we use ' ' to denote no change.
-    fn from_bytes(bytes: [u8; 2]) -> anyhow::Result<Self> {
+    fn from_bytes(bytes: [u8; 2]) -> Result<Self> {
         let status = match bytes {
             [b'?', b'?'] => FileStatus::Untracked,
             [b'!', b'!'] => FileStatus::Ignored,
@@ -214,7 +214,7 @@ impl FileStatus {
 }
 
 impl StatusCode {
-    fn from_byte(byte: u8) -> anyhow::Result<Self> {
+    fn from_byte(byte: u8) -> Result<Self> {
         match byte {
             b'M' => Ok(StatusCode::Modified),
             b'T' => Ok(StatusCode::TypeChanged),
@@ -248,7 +248,7 @@ impl StatusCode {
 }
 
 impl UnmergedStatusCode {
-    fn from_byte(byte: u8) -> anyhow::Result<Self> {
+    fn from_byte(byte: u8) -> Result<Self> {
         match byte {
             b'A' => Ok(UnmergedStatusCode::Added),
             b'D' => Ok(UnmergedStatusCode::Deleted),

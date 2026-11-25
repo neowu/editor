@@ -691,7 +691,7 @@ impl ProjectItem for ImageView {
 
 pub struct ImageViewToolbarControls {
     image_view: Option<WeakEntity<ImageView>>,
-    _subscription: Option<gpui::Subscription>,
+    _subscription: Option<Subscription>,
     zoom_editor: Option<Entity<Editor>>,
     _zoom_subscription: Option<Subscription>,
 }

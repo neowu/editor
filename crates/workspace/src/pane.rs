@@ -1679,7 +1679,7 @@ impl Pane {
                         }
                         Err(err) => {
                             let answer = pane.update_in(cx, |_, window, cx| {
-                                let detail = Self::file_names_for_prompt(&mut std::iter::once(&item_to_close), cx);
+                                let detail = Self::file_names_for_prompt(&mut iter::once(&item_to_close), cx);
                                 window.prompt(
                                     PromptLevel::Warning,
                                     &format!("Unable to save file: {err}"),
@@ -2725,8 +2725,8 @@ impl Pane {
                 let is_scrollable = max_scroll > px(2.0);
                 let has_active_unpinned_tab = self.active_item_index >= self.pinned_tab_count;
                 h_flex().children(pinned_tabs).when(is_scrollable && is_scrolled, |this| {
-                    this.when(has_active_unpinned_tab, gpui::Styled::border_r_2)
-                        .when(!has_active_unpinned_tab, gpui::Styled::border_r_1)
+                    this.when(has_active_unpinned_tab, Styled::border_r_2)
+                        .when(!has_active_unpinned_tab, Styled::border_r_1)
                         .border_color(theme::theme().colors().border)
                 })
             }))
@@ -3381,8 +3381,8 @@ impl Render for Pane {
                             .absolute()
                             .rounded(crate::CARD_RADIUS)
                             .map(Self::drop_target_style(theme::theme().colors()))
-                            .group_drag_over::<DraggedTab>("", gpui::Styled::visible)
-                            .group_drag_over::<DraggedSelection>("", gpui::Styled::visible)
+                            .group_drag_over::<DraggedTab>("", Styled::visible)
+                            .group_drag_over::<DraggedSelection>("", Styled::visible)
                             .when_some(self.can_drop_predicate.clone(), |this, p| {
                                 this.can_drop(move |a, window, cx| p(a, window, cx))
                             })

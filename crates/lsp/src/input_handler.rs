@@ -77,7 +77,7 @@ impl LspStdoutHandler {
         mut notifications_sender: Sender<NotificationOrRequest>,
         response_handlers: Arc<Mutex<Option<FxHashMap<RequestId, ResponseHandler>>>>,
         io_handlers: Arc<Mutex<FxHashMap<i32, IoHandler>>>,
-    ) -> anyhow::Result<()>
+    ) -> Result<()>
     where
         Input: AsyncRead + Unpin + Send + 'static,
     {

@@ -119,7 +119,7 @@ fn extend_formatting_transaction(
     formatting_transaction_id: text::TransactionId,
     cx: &mut AsyncApp,
     operation: impl FnOnce(&mut Buffer, &mut Context<Buffer>),
-) -> anyhow::Result<()> {
+) -> Result<()> {
     buffer.handle.update(cx, |buffer, cx| {
         let last_transaction_id = buffer.peek_undo_stack().map(text::HistoryEntry::transaction_id);
         if last_transaction_id != Some(formatting_transaction_id) {
@@ -140,7 +140,7 @@ impl LocalLspStore {
         mut buffers: Vec<FormattableBuffer>,
         push_to_history: bool,
         cx: &mut AsyncApp,
-    ) -> anyhow::Result<ProjectTransaction> {
+    ) -> Result<ProjectTransaction> {
         // Do not allow multiple concurrent formatting requests for the
         // same buffer.
         lsp_store.update(cx, |this, cx| {
@@ -333,7 +333,7 @@ impl LocalLspStore {
         buffer: &FormattableBuffer,
         formatting_transaction_id: clock::Lamport,
         cx: &mut AsyncApp,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         // Biome formats whole files only. For selection formatting
         // (FormatSelections) we format the whole buffer and keep only the
         // edits that overlap the selected byte ranges.
@@ -378,7 +378,7 @@ impl LocalLspStore {
         settings: &LanguageSettings,
         request_timeout: Duration,
         cx: &mut AsyncApp,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         match formatter {
             Formatter::Auto => {
                 log::error!("Auto resolved above");
@@ -802,7 +802,7 @@ impl LocalLspStore {
                 anyhow::Ok(())
             })??;
 
-            let mut edits = None::<Vec<lsp_types::TextEdit>>;
+            let mut edits = None::<Vec<TextEdit>>;
             for range in lsp_ranges {
                 if edits.as_ref().is_some_and(|edits| {
                     edits.iter().any(|kept| kept.range.start <= range.start && range.end <= kept.range.end)
@@ -1164,7 +1164,7 @@ impl LspStore {
         target: LspFormatTarget,
         push_to_history: bool,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<ProjectTransaction>> {
+    ) -> Task<Result<ProjectTransaction>> {
         {
             let buffers = buffers
                 .into_iter()
@@ -1205,7 +1205,7 @@ impl LspStore {
         }
     }
 
-    pub(super) fn update_last_formatting_failure<T>(&mut self, formatting_result: &anyhow::Result<T>) {
+    pub(super) fn update_last_formatting_failure<T>(&mut self, formatting_result: &Result<T>) {
         match &formatting_result {
             Ok(_) => self.last_formatting_failure = None,
             Err(error) => {

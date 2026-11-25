@@ -41,7 +41,7 @@ impl Default for History {
 #[derive(Clone)]
 struct Transaction {
     id: TransactionId,
-    buffer_transactions: HashMap<BufferId, text::TransactionId>,
+    buffer_transactions: HashMap<BufferId, TransactionId>,
     first_edit_at: Instant,
     last_edit_at: Instant,
     suppress_grouping: bool,
@@ -63,7 +63,7 @@ impl History {
         })
     }
 
-    fn end_transaction(&mut self, now: Instant, buffer_transactions: HashMap<BufferId, text::TransactionId>) -> bool {
+    fn end_transaction(&mut self, now: Instant, buffer_transactions: HashMap<BufferId, TransactionId>) -> bool {
         assert_ne!(self.transaction_depth, 0);
         self.transaction_depth -= 1;
         if self.transaction_depth == 0 {
@@ -356,7 +356,7 @@ impl MultiBuffer {
     }
     pub fn undo(&mut self, cx: &mut Context<Self>) -> Option<TransactionId> {
         let transaction_id = if let Some(buffer) = self.as_singleton() {
-            buffer.update(cx, language::Buffer::undo)
+            buffer.update(cx, Buffer::undo)
         } else {
             let mut undone_id = None;
             while let Some(transaction) = self.history.pop_undo() {
@@ -390,7 +390,7 @@ impl MultiBuffer {
 
     pub fn redo(&mut self, cx: &mut Context<Self>) -> Option<TransactionId> {
         if let Some(buffer) = self.as_singleton() {
-            return buffer.update(cx, language::Buffer::redo);
+            return buffer.update(cx, Buffer::redo);
         }
 
         while let Some(transaction) = self.history.pop_redo() {

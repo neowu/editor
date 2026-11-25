@@ -45,7 +45,7 @@ pub enum CommitDataState {
 
 pub(super) struct CommitDataHandler {
     _task: Task<()>,
-    commit_data_request: async_channel::Sender<Oid>,
+    commit_data_request: Sender<Oid>,
     completion_senders: FxHashMap<Oid, oneshot::Sender<Arc<CommitData>>>,
     pending_requests: HashSet<Oid>,
 }
@@ -65,7 +65,7 @@ pub struct InitialGitGraphData {
     pub error: Option<SharedString>,
     pub commit_data: Vec<Arc<InitialGraphCommitData>>,
     pub commit_oid_to_index: FxHashMap<Oid, usize>,
-    subscribers: Vec<async_channel::Sender<Result<Vec<Arc<InitialGraphCommitData>>, SharedString>>>,
+    subscribers: Vec<Sender<Result<Vec<Arc<InitialGraphCommitData>>, SharedString>>>,
 }
 
 pub struct GraphDataResponse<'a> {
@@ -109,7 +109,7 @@ impl Repository {
         &mut self,
         log_source: LogSource,
         search_args: SearchCommitArgs,
-        request_tx: async_channel::Sender<Oid>,
+        request_tx: Sender<Oid>,
         cx: &mut Context<Self>,
     ) {
         let repository_state = self.repository_state.clone();

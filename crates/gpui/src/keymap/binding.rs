@@ -2,7 +2,6 @@ use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::rc::Rc;
-use std::result;
 
 use smallvec::SmallVec;
 
@@ -45,11 +44,11 @@ impl KeyBinding {
         keystrokes: &str,
         action: Box<dyn Action>,
         context_predicate: Option<Rc<KeyBindingContextPredicate>>,
-    ) -> result::Result<Self, InvalidKeystrokeError> {
+    ) -> Result<Self, InvalidKeystrokeError> {
         let keystrokes: SmallVec<[KeybindingKeystroke; 2]> = keystrokes
             .split_whitespace()
             .map(|source| Ok(KeybindingKeystroke::from_keystroke(Keystroke::parse(source)?)))
-            .collect::<result::Result<_, _>>()?;
+            .collect::<Result<_, _>>()?;
 
         Ok(Self { keystrokes, action, context_predicate, meta: None })
     }

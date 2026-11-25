@@ -889,7 +889,7 @@ pub trait Addon: 'static {
     fn render_buffer_header_controls(
         &self,
         _: &ExcerptBoundaryInfo,
-        _: &language::BufferSnapshot,
+        _: &BufferSnapshot,
         _: &Window,
         _: &App,
     ) -> Option<AnyElement> {
@@ -898,11 +898,11 @@ pub trait Addon: 'static {
 
     fn extend_buffer_header_context_menu(
         &self,
-        menu: ui::ContextMenu,
-        _: &language::BufferSnapshot,
+        menu: ContextMenu,
+        _: &BufferSnapshot,
         _: &mut Window,
         _: &mut App,
-    ) -> ui::ContextMenu {
+    ) -> ContextMenu {
         menu
     }
 
@@ -1182,10 +1182,7 @@ pub struct Editor {
     blame_subscription: Option<Subscription>,
     #[allow(clippy::type_complexity)]
     custom_context_menu: Option<
-        Box<
-            dyn 'static
-                + Fn(&mut Self, DisplayPoint, &mut Window, &mut Context<Self>) -> Option<Entity<ui::ContextMenu>>,
-        >,
+        Box<dyn 'static + Fn(&mut Self, DisplayPoint, &mut Window, &mut Context<Self>) -> Option<Entity<ContextMenu>>>,
     >,
     last_bounds: Option<Bounds<Pixels>>,
     last_position_map: Option<Rc<PositionMap>>,
@@ -1958,9 +1955,7 @@ impl Editor {
             soft_wrap_mode_override,
             diagnostics_max_severity,
             hard_wrap: None,
-            completion_provider: project
-                .clone()
-                .map(|project| Rc::new(project) as Rc<dyn completions::CompletionProvider>),
+            completion_provider: project.clone().map(|project| Rc::new(project) as Rc<dyn CompletionProvider>),
             semantics_provider: project
                 .as_ref()
                 .map(|project| Rc::new(project.downgrade()) as Rc<dyn SemanticsProvider>),
@@ -2419,7 +2414,7 @@ impl Editor {
 
     pub fn set_custom_context_menu(
         &mut self,
-        f: impl 'static + Fn(&mut Self, DisplayPoint, &mut Window, &mut Context<Self>) -> Option<Entity<ui::ContextMenu>>,
+        f: impl 'static + Fn(&mut Self, DisplayPoint, &mut Window, &mut Context<Self>) -> Option<Entity<ContextMenu>>,
     ) {
         self.custom_context_menu = Some(Box::new(f));
     }
@@ -3603,8 +3598,8 @@ impl InvalidationRegion for SnippetState {
 
 pub fn styled_runs_for_code_label<'a>(
     label: &'a CodeLabel,
-    syntax_theme: &'a theme::SyntaxTheme,
-    cursor_colors: &'a theme::CursorColors,
+    syntax_theme: &'a SyntaxTheme,
+    cursor_colors: &'a CursorColors,
 ) -> impl 'a + Iterator<Item = (Range<usize>, HighlightStyle)> {
     let fade_out = HighlightStyle { fade_out: Some(0.35), ..Default::default() };
 
@@ -3759,7 +3754,7 @@ const UPDATE_DEBOUNCE: Duration = Duration::from_millis(50);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LineHighlight {
     pub background: Background,
-    pub border: Option<gpui::Hsla>,
+    pub border: Option<Hsla>,
     pub include_gutter: bool,
     pub type_id: Option<TypeId>,
 }

@@ -9,7 +9,6 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use futures::Future;
 use futures::TryFutureExt as _;
 use rustc_hash::FxHashSet;
 

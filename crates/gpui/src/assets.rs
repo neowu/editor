@@ -89,7 +89,7 @@ impl RenderImage {
 
     /// Get the delay of this frame from the previous.
     pub fn delay(&self, frame_index: usize) -> Delay {
-        self.data.get(frame_index).map_or_else(|| Delay::from_numer_denom_ms(100, 1), image::Frame::delay)
+        self.data.get(frame_index).map_or_else(|| Delay::from_numer_denom_ms(100, 1), Frame::delay)
     }
 
     /// Get the number of frames for this image.

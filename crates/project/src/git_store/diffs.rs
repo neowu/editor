@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -42,7 +41,7 @@ impl GitStore {
     ) -> Task<Result<Entity<BufferDiff>>> {
         let buffer_id = buffer.read(cx).buffer_id();
         if let Some(diff_state) = self.diffs.get(&buffer_id)
-            && let Some(unstaged_diff) = diff_state.read(cx).unstaged_diff.as_ref().and_then(gpui::WeakEntity::upgrade)
+            && let Some(unstaged_diff) = diff_state.read(cx).unstaged_diff.as_ref().and_then(WeakEntity::upgrade)
         {
             // If this unstaged diff was first opened as the uncommitted diff's
             // secondary, its index text wasn't highlighted. Enable it now and
@@ -454,8 +453,7 @@ impl GitStore {
         let buffer_id = buffer.read(cx).buffer_id();
 
         if let Some(diff_state) = self.diffs.get(&buffer_id)
-            && let Some(uncommitted_diff) =
-                diff_state.read(cx).uncommitted_diff.as_ref().and_then(gpui::WeakEntity::upgrade)
+            && let Some(uncommitted_diff) = diff_state.read(cx).uncommitted_diff.as_ref().and_then(WeakEntity::upgrade)
         {
             if let Some(task) = diff_state.update(cx, |diff_state, _| diff_state.wait_for_recalculation()) {
                 return cx.background_executor().spawn(async move {
@@ -664,7 +662,7 @@ impl GitStore {
         let buffer_id = buffer.read(cx).buffer_id();
 
         if let Some(git_state) = self.diffs.get(&buffer_id)
-            && let Some(conflict_set) = git_state.read(cx).conflict_set.as_ref().and_then(gpui::WeakEntity::upgrade)
+            && let Some(conflict_set) = git_state.read(cx).conflict_set.as_ref().and_then(WeakEntity::upgrade)
         {
             let conflict_set = conflict_set;
             let buffer_snapshot = buffer.read(cx).text_snapshot();

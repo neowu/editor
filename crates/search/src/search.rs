@@ -133,7 +133,7 @@ impl SearchOption {
         }
     }
 
-    pub fn icon(&self) -> ui::IconName {
+    pub fn icon(&self) -> IconName {
         match self {
             SearchOption::WholeWord => IconName::WholeWord,
             SearchOption::CaseSensitive => IconName::CaseSensitive,

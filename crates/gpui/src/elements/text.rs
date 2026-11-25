@@ -424,7 +424,7 @@ impl TextLayout {
             };
             let wrap_width = if text_style.white_space == WhiteSpace::Normal {
                 known_dimensions.width.or(match available_space.width {
-                    crate::AvailableSpace::Definite(x) => Some(x),
+                    AvailableSpace::Definite(x) => Some(x),
                     _ => None,
                 })
             } else {
@@ -434,7 +434,7 @@ impl TextLayout {
             let (truncate_width, truncation_affix, truncate_from) =
                 if let Some(text_overflow) = text_style.text_overflow.clone() {
                     let width = known_dimensions.width.or(match available_space.width {
-                        crate::AvailableSpace::Definite(x) => match text_style.line_clamp {
+                        AvailableSpace::Definite(x) => match text_style.line_clamp {
                             Some(max_lines) => Some(x * max_lines),
                             None => Some(x),
                         },

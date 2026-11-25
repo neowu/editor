@@ -1136,9 +1136,7 @@ impl<'a> SyntaxMapCaptures<'a> {
             let mut query_cursor = QueryCursorHandle::new();
 
             // TODO - add a Tree-sitter API to remove the need for this.
-            let cursor = unsafe {
-                mem::transmute::<&mut tree_sitter::QueryCursor, &'static mut QueryCursor>(&mut *query_cursor)
-            };
+            let cursor = unsafe { mem::transmute::<&mut QueryCursor, &'static mut QueryCursor>(&mut *query_cursor) };
 
             cursor.set_byte_range(range.clone());
             let captures = cursor.captures(query, layer.node(), TextProvider(text));
@@ -1245,9 +1243,7 @@ impl<'a> SyntaxMapMatches<'a> {
             let mut query_cursor = QueryCursorHandle::new();
 
             // TODO - add a Tree-sitter API to remove the need for this.
-            let cursor = unsafe {
-                mem::transmute::<&mut tree_sitter::QueryCursor, &'static mut QueryCursor>(&mut *query_cursor)
-            };
+            let cursor = unsafe { mem::transmute::<&mut QueryCursor, &'static mut QueryCursor>(&mut *query_cursor) };
             cursor.set_max_start_depth(options.max_start_depth);
 
             if let Some(max_bytes_to_query) = options.max_bytes_to_query {
@@ -1760,7 +1756,7 @@ pub(crate) fn splice_included_ranges(
 fn insert_newlines_between_ranges(
     indices: Range<usize>,
     ranges: &mut Vec<tree_sitter::Range>,
-    text: &text::BufferSnapshot,
+    text: &BufferSnapshot,
     start_byte: usize,
     start_point: Point,
 ) {
@@ -1806,7 +1802,7 @@ impl<'a> SyntaxLayer<'a> {
         self.tree.root_node_with_offset(self.offset.0, self.offset.1)
     }
 
-    pub(crate) fn override_id(&self, offset: usize, text: &text::BufferSnapshot) -> Option<u32> {
+    pub(crate) fn override_id(&self, offset: usize, text: &BufferSnapshot) -> Option<u32> {
         let text = TextProvider(text.as_rope());
         let config = self.language.grammar.as_ref()?.override_config.as_ref()?;
 
@@ -2033,7 +2029,7 @@ impl fmt::Debug for SyntaxLayerEntry {
 impl<'a> tree_sitter::TextProvider<&'a [u8]> for TextProvider<'a> {
     type I = text::Bytes<'a>;
 
-    fn text(&mut self, node: tree_sitter::Node) -> Self::I {
+    fn text(&mut self, node: Node) -> Self::I {
         self.0.bytes_in_range(node.byte_range())
     }
 }
@@ -2089,9 +2085,9 @@ impl ToTreeSitterPoint for Point {
 
 struct LogIncludedRanges<'a>(&'a [tree_sitter::Range]);
 struct LogPoint(Point);
-struct LogAnchorRange<'a>(&'a Range<Anchor>, &'a text::BufferSnapshot);
-struct LogOffsetRanges<'a>(&'a [Range<usize>], &'a text::BufferSnapshot);
-struct LogChangedRegions<'a>(&'a ChangeRegionSet, &'a text::BufferSnapshot);
+struct LogAnchorRange<'a>(&'a Range<Anchor>, &'a BufferSnapshot);
+struct LogOffsetRanges<'a>(&'a [Range<usize>], &'a BufferSnapshot);
+struct LogChangedRegions<'a>(&'a ChangeRegionSet, &'a BufferSnapshot);
 
 impl fmt::Debug for LogIncludedRanges<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

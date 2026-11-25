@@ -9,7 +9,6 @@ use std::ops::BitOr;
 use std::ops::BitOrAssign;
 use std::ops::BitXor;
 use std::ops::BitXorAssign;
-use std::result;
 
 use serde::Deserialize;
 use serde::Serialize;
@@ -94,7 +93,7 @@ impl Keystroke {
     /// key_char syntax is only used for generating test events,
     /// secondary means "cmd" on macOS and "ctrl" on other platforms
     /// when matching a key with an key_char set will be matched without it.
-    pub fn parse(source: &str) -> result::Result<Self, InvalidKeystrokeError> {
+    pub fn parse(source: &str) -> Result<Self, InvalidKeystrokeError> {
         let mut modifiers = Modifiers::none();
         let mut key = None;
         let mut key_char = None;

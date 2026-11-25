@@ -32,7 +32,6 @@ use gpui::IntoElement;
 use gpui::Render;
 use gpui::Task;
 use gpui::Window;
-use language;
 use language::Buffer;
 use language::Capability;
 use language::OffsetRangeExt as _;
@@ -184,7 +183,7 @@ impl TextDiffView {
         cx: &mut Context<Self>,
     ) -> Self {
         let multibuffer = cx.new(|cx| {
-            let mut multibuffer = MultiBuffer::new(language::Capability::ReadWrite);
+            let mut multibuffer = MultiBuffer::new(Capability::ReadWrite);
 
             multibuffer.set_excerpts_for_buffer(source_buffer.clone(), [source_range], 0, cx);
 
@@ -262,7 +261,7 @@ fn build_clipboard_buffer(
 ) -> Entity<Buffer> {
     let source_buffer_snapshot = source_buffer.read(cx).snapshot();
     cx.new(|cx| {
-        let mut buffer = language::Buffer::local(source_buffer_snapshot.text(), cx);
+        let mut buffer = Buffer::local(source_buffer_snapshot.text(), cx);
         let language = source_buffer.read(cx).language().cloned();
         if let Some(language_registry) = source_buffer.read(cx).language_registry() {
             buffer.set_language_registry(language_registry);

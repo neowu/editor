@@ -304,7 +304,7 @@ impl KeyBindingContextPredicate {
         }
     }
 
-    fn parse_expr(mut source: &str, min_precedence: u32) -> anyhow::Result<(Self, &str)> {
+    fn parse_expr(mut source: &str, min_precedence: u32) -> Result<(Self, &str)> {
         type Op = fn(KeyBindingContextPredicate, KeyBindingContextPredicate) -> Result<KeyBindingContextPredicate>;
 
         let (mut predicate, rest) = Self::parse_primary(source)?;
@@ -332,7 +332,7 @@ impl KeyBindingContextPredicate {
         Ok((predicate, source))
     }
 
-    fn parse_primary(mut source: &str) -> anyhow::Result<(Self, &str)> {
+    fn parse_primary(mut source: &str) -> Result<(Self, &str)> {
         let next = source.chars().next().context("unexpected end")?;
         match next {
             '(' => {

@@ -17,7 +17,6 @@ use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::collections::VecDeque;
-use std::future::Future;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
@@ -258,7 +257,7 @@ enum DiffKind {
     Unstaged,
     Staged,
     Uncommitted,
-    SinceOid(Option<git::Oid>),
+    SinceOid(Option<Oid>),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -410,7 +409,7 @@ impl RepositoryState {
         project_environment: WeakEntity<ProjectEnvironment>,
         fs: Arc<Fs>,
         cx: &mut AsyncApp,
-    ) -> anyhow::Result<Self> {
+    ) -> Result<Self> {
         let environment = project_environment
             .update(cx, |project_environment, cx| {
                 project_environment.local_directory_environment(
@@ -2020,7 +2019,7 @@ impl Repository {
         &self,
         entries: impl IntoIterator<Item = &'a RepoPath>,
         cx: &mut Context<Self>,
-    ) -> Vec<Task<anyhow::Result<()>>> {
+    ) -> Vec<Task<Result<()>>> {
         let mut save_futures = Vec::new();
         if let Some(buffer_store) = self.buffer_store(cx) {
             buffer_store.update(cx, |buffer_store, cx| {
@@ -2040,11 +2039,11 @@ impl Repository {
         save_futures
     }
 
-    pub fn stage_entries(&mut self, entries: Vec<RepoPath>, cx: &mut Context<Self>) -> Task<anyhow::Result<()>> {
+    pub fn stage_entries(&mut self, entries: Vec<RepoPath>, cx: &mut Context<Self>) -> Task<Result<()>> {
         self.stage_or_unstage_entries(true, entries, cx)
     }
 
-    pub fn unstage_entries(&mut self, entries: Vec<RepoPath>, cx: &mut Context<Self>) -> Task<anyhow::Result<()>> {
+    pub fn unstage_entries(&mut self, entries: Vec<RepoPath>, cx: &mut Context<Self>) -> Task<Result<()>> {
         self.stage_or_unstage_entries(false, entries, cx)
     }
 
@@ -2053,7 +2052,7 @@ impl Repository {
         stage: bool,
         entries: Vec<RepoPath>,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<()>> {
+    ) -> Task<Result<()>> {
         if entries.is_empty() {
             return Task::ready(Ok(()));
         }
@@ -2141,7 +2140,7 @@ impl Repository {
         )
     }
 
-    pub fn stage_all(&mut self, cx: &mut Context<Self>) -> Task<anyhow::Result<()>> {
+    pub fn stage_all(&mut self, cx: &mut Context<Self>) -> Task<Result<()>> {
         let snapshot = self.snapshot.clone();
         let pending_ops = self.pending_ops.clone();
         let to_stage = cx.background_spawn(async move {
@@ -2168,7 +2167,7 @@ impl Repository {
         })
     }
 
-    pub fn unstage_all(&mut self, cx: &mut Context<Self>) -> Task<anyhow::Result<()>> {
+    pub fn unstage_all(&mut self, cx: &mut Context<Self>) -> Task<Result<()>> {
         let snapshot = self.snapshot.clone();
         let pending_ops = self.pending_ops.clone();
         let to_unstage = cx.background_spawn(async move {
@@ -2195,13 +2194,13 @@ impl Repository {
         })
     }
 
-    pub fn stash_all(&mut self, message: Option<String>, cx: &mut Context<Self>) -> Task<anyhow::Result<()>> {
+    pub fn stash_all(&mut self, message: Option<String>, cx: &mut Context<Self>) -> Task<Result<()>> {
         let to_stash = self.cached_status().map(|entry| entry.repo_path).collect();
 
         self.stash_entries(to_stash, message, cx)
     }
 
-    pub fn stash_tracked(&mut self, message: Option<String>, cx: &mut Context<Self>) -> Task<anyhow::Result<()>> {
+    pub fn stash_tracked(&mut self, message: Option<String>, cx: &mut Context<Self>) -> Task<Result<()>> {
         // `is_created` rather than `is_untracked`, so that staging a new file does not
         // move it out of the untracked set: `git add` makes it `Tracked { Added }`, but
         // the panel still lists it under "Untracked" and the user expects it left alone.
@@ -2220,7 +2219,7 @@ impl Repository {
         entries: Vec<RepoPath>,
         message: Option<String>,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<()>> {
+    ) -> Task<Result<()>> {
         cx.spawn(async move |this, cx| {
             this.update(cx, |this, _| {
                 this.send_job(None, move |git_repo, _cx| async move {
@@ -2235,7 +2234,7 @@ impl Repository {
         })
     }
 
-    pub fn stash_staged(&mut self, message: Option<String>, cx: &mut Context<Self>) -> Task<anyhow::Result<()>> {
+    pub fn stash_staged(&mut self, message: Option<String>, cx: &mut Context<Self>) -> Task<Result<()>> {
         cx.spawn(async move |this, cx| {
             this.update(cx, |this, _| {
                 this.send_job(None, move |git_repo, _cx| async move {
@@ -2250,7 +2249,7 @@ impl Repository {
         })
     }
 
-    pub fn stash_pop(&mut self, index: Option<usize>, cx: &mut Context<Self>) -> Task<anyhow::Result<()>> {
+    pub fn stash_pop(&mut self, index: Option<usize>, cx: &mut Context<Self>) -> Task<Result<()>> {
         cx.spawn(async move |this, cx| {
             this.update(cx, |this, _| {
                 this.send_job(None, move |git_repo, _cx| async move {
@@ -2265,7 +2264,7 @@ impl Repository {
         })
     }
 
-    pub fn stash_apply(&mut self, index: Option<usize>, cx: &mut Context<Self>) -> Task<anyhow::Result<()>> {
+    pub fn stash_apply(&mut self, index: Option<usize>, cx: &mut Context<Self>) -> Task<Result<()>> {
         cx.spawn(async move |this, cx| {
             this.update(cx, |this, _| {
                 this.send_job(None, move |git_repo, _cx| async move {
@@ -2310,11 +2309,7 @@ impl Repository {
         })
     }
 
-    pub fn stash_drop(
-        &mut self,
-        index: Option<usize>,
-        cx: &mut Context<Self>,
-    ) -> oneshot::Receiver<anyhow::Result<()>> {
+    pub fn stash_drop(&mut self, index: Option<usize>, cx: &mut Context<Self>) -> oneshot::Receiver<Result<()>> {
         let this = cx.weak_entity();
         self.send_job(None, move |git_repo, mut cx| async move {
             {
@@ -2498,7 +2493,7 @@ impl Repository {
         has_bom: bool,
         hunk_staging_operation_count: Option<usize>,
         cx: &Context<Self>,
-    ) -> oneshot::Receiver<anyhow::Result<()>> {
+    ) -> oneshot::Receiver<Result<()>> {
         let this = cx.weak_entity();
         let git_store = self.git_store.clone();
         let abs_path = self.snapshot.repo_path_to_abs_path(&path);
@@ -3155,7 +3150,7 @@ impl Repository {
                         if let Some(op) = ops.op_by_id_mut(id) {
                             op.job_status = job_status;
                         }
-                        edits.push(sum_tree::Edit::Insert(ops));
+                        edits.push(Edit::Insert(ops));
                     }
                 }
                 this.pending_ops.edit(edits, ());
@@ -3180,7 +3175,7 @@ impl Repository {
                 .unwrap_or_else(|| PendingOps::new(&path));
             let id = ops.max_id() + 1;
             ops.ops.push(PendingOp { id, git_status, job_status: pending_op::JobStatus::Running });
-            edits.push(sum_tree::Edit::Insert(ops));
+            edits.push(Edit::Insert(ops));
             ids.push((id, path));
         }
         self.pending_ops.edit(edits, ());

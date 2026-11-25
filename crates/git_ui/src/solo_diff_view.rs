@@ -172,7 +172,7 @@ impl SoloDiffView {
                 let snapshot = editor.snapshot(window, cx);
                 editor.go_to_hunk_before_or_after_position(
                     &snapshot,
-                    language::Point::new(0, 0),
+                    Point::new(0, 0),
                     Direction::Next,
                     true,
                     window,
@@ -618,7 +618,7 @@ struct SoloDiffButtonStates {
 impl Render for SoloDiffGitToolbar {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(solo_diff) = self.solo_diff() else {
-            return gpui::Empty.into_any_element();
+            return Empty.into_any_element();
         };
 
         let focus_handle = solo_diff.focus_handle(cx);

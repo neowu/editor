@@ -149,7 +149,7 @@ impl<M: ManagedView> Element for RightClickMenu<M> {
         id: Option<&GlobalElementId>,
         window: &mut Window,
         cx: &mut App,
-    ) -> (gpui::LayoutId, Self::RequestLayoutState) {
+    ) -> (LayoutId, Self::RequestLayoutState) {
         self.with_element_state(
             id.expect("right click menu has an id"),
             window,
@@ -217,7 +217,7 @@ impl<M: ManagedView> Element for RightClickMenu<M> {
     fn paint(
         &mut self,
         id: Option<&GlobalElementId>,
-        _bounds: Bounds<gpui::Pixels>,
+        _bounds: Bounds<Pixels>,
         request_layout: &mut Self::RequestLayoutState,
         prepaint_state: &mut Self::PrepaintState,
         window: &mut Window,

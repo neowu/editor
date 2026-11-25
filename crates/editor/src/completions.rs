@@ -1,4 +1,3 @@
-use std::iter::Iterator;
 use std::mem;
 use std::sync::atomic::AtomicBool;
 

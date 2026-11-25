@@ -236,11 +236,7 @@ pub fn is_image_file(project: &Entity<Project>, path: &ProjectPath, cx: &App) ->
 }
 
 impl ProjectItem for ImageItem {
-    fn try_open(
-        project: &Entity<Project>,
-        path: &ProjectPath,
-        cx: &mut App,
-    ) -> Option<Task<anyhow::Result<Entity<Self>>>> {
+    fn try_open(project: &Entity<Project>, path: &ProjectPath, cx: &mut App) -> Option<Task<Result<Entity<Self>>>> {
         is_image_file(project, path, cx).then(|| {
             cx.spawn({
                 let path = path.clone();
@@ -304,11 +300,11 @@ impl ImageStore {
     }
 
     pub fn images(&self) -> impl '_ + Iterator<Item = Entity<ImageItem>> {
-        self.opened_images.values().filter_map(gpui::WeakEntity::upgrade)
+        self.opened_images.values().filter_map(WeakEntity::upgrade)
     }
 
     pub fn get(&self, image_id: ImageId) -> Option<Entity<ImageItem>> {
-        self.opened_images.get(&image_id).and_then(gpui::WeakEntity::upgrade)
+        self.opened_images.get(&image_id).and_then(WeakEntity::upgrade)
     }
 
     pub fn get_by_path(&self, path: &ProjectPath, cx: &App) -> Option<Entity<ImageItem>> {
@@ -477,7 +473,7 @@ impl LocalImageStore {
         &mut self,
         entry_id: ProjectEntryId,
         path: &Arc<RelPath>,
-        worktree: &Entity<worktree::Worktree>,
+        worktree: &Entity<Worktree>,
         snapshot: &worktree::Snapshot,
         cx: &mut Context<Self>,
     ) -> Option<()> {
@@ -584,7 +580,7 @@ impl LocalImageStore {
     }
 }
 
-fn create_gpui_image(content: Vec<u8>) -> anyhow::Result<Arc<gpui::Image>> {
+fn create_gpui_image(content: Vec<u8>) -> Result<Arc<gpui::Image>> {
     let Ok(format) = image::guess_format(&content) else {
         // SVG has no magic bytes; accept content that parses as one.
         usvg::Tree::from_data(&content, &usvg::Options::default())?;

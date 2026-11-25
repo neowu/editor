@@ -181,7 +181,7 @@ impl Workspace {
         pane: Option<WeakEntity<Pane>>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Task<Vec<Option<anyhow::Result<Box<dyn ItemHandle>>>>> {
+    ) -> Task<Vec<Option<Result<Box<dyn ItemHandle>>>>> {
         let fs = fs::Fs::global(cx);
 
         let caller_ordered_abs_paths = abs_paths.clone();
@@ -337,7 +337,7 @@ impl Workspace {
         path: ResolvedPath,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<Box<dyn ItemHandle>>> {
+    ) -> Task<Result<Box<dyn ItemHandle>>> {
         match path {
             ResolvedPath::ProjectPath { project_path, .. } => self.open_path(project_path, None, true, window, cx),
             ResolvedPath::AbsPath { path, .. } => self.open_abs_path(
@@ -453,7 +453,7 @@ impl Workspace {
         options: OpenOptions,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<Box<dyn ItemHandle>>> {
+    ) -> Task<Result<Box<dyn ItemHandle>>> {
         cx.spawn_in(window, async move |workspace, cx| {
             let open_paths_task_result = workspace
                 .update_in(cx, |workspace, window, cx| {
@@ -478,7 +478,7 @@ impl Workspace {
         visible: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<Box<dyn ItemHandle>>> {
+    ) -> Task<Result<Box<dyn ItemHandle>>> {
         let project_path_task = Workspace::project_path_for_path(self.project.clone(), &abs_path, visible, cx);
         cx.spawn_in(window, async move |this, cx| {
             let (_, path) = project_path_task.await?;
@@ -495,7 +495,7 @@ impl Workspace {
         focus_item: bool,
         window: &mut Window,
         cx: &mut App,
-    ) -> Task<anyhow::Result<Box<dyn ItemHandle>>> {
+    ) -> Task<Result<Box<dyn ItemHandle>>> {
         self.open_path_preview(path, pane, focus_item, false, true, window, cx)
     }
 
@@ -508,7 +508,7 @@ impl Workspace {
         activate: bool,
         window: &mut Window,
         cx: &mut App,
-    ) -> Task<anyhow::Result<Box<dyn ItemHandle>>> {
+    ) -> Task<Result<Box<dyn ItemHandle>>> {
         let requested_pane = pane.unwrap_or_else(|| {
             self.last_active_center_pane
                 .clone()
@@ -678,7 +678,7 @@ impl Workspace {
         path: impl Into<ProjectPath>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<Box<dyn ItemHandle>>> {
+    ) -> Task<Result<Box<dyn ItemHandle>>> {
         self.split_path_preview(path, false, None, window, cx)
     }
 
@@ -689,7 +689,7 @@ impl Workspace {
         split_direction: Option<SplitDirection>,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Task<anyhow::Result<Box<dyn ItemHandle>>> {
+    ) -> Task<Result<Box<dyn ItemHandle>>> {
         let pane = self
             .last_active_center_pane
             .clone()
@@ -988,11 +988,11 @@ impl OpenOptions {
 pub struct OpenResult {
     pub window: WindowHandle<Workspace>,
     pub workspace: Entity<Workspace>,
-    pub opened_items: Vec<Option<anyhow::Result<Box<dyn ItemHandle>>>>,
+    pub opened_items: Vec<Option<Result<Box<dyn ItemHandle>>>>,
 }
 
 #[allow(clippy::type_complexity)]
-pub fn open_paths(abs_paths: &[PathBuf], open_options: OpenOptions, cx: &mut App) -> Task<anyhow::Result<OpenResult>> {
+pub fn open_paths(abs_paths: &[PathBuf], open_options: OpenOptions, cx: &mut App) -> Task<Result<OpenResult>> {
     let abs_paths = abs_paths.to_vec();
     let fs = fs::Fs::global(cx);
 
@@ -1072,7 +1072,7 @@ pub fn open_new(
     open_options: OpenOptions,
     cx: &mut App,
     init: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + 'static + Send,
-) -> Task<anyhow::Result<()>> {
+) -> Task<Result<()>> {
     let addition = open_options.open_mode;
     let task = Workspace::new_local(Vec::new(), open_options.requesting_window, Some(Box::new(init)), addition, cx);
     cx.spawn(async move |cx| {

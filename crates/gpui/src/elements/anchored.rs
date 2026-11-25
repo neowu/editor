@@ -104,7 +104,7 @@ impl Element for Anchored {
         _id: Option<&GlobalElementId>,
         window: &mut Window,
         cx: &mut App,
-    ) -> (crate::LayoutId, Self::RequestLayoutState) {
+    ) -> (LayoutId, Self::RequestLayoutState) {
         let child_layout_ids =
             self.children.iter_mut().map(|child| child.request_layout(window, cx)).collect::<SmallVec<_>>();
 
@@ -204,7 +204,7 @@ impl Element for Anchored {
     fn paint(
         &mut self,
         _id: Option<&GlobalElementId>,
-        _bounds: crate::Bounds<crate::Pixels>,
+        _bounds: Bounds<Pixels>,
         _request_layout: &mut Self::RequestLayoutState,
         _prepaint: &mut Self::PrepaintState,
         window: &mut Window,

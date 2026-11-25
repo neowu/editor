@@ -289,7 +289,7 @@ impl<'de> Deserialize<'de> for CompletionTextEdit {
         impl<'de> Visitor<'de> for CompletionTextEditVisitor {
             type Value = CompletionTextEdit;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("struct CompletionTextEdit")
             }
 
@@ -437,7 +437,7 @@ impl<'de> Deserialize<'de> for CompletionResponse {
         impl<'de> Visitor<'de> for CompletionResponseVisitor {
             type Value = CompletionResponse;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("an array or a struct for CompletionResponse")
             }
 

@@ -9,7 +9,6 @@ use std::time::Duration;
 use std::time::Instant;
 
 use anyhow::Result;
-use futures::Future;
 use gpui_util::ResultExt as _;
 use image::ImageError;
 use image::ImageFormat;
@@ -612,8 +611,8 @@ impl From<usvg::Error> for ImageCacheError {
     }
 }
 
-impl From<image::ImageError> for ImageCacheError {
-    fn from(value: image::ImageError) -> Self {
+impl From<ImageError> for ImageCacheError {
+    fn from(value: ImageError) -> Self {
         Self::Image(Arc::new(value))
     }
 }

@@ -962,7 +962,7 @@ impl Workspace {
                 cx,
             );
             center_pane.set_can_split(Some(Arc::new(|_, _, _, _| true)));
-            pane::set_editor_tab_bar_buttons(&mut center_pane, cx);
+            set_editor_tab_bar_buttons(&mut center_pane, cx);
             center_pane.set_nav_history(nav_history.clone());
             center_pane
         });
@@ -1107,7 +1107,7 @@ impl Workspace {
         init: Option<Box<dyn FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>) + Send>>,
         open_mode: OpenMode,
         cx: &mut App,
-    ) -> Task<anyhow::Result<OpenResult>> {
+    ) -> Task<Result<OpenResult>> {
         let fs = fs::Fs::global(cx);
         let project_handle = Project::local(LanguageRegistry::global(cx), Arc::clone(&fs), cx);
 
@@ -1544,7 +1544,7 @@ impl Workspace {
     }
 
     pub fn item_of_type<T: Item>(&self, cx: &App) -> Option<Entity<T>> {
-        self.items_of_type(cx).max_by_key(item::ItemHandle::item_id)
+        self.items_of_type(cx).max_by_key(ItemHandle::item_id)
     }
 
     pub fn items_of_type<'a, T: Item>(&'a self, cx: &'a App) -> impl 'a + Iterator<Item = Entity<T>> {
@@ -2144,7 +2144,7 @@ impl Workspace {
             adjust_open_docks_size_by_px(px_with_ui_font_fallback(act.px, cx) * -1., workspace, window, cx);
         });
         t.add(Workspace::toggle_editor_zoom);
-        t.add(|workspace: &mut Workspace, action: &pane::ActivateNextItem, window, cx| {
+        t.add(|workspace: &mut Workspace, action: &ActivateNextItem, window, cx| {
             if let Some(active_dock) = workspace.active_dock(window, cx) {
                 let dock = active_dock.read(cx);
                 if let Some(active_panel) = dock.active_panel()
@@ -2184,7 +2184,7 @@ impl Workspace {
             }
             cx.propagate();
         });
-        t.add(|workspace: &mut Workspace, action: &pane::ActivatePreviousItem, window, cx| {
+        t.add(|workspace: &mut Workspace, action: &ActivatePreviousItem, window, cx| {
             if let Some(active_dock) = workspace.active_dock(window, cx) {
                 let dock = active_dock.read(cx);
                 if let Some(active_panel) = dock.active_panel()
@@ -2224,7 +2224,7 @@ impl Workspace {
             }
             cx.propagate();
         });
-        t.add(|workspace: &mut Workspace, action: &pane::CloseActiveItem, window, cx| {
+        t.add(|workspace: &mut Workspace, action: &CloseActiveItem, window, cx| {
             if let Some(active_dock) = workspace.active_dock(window, cx) {
                 let dock = active_dock.read(cx);
                 if let Some(active_panel) = dock.active_panel()
@@ -2346,7 +2346,7 @@ impl Workspace {
         let center_pane = self
             .last_active_center_pane
             .as_ref()
-            .and_then(gpui::WeakEntity::upgrade)
+            .and_then(WeakEntity::upgrade)
             .unwrap_or_else(|| self.center.first_pane());
         parts.push(FocusablePart::landmark(center_pane.read(cx).focus_handle(cx)));
 

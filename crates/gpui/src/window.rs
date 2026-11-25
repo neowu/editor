@@ -371,10 +371,10 @@ impl ElementArenaScope {
         arena.borrow_mut().begin_scope();
         let previous = CURRENT_ELEMENT_ARENA.with(|current| {
             let prev = current.get();
-            current.set(Some(std::ptr::from_ref::<RefCell<Arena>>(arena)));
+            current.set(Some(ptr::from_ref::<RefCell<Arena>>(arena)));
             prev
         });
-        Self { entered: std::ptr::from_ref::<RefCell<Arena>>(arena), previous, exited: false }
+        Self { entered: ptr::from_ref::<RefCell<Arena>>(arena), previous, exited: false }
     }
 
     /// End the scope: restores the previously-current arena and ends the
@@ -432,7 +432,7 @@ impl ArenaClearNeeded {
     /// Create a new ArenaClearNeeded token for the App whose arena was drawn
     /// into. Private: the only way to obtain one is [`ElementArenaScope::exit`].
     const fn new(arena: &RefCell<Arena>) -> Self {
-        Self { arena: std::ptr::from_ref::<RefCell<Arena>>(arena) }
+        Self { arena: ptr::from_ref::<RefCell<Arena>>(arena) }
     }
 
     /// Clear the element arena of the App the draw ran against. If an enclosing

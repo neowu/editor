@@ -112,7 +112,7 @@ impl TextFinder {
         let search_options = picker.read(cx).delegate.search_options;
 
         cx.spawn_in(window, async move |this, cx| {
-            let search_stream = connected_task.unwrap_or(gpui::Task::ready(None)).await;
+            let search_stream = connected_task.unwrap_or(Task::ready(None)).await;
             let matches = picker.update(cx, |picker, _| mem::take(&mut picker.delegate.matches));
 
             project_search_view

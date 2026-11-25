@@ -253,7 +253,7 @@ impl PickerDelegate for CommandPaletteDelegate {
         self.selected_ix = ix;
     }
 
-    fn update_matches(&mut self, query: String, window: &mut Window, cx: &mut Context<Picker<Self>>) -> gpui::Task<()> {
+    fn update_matches(&mut self, query: String, window: &mut Window, cx: &mut Context<Picker<Self>>) -> Task<()> {
         let (tx, rx) = async_channel::bounded(1);
 
         let query_str = query.as_str();

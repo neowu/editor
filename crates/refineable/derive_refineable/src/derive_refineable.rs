@@ -23,7 +23,7 @@ pub fn derive_refineable(input: TokenStream) -> TokenStream {
     let mut refinement_traits_to_derive = vec![];
 
     if let Some(refineable_attr) = refineable_attr {
-        let _: syn::Result<()> = refineable_attr.parse_nested_meta(|meta| {
+        _ = refineable_attr.parse_nested_meta(|meta| {
             if meta.path.is_ident("Debug") {
                 impl_debug_on_refinement = true;
             } else {
@@ -495,7 +495,7 @@ fn is_optional_field(f: &Field) -> bool {
     false
 }
 
-fn get_wrapper_type(field: &Field, ty: &Type) -> syn::Type {
+fn get_wrapper_type(field: &Field, ty: &Type) -> Type {
     if is_refineable_field(field) {
         let struct_name = if let Type::Path(tp) = ty {
             tp.path.segments.last().expect("type paths are never empty").ident.clone()

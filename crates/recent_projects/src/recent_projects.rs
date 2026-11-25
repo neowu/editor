@@ -724,7 +724,7 @@ impl PickerDelegate for RecentProjectsDelegate {
         )
     }
 
-    fn update_matches(&mut self, query: String, _: &mut Window, cx: &mut Context<Picker<Self>>) -> gpui::Task<()> {
+    fn update_matches(&mut self, query: String, _: &mut Window, cx: &mut Context<Picker<Self>>) -> Task<()> {
         let query = query.trim_start();
         let case = fuzzy::Case::smart_if_uppercase_in(query);
         let is_empty_query = query.is_empty();

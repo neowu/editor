@@ -86,7 +86,7 @@ impl<Label: Ord + Clone> RootPathTrie<Label> {
             };
         }
         if !current.labels.is_empty() {
-            let _: ControlFlow<()> = (callback)(&current.worktree_relative_path, &current.labels);
+            _ = (callback)(&current.worktree_relative_path, &current.labels);
         }
     }
 

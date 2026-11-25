@@ -276,7 +276,7 @@ impl LspStore {
         server_id: LanguageServerId,
         params: lsp_types::RegistrationParams,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let server = self.language_server_for_id(server_id).with_context(|| format!("no server {server_id} found"))?;
         for reg in params.registrations {
             match reg.method.as_str() {
@@ -710,7 +710,7 @@ impl LspStore {
         server_id: LanguageServerId,
         params: lsp_types::UnregistrationParams,
         cx: &mut Context<Self>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<()> {
         let server = self.language_server_for_id(server_id).with_context(|| format!("no server {server_id} found"))?;
         for unreg in &params.unregisterations {
             match unreg.method.as_str() {

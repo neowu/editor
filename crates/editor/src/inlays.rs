@@ -56,7 +56,7 @@ pub struct Inlay {
 
 #[derive(Debug, Clone)]
 pub enum InlayContent {
-    Text(text::Rope),
+    Text(Rope),
     Color(Hsla),
 }
 

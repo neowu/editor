@@ -201,7 +201,7 @@ struct BufferState {
 
 struct DiffState {
     diff: Entity<BufferDiff>,
-    main_buffer: Option<Entity<language::Buffer>>,
+    main_buffer: Option<Entity<Buffer>>,
     _subscription: gpui::Subscription,
 }
 
@@ -235,11 +235,7 @@ impl DiffState {
         }
     }
 
-    fn new_inverted(
-        diff: Entity<BufferDiff>,
-        main_buffer: Entity<language::Buffer>,
-        cx: &mut Context<MultiBuffer>,
-    ) -> Self {
+    fn new_inverted(diff: Entity<BufferDiff>, main_buffer: Entity<Buffer>, cx: &mut Context<MultiBuffer>) -> Self {
         let weak_main_buffer = main_buffer.downgrade();
         DiffState {
             _subscription: cx.subscribe(&diff, {
@@ -271,7 +267,7 @@ impl DiffState {
 struct DiffStateSnapshot {
     buffer_id: BufferId,
     diff: BufferDiffSnapshot,
-    main_buffer: Option<language::BufferSnapshot>,
+    main_buffer: Option<BufferSnapshot>,
 }
 
 impl ops::Deref for DiffStateSnapshot {
@@ -577,7 +573,7 @@ pub struct RowInfo {
     pub buffer_id: Option<BufferId>,
     pub buffer_row: Option<u32>,
     pub multibuffer_row: Option<MultiBufferRow>,
-    pub diff_status: Option<buffer_diff::DiffHunkStatus>,
+    pub diff_status: Option<DiffHunkStatus>,
     pub expand_info: Option<ExpandInfo>,
     pub wrapped_buffer_row: Option<u32>,
 }
@@ -1330,7 +1326,7 @@ impl MultiBuffer {
     fn inverted_buffer_diff_changed(
         &mut self,
         diff: Entity<BufferDiff>,
-        main_buffer: Entity<language::Buffer>,
+        main_buffer: Entity<Buffer>,
         diff_change_range: Option<Range<usize>>,
         cx: &mut Context<Self>,
     ) {
@@ -1492,12 +1488,7 @@ impl MultiBuffer {
         self.diffs.insert(buffer_id, DiffState::new(diff, cx));
     }
 
-    pub fn add_inverted_diff(
-        &mut self,
-        diff: Entity<BufferDiff>,
-        main_buffer: Entity<language::Buffer>,
-        cx: &mut Context<Self>,
-    ) {
+    pub fn add_inverted_diff(&mut self, diff: Entity<BufferDiff>, main_buffer: Entity<Buffer>, cx: &mut Context<Self>) {
         let snapshot = diff.read(cx).base_text(cx);
         let base_text_buffer_id = snapshot.buffer_id();
         let diff_change_range = 0..snapshot.len();
@@ -1631,7 +1622,7 @@ impl MultiBuffer {
                     end = end.min(excerpt_end);
                 }
                 last_hunk_row = Some(diff_hunk.row_range.start);
-                excerpt_edits.push(text::Edit { old: start..end, new: start..end });
+                excerpt_edits.push(Edit { old: start..end, new: start..end });
             }
         }
 
@@ -2054,7 +2045,7 @@ impl MultiBufferSnapshot {
             + Ord
             + Sub<Output = MBD::TextDimension>
             + ops::Add<MBD::TextDimension, Output = MBD>
-            + ops::AddAssign<MBD::TextDimension>,
+            + AddAssign<MBD::TextDimension>,
         MBD::TextDimension: Sub<Output = MBD::TextDimension>
             + ops::Add<Output = MBD::TextDimension>
             + AddAssign<MBD::TextDimension>
@@ -2476,7 +2467,7 @@ impl MultiBufferSnapshot {
         clip_buffer_position: fn(&text::BufferSnapshot, BD, Bias) -> BD,
     ) -> MBD
     where
-        MBD: MultiBufferDimension + Ord + Sub + ops::AddAssign<<MBD as Sub>::Output>,
+        MBD: MultiBufferDimension + Ord + Sub + AddAssign<<MBD as Sub>::Output>,
         BD: TextDimension + Sub<Output = <MBD as Sub>::Output> + AddAssign<<MBD as Sub>::Output>,
     {
         let mut cursor = self.cursor::<MBD, BD>();
@@ -2503,9 +2494,9 @@ impl MultiBufferSnapshot {
         convert_buffer_dimension: fn(&text::BufferSnapshot, BR1) -> BR2,
     ) -> MBR2
     where
-        MBR1: MultiBufferDimension + Ord + Sub + ops::AddAssign<<MBR1 as Sub>::Output>,
+        MBR1: MultiBufferDimension + Ord + Sub + AddAssign<<MBR1 as Sub>::Output>,
         BR1: TextDimension + Sub<Output = <MBR1 as Sub>::Output> + AddAssign<<MBR1 as Sub>::Output>,
-        MBR2: MultiBufferDimension + Ord + Sub + ops::AddAssign<<MBR2 as Sub>::Output>,
+        MBR2: MultiBufferDimension + Ord + Sub + AddAssign<<MBR2 as Sub>::Output>,
         BR2: TextDimension + Sub<Output = <MBR2 as Sub>::Output> + AddAssign<<MBR2 as Sub>::Output>,
     {
         let mut cursor = self.cursor::<DimensionPair<MBR1, MBR2>, DimensionPair<BR1, BR2>>();
@@ -2737,7 +2728,7 @@ impl MultiBufferSnapshot {
 
     fn cursor<MBD, BD>(&self) -> MultiBufferCursor<'_, MBD, BD>
     where
-        MBD: MultiBufferDimension + Ord + Sub + ops::AddAssign<<MBD as Sub>::Output>,
+        MBD: MultiBufferDimension + Ord + Sub + AddAssign<<MBD as Sub>::Output>,
         BD: TextDimension + AddAssign<<MBD as Sub>::Output>,
     {
         let excerpts = self.excerpts.cursor(());
@@ -3042,7 +3033,7 @@ impl MultiBufferSnapshot {
     /// Otherwise, returns None.
     pub fn range_to_buffer_range<MBD>(&self, range: Range<MBD>) -> Option<(&BufferSnapshot, Range<MBD::TextDimension>)>
     where
-        MBD: MultiBufferDimension + Ord + Sub + ops::AddAssign<<MBD as Sub>::Output>,
+        MBD: MultiBufferDimension + Ord + Sub + AddAssign<<MBD as Sub>::Output>,
         MBD::TextDimension: AddAssign<<MBD as Sub>::Output>,
     {
         let mut cursor = self.cursor::<MBD, MBD::TextDimension>();
@@ -3322,7 +3313,7 @@ impl sum_tree::ContextLessSummary for DiffTransformSummary {
     }
 }
 
-impl sum_tree::Dimension<'_, ExcerptSummary> for PathKey {
+impl Dimension<'_, ExcerptSummary> for PathKey {
     fn zero((): <ExcerptSummary as sum_tree::Summary>::Context<'_>) -> Self {
         PathKey::min()
     }
@@ -3332,7 +3323,7 @@ impl sum_tree::Dimension<'_, ExcerptSummary> for PathKey {
     }
 }
 
-impl sum_tree::Dimension<'_, ExcerptSummary> for MultiBufferOffset {
+impl Dimension<'_, ExcerptSummary> for MultiBufferOffset {
     fn zero((): <ExcerptSummary as sum_tree::Summary>::Context<'_>) -> Self {
         MultiBufferOffset::ZERO
     }
@@ -3362,7 +3353,7 @@ impl sum_tree::SeekTarget<'_, ExcerptSummary, ExcerptSummary> for AnchorSeekTarg
         &self,
         cursor_location: &ExcerptSummary,
         _cx: <ExcerptSummary as sum_tree::Summary>::Context<'_>,
-    ) -> cmp::Ordering {
+    ) -> Ordering {
         match self {
             AnchorSeekTarget::Missing { path_key, buffer_id } => match Ord::cmp(*path_key, &cursor_location.path_key) {
                 Ordering::Less => Ordering::Less,
@@ -3401,12 +3392,12 @@ impl sum_tree::SeekTarget<'_, ExcerptSummary, ExcerptSummary> for PathKey {
         &self,
         cursor_location: &ExcerptSummary,
         _cx: <ExcerptSummary as sum_tree::Summary>::Context<'_>,
-    ) -> cmp::Ordering {
+    ) -> Ordering {
         Ord::cmp(self, &cursor_location.path_key)
     }
 }
 
-impl<'a, MBD> sum_tree::Dimension<'a, ExcerptSummary> for ExcerptDimension<MBD>
+impl<'a, MBD> Dimension<'a, ExcerptSummary> for ExcerptDimension<MBD>
 where
     MBD: MultiBufferDimension + Default,
 {

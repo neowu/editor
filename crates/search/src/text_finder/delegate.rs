@@ -217,7 +217,7 @@ fn multibuffer_ranges_to_search_matches<'a>(
 async fn stream_plunder_to_picker(
     project_search_view: Entity<ProjectSearchView>,
     cancel_flag: Arc<AtomicBool>,
-    picker: gpui::WeakEntity<Picker<Delegate>>,
+    picker: WeakEntity<Picker<Delegate>>,
     cx: &mut AsyncApp,
 ) {
     let chunk_size = 1000;
@@ -306,7 +306,7 @@ impl Delegate {
         self.selected_index = 0;
     }
 
-    pub(super) fn hook_up_any_ongoing_search(&mut self, picker: gpui::WeakEntity<Picker<Delegate>>, cx: &App) {
+    pub(super) fn hook_up_any_ongoing_search(&mut self, picker: WeakEntity<Picker<Delegate>>, cx: &App) {
         let cancel_flag = Arc::clone(&self.cancel_flag);
         let text_finder_turning_into_project_search = Arc::clone(&self.text_finder_turning_into_project_search);
         let project_search_view = self.project_search_view.clone();
@@ -513,7 +513,7 @@ impl Delegate {
             .update(cx, |workspace, cx| workspace.open_path_preview(path, pane, focus, false, true, window, cx));
         cx.spawn_in(window, async move |_, cx| {
             let item = open_task.await.log_err()?;
-            if let Some(active_editor) = item.downcast::<editor::Editor>() {
+            if let Some(active_editor) = item.downcast::<Editor>() {
                 active_editor
                     .downgrade()
                     .update_in(cx, |editor, window, cx| {
@@ -565,7 +565,7 @@ impl Delegate {
         let row = line_number.saturating_sub(1);
         cx.spawn_in(window, async move |_, cx| {
             let item = open_task.await.log_err()?;
-            if let Some(active_editor) = item.downcast::<editor::Editor>() {
+            if let Some(active_editor) = item.downcast::<Editor>() {
                 active_editor
                     .downgrade()
                     .update_in(cx, |editor, window, cx| {
@@ -727,7 +727,7 @@ impl Delegate {
                         .spacing(ListItemSpacing::Sparse)
                         .inset(true)
                         .toggle_state(selected)
-                        .when_some(checkbox, ui::ListItem::start_slot)
+                        .when_some(checkbox, ListItem::start_slot)
                         .child(
                             h_flex()
                                 .w_full()
@@ -1095,7 +1095,7 @@ enum ImportedMatches {
 async fn stream_results_to_picker(
     cancel_flag: Arc<AtomicBool>,
     text_finder_turning_into_project_search: Arc<AtomicBool>,
-    picker: gpui::WeakEntity<Picker<Delegate>>,
+    picker: WeakEntity<Picker<Delegate>>,
     search_results: SearchResults<SearchResult>,
     imported_matches: ImportedMatches,
     cx: &mut AsyncApp,

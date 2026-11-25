@@ -157,7 +157,7 @@ impl DiagnosticIndicator {
     }
 
     fn any_active_diagnostics(&self, cx: &Context<Self>) -> bool {
-        if let Some(editor) = self.active_editor.as_ref().and_then(gpui::WeakEntity::upgrade) {
+        if let Some(editor) = self.active_editor.as_ref().and_then(WeakEntity::upgrade) {
             editor.read(cx).any_active_diagnostics()
         } else {
             false
@@ -165,7 +165,7 @@ impl DiagnosticIndicator {
     }
 
     fn go_to_next_diagnostic(&self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(editor) = self.active_editor.as_ref().and_then(gpui::WeakEntity::upgrade) {
+        if let Some(editor) = self.active_editor.as_ref().and_then(WeakEntity::upgrade) {
             editor.update(cx, |editor, cx| {
                 editor.go_to_diagnostic_at_cursor(
                     editor::Direction::Next,
@@ -214,7 +214,7 @@ impl StatusItemView for DiagnosticIndicator {
     ) {
         self.diagnostics_active =
             active_pane_item.is_some_and(|item| item.downcast::<ProjectDiagnosticsEditor>().is_some());
-        if let Some(editor) = active_pane_item.and_then(<dyn workspace::ItemHandle + 'static>::downcast::<Editor>) {
+        if let Some(editor) = active_pane_item.and_then(<dyn ItemHandle + 'static>::downcast::<Editor>) {
             self.active_editor = Some(editor.downgrade());
             self._observe_active_editor = Some(cx.observe_in(&editor, window, Self::update));
             self.update(editor, window, cx);

@@ -84,8 +84,6 @@ use workspace::ModalView;
 use workspace::Workspace;
 use workspace::notifications::DetachAndPromptErr as _;
 
-use crate::branch_picker;
-
 actions!(
     branch_picker,
     [
@@ -383,7 +381,7 @@ impl BranchList {
         });
     }
 
-    pub fn handle_delete(&mut self, _: &branch_picker::DeleteBranch, window: &mut Window, cx: &mut Context<Self>) {
+    pub fn handle_delete(&mut self, _: &DeleteBranch, window: &mut Window, cx: &mut Context<Self>) {
         self.picker.update(cx, |picker, cx| {
             if picker.delegate.is_select_only() {
                 return;
@@ -392,12 +390,7 @@ impl BranchList {
         });
     }
 
-    pub fn handle_force_delete(
-        &mut self,
-        _: &branch_picker::ForceDeleteBranch,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    pub fn handle_force_delete(&mut self, _: &ForceDeleteBranch, window: &mut Window, cx: &mut Context<Self>) {
         self.picker.update(cx, |picker, cx| {
             if picker.delegate.is_select_only() {
                 return;
@@ -441,19 +434,19 @@ static BRANCH_LIST_ACTIONS: std::sync::LazyLock<gpui::ActionTable<BranchList>> =
     let mut t = gpui::ActionTable::<BranchList>::default();
     t.add(BranchList::handle_delete);
     t.add(BranchList::handle_force_delete);
-    t.add(|this, _: &branch_picker::ShowAllBranches, window, cx| {
+    t.add(|this, _: &ShowAllBranches, window, cx| {
         this.set_branch_filter(BranchFilter::All, window, cx);
     });
-    t.add(|this, _: &branch_picker::ShowLocalBranches, window, cx| {
+    t.add(|this, _: &ShowLocalBranches, window, cx| {
         this.set_branch_filter(BranchFilter::Local, window, cx);
     });
-    t.add(|this, _: &branch_picker::ShowRemoteBranches, window, cx| {
+    t.add(|this, _: &ShowRemoteBranches, window, cx| {
         this.set_branch_filter(BranchFilter::Remote, window, cx);
     });
-    t.add(|this, _: &branch_picker::CycleBranchFilter, window, cx| {
+    t.add(|this, _: &CycleBranchFilter, window, cx| {
         this.cycle_branch_filter(window, cx);
     });
-    t.add(|this, _: &branch_picker::ToggleFilterMenu, window, cx| {
+    t.add(|this, _: &ToggleFilterMenu, window, cx| {
         let menu_handle = this.picker.read(cx).delegate.branch_filter_menu_handle.clone();
         menu_handle.toggle(window, cx);
     });
@@ -760,7 +753,7 @@ impl Render for DeleteBranchTooltip {
         if self.is_remote {
             return Tooltip::with_meta_in(
                 "Delete Local Tracking Branch",
-                Some(&branch_picker::DeleteBranch),
+                Some(&DeleteBranch),
                 "Does not delete the branch on the remote",
                 &self.focus_handle,
                 cx,
@@ -773,12 +766,11 @@ impl Render for DeleteBranchTooltip {
             .read_with(cx, |picker, _| picker.delegate.is_force_delete_hovering_index(self.delete_index))
             .unwrap_or(false);
         if force_delete {
-            Tooltip::for_action_in("Force Delete Branch", &branch_picker::ForceDeleteBranch, &self.focus_handle, cx)
-                .into_any_element()
+            Tooltip::for_action_in("Force Delete Branch", &ForceDeleteBranch, &self.focus_handle, cx).into_any_element()
         } else {
             Tooltip::with_meta_in(
                 "Delete Branch",
-                Some(&branch_picker::DeleteBranch),
+                Some(&DeleteBranch),
                 concat!("Hold ", ui::alt_key_name!(), " to force delete"),
                 &self.focus_handle,
                 cx,
@@ -904,7 +896,7 @@ impl BranchListDelegate {
 
     fn branch_filter_tooltip(&self) -> impl Fn(&mut Window, &mut App) -> gpui::AnyView + 'static {
         let focus_handle = self.focus_handle.clone();
-        move |_, cx| Tooltip::for_action_in("Filter Branches", &branch_picker::ToggleFilterMenu, &focus_handle, cx)
+        move |_, cx| Tooltip::for_action_in("Filter Branches", &ToggleFilterMenu, &focus_handle, cx)
     }
 
     fn is_force_delete_hovering_index(&self, index: usize) -> bool {
@@ -1655,11 +1647,11 @@ impl PickerDelegate for BranchListDelegate {
                         this.child(
                             Button::new("delete-branch", delete_label)
                                 .key_binding(
-                                    KeyBinding::for_action_in(&branch_picker::DeleteBranch, &focus_handle, cx)
+                                    KeyBinding::for_action_in(&DeleteBranch, &focus_handle, cx)
                                         .map(|kb| kb.size(rems_from_px(12_f32))),
                                 )
                                 .on_click(|_, window, cx| {
-                                    window.dispatch_action(branch_picker::DeleteBranch.boxed_clone(), cx);
+                                    window.dispatch_action(DeleteBranch.boxed_clone(), cx);
                                 }),
                         )
                     })

@@ -1,4 +1,3 @@
-use core::panic;
 use std::ffi::OsStr;
 use std::fmt;
 use std::hash::BuildHasher;
@@ -64,7 +63,7 @@ where
 }
 
 #[inline(never)]
-fn log_error_with_caller(caller: panic::Location<'_>, arguments: fmt::Arguments<'_>, level: log::Level) {
+fn log_error_with_caller(caller: Location<'_>, arguments: fmt::Arguments<'_>, level: log::Level) {
     let file = caller.file();
 
     // In this codebase all crates reside in a `crates` directory,
@@ -97,7 +96,7 @@ pub trait TryFutureExt {
     where
         Self: Sized;
 
-    fn log_tracked_err(self, location: panic::Location<'static>) -> LogErrorFuture<Self>
+    fn log_tracked_err(self, location: Location<'static>) -> LogErrorFuture<Self>
     where
         Self: Sized;
 }
@@ -116,7 +115,7 @@ where
         LogErrorFuture(self, log::Level::Error, *location)
     }
 
-    fn log_tracked_err(self, location: panic::Location<'static>) -> LogErrorFuture<Self>
+    fn log_tracked_err(self, location: Location<'static>) -> LogErrorFuture<Self>
     where
         Self: Sized,
     {
@@ -125,7 +124,7 @@ where
 }
 
 #[must_use]
-pub struct LogErrorFuture<F>(F, log::Level, panic::Location<'static>);
+pub struct LogErrorFuture<F>(F, log::Level, Location<'static>);
 
 impl<F, T, E> Future for LogErrorFuture<F>
 where

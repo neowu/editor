@@ -463,7 +463,7 @@ impl Render for GitPanelMessageTooltip {
         if let Some(commit_tooltip) = &self.commit_tooltip {
             commit_tooltip.clone().into_any_element()
         } else {
-            gpui::Empty.into_any_element()
+            Empty.into_any_element()
         }
     }
 }
@@ -579,7 +579,7 @@ impl GitPanel {
                 }
             })
             .anchor(Anchor::TopRight)
-            .offset(gpui::Point { x: px(0.), y: px(2.) })
+            .offset(Point { x: px(0.), y: px(2.) })
     }
 
     fn render_git_changes_actions_menu(&self, id: impl Into<ElementId>, cx: &Context<Self>) -> impl IntoElement {
@@ -615,7 +615,7 @@ impl GitPanel {
                 ))
             })
             .anchor(Anchor::TopRight)
-            .offset(gpui::Point { x: px(0.), y: px(2.) })
+            .offset(Point { x: px(0.), y: px(2.) })
     }
 
     fn render_git_changes_actions_button(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -1365,7 +1365,7 @@ impl GitPanel {
             )
             .when(file_count > 0, |this| this.child(Chip::new(file_count.to_string()).label_color(Color::Muted)))
             .child(if section_is_empty {
-                gpui::Empty.into_any_element()
+                Empty.into_any_element()
             } else {
                 let checkbox = Checkbox::new(checkbox_id, toggle_state)
                     .disabled(all_conflicts_resolved)

@@ -38,7 +38,7 @@ impl LocalLspStore {
     pub async fn deserialize_text_edits(
         this: Entity<LspStore>,
         buffer_to_edit: Entity<Buffer>,
-        edits: Vec<lsp_types::TextEdit>,
+        edits: Vec<TextEdit>,
         push_to_history: bool,
         _: Arc<CachedLspAdapter>,
         language_server: Arc<LanguageServer>,
@@ -73,7 +73,7 @@ impl LocalLspStore {
     pub fn edits_from_lsp(
         &mut self,
         buffer: &Entity<Buffer>,
-        lsp_edits: impl 'static + Send + IntoIterator<Item = lsp_types::TextEdit>,
+        lsp_edits: impl 'static + Send + IntoIterator<Item = TextEdit>,
         server_id: LanguageServerId,
         version: Option<i32>,
         cx: &mut Context<LspStore>,

@@ -89,7 +89,7 @@ type RenderPipelineState = ProtocolObject<dyn MTLRenderPipelineState>;
 type Library = ProtocolObject<dyn MTLLibrary>;
 
 // Exported to metal
-pub(crate) type PointF = gpui::Point<f32>;
+pub(crate) type PointF = Point<f32>;
 
 #[cfg(not(feature = "runtime_shaders"))]
 const SHADERS_METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/shaders.metallib"));
@@ -273,7 +273,7 @@ impl MetalRenderer {
         let unit_vertices = unsafe {
             device.newBufferWithBytes_length_options(
                 NonNull::from(&unit_vertices).cast::<c_void>(),
-                mem::size_of_val(&unit_vertices),
+                size_of_val(&unit_vertices),
                 if is_unified_memory {
                     MTLResourceOptions::StorageModeShared | MTLResourceOptions::CPUCacheModeWriteCombined
                 } else {
@@ -1146,11 +1146,7 @@ fn new_command_encoder_for_texture(
 /// # Safety `index` must name a vertex argument whose type matches `T`.
 unsafe fn set_vertex_bytes<T>(command_encoder: &RenderCommandEncoder, index: usize, value: &T) {
     unsafe {
-        command_encoder.setVertexBytes_length_atIndex(
-            NonNull::from(value).cast::<c_void>(),
-            mem::size_of_val(value),
-            index,
-        );
+        command_encoder.setVertexBytes_length_atIndex(NonNull::from(value).cast::<c_void>(), size_of_val(value), index);
     }
 }
 
@@ -1279,7 +1275,7 @@ impl InstanceBufferWriter {
     }
 
     fn allocate<T>(&mut self, count: usize) -> Result<(InstanceBinding, &mut [MaybeUninit<T>])> {
-        let size = mem::size_of::<T>() * count;
+        let size = size_of::<T>() * count;
         let mut offset = self.offset.next_multiple_of(INSTANCE_BUFFER_ALIGNMENT);
         if offset + size > self.current.size {
             self.grow(size)?;

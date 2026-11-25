@@ -153,7 +153,7 @@ pub struct BufferSearchBar {
 }
 
 impl EventEmitter<Event> for BufferSearchBar {}
-impl EventEmitter<workspace::ToolbarItemEvent> for BufferSearchBar {}
+impl EventEmitter<ToolbarItemEvent> for BufferSearchBar {}
 static BUFFER_SEARCH_BAR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<BufferSearchBar>> =
     std::sync::LazyLock::new(|| {
         let mut t = gpui::ActionTable::<BufferSearchBar>::default();
@@ -189,7 +189,7 @@ impl Render for BufferSearchBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let focus_handle = self.focus_handle(cx);
         let diff_style_controls =
-            self.splittable_editor.as_ref().and_then(gpui::WeakEntity::upgrade).map(DiffStyleControls::new);
+            self.splittable_editor.as_ref().and_then(WeakEntity::upgrade).map(DiffStyleControls::new);
         if self.dismissed {
             return h_flex().pl_0p5().gap_1().children(diff_style_controls).into_any_element();
         }
@@ -319,7 +319,7 @@ impl Render for BufferSearchBar {
                         .border_color(theme_colors.border_variant)
                         .child(render_local_action_button(
                             "buffer-search-nav-button",
-                            ui::IconName::ChevronLeft,
+                            IconName::ChevronLeft,
                             self.active_match_index.is_none().then_some(ActionButtonState::Disabled),
                             "Select Previous Match",
                             &SelectPreviousMatch,
@@ -329,7 +329,7 @@ impl Render for BufferSearchBar {
                         ))
                         .child(render_local_action_button(
                             "buffer-search-nav-button",
-                            ui::IconName::ChevronRight,
+                            IconName::ChevronRight,
                             self.active_match_index.is_none().then_some(ActionButtonState::Disabled),
                             "Select Next Match",
                             &SelectNextMatch,

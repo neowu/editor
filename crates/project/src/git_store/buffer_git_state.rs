@@ -1,4 +1,3 @@
-use std::future::Future;
 use std::mem;
 use std::ops::Range;
 use std::path::PathBuf;
@@ -303,7 +302,7 @@ impl BufferGitState {
     ) -> oneshot::Receiver<()> {
         let (tx, rx) = oneshot::channel();
 
-        let Some(conflict_set) = self.conflict_set.as_ref().and_then(gpui::WeakEntity::upgrade) else {
+        let Some(conflict_set) = self.conflict_set.as_ref().and_then(WeakEntity::upgrade) else {
             return rx;
         };
 
@@ -341,7 +340,7 @@ impl BufferGitState {
     }
 
     pub(super) fn unstaged_diff(&self) -> Option<Entity<BufferDiff>> {
-        self.unstaged_diff.as_ref().and_then(gpui::WeakEntity::upgrade)
+        self.unstaged_diff.as_ref().and_then(WeakEntity::upgrade)
     }
 
     fn staged_diff(&self) -> Option<Entity<BufferDiff>> {
@@ -355,11 +354,11 @@ impl BufferGitState {
     }
 
     fn uncommitted_diff(&self) -> Option<Entity<BufferDiff>> {
-        self.uncommitted_diff.as_ref().and_then(gpui::WeakEntity::upgrade)
+        self.uncommitted_diff.as_ref().and_then(WeakEntity::upgrade)
     }
 
     pub(super) fn oid_diff(&self, oid: Option<git::Oid>) -> Option<Entity<BufferDiff>> {
-        self.oid_diffs.get(&oid).and_then(gpui::WeakEntity::upgrade)
+        self.oid_diffs.get(&oid).and_then(WeakEntity::upgrade)
     }
 
     /// Whether the index text is known to match the committed text, without
@@ -416,7 +415,7 @@ impl BufferGitState {
 
     pub(super) fn clear_pending_hunks(&self, cx: &mut Context<Self>) {
         for diff in [self.uncommitted_diff(), self.unstaged_diff(), self.staged_diff()].into_iter().flatten() {
-            diff.update(cx, buffer_diff::BufferDiff::clear_pending_hunks);
+            diff.update(cx, BufferDiff::clear_pending_hunks);
         }
     }
 

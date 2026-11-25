@@ -12,8 +12,6 @@ use std::time::Duration;
 use gpui::App;
 use gpui::Application;
 use gpui::Bounds;
-use gpui::Context;
-use gpui::Render;
 use gpui::Window;
 use gpui::WindowBounds;
 use gpui::WindowOptions;

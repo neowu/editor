@@ -317,9 +317,7 @@ impl LanguageServerState {
                 menu = menu.item(button);
                 continue;
             } else if let LspMenuItem::Header { header, separator } = item {
-                menu = menu
-                    .when(*separator, ui::ContextMenu::separator)
-                    .when_some(header.as_ref(), ui::ContextMenu::header);
+                menu = menu.when(*separator, ContextMenu::separator).when_some(header.as_ref(), ContextMenu::header);
                 continue;
             }
 
@@ -898,7 +896,7 @@ impl LspButton {
             let mut server_names_to_worktrees =
                 HashMap::<LanguageServerName, FxHashSet<(Entity<Worktree>, LanguageServerId)>>::default();
             for servers_for_path in state.language_servers.servers_per_buffer_abs_path.values() {
-                if let Some(worktree) = servers_for_path.worktree.as_ref().and_then(gpui::WeakEntity::upgrade) {
+                if let Some(worktree) = servers_for_path.worktree.as_ref().and_then(WeakEntity::upgrade) {
                     for (server_id, server_name) in &servers_for_path.servers {
                         server_ids_to_worktrees.insert(*server_id, worktree.clone());
                         if let Some(server_name) = server_name {

@@ -60,20 +60,20 @@ enum MouseButtonCode {
 impl MouseButtonCode {
     const fn from_move_button(e: Option<MouseButton>) -> Self {
         match e {
-            Some(gpui::MouseButton::Left) => MouseButtonCode::LeftMove,
-            Some(gpui::MouseButton::Middle) => MouseButtonCode::MiddleMove,
-            Some(gpui::MouseButton::Right) => MouseButtonCode::RightMove,
-            Some(gpui::MouseButton::Navigate(_)) => MouseButtonCode::Other,
+            Some(MouseButton::Left) => MouseButtonCode::LeftMove,
+            Some(MouseButton::Middle) => MouseButtonCode::MiddleMove,
+            Some(MouseButton::Right) => MouseButtonCode::RightMove,
+            Some(MouseButton::Navigate(_)) => MouseButtonCode::Other,
             None => MouseButtonCode::NoneMove,
         }
     }
 
     const fn from_button(e: MouseButton) -> Self {
         match e {
-            gpui::MouseButton::Left => MouseButtonCode::LeftButton,
-            gpui::MouseButton::Middle => MouseButtonCode::MiddleButton,
-            gpui::MouseButton::Right => MouseButtonCode::RightButton,
-            gpui::MouseButton::Navigate(_) => MouseButtonCode::Other,
+            MouseButton::Left => MouseButtonCode::LeftButton,
+            MouseButton::Middle => MouseButtonCode::MiddleButton,
+            MouseButton::Right => MouseButtonCode::RightButton,
+            MouseButton::Navigate(_) => MouseButtonCode::Other,
         }
     }
 
@@ -119,7 +119,7 @@ pub(crate) fn alt_scroll(scroll_lines: i32) -> Vec<u8> {
 
 pub(crate) fn mouse_button_report(
     point: Point,
-    button: gpui::MouseButton,
+    button: MouseButton,
     modifiers: Modifiers,
     pressed: bool,
     mode: Modes,

@@ -368,13 +368,13 @@ impl EditorElement {
                         let line_height = position_map.line_height;
                         let glyph_width = position_map.em_layout_width;
                         let delta = match delta {
-                            gpui::ScrollDelta::Pixels(mut pixels) => {
+                            ScrollDelta::Pixels(mut pixels) => {
                                 //Trackpad
                                 editor.scroll_manager.filter_scroll_delta(&mut pixels, event.touch_phase);
                                 pixels
                             }
 
-                            gpui::ScrollDelta::Lines(lines) => {
+                            ScrollDelta::Lines(lines) => {
                                 //Not trackpad
                                 point(lines.x * glyph_width, lines.y * line_height)
                             }

@@ -152,7 +152,7 @@ impl ToastView for StatusToast {
 }
 
 impl Focusable for StatusToast {
-    fn focus_handle(&self, _cx: &App) -> gpui::FocusHandle {
+    fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }

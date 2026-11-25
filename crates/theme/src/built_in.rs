@@ -513,7 +513,6 @@ const fn mix(top: u32, bottom: u32, percent: u32) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use gpui::FontWeight;
     use gpui::Rgba;
 
     use super::*;

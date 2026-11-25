@@ -121,7 +121,7 @@ const FALLBACK_BRANCH_NAME: &str = "main";
 // TODO: We should revise this part. It seems the indentation width is not aligned with the one in project panel
 pub(crate) const TREE_INDENT: f32 = 16.0;
 // Horizontal offset that aligns the tree indent guides with the row icon column.
-pub(crate) const INDENT_GUIDE_LEFT_OFFSET: gpui::Pixels = gpui::px(19.);
+pub(crate) const INDENT_GUIDE_LEFT_OFFSET: Pixels = px(19.);
 /// Changed-file row height, shared with the Git History changed files list.
 pub(crate) const LIST_ITEM_HEIGHT: Rems = rems(1.75);
 
@@ -1611,7 +1611,7 @@ impl GitPanel {
 }
 
 impl Focusable for GitPanel {
-    fn focus_handle(&self, _cx: &App) -> gpui::FocusHandle {
+    fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
@@ -1694,7 +1694,7 @@ pub fn panel_editor_container(_window: &mut Window) -> Div {
     v_flex().size_full().bg(theme::theme().colors().editor_background)
 }
 
-pub(crate) fn git_commit_editor_style(font_size: gpui::Pixels) -> EditorStyle {
+pub(crate) fn git_commit_editor_style(font_size: Pixels) -> EditorStyle {
     EditorStyle {
         background: theme::theme().colors().editor_background,
         cursor_colors: theme::theme().cursor_colors(),

@@ -1,5 +1,4 @@
 use std::ops::Range;
-use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -30,7 +29,7 @@ use crate::lsp_store::RunningFetch;
 use crate::lsp_store::missing_servers_to_query;
 use crate::lsp_store::next_lsp_fetch_id;
 
-pub(super) type DocumentSymbolsTask = Shared<Task<result::Result<Vec<OutlineItem<Anchor>>, Arc<anyhow::Error>>>>;
+pub(super) type DocumentSymbolsTask = Shared<Task<Result<Vec<OutlineItem<Anchor>>, Arc<anyhow::Error>>>>;
 
 #[derive(Debug, Default)]
 pub(super) struct DocumentSymbolsData {

@@ -95,7 +95,7 @@ impl LspCommand for ExpandMacro {
         _: Entity<Buffer>,
         _: LanguageServerId,
         _: AsyncApp,
-    ) -> anyhow::Result<ExpandedMacro> {
+    ) -> Result<ExpandedMacro> {
         Ok(message.unwrap_or_default())
     }
 }
@@ -165,7 +165,7 @@ impl LspCommand for OpenDocs {
         _: Entity<Buffer>,
         _: LanguageServerId,
         _: AsyncApp,
-    ) -> anyhow::Result<DocsUrls> {
+    ) -> Result<DocsUrls> {
         Ok(message.unwrap_or_default())
     }
 }
@@ -217,7 +217,7 @@ impl LspCommand for GoToParentModule {
         buffer: Entity<Buffer>,
         server_id: LanguageServerId,
         cx: AsyncApp,
-    ) -> anyhow::Result<Vec<LocationLink>> {
+    ) -> Result<Vec<LocationLink>> {
         location_links_from_lsp(links.map(lsp_types::GotoDefinitionResponse::Link), lsp_store, buffer, server_id, cx)
             .await
     }

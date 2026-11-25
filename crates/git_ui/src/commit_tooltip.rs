@@ -227,7 +227,7 @@ impl Render for CommitTooltip {
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .child(
                     v_flex()
-                        .w(gpui::rems(30.))
+                        .w(rems(30.))
                         .child(
                             h_flex()
                                 .pb_1()

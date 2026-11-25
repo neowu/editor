@@ -603,7 +603,7 @@ pub(crate) fn initialize_keymap(cx: &mut App) {
     cx.bind_keys(bindings);
     let menus = app_menus(cx);
     cx.set_menus(menus);
-    cx.set_dock_menu(vec![gpui::MenuItem::action("New Window", workspace::NewWindow)]);
+    cx.set_dock_menu(vec![gpui::MenuItem::action("New Window", NewWindow)]);
 }
 
 fn open_bundled_file(

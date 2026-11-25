@@ -37,7 +37,6 @@ use project::git_store::Repository;
 use project::git_store::RepositoryEvent;
 use time::OffsetDateTime;
 use time::UtcOffset;
-use time_format;
 use ui::HighlightedLabel;
 use ui::KeyBinding;
 use ui::ListItem;
@@ -68,7 +67,6 @@ use workspace::Workspace;
 use workspace::notifications::DetachAndPromptErr as _;
 
 use crate::commit_view::CommitView;
-use crate::stash_picker;
 
 actions!(
     stash_picker,
@@ -582,17 +580,17 @@ impl PickerDelegate for StashListDelegate {
                 .child(
                     Button::new("drop-stash", "Drop")
                         .key_binding(
-                            KeyBinding::for_action_in(&stash_picker::DropStashItem, &focus_handle, cx)
+                            KeyBinding::for_action_in(&DropStashItem, &focus_handle, cx)
                                 .map(|kb| kb.size(rems_from_px(12_f32))),
                         )
                         .on_click(|_, window, cx| {
-                            window.dispatch_action(stash_picker::DropStashItem.boxed_clone(), cx);
+                            window.dispatch_action(DropStashItem.boxed_clone(), cx);
                         }),
                 )
                 .child(
                     Button::new("view-stash", "View")
                         .key_binding(
-                            KeyBinding::for_action_in(&stash_picker::ShowStashItem, &focus_handle, cx)
+                            KeyBinding::for_action_in(&ShowStashItem, &focus_handle, cx)
                                 .map(|kb| kb.size(rems_from_px(12_f32))),
                         )
                         .on_click(cx.listener(move |picker, _, window, cx| {

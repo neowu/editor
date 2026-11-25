@@ -58,7 +58,6 @@ mod seal {
 }
 
 use std::any::Any;
-use std::future::Future;
 
 pub use action::Action;
 pub(crate) use action::ActionRegistry;

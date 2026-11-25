@@ -513,8 +513,7 @@ impl<T: Item> ItemHandle for Entity<T> {
         if old_item_pane.is_none() {
             let mut event_subscription =
                 Some(cx.subscribe_in(self, window, move |workspace, item: &Entity<T>, event, window, cx| {
-                    let Some(pane) = workspace.panes_by_item.get(&item.item_id()).and_then(gpui::WeakEntity::upgrade)
-                    else {
+                    let Some(pane) = workspace.panes_by_item.get(&item.item_id()).and_then(WeakEntity::upgrade) else {
                         return;
                     };
 
@@ -671,7 +670,7 @@ impl<T: Item> ItemHandle for Entity<T> {
         path: ProjectPath,
         window: &mut Window,
         cx: &mut App,
-    ) -> Task<anyhow::Result<()>> {
+    ) -> Task<Result<()>> {
         self.update(cx, |item, cx| item.save_as(project, path, window, cx))
     }
 

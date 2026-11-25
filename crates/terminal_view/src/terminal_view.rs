@@ -1313,7 +1313,7 @@ impl Item for TerminalView {
         &self,
         _window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> Vec<(SharedString, Box<dyn gpui::Action>)> {
+    ) -> Vec<(SharedString, Box<dyn Action>)> {
         let terminal = self.terminal.read(cx);
         if terminal.task().is_none() { vec![("Rename".into(), Box::new(RenameTerminal))] } else { Vec::new() }
     }

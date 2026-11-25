@@ -14,7 +14,6 @@ use std::cmp;
 use std::cmp::Ordering;
 use std::cmp::Reverse;
 use std::fmt::Display;
-use std::iter::Iterator;
 use std::num::NonZeroU64;
 use std::ops::Deref;
 use std::ops::Range;
@@ -73,12 +72,12 @@ static LINE_SEPARATORS_REGEX: LazyLock<Regex> =
 /// reducing memory usage.
 const MAX_INSERTION_LEN: usize = u32::MAX as usize;
 
-pub type TransactionId = clock::Lamport;
+pub type TransactionId = Lamport;
 
 pub struct Buffer {
     snapshot: BufferSnapshot,
     history: History,
-    pub lamport_clock: clock::Lamport,
+    pub lamport_clock: Lamport,
     subscriptions: Topic<usize>,
 }
 
@@ -148,7 +147,7 @@ pub struct HistoryEntry {
 #[derive(Clone, Debug)]
 pub struct Transaction {
     pub id: TransactionId,
-    pub edit_ids: Vec<clock::Lamport>,
+    pub edit_ids: Vec<Lamport>,
     pub start: clock::Global,
 }
 
@@ -168,13 +167,13 @@ struct History {
 
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 struct InsertionSlice {
-    edit_id: clock::Lamport,
-    insertion_id: clock::Lamport,
+    edit_id: Lamport,
+    insertion_id: Lamport,
     range: (u32, u32),
 }
 
 impl InsertionSlice {
-    const fn from_fragment(edit_id: clock::Lamport, fragment: &Fragment) -> Self {
+    const fn from_fragment(edit_id: Lamport, fragment: &Fragment) -> Self {
         Self {
             edit_id,
             insertion_id: fragment.timestamp,
@@ -194,12 +193,7 @@ impl History {
         }
     }
 
-    fn start_transaction(
-        &mut self,
-        start: clock::Global,
-        now: Instant,
-        clock: &mut clock::Lamport,
-    ) -> Option<TransactionId> {
+    fn start_transaction(&mut self, start: clock::Global, now: Instant, clock: &mut Lamport) -> Option<TransactionId> {
         self.transaction_depth += 1;
         (self.transaction_depth == 1).then(|| {
             let id = clock.tick();
@@ -307,12 +301,7 @@ impl History {
     /// cleared is to create transactions with the usual `start_transaction` and
     /// `end_transaction` methods and merging the resulting transactions into
     /// the transaction created by this method.
-    fn push_empty_transaction(
-        &mut self,
-        start: clock::Global,
-        now: Instant,
-        clock: &mut clock::Lamport,
-    ) -> TransactionId {
+    fn push_empty_transaction(&mut self, start: clock::Global, now: Instant, clock: &mut Lamport) -> TransactionId {
         assert_eq!(self.transaction_depth, 0);
         let id = clock.tick();
         let transaction = Transaction { id, start, edit_ids: Vec::new() };
@@ -325,7 +314,7 @@ impl History {
         id
     }
 
-    fn push_undo(&mut self, op_id: clock::Lamport) {
+    fn push_undo(&mut self, op_id: Lamport) {
         assert_ne!(self.transaction_depth, 0);
         let last_transaction = self.undo_stack.last_mut().expect("undo stack is non-empty");
         last_transaction.transaction.edit_ids.push(op_id);
@@ -420,8 +409,8 @@ impl History {
 }
 
 struct Edits<'a, D: TextDimension, F: FnMut(&FragmentSummary) -> bool> {
-    visible_cursor: rope::Cursor<'a>,
-    deleted_cursor: rope::Cursor<'a>,
+    visible_cursor: Cursor<'a>,
+    deleted_cursor: Cursor<'a>,
     fragments_cursor: Option<FilterCursor<'a, 'static, F, Fragment, FragmentTextSummary>>,
     undos: &'a UndoMap,
     since: &'a clock::Global,
@@ -470,11 +459,11 @@ impl<D1, D2> Edit<(D1, D2)> {
 #[derive(Eq, PartialEq, Clone, Debug)]
 struct Fragment {
     id: Locator,
-    timestamp: clock::Lamport,
+    timestamp: Lamport,
     insertion_offset: u32,
     len: u32,
     visible: bool,
-    deletions: SmallVec<[clock::Lamport; 2]>,
+    deletions: SmallVec<[Lamport; 2]>,
     max_undos: clock::Global,
 }
 
@@ -504,21 +493,21 @@ impl<'a> sum_tree::Dimension<'a, FragmentSummary> for FragmentTextSummary {
 
 #[derive(Eq, PartialEq, Clone, Debug)]
 struct InsertionFragment {
-    timestamp: clock::Lamport,
+    timestamp: Lamport,
     split_offset: u32,
     fragment_id: Locator,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct InsertionFragmentKey {
-    timestamp: clock::Lamport,
+    timestamp: Lamport,
     split_offset: u32,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct UndoOperation {
-    timestamp: clock::Lamport,
-    counts: FxHashMap<clock::Lamport, u32>,
+    timestamp: Lamport,
+    counts: FxHashMap<Lamport, u32>,
 }
 
 /// Stores information about the indentation of a line (tabs and spaces).
@@ -626,7 +615,7 @@ impl Buffer {
         let mut fragments = SumTree::new(());
         let mut insertions = SumTree::default();
 
-        let mut lamport_clock = clock::Lamport::new();
+        let mut lamport_clock = Lamport::new();
         let mut version = clock::Global::new();
 
         let visible_text = history.base_text.clone();
@@ -697,7 +686,7 @@ impl Buffer {
     }
 
     /// Applies `edits` and returns the id of the edit.
-    pub fn edit<R, I, S, T>(&mut self, edits: R) -> clock::Lamport
+    pub fn edit<R, I, S, T>(&mut self, edits: R) -> Lamport
     where
         R: IntoIterator<IntoIter = I>,
         I: ExactSizeIterator<Item = (Range<S>, T)>,
@@ -719,7 +708,7 @@ impl Buffer {
     fn apply_local_edit<S: ToOffset, T: Into<Arc<str>>>(
         &mut self,
         edits: impl ExactSizeIterator<Item = (Range<S>, T)>,
-        timestamp: clock::Lamport,
+        timestamp: Lamport,
     ) {
         let edits: Vec<_> = edits.map(|(range, new_text)| (range.to_offset(&*self), new_text.into())).collect();
         let edits_patch = self.snapshot.apply_edit_internal(edits, timestamp);
@@ -730,7 +719,7 @@ impl Buffer {
         self.snapshot.line_ending = line_ending;
     }
 
-    fn fragment_ids_for_edits<'a>(&'a self, edit_ids: impl Iterator<Item = &'a clock::Lamport>) -> Vec<&'a Locator> {
+    fn fragment_ids_for_edits<'a>(&'a self, edit_ids: impl Iterator<Item = &'a Lamport>) -> Vec<&'a Locator> {
         // Get all of the insertion slices changed by the given edits.
         let mut insertion_slices = Vec::new();
         for edit_id in edit_ids {
@@ -971,7 +960,7 @@ impl Buffer {
 
     pub fn edited_ranges_for_edit_ids<'a, D>(
         &'a self,
-        edit_ids: impl IntoIterator<Item = &'a clock::Lamport>,
+        edit_ids: impl IntoIterator<Item = &'a Lamport>,
     ) -> impl 'a + Iterator<Item = Range<D>>
     where
         D: TextDimension,
@@ -1064,14 +1053,14 @@ pub struct EditedBufferSnapshot {
 
 fn push_fragments_for_insertion(
     new_text: &str,
-    timestamp: clock::Lamport,
+    timestamp: Lamport,
     insertion_offset: &mut u32,
     new_fragments: &mut FragmentBuilder,
     new_insertions: &mut Vec<sum_tree::Edit<InsertionFragment>>,
     insertion_slices: &mut Vec<InsertionSlice>,
     new_ropes: &mut RopeBuilder,
     next_fragment_id: &Locator,
-    edit_timestamp: clock::Lamport,
+    edit_timestamp: Lamport,
 ) {
     let mut text_offset = 0;
     while text_offset < new_text.len() {
@@ -1111,7 +1100,7 @@ impl Deref for Buffer {
 }
 
 impl BufferSnapshot {
-    fn apply_edit_internal(&mut self, edits: Vec<(Range<usize>, Arc<str>)>, timestamp: clock::Lamport) -> Patch<usize> {
+    fn apply_edit_internal(&mut self, edits: Vec<(Range<usize>, Arc<str>)>, timestamp: Lamport) -> Patch<usize> {
         let mut edits_patch = Patch::default();
         let mut new_insertions = Vec::new();
         let mut insertion_offset: u32 = 0;
@@ -1403,18 +1392,18 @@ impl BufferSnapshot {
         self.visible_text.reversed_chars_at(offset)
     }
 
-    pub fn reversed_chunks_in_range<T: ToOffset>(&self, range: Range<T>) -> rope::Chunks<'_> {
+    pub fn reversed_chunks_in_range<T: ToOffset>(&self, range: Range<T>) -> Chunks<'_> {
         let range = range.start.to_offset(self)..range.end.to_offset(self);
         self.visible_text.reversed_chunks_in_range(range)
     }
 
-    pub fn bytes_in_range<T: ToOffset>(&self, range: Range<T>) -> rope::Bytes<'_> {
+    pub fn bytes_in_range<T: ToOffset>(&self, range: Range<T>) -> Bytes<'_> {
         let start = range.start.to_offset(self);
         let end = range.end.to_offset(self);
         self.visible_text.bytes_in_range(start..end)
     }
 
-    pub fn reversed_bytes_in_range<T: ToOffset>(&self, range: Range<T>) -> rope::Bytes<'_> {
+    pub fn reversed_bytes_in_range<T: ToOffset>(&self, range: Range<T>) -> Bytes<'_> {
         let start = range.start.to_offset(self);
         let end = range.end.to_offset(self);
         self.visible_text.reversed_bytes_in_range(start..end)
@@ -1591,7 +1580,7 @@ impl BufferSnapshot {
                 anchor.offset,
                 anchor.bias,
                 anchor.buffer_id,
-                anchor.timestamp() == clock::Lamport::MAX,
+                anchor.timestamp() == Lamport::MAX,
                 anchor.offset == u32::MAX,
                 anchor.bias == Bias::Right,
             );
@@ -1950,14 +1939,14 @@ impl FragmentBuilder {
 }
 
 struct RopeBuilder<'a> {
-    old_visible_cursor: rope::Cursor<'a>,
-    old_deleted_cursor: rope::Cursor<'a>,
+    old_visible_cursor: Cursor<'a>,
+    old_deleted_cursor: Cursor<'a>,
     new_visible: Rope,
     new_deleted: Rope,
 }
 
 impl<'a> RopeBuilder<'a> {
-    fn new(old_visible_cursor: rope::Cursor<'a>, old_deleted_cursor: rope::Cursor<'a>) -> Self {
+    fn new(old_visible_cursor: Cursor<'a>, old_deleted_cursor: Cursor<'a>) -> Self {
         Self { old_visible_cursor, old_deleted_cursor, new_visible: Rope::new(), new_deleted: Rope::new() }
     }
 
@@ -2203,7 +2192,7 @@ impl<'a> sum_tree::Dimension<'a, FragmentSummary> for Option<&'a Locator> {
 }
 
 impl sum_tree::SeekTarget<'_, FragmentSummary, FragmentTextSummary> for usize {
-    fn cmp(&self, cursor_location: &FragmentTextSummary, (): ()) -> cmp::Ordering {
+    fn cmp(&self, cursor_location: &FragmentTextSummary, (): ()) -> Ordering {
         Ord::cmp(self, &cursor_location.visible)
     }
 }

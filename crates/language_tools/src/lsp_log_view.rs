@@ -154,7 +154,7 @@ pub(crate) struct LogMenuItem {
     pub worktree_root_name: String,
     pub rpc_trace_enabled: bool,
     pub selected_entry: LogKind,
-    pub trace_level: lsp_types::TraceValue,
+    pub trace_level: TraceValue,
     pub project: WeakEntity<Project>,
 }
 
@@ -377,7 +377,7 @@ impl LspLogView {
                         streams.generation == state.generation && streams.log_kinds.contains(&LogKind::Rpc)
                     }),
                     selected_entry: self.active_entry_kind,
-                    trace_level: lsp_types::TraceValue::Off,
+                    trace_level: TraceValue::Off,
                 }
             })
             .collect::<Vec<_>>();
@@ -768,7 +768,7 @@ impl ToolbarItemView for LspLogToolbarItemView {
         active_pane_item: Option<&dyn ItemHandle>,
         _: &mut Window,
         cx: &mut Context<Self>,
-    ) -> workspace::ToolbarItemLocation {
+    ) -> ToolbarItemLocation {
         if let Some(item) = active_pane_item
             && let Some(log_view) = item.downcast::<LspLogView>()
         {

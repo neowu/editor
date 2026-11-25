@@ -641,7 +641,7 @@ fn combine_hover_blocks(blocks: &[HoverBlock]) -> String {
         let reserved_for_dropped_marker = if is_last_block { 0 } else { "\n\n…".len() };
         let mut truncated_inline = false;
         let piece = match &block.kind {
-            project::HoverBlockKind::PlainText | project::HoverBlockKind::Markdown => {
+            HoverBlockKind::PlainText | HoverBlockKind::Markdown => {
                 let Some(block_budget) = budget.checked_sub(separator.len() + reserved_for_dropped_marker) else {
                     dropped_blocks = true;
                     break;
@@ -658,7 +658,7 @@ fn combine_hover_blocks(blocks: &[HoverBlock]) -> String {
                     }
                 }
             }
-            project::HoverBlockKind::Code { language } => {
+            HoverBlockKind::Code { language } => {
                 let language = language.replace(['`', '\r', '\n'], "");
                 let fence = wrapping_code_fence(text);
                 let overhead =

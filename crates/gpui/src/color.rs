@@ -52,7 +52,7 @@ pub struct Rgba {
 }
 
 impl fmt::Debug for Rgba {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "rgba({:#010x})", u32::from(*self))
     }
 }
@@ -102,7 +102,7 @@ struct RgbaVisitor;
 impl Visitor<'_> for RgbaVisitor {
     type Value = Rgba;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(&self, formatter: &mut Formatter) -> fmt::Result {
         formatter.write_str("a string in the format #rrggbb or #rrggbbaa")
     }
 

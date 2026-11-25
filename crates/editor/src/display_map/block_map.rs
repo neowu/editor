@@ -1107,7 +1107,7 @@ impl BlockMap {
     /// Guarantees that `wrap_row_for` is called with points in increasing order.
     fn header_and_footer_blocks<'a, R, T>(
         &'a self,
-        buffer: &'a multi_buffer::MultiBufferSnapshot,
+        buffer: &'a MultiBufferSnapshot,
         range: R,
         mut wrap_row_for: impl 'a + FnMut(Point, Bias) -> WrapRow,
     ) -> impl Iterator<Item = (BlockPlacement<WrapRow>, Block)> + 'a

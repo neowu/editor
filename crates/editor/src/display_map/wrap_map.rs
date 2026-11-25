@@ -43,7 +43,7 @@ use super::tab_map::TabPoint;
 use super::tab_map::TabSnapshot;
 pub(super) use super::tab_map::TextSummary;
 pub(super) type WrapEdit = text::Edit<WrapRow>;
-pub(super) type WrapPatch = text::Patch<WrapRow>;
+pub(super) type WrapPatch = Patch<WrapRow>;
 
 #[derive(Copy, Clone, Debug, Default, Eq, Ord, PartialOrd, PartialEq)]
 pub struct WrapRow(pub u32);

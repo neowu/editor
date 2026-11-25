@@ -145,7 +145,7 @@ pub(crate) enum RunnableSource {
 #[derive(Clone, Debug)]
 pub(crate) struct RunnableTasks {
     pub source: RunnableSource,
-    pub offset: multi_buffer::Anchor,
+    pub offset: Anchor,
     /// Column of the runnable on its row, where the tasks are built for.
     pub column: u32,
 }

@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::iter;
-use std::marker::Copy;
 
 use anyhow::Context as _;
 use workspace::searchable::Direction;
@@ -2017,7 +2016,7 @@ impl Editor {
         server_id: LanguageServerId,
         window: &Window,
         cx: &Context<Self>,
-    ) -> Task<anyhow::Result<Option<Location>>> {
+    ) -> Task<Result<Option<Location>>> {
         let Some(project) = self.project.clone() else {
             return Task::ready(Ok(None));
         };

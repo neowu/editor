@@ -239,7 +239,7 @@ impl MultiBufferOffset {
     }
 }
 
-impl ops::Sub for MultiBufferOffset {
+impl Sub for MultiBufferOffset {
     type Output = usize;
 
     fn sub(self, other: MultiBufferOffset) -> Self::Output {
@@ -247,7 +247,7 @@ impl ops::Sub for MultiBufferOffset {
     }
 }
 
-impl ops::Sub<usize> for MultiBufferOffset {
+impl Sub<usize> for MultiBufferOffset {
     type Output = Self;
 
     fn sub(self, other: usize) -> Self::Output {
@@ -255,7 +255,7 @@ impl ops::Sub<usize> for MultiBufferOffset {
     }
 }
 
-impl ops::SubAssign<usize> for MultiBufferOffset {
+impl SubAssign<usize> for MultiBufferOffset {
     fn sub_assign(&mut self, other: usize) {
         self.0 -= other;
     }
@@ -269,7 +269,7 @@ impl ops::Add<usize> for BufferOffset {
     }
 }
 
-impl ops::AddAssign<usize> for BufferOffset {
+impl AddAssign<usize> for BufferOffset {
     fn add_assign(&mut self, other: usize) {
         self.0 += other;
     }
@@ -283,7 +283,7 @@ impl ops::Add<usize> for MultiBufferOffset {
     }
 }
 
-impl ops::AddAssign<usize> for MultiBufferOffset {
+impl AddAssign<usize> for MultiBufferOffset {
     fn add_assign(&mut self, other: usize) {
         self.0 += other;
     }
@@ -305,7 +305,7 @@ impl ops::Add for MultiBufferOffset {
     }
 }
 
-impl ops::AddAssign<MultiBufferOffset> for MultiBufferOffset {
+impl AddAssign<MultiBufferOffset> for MultiBufferOffset {
     fn add_assign(&mut self, other: MultiBufferOffset) {
         self.0 += other.0;
     }
@@ -487,9 +487,9 @@ impl<T: PartialOrd> PartialOrd<T> for OutputDimension<T> {
     }
 }
 
-impl<R, T, U> ops::Sub<OutputDimension<U>> for OutputDimension<T>
+impl<R, T, U> Sub<OutputDimension<U>> for OutputDimension<T>
 where
-    T: ops::Sub<U, Output = R>,
+    T: Sub<U, Output = R>,
 {
     type Output = R;
 
@@ -548,9 +548,9 @@ impl ExcerptOffset {
     }
 }
 
-impl<R, T, U> ops::Sub<ExcerptDimension<U>> for ExcerptDimension<T>
+impl<R, T, U> Sub<ExcerptDimension<U>> for ExcerptDimension<T>
 where
-    T: ops::Sub<U, Output = R>,
+    T: Sub<U, Output = R>,
 {
     type Output = R;
 

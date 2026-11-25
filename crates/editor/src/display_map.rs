@@ -625,7 +625,7 @@ impl DisplayMap {
             self.block_map.read(self_wrap_snapshot.clone(), self_wrap_edits.clone(), companion_view).snapshot;
 
         if let Some((companion_dm, _)) = &self.companion {
-            let _: Result<_, _> = companion_dm.update(cx, |dm, _cx| {
+            _ = companion_dm.update(cx, |dm, _cx| {
                 if let Some((companion_snapshot, companion_edits)) = companion_wrap_data {
                     let their_companion_ref = dm.companion.as_ref().map(|(_, c)| c.read(_cx));
                     dm.block_map.read(
@@ -806,7 +806,7 @@ impl DisplayMap {
         self.block_map.write(self_wrap_snapshot, self_wrap_edits, None).disable_header_for_buffer(buffer_id);
     }
 
-    pub fn fold_buffers(&mut self, buffer_ids: impl IntoIterator<Item = language::BufferId>, cx: &mut App) {
+    pub fn fold_buffers(&mut self, buffer_ids: impl IntoIterator<Item = BufferId>, cx: &mut App) {
         let buffer_ids: Vec<_> = buffer_ids.into_iter().collect();
 
         let (self_wrap_snapshot, self_wrap_edits) = self.sync_through_wrap(cx);
@@ -820,7 +820,7 @@ impl DisplayMap {
         });
     }
 
-    pub fn unfold_buffers(&mut self, buffer_ids: impl IntoIterator<Item = language::BufferId>, cx: &mut Context<Self>) {
+    pub fn unfold_buffers(&mut self, buffer_ids: impl IntoIterator<Item = BufferId>, cx: &mut Context<Self>) {
         let buffer_ids: Vec<_> = buffer_ids.into_iter().collect();
 
         let (self_wrap_snapshot, self_wrap_edits) = self.sync_through_wrap(cx);
@@ -834,7 +834,7 @@ impl DisplayMap {
         });
     }
 
-    pub(crate) fn is_buffer_folded(&self, buffer_id: language::BufferId) -> bool {
+    pub(crate) fn is_buffer_folded(&self, buffer_id: BufferId) -> bool {
         self.block_map.folded_buffers.contains(&buffer_id)
     }
 
@@ -867,7 +867,7 @@ impl DisplayMap {
                 FoldPlaceholder {
                     render: Arc::new({
                         let collapsed_text = collapsed_text.clone();
-                        move |fold_id, _fold_range, _: &mut gpui::App| {
+                        move |fold_id, _fold_range, _: &mut App| {
                             use gpui::Element as _;
                             use gpui::ParentElement as _;
                             FoldPlaceholder::fold_element(fold_id).child(collapsed_text.clone()).into_any()
@@ -947,7 +947,7 @@ impl DisplayMap {
         let block_row = block_map.row_for_block(block_id)?;
 
         if let Some((companion_dm, _)) = &self.companion {
-            let _: Result<_, _> = companion_dm.update(cx, |dm, cx| {
+            _ = companion_dm.update(cx, |dm, cx| {
                 if let Some((companion_snapshot, companion_edits)) = companion_wrap_data {
                     let their_companion_ref = dm.companion.as_ref().map(|(_, c)| c.read(cx));
                     dm.block_map.read(
@@ -1139,7 +1139,7 @@ impl DisplayMap {
         }
 
         if let Some((companion_dm, _)) = &self.companion {
-            let _: Result<_, _> = companion_dm.update(cx, |dm, cx| {
+            _ = companion_dm.update(cx, |dm, cx| {
                 if let Some((companion_snapshot, companion_edits)) = companion_wrap_data {
                     let their_companion_ref = dm.companion.as_ref().map(|(_, c)| c.read(cx));
                     dm.block_map.read(
@@ -1161,7 +1161,7 @@ impl DisplayMap {
         }
     }
 
-    pub fn is_rewrapping(&self, cx: &gpui::App) -> bool {
+    pub fn is_rewrapping(&self, cx: &App) -> bool {
         self.wrap_map.read(cx).is_rewrapping()
     }
 

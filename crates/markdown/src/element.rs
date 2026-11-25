@@ -692,7 +692,7 @@ impl BlockRenderer {
     fn push_markdown_block_quote(
         &self,
         builder: &mut MarkdownElementBuilder,
-        kind: Option<pulldown_cmark::BlockQuoteKind>,
+        kind: Option<BlockQuoteKind>,
         range: &Range<usize>,
         markdown_end: usize,
     ) {
@@ -804,8 +804,8 @@ impl BlockRenderer {
                 .px_2()
                 .py_1()
                 .border_color(theme::theme().colors().border)
-                .when(cell_style.row_index > 0, gpui::Styled::border_t_1)
-                .when(!cell_style.is_key, gpui::Styled::border_l_1)
+                .when(cell_style.row_index > 0, Styled::border_t_1)
+                .when(!cell_style.is_key, Styled::border_l_1)
                 .when(cell_style.is_key, |this| this.bg(theme::theme().colors().panel_background)),
             block_range,
             markdown_end,
@@ -1340,7 +1340,7 @@ impl RenderPass<'_> {
 
         // This is a parent container that we can position the copy button inside.
         let mut parent_container =
-            div().group("code_block").relative().w_full().when(scroll_handle.is_some(), gpui::Styled::rounded_lg);
+            div().group("code_block").relative().w_full().when(scroll_handle.is_some(), Styled::rounded_lg);
 
         // Styles must be final before `custom_scrollbars`, which reads the
         // corner radii and borders to round the scrollbar track.
@@ -1509,8 +1509,8 @@ impl RenderPass<'_> {
             .flex()
             .flex_col()
             .h_full()
-            .when(col_index > 0, gpui::Styled::border_l_1)
-            .when(row_index > 0, gpui::Styled::border_t_1)
+            .when(col_index > 0, Styled::border_l_1)
+            .when(row_index > 0, Styled::border_t_1)
             .border_color(theme::theme().colors().border)
             .px(style.table_cell_padding.x)
             .py(style.table_cell_padding.y)

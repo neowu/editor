@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use actions::menu;
 use anyhow::anyhow;
 use editor::Editor;
 use editor::actions::DiffClipboardWithSelectionData;
@@ -121,14 +120,8 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
 
     git_ui_core::set_branch_picker_builder(
         |workspace, repository, window, cx| {
-            let picker = git_picker::popover(
-                workspace,
-                repository,
-                git_picker::GitPickerTab::Branches,
-                gpui::rems(34.),
-                window,
-                cx,
-            );
+            let picker =
+                git_picker::popover(workspace, repository, git_picker::GitPickerTab::Branches, rems(34.), window, cx);
             cx.new(|cx| git_ui_core::GitPickerPopover::new(picker, cx))
         },
         cx,
@@ -181,7 +174,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     });
 
     workspace_actions.register_action(|workspace, _: &git::Fetch, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -189,7 +182,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, _: &git::FetchFrom, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -197,7 +190,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, _: &git::Push, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -205,7 +198,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, _: &git::PushTo, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -213,7 +206,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, _: &git::ForcePush, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -221,7 +214,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, _: &git::Pull, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -230,20 +223,20 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     });
 
     workspace_actions.register_action(|workspace, _: &git::RebaseContinue, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| panel.rebase(RebaseAction::Continue, window, cx));
     });
     workspace_actions.register_action(|workspace, _: &git::RebaseAbort, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| panel.rebase(RebaseAction::Abort, window, cx));
     });
 
     workspace_actions.register_action(|workspace, action: &git::StashAll, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -251,7 +244,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, action: &git::StashStaged, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -259,7 +252,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, action: &git::StashTracked, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -267,7 +260,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, action: &git::StashPop, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -275,7 +268,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, action: &git::StashApply, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -283,7 +276,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, action: &git::StageAll, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -291,7 +284,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, action: &git::UnstageAll, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -299,7 +292,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, _: &git::Uncommit, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
         panel.update(cx, |panel, cx| {
@@ -307,7 +300,7 @@ pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
         });
     });
     workspace_actions.register_action(|workspace, _action: &git::Clone, window, cx| {
-        let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+        let Some(panel) = workspace.panel::<GitPanel>(cx) else {
             return;
         };
 
@@ -376,7 +369,7 @@ fn file_diff_entry(workspace: &Workspace, cx: &App) -> Option<(GitStatusEntry, E
 }
 
 fn open_modified_files(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
-    let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+    let Some(panel) = workspace.panel::<GitPanel>(cx) else {
         return;
     };
     let modified_paths: Vec<_> = panel.update(cx, |panel, cx| {
@@ -583,7 +576,7 @@ impl Render for CreateTagModal {
 }
 
 fn rename_current_branch(workspace: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
-    let Some(panel) = workspace.panel::<git_panel::GitPanel>(cx) else {
+    let Some(panel) = workspace.panel::<GitPanel>(cx) else {
         return;
     };
     let current_branch: Option<String> = panel.update(cx, |panel, cx| {
@@ -1220,7 +1213,7 @@ impl GitStatusIcon {
 }
 
 impl RenderOnce for GitStatusIcon {
-    fn render(self, _window: &mut ui::Window, _: &mut App) -> impl IntoElement {
+    fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         let status = self.status;
 
         let (icon_name, color) = if status.is_conflicted() {
@@ -1269,10 +1262,10 @@ impl Focusable for GitCloneModal {
 static GIT_CLONE_MODAL_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GitCloneModal>> =
     std::sync::LazyLock::new(|| {
         let mut t = gpui::ActionTable::<GitCloneModal>::default();
-        t.add(|_, _: &menu::Cancel, _, cx| {
+        t.add(|_, _: &Cancel, _, cx| {
             cx.emit(DismissEvent);
         });
-        t.add(|this, _: &menu::Confirm, window, cx| {
+        t.add(|this, _: &Confirm, window, cx| {
             let repo = this.repo_input.read(cx).text(cx);
             this.panel.update(cx, |panel, cx| {
                 panel.git_clone(repo, window, cx);

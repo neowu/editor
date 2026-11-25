@@ -821,7 +821,6 @@ fn cover_bounds(bounds: Bounds<Pixels>, scale_factor: f32) -> Bounds<ScaledPixel
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::px;
 
     #[test]
     fn cover_bounds_keeps_empty_regions_empty() {

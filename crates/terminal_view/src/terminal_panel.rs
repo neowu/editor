@@ -580,8 +580,7 @@ impl TerminalPanel {
             terminal_panel.update_in(cx, |terminal_panel, window, cx| {
                 terminal_panel.activate_terminal_view(&task_pane, terminal_item_index, true, window, cx);
             })?;
-            cx.spawn(async move |cx| task_workspace.update_in(cx, workspace::Workspace::focus_panel::<Self>).ok())
-                .detach();
+            cx.spawn(async move |cx| task_workspace.update_in(cx, Workspace::focus_panel::<Self>).ok()).detach();
 
             Ok(new_terminal.downgrade())
         })
@@ -1013,7 +1012,7 @@ impl workspace::TerminalProvider for TerminalProvider {
                 .await;
             match terminal {
                 Ok(terminal) => {
-                    let exit_status = terminal.read_with(cx, terminal::Terminal::wait_for_completed_task).ok()?.await?;
+                    let exit_status = terminal.read_with(cx, Terminal::wait_for_completed_task).ok()?.await?;
                     Some(Ok(exit_status))
                 }
                 Err(e) => Some(Err(e)),

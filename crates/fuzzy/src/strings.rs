@@ -117,9 +117,8 @@ where
     let num_cpus = executor.num_cpus().min(candidates.len());
     let base_size = candidates.len() / num_cpus;
     let remainder = candidates.len() % num_cpus;
-    let mut segment_results = std::iter::repeat_with(|| Vec::with_capacity(max_results.min(candidates.len())))
-        .take(num_cpus)
-        .collect::<Vec<_>>();
+    let mut segment_results =
+        iter::repeat_with(|| Vec::with_capacity(max_results.min(candidates.len()))).take(num_cpus).collect::<Vec<_>>();
 
     let config = nucleo::Config::DEFAULT;
     let mut matchers = matcher::get_matchers(num_cpus, config);

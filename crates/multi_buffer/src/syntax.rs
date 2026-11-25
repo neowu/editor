@@ -633,13 +633,13 @@ impl MultiBufferSnapshot {
             + Sub<Output = MBD::TextDimension>
             + fmt::Debug
             + ops::Add<Output = MBD::TextDimension>
-            + ops::AddAssign
+            + AddAssign
             + Ord,
         MBD: MultiBufferDimension
             + Ord
             + Sub<Output = MBD::TextDimension>
             + ops::Add<MBD::TextDimension, Output = MBD>
-            + ops::AddAssign<MBD::TextDimension>
+            + AddAssign<MBD::TextDimension>
             + 'a,
     {
         self.lift_buffer_metadata::<MBD, _, _>(range, move |buffer, buffer_range| {
@@ -657,7 +657,7 @@ impl MultiBufferSnapshot {
             + Ord
             + Sub<Output = MBD::TextDimension>
             + ops::Add<MBD::TextDimension, Output = MBD>
-            + ops::AddAssign<MBD::TextDimension>,
+            + AddAssign<MBD::TextDimension>,
         MBD::TextDimension: Sub<Output = MBD::TextDimension>
             + ops::Add<Output = MBD::TextDimension>
             + text::ToOffset

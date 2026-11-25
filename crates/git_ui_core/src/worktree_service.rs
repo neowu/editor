@@ -532,7 +532,7 @@ pub async fn await_and_rollback_on_failure(
 pub fn handle_create_worktree(
     workspace: &mut Workspace,
     action: &git::CreateWorktree,
-    window: &mut gpui::Window,
+    window: &mut Window,
     fallback_focused_dock: Option<DockPosition>,
     cx: &mut gpui::Context<Workspace>,
 ) {
@@ -550,7 +550,7 @@ pub fn handle_create_worktree(
 fn create_worktree_workspace_inner(
     workspace: &mut Workspace,
     action: &git::CreateWorktree,
-    window: &gpui::Window,
+    window: &Window,
     fallback_focused_dock: Option<DockPosition>,
     remote_branch_fetch_mode: RemoteBranchFetchMode,
     cx: &mut gpui::Context<Workspace>,
@@ -632,7 +632,7 @@ fn create_worktree_workspace_inner(
 pub fn handle_switch_worktree(
     workspace: &mut Workspace,
     action: &git::SwitchWorktree,
-    window: &mut gpui::Window,
+    window: &mut Window,
     fallback_focused_dock: Option<DockPosition>,
     cx: &mut gpui::Context<Workspace>,
 ) {
@@ -833,7 +833,7 @@ async fn open_worktree_workspace(
 
     #[allow(clippy::type_complexity)]
     let init = transfer_state.then(
-        || -> Box<dyn FnOnce(&mut Workspace, &mut gpui::Window, &mut gpui::Context<Workspace>) + Send> {
+        || -> Box<dyn FnOnce(&mut Workspace, &mut Window, &mut gpui::Context<Workspace>) + Send> {
             let dock_structure = previous_state.dock_structure;
             Box::new(move |workspace, window, cx| workspace.set_dock_structure(dock_structure, window, cx))
         },

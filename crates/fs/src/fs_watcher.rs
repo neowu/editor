@@ -66,7 +66,7 @@ pub(crate) async fn watch(
         Box::pin(rx.filter_map({
             let watcher = Arc::clone(&watcher);
             move |()| {
-                let _: Arc<dyn Watcher> = Arc::clone(&watcher);
+                _ = Arc::clone(&watcher);
                 let pending_paths = Arc::clone(&pending_paths);
                 let executor = executor.clone();
                 async move {
@@ -87,7 +87,7 @@ pub struct FsWatcher {
     native_watcher: Arc<OsWatcher>,
     fs: Arc<Fs>,
     executor: BackgroundExecutor,
-    tx: async_channel::Sender<()>,
+    tx: Sender<()>,
     pending_path_events: Arc<Mutex<Vec<PathEvent>>>,
     registrations: Arc<Mutex<HashMap<WatchKey, FsWatcherRegistration>>>,
     pending_registrations: Arc<Mutex<HashMap<Arc<Path>, Task<()>>>>,
@@ -104,7 +104,7 @@ impl FsWatcher {
         native_watcher: Arc<OsWatcher>,
         fs: Arc<Fs>,
         executor: BackgroundExecutor,
-        tx: async_channel::Sender<()>,
+        tx: Sender<()>,
         pending_path_events: Arc<Mutex<Vec<PathEvent>>>,
     ) -> Self {
         Self {
@@ -229,7 +229,7 @@ fn register_existing_path(
     native_watcher: &Arc<OsWatcher>,
     path: Arc<Path>,
     case_insensitive: bool,
-    tx: async_channel::Sender<()>,
+    tx: Sender<()>,
     pending_path_events: Arc<Mutex<Vec<PathEvent>>>,
 ) -> anyhow::Result<FsWatcherRegistration> {
     let root_path = SanitizedPath::new_arc(path.as_ref());
@@ -319,7 +319,7 @@ async fn poll_path_until_created(
     fs: Arc<Fs>,
     executor: BackgroundExecutor,
     path: Arc<Path>,
-    tx: async_channel::Sender<()>,
+    tx: Sender<()>,
     pending_path_events: Arc<Mutex<Vec<PathEvent>>>,
     registrations: Arc<Mutex<HashMap<WatchKey, FsWatcherRegistration>>>,
     pending_registrations: Arc<Mutex<HashMap<Arc<Path>, Task<()>>>>,
@@ -571,7 +571,7 @@ pub struct OsWatcher {
     // One FSEvents stream per backend watch. Locked while holding `state`;
     // stream callbacks take neither lock.
     streams: Mutex<HashMap<PathBuf, fsevents::Stream>>,
-    event_tx: async_channel::Sender<fsevents::Event>,
+    event_tx: Sender<fsevents::Event>,
     _dispatch_task: Task<()>,
     // Closing the event channel can wake the dispatch task. Keep its scheduler
     // alive through channel and task teardown, even when our owner drops first.

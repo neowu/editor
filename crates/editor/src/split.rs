@@ -1148,11 +1148,11 @@ impl SplittableEditor {
 impl Item for SplittableEditor {
     type Event = EditorEvent;
 
-    fn tab_content_text(&self, detail: usize, cx: &App) -> ui::SharedString {
+    fn tab_content_text(&self, detail: usize, cx: &App) -> SharedString {
         self.rhs_editor.read(cx).tab_content_text(detail, cx)
     }
 
-    fn tab_tooltip_text(&self, cx: &App) -> Option<ui::SharedString> {
+    fn tab_tooltip_text(&self, cx: &App) -> Option<SharedString> {
         self.rhs_editor.read(cx).tab_tooltip_text(cx)
     }
 
@@ -1160,7 +1160,7 @@ impl Item for SplittableEditor {
         self.rhs_editor.read(cx).tab_icon(window, cx)
     }
 
-    fn tab_content(&self, params: TabContentParams, window: &Window, cx: &App) -> gpui::AnyElement {
+    fn tab_content(&self, params: TabContentParams, window: &Window, cx: &App) -> AnyElement {
         self.rhs_editor.read(cx).tab_content(params, window, cx)
     }
 
@@ -1192,7 +1192,7 @@ impl Item for SplittableEditor {
         self.rhs_editor.read(cx).has_deleted_file(cx)
     }
 
-    fn capability(&self, cx: &App) -> language::Capability {
+    fn capability(&self, cx: &App) -> Capability {
         self.rhs_editor.read(cx).capability(cx)
     }
 
@@ -1259,7 +1259,7 @@ impl Item for SplittableEditor {
         Some(Box::new(handle.clone()))
     }
 
-    fn pixel_position_of_cursor(&self, cx: &App) -> Option<gpui::Point<gpui::Pixels>> {
+    fn pixel_position_of_cursor(&self, cx: &App) -> Option<gpui::Point<Pixels>> {
         self.focused_editor().read(cx).pixel_position_of_cursor(cx)
     }
 
@@ -1445,7 +1445,7 @@ static SPLITTABLE_EDITOR_ACTIONS: std::sync::LazyLock<gpui::ActionTable<Splittab
     });
 
 impl Render for SplittableEditor {
-    fn render(&mut self, _window: &mut ui::Window, cx: &mut ui::Context<Self>) -> impl ui::IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl ui::IntoElement {
         let is_split = self.lhs.is_some();
         let inner = if is_split {
             let style = self.rhs_editor.read(cx).create_style(cx);

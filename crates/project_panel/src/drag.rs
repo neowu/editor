@@ -2,7 +2,6 @@ use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
-use std::result;
 use std::sync::Arc;
 
 use anyhow::Context as _;
@@ -306,7 +305,7 @@ impl ProjectPanel {
                             .log_err();
                     }
 
-                    result::Result::Ok::<(), anyhow::Error>(())
+                    Ok::<(), anyhow::Error>(())
                 })
                 .detach();
                 Some(())

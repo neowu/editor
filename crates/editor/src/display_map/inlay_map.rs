@@ -520,7 +520,7 @@ impl InlayMap {
     pub fn sync(
         &mut self,
         buffer_snapshot: MultiBufferSnapshot,
-        mut buffer_edits: Vec<text::Edit<MultiBufferOffset>>,
+        mut buffer_edits: Vec<Edit<MultiBufferOffset>>,
     ) -> (InlaySnapshot, Vec<InlayEdit>) {
         let snapshot = &mut self.snapshot;
 

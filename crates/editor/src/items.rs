@@ -558,7 +558,7 @@ impl ProjectItem for Editor {
                 .and_then(|kind| pane.as_ref()?.project_item_restoration_data.get(&kind))
                 .and_then(|data| data.downcast_ref::<EditorRestorationData>())
                 .and_then(|data| {
-                    let file = project::File::from_dyn(buffer.read(cx).file())?;
+                    let file = File::from_dyn(buffer.read(cx).file())?;
                     data.entries.get(&file.abs_path(cx))
                 })
         {
@@ -623,7 +623,7 @@ impl Editor {
                 let kind = Editor::project_item_kind()?;
                 let pane = editor.workspace()?.read(cx).pane_for(&cx.entity())?;
                 let buffer = editor.buffer().read(cx).as_singleton()?;
-                let file_abs_path = project::File::from_dyn(buffer.read(cx).file())?.abs_path(cx);
+                let file_abs_path = File::from_dyn(buffer.read(cx).file())?.abs_path(cx);
                 pane.update(cx, |pane, _| {
                     let data = pane
                         .project_item_restoration_data
@@ -1100,7 +1100,7 @@ pub async fn open_resolved_target(
         .update_in(cx, |workspace, window, cx| {
             workspace.open_paths(
                 vec![path_to_open.path.clone()],
-                workspace::OpenOptions { visible: Some(workspace::OpenVisible::OnlyDirectories), ..Default::default() },
+                OpenOptions { visible: Some(OpenVisible::OnlyDirectories), ..Default::default() },
                 None,
                 window,
                 cx,
@@ -1207,7 +1207,7 @@ fn path_for_file<'a>(
     include_filename: bool,
     cx: &'a App,
 ) -> Option<Cow<'a, str>> {
-    project::File::from_dyn(Some(file))?;
+    File::from_dyn(Some(file))?;
 
     let file = file.as_ref();
     // Ensure we always render at least the filename.

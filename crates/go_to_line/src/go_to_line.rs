@@ -289,8 +289,8 @@ impl GoToLine {
     }
 }
 
-static GO_TO_LINE_ACTIONS: std::sync::LazyLock<gpui::ActionTable<GoToLine>> = std::sync::LazyLock::new(|| {
-    let mut t = gpui::ActionTable::<GoToLine>::default();
+static GO_TO_LINE_ACTIONS: std::sync::LazyLock<ActionTable<GoToLine>> = std::sync::LazyLock::new(|| {
+    let mut t = ActionTable::<GoToLine>::default();
     t.add(GoToLine::accept_placeholder);
     t.add(GoToLine::cancel);
     t.add(GoToLine::confirm);

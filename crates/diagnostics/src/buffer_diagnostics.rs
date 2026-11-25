@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::any::TypeId;
-use std::cmp;
 use std::cmp::Ordering;
 use std::ops::Range;
 use std::sync::Arc;
@@ -181,7 +180,7 @@ impl BufferDiagnosticsEditor {
 
         let summary = project_handle.read(cx).diagnostic_summary_for_path(&project_path, cx);
 
-        let multibuffer = cx.new(|_| MultiBuffer::new(language::Capability::ReadWrite));
+        let multibuffer = cx.new(|_| MultiBuffer::new(Capability::ReadWrite));
         let editor = cx.new(|cx| {
             let mut editor = Editor::for_multibuffer(multibuffer.clone(), Some(project_handle.clone()), window, cx);
             editor.set_vertical_scroll_margin(5, cx);
@@ -407,7 +406,7 @@ impl BufferDiagnosticsEditor {
                 let initial_range = buffer_snapshot.anchor_after(diagnostic_block.initial_range.start)
                     ..buffer_snapshot.anchor_before(diagnostic_block.initial_range.end);
 
-                let bin_search = |probe: &ExcerptRange<text::Anchor>| {
+                let bin_search = |probe: &ExcerptRange<Anchor>| {
                     let context_start = || probe.context.start.cmp(&excerpt_range.start, &buffer_snapshot);
                     let context_end = || probe.context.end.cmp(&excerpt_range.end, &buffer_snapshot);
                     let primary_start = || probe.primary.start.cmp(&initial_range.start, &buffer_snapshot);
@@ -416,7 +415,7 @@ impl BufferDiagnosticsEditor {
                         .then_with(context_end)
                         .then_with(primary_start)
                         .then_with(primary_end)
-                        .then(cmp::Ordering::Greater)
+                        .then(Ordering::Greater)
                 };
 
                 let index = excerpt_ranges.binary_search_by(bin_search).unwrap_or_else(|i| i);
@@ -729,11 +728,7 @@ impl Render for BufferDiagnosticsEditor {
 }
 
 impl DiagnosticsEditor for WeakEntity<BufferDiagnosticsEditor> {
-    fn get_diagnostics_for_buffer(
-        &self,
-        _buffer_id: text::BufferId,
-        cx: &App,
-    ) -> Vec<language::DiagnosticEntry<text::Anchor>> {
+    fn get_diagnostics_for_buffer(&self, _buffer_id: text::BufferId, cx: &App) -> Vec<DiagnosticEntry<Anchor>> {
         self.read_with(cx, |buffer_diagnostics_editor, _cx| buffer_diagnostics_editor.diagnostics.clone())
             .unwrap_or_default()
     }

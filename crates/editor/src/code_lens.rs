@@ -32,7 +32,7 @@ pub(crate) struct HoverCodeLens {
 pub(super) fn try_handle_client_command(
     action: &CodeAction,
     editor: &mut Editor,
-    workspace: &gpui::Entity<workspace::Workspace>,
+    workspace: &Entity<workspace::Workspace>,
     window: &mut Window,
     cx: &mut Context<Editor>,
 ) -> bool {

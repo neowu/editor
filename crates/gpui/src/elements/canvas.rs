@@ -85,7 +85,7 @@ impl<T: 'static> Element for Canvas<T> {
 }
 
 impl<T> Styled for Canvas<T> {
-    fn style(&mut self) -> &mut crate::StyleRefinement {
+    fn style(&mut self) -> &mut StyleRefinement {
         &mut self.style
     }
 }

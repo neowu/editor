@@ -366,7 +366,7 @@ impl<M: ManagedView> Element for PopoverMenu<M> {
         global_id: Option<&GlobalElementId>,
         window: &mut Window,
         cx: &mut App,
-    ) -> (gpui::LayoutId, Self::RequestLayoutState) {
+    ) -> (LayoutId, Self::RequestLayoutState) {
         window.with_element_state(
             global_id.expect("popover menu has an id"),
             |element_state: Option<PopoverMenuElementState<M>>, window| {
@@ -459,7 +459,7 @@ impl<M: ManagedView> Element for PopoverMenu<M> {
     fn paint(
         &mut self,
         _id: Option<&GlobalElementId>,
-        _: Bounds<gpui::Pixels>,
+        _: Bounds<Pixels>,
         request_layout: &mut Self::RequestLayoutState,
         child_hitbox: &mut Option<HitboxId>,
         window: &mut Window,

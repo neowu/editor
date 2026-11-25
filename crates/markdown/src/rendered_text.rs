@@ -675,7 +675,7 @@ impl RenderedText {
             let rendered_index_in_line =
                 text.floor_char_boundary(line.rendered_index_for_source_index(source_index) - line_rendered_start);
 
-            let scope = line.language.as_ref().map(language::Language::default_scope);
+            let scope = line.language.as_ref().map(Language::default_scope);
             let classifier = CharClassifier::new(scope);
 
             let mut prev_chars = text[..rendered_index_in_line].chars().rev().peekable();

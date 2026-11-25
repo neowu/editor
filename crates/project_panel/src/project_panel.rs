@@ -938,7 +938,7 @@ impl ProjectPanel {
             let should_show_compare = !is_dir && self.file_abs_paths_to_diff(cx).is_some();
 
             let (has_git_repo, has_history) = {
-                let project_path = project::ProjectPath { worktree_id, path: Arc::clone(&entry.path) };
+                let project_path = ProjectPath { worktree_id, path: Arc::clone(&entry.path) };
                 let git_store = project.git_store().read(cx);
                 let has_git_repo = git_store.repository_and_path_for_project_path(&project_path, cx).is_some();
                 let has_history = has_git_repo
@@ -2402,7 +2402,7 @@ impl ProjectPanel {
         self.state.ancestors.get(&id).and_then(FoldedAncestors::active_ancestor).unwrap_or(id)
     }
 
-    pub fn selected_entry<'a>(&self, cx: &'a App) -> Option<(&'a Worktree, &'a project::Entry)> {
+    pub fn selected_entry<'a>(&self, cx: &'a App) -> Option<(&'a Worktree, &'a Entry)> {
         let (worktree, entry) = self.selected_entry_handle(cx)?;
         Some((worktree.read(cx), entry))
     }
@@ -2430,7 +2430,7 @@ impl ProjectPanel {
 
     /// Compared to selected_entry, this function resolves to the currently
     /// selected subentry if dir auto-folding is enabled.
-    fn selected_sub_entry<'a>(&self, cx: &'a App) -> Option<(Entity<Worktree>, &'a project::Entry)> {
+    fn selected_sub_entry<'a>(&self, cx: &'a App) -> Option<(Entity<Worktree>, &'a Entry)> {
         let (worktree, mut entry) = self.selected_entry_handle(cx)?;
 
         let resolved_id = self.resolve_entry(entry.id);
@@ -2454,7 +2454,7 @@ impl ProjectPanel {
         Some(worktree.absolutize(&root_entry.path))
     }
 
-    fn selected_entry_handle<'a>(&self, cx: &'a App) -> Option<(Entity<Worktree>, &'a project::Entry)> {
+    fn selected_entry_handle<'a>(&self, cx: &'a App) -> Option<(Entity<Worktree>, &'a Entry)> {
         let selection = self.selection?;
         let project = self.project.read(cx);
         let worktree = project.worktree_for_id(selection.worktree_id, cx)?;
@@ -2628,7 +2628,7 @@ impl Panel for ProjectPanel {
 
     fn starts_open(&self, _: &Window, cx: &App) -> bool {
         let project = &self.project.read(cx);
-        project.visible_worktrees(cx).any(|tree| tree.read(cx).root_entry().is_some_and(project::Entry::is_dir))
+        project.visible_worktrees(cx).any(|tree| tree.read(cx).root_entry().is_some_and(Entry::is_dir))
     }
 
     fn set_active(&mut self, active: bool, window: &mut Window, cx: &mut Context<Self>) {

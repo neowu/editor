@@ -1,4 +1,3 @@
-use std::result;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,7 +26,7 @@ pub struct DocumentColors {
     pub colors: FxHashSet<DocumentColor>,
 }
 
-pub(super) type DocumentColorTask = Shared<Task<result::Result<DocumentColors, Arc<anyhow::Error>>>>;
+pub(super) type DocumentColorTask = Shared<Task<Result<DocumentColors, Arc<anyhow::Error>>>>;
 
 #[derive(Debug, Default)]
 pub(super) struct DocumentColorData {

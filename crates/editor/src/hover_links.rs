@@ -679,7 +679,7 @@ impl ResolvedFileTarget {
     pub fn navigate_item_to_position(&self, item: Box<dyn crate::ItemHandle>, cx: &mut AsyncWindowContext) {
         if let Some(row) = self.row {
             let col = self.column.unwrap_or(0);
-            if let Some(active_editor) = item.downcast::<crate::Editor>() {
+            if let Some(active_editor) = item.downcast::<Editor>() {
                 active_editor
                     .downgrade()
                     .update_in(cx, |editor, window, cx| {

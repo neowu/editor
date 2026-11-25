@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use anyhow::anyhow;
-use futures::Future;
 use futures::channel::mpsc;
 use futures::channel::oneshot;
 use futures::future::BoxFuture;

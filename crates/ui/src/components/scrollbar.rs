@@ -266,7 +266,7 @@ impl<T: ScrollableHandle> UniformListDecoration for ScrollbarStateWrapper<T> {
         _item_count: usize,
         _window: &mut Window,
         _cx: &mut App,
-    ) -> gpui::AnyElement {
+    ) -> AnyElement {
         ScrollbarElement { origin: -scroll_offset, state: self.0.clone() }.into_any_element()
     }
 }

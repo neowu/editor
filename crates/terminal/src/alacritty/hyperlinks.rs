@@ -173,7 +173,7 @@ fn normalize_hyperlink_match(maybe_url_or_path: String, is_url: bool, range: Ran
 
 // OSC 8 mandates that file:// URIs must be encoded as file://{host}{path}
 // We need to skip the {host} part if it's set
-fn try_osc8_url_to_path(url: url::Url) -> Option<String> {
+fn try_osc8_url_to_path(url: Url) -> Option<String> {
     use percent_encoding::percent_decode;
     if url.scheme() != "file" {
         return None;

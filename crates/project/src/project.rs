@@ -30,7 +30,6 @@ use git_store::RepositoryId;
 pub mod search_history;
 
 use std::borrow::Cow;
-use std::future::Future;
 use std::ops::Range;
 use std::path::Path;
 use std::path::PathBuf;
@@ -351,7 +350,7 @@ impl InlayId {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InlayHint {
-    pub position: language::Anchor,
+    pub position: Anchor,
     pub label: InlayHintLabel,
     pub kind: Option<InlayHintKind>,
     pub padding_left: bool,
@@ -417,7 +416,7 @@ pub struct Completion {
     /// Text starting here and ending at the cursor will be used as the query for filtering this completion.
     ///
     /// If None, the start of the surrounding word is used.
-    pub match_start: Option<text::Anchor>,
+    pub match_start: Option<Anchor>,
     /// Key used for de-duplicating snippets. If None, always considered unique.
     pub snippet_deduplication_key: Option<(usize, usize)>,
     /// Whether to adjust indentation (the default) or not.
@@ -609,11 +608,11 @@ impl LspAction {
         }
     }
 
-    pub fn action_kind(&self) -> Option<lsp_types::CodeActionKind> {
+    pub fn action_kind(&self) -> Option<CodeActionKind> {
         match self {
             Self::Action(action) => action.kind.clone(),
-            Self::Command(_) => Some(lsp_types::CodeActionKind::new("command")),
-            Self::CodeLens(_) => Some(lsp_types::CodeActionKind::new("code lens")),
+            Self::Command(_) => Some(CodeActionKind::new("command")),
+            Self::CodeLens(_) => Some(CodeActionKind::new("code lens")),
         }
     }
 
@@ -693,7 +692,7 @@ pub struct LocationLink {
 
 #[derive(Debug)]
 pub struct DocumentHighlight {
-    pub range: Range<language::Anchor>,
+    pub range: Range<Anchor>,
     pub kind: DocumentHighlightKind,
 }
 
@@ -735,7 +734,7 @@ pub enum HoverBlockKind {
 #[derive(Debug, Clone)]
 pub struct Hover {
     pub contents: Vec<HoverBlock>,
-    pub range: Option<Range<language::Anchor>>,
+    pub range: Option<Range<Anchor>>,
     pub language: Option<Arc<Language>>,
 }
 
@@ -1078,7 +1077,7 @@ impl Project {
                 if is_subpath && worktree.is_path_ignored(&relative_path) {
                     return None;
                 }
-                let is_dir = worktree.entry_for_path(&relative_path).is_some_and(worktree::Entry::is_dir);
+                let is_dir = worktree.entry_for_path(&relative_path).is_some_and(Entry::is_dir);
                 let contains = !is_dir || !is_subpath;
                 contains.then(|| worktree.is_visible())
             })
@@ -1316,8 +1315,8 @@ impl Project {
         let task = self.open_buffer(path, cx);
         cx.spawn(async move |_project, cx| {
             let buffer = task.await?;
-            let project_entry_id = buffer
-                .read_with(cx, |buffer, _cx| File::from_dyn(buffer.file()).and_then(worktree::File::project_entry_id));
+            let project_entry_id =
+                buffer.read_with(cx, |buffer, _cx| File::from_dyn(buffer.file()).and_then(File::project_entry_id));
 
             Ok((project_entry_id, buffer))
         })
@@ -1737,7 +1736,7 @@ impl Project {
         target: LspFormatTarget,
         push_to_history: bool,
         cx: &mut Context<Project>,
-    ) -> Task<anyhow::Result<ProjectTransaction>> {
+    ) -> Task<Result<ProjectTransaction>> {
         self.lsp_store.update(cx, |lsp_store, cx| lsp_store.format(buffers, target, push_to_history, cx))
     }
 
@@ -1941,17 +1940,17 @@ impl Project {
 
     fn search_impl(&self, query: SearchQuery, cx: &mut Context<Self>) -> SearchResultsHandle {
         let searcher = if query.is_opened_only() {
-            project_search::Search::open_buffers_only(
+            Search::open_buffers_only(
                 self.buffer_store.clone(),
                 self.worktree_store.clone(),
-                project_search::Search::MAX_SEARCH_RESULT_FILES + 1,
+                Search::MAX_SEARCH_RESULT_FILES + 1,
             )
         } else {
-            project_search::Search::local(
+            Search::local(
                 Arc::clone(&self.fs),
                 self.buffer_store.clone(),
                 self.worktree_store.clone(),
-                project_search::Search::MAX_SEARCH_RESULT_FILES + 1,
+                Search::MAX_SEARCH_RESULT_FILES + 1,
                 cx,
             )
         };
@@ -2470,14 +2469,14 @@ impl<'a> fuzzy::PathMatchCandidateSet<'a> for PathMatchCandidateSet {
         }
     }
     fn prefix(&self) -> Arc<RelPath> {
-        if self.snapshot.root_entry().is_some_and(worktree::Entry::is_file) || self.include_root_name {
+        if self.snapshot.root_entry().is_some_and(Entry::is_file) || self.include_root_name {
             self.snapshot.root_name().into()
         } else {
             RelPath::empty_arc()
         }
     }
     fn root_is_file(&self) -> bool {
-        self.snapshot.root_entry().is_some_and(worktree::Entry::is_file)
+        self.snapshot.root_entry().is_some_and(Entry::is_file)
     }
     fn candidates(&'a self, start: usize) -> Self::Candidates {
         PathMatchCandidateSetIter {
@@ -2561,7 +2560,7 @@ impl ProjectItem for Buffer {
     }
 
     fn entry_id(&self, _cx: &App) -> Option<ProjectEntryId> {
-        File::from_dyn(self.file()).and_then(worktree::File::project_entry_id)
+        File::from_dyn(self.file()).and_then(File::project_entry_id)
     }
 
     fn project_path(&self, cx: &App) -> Option<ProjectPath> {
@@ -2600,10 +2599,10 @@ impl Completion {
         let kind_key = self
             .kind()
             .and_then(|lsp_completion_kind| match lsp_completion_kind {
-                lsp_types::CompletionItemKind::KEYWORD => Some(0),
-                lsp_types::CompletionItemKind::VARIABLE => Some(1),
-                lsp_types::CompletionItemKind::CONSTANT => Some(2),
-                lsp_types::CompletionItemKind::PROPERTY => Some(3),
+                CompletionItemKind::KEYWORD => Some(0),
+                CompletionItemKind::VARIABLE => Some(1),
+                CompletionItemKind::CONSTANT => Some(2),
+                CompletionItemKind::PROPERTY => Some(3),
                 _ => None,
             })
             .unwrap_or(DEFAULT_KIND_KEY);

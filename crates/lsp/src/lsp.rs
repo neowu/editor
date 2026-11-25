@@ -37,7 +37,6 @@ use futures::AsyncBufReadExt as _;
 use futures::AsyncRead;
 use futures::AsyncWrite;
 use futures::AsyncWriteExt as _;
-use futures::Future;
 use futures::FutureExt as _;
 use futures::StreamExt as _;
 use futures::channel::oneshot;
@@ -247,7 +246,7 @@ pub struct LanguageServerId(pub usize);
 #[serde(transparent)]
 pub struct LanguageServerName(pub SharedString);
 
-impl fmt::Display for LanguageServerName {
+impl Display for LanguageServerName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.0, f)
     }
@@ -433,7 +432,7 @@ pub struct ResponseError {
     pub code: ResponseErrorCode,
     pub message: String,
     #[serde(default)]
-    pub data: Option<serde_json::Value>,
+    pub data: Option<Value>,
 }
 
 impl ResponseError {
@@ -774,7 +773,7 @@ impl LanguageServer {
         pending_respond_tasks: PendingRespondTasks,
         io_handlers: Arc<Mutex<FxHashMap<i32, IoHandler>>>,
         cx: &mut AsyncApp,
-    ) -> anyhow::Result<()>
+    ) -> Result<()>
     where
         Stdout: AsyncRead + Unpin + Send + 'static,
     {
@@ -830,7 +829,7 @@ impl LanguageServer {
         stderr: Stderr,
         io_handlers: Arc<Mutex<FxHashMap<i32, IoHandler>>>,
         stderr_capture: Arc<Mutex<Option<String>>>,
-    ) -> anyhow::Result<()>
+    ) -> Result<()>
     where
         Stderr: AsyncRead + Unpin + Send + 'static,
     {
@@ -867,7 +866,7 @@ impl LanguageServer {
         output_done_tx: oneshot::Sender<()>,
         response_handlers: Arc<Mutex<Option<FxHashMap<RequestId, ResponseHandler>>>>,
         io_handlers: Arc<Mutex<FxHashMap<i32, IoHandler>>>,
-    ) -> anyhow::Result<()>
+    ) -> Result<()>
     where
         Stdin: AsyncWrite + Unpin + Send + 'static,
     {
@@ -1705,7 +1704,7 @@ impl Subscription {
     }
 }
 
-impl fmt::Display for LanguageServerId {
+impl Display for LanguageServerId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }

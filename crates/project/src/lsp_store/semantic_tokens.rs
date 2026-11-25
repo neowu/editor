@@ -1,6 +1,5 @@
 use std::mem;
 use std::ops::Range;
-use std::result;
 use std::slice::Iter;
 use std::sync::Arc;
 
@@ -358,7 +357,7 @@ const fn semantic_tokens_provider_legend(
     }
 }
 
-pub(super) type SemanticTokensTask = Shared<Task<result::Result<BufferSemanticTokens, Arc<anyhow::Error>>>>;
+pub(super) type SemanticTokensTask = Shared<Task<Result<BufferSemanticTokens, Arc<anyhow::Error>>>>;
 
 #[derive(Debug, Default, Clone)]
 pub struct BufferSemanticTokens {
@@ -537,7 +536,7 @@ impl SemanticTokensData {
 /// Semantic tokens later in the list will override earlier ones in case of overlap.
 #[derive(Default, Debug, Clone)]
 pub(super) struct RawSemanticTokens {
-    pub servers: FxHashMap<lsp::LanguageServerId, Arc<ServerSemanticTokens>>,
+    pub servers: FxHashMap<LanguageServerId, Arc<ServerSemanticTokens>>,
 }
 
 /// All the semantic tokens for a buffer, from a single language server.

@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::ops::Deref;
 use std::ops::DerefMut;
-use std::result;
 use std::sync::Arc;
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -260,7 +259,7 @@ pub struct LanguageServerPrompt {
 }
 
 impl Focusable for LanguageServerPrompt {
-    fn focus_handle(&self, _cx: &App) -> gpui::FocusHandle {
+    fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
@@ -986,7 +985,7 @@ pub trait NotifyResultExt {
     fn notify_workspace_async_err(self, workspace: WeakEntity<Workspace>, cx: &mut AsyncApp) -> Option<Self::Ok>;
 }
 
-impl<T, E> NotifyResultExt for result::Result<T, E>
+impl<T, E> NotifyResultExt for Result<T, E>
 where
     E: Debug + Display,
 {
@@ -1009,7 +1008,7 @@ pub trait NotifyTaskExt {
     fn detach_and_notify_err(self, workspace: WeakEntity<Workspace>, window: &mut Window, cx: &mut App);
 }
 
-impl<R, E> NotifyTaskExt for Task<result::Result<R, E>>
+impl<R, E> NotifyTaskExt for Task<Result<R, E>>
 where
     E: Debug + Display + Sized + 'static,
     R: 'static,

@@ -476,7 +476,7 @@ impl MacPlatform {
         // returns a live NSApplication instance.
         let delegate = unsafe {
             let app: id = msg_send![GPUIApplication::class(), sharedApplication];
-            (*(app as *const objc2_app_kit::NSApplication)).delegate()
+            (*(app as *const NSApplication)).delegate()
         };
         if let Some(delegate) = delegate {
             register_system_power_observers(delegate.as_ref());
@@ -490,7 +490,7 @@ impl Platform for MacPlatform {
         self.0.lock().background_executor.clone()
     }
 
-    fn foreground_executor(&self) -> gpui::ForegroundExecutor {
+    fn foreground_executor(&self) -> ForegroundExecutor {
         self.0.lock().foreground_executor.clone()
     }
 
@@ -1072,7 +1072,7 @@ fn on_screen_parameters_change(this: &AnyObject, _: id) {
     // as NSNotificationCenter delivers this notification synchronously and it may fire while
     // the App is already borrowed (same pattern as quit() above).
     let platform = unsafe { get_mac_platform(this) };
-    let platform_ptr = std::ptr::from_ref::<MacPlatform>(platform) as *mut c_void;
+    let platform_ptr = ptr::from_ref::<MacPlatform>(platform) as *mut c_void;
     unsafe {
         DispatchQueue::main().exec_async_f(platform_ptr, on_screen_parameters_change);
     }
@@ -1093,7 +1093,7 @@ fn on_screen_parameters_change(this: &AnyObject, _: id) {
 fn on_system_sleep(this: &AnyObject, _: id) {
     // SAFETY: this is the registered app delegate carrying the platform ivar.
     let platform = unsafe { get_mac_platform(this) };
-    let platform_ptr = std::ptr::from_ref::<MacPlatform>(platform) as *mut c_void;
+    let platform_ptr = ptr::from_ref::<MacPlatform>(platform) as *mut c_void;
     // SAFETY: platform lives for the process lifetime while callbacks are registered.
     unsafe {
         DispatchQueue::main().exec_async_f(platform_ptr, on_system_sleep);
@@ -1114,7 +1114,7 @@ fn on_system_sleep(this: &AnyObject, _: id) {
 fn on_system_wake(this: &AnyObject, _: id) {
     // SAFETY: this is the registered app delegate carrying the platform ivar.
     let platform = unsafe { get_mac_platform(this) };
-    let platform_ptr = std::ptr::from_ref::<MacPlatform>(platform) as *mut c_void;
+    let platform_ptr = ptr::from_ref::<MacPlatform>(platform) as *mut c_void;
     // SAFETY: platform lives for the process lifetime while callbacks are registered.
     unsafe {
         DispatchQueue::main().exec_async_f(platform_ptr, on_system_wake);

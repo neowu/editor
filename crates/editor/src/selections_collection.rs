@@ -2,7 +2,6 @@ use std::cmp;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::iter;
-use std::marker::Copy;
 use std::mem;
 use std::ops::AddAssign;
 use std::ops::Deref;

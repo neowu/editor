@@ -168,7 +168,7 @@ impl MetalAtlasTextures {
 
         let atlas_texture = MetalAtlasTexture {
             id: AtlasTextureId { index: index.unwrap_or(texture_list.textures.len()) as u32, kind },
-            allocator: etagere::BucketedAtlasAllocator::new(size_to_etagere(size)),
+            allocator: BucketedAtlasAllocator::new(size_to_etagere(size)),
             metal_texture: AssertSend(metal_texture),
             live_atlas_keys: 0,
         };
