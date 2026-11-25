@@ -1616,7 +1616,8 @@ impl Workspace {
         }
     }
 
-    /// Closes the active item across all panes.
+    /// Closes the active item and every other item for the same file across
+    /// all panes. A multibuffer is closed on its own, in the active pane.
     pub fn close_item_in_all_panes(
         &mut self,
         action: &CloseItemInAllPanes,
@@ -1630,7 +1631,7 @@ impl Workspace {
         let save_intent = action.save_intent.unwrap_or(SaveIntent::Close);
         let close_pinned = action.close_pinned;
 
-        if let Some(project_path) = active_item.project_path(cx) {
+        if let Some(project_path) = active_item.single_file_project_path(cx) {
             self.close_items_with_project_path(&project_path, save_intent, close_pinned, window, cx);
         } else if close_pinned || !self.active_pane().read(cx).is_active_item_pinned() {
             let item_id = active_item.item_id();

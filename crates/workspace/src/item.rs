@@ -410,6 +410,12 @@ impl dyn ItemHandle {
         let t = self.act_as_type(TypeId::of::<V>(), cx)?;
         t.downcast().ok()
     }
+
+    /// The project path of the file this item stands for. `None` for a
+    /// multibuffer, whose project path is only the file under its cursor.
+    pub fn single_file_project_path(&self, cx: &App) -> Option<ProjectPath> {
+        if self.buffer_kind(cx) == ItemBufferKind::Multibuffer { None } else { self.project_path(cx) }
+    }
 }
 
 impl<T: Item> ItemHandle for Entity<T> {
