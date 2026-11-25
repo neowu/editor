@@ -203,7 +203,9 @@
   the search row appears only while search is open. Multi-buffer views with
   their own controls (unified/split, staging) keep a toolbar row, and the
   search field joins it while open; collapse/expand all files is in the tab
-  bar (see ui-layout.md).
+  bar (see ui-layout.md). The Git History header does the same. Project search's
+  "Find in Results" input starts at the same left edge as the query input
+  above it.
 - Block rows (buffer headers, split-diff spacers) never get the current-line
   highlight: the split's left side draws no header of its own, so a cursor in
   a folded file would otherwise leave a stray band beside the header. A

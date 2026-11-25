@@ -365,7 +365,6 @@ impl Render for BufferSearchBar {
         let search_line = h_flex()
             .w_full()
             .gap_2()
-            .when(find_in_results, |el| el.child(alignment_element()))
             .when_some(diff_style_controls, |el, controls| el.pl_0p5().child(controls))
             .child(query_column)
             .child(mode_column);

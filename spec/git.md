@@ -304,8 +304,8 @@ view) offers:
 
 - A toolbar row sits above the graph (the commit sidebar only describes the
   selected commit, so controls that change what the graph shows live here):
-  the branch filter on the left, Search and Refresh icon buttons on the right.
-  It and the search row use the pane toolbar metrics (`ui-layout.md`).
+  the branch filter on the left, then the search bar while shown, the Refresh
+  icon button on the right. It uses the pane toolbar metrics (`ui-layout.md`).
 - Branch filter (repository graph only, not file history): "All Branches" by
   default; it opens the branch picker in select mode (local and remote
   branches, "Select a branch…") and limits the graph to that branch's history
@@ -335,9 +335,10 @@ view) offers:
   access) shows the git error toast and the local reload still happens; a
   successful one is silent. Trade-off: the reload waits for the fetch, so
   Refresh is as slow as the network.
-- The search row is hidden until opened with `cmd-f` (or the Search button),
-  like buffer search.
-  `escape` hides it and clears
+- The search bar is hidden until opened with `cmd-f` (or the menu); there is
+  no Search button. It sits inside the toolbar row next to the branch filter,
+  with the buffer search input width, like the search bar next to the diff
+  controls in the changes panes. `escape` hides it and clears
   the matches and highlights; the query is kept and searched again on reopen.
   While hidden, the graph itself takes focus.
 - Search matches the whole commit message (`git log --grep --fixed-strings`)

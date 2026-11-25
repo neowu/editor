@@ -424,7 +424,7 @@ See `theme.md`.
   a tab into a split get them too.
 - Pane toolbars (search bars, diff controls) have no bottom line either; they
   sit flat inside the card. Every toolbar-like row (pane toolbars, the Git
-  History header and its search row) shares one set of metrics so they line up
+  History header, which holds its search bar) shares one set of metrics so they line up
   when switching tabs or modes: 6px vertical and 8px horizontal padding around
   a 32px row, square icon buttons with 16px (`IconSize::Medium`) icons, and
   14px (default label size) control text; counts and stats stay small. Right-side toolbar items (e.g. image viewer

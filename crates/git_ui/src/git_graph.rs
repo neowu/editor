@@ -139,6 +139,7 @@ use ui::redistribute_hidden_widths;
 use ui::render_redistributable_columns_resize_handles;
 use ui::render_table_header;
 use ui::table_row::TableRow;
+use ui::utils::SearchInputWidth;
 use util::ResultExt as _;
 use workspace::ItemNavHistory;
 use workspace::ModalView;
@@ -276,7 +277,7 @@ impl QueryState {
 }
 
 struct SearchState {
-    /// The search row is hidden until opened with `cmd-f`.
+    /// The search bar is hidden until opened with `cmd-f`.
     shown: bool,
     case_sensitive: bool,
     editor: Entity<Editor>,
@@ -1971,7 +1972,7 @@ impl GitGraph {
         cx.notify();
     }
 
-    /// Hides the search row and its matches; the query is kept for next time.
+    /// Hides the search bar and its matches; the query is kept for next time.
     fn hide_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if !self.search_state.shown {
             return;
@@ -2360,7 +2361,9 @@ impl GitGraph {
         self.set_context_menu(context_menu, position, None, window, cx);
     }
 
-    fn render_search_bar(&self, cx: &Context<Self>) -> impl IntoElement {
+    /// The search input and match navigation, shown inside the toolbar row
+    /// with the same input width as the buffer search bar.
+    fn render_search_bar(&self, window: &Window, cx: &Context<Self>) -> impl IntoElement {
         let color = theme::theme().colors();
         let query_focus_handle = self.search_state.editor.focus_handle(cx).tab_index(1).tab_stop(true);
 
@@ -2369,16 +2372,13 @@ impl GitGraph {
             .tab_index(1)
             .tab_group()
             .tab_stop(false)
-            .w_full()
-            .py(DynamicSpacing::Base06.rems())
-            .px(DynamicSpacing::Base08.rems())
+            .min_w_0()
             .gap_2()
-            .bg(color.toolbar_background)
             .child(
                 h_flex()
                     .h_8()
-                    .flex_1()
-                    .min_w_0()
+                    .w(SearchInputWidth::calc_width(window.viewport_size().width))
+                    .min_w_32()
                     .pl_2()
                     .pr_1()
                     .gap_1()
@@ -2415,7 +2415,7 @@ impl GitGraph {
             )
             .child(
                 h_flex()
-                    .min_w_64()
+                    .flex_none()
                     .gap_1()
                     .child({
                         let focus_handle = self.focus_handle.clone();
@@ -2483,33 +2483,17 @@ impl GitGraph {
     }
 
     /// The row above the graph: the branch filter on the left (repository graph
-    /// only), search and refresh on the right.
+    /// only), then the search bar while shown, refresh on the right.
     fn render_toolbar(&self, is_loading: bool, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let icon_button_size = IconSize::Medium.square(window, cx);
         let focus_handle = self.focus_handle.clone();
-        let search_shown = self.search_state.shown;
 
         let row = h_flex()
             .h_8()
-            .gap_1()
+            .gap_2()
             .when(is_repository_graph(&self.log_source), |this| this.child(self.render_branch_filter(cx)))
+            .when(self.search_state.shown, |this| this.child(self.render_search_bar(window, cx)))
             .child(div().flex_1())
-            .child({
-                let focus_handle = focus_handle.clone();
-                IconButton::new("git-graph-search", IconName::MagnifyingGlass)
-                    .shape(ui::IconButtonShape::Square)
-                    .toggle_state(search_shown)
-                    .tooltip(move |_, cx| {
-                        Tooltip::for_action_in("Search Commits", &buffer_search::Deploy::find(), &focus_handle, cx)
-                    })
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        if search_shown {
-                            this.hide_search(window, cx);
-                        } else {
-                            this.show_search(window, cx);
-                        }
-                    }))
-            })
             .child(if is_loading {
                 h_flex()
                     .id("git-graph-refreshing")
@@ -3481,7 +3465,6 @@ impl Render for GitGraph {
                 v_flex()
                     .size_full()
                     .child(self.render_toolbar(is_loading || self.refreshing.is_some(), window, cx))
-                    .when(self.search_state.shown, |this| this.child(self.render_search_bar(cx)))
                     .child(
                         div()
                             .relative()
