@@ -2781,57 +2781,58 @@ impl MultiBufferSnapshot {
         let mut cursor = self.cursor::<DimensionPair<MultiBufferOffset, Point>, BufferOffset>();
         cursor.seek(&DimensionPair { key: start_offset, value: None });
 
+        // The cursor is on the diff transform containing `start_offset`. Seek to the start of
+        // its excerpt, so a range starting on a transform in the middle of an excerpt is not
+        // mistaken for one starting at the excerpt.
+        cursor.seek_to_start_of_current_excerpt();
         if cursor.fetch_excerpt_with_range().is_some_and(|(_, range)| bounds.contains(&range.start.key)) {
             cursor.prev_excerpt();
-        } else {
-            cursor.seek_to_start_of_current_excerpt();
         }
         let mut prev_excerpt = cursor.fetch_excerpt_with_range().map(|(excerpt, _)| excerpt);
 
         cursor.next_excerpt_forwards();
 
         iter::from_fn(move || {
-            loop {
-                if self.singleton {
-                    return None;
-                }
-
-                let (next_excerpt, next_range) = cursor.fetch_excerpt_with_range()?;
-                cursor.next_excerpt_forwards();
-                if !bounds.contains(&next_range.start.key) {
-                    prev_excerpt = Some(next_excerpt);
-                    continue;
-                }
-
-                let next_region_start = next_range.start.value.expect("fetched region has a value");
-                let next_region_end = if let Some((_, range)) = cursor.fetch_excerpt_with_range() {
-                    range.start.value.expect("fetched region has a value")
-                } else {
-                    self.max_point()
-                };
-
-                let prev = prev_excerpt.as_ref().map(|excerpt| ExcerptBoundaryInfo {
-                    start_anchor: Anchor::in_buffer(excerpt.path_key_index, excerpt.range.context.start),
-                    range: excerpt.range.clone(),
-                    end_row: MultiBufferRow(next_region_start.row),
-                });
-
-                let next = ExcerptBoundaryInfo {
-                    start_anchor: Anchor::in_buffer(next_excerpt.path_key_index, next_excerpt.range.context.start),
-                    range: next_excerpt.range.clone(),
-                    end_row: if next_excerpt.has_trailing_newline {
-                        MultiBufferRow(next_region_end.row - 1)
-                    } else {
-                        MultiBufferRow(next_region_end.row)
-                    },
-                };
-
-                let row = MultiBufferRow(next_region_start.row);
-
-                prev_excerpt = Some(next_excerpt);
-
-                return Some(ExcerptBoundary { prev, next, row });
+            if self.singleton {
+                return None;
             }
+
+            let (next_excerpt, next_range) = cursor.fetch_excerpt_with_range()?;
+            cursor.next_excerpt_forwards();
+            // The walk starts at or after the range start, so the first excerpt outside the
+            // range is past its end.
+            if !bounds.contains(&next_range.start.key) {
+                return None;
+            }
+
+            let next_region_start = next_range.start.value.expect("fetched region has a value");
+            let next_region_end = if let Some((_, range)) = cursor.fetch_excerpt_with_range() {
+                range.start.value.expect("fetched region has a value")
+            } else {
+                self.max_point()
+            };
+
+            let prev = prev_excerpt.as_ref().map(|excerpt| ExcerptBoundaryInfo {
+                start_anchor: Anchor::in_buffer(excerpt.path_key_index, excerpt.range.context.start),
+                range: excerpt.range.clone(),
+                end_row: MultiBufferRow(next_region_start.row),
+            });
+
+            let next = ExcerptBoundaryInfo {
+                start_anchor: Anchor::in_buffer(next_excerpt.path_key_index, next_excerpt.range.context.start),
+                range: next_excerpt.range.clone(),
+                end_row: if next_excerpt.has_trailing_newline {
+                    MultiBufferRow(next_region_end.row - 1)
+                } else {
+                    MultiBufferRow(next_region_end.row)
+                },
+            };
+
+            let row = MultiBufferRow(next_region_start.row);
+
+            prev_excerpt = Some(next_excerpt);
+
+            Some(ExcerptBoundary { prev, next, row })
         })
     }
 
