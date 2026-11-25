@@ -66,8 +66,8 @@ Directions the fork deliberately doesn't follow, even in kept crates:
 
 ## Status
 
-- Last reviewed upstream commit: `4aa53044` (2026-11-23). The next pass
-  starts at `git log --reverse 4aa53044..upstream/main`.
+- Last reviewed upstream commit: `2664a0aa` (2026-11-24). The next pass
+  starts at `git log --reverse 2664a0aa..upstream/main`.
 - Renderer series, partly taken: #66806 and #66807 are ported. Still open:
   #66809 (path rendering without MSAA or an intermediate texture) with
   #66811 (depth buffer to cut overdraw), the main Metal win; they trade
@@ -75,10 +75,12 @@ Directions the fork deliberately doesn't follow, even in kept crates:
   #66812 (shadow approximation) are optional on top.
 - Layout series: #67222 (Taffy nodes kept between frames) is ported, adapted
   (`gpui/rendering.md`, "Layout nodes"). Upstream's follow-up for measured
-  nodes had not landed; the fork has its own (`request_retained_measured_layout`,
-  whole-tree skip), so when the follow-up or fixes land (`git log upstream/main
-  -- crates/gpui/src/taffy.rs` from `90549abc`), take fixes to node matching
-  and eviction and compare, rather than port, the measured-node design.
+  nodes (#67223, keyed measure functions) was compared, not ported: the fork
+  has its own (`request_retained_measured_layout`, whole-tree skip), which
+  already covers text, `list`, `uniform_list`, the scale factor reset and
+  `max_lines` in the line cache key. From later changes to
+  `crates/gpui/src/taffy.rs` (after `79af38b2`), take fixes to node matching
+  and eviction only.
   Upstream's `PathHash` newtype and its window-level tests were not taken.
 - Open candidates from earlier passes, worth taking if wanted: #57638
   (`./` and `../` relative paths in the open path prompt), #66103
