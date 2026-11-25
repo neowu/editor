@@ -468,6 +468,7 @@ impl Editor {
                     format!("Selections for '{title}'"),
                     false,
                     MultibufferSelectionMode::All,
+                    false,
                     window,
                     cx,
                 );

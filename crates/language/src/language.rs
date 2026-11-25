@@ -26,6 +26,7 @@ mod runnable;
 mod syntax_map;
 mod syntax_walk;
 mod task_context;
+mod test_code;
 mod text_diff;
 mod worktree_id;
 
@@ -198,6 +199,9 @@ pub use syntax_walk::walk_syntax;
 use task::RunnableTag;
 pub use task_context::ContextProvider;
 pub use task_context::RunContext;
+pub use test_code::in_test_item;
+pub use test_code::is_test_attribute;
+pub use test_code::is_test_path;
 pub use text::AnchorRangeExt;
 pub use text::LineEnding;
 pub use text_diff::DiffOptions;

@@ -23,6 +23,7 @@
 ## Packages
 
 - `test/syntax_test` runs `language::walk_syntax` (behind `edctl syntax-tree`)
+  and `language::in_test_item` (test-code detection for find references)
   over real tree-sitter grammar parses of files in `assets/`.
 - `test/task_test` runs each language's bundled `runnables.scm` over real
   fixture files in `assets/` (the folder stands in for the worktree root) and

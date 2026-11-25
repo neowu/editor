@@ -126,6 +126,19 @@
   group (every file in the multibuffer). Addons can drop its project-tree
   entries (Reveal In Project Panel, Open in Terminal) via
   `shows_project_file_actions`.
+- Find-references results can hide references in test code:
+  `editor::ToggleTestReferences`, also "Hide/Show Test References" at the end
+  of the header context menu (there is no toolbar row or button for it). While
+  hidden the tab title reads "Non-test refs to X". A reference is test code
+  when its file's path looks like a test (`language::is_test_path`), else
+  when it sits inside a Rust item under a test attribute
+  (`language::in_test_item`: `#[test]`, `#[cfg(test)]`, `test-support` gates,
+  ...). The check is syntactic and reads only the root syntax layer;
+  macro-generated tests are missed. Classification runs only when hiding, so
+  opening results never parses files: hiding first parses every result file
+  (overriding the deferred parse of buffers no editor has shown). Toggling
+  rebuilds the excerpts of files with test references, so manual excerpt
+  expansion there is lost. If every reference is a test, nothing is hidden.
 - Smooth scrolling is always on, with no setting. Jumps (page/half-page
   scrolls and autoscroll to the cursor: search, go-to-definition, `G`) move
   the scroll anchor at once; only drawing trails it, easing out (cubic) to ~95% in `motion::NAVIGATION`.

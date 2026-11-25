@@ -74,7 +74,9 @@ use crate::StickyHeaderExcerpt;
 use crate::ToggleFold;
 use crate::ToggleFoldAll;
 use crate::actions::FoldAll;
+use crate::actions::ToggleTestReferences;
 use crate::actions::UnfoldAll;
+use crate::references::test_references_label;
 use crate::scroll::ScrollOffset;
 use crate::scroll::ScrollPixelOffset;
 
@@ -590,9 +592,14 @@ pub(crate) fn render_buffer_header(
                     menu
                 });
 
+                // `None` unless the editor shows find-references results.
+                let hides_tests = editor.read(cx).hides_test_references();
                 menu.when(has_file_entries, |menu| menu.separator())
                     .action("Fold All", Box::new(FoldAll))
                     .action("Unfold All", Box::new(UnfoldAll))
+                    .when_some(hides_tests, |menu, hidden| {
+                        menu.separator().action(test_references_label(hidden), Box::new(ToggleTestReferences))
+                    })
                     .context(menu_context)
             })
         },

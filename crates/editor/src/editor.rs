@@ -57,6 +57,7 @@ mod lsp_actions;
 mod lsp_data;
 mod markdown_actions;
 mod navigation;
+mod references;
 mod rewrap;
 mod selection;
 mod semantics_provider;
@@ -1233,6 +1234,7 @@ pub struct Editor {
     folding_newlines: Task<()>,
     select_next_options: Option<SelectSearchOptions>,
     pub lookup_key: Option<Box<dyn Any + Send + Sync>>,
+    reference_results: Option<references::ReferenceResults>,
     #[allow(clippy::type_complexity)]
     on_local_selections_changed: Option<Box<dyn Fn(Point, &mut Window, &mut Context<Self>) + 'static>>,
     suppress_selection_callback: bool,
@@ -2094,6 +2096,7 @@ impl Editor {
             mode,
             folding_newlines: Task::ready(()),
             lookup_key: None,
+            reference_results: None,
             select_next_options: None,
             on_local_selections_changed: None,
             suppress_selection_callback: false,

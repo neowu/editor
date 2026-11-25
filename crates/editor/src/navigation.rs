@@ -135,6 +135,8 @@ use super::find_url_from_range;
 use super::future;
 use super::hover_links;
 use super::movement;
+use crate::references::ReferenceFile;
+use crate::references::ReferenceResults;
 
 impl Editor {
     pub fn move_left(&mut self, _: &MoveLeft, window: &mut Window, cx: &mut Context<Self>) {
@@ -1298,6 +1300,7 @@ impl Editor {
                     title,
                     false,
                     MultibufferSelectionMode::First,
+                    true,
                     window,
                     cx,
                 );
@@ -1517,6 +1520,7 @@ impl Editor {
                             title,
                             split,
                             MultibufferSelectionMode::First,
+                            false,
                             window,
                             cx,
                         ) {
@@ -1814,6 +1818,7 @@ impl Editor {
         title: String,
         split: bool,
         multibuffer_selection_mode: MultibufferSelectionMode,
+        mark_tests: bool,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) -> Option<(Entity<Editor>, Entity<Pane>)> {
@@ -1828,6 +1833,7 @@ impl Editor {
         // a key to find existing multibuffer editors with the same set of locations
         // to prevent us from opening more and more multibuffer tabs for searches and the like
         let mut key = (title.clone(), vec![]);
+        let mut reference_files = Vec::new();
         let excerpt_buffer = cx.new(|cx| {
             let key = &mut key.1;
             let mut multibuffer = MultiBuffer::new(capability);
@@ -1836,8 +1842,12 @@ impl Editor {
             for (buffer, mut ranges_for_buffer) in sorted_locations {
                 ranges_for_buffer.sort_by_key(|range| (range.start, Reverse(range.end)));
                 key.push((buffer.read(cx).buffer_id(), ranges_for_buffer.clone()));
+                let path_key = PathKey::for_buffer(&buffer, cx);
+                if mark_tests {
+                    reference_files.push(ReferenceFile::new(buffer.clone(), path_key.clone(), &ranges_for_buffer, cx));
+                }
                 multibuffer.set_excerpts_for_path(
-                    PathKey::for_buffer(&buffer, cx),
+                    path_key,
                     buffer.clone(),
                     ranges_for_buffer.clone(),
                     EXCERPT_CONTEXT_LINES,
@@ -1856,7 +1866,7 @@ impl Editor {
             let final_snapshot = multibuffer.snapshot(cx);
             ranges.sort_by(|a, b| a.start.cmp(&b.start, &final_snapshot));
 
-            multibuffer.with_title(title)
+            multibuffer.with_title(title.clone())
         });
         let existing = workspace.active_pane().update(cx, |pane, cx| {
             pane.items().filter_map(|item| item.downcast::<Editor>()).find(|editor| {
@@ -1873,6 +1883,9 @@ impl Editor {
             cx.new(|cx| {
                 let mut editor = Editor::for_multibuffer(excerpt_buffer, Some(workspace.project().clone()), window, cx);
                 editor.lookup_key = Some(Box::new(key));
+                if mark_tests {
+                    editor.reference_results = Some(ReferenceResults::new(reference_files, title));
+                }
                 editor
             })
         });

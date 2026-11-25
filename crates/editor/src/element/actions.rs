@@ -253,6 +253,7 @@ fn add_actions(t: &mut ActionTable<Editor>) {
     t.add(Editor::toggle_fold);
     t.add(Editor::toggle_fold_recursive);
     t.add(Editor::toggle_fold_all);
+    t.add(Editor::toggle_test_references);
     t.add(Editor::unfold_lines);
     t.add(Editor::unfold_recursive);
     t.add(Editor::unfold_all);

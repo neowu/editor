@@ -2691,9 +2691,7 @@ actions!(
     ed,
     [
         /// Opens the ed log file.
-        OpenLog,
-        /// Reveals the ed log file in the system file manager.
-        RevealLogInFileManager
+        OpenLog
     ]
 );
 

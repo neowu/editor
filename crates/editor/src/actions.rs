@@ -490,6 +490,8 @@ actions!(
         ToggleFoldRecursive,
         /// Toggles all folds in a buffer or all excerpts in multibuffer.
         ToggleFoldAll,
+        /// Hides or shows the references in test code in find-references results.
+        ToggleTestReferences,
         /// Formats the entire document.
         Format,
         /// Formats only the selected text.

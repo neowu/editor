@@ -119,16 +119,13 @@ pub(crate) fn init(cx: &mut App) {
     cx.on_action(quit);
 
     // When ed logs to stdout rather than the log file, avoid registering
-    // handlers for both `OpenLog` and `RevealLogInFileManager`, as the log file
-    // does not exist in that scenario and these actions would error.
+    // a handler for `OpenLog`, as the log file does not exist in that scenario
+    // and the action would error.
     if !crate::stdout_is_a_pty() {
         cx.on_action(|_: &OpenLog, cx| {
             with_active_or_new_workspace(cx, |_, window, cx| {
                 open_log_file(window, cx);
             });
-        })
-        .on_action(|_: &workspace::RevealLogInFileManager, cx| {
-            cx.reveal_path(app_paths::log_file().as_path());
         });
     }
 
