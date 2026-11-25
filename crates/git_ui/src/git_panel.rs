@@ -816,6 +816,10 @@ impl GitPanel {
     }
 
     fn focus_editor(&mut self, _: &FocusEditor, window: &mut Window, cx: &mut Context<Self>) {
+        // Without a repository the commit editor isn't rendered.
+        if self.active_repository.is_none() {
+            return;
+        }
         self.commit_editor.update(cx, |editor, cx| {
             window.focus(&editor.focus_handle(cx), cx);
         });
@@ -1639,7 +1643,10 @@ impl editor::Addon for GitPanelAddon {
 
 impl Panel for GitPanel {
     fn activation_focus_handle(&self, cx: &App) -> FocusHandle {
-        if !self.commit_editor_collapsed && (self.entries.is_empty() || self.commit_editor_expanded) {
+        if self.active_repository.is_some()
+            && !self.commit_editor_collapsed
+            && (self.entries.is_empty() || self.commit_editor_expanded)
+        {
             self.commit_editor.focus_handle(cx)
         } else {
             self.focus_handle.clone()
