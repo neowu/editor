@@ -1,6 +1,3 @@
-((comment) @injection.content
-  (#set! injection.language "comment"))
-
 ; GitHub actions: JavaScript for workflow scripting (inline and block)
 (block_mapping
   (block_mapping_pair

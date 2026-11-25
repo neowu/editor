@@ -28,6 +28,7 @@ use two_face::syntax;
 
 use crate::Language;
 use crate::build_highlight_map;
+use crate::comment_keywords;
 
 /// Buffers larger than this are left unhighlighted: tokenizing runs at roughly
 /// 75k lines per second, and jumping to the end of a buffer tokenizes it all.
@@ -67,6 +68,7 @@ fn find_syntax(find: impl Fn(&'static SyntaxSet) -> Option<&'static SyntaxRefere
 /// Theme capture names that TextMate scopes are mapped to.
 const CAPTURE_NAMES: &[&str] = &[
     "comment",
+    comment_keywords::CAPTURE_NAME,
     "string",
     "string.escape",
     "string.regex",
@@ -144,6 +146,7 @@ struct ScopeRules {
     rules: Vec<(Scope, u8)>,
     punctuation: u8,
     comment: u8,
+    comment_keyword: u8,
     string: u8,
 }
 
@@ -158,6 +161,7 @@ static SCOPE_CLASSES: LazyLock<ScopeRules> = LazyLock::new(|| {
             .collect(),
         punctuation: class("punctuation"),
         comment: class("comment"),
+        comment_keyword: class(comment_keywords::CAPTURE_NAME),
         string: class("string"),
     }
 });
@@ -400,6 +404,8 @@ impl Cache {
 
                 let checkpoint = (row % CHECKPOINT_INTERVAL == 0).then(|| Box::new(state.clone()));
                 let runs = tokenize_line(syntax.set, &mut self.line_text, text, row, &mut state);
+                // Injections are tokenized without this: their host splits the merged runs.
+                let runs = split_comment_keywords(runs, &self.line_text);
                 let line = Line { runs, checkpoint, dirty: false };
                 if let Some(existing) = self.lines.get_mut(row as usize) {
                     *existing = line;
@@ -454,6 +460,36 @@ fn tokenize_line(
     }
     push_run(start, line_len as usize, &state.scopes);
     runs
+}
+
+/// Gives the keyword opening a comment run of `line` its own class.
+fn split_comment_keywords(runs: SmallVec<[LineRun; 4]>, line: &str) -> SmallVec<[LineRun; 4]> {
+    let classes = &*SCOPE_CLASSES;
+    let mut keywords = SmallVec::<[_; 1]>::new();
+    for (ix, &(start, end, class)) in runs.iter().enumerate() {
+        if class == classes.comment
+            && let Some(keyword) = comment_keywords::leading_keyword(&line.as_bytes()[start as usize..end as usize])
+        {
+            keywords.push((ix, start as usize + keyword.start..start as usize + keyword.end));
+        }
+    }
+    if keywords.is_empty() {
+        return runs;
+    }
+    let mut pieces = SmallVec::new();
+    let mut keywords = keywords.into_iter().peekable();
+    for (ix, (start, end, class)) in runs.into_iter().enumerate() {
+        match keywords.next_if(|(keyword_ix, _)| *keyword_ix == ix) {
+            Some((_, keyword)) => {
+                comment_keywords::split(start as usize..end as usize, keyword, |range, is_keyword| {
+                    let class = if is_keyword { classes.comment_keyword } else { class };
+                    pieces.push((range.start as u32, range.end as u32, class));
+                });
+            }
+            None => pieces.push((start, end, class)),
+        }
+    }
+    pieces
 }
 
 /// Highlights the part of an injection (e.g. a Markdown code block) that lies
@@ -517,12 +553,16 @@ mod tests {
     use super::FallbackHighlighter;
     use super::Language;
     use super::LazyLock;
+    use super::LineRun;
     use super::PATCHED_SYNTAX_SET;
     use super::Point;
     use super::Range;
+    use super::SCOPE_CLASSES;
     use super::SYNTAX_SET;
+    use super::SmallVec;
     use super::TextBufferSnapshot;
     use super::highlight_injection;
+    use super::split_comment_keywords;
 
     fn theme() -> &'static SyntaxTheme {
         theme::theme().syntax()
@@ -562,6 +602,39 @@ mod tests {
         buffer.undo();
         let runs = highlighted(&highlighter, buffer.snapshot(), theme);
         assert!(runs.contains(&("return".into(), "keyword".into())), "{runs:?}");
+    }
+
+    #[test]
+    fn highlights_comment_keywords() {
+        let theme = theme();
+        let source = "# TODO: pin\nname = \"TODO\" # TODO\n# see TODO\n/* TODO a */ x = 1 /* TODO b */\n";
+        let buffer = TextBuffer::new(BufferId::new(1).unwrap(), source);
+        let highlighter = FallbackHighlighter::for_buffer(None, Some("main.tf"), buffer.snapshot()).unwrap();
+        let runs = highlighted(&highlighter, buffer.snapshot(), theme);
+        let keywords = runs.iter().filter(|(_, capture)| capture == "comment.todo").count();
+        assert_eq!(keywords, 4, "{runs:?}");
+        assert!(runs.contains(&("# ".into(), "comment".into())), "{runs:?}");
+        assert!(runs.contains(&(": pin".into(), "comment".into())), "{runs:?}");
+        assert!(runs.contains(&("# see TODO".into(), "comment".into())), "{runs:?}");
+        assert!(runs.contains(&("\"TODO\"".into(), "string".into())), "{runs:?}");
+    }
+
+    #[test]
+    fn split_comment_keywords_leaves_other_runs_alone() {
+        let classes = &*SCOPE_CLASSES;
+        let line = "x # TODO y";
+        let runs: SmallVec<[LineRun; 4]> = smallvec::smallvec![(0, 1, classes.string), (2, 10, classes.comment)];
+        assert_eq!(
+            split_comment_keywords(runs, line).as_slice(),
+            [
+                (0, 1, classes.string),
+                (2, 4, classes.comment),
+                (4, 8, classes.comment_keyword),
+                (8, 10, classes.comment)
+            ]
+        );
+        let runs: SmallVec<[LineRun; 4]> = smallvec::smallvec![(0, 10, classes.string)];
+        assert_eq!(split_comment_keywords(runs.clone(), "TODO  TODO"), runs);
     }
 
     #[test]

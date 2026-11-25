@@ -1,6 +1,3 @@
-((comment) @injection.content
-  (#set! injection.language "comment"))
-
 (((comment) @_reference
   (#match? @_reference "^///\\s+<reference\\s+types=\"\\S+\"\\s*/>\\s*$")) @injection.content
   (#set! injection.language "html"))

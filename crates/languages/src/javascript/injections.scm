@@ -1,6 +1,3 @@
-((comment) @injection.content
-  (#set! injection.language "comment"))
-
 (call_expression
   function: (identifier) @_name
   (#eq? @_name "css")

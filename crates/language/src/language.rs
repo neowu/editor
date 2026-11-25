@@ -11,6 +11,7 @@ use std::fmt::Formatter;
 use std::hash::Hasher;
 mod available_languages;
 mod buffer;
+mod comment_keywords;
 mod diagnostic;
 mod diagnostic_set;
 mod fallback_highlight;

@@ -46,8 +46,6 @@
   { "token_type": "invalidEscapeSequence", "style": ["string.escape"] },
   { "token_type": "formatSpecifier", "style": ["string.escape"] },
 
-  { "token_type": "comment", "token_modifiers": ["documentation"], "style": ["comment.doc"] },
-  { "token_type": "comment", "style": ["comment"] },
   { "token_type": "boolean", "style": ["boolean"] },
   { "token_type": "keyword", "style": ["keyword"] },
   { "token_type": "number", "style": ["number"] },

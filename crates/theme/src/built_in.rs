@@ -432,6 +432,7 @@ fn syntax_theme(p: &Palette) -> SyntaxTheme {
             ("boolean", fg(p.blue)),
             ("comment", fg(p.text_dim)),
             ("comment.doc", fg(p.text_dim)),
+            ("comment.todo", bold(p.yellow)),
             ("constant", fg(p.text_soft)),
             ("constructor", fg(p.orange)),
             ("definition.function", fg(p.orange)),

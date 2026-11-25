@@ -1,6 +1,3 @@
-((comment) @injection.content
-  (#set! injection.language "comment"))
-
 ; SQL -----------------------------------------------------------------------------
 ([
   ; function calls

@@ -1,3 +1,4 @@
+use crate::comment_keywords;
 use crate::fallback_highlight;
 mod bracket_ranges;
 pub mod row_chunk;
@@ -2811,7 +2812,7 @@ impl BufferSnapshot {
             merged.sort_unstable_by_key(|(run_range, _)| run_range.start);
             runs = merged;
         }
-        ResolvedHighlights { runs: runs.into() }
+        ResolvedHighlights { runs: comment_keywords::highlight(&self.text, runs).into() }
     }
 
     /// Invokes the given callback for each line of text in the given range of the buffer.

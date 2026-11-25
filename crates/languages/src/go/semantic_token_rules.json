@@ -159,15 +159,6 @@
     "style": ["label"]
   },
   {
-    "token_type": "comment",
-    "token_modifiers": ["documentation"],
-    "style": ["comment.documentation", "comment.doc"]
-  },
-  {
-    "token_type": "comment",
-    "style": ["comment"]
-  },
-  {
     "token_type": "string",
     "token_modifiers": ["documentation"],
     "style": ["string.doc"]

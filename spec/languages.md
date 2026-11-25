@@ -153,6 +153,19 @@
   it. Edits to a still-deferred buffer skip autoindent: it needs the pre-edit
   syntax tree, and a blocking parse to get one isn't worth it for buffers
   nobody looks at. Diff base texts are not deferred this way (see `git.md`).
+- Comment keyword: a `TODO` that opens a comment (`// TODO`, `# TODO(me)`,
+  `<!-- TODO`: only the comment marker and spaces before it, whole word, upper
+  case) is highlighted as `comment.todo` in every language. A `TODO` later in
+  the comment is not, and neither is one in a doc comment (`comment.doc`): the
+  rule is narrow so that only the first bytes of each plain comment are read. It is one pass over the highlight runs
+  (`language::comment_keywords`), not a per-language query, so it covers
+  tree-sitter and fallback highlighting alike, including HTML comments in
+  Markdown. There is no keyword list and no setting.
+  - There is no `comment` language: grammars do not inject one into their
+    comments, which would cost a syntax layer per comment.
+  - Semantic token rules do not map `comment` tokens, since their style would
+    paint over the keyword; tree-sitter already colours comments.
+  - Chunks too large for the highlight cache are highlighted without the keyword.
 - Fallback highlighting: any buffer whose language has no tree-sitter grammar
   (including plain text) is highlighted with the Sublime/TextMate syntaxes
   bundled by `two-face` (syntect, Oniguruma regex). The syntax is picked by

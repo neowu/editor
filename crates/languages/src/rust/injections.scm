@@ -1,9 +1,3 @@
-([
-  (line_comment)
-  (block_comment)
-] @injection.content
-  (#set! injection.language "comment"))
-
 (macro_invocation
   macro: [
     (identifier) @_macro_name
