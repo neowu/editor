@@ -1478,6 +1478,19 @@ impl App {
         self.window_invalidators_by_entity.insert(entity_id, window_invalidators);
     }
 
+    /// Returns whether a window's last frame read this entity without drawing it as a view.
+    /// Notifying such an entity doesn't redraw the views that read it.
+    ///
+    /// A window that is being updated counts as such a read.
+    pub fn is_read_without_view(&self, entity_id: EntityId) -> bool {
+        self.tracked_entities.iter().filter(|(_, entities)| entities.contains(&entity_id)).any(|(window_id, _)| {
+            let Some(Some(window)) = self.windows.get(*window_id) else {
+                return true;
+            };
+            window.rendered_frame.dispatch_tree.view_path_reversed(entity_id).next().is_none()
+        })
+    }
+
     /// Removes an image from the sprite atlas on all windows.
     ///
     /// If the current window is being updated, it will be removed from `App.windows`, you can use `current_window` to specify the current window.

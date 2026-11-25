@@ -585,8 +585,7 @@ impl Markdown {
             self.parsed_markdown = Arc::new(ParsedMarkdown { source: self.source.clone(), ..Default::default() });
             self.active_root_block = None;
             self.images_by_source_offset.clear();
-            cx.notify();
-            cx.refresh_windows();
+            Self::notify_parsed(cx);
             return;
         }
 
@@ -708,11 +707,19 @@ impl Markdown {
                 } else if let Some(source_index) = this.pending_autoscroll.take() {
                     this.autoscroll_request = Some(source_index);
                 }
-                cx.notify();
-                cx.refresh_windows();
+                Self::notify_parsed(cx);
             })
             .ok();
         })
+    }
+
+    fn notify_parsed(cx: &mut Context<Self>) {
+        cx.notify();
+        // Notifying doesn't reach consumers that hide the element while parsing, or that only
+        // measure it without painting it.
+        if cx.is_read_without_view(cx.entity_id()) {
+            cx.refresh_windows();
+        }
     }
 }
 
