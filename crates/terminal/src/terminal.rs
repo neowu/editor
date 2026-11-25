@@ -1763,6 +1763,12 @@ impl Terminal {
         self.last_content.mode.intersects(Modes::MOUSE_MODE) && !shift
     }
 
+    /// Whether a cmd-hover or cmd-click on a link acts on the link, rather than being
+    /// left to an app that has mouse reporting on.
+    fn can_open_links(&self, shift: bool) -> bool {
+        TerminalSettings::get().open_links_in_mouse_mode || !self.mouse_mode(shift)
+    }
+
     pub fn mouse_move(&mut self, e: &MouseMoveEvent, cx: &mut Context<Self>) {
         let position = e.position - self.last_content.terminal_bounds.bounds.origin;
         if self.mouse_mode(e.modifiers.shift) {
@@ -1784,9 +1790,23 @@ impl Terminal {
                     }
                 }
             }
-        } else {
-            self.schedule_find_hyperlink(e.modifiers, e.position, cx);
+            // A drag that did not start on a link belongs to the app, so
+            // releasing over a link will not open it.
+            if e.pressed_button.is_some()
+                && !self.mouse_down_hyperlink.as_ref().is_some_and(|hyperlink| {
+                    hyperlink.range.contains(grid_point(
+                        position,
+                        self.last_content.terminal_bounds,
+                        self.last_content.display_offset,
+                    ))
+                })
+            {
+                self.clear_hyperlink(cx);
+                cx.notify();
+                return;
+            }
         }
+        self.schedule_find_hyperlink(e.modifiers, e.position, cx);
         cx.notify();
     }
 
@@ -1794,6 +1814,7 @@ impl Terminal {
         if self.selection_phase == SelectionPhase::Selecting
             || !modifiers.secondary()
             || !self.last_content.terminal_bounds.bounds.contains(&position)
+            || !self.can_open_links(modifiers.shift)
         {
             self.clear_hyperlink(cx);
             return;
@@ -1889,10 +1910,7 @@ impl Terminal {
         let position = e.position - self.last_content.terminal_bounds.bounds.origin;
         let point = grid_point(position, self.last_content.terminal_bounds, self.last_content.display_offset);
 
-        if e.button == MouseButton::Left
-            && e.modifiers.secondary()
-            && (TerminalSettings::get().open_links_in_mouse_mode || !self.mouse_mode(e.modifiers.shift))
-        {
+        if e.button == MouseButton::Left && e.modifiers.secondary() && self.can_open_links(e.modifiers.shift) {
             self.mouse_down_hyperlink = self.find_hyperlink_at_point(point);
 
             if self.mouse_down_hyperlink.is_some() {
