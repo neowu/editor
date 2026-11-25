@@ -56,6 +56,7 @@ use ui::Chip;
 use ui::ContextMenu;
 use ui::ContextMenuEntry;
 use ui::DocumentationSide;
+use ui::DynamicSpacing;
 use ui::ElevationIndex;
 use ui::IndentGuideColors;
 use ui::KeyBinding;
@@ -660,6 +661,7 @@ impl GitPanel {
                 .w_full()
                 .pl_1()
                 .pr_2()
+                .py(DynamicSpacing::Base04.rems())
                 .flex_none()
                 .flex_wrap()
                 .gap_1()
