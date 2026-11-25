@@ -306,6 +306,9 @@ view) offers:
   selected commit, so controls that change what the graph shows live here):
   the branch filter on the left, then the search bar while shown, the Refresh
   icon button on the right. It uses the pane toolbar metrics (`ui-layout.md`).
+  A file history has no branch filter and no Refresh button (`cmd-r` still
+  works; pull or refresh from the Git panel or Git History), so its toolbar
+  row only appears while search is open and holds just the search bar.
 - Branch filter (repository graph only, not file history): "All Branches" by
   default; it opens the branch picker in select mode (local and remote
   branches, "Select a branch…") and limits the graph to that branch's history

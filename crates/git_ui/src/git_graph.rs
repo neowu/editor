@@ -2483,10 +2483,12 @@ impl GitGraph {
     }
 
     /// The row above the graph: the branch filter on the left (repository graph
-    /// only), then the search bar while shown, refresh on the right.
+    /// only), then the search bar while shown, refresh on the right. A file
+    /// history has neither the filter nor refresh.
     fn render_toolbar(&self, is_loading: bool, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let icon_button_size = IconSize::Medium.square(window, cx);
         let focus_handle = self.focus_handle.clone();
+        let is_file_history = matches!(self.log_source, LogSource::Path(_));
 
         let row = h_flex()
             .h_8()
@@ -2494,25 +2496,27 @@ impl GitGraph {
             .when(is_repository_graph(&self.log_source), |this| this.child(self.render_branch_filter(cx)))
             .when(self.search_state.shown, |this| this.child(self.render_search_bar(window, cx)))
             .child(div().flex_1())
-            .child(if is_loading {
-                h_flex()
-                    .id("git-graph-refreshing")
-                    .size(icon_button_size)
-                    .justify_center()
-                    .child(
-                        Icon::new(IconName::ArrowCircle)
-                            .size(IconSize::Medium)
-                            .color(Color::Muted)
-                            .with_rotate_animation(2),
-                    )
-                    .tooltip(Tooltip::text("Loading Commits"))
-                    .into_any_element()
-            } else {
-                IconButton::new("git-graph-refresh", IconName::ArrowCircle)
-                    .shape(ui::IconButtonShape::Square)
-                    .tooltip(move |_, cx| Tooltip::for_action_in("Refresh", &Refresh, &focus_handle, cx))
-                    .on_click(cx.listener(|this, _, window, cx| this.refresh(&Refresh, window, cx)))
-                    .into_any_element()
+            .when(!is_file_history, |this| {
+                this.child(if is_loading {
+                    h_flex()
+                        .id("git-graph-refreshing")
+                        .size(icon_button_size)
+                        .justify_center()
+                        .child(
+                            Icon::new(IconName::ArrowCircle)
+                                .size(IconSize::Medium)
+                                .color(Color::Muted)
+                                .with_rotate_animation(2),
+                        )
+                        .tooltip(Tooltip::text("Loading Commits"))
+                        .into_any_element()
+                } else {
+                    IconButton::new("git-graph-refresh", IconName::ArrowCircle)
+                        .shape(ui::IconButtonShape::Square)
+                        .tooltip(move |_, cx| Tooltip::for_action_in("Refresh", &Refresh, &focus_handle, cx))
+                        .on_click(cx.listener(|this, _, window, cx| this.refresh(&Refresh, window, cx)))
+                        .into_any_element()
+                })
             });
 
         // Same metrics as the pane toolbar (`workspace::Toolbar`), so this row
@@ -3464,7 +3468,10 @@ impl Render for GitGraph {
             .child(
                 v_flex()
                     .size_full()
-                    .child(self.render_toolbar(is_loading || self.refreshing.is_some(), window, cx))
+                    // A file history's only control is the search bar.
+                    .when(self.search_state.shown || !matches!(self.log_source, LogSource::Path(_)), |this| {
+                        this.child(self.render_toolbar(is_loading || self.refreshing.is_some(), window, cx))
+                    })
                     .child(
                         div()
                             .relative()
