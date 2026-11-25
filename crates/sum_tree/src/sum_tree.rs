@@ -958,6 +958,17 @@ impl<T: KeyedItem> SumTree<T> {
         let mut removed = Vec::new();
         edits.sort_unstable_by_key(Edit::key);
 
+        if self.is_empty() {
+            *self = Self::from_iter(
+                edits.into_iter().filter_map(|edit| match edit {
+                    Edit::Insert(item) => Some(item),
+                    Edit::Remove(_) => None,
+                }),
+                cx,
+            );
+            return removed;
+        }
+
         // A repeated key can replace items in more than one leaf, which only the slicing below handles.
         if edits.iter().all(|edit| matches!(edit, Edit::Insert(_)))
             && edits.is_sorted_by(|left, right| left.key() < right.key())
@@ -1368,11 +1379,24 @@ mod tests {
     }
 
     #[test]
+    fn edit_builds_an_empty_tree_in_one_pass() {
+        // Packed as `from_iter` packs it, which inserting in place would not.
+        let mut tree = SumTree::<u8>::new(());
+        let edits = (0..40_u8).rev().map(Edit::Insert).chain([Edit::Remove(50)]).collect();
+        assert_eq!(tree.edit(edits, ()), Vec::<u8>::new());
+        let packed = SumTree::<u8>::from_iter(0..40, ());
+        assert_eq!(tree.items(()), packed.items(()));
+        assert_eq!(tree.0.child_summaries(), packed.0.child_summaries());
+    }
+
+    #[test]
     fn inserts_in_place() {
         let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
         for _ in 0..1000 {
-            let mut tree = SumTree::<u8>::new(());
-            let mut expected = BTreeSet::new();
+            // `edit` builds an empty tree with `from_iter`, so start with one item.
+            let first = rng.below(256) as u8;
+            let mut tree = SumTree::from_item(first, ());
+            let mut expected = BTreeSet::from([first]);
             let mut snapshots = Vec::new();
             // Removals slice the tree, which leaves nodes that underflow.
             let with_removals = rng.below(2) == 0;
