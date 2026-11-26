@@ -26,6 +26,7 @@ use crate::FindAllReferences;
 use crate::GoToDeclaration;
 use crate::GoToDefinition;
 use crate::GoToImplementation;
+use crate::GoToRelatedTests;
 use crate::GoToTypeDefinition;
 use crate::Paste;
 use crate::Rename;
@@ -37,6 +38,9 @@ use crate::ToDisplayPoint as _;
 use crate::ToggleCodeActions;
 use crate::actions::Format;
 use crate::actions::FormatSelections;
+use crate::actions::ViewHir;
+use crate::actions::ViewMemoryLayout;
+use crate::actions::ViewMir;
 use crate::rust_analyzer_ext;
 use crate::selections_collection::SelectionsCollection;
 
@@ -219,7 +223,15 @@ pub(crate) fn deploy_context_menu(
                 .action("Go to Type Definition", Box::new(GoToTypeDefinition::default()))
                 .action("Go to Implementation", Box::new(GoToImplementation::default()))
                 .action("Find All References", Box::new(FindAllReferences::default()))
-                .when(is_rust, |builder| builder.action("Expand Macro", Box::new(ExpandMacroRecursively)))
+                .when(is_rust, |builder| {
+                    builder
+                        .separator()
+                        .action("Go to Related Tests", Box::new(GoToRelatedTests))
+                        .action("Expand Macro", Box::new(ExpandMacroRecursively))
+                        .action("View Memory Layout", Box::new(ViewMemoryLayout))
+                        .action("View HIR", Box::new(ViewHir))
+                        .action("View MIR", Box::new(ViewMir))
+                })
                 .separator()
                 .action_disabled_when(!can_edit, "Rename Symbol", Box::new(Rename))
                 .action_disabled_when(!can_edit, "Format Buffer", Box::new(Format))

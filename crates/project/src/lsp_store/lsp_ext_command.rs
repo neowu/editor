@@ -1,3 +1,5 @@
+use std::fmt;
+use std::marker::PhantomData;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -26,7 +28,6 @@ use crate::LocationLink;
 use crate::lsp_command::LspCommand;
 use crate::lsp_command::file_path_to_lsp_url;
 use crate::lsp_command::location_link_from_lsp;
-use crate::lsp_command::location_links_from_lsp;
 use crate::lsp_store::LanguageServerToQuery;
 use crate::lsp_store::LspStore;
 use crate::make_lsp_text_document_position;
@@ -170,26 +171,35 @@ impl LspCommand for OpenDocs {
     }
 }
 
-#[derive(Debug)]
-pub struct GoToParentModule {
+/// A rust-analyzer request that takes a position and whose result is used as is.
+pub struct PositionRequest<R> {
     pub position: PointUtf16,
     pub server_id: LanguageServerId,
+    request: PhantomData<fn() -> R>,
 }
 
-pub struct LspGoToParentModule;
-
-impl Request for LspGoToParentModule {
-    type Params = lsp_types::TextDocumentPositionParams;
-    type Result = Option<Vec<lsp_types::LocationLink>>;
-    const METHOD: &'static str = "experimental/parentModule";
+impl<R> PositionRequest<R> {
+    pub const fn new(position: PointUtf16, server_id: LanguageServerId) -> Self {
+        Self { position, server_id, request: PhantomData }
+    }
 }
 
-impl LspCommand for GoToParentModule {
-    type Response = Vec<LocationLink>;
-    type LspRequest = LspGoToParentModule;
+impl<R: Request> fmt::Debug for PositionRequest<R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct(R::METHOD).field("position", &self.position).field("server_id", &self.server_id).finish()
+    }
+}
+
+impl<R> LspCommand for PositionRequest<R>
+where
+    R: 'static + Send + Request<Params = lsp_types::TextDocumentPositionParams>,
+    R::Result: 'static + Default + Send + fmt::Debug,
+{
+    type Response = R::Result;
+    type LspRequest = R;
 
     fn display_name(&self) -> &'static str {
-        "Go to parent module"
+        R::METHOD
     }
 
     fn check_capabilities(&self, _: AdapterServerCapabilities<'_>) -> bool {
@@ -212,14 +222,121 @@ impl LspCommand for GoToParentModule {
 
     async fn response_from_lsp(
         self,
-        links: Option<Vec<lsp_types::LocationLink>>,
+        message: R::Result,
+        _: Entity<LspStore>,
+        _: Entity<Buffer>,
+        _: LanguageServerId,
+        _: AsyncApp,
+    ) -> Result<R::Result> {
+        Ok(message)
+    }
+}
+
+pub struct ViewHir(!);
+
+impl Request for ViewHir {
+    type Params = lsp_types::TextDocumentPositionParams;
+    type Result = String;
+    const METHOD: &'static str = "rust-analyzer/viewHir";
+}
+
+pub struct ViewMir(!);
+
+impl Request for ViewMir {
+    type Params = lsp_types::TextDocumentPositionParams;
+    type Result = String;
+    const METHOD: &'static str = "rust-analyzer/viewMir";
+}
+
+pub struct ViewRecursiveMemoryLayout(!);
+
+impl Request for ViewRecursiveMemoryLayout {
+    type Params = lsp_types::TextDocumentPositionParams;
+    type Result = Option<RecursiveMemoryLayout>;
+    const METHOD: &'static str = "rust-analyzer/viewRecursiveMemoryLayout";
+}
+
+#[derive(Deserialize, Serialize, Debug, Default)]
+pub struct RecursiveMemoryLayout {
+    pub nodes: Vec<MemoryLayoutNode>,
+}
+
+/// Nodes are stored flat: a node's children are `children_len` nodes from `children_start`.
+#[derive(Deserialize, Serialize, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryLayoutNode {
+    pub item_name: String,
+    pub typename: String,
+    pub size: u64,
+    pub alignment: u64,
+    /// Relative to the parent.
+    pub offset: u64,
+    /// -1 when the node has no children.
+    pub children_start: i64,
+    pub children_len: u64,
+}
+
+pub struct LspRelatedTests(!);
+
+impl Request for LspRelatedTests {
+    type Params = lsp_types::TextDocumentPositionParams;
+    type Result = Vec<TestInfo>;
+    const METHOD: &'static str = "rust-analyzer/relatedTests";
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct TestInfo {
+    pub runnable: Runnable,
+}
+
+/// Locations of the tests that exercise the item at `position`.
+#[derive(Debug)]
+pub struct RelatedTests {
+    pub position: PointUtf16,
+    pub server_id: LanguageServerId,
+}
+
+impl LspCommand for RelatedTests {
+    type Response = Vec<LocationLink>;
+    type LspRequest = LspRelatedTests;
+
+    fn display_name(&self) -> &'static str {
+        "Related tests"
+    }
+
+    fn check_capabilities(&self, _: AdapterServerCapabilities<'_>) -> bool {
+        true
+    }
+
+    fn language_server_to_query(&self) -> LanguageServerToQuery {
+        LanguageServerToQuery::Other(self.server_id)
+    }
+
+    fn to_lsp(
+        &self,
+        path: &Path,
+        _: &Buffer,
+        _: &Arc<LanguageServer>,
+        _: &App,
+    ) -> Result<lsp_types::TextDocumentPositionParams> {
+        make_lsp_text_document_position(path, self.position)
+    }
+
+    async fn response_from_lsp(
+        self,
+        tests: Vec<TestInfo>,
         lsp_store: Entity<LspStore>,
         buffer: Entity<Buffer>,
         server_id: LanguageServerId,
-        cx: AsyncApp,
+        mut cx: AsyncApp,
     ) -> Result<Vec<LocationLink>> {
-        location_links_from_lsp(links.map(lsp_types::GotoDefinitionResponse::Link), lsp_store, buffer, server_id, cx)
-            .await
+        let mut links = Vec::with_capacity(tests.len());
+        for location in tests.into_iter().filter_map(|test| test.runnable.location) {
+            // The origin is the test itself, not the queried item.
+            let location = lsp_types::LocationLink { origin_selection_range: None, ..location };
+            links.push(location_link_from_lsp(location, &lsp_store, &buffer, server_id, &mut cx).await?);
+        }
+        Ok(links)
     }
 }
 
@@ -439,8 +556,10 @@ mod tests {
     use rustc_hash::FxHashMap;
 
     use super::CargoRunnableArgs;
+    use super::RecursiveMemoryLayout;
     use super::RunnableArgs;
     use super::ShellRunnableArgs;
+    use super::TestInfo;
     use super::runnable_to_spawn;
 
     #[test]
@@ -482,5 +601,39 @@ mod tests {
         let task = runnable_to_spawn("make".to_owned(), shell);
         assert_eq!(task.command_label, "make all");
         assert_eq!(task.cwd, Some(PathBuf::from("/x")));
+    }
+
+    #[test]
+    fn rust_analyzer_responses_deserialize() {
+        let layout: RecursiveMemoryLayout = serde_json::from_value(serde_json::json!({
+            "nodes": [{
+                "itemName": "Foo", "typename": "Foo", "size": 16, "alignment": 8, "offset": 0,
+                "parentIdx": -1, "childrenStart": 1, "childrenLen": 1,
+            }, {
+                "itemName": "a", "typename": "u64", "size": 8, "alignment": 8, "offset": 8,
+                "parentIdx": 0, "childrenStart": -1, "childrenLen": 0,
+            }],
+        }))
+        .unwrap();
+        assert_eq!(layout.nodes[0].children_start, 1);
+        assert_eq!(layout.nodes[1].item_name, "a");
+        assert_eq!(layout.nodes[1].children_start, -1);
+
+        let tests: Vec<TestInfo> = serde_json::from_value(serde_json::json!([{
+            "runnable": {
+                "label": "test tests::it",
+                "location": {
+                    "targetUri": "file:///ws/src/lib.rs",
+                    "targetRange": { "start": { "line": 3, "character": 0 }, "end": { "line": 6, "character": 1 } },
+                    "targetSelectionRange": {
+                        "start": { "line": 4, "character": 7 }, "end": { "line": 4, "character": 9 },
+                    },
+                },
+                "kind": "cargo",
+                "args": { "cwd": "/ws", "cargoArgs": ["test"], "executableArgs": ["tests::it"] },
+            },
+        }]))
+        .unwrap();
+        assert_eq!(tests[0].runnable.location.as_ref().unwrap().target_selection_range.start.line, 4);
     }
 }

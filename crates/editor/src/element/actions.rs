@@ -327,7 +327,10 @@ fn add_actions(t: &mut ActionTable<Editor>) {
     t.add_if(has_blame, Editor::open_git_blame_commit);
     t.add_if(has_blame, Editor::blame_revision);
     t.add_if(has_blame, Editor::blame_previous_revision);
-    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::go_to_parent_module);
+    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::go_to_related_tests);
+    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::view_hir);
+    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::view_mir);
+    t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::view_memory_layout);
     t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::expand_macro_recursively);
     t.add_if(rust_analyzer_ext::has_rust_buffer, rust_analyzer_ext::open_docs);
 }
@@ -528,7 +531,7 @@ mod tests {
         assert!(conditional::<actions::ToggleDiagnostics>(&table));
         assert!(conditional::<actions::ToggleMinimap>(&table));
         assert!(conditional::<actions::BlameRevision>(&table));
-        assert!(conditional::<actions::GoToParentModule>(&table));
+        assert!(conditional::<actions::GoToRelatedTests>(&table));
     }
 
     #[test]

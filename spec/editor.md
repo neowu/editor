@@ -251,9 +251,24 @@
   it omits "Run" / "Run Test" lenses), and gopls's `test` codelens is left at
   its default (off). Lens commands handled client-side are limited to showing
   locations.
-- The mouse context menu offers "Expand Macro" (`editor::ExpandMacroRecursively`)
-  whenever the language at the clicked position is Rust. It doesn't ask
-  rust-analyzer whether a macro is there, so off a macro the item does nothing.
+- rust-analyzer's extensions are actions in the `rust` namespace, not
+  `editor`, as they only apply to Rust buffers. `rust::OpenDocs` is bound to
+  F1; the mouse context menu offers the rest, as their own section, whenever
+  the language at the clicked position is Rust: "Go to Related Tests"
+  (`rust::GoToRelatedTests`), "Expand Macro"
+  (`rust::ExpandMacroRecursively`), "View Memory Layout"
+  (`rust::ViewMemoryLayout`), "View HIR" (`rust::ViewHir`) and "View MIR"
+  (`rust::ViewMir`). They don't ask rust-analyzer whether they apply at that
+  position, so where the server has nothing to say (e.g. no macro there, or a
+  struct with a field it can't lay out) an auto-hiding toast says so.
+  - Related tests navigate like a go-to: one test opens in place, several open
+    in a multibuffer. They aren't offered as tasks to run.
+  - The other four open a read-only buffer. The memory layout is a tree with
+    one line per field, offsets relative to the parent.
+  - Tabs are titled after what they show: "HIR for Foo::new" / "MIR for
+    Foo::new" (the outline symbols around the cursor) and "Memory Layout for
+    Foo" (the type rust-analyzer reports).
+  - There is no "go to parent module".
 - Text inside highlights (search matches, selections, etc.) is recolored to
   keep `theme::contrast::MINIMUM_CONTRAST` against the highlight background.
   The Markdown preview applies the same rule to its search matches and

@@ -823,7 +823,7 @@ mod tests {
         let keymap = keymap();
         for (context_name, keys, action) in [
             (Some("Editor"), "cmd-shift-u", "editor::ToggleCase"),
-            (Some("Editor"), "f1", "editor::OpenDocs"),
+            (Some("Editor"), "f1", "rust::OpenDocs"),
             (Some("Terminal"), "shift-enter", "terminal::SendText"),
         ] {
             let bound: Vec<_> = keymap

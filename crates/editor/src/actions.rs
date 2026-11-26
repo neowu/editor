@@ -350,6 +350,25 @@ actions!(
     ]
 );
 
+// Handled by rust-analyzer, so only available in Rust buffers.
+actions!(
+    rust,
+    [
+        /// Expands macros recursively at cursor position.
+        ExpandMacroRecursively,
+        /// Goes to the tests that exercise the item at cursor position.
+        GoToRelatedTests,
+        /// Opens the documentation of the symbol at cursor position.
+        OpenDocs,
+        /// Shows the HIR of the function at cursor position.
+        ViewHir,
+        /// Shows the size, alignment and field offsets of the type at cursor position.
+        ViewMemoryLayout,
+        /// Shows the MIR of the function at cursor position.
+        ViewMir,
+    ]
+);
+
 actions!(
     editor,
     [
@@ -439,8 +458,6 @@ actions!(
         /// Toggles all diff hunks in the editor. Collapses all hunks if any are
         /// currently expanded, otherwise expands all hunks.
         ToggleAllDiffHunks,
-        /// Expands macros recursively at cursor position.
-        ExpandMacroRecursively,
         /// Finds the next match in the search.
         FindNextMatch,
         /// Finds the previous match in the search.
@@ -515,8 +532,6 @@ actions!(
         GoToImplementationSplit,
         /// Goes to the next change in the file.
         GoToNextChange,
-        /// Goes to the parent module of the current file.
-        GoToParentModule,
         /// Goes to the previous change in the file.
         GoToPreviousChange,
         /// Goes to the next symbol.
@@ -620,8 +635,6 @@ actions!(
         NextSnippetTabstop,
         /// Opens the context menu at cursor position.
         OpenContextMenu,
-        /// Opens documentation for the symbol at cursor.
-        OpenDocs,
         /// Opens the file whose name is selected in the editor.
         OpenSelectedFilename,
         /// Opens all selections in a multibuffer.
