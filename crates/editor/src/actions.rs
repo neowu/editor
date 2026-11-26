@@ -520,8 +520,6 @@ actions!(
         /// formatted and resulting edits outside the selected ranges are discarded. External command formatters do not
         /// support range formatting and are skipped.
         FormatSelections,
-        /// Goes to declaration in a split pane.
-        GoToDeclarationSplit,
         /// Goes to definition in a split pane.
         GoToDefinitionSplit,
         /// Goes to the next diff hunk.
@@ -812,15 +810,6 @@ pub enum OpenResultsIn {
 #[action(namespace = editor)]
 pub struct GoToDefinition {
     /// Where to show the definitions. Defaults to a multibuffer
-    /// when omitted. A single result is always opened directly.
-    pub open_results_in: Option<OpenResultsIn>,
-}
-
-/// Goes to the declaration of the symbol at cursor.
-#[derive(PartialEq, Eq, Clone, Default, Action)]
-#[action(namespace = editor)]
-pub struct GoToDeclaration {
-    /// Where to show the declarations. Defaults to a multibuffer
     /// when omitted. A single result is always opened directly.
     pub open_results_in: Option<OpenResultsIn>,
 }

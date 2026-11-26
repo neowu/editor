@@ -138,8 +138,6 @@ pub(crate) use actions::FindPreviousMatch;
 pub(crate) use actions::FoldAtLevel;
 pub(crate) use actions::FoldRecursive;
 pub(crate) use actions::FoldSelectedRanges;
-pub(crate) use actions::GoToDeclaration;
-pub(crate) use actions::GoToDeclarationSplit;
 pub(crate) use actions::GoToDefinition;
 pub(crate) use actions::GoToDefinitionSplit;
 pub(crate) use actions::GoToDiagnostic;

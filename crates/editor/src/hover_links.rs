@@ -6,7 +6,6 @@ use gpui::App;
 use gpui::AsyncWindowContext;
 use gpui::Context;
 use gpui::Entity;
-use gpui::Focusable as _;
 use gpui::HighlightStyle;
 use gpui::Modifiers;
 use gpui::Pixels;
@@ -36,7 +35,6 @@ use crate::Anchor;
 use crate::DisplayPoint;
 use crate::Editor;
 use crate::EditorSnapshot;
-use crate::FindAllReferences;
 use crate::GotoDefinitionKind;
 use crate::HighlightKey;
 use crate::Navigated;
@@ -304,15 +302,14 @@ impl Editor {
             if navigation.await.log_err().unwrap_or(Navigated::No) == Navigated::Yes {
                 return;
             }
-            let focus_handle = editor
-                .read_with(cx, |editor, cx| editor.lsp_data_enabled().then(|| editor.focus_handle(cx)))
+            let fallback = editor
+                .update_in(cx, |editor, window, cx| {
+                    editor.lsp_data_enabled().then(|| editor.go_to_declaration_or_references(window, cx))
+                })
                 .ok()
                 .flatten();
-            if let Some(focus_handle) = focus_handle {
-                cx.update(|window, cx| {
-                    focus_handle.dispatch_action(&FindAllReferences::default(), window, cx);
-                })
-                .ok();
+            if let Some(fallback) = fallback {
+                fallback.await.log_err();
             }
         })
         .detach();

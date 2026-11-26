@@ -28,8 +28,6 @@ use super::ExpandExcerptsDown;
 use super::ExpandExcerptsUp;
 use super::FindAllReferences;
 use super::FromAnchor as _;
-use super::GoToDeclaration;
-use super::GoToDeclarationSplit;
 use super::GoToDefinition;
 use super::GoToDefinitionSplit;
 use super::GoToImplementation;
@@ -887,6 +885,22 @@ impl Editor {
             if definition.await? == Navigated::Yes {
                 return Ok(Navigated::Yes);
             }
+            editor.update_in(cx, |editor, window, cx| editor.go_to_declaration_or_references(window, cx))?.await
+        })
+    }
+
+    /// Fallback when the cursor is already on a definition: a declaration elsewhere (rust-analyzer
+    /// answers the trait item for an impl item) wins over listing references.
+    pub(crate) fn go_to_declaration_or_references(
+        &self,
+        window: &Window,
+        cx: &mut Context<Self>,
+    ) -> Task<Result<Navigated>> {
+        let declaration = self.go_to_definition_of_kind(GotoDefinitionKind::Declaration, false, window, cx);
+        cx.spawn_in(window, async move |editor, cx| {
+            if declaration.await.log_err() == Some(Navigated::Yes) {
+                return Ok(Navigated::Yes);
+            }
             match editor.update_in(cx, |editor, window, cx| {
                 editor.find_all_references(&FindAllReferences::default(), window, cx)
             })? {
@@ -894,24 +908,6 @@ impl Editor {
                 None => Ok(Navigated::No),
             }
         })
-    }
-
-    pub fn go_to_declaration(
-        &mut self,
-        _: &GoToDeclaration,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<Navigated>> {
-        self.go_to_definition_of_kind(GotoDefinitionKind::Declaration, false, window, cx)
-    }
-
-    pub fn go_to_declaration_split(
-        &mut self,
-        _: &GoToDeclarationSplit,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<Navigated>> {
-        self.go_to_definition_of_kind(GotoDefinitionKind::Declaration, true, window, cx)
     }
 
     pub fn go_to_implementation(

@@ -158,8 +158,6 @@ pub(super) fn keymap() -> Vec<KeyBinding> {
     k.bind("ctrl-cmd-space", editor::actions::ShowCharacterPalette);
     k.bind("cmd-'", editor::actions::ToggleSelectedDiffHunks);
     k.bind("cmd-\"", editor::actions::ExpandAllDiffHunks);
-    k.bind("ctrl-f12", editor::actions::GoToDeclaration::default());
-    k.bind("alt-ctrl-f12", editor::actions::GoToDeclarationSplit);
 
     k.group(Some("Editor && mode == full"));
     k.bind("shift-enter", editor::actions::Newline);

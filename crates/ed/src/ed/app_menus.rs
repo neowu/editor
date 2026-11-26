@@ -133,7 +133,6 @@ pub(super) fn app_menus(_cx: &mut App) -> Vec<Menu> {
                 MenuItem::action("Go to Line/Column...", actions::ToggleGoToLine),
                 MenuItem::separator(),
                 MenuItem::action("Go to Definition", actions::GoToDefinition::default()),
-                MenuItem::action("Go to Declaration", actions::GoToDeclaration::default()),
                 MenuItem::action("Go to Type Definition", actions::GoToTypeDefinition::default()),
                 MenuItem::action("Find All References", actions::FindAllReferences::default()),
                 MenuItem::separator(),

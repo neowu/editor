@@ -23,7 +23,6 @@ use crate::DisplaySnapshot;
 use crate::Editor;
 use crate::ExpandMacroRecursively;
 use crate::FindAllReferences;
-use crate::GoToDeclaration;
 use crate::GoToDefinition;
 use crate::GoToImplementation;
 use crate::GoToRelatedTests;
@@ -219,7 +218,6 @@ pub(crate) fn deploy_context_menu(
             let builder = menu
                 .on_blur_subscription(Subscription::new(|| {}))
                 .action("Go to Definition", Box::new(GoToDefinition::default()))
-                .action("Go to Declaration", Box::new(GoToDeclaration::default()))
                 .action("Go to Type Definition", Box::new(GoToTypeDefinition::default()))
                 .action("Go to Implementation", Box::new(GoToImplementation::default()))
                 .action("Find All References", Box::new(FindAllReferences::default()))

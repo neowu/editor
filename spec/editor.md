@@ -62,8 +62,10 @@
   - Search: starts with no options set, searches as you type, wraps around,
     no smartcase, and the status bar search button is always shown. Search
     seeds its query from the word under the cursor.
-  - Navigation: go to definition falls back to find all references when it
-    finds nothing, and centers the target. Results open in a multibuffer
+  - Navigation: when go to definition (action or cmd-click) finds nothing
+    else, it tries go to declaration, so an impl item jumps to its trait
+    item (rust-analyzer), and then falls back to find all references. It
+    centers the target. There is no Go to Declaration action. Results open in a multibuffer
     unless the action asks for the picker (`open_results_in`).
   - LSP: diagnostics down to hints; inline code actions; document colors as
     inlays only; document links on.

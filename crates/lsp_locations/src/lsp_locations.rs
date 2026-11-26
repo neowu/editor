@@ -6,7 +6,6 @@ use editor::Editor;
 use editor::GotoDefinitionKind;
 use editor::OpenResultsIn;
 use editor::actions::FindAllReferences;
-use editor::actions::GoToDeclaration;
 use editor::actions::GoToDefinition;
 use editor::actions::GoToImplementation;
 use editor::actions::GoToTypeDefinition;
@@ -80,9 +79,6 @@ pub fn init(editor_actions: &mut ActionTable<Editor>) {
     let is_full = |editor: &Editor, _: &App| editor.mode().is_full();
     editor_actions.add_if(is_full, |editor, action: &GoToDefinition, window, cx| {
         handle_nav_action(action.open_results_in, LspPickerKind::Definition, editor, window, cx);
-    });
-    editor_actions.add_if(is_full, |editor, action: &GoToDeclaration, window, cx| {
-        handle_nav_action(action.open_results_in, LspPickerKind::Declaration, editor, window, cx);
     });
     editor_actions.add_if(is_full, |editor, action: &GoToImplementation, window, cx| {
         handle_nav_action(action.open_results_in, LspPickerKind::Implementation, editor, window, cx);
@@ -162,7 +158,6 @@ fn show_no_results_toast(workspace: &WeakEntity<Workspace>, kind: LspPickerKind,
 pub enum LspPickerKind {
     References,
     Definition,
-    Declaration,
     Implementation,
     TypeDefinition,
 }
@@ -172,7 +167,6 @@ impl LspPickerKind {
         match self {
             LspPickerKind::References => "Filter references…",
             LspPickerKind::Definition => "Filter definitions…",
-            LspPickerKind::Declaration => "Filter declarations…",
             LspPickerKind::Implementation => "Filter implementations…",
             LspPickerKind::TypeDefinition => "Filter type definitions…",
         }
@@ -184,7 +178,6 @@ impl LspPickerKind {
         match self {
             LspPickerKind::References => "No references found",
             LspPickerKind::Definition => "No definitions found",
-            LspPickerKind::Declaration => "No declarations found",
             LspPickerKind::Implementation => "No implementations found",
             LspPickerKind::TypeDefinition => "No type definitions found",
         }
@@ -196,7 +189,6 @@ impl LspPickerKind {
         match self {
             LspPickerKind::References => editor.find_all_references_locations(cx),
             LspPickerKind::Definition => editor.definition_locations_of_kind(GotoDefinitionKind::Symbol, cx),
-            LspPickerKind::Declaration => editor.definition_locations_of_kind(GotoDefinitionKind::Declaration, cx),
             LspPickerKind::Implementation => {
                 editor.definition_locations_of_kind(GotoDefinitionKind::Implementation, cx)
             }
@@ -675,7 +667,6 @@ mod tests {
 
         let mut expected = [
             TypeId::of::<GoToDefinition>(),
-            TypeId::of::<GoToDeclaration>(),
             TypeId::of::<GoToImplementation>(),
             TypeId::of::<GoToTypeDefinition>(),
             TypeId::of::<FindAllReferences>(),

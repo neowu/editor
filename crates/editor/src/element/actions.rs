@@ -217,12 +217,6 @@ fn add_actions(t: &mut ActionTable<Editor>) {
         editor.go_to_definition_split(action, window, cx).detach_and_log_err(cx);
     });
     t.add(|editor, action, window, cx| {
-        editor.go_to_declaration(action, window, cx).detach_and_log_err(cx);
-    });
-    t.add(|editor, action, window, cx| {
-        editor.go_to_declaration_split(action, window, cx).detach_and_log_err(cx);
-    });
-    t.add(|editor, action, window, cx| {
         editor.go_to_implementation(action, window, cx).detach_and_log_err(cx);
     });
     t.add(|editor, action, window, cx| {
