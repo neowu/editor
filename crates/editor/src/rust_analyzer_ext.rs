@@ -162,11 +162,23 @@ pub(crate) fn expand_macro_recursively(
 }
 
 pub(crate) fn view_hir(editor: &mut Editor, _: &ViewHir, window: &mut Window, cx: &mut Context<Editor>) {
-    view_text::<lsp_ext_command::ViewHir>(editor, true, |hir, symbol| (view_title("HIR", symbol), hir), window, cx);
+    view_text::<lsp_ext_command::ViewHir>(
+        editor,
+        true,
+        |hir, symbol| (view_title("HIR", symbol), lowered_text(hir)),
+        window,
+        cx,
+    );
 }
 
 pub(crate) fn view_mir(editor: &mut Editor, _: &ViewMir, window: &mut Window, cx: &mut Context<Editor>) {
-    view_text::<lsp_ext_command::ViewMir>(editor, true, |mir, symbol| (view_title("MIR", symbol), mir), window, cx);
+    view_text::<lsp_ext_command::ViewMir>(
+        editor,
+        true,
+        |mir, symbol| (view_title("MIR", symbol), lowered_text(mir)),
+        window,
+        cx,
+    );
 }
 
 pub(crate) fn view_memory_layout(
@@ -248,6 +260,11 @@ fn show_nothing_found(workspace: &Entity<Workspace>, what: &str, cx: &mut AsyncW
         let message = format!("No {what} from rust-analyzer at this position");
         workspace.show_toast(Toast::new(NotificationId::unique::<NothingFound>(), message).autohide(), cx);
     });
+}
+
+/// rust-analyzer answers HIR / MIR requests outside a body with a "Not inside a ..." sentence instead of nothing.
+fn lowered_text(text: String) -> String {
+    if text.starts_with("Not inside ") { String::new() } else { text }
 }
 
 fn view_title(kind: &str, subject: &str) -> String {
@@ -437,6 +454,13 @@ mod tests {
     fn view_title_names_its_subject() {
         assert_eq!(view_title("HIR", "Foo::new"), "HIR for Foo::new");
         assert_eq!(view_title("MIR", ""), "MIR");
+    }
+
+    #[test]
+    fn lowered_text_drops_the_not_inside_answers() {
+        assert_eq!(lowered_text("Not inside a lowerable item".to_owned()), "");
+        assert_eq!(lowered_text("Not inside a function body".to_owned()), "");
+        assert_eq!(lowered_text("fn main() {}".to_owned()), "fn main() {}");
     }
 
     #[test]

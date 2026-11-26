@@ -261,8 +261,9 @@
   (`rust::ExpandMacroRecursively`), "View Memory Layout"
   (`rust::ViewMemoryLayout`), "View HIR" (`rust::ViewHir`) and "View MIR"
   (`rust::ViewMir`). They don't ask rust-analyzer whether they apply at that
-  position, so where the server has nothing to say (e.g. no macro there, or a
-  struct with a field it can't lay out) an auto-hiding toast says so.
+  position, so where the server has nothing to say (e.g. no macro there, a
+  struct with a field it can't lay out, or its "Not inside a ..." answer for
+  HIR / MIR outside a body) an auto-hiding toast says so.
   - Related tests navigate like a go-to: one test opens in place, several open
     in a multibuffer. They aren't offered as tasks to run.
   - The other four open a read-only buffer. The memory layout is a tree with
