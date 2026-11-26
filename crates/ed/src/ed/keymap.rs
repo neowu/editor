@@ -311,10 +311,8 @@ pub(super) fn keymap() -> Vec<KeyBinding> {
     );
     k.bind("f2", editor::actions::Rename);
     k.bind("f12", editor::actions::GoToDefinition::default());
-    k.bind("alt-f12", editor::actions::GoToDefinitionSplit);
     k.bind("cmd-f12", editor::actions::GoToTypeDefinition::default());
     k.bind("shift-f12", editor::actions::GoToImplementation::default());
-    k.bind("alt-cmd-f12", editor::actions::GoToTypeDefinitionSplit);
     k.bind("alt-shift-f12", editor::actions::FindAllReferences::default());
     k.bind("cmd-|", editor::actions::MoveToEnclosingBracket);
     k.bind("ctrl-m", editor::actions::MoveToEnclosingBracket);

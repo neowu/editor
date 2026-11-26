@@ -29,9 +29,7 @@ use super::ExpandExcerptsUp;
 use super::FindAllReferences;
 use super::FromAnchor as _;
 use super::GoToDefinition;
-use super::GoToDefinitionSplit;
 use super::GoToImplementation;
-use super::GoToImplementationSplit;
 use super::GoToNextChange;
 use super::GoToNextDocumentHighlight;
 use super::GoToNextReference;
@@ -41,7 +39,6 @@ use super::GoToPreviousDocumentHighlight;
 use super::GoToPreviousReference;
 use super::GoToPreviousSymbol;
 use super::GoToTypeDefinition;
-use super::GoToTypeDefinitionSplit;
 use super::GotoDefinitionKind;
 use super::HighlightKey;
 use super::HoverLink;
@@ -880,7 +877,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<Navigated>> {
-        let definition = self.go_to_definition_of_kind(GotoDefinitionKind::Symbol, false, window, cx);
+        let definition = self.go_to_definition_of_kind(GotoDefinitionKind::Symbol, window, cx);
         cx.spawn_in(window, async move |editor, cx| {
             if definition.await? == Navigated::Yes {
                 return Ok(Navigated::Yes);
@@ -896,7 +893,7 @@ impl Editor {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<Navigated>> {
-        let declaration = self.go_to_definition_of_kind(GotoDefinitionKind::Declaration, false, window, cx);
+        let declaration = self.go_to_definition_of_kind(GotoDefinitionKind::Declaration, window, cx);
         cx.spawn_in(window, async move |editor, cx| {
             if declaration.await.log_err() == Some(Navigated::Yes) {
                 return Ok(Navigated::Yes);
@@ -916,16 +913,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<Navigated>> {
-        self.go_to_definition_of_kind(GotoDefinitionKind::Implementation, false, window, cx)
-    }
-
-    pub fn go_to_implementation_split(
-        &mut self,
-        _: &GoToImplementationSplit,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<Navigated>> {
-        self.go_to_definition_of_kind(GotoDefinitionKind::Implementation, true, window, cx)
+        self.go_to_definition_of_kind(GotoDefinitionKind::Implementation, window, cx)
     }
 
     pub fn go_to_type_definition(
@@ -934,25 +922,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<Navigated>> {
-        self.go_to_definition_of_kind(GotoDefinitionKind::Type, false, window, cx)
-    }
-
-    pub fn go_to_definition_split(
-        &mut self,
-        _: &GoToDefinitionSplit,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<Navigated>> {
-        self.go_to_definition_of_kind(GotoDefinitionKind::Symbol, true, window, cx)
-    }
-
-    pub fn go_to_type_definition_split(
-        &mut self,
-        _: &GoToTypeDefinitionSplit,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<Navigated>> {
-        self.go_to_definition_of_kind(GotoDefinitionKind::Type, true, window, cx)
+        self.go_to_definition_of_kind(GotoDefinitionKind::Type, window, cx)
     }
 
     pub fn open_url(&mut self, _: &OpenUrl, window: &mut Window, cx: &mut Context<Self>) {
@@ -1978,7 +1948,6 @@ impl Editor {
     pub(crate) fn go_to_definition_of_kind(
         &self,
         kind: GotoDefinitionKind,
-        split: bool,
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<Navigated>> {
@@ -2009,7 +1978,7 @@ impl Editor {
                             .map(HoverLink::Text)
                             .collect::<Vec<_>>(),
                         nav_entry,
-                        split,
+                        false,
                         window,
                         cx,
                     )

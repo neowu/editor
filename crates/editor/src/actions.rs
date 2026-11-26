@@ -520,14 +520,10 @@ actions!(
         /// formatted and resulting edits outside the selected ranges are discarded. External command formatters do not
         /// support range formatting and are skipped.
         FormatSelections,
-        /// Goes to definition in a split pane.
-        GoToDefinitionSplit,
         /// Goes to the next diff hunk.
         GoToHunk,
         /// Goes to the previous diff hunk.
         GoToPreviousHunk,
-        /// Goes to implementation in a split pane.
-        GoToImplementationSplit,
         /// Goes to the next change in the file.
         GoToNextChange,
         /// Goes to the previous change in the file.
@@ -540,8 +536,6 @@ actions!(
         GoToNextReference,
         /// Goes to the previous reference to the symbol under the cursor.
         GoToPreviousReference,
-        /// Goes to type definition in a split pane.
-        GoToTypeDefinitionSplit,
         /// Goes to the next document highlight.
         GoToNextDocumentHighlight,
         /// Goes to the previous document highlight.
