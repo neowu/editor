@@ -38,6 +38,7 @@ use language::LanguageServerStatusUpdate;
 use language::LocalFile as _;
 use language::LspAdapter;
 use language::LspAdapterDelegate;
+use language::ServerHealth;
 use language::ServerNotInstalled;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServer;
@@ -51,6 +52,7 @@ use lsp_types::WorkDoneProgressCancelParams;
 use lsp_types::notification::DidChangeConfiguration;
 use lsp_types::notification::LogMessage;
 use lsp_types::notification::LogTrace;
+use lsp_types::notification::Notification;
 use lsp_types::notification::Progress;
 use lsp_types::notification::PublishDiagnostics;
 use lsp_types::notification::ShowMessage;
@@ -94,12 +96,28 @@ use super::WORKSPACE_DIAGNOSTICS_TOKEN_START;
 use super::diagnostics::DocumentDiagnosticsUpdate;
 use super::diagnostics::lsp_workspace_diagnostics_refresh;
 use super::file_watchers::RenamePathsWatchedForServer;
-use super::rust_analyzer_ext;
 use super::workspace_folder_uri;
 use crate::ProjectPath;
 use crate::environment::ProjectEnvironment;
 use crate::manifest_tree::LaunchDisposition;
 use crate::manifest_tree::ManifestQueryDelegate;
+
+/// `experimental/serverStatus`: a rust-analyzer extension reporting server health, handled for every server.
+///
+/// [Spec](https://rust-analyzer.github.io/book/contributing/lsp-extensions.html#server-status).
+struct ServerStatus(!);
+
+#[derive(Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ServerStatusParams {
+    health: ServerHealth,
+    message: Option<String>,
+}
+
+impl Notification for ServerStatus {
+    type Params = ServerStatusParams;
+    const METHOD: &'static str = "experimental/serverStatus";
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum LanguageServerStartMode {
@@ -830,7 +848,31 @@ impl LocalLspStore {
             })
             .detach();
 
-        rust_analyzer_ext::register_notifications(lsp_store, language_server);
+        language_server
+            .on_notification::<ServerStatus, _>({
+                let name = language_server.name();
+                move |params, cx| {
+                    let ServerStatusParams { health, message } = params;
+                    if let Some(message) = &message {
+                        let log_message = format!("Language server {name} (id {server_id}) status update: {message}");
+                        match health {
+                            ServerHealth::Ok => log::info!("{log_message}"),
+                            ServerHealth::Warning => log::warn!("{log_message}"),
+                            ServerHealth::Error => log::error!("{log_message}"),
+                        }
+                    }
+                    lsp_store
+                        .update(cx, |_, cx| {
+                            cx.emit(LspStoreEvent::LanguageServerStatus {
+                                language_server_id: server_id,
+                                name: Some(name.clone()),
+                                status: LanguageServerStatusUpdate::Health(health, message.map(Into::into)),
+                            });
+                        })
+                        .ok();
+                }
+            })
+            .detach();
     }
 
     pub(super) fn shutdown_language_servers_on_quit(&mut self) -> impl Future<Output = ()> + use<> {
@@ -1817,6 +1859,8 @@ impl LspStore {
 
 #[cfg(test)]
 mod tests {
+    use super::ServerHealth;
+    use super::ServerStatusParams;
     use super::command_override;
 
     #[test]
@@ -1842,5 +1886,17 @@ mod tests {
         command_override("not json", "ty").unwrap_err();
         command_override(r#"{"ty": "uvx ty server"}"#, "ty").unwrap_err();
         command_override(r#"{"ty": []}"#, "ty").unwrap_err();
+    }
+
+    #[test]
+    fn server_status_params_deserialize() {
+        let params: ServerStatusParams =
+            serde_json::from_str(r#"{"health":"warning","quiescent":true,"message":"cargo metadata failed"}"#).unwrap();
+        assert_eq!(
+            params,
+            ServerStatusParams { health: ServerHealth::Warning, message: Some("cargo metadata failed".into()) }
+        );
+        let params: ServerStatusParams = serde_json::from_str(r#"{"health":"ok","quiescent":false}"#).unwrap();
+        assert_eq!(params, ServerStatusParams { health: ServerHealth::Ok, message: None });
     }
 }

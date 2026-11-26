@@ -38,7 +38,6 @@ use language::language_settings::SemanticTokenRules;
 use language::language_settings::WordsCompletionMode;
 use lsp::LanguageServerBinary;
 use lsp_types::InitializeParams;
-use project::lsp_store::rust_analyzer_ext::CARGO_DIAGNOSTICS_SOURCE_NAME;
 use regex::Regex;
 use rustc_hash::FxHashMap;
 use serde_json::json;
@@ -206,7 +205,7 @@ impl LspAdapter for RustLspAdapter {
     }
 
     fn disk_based_diagnostic_sources(&self) -> Vec<String> {
-        vec![CARGO_DIAGNOSTICS_SOURCE_NAME.to_owned()]
+        vec!["rustc".to_owned()]
     }
 
     fn disk_based_diagnostics_progress_token(&self) -> Option<String> {
