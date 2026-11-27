@@ -494,9 +494,15 @@ impl TerminalElement {
                 if cell.is_wide_char_spacer() {
                     continue;
                 }
+                // A tab leaves `\t` in the cell it starts from; shaped as text it advances to a tab stop
+                // instead of by one cell.
+                let character = match cell.character() {
+                    '\t' => ' ',
+                    character => character,
+                };
 
                 // Skip spaces that follow cells with extras (emoji variation sequences)
-                if cell.character() == ' ' && previous_cell_had_extras {
+                if character == ' ' && previous_cell_had_extras {
                     previous_cell_had_extras = false;
                     continue;
                 }
@@ -529,7 +535,7 @@ impl TerminalElement {
                         let cell_point = LayoutPoint::new(display_line, (point.column as u32).cast_signed());
                         if Self::collect_block_element_regions(
                             cell_point,
-                            cell.character(),
+                            character,
                             cell_style.color,
                             &mut block_element_regions,
                         ) {
@@ -551,7 +557,7 @@ impl TerminalElement {
                                 for _ in 0..pending_blanks {
                                     batch.append_char(' ');
                                 }
-                                batch.append_char(cell.character());
+                                batch.append_char(character);
                                 if let Some(chars) = zero_width_chars {
                                     batch.append_zero_width_chars(chars);
                                 }
@@ -561,7 +567,7 @@ impl TerminalElement {
                                 batched_runs.push(old_batch);
                                 let mut new_batch = BatchedTextRun::new_from_char(
                                     cell_point,
-                                    cell.character(),
+                                    character,
                                     cell_style,
                                     text_style.font_size,
                                 );
@@ -572,12 +578,8 @@ impl TerminalElement {
                             }
                         } else {
                             // Start new batch
-                            let mut new_batch = BatchedTextRun::new_from_char(
-                                cell_point,
-                                cell.character(),
-                                cell_style,
-                                text_style.font_size,
-                            );
+                            let mut new_batch =
+                                BatchedTextRun::new_from_char(cell_point, character, cell_style, text_style.font_size);
                             if let Some(chars) = zero_width_chars {
                                 new_batch.append_zero_width_chars(chars);
                             }
@@ -1617,7 +1619,7 @@ impl InputHandler for TerminalInputHandler {
 }
 
 pub fn is_blank(cell: &Cell) -> bool {
-    if cell.character() != ' ' {
+    if !matches!(cell.character(), ' ' | '\t') {
         return false;
     }
 
@@ -1772,6 +1774,11 @@ mod tests {
         });
         let (_, runs, _) = TerminalElement::layout_grid(cells, 0, &TextStyle::default(), None, 0.0);
         runs.into_iter().map(|run| run.text).collect()
+    }
+
+    #[test]
+    fn layout_grid_draws_tab_cells_as_spaces() {
+        assert_eq!(run_texts(&["\tab", "a\tb"]), ["ab", "a b"]);
     }
 
     #[test]
