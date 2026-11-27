@@ -66,8 +66,8 @@ Directions the fork deliberately doesn't follow, even in kept crates:
 
 ## Status
 
-- Last reviewed upstream commit: `2664a0aa` (2026-11-24). The next pass
-  starts at `git log --reverse 2664a0aa..upstream/main`.
+- Last reviewed upstream commit: `b47d9288` (2026-11-27). The next pass
+  starts at `git log --reverse b47d9288..upstream/main`.
 - Renderer series, partly taken: #66806 and #66807 are ported. Still open:
   #66809 (path rendering without MSAA or an intermediate texture) with
   #66811 (depth buffer to cut overdraw), the main Metal win; they trade

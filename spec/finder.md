@@ -24,6 +24,9 @@
   opens and again on every worktree update while it is open, so a file deleted
   meanwhile drops out without reopening the finder. Paths outside the worktree
   are checked on disk.
+- When the top match is the file in the active tab (from history or from
+  search, e.g. a query matching only its directory), the second match is
+  preselected. A query with a row (`foo.rs:42`) keeps the top match.
 - Path ranking (`fuzzy`) adds a small bonus for matches near the end of
   the path, so a path that repeats the query (`x/x.py` for `x`) ranks above one
   matching only once (`y/x.py`).

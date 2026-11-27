@@ -11,6 +11,10 @@ repository's `$PATH`; if none is found, the repository is not opened.
 
 ## Behaviour
 
+- `.gitignore`, `.git` files, `commondir`, `MERGE_MSG` and the commit template
+  are read only when they are regular files (`Fs::load_regular_file`): a FIFO
+  there would block the worktree scanner or the repository's job queue until
+  a writer shows up. Files the user opens directly may still be FIFOs.
 - Every repository is trusted (there is no restricted mode): git runs with
   the user's own config, so hooks, credential helpers, `core.sshCommand` and
   external diff tools all apply. Only `core.fsmonitor` and

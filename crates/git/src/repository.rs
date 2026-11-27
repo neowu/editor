@@ -3165,9 +3165,9 @@ mod tests {
     #[test]
     fn linked_worktree_git_dir_reads_only_regular_files() {
         let dir = tempfile::TempDir::new().unwrap();
-        assert!(super::linked_worktree_git_dir(dir.path()).is_err());
-        std::fs::create_dir(dir.path().join(".git")).unwrap();
-        assert!(super::linked_worktree_git_dir(dir.path()).is_err());
+        super::linked_worktree_git_dir(dir.path()).unwrap_err();
+        std::fs::create_dir_all(dir.path().join(".git")).unwrap();
+        super::linked_worktree_git_dir(dir.path()).unwrap_err();
         std::fs::remove_dir(dir.path().join(".git")).unwrap();
         std::fs::write(dir.path().join(".git"), "gitdir: ../main/.git/worktrees/a\n").unwrap();
         assert_eq!(super::linked_worktree_git_dir(dir.path()).unwrap(), dir.path().join("../main/.git/worktrees/a"));

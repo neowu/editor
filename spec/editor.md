@@ -42,7 +42,10 @@
   lines as a faint full-width band, git hunks as a thin bar on the left edge,
   search/selection/symbol occurrences and diagnostics as two lanes on the
   right edge. All marker kinds are always on (git hunks only when git diff is
-  enabled); there are no editor `scrollbar` settings. In files longer than
+  enabled); there are no editor `scrollbar` settings. Past 100 cursors no
+  cursor bands are drawn, and cursor positions are then resolved only until
+  one is found off-screen (to keep the horizontal scrollbar shown), not for
+  every cursor on every frame. In files longer than
   the minimap, off-screen markers scroll in with the minimap. Editors without
   a minimap have no vertical scroll widget.
 - Fixed editor behaviour, with no settings: blinking bar cursor with movement

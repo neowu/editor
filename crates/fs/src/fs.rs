@@ -866,13 +866,13 @@ mod tests {
         let file = dir.path().join("file");
         fs::write(&file, "x").unwrap();
         assert_eq!(read_regular_file(&file).unwrap(), "x");
-        assert!(read_regular_file(&dir.path().join("missing")).is_err());
+        read_regular_file(&dir.path().join("missing")).unwrap_err();
 
         // Opening a FIFO for reading blocks until a writer opens it.
         let fifo = dir.path().join("fifo");
         let fifo_c = CString::new(fifo.as_os_str().as_bytes()).unwrap();
         assert_eq!(unsafe { libc::mkfifo(fifo_c.as_ptr(), 0o600) }, 0);
-        assert!(read_regular_file(&fifo).is_err());
+        read_regular_file(&fifo).unwrap_err();
     }
 
     #[test]
