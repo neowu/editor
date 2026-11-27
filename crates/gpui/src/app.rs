@@ -14,6 +14,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 use std::mem;
+use std::mem::DropGuard;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::panic::Location;
@@ -1789,27 +1790,32 @@ pub enum InputPreference {
 
 /// A mutable reference to an entity owned by GPUI.
 pub struct GpuiBorrow<'a, T> {
-    inner: Option<Lease<T>>,
-    app: &'a mut App,
+    guard: DropGuard<(Lease<T>, &'a mut App), fn((Lease<T>, &'a mut App))>,
 }
 
 impl<'a, T: 'static> GpuiBorrow<'a, T> {
     fn new(inner: Entity<T>, app: &'a mut App) -> Self {
         app.start_update();
         let lease = app.entities.lease(&inner);
-        Self { inner: Some(lease), app }
+        Self {
+            guard: DropGuard::new((lease, app), |(lease, app)| {
+                app.notify(lease.id);
+                app.entities.end_lease(lease);
+                app.finish_update();
+            }),
+        }
     }
 }
 
 impl<T: 'static> borrow::Borrow<T> for GpuiBorrow<'_, T> {
     fn borrow(&self) -> &T {
-        self.inner.as_ref().expect("borrow is live until drop").borrow()
+        &self.guard.0
     }
 }
 
 impl<T: 'static> borrow::BorrowMut<T> for GpuiBorrow<'_, T> {
     fn borrow_mut(&mut self) -> &mut T {
-        self.inner.as_mut().expect("borrow is live until drop").borrow_mut()
+        &mut self.guard.0
     }
 }
 
@@ -1817,21 +1823,12 @@ impl<T: 'static> Deref for GpuiBorrow<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.inner.as_ref().expect("borrow is live until drop")
+        &self.guard.0
     }
 }
 
 impl<T: 'static> DerefMut for GpuiBorrow<'_, T> {
     fn deref_mut(&mut self) -> &mut T {
-        self.inner.as_mut().expect("borrow is live until drop")
-    }
-}
-
-impl<T> Drop for GpuiBorrow<'_, T> {
-    fn drop(&mut self) {
-        let lease = self.inner.take().expect("borrow is live until drop");
-        self.app.notify(lease.id);
-        self.app.entities.end_lease(lease);
-        self.app.finish_update();
+        &mut self.guard.0
     }
 }
