@@ -7,7 +7,7 @@ on:
   push:
     tags: ['[0-9]+.[0-9]+.[0-9]+']
   pull_request:
-    branches: [neo]
+    branches: [main]
     paths: [.github/workflows/build.yml, release.sh]
 
 permissions:
@@ -23,6 +23,9 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
+
+      - name: Install latest stable Rust
+        run: rustup update stable --no-self-update && rustup default stable
 
       - name: Show build environment
         run: |
