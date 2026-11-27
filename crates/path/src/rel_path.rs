@@ -261,16 +261,34 @@ impl PartialOrd for RelPath {
 impl Ord for RelPath {
     fn cmp(&self, other: &Self) -> Ordering {
         // Ranking `/` below every other byte orders paths by component.
-        const CHUNK: usize = 16;
+        const CHUNK: usize = size_of::<u128>();
         let rank = |byte: u8| if byte == b'/' { 0 } else { u16::from(byte) + 1 };
+        // Read as little-endian, the XOR's lowest set bit is in the first difference.
+        let first_difference = |a: &[u8; CHUNK], b: &[u8; CHUNK]| {
+            let difference = u128::from_le_bytes(*a) ^ u128::from_le_bytes(*b);
+            (difference != 0).then(|| difference.trailing_zeros() as usize / 8)
+        };
         let (a, b) = (self.0.as_bytes(), other.0.as_bytes());
         let len = a.len().min(b.len());
-        let mut offset = 0;
-        while offset + CHUNK <= len && a[offset..offset + CHUNK] == b[offset..offset + CHUNK] {
-            offset += CHUNK;
+        let (a_prefix, b_prefix) = (&a[..len], &b[..len]);
+        let mut difference = None;
+        for (chunk_ix, (a_chunk, b_chunk)) in
+            a_prefix.as_chunks::<CHUNK>().0.iter().zip(b_prefix.as_chunks::<CHUNK>().0).enumerate()
+        {
+            if let Some(ix) = first_difference(a_chunk, b_chunk) {
+                difference = Some(chunk_ix * CHUNK + ix);
+                break;
+            }
         }
-        match a[offset..len].iter().zip(&b[offset..len]).position(|(a, b)| a != b) {
-            Some(ix) => rank(a[offset + ix]).cmp(&rank(b[offset + ix])),
+        if difference.is_none() && len % CHUNK != 0 {
+            // A window ending at `len` overlaps only matched bytes.
+            difference = match (a_prefix.last_chunk::<CHUNK>(), b_prefix.last_chunk::<CHUNK>()) {
+                (Some(a_chunk), Some(b_chunk)) => first_difference(a_chunk, b_chunk).map(|ix| len - CHUNK + ix),
+                _ => a_prefix.iter().zip(b_prefix).position(|(a, b)| a != b),
+            };
+        }
+        match difference {
+            Some(ix) => rank(a[ix]).cmp(&rank(b[ix])),
             None => a.len().cmp(&b.len()),
         }
     }
@@ -572,6 +590,10 @@ mod tests {
             "日本/語",
             "x/a.b/c",
             "x/a/b",
+            // Differ inside a full 16-byte chunk.
+            "a/cdefghijklmnop",
+            "A/cdefghijklmnop",
+            "a.bdefghijklmnop",
         ];
         // Long prefixes make `cmp` compare 16-byte chunks.
         for prefix in ["", "abcdefghijklmn/", "abcdefghijklmno/", "abcdefghijklmnopqrstuvwxyz01234/"] {
