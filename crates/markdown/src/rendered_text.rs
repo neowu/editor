@@ -716,9 +716,12 @@ impl RenderedText {
             if source_index > line.source_end {
                 continue;
             }
-            let line_source_start =
-                line.source_mappings.first().expect("rendered lines have source mappings").source_index;
-            return line_source_start..line.source_end;
+            // A `RenderedLine` is a whole block, so its text can span several lines (a code block, or a
+            // paragraph with hard breaks).
+            let text = line.layout.text();
+            let range = text_line_range(&text, line.rendered_index_for_source_index(source_index));
+            return line.source_index_for_rendered_index(range.start)
+                ..line.source_index_for_exclusive_rendered_end(range.end);
         }
 
         source_index..source_index
@@ -772,6 +775,15 @@ impl RenderedText {
     }
 }
 
+/// The line of `text` around `index`, without its newline. `index` may fall inside a character, since
+/// rendered text can differ from its source.
+fn text_line_range(text: &str, index: usize) -> Range<usize> {
+    let index = text.floor_char_boundary(index);
+    let start = text[..index].rfind('\n').map_or(0, |newline| newline + 1);
+    let end = text[index..].find('\n').map_or(text.len(), |newline| index + newline);
+    start..end
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -782,6 +794,20 @@ mod tests {
             push_source_mappings(&mut mappings, *rendered_start, text, source_range);
         }
         mappings
+    }
+
+    #[test]
+    fn text_line_range_is_bounded_by_newlines() {
+        let text = "first\nsecond\nthirdε";
+        assert_eq!(text_line_range(text, 0), 0..5);
+        assert_eq!(text_line_range(text, 5), 0..5);
+        assert_eq!(text_line_range(text, 6), 6..12);
+        assert_eq!(text_line_range(text, 9), 6..12);
+        assert_eq!(text_line_range(text, 13), 13..text.len());
+        // Inside the two-byte `ε`, and past the end.
+        assert_eq!(text_line_range(text, text.len() - 1), 13..text.len());
+        assert_eq!(text_line_range(text, text.len() + 3), 13..text.len());
+        assert_eq!(text_line_range("", 0), 0..0);
     }
 
     #[test]
