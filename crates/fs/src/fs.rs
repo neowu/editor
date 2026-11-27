@@ -464,6 +464,13 @@ impl Fs {
             .await
     }
 
+    /// Like [`Self::load`], but fails on anything other than a regular file. For reads that hold shared
+    /// state, where opening a FIFO would block until a writer shows up.
+    pub async fn load_regular_file(&self, path: &Path) -> Result<String> {
+        let path = path.to_path_buf();
+        self.executor.spawn(async move { read_regular_file(&path) }).await
+    }
+
     pub async fn load_bytes(&self, path: &Path) -> Result<Vec<u8>> {
         let path = path.to_path_buf();
         let bytes = self.executor.spawn(async move { fs::read(path) }).await?;
@@ -842,9 +849,31 @@ fn read_recursive<'a>(fs: &'a Fs, source: &'a Path, output: &'a mut Vec<(PathBuf
 // can we get file id not open the file twice?
 // https://github.com/rust-lang/rust/issues/63010
 
+fn read_regular_file(path: &Path) -> Result<String> {
+    anyhow::ensure!(fs::metadata(path).is_ok_and(|metadata| metadata.is_file()), "{path:?} is not a file");
+    fs::read_to_string(path).with_context(|| format!("Failed to read file {}", path.display()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn read_regular_file_rejects_fifos() {
+        use std::os::unix::ffi::OsStrExt as _;
+
+        let dir = TempDir::new().unwrap();
+        let file = dir.path().join("file");
+        fs::write(&file, "x").unwrap();
+        assert_eq!(read_regular_file(&file).unwrap(), "x");
+        assert!(read_regular_file(&dir.path().join("missing")).is_err());
+
+        // Opening a FIFO for reading blocks until a writer opens it.
+        let fifo = dir.path().join("fifo");
+        let fifo_c = CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        assert_eq!(unsafe { libc::mkfifo(fifo_c.as_ptr(), 0o600) }, 0);
+        assert!(read_regular_file(&fifo).is_err());
+    }
 
     #[test]
     fn file_current_path_follows_renames() {

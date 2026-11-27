@@ -99,6 +99,8 @@ pub fn original_repo_path_from_common_dir(common_dir: &Path) -> Option<PathBuf> 
 
 fn linked_worktree_git_dir(worktree_path: &Path) -> Result<PathBuf> {
     let dot_git_path = worktree_path.join(".git");
+    // A FIFO here would block the repository's job queue.
+    anyhow::ensure!(dot_git_path.is_file(), "{dot_git_path:?} is not a file");
     let git_file =
         fs::read_to_string(&dot_git_path).with_context(|| format!("failed to read {}", dot_git_path.display()))?;
     let git_dir = git_file.strip_prefix("gitdir:").context("worktree .git file missing gitdir pointer")?.trim();
@@ -1316,6 +1318,10 @@ impl GitRepository for RealGitRepository {
                     path
                 };
 
+                if !path.is_file() {
+                    log::warn!("failed to read commit template {}: not a file", path.display());
+                    return Ok(None);
+                }
                 let template = match fs::read_to_string(&path) {
                     Ok(s) if !s.trim().is_empty() => Some(s),
                     Err(err) => {
@@ -1519,7 +1525,7 @@ impl GitRepository for RealGitRepository {
 
     fn merge_message(&self) -> BoxFuture<'_, Option<String>> {
         let path = self.path().join("MERGE_MSG");
-        self.executor.spawn(async move { fs::read_to_string(&path).ok() }).boxed()
+        self.executor.spawn(async move { path.is_file().then(|| fs::read_to_string(&path).ok()).flatten() }).boxed()
     }
 
     fn status(&self, path_prefixes: &[RepoPath]) -> Task<Result<GitStatus>> {
@@ -3154,6 +3160,17 @@ mod tests {
         let git = GitBinary::new(PathBuf::from("git"), PathBuf::from("/repo"));
         let command = git.build_command(args);
         command.get_args().map(OsStr::to_string_lossy).map(String::from).collect()
+    }
+
+    #[test]
+    fn linked_worktree_git_dir_reads_only_regular_files() {
+        let dir = tempfile::TempDir::new().unwrap();
+        assert!(super::linked_worktree_git_dir(dir.path()).is_err());
+        std::fs::create_dir(dir.path().join(".git")).unwrap();
+        assert!(super::linked_worktree_git_dir(dir.path()).is_err());
+        std::fs::remove_dir(dir.path().join(".git")).unwrap();
+        std::fs::write(dir.path().join(".git"), "gitdir: ../main/.git/worktrees/a\n").unwrap();
+        assert_eq!(super::linked_worktree_git_dir(dir.path()).unwrap(), dir.path().join("../main/.git/worktrees/a"));
     }
 
     #[test]

@@ -2084,8 +2084,10 @@ async fn build_gitignore(abs_path: &Path, fs: &Fs) -> Result<Gitignore> {
 }
 
 async fn build_gitignore_with_root(abs_path: &Path, root: &Path, fs: &Fs) -> Result<Gitignore> {
-    let contents =
-        fs.load(abs_path).await.with_context(|| format!("failed to load gitignore file at {}", abs_path.display()))?;
+    let contents = fs
+        .load_regular_file(abs_path)
+        .await
+        .with_context(|| format!("failed to load gitignore file at {}", abs_path.display()))?;
     let mut builder = GitignoreBuilder::new(root);
     for line in contents.lines() {
         builder.add_line(Some(abs_path.into()), line)?;
@@ -4750,15 +4752,19 @@ async fn discover_git_paths(dot_git_abs_path: &Arc<Path>, fs: &Fs) -> (Arc<Path>
     let mut repository_dir_abs_path = Arc::clone(dot_git_abs_path);
     let mut common_dir_abs_path = Arc::clone(dot_git_abs_path);
 
-    if let Some(path) =
-        fs.load(dot_git_abs_path).await.ok().as_ref().and_then(|contents| parse_gitfile(contents).log_err())
+    if let Some(path) = fs
+        .load_regular_file(dot_git_abs_path)
+        .await
+        .ok()
+        .as_ref()
+        .and_then(|contents| parse_gitfile(contents).log_err())
     {
         let path = resolve_gitfile_path(dot_git_abs_path, path);
         if let Some(path) = fs.canonicalize(&path).await.log_err() {
             repository_dir_abs_path = Path::new(&path).into();
             common_dir_abs_path = Arc::clone(&repository_dir_abs_path);
 
-            if let Some(commondir_contents) = fs.load(&path.join("commondir")).await.ok()
+            if let Some(commondir_contents) = fs.load_regular_file(&path.join("commondir")).await.ok()
                 && let Some(commondir_path) =
                     fs.canonicalize(&resolve_commondir_path(&path, &commondir_contents)).await.log_err()
             {

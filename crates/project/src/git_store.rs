@@ -3211,7 +3211,7 @@ pub async fn resolve_git_worktree_to_main_repo(fs: &Fs, path: &Path) -> Option<P
         return None; // Normal repo, not a linked worktree
     }
     // It's a .git file — parse the gitdir: pointer
-    let content = fs.load(&dot_git).await.ok()?;
+    let content = fs.load_regular_file(&dot_git).await.ok()?;
     let gitdir_rel = content.strip_prefix("gitdir:")?.trim();
     let gitdir_abs = fs.canonicalize(&path.join(gitdir_rel)).await.ok()?;
     // Submodules also use a `.git` file, but they are independent projects whose
@@ -3221,7 +3221,7 @@ pub async fn resolve_git_worktree_to_main_repo(fs: &Fs, path: &Path) -> Option<P
         return None;
     }
     // Read commondir to find the main .git directory
-    let commondir_content = fs.load(&gitdir_abs.join("commondir")).await.ok()?;
+    let commondir_content = fs.load_regular_file(&gitdir_abs.join("commondir")).await.ok()?;
     let common_dir = fs.canonicalize(&gitdir_abs.join(commondir_content.trim())).await.ok()?;
     Some(repo_identity_path(&common_dir).to_path_buf())
 }
