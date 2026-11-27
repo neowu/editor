@@ -10,7 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 gpui.workspace = true
-gpui_macos.workspace = true
+gpui_macos = { workspace = true, features = ["runtime_shaders"] }
 theme.workspace = true
 ui.workspace = true
 

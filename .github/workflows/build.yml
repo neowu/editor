@@ -1,0 +1,59 @@
+name: Build
+
+# A version tag (x.y.z) publishes ed-macos-arm64.zip as a GitHub release;
+# manual and pull request runs only upload it as a workflow artifact.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['[0-9]+.[0-9]+.[0-9]+']
+  pull_request:
+    branches: [neo]
+    paths: [.github/workflows/build.yml, release.sh]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 120
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Show build environment
+        run: |
+          test "$(uname -m)" = arm64
+          sw_vers
+          xcodebuild -version
+          rustc -vV
+          cargo --version
+          df -h .
+
+      - name: Check tag matches Cargo.toml version
+        if: github.ref_type == 'tag'
+        run: grep -Fx "version = \"$GITHUB_REF_NAME\"" Cargo.toml
+
+      - name: Build ed.app
+        run: ./release.sh --locked --no-default-features
+
+      - name: Archive ed.app
+        run: |
+          test "$(lipo -archs target/release/ed.app/Contents/MacOS/ed)" = arm64
+          ditto -c -k --keepParent target/release/ed.app ed-macos-arm64.zip
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" ed-macos-arm64.zip --title "$GITHUB_REF_NAME" --generate-notes
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: github.ref_type != 'tag'
+        with:
+          name: ed-macos-arm64
+          path: ed-macos-arm64.zip
+          if-no-files-found: error

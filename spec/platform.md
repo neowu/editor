@@ -210,7 +210,9 @@ or UNC prefixes. There is no path-style abstraction; code uses
 ## Build requirements
 
 Use a Rust toolchain and the native SDK/C toolchain for the intended target.
-Metal shaders compile at runtime on macOS. Upstream workflow
+Metal shaders compile at runtime by default (`ed`'s `runtime_shaders` feature), so
+local builds need no Xcode Metal toolchain; CI builds with
+`--no-default-features` to precompile them into the binary. Upstream workflow
 generators that depended on removed release and deployment infrastructure are absent.
 macOS builds pass `-C force-unwind-tables=no` (`.cargo/config.toml`): rustc's
 default async unwind tables are not compact-unwind encodable, which bloats
@@ -223,10 +225,17 @@ from the installed app only resolve the panic location itself.
 
 ## Packaging
 
-- `release.fish` builds `target/release/ed.app` for the host Mac: the `ed`
+- `release.sh` builds the unsigned `target/release/ed.app`: the `ed`
   binary in `Contents/MacOS`, `crates/ed/resources/Info.plist` with the
   Cargo.toml version, an icon generated from `app-icon@2x.png`, and `Document.icns`.
-- `release.fish` signs the bundle with a self-signed keychain identity
+  Its arguments pass through to `cargo build`; the deployment target comes from
+  `LSMinimumSystemVersion`.
+- Bundling is machine independent, signing is not: `.github/workflows/build.yml`
+  runs `release.sh` on a pushed `x.y.z` tag (which must equal the Cargo.toml
+  version) and publishes `ed-macos-arm64.zip` as a GitHub release.
+- `install.sh` signs and installs to `/Applications`: the local bundle by
+  default, or the GitHub release of the version given as its argument.
+- `install.sh` signs with a self-signed keychain identity
   (`ed-local`, or `ED_SIGN_IDENTITY`) and stops with setup instructions when it is
   missing. A stable signature keeps macOS privacy grants across rebuilds; ad-hoc
   signatures change every build, so grants such as Local Network access (used

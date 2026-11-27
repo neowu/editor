@@ -5,8 +5,12 @@ A code editor forked from zed, only supports MacOS and local development
 # Install
 
 ```sh
+# build locally
 ./release.sh
 ./install.sh
+
+# or install a GitHub release (built by pushing an x.y.z tag)
+./install.sh x.y.z
 ```
 
 # Install lsp manually, or it will be run by npx/uvx

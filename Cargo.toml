@@ -4,7 +4,7 @@ members = ["crates/*", "test/*", "xtask"]
 default-members = ["crates/ed"]
 
 [workspace.package]
-version = "2.14.0"
+version = "2.15.0"
 edition = "2024"
 
 [workspace.dependencies]
@@ -31,7 +31,7 @@ git_ui = { path = "crates/git_ui" }
 git_ui_core = { path = "crates/git_ui_core" }
 go_to_line = { path = "crates/go_to_line" }
 gpui = { path = "crates/gpui", default-features = false }
-gpui_macos = { path = "crates/gpui_macos" }
+gpui_macos = { path = "crates/gpui_macos", default-features = false }
 gpui_macros = { path = "crates/gpui_macros" }
 gpui_shared_string = { path = "crates/gpui_shared_string" }
 gpui_util = { path = "crates/gpui_util" }

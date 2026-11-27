@@ -8,7 +8,3 @@
 
 # git history
 select multiple revision, merge the file change into one?
-
-# rust
-- crates/editor/src/rust_analyzer_ext.rs:104, expand_macro_recursively, think about how to make it easier to use, and add cmd+click for references
-- crates/project/src/lsp_store/lsp_ext_command.rs coupled with rust, should abstraction?
