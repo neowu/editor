@@ -1,0 +1,54 @@
+name: Build ed for Apple Silicon
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [neo]
+    paths: [.github/workflows/build-ed.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: xcode-27
+    timeout-minutes: 120
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Show build environment
+        run: |
+          test "$(uname -m)" = arm64
+          sw_vers
+          xcodebuild -version
+          test "$(xcrun --sdk macosx --show-sdk-version)" = 27.2
+          rustc -vV
+          cargo --version
+          df -h .
+          minimum=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' crates/ed/resources/Info.plist)
+          echo "MACOSX_DEPLOYMENT_TARGET=$minimum" >> "$GITHUB_ENV"
+
+      - name: Build ed
+        run: cargo build --locked --release --package ed --target aarch64-apple-darwin
+
+      - name: Verify and archive ed
+        working-directory: target/aarch64-apple-darwin/release
+        run: |
+          test -x ed
+          file ed | grep -F 'Mach-O 64-bit executable arm64'
+          test "$(lipo -archs ed)" = arm64
+          xcrun vtool -show-build ed > "$RUNNER_TEMP/ed-build-info"
+          cat "$RUNNER_TEMP/ed-build-info"
+          minos=$(awk '$1 == "minos" {print $2}' "$RUNNER_TEMP/ed-build-info")
+          test "$minos" = "$MACOSX_DEPLOYMENT_TARGET" || test "$minos" = "$MACOSX_DEPLOYMENT_TARGET.0"
+          tar -czf "$RUNNER_TEMP/ed-macos-arm64.tar.gz" ed
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ed-macos-arm64
+          path: ${{ runner.temp }}/ed-macos-arm64.tar.gz
+          if-no-files-found: error
