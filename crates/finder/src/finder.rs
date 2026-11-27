@@ -856,6 +856,17 @@ fn project_path_for_search_match(project: &Entity<Project>, path_match: &PathMat
     ProjectPath { worktree_id, path }
 }
 
+/// When the query carries a row (e.g. `foo.rs:42`), the user is asking to navigate inside a specific
+/// file, so the active match is never skipped.
+fn selected_index_skipping_active(
+    first_match: Option<&ProjectPath>,
+    opened: Option<&ProjectPath>,
+    match_count: usize,
+    query_has_position: bool,
+) -> usize {
+    usize::from(!query_has_position && match_count > 1 && first_match.is_some() && first_match == opened)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct FoundPath {
     project: ProjectPath,
@@ -1238,7 +1249,7 @@ impl FileFinderDelegate {
             self.selected_index = if self.selected_matches.is_empty() {
                 let query_has_position = query.path_position.row.is_some();
                 selected_match.map_or_else(
-                    || self.calculate_selected_index(query_has_position),
+                    || self.calculate_selected_index(query_has_position, cx),
                     |m| self.matches.position(&m, self.currently_opened_path.as_ref()).unwrap_or(0),
                 )
             } else {
@@ -1422,22 +1433,19 @@ impl FileFinderDelegate {
         })
     }
 
-    /// Skips first history match (that is displayed topmost) if it's currently opened.
-    ///
-    /// When the query carries a row (e.g. `foo.rs:42`), the user is asking to
-    /// navigate inside a specific file, so we never skip past the active match.
-    fn calculate_selected_index(&self, query_has_position: bool) -> usize {
-        if !query_has_position
-            && let Some(Match::History { path, .. }) = self.matches.get(0)
-            && Some(path) == self.currently_opened_path.as_ref()
-        {
-            let elements_after_first = self.matches.len() - 1;
-            if elements_after_first > 0 {
-                return 1;
-            }
-        }
-
-        0
+    /// Skips the first match (that is displayed topmost) if it's currently opened.
+    fn calculate_selected_index(&self, query_has_position: bool, cx: &App) -> usize {
+        let first_match = match self.matches.get(0) {
+            Some(Match::History { path, .. }) => Some(path.project.clone()),
+            Some(Match::Search(path_match)) => Some(project_path_for_search_match(&self.project, &path_match.0, cx)),
+            Some(Match::Absolute(_) | Match::CreateNew(_)) | None => None,
+        };
+        selected_index_skipping_active(
+            first_match.as_ref(),
+            self.currently_opened_path.as_ref().map(|path| &path.project),
+            self.matches.len(),
+            query_has_position,
+        )
     }
 
     fn key_context(&self, _window: &Window, _cx: &App) -> KeyContext {
@@ -1987,6 +1995,26 @@ mod tests {
             is_dir: false,
             distance_to_relative_ancestor: usize::MAX,
         }))
+    }
+
+    #[test]
+    fn selected_index_skips_the_active_file() {
+        use project::ProjectPath;
+        use project::WorktreeId;
+
+        use super::selected_index_skipping_active;
+
+        let path = |path: &str| ProjectPath {
+            worktree_id: WorktreeId::from_usize(0),
+            path: Arc::from(RelPath::from_unix_str(path).unwrap()),
+        };
+        let (active, other) = (path("dir/a.rs"), path("dir/b.rs"));
+        assert_eq!(selected_index_skipping_active(Some(&active), Some(&active), 2, false), 1);
+        assert_eq!(selected_index_skipping_active(Some(&active), Some(&active), 1, false), 0);
+        assert_eq!(selected_index_skipping_active(Some(&active), Some(&active), 2, true), 0);
+        assert_eq!(selected_index_skipping_active(Some(&other), Some(&active), 2, false), 0);
+        assert_eq!(selected_index_skipping_active(Some(&active), None, 2, false), 0);
+        assert_eq!(selected_index_skipping_active(None, None, 2, false), 0);
     }
 
     #[test]
