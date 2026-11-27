@@ -424,8 +424,7 @@ impl EditorElement {
     }
 
     fn collect_fast_minimap_markers(&self, layout: &EditorLayout, track: MinimapMarkerTrack) -> Vec<PaintQuad> {
-        const LIMIT: usize = 100;
-        if layout.cursors.len() > LIMIT {
+        if layout.cursors.is_empty() {
             return vec![];
         }
         let cursor_ranges = layout

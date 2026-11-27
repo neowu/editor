@@ -27,7 +27,6 @@ use gpui::outline;
 use gpui::point;
 use gpui::px;
 use gpui::size;
-use multi_buffer::Anchor;
 use multi_buffer::ToOffset as _;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
@@ -187,18 +186,24 @@ impl EditorElement {
         (selections, active_rows, newest_selection_head)
     }
 
-    pub(super) fn collect_cursors(&self, snapshot: &EditorSnapshot, cx: &App) -> Vec<(DisplayPoint, Hsla)> {
+    /// Cursor positions for the minimap markers, and whether any cursor is outside `visible_row_range`.
+    pub(super) fn collect_cursors(
+        &self,
+        snapshot: &EditorSnapshot,
+        visible_row_range: &Range<DisplayRow>,
+        cx: &App,
+    ) -> (Vec<(DisplayPoint, Hsla)>, bool) {
         let editor = self.editor.read(cx);
-        let mut cursors = Vec::new();
+        let selections = editor.selections.disjoint_anchors();
+        let pending = editor.selections.pending_anchor();
+        let positions = selections
+            .iter()
+            .chain(pending)
+            .map(|selection| selection.head().to_display_point(&snapshot.display_snapshot));
+        let (markers, any_non_visible) =
+            cursor_markers(positions, selections.len() + usize::from(pending.is_some()), visible_row_range);
         let color = theme::theme().cursor_colors().cursor;
-        let mut add_cursor = |anchor: Anchor| {
-            cursors.push((anchor.to_display_point(&snapshot.display_snapshot), color));
-        };
-        editor.selections.disjoint_anchors().iter().for_each(|selection| add_cursor(selection.head()));
-        if let Some(selection) = editor.selections.pending_anchor() {
-            add_cursor(selection.head());
-        }
-        cursors
+        (markers.into_iter().map(|position| (position, color)).collect(), any_non_visible)
     }
 
     pub(super) fn layout_visible_cursors(
@@ -581,4 +586,56 @@ impl CursorLayout {
 
 pub(super) const fn cursor_shape_supports_cursor_motion(shape: CursorShape) -> bool {
     matches!(shape, CursorShape::Bar | CursorShape::Block)
+}
+
+/// No markers are drawn past `MARKER_LIMIT` cursors, so positions are then resolved only until one is
+/// found out of sight.
+fn cursor_markers(
+    mut positions: impl Iterator<Item = DisplayPoint>,
+    cursor_count: usize,
+    visible_row_range: &Range<DisplayRow>,
+) -> (Vec<DisplayPoint>, bool) {
+    const MARKER_LIMIT: usize = 100;
+    if cursor_count > MARKER_LIMIT {
+        (Vec::new(), positions.any(|position| !visible_row_range.contains(&position.row())))
+    } else {
+        let markers = positions.collect::<Vec<_>>();
+        let any_non_visible = markers.iter().any(|position| !visible_row_range.contains(&position.row()));
+        (markers, any_non_visible)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use super::*;
+
+    #[test]
+    fn cursor_markers_stop_resolving_past_the_limit() {
+        let resolved = Cell::new(0);
+        let markers = |cursor_count: u32, visible_rows: Range<u32>| {
+            resolved.set(0);
+            let positions = (0..cursor_count).map(|row| {
+                resolved.set(resolved.get() + 1);
+                DisplayPoint::new(DisplayRow(row), 0)
+            });
+            cursor_markers(
+                positions,
+                cursor_count as usize,
+                &(DisplayRow(visible_rows.start)..DisplayRow(visible_rows.end)),
+            )
+        };
+
+        let (positions, any_non_visible) = markers(100, 0..10);
+        assert_eq!(positions.len(), 100);
+        assert!(any_non_visible);
+        assert!(!markers(100, 0..200).1);
+
+        let (positions, any_non_visible) = markers(101, 0..10);
+        assert!(positions.is_empty());
+        assert!(any_non_visible);
+        assert_eq!(resolved.get(), 11);
+        assert!(!markers(101, 0..200).1);
+    }
 }

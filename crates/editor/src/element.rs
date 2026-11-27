@@ -1994,9 +1994,8 @@ impl Element for EditorElement {
                         );
                     });
 
-                    let cursors = self.collect_cursors(&snapshot, cx);
                     let visible_row_range = start_row..end_row;
-                    let non_visible_cursors = cursors.iter().any(|c| !visible_row_range.contains(&c.0.row()));
+                    let (cursors, non_visible_cursors) = self.collect_cursors(&snapshot, &visible_row_range, cx);
 
                     let visible_cursors = self.layout_visible_cursors(
                         &snapshot,
