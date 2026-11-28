@@ -2706,7 +2706,7 @@ impl From<GridPlacement> for taffy::GridPlacement {
 /// The `Half` trait is used for types that can be evenly divided, returning a new instance of the same type
 /// representing half of the original value. This is commonly used for types that represent measurements or sizes,
 /// such as lengths or pixels, where halving is a frequent operation during layout calculations or animations.
-// lint: expect(excess_visibility) named by a more visible signature; rustc private_interfaces rejects narrowing
+// lint: expect(excess_visibility) bound of pub impl blocks; rustc private_bounds rejects narrowing
 pub trait Half {
     /// Returns half of the current value.
     ///

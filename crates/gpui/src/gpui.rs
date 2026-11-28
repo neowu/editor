@@ -45,19 +45,6 @@ mod util;
 mod view;
 mod window;
 
-/// Do not touch, here be dragons for use by gpui_macros and such.
-#[doc(hidden)]
-// lint: expect(excess_visibility) gpui macros expand to `$crate::private` paths in other crates
-pub mod private {
-    pub use inventory;
-}
-
-mod seal {
-    /// A mechanism for restricting implementations of a trait to only those in GPUI.
-    /// See: <https://predr.ag/blog/definitive-guide-to-sealed-traits-in-rust/>.
-    pub trait Sealed {}
-}
-
 use std::any::Any;
 
 pub use action::Action;
@@ -256,6 +243,9 @@ pub use interactive::PressureStage;
 pub use interactive::ScrollDelta;
 pub use interactive::ScrollWheelEvent;
 pub use interactive::TouchPhase;
+// used by the action derive macro expansion in other crates
+#[doc(hidden)]
+pub use inventory;
 use key_dispatch::DispatchNodeId;
 use key_dispatch::DispatchTree;
 use key_dispatch::Replay;

@@ -16,7 +16,6 @@ use crate::App;
 use crate::EntityId;
 use crate::SharedString;
 use crate::Task;
-use crate::seal::Sealed;
 
 pub(crate) struct CachedLoad<T> {
     state: Rc<RefCell<CachedLoadState<T>>>,
@@ -106,10 +105,7 @@ pub trait Asset: 'static {
 }
 
 /// An asset Loader which logs the [`Err`] variant of a [`Result`] during loading.
-pub enum AssetLogger<T> {
-    #[doc(hidden)]
-    _Phantom(PhantomData<T>, &'static dyn Sealed),
-}
+pub struct AssetLogger<T>(PhantomData<T>);
 
 impl<T, R, E> Asset for AssetLogger<T>
 where

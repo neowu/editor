@@ -113,7 +113,7 @@ pub(crate) fn derive_action(input: TokenStream) -> TokenStream {
 
 fn generate_register_action(type_name: &Ident, name: &str, build: &TokenStream2) -> TokenStream2 {
     quote! {
-        gpui::private::inventory::submit! {
+        gpui::inventory::submit! {
             gpui::MacroActionData {
                 name: #name,
                 type_id: ::std::any::TypeId::of::<#type_name>,

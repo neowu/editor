@@ -12,10 +12,9 @@ use crate::Modifiers;
 use crate::Pixels;
 use crate::Point;
 use crate::point;
-use crate::seal::Sealed;
 
 /// An event from a platform input source.
-pub trait InputEvent: Sealed + 'static {
+pub trait InputEvent: 'static {
     /// Convert this event into the platform input enum.
     fn to_platform_input(self) -> PlatformInput;
 }
@@ -40,7 +39,6 @@ pub struct KeyDownEvent {
     pub prefer_character_input: bool,
 }
 
-impl Sealed for KeyDownEvent {}
 impl InputEvent for KeyDownEvent {
     fn to_platform_input(self) -> PlatformInput {
         PlatformInput::KeyDown(self)
@@ -56,7 +54,6 @@ pub struct KeyUpEvent {
     pub keystroke: Keystroke,
 }
 
-impl Sealed for KeyUpEvent {}
 impl InputEvent for KeyUpEvent {
     fn to_platform_input(self) -> PlatformInput {
         PlatformInput::KeyUp(self)
@@ -74,7 +71,6 @@ pub struct ModifiersChangedEvent {
     pub capslock: Capslock,
 }
 
-impl Sealed for ModifiersChangedEvent {}
 impl InputEvent for ModifiersChangedEvent {
     fn to_platform_input(self) -> PlatformInput {
         PlatformInput::ModifiersChanged(self)
@@ -124,7 +120,6 @@ pub struct MouseDownEvent {
     pub first_mouse: bool,
 }
 
-impl Sealed for MouseDownEvent {}
 impl InputEvent for MouseDownEvent {
     fn to_platform_input(self) -> PlatformInput {
         PlatformInput::MouseDown(self)
@@ -149,7 +144,6 @@ pub struct MouseUpEvent {
     pub click_count: usize,
 }
 
-impl Sealed for MouseUpEvent {}
 impl InputEvent for MouseUpEvent {
     fn to_platform_input(self) -> PlatformInput {
         PlatformInput::MouseUp(self)
@@ -194,7 +188,6 @@ pub struct MousePressureEvent {
     pub modifiers: Modifiers,
 }
 
-impl Sealed for MousePressureEvent {}
 impl InputEvent for MousePressureEvent {
     fn to_platform_input(self) -> PlatformInput {
         PlatformInput::MousePressure(self)
@@ -387,7 +380,6 @@ pub struct MouseMoveEvent {
     pub modifiers: Modifiers,
 }
 
-impl Sealed for MouseMoveEvent {}
 impl InputEvent for MouseMoveEvent {
     fn to_platform_input(self) -> PlatformInput {
         PlatformInput::MouseMove(self)
@@ -419,7 +411,6 @@ pub struct ScrollWheelEvent {
     pub touch_phase: TouchPhase,
 }
 
-impl Sealed for ScrollWheelEvent {}
 impl InputEvent for ScrollWheelEvent {
     fn to_platform_input(self) -> PlatformInput {
         PlatformInput::ScrollWheel(self)
@@ -471,7 +462,6 @@ pub struct PinchEvent {
     pub phase: TouchPhase,
 }
 
-impl Sealed for PinchEvent {}
 impl InputEvent for PinchEvent {
     fn to_platform_input(self) -> PlatformInput {
         PlatformInput::Pinch(self)
@@ -543,7 +533,6 @@ pub struct MouseExitEvent {
     pub modifiers: Modifiers,
 }
 
-impl Sealed for MouseExitEvent {}
 impl InputEvent for MouseExitEvent {
     fn to_platform_input(self) -> PlatformInput {
         PlatformInput::MouseExited(self)

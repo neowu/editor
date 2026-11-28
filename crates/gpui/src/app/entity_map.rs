@@ -35,7 +35,6 @@ use crate::AppContext;
 use crate::GpuiBorrow;
 use crate::VisualContext;
 use crate::Window;
-use crate::seal::Sealed;
 use crate::util::atomic_incr_if_not_zero;
 
 slotmap::new_key_type! {
@@ -403,8 +402,6 @@ pub struct Entity<T> {
     any_entity: AnyEntity,
     entity_type: PhantomData<fn(T) -> T>,
 }
-
-impl<T> Sealed for Entity<T> {}
 
 impl<T: 'static> Entity<T> {
     #[inline]
