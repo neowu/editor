@@ -172,6 +172,7 @@ impl LinkedEdits {
     /// Queries the editor's linked editing ranges for the given anchor range and, if any
     /// are found, records them paired with `text` for later application.
     pub(crate) fn push(&mut self, editor: &Editor, anchor_range: Range<Anchor>, text: Arc<str>, cx: &gpui::App) {
+        // lint: expect(module_cycle)
         if let Some(editing_ranges) = editor.linked_editing_ranges_for(anchor_range, cx) {
             for (buffer, ranges) in editing_ranges {
                 self.0.entry(buffer).or_default().extend(ranges.into_iter().map(|range| (range, Arc::clone(&text))));

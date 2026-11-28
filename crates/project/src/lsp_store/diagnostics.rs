@@ -73,8 +73,8 @@ use super::should_log_lsp_response_error;
 use crate::LspPullDiagnostics;
 use crate::ProjectPath;
 use crate::PulledDiagnostics;
-use crate::lsp_command::GetDocumentDiagnostics;
-use crate::lsp_command::file_path_to_lsp_url;
+use crate::lsp_store::lsp_command::GetDocumentDiagnostics;
+use crate::lsp_store::lsp_command::file_path_to_lsp_url;
 
 #[derive(Debug)]
 pub(crate) struct DocumentDiagnosticsUpdate<'a, D> {

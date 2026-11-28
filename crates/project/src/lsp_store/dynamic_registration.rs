@@ -26,7 +26,9 @@ use serde::de::DeserializeOwned;
 use crate::lsp_store::LanguageServerState;
 use crate::lsp_store::LspStore;
 use crate::lsp_store::RenamePathsWatchedForServer;
+// lint: expect(module_cycle)
 use crate::lsp_store::completion_trigger_characters_for_buffer;
+// lint: expect(module_cycle)
 use crate::lsp_store::lsp_workspace_diagnostics_refresh;
 
 #[derive(Debug)]
@@ -265,6 +267,7 @@ impl LspStore {
         }
         for handle in buffers_with_language_server {
             handle.update(cx, |buffer, cx| {
+                // lint: expect(module_cycle)
                 let triggers = completion_trigger_characters_for_buffer(local, server_id, adapter, buffer);
                 buffer.set_completion_triggers(server_id, triggers, cx);
             });
@@ -603,6 +606,7 @@ impl LspStore {
                         if let LanguageServerState::Running { workspace_diagnostics_refresh_tasks, .. } = state {
                             workspace_diagnostics_refresh_tasks.remove(&Some(registration_id.clone()));
                             if supports_workspace_diagnostics(&caps)
+                                // lint: expect(module_cycle)
                                 && let Some(task) = lsp_workspace_diagnostics_refresh(
                                     Some(registration_id.clone()),
                                     caps,
@@ -614,6 +618,7 @@ impl LspStore {
                             }
                         }
 
+                        // lint: expect(module_cycle)
                         drop(self.pull_document_diagnostics_for_server(server_id, None, cx));
                     }
                 }
@@ -695,6 +700,7 @@ impl LspStore {
                     {
                         // Re-query already-open buffers, which would otherwise keep
                         // tree-sitter-only highlighting until edited.
+                        // lint: expect(module_cycle)
                         self.refresh_semantic_tokens(server_id, cx);
                     }
                 }
@@ -824,6 +830,7 @@ impl LspStore {
                         })
                         .is_some_and(CapabilityRegistrationChange::ordered_capability_may_have_changed)
                     {
+                        // lint: expect(module_cycle)
                         self.refresh_semantic_tokens(server_id, cx);
                     }
                 }
@@ -891,6 +898,7 @@ impl LspStore {
                             workspace_diagnostics_refresh_tasks.remove(&Some(unreg.id.clone()));
                         }
 
+                        // lint: expect(module_cycle)
                         self.clear_unregistered_diagnostics(server_id, SharedString::from(unreg.id.clone()), cx)?;
                     }
                 }

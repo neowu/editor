@@ -32,14 +32,17 @@ use crate::Action;
 use crate::ActionRegistry;
 use crate::App;
 use crate::DispatchActionTable;
+// lint: expect(module_cycle)
 use crate::DispatchPhase;
 use crate::EntityId;
+// lint: expect(module_cycle)
 use crate::FocusId;
 use crate::KeyBinding;
 use crate::KeyContext;
 use crate::Keymap;
 use crate::Keystroke;
 use crate::ModifiersChangedEvent;
+// lint: expect(module_cycle)
 use crate::Window;
 
 /// ID of a node within `DispatchTree`. Note that these are **not** stable between frames, and so a
@@ -52,6 +55,7 @@ pub(crate) struct DispatchTree {
     pub(crate) context_stack: Vec<KeyContext>,
     view_stack: Vec<EntityId>,
     nodes: Vec<DispatchNode>,
+    // lint: expect(module_cycle)
     focusable_node_ids: FxHashMap<FocusId, DispatchNodeId>,
     view_node_ids: FxHashMap<EntityId, DispatchNodeId>,
     keymap: Rc<RefCell<Keymap>>,
@@ -60,10 +64,13 @@ pub(crate) struct DispatchTree {
 
 #[derive(Default)]
 pub(crate) struct DispatchNode {
+    // lint: expect(module_cycle)
     pub(crate) key_listeners: Vec<KeyListener>,
     pub(crate) action_tables: Vec<DispatchActionTable>,
+    // lint: expect(module_cycle)
     pub(crate) modifiers_changed_listeners: Vec<ModifiersChangedListener>,
     pub(crate) context: Option<KeyContext>,
+    // lint: expect(module_cycle)
     focus_id: Option<FocusId>,
     view_id: Option<EntityId>,
     parent: Option<DispatchNodeId>,
@@ -99,7 +106,9 @@ pub(crate) struct DispatchResult {
     pub(crate) to_replay: SmallVec<[Replay; 1]>,
 }
 
+// lint: expect(module_cycle)
 type KeyListener = Rc<dyn Fn(&dyn Any, DispatchPhase, &mut Window, &mut App)>;
+// lint: expect(module_cycle)
 type ModifiersChangedListener = Rc<dyn Fn(&ModifiersChangedEvent, &mut Window, &mut App)>;
 
 impl DispatchTree {
@@ -178,6 +187,7 @@ impl DispatchTree {
         self.context_stack.push(context);
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn set_focus_id(&mut self, focus_id: FocusId) {
         let node_id = *self.node_stack.last().expect("node stack is non-empty");
         self.nodes[node_id.0].focus_id = Some(focus_id);
@@ -226,6 +236,7 @@ impl DispatchTree {
         &mut self,
         old_range: Range<usize>,
         source: &mut Self,
+        // lint: expect(module_cycle)
         focus: Option<FocusId>,
     ) -> ReusedSubtree {
         let new_range = self.nodes.len()..self.nodes.len() + old_range.len();
@@ -272,10 +283,12 @@ impl DispatchTree {
         self.nodes.truncate(index);
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn on_key_event(&mut self, listener: KeyListener) {
         self.active_node().key_listeners.push(listener);
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn on_modifiers_changed(&mut self, listener: ModifiersChangedListener) {
         self.active_node().modifiers_changed_listeners.push(listener);
     }
@@ -284,6 +297,7 @@ impl DispatchTree {
         self.active_node().action_tables.push(table);
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn focus_contains(&self, parent: FocusId, child: FocusId) -> bool {
         if parent == child {
             return true;
@@ -464,7 +478,9 @@ impl DispatchTree {
         dispatch_path
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn focus_path(&self, focus_id: FocusId) -> SmallVec<[FocusId; 8]> {
+        // lint: expect(module_cycle)
         let mut focus_path: SmallVec<[FocusId; 8]> = SmallVec::new();
         let mut current_node_id = self.focusable_node_ids.get(&focus_id).copied();
         while let Some(node_id) = current_node_id {
@@ -494,6 +510,7 @@ impl DispatchTree {
         &mut self.nodes[active_node_id.0]
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn focusable_node_id(&self, target: FocusId) -> Option<DispatchNodeId> {
         self.focusable_node_ids.get(&target).copied()
     }

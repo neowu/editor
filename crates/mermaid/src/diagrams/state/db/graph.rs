@@ -4,10 +4,10 @@
 use std::collections::BTreeMap;
 use std::mem;
 
-use super::db::StateDb;
-use super::types::Description;
-use super::types::StateStmt;
-use super::types::Stmt;
+use super::super::types::Description;
+use super::super::types::StateStmt;
+use super::super::types::Stmt;
+use super::StateDb;
 use crate::error::Code;
 use crate::error::Error;
 use crate::error::push_u32;

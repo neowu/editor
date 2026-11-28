@@ -2,28 +2,8 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use crate::NumberOrString;
-use crate::WorkspaceDiagnosticReportResult;
 
 pub type ProgressToken = NumberOrString;
-
-/// The progress notification is sent from the server to the client to ask
-/// the client to indicate progress.
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ProgressParams {
-    /// The progress token provided by the client.
-    pub token: ProgressToken,
-
-    /// The progress data.
-    pub value: ProgressParamsValue,
-}
-
-#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone)]
-#[serde(untagged)]
-pub enum ProgressParamsValue {
-    WorkDone(WorkDoneProgress),
-    WorkspaceDiagnostic(WorkspaceDiagnosticReportResult),
-}
 
 /// The `window/workDoneProgress/create` request is sent
 /// from the server to the client to ask the client to create a work done progress.

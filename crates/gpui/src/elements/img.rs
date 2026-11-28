@@ -1,5 +1,3 @@
-use std::fs;
-use std::io;
 use std::ops::Deref;
 use std::ops::DerefMut;
 use std::path::Path;
@@ -10,9 +8,6 @@ use std::time::Instant;
 
 use anyhow::Result;
 use gpui_util::ResultExt as _;
-use image::ImageError;
-use image::ImageFormat;
-use thiserror::Error;
 
 use super::Stateful;
 use super::StatefulInteractiveElement;
@@ -29,7 +24,9 @@ use crate::Entity;
 use crate::GlobalElementId;
 use crate::Hitbox;
 use crate::Image;
+use crate::ImageAssetLoader;
 use crate::ImageCache;
+use crate::ImageCacheError;
 use crate::InteractiveElement;
 use crate::Interactivity;
 use crate::IntoElement;
@@ -44,9 +41,6 @@ use crate::StyleRefinement;
 use crate::Styled;
 use crate::Task;
 use crate::Window;
-use crate::decode_gif_image;
-use crate::decode_static_image;
-use crate::decode_webp_image;
 use crate::px;
 
 /// The delay before showing the loading state.
@@ -529,90 +523,5 @@ impl Asset for ImageDecoder {
     fn load(source: Self::Source, cx: &mut App) -> impl Future<Output = Self::Output> + Send + 'static {
         let renderer = cx.svg_renderer();
         async move { source.to_image_data(renderer).map_err(Into::into) }
-    }
-}
-
-/// An image loader for the GPUI asset system.
-#[derive(Clone)]
-pub struct ImageAssetLoader(!);
-
-impl Asset for ImageAssetLoader {
-    type Source = Resource;
-    type Output = Result<Arc<RenderImage>, ImageCacheError>;
-
-    fn load(source: Self::Source, cx: &mut App) -> impl Future<Output = Self::Output> + Send + 'static {
-        // TODO: Can we make SVGs always rescale?
-        // let scale_factor = cx.scale_factor();
-        let svg_renderer = cx.svg_renderer();
-        let asset_source = Arc::clone(cx.asset_source());
-        async move {
-            let bytes = match source.clone() {
-                Resource::Path(uri) => fs::read(uri.as_ref())?,
-                Resource::Embedded(path) => {
-                    let data = asset_source.load(&path).ok().flatten();
-                    if let Some(data) = data {
-                        data.to_vec()
-                    } else {
-                        return Err(ImageCacheError::Asset(format!("Embedded resource not found: {path}").into()));
-                    }
-                }
-            };
-
-            if let Ok(format) = image::guess_format(&bytes) {
-                let data = match format {
-                    ImageFormat::Gif => decode_gif_image(&bytes)?,
-                    ImageFormat::WebP => decode_webp_image(&bytes)?,
-                    _ => decode_static_image(&bytes, format)?,
-                };
-
-                Ok(Arc::new(RenderImage::new(data)))
-            } else {
-                svg_renderer.render_single_frame(&bytes, 1.0).map_err(Into::into)
-            }
-        }
-    }
-}
-
-/// An error that can occur when interacting with the image cache.
-#[derive(Debug, Error, Clone)]
-pub enum ImageCacheError {
-    /// Some other kind of error occurred.
-    #[error("error: {0}")]
-    Other(#[from] Arc<anyhow::Error>),
-    /// An error that occurred while reading the image from disk.
-    #[error("IO error: {0}")]
-    Io(Arc<io::Error>),
-    /// An error that occurred while processing an asset.
-    #[error("asset error: {0}")]
-    Asset(SharedString),
-    /// An error that occurred while processing an image.
-    #[error("image error: {0}")]
-    Image(Arc<ImageError>),
-    /// An error that occurred while processing an SVG.
-    #[error("svg error: {0}")]
-    Usvg(Arc<usvg::Error>),
-}
-
-impl From<anyhow::Error> for ImageCacheError {
-    fn from(value: anyhow::Error) -> Self {
-        Self::Other(Arc::new(value))
-    }
-}
-
-impl From<io::Error> for ImageCacheError {
-    fn from(value: io::Error) -> Self {
-        Self::Io(Arc::new(value))
-    }
-}
-
-impl From<usvg::Error> for ImageCacheError {
-    fn from(value: usvg::Error) -> Self {
-        Self::Usvg(Arc::new(value))
-    }
-}
-
-impl From<ImageError> for ImageCacheError {
-    fn from(value: ImageError) -> Self {
-        Self::Image(Arc::new(value))
     }
 }

@@ -128,6 +128,7 @@ impl Workspace {
                         .right(CARD_GAP)
                         .bottom(if self.status_bar_visible(cx) { px(0.) } else { CARD_GAP })
                         .bg(background)
+                        // lint: expect(module_cycle)
                         .when(self.zoomed_position.is_some(), |this| this.child(self.render_zoomed_dock_header(cx)))
                         .child(div().flex().flex_1().min_h_0().map(|this| match self.zoomed_center_pane(cx) {
                             Some(pane) => this.child(self.center.render_zoomed(&pane, cx)),
@@ -157,12 +158,14 @@ impl Workspace {
         // The left dock is the sidebar: the window header sits above it.
         let has_header = position == DockPosition::Left
             && !self.has_zoomed(WorkspaceMode::Editor, cx)
+            // lint: expect(module_cycle)
             && !self.window_header_in_tab_bar(cx);
         let mut container = div()
             .id(dock_element_id)
             .flex()
             .overflow_hidden()
             .flex_none()
+            // lint: expect(module_cycle)
             .when(has_header, |this| this.flex_col().child(self.render_sidebar_header(cx)))
             // The right dock keeps the card gap from the window's top edge, like top-row tab bars,
             // so a panel's header row lines up with the tabs.

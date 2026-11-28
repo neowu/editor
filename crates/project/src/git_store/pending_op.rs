@@ -1,7 +1,7 @@
 use std::ops::Add;
 use std::sync::Arc;
 
-use git::repository::RepoPath;
+use git::RepoPath;
 use sum_tree::ContextLessSummary;
 use sum_tree::Item;
 use sum_tree::KeyedItem;

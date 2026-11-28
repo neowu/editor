@@ -15,7 +15,7 @@ use super::LanguageServerState;
 use super::LocalLspStore;
 use super::LspStore;
 use super::dynamic_registration;
-use crate::lsp_command::LspCommand;
+use crate::lsp_store::lsp_command::LspCommand;
 
 #[derive(Clone, Debug)]
 pub(super) struct DocumentSelectorContext {
@@ -194,25 +194,6 @@ impl LspStore {
     ) -> FxHashSet<LanguageServerId> {
         let buffer_id = buffer.read(cx).buffer_id();
         self.local.buffers_opened_in_servers.get(&buffer_id).into_iter().flatten().copied().collect()
-    }
-
-    pub(crate) fn text_document_capability_matches_for_server(
-        &self,
-        buffer: &Entity<Buffer>,
-        server_id: LanguageServerId,
-        method: &str,
-        mut check: impl FnMut(AdapterServerCapabilities<'_>) -> bool,
-        cx: &mut App,
-    ) -> bool {
-        let local = &self.local;
-        buffer.update(cx, |buffer, cx| {
-            let Some((adapter, server)) =
-                local.language_servers_for_buffer(buffer, cx).find(|(_, server)| server.server_id() == server_id)
-            else {
-                return false;
-            };
-            text_document_capabilities_for_buffer(local, method, buffer, adapter, server).any(&mut check)
-        })
     }
 
     pub(super) fn check_if_any_relevant_text_document_server_matches<F>(

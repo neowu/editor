@@ -79,8 +79,10 @@ fn try_show_references(
     }
 
     let server_id = action.server_id;
+    // lint: expect(module_cycle)
     let nav_entry = editor.navigation_entry(editor.selections.newest_anchor().head(), cx);
     let links = locations.into_iter().map(|location| HoverLink::LspLocation(location, server_id)).collect();
+    // lint: expect(module_cycle)
     editor.navigate_to_hover_links(None, links, nav_entry, false, window, cx).detach_and_log_err(cx);
 
     true
@@ -164,6 +166,7 @@ impl Editor {
     pub(crate) fn run_code_lens_action(&mut self, action: CodeAction, window: &mut Window, cx: &mut Context<Self>) {
         let snapshot = self.buffer().read(cx).snapshot(cx);
         if let Some(position) = snapshot.anchor_in_excerpt(action.range.start) {
+            // lint: expect(module_cycle)
             self.change_selections(SelectionEffects::default(), window, cx, |s| {
                 s.select_anchor_ranges([position..position]);
             });

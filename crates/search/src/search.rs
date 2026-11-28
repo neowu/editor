@@ -33,12 +33,11 @@ pub mod buffer_search;
 pub mod project_search;
 pub(crate) mod search_bar;
 pub mod search_status_button;
-pub mod text_finder;
 
 pub fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
     buffer_search::init(workspace_actions);
     project_search::init(workspace_actions, cx);
-    text_finder::init(workspace_actions);
+    project_search::text_finder::init(workspace_actions);
 }
 
 actions!(

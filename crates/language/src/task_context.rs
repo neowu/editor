@@ -8,6 +8,7 @@ use lsp::LanguageServerName;
 use rustc_hash::FxHashMap;
 use task::SpawnInTerminal;
 
+// lint: expect(module_cycle)
 use crate::RunnableResolver;
 
 /// Where a tree-sitter runnable is, for its language to build the tasks it offers.
@@ -52,6 +53,7 @@ pub trait ContextProvider: Send + Sync {
     /// A resolver for runnable queries that group captures with `@run_item`.
     /// For each group, the resolver picks which `@run` range and extra captures
     /// to surface. Without a resolver, grouped matches emit no runnables.
+    // lint: expect(module_cycle)
     fn runnable_resolver(&self) -> Option<Arc<dyn RunnableResolver>> {
         None
     }

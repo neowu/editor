@@ -14,11 +14,13 @@ use derive_more::Deref;
 use derive_more::DerefMut;
 
 use super::Window;
+// lint: expect(module_cycle)
 use crate::AnyView;
 use crate::App;
 use crate::AppContext;
 use crate::Context;
 use crate::Entity;
+// lint: expect(module_cycle)
 use crate::Render;
 
 slotmap::new_key_type! {
@@ -55,6 +57,7 @@ impl<V> Debug for WindowHandle<V> {
     }
 }
 
+// lint: expect(module_cycle)
 impl<V: 'static + Render> WindowHandle<V> {
     /// Creates a new handle from a window ID.
     /// This does not check if the root type of the window is `V`.
@@ -79,6 +82,7 @@ impl<V: 'static + Render> WindowHandle<V> {
         cx.update_window(self.any_handle, |root_view, window, cx| {
             #[expect(clippy::map_err_ignore, reason = "the error is the unmatched view itself")]
             let view =
+                // lint: expect(module_cycle)
                 root_view.downcast::<V>().map_err(|_| anyhow!("the type of the window's root view has changed"))?;
 
             Ok(view.update(cx, |view, cx| update(view, window, cx)))
@@ -94,6 +98,7 @@ impl<V: 'static + Render> WindowHandle<V> {
             .windows
             .get(self.id)
             .and_then(|window| {
+                // lint: expect(module_cycle)
                 window.as_deref().and_then(|window| window.root.clone()).map(|view| view.downcast::<V>())
             })
             .context("window not found")?
@@ -182,6 +187,7 @@ impl AnyWindowHandle {
     /// Updates the state of the root view of this window.
     ///
     /// This will fail if the window has been closed.
+    // lint: expect(module_cycle)
     pub fn update<C, R>(self, cx: &mut C, update: impl FnOnce(AnyView, &mut Window, &mut App) -> R) -> Result<R>
     where
         C: AppContext,

@@ -31,8 +31,8 @@ use super::LspStore;
 use crate::CodeAction;
 use crate::LspAction;
 use crate::ProjectTransaction;
-use crate::lsp_command::GetCodeActions;
-use crate::lsp_command::GetCodeLens;
+use crate::lsp_store::lsp_command::GetCodeActions;
+use crate::lsp_store::lsp_command::GetCodeLens;
 
 impl LocalLspStore {
     async fn execute_code_action_kind_locally(

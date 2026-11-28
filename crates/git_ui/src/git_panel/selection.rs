@@ -1,5 +1,5 @@
 use actions::menu;
-use git::repository::RepoPath;
+use git::RepoPath;
 use gpui::Entity;
 use gpui::ScrollStrategy;
 use itertools::Itertools as _;
@@ -26,8 +26,11 @@ use super::ToggleFocus;
 use super::TreeKey;
 use crate::git_panel_view_options::GitPanelGroupBy;
 use crate::git_panel_view_options::GitPanelViewOptions;
+// lint: expect(module_cycle)
 use crate::project_diff::ProjectDiff;
+// lint: expect(module_cycle)
 use crate::staged_diff::StagedDiff;
+// lint: expect(module_cycle)
 use crate::unstaged_diff::UnstagedDiff;
 
 /// The identity a row contributes to the multi-selection: files select by
@@ -695,22 +698,28 @@ impl GitPanel {
 
             match target {
                 DiffTarget::Staged => {
+                    // lint: expect(module_cycle)
                     if let Some(staged_diff) = workspace.read(cx).item_of_type::<StagedDiff>(cx) {
                         staged_diff.update(cx, |staged_diff, cx| {
+                            // lint: expect(module_cycle)
                             staged_diff.move_to_entry(entry, window, cx);
                         });
                     }
                 }
                 DiffTarget::Unstaged => {
+                    // lint: expect(module_cycle)
                     if let Some(unstaged_diff) = workspace.read(cx).item_of_type::<UnstagedDiff>(cx) {
                         unstaged_diff.update(cx, |unstaged_diff, cx| {
+                            // lint: expect(module_cycle)
                             unstaged_diff.move_to_entry(entry, window, cx);
                         });
                     }
                 }
                 DiffTarget::Uncommitted => {
+                    // lint: expect(module_cycle)
                     if let Some(project_diff) = workspace.read(cx).item_of_type::<ProjectDiff>(cx) {
                         project_diff.update(cx, |project_diff, cx| {
+                            // lint: expect(module_cycle)
                             project_diff.move_to_entry(entry, window, cx);
                         });
                     }
@@ -780,6 +789,7 @@ impl GitPanel {
     /// Returns the list of entries that are children of the directory where the
     /// context menu is deployed, if deployed.
     pub(super) fn directory_context_descendants(&self) -> Option<&[GitStatusEntry]> {
+        // lint: expect(module_cycle)
         let entry_index = self.context_menu.as_ref()?.target_entry_index?;
         self.directory_descendants(entry_index)
     }

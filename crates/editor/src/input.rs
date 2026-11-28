@@ -936,11 +936,13 @@ impl Editor {
                 });
             });
 
+            // lint: expect(module_cycle)
             this.select_to_beginning_of_line(
                 &SelectToBeginningOfLine { stop_at_soft_wraps: false, stop_at_indent: action.stop_at_indent },
                 window,
                 cx,
             );
+            // lint: expect(module_cycle)
             this.backspace(&Backspace, window, cx);
         });
     }
@@ -956,7 +958,9 @@ impl Editor {
                 });
             });
 
+            // lint: expect(module_cycle)
             this.select_to_end_of_line(&SelectToEndOfLine { stop_at_soft_wraps: false }, window, cx);
+            // lint: expect(module_cycle)
             this.delete(&Delete, window, cx);
         });
     }
@@ -972,6 +976,7 @@ impl Editor {
                 });
             });
 
+            // lint: expect(module_cycle)
             this.select_to_end_of_line(&SelectToEndOfLine { stop_at_soft_wraps: false }, window, cx);
             if !action.stop_at_newlines {
                 this.change_selections(SelectionEffects::default(), window, cx, |s| {
@@ -982,6 +987,7 @@ impl Editor {
                     });
                 });
             }
+            // lint: expect(module_cycle)
             let item = this.cut_common(false, window, cx);
             cx.write_to_clipboard(item);
         });
@@ -2342,6 +2348,7 @@ impl EntityInputHandler for Editor {
                     selections.select_ranges(new_selected_ranges);
                 });
                 if should_backspace {
+                    // lint: expect(module_cycle)
                     this.backspace(&Backspace, window, cx);
                 }
             }
@@ -2507,11 +2514,15 @@ impl EntityInputHandler for Editor {
         _cx: &mut Context<Self>,
     ) -> Option<usize> {
         let position_map = self.last_position_map.as_ref()?;
+        // lint: expect(module_cycle)
         if !position_map.text_hitbox.contains(&point) {
             return None;
         }
+        // lint: expect(module_cycle)
         let display_point = position_map.point_for_position(point).previous_valid;
+        // lint: expect(module_cycle)
         let anchor = position_map.snapshot.display_point_to_anchor(display_point, Bias::Left);
+        // lint: expect(module_cycle)
         let utf16_offset = anchor.to_offset_utf16(position_map.snapshot.buffer_snapshot());
         Some(utf16_offset.0.0)
     }

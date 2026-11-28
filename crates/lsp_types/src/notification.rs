@@ -1,3 +1,4 @@
+use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -13,12 +14,14 @@ use super::DidSaveTextDocumentParams;
 use super::InitializedParams;
 use super::LogMessageParams;
 use super::LogTraceParams;
-use super::ProgressParams;
+use super::ProgressToken;
 use super::PublishDiagnosticsParams;
 use super::RenameFilesParams;
 use super::SetTraceParams;
 use super::ShowMessageParams;
+use super::WorkDoneProgress;
 use super::WorkDoneProgressCancelParams;
+use super::WorkspaceDiagnosticReportResult;
 
 pub trait Notification {
     type Params: DeserializeOwned + Serialize + Send + Sync + 'static;
@@ -254,6 +257,25 @@ pub struct Progress(!);
 impl Notification for Progress {
     type Params = ProgressParams;
     const METHOD: &'static str = "$/progress";
+}
+
+/// The progress notification is sent from the server to the client to ask
+/// the client to indicate progress.
+#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressParams {
+    /// The progress token provided by the client.
+    pub token: ProgressToken,
+
+    /// The progress data.
+    pub value: ProgressParamsValue,
+}
+
+#[derive(Debug, PartialEq, Eq, Deserialize, Serialize, Clone)]
+#[serde(untagged)]
+pub enum ProgressParamsValue {
+    WorkDone(WorkDoneProgress),
+    WorkspaceDiagnostic(WorkspaceDiagnosticReportResult),
 }
 
 /// The `window/workDoneProgress/cancel` notification is sent from the client

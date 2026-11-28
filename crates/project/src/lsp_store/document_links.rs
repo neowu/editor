@@ -1,4 +1,3 @@
-use std::ops::Range;
 use std::str::FromStr as _;
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,7 +8,6 @@ use futures::future::Shared;
 use gpui::AppContext as _;
 use gpui::Context;
 use gpui::Entity;
-use gpui::SharedString;
 use gpui::Task;
 use language::Buffer;
 use language::point_to_lsp;
@@ -18,29 +16,20 @@ use lsp::LanguageServerId;
 use lsp_types::request::DocumentLinkResolve;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use text::Anchor;
 use text::BufferId;
 use text::ToPointUtf16 as _;
 use util::ResultExt as _;
 
-use crate::lsp_command::GetDocumentLinks;
 use crate::lsp_store::LspStore;
 use crate::lsp_store::LspStoreEvent;
 use crate::lsp_store::RunningFetch;
+use crate::lsp_store::lsp_command::GetDocumentLinks;
+use crate::lsp_store::lsp_command::LspDocumentLink;
 use crate::lsp_store::missing_servers_to_query;
 use crate::lsp_store::next_lsp_fetch_id;
 
 #[derive(Copy, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct DocumentLinkId(u64);
-
-#[derive(Clone, Debug)]
-pub struct LspDocumentLink {
-    pub range: Range<Anchor>,
-    pub target: Option<SharedString>,
-    pub tooltip: Option<SharedString>,
-    pub(crate) data: Option<serde_json::Value>,
-    pub(crate) resolved: bool,
-}
 
 pub type BufferDocumentLinks = FxHashMap<LanguageServerId, FxHashMap<DocumentLinkId, LspDocumentLink>>;
 

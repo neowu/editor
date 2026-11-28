@@ -14,7 +14,7 @@ use editor::GotoDefinitionKind;
 use editor::RenameTarget;
 use editor::SemanticsProvider;
 use futures::future::Shared;
-use git::repository::RepoPath;
+use git::RepoPath;
 use gpui::App;
 use gpui::AppContext as _;
 use gpui::AsyncApp;
@@ -50,6 +50,7 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use util::ResultExt as _;
 
+// lint: expect(module_cycle)
 use crate::commit_view::project_file_path;
 
 /// The project's semantics for a commit's file revisions, in its diff and
@@ -78,6 +79,7 @@ impl RevisionSemanticsProvider {
         let file = revision.read(cx).file()?;
         let project = self.project.upgrade()?;
         let repository = self.repository.upgrade()?;
+        // lint: expect(module_cycle)
         project_file_path(&project, &repository, &RepoPath::from_rel_path(file.path()), cx)
     }
 

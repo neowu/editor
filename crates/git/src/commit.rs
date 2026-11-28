@@ -8,7 +8,7 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 
 use crate::Oid;
-use crate::repository::GitBinary;
+use crate::binary::GitBinary;
 use crate::status::StatusCode;
 
 #[derive(Clone, Debug, Default)]

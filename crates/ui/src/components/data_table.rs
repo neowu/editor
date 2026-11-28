@@ -46,8 +46,6 @@ use crate::render_redistributable_columns_resize_handles;
 use crate::table_row::IntoTableRow as _;
 use crate::table_row::TableRow;
 
-pub mod table_row;
-
 /// Represents an unchecked table row, which is a vector of elements.
 /// Will be converted into `TableRow<T>` internally.
 pub(super) type UncheckedTableRow<T> = Vec<T>;

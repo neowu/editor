@@ -76,6 +76,7 @@ impl Workspace {
                         .pr(CARD_GAP)
                         .flex()
                         .flex_col()
+                        // lint: expect(module_cycle)
                         .child(self.render_sidebar_header(cx))
                         .child(
                             div()
@@ -268,6 +269,7 @@ impl Workspace {
             pane::Event::ZoomIn => self.zoom_git_history_pane(Some(pane), cx),
             pane::Event::ZoomOut => self.zoom_git_history_pane(None, cx),
             pane::Event::Focus => {
+                // lint: expect(module_cycle)
                 self.content_pane_focused(pane, window, cx);
                 self.set_active_git_history_pane(pane, window, cx);
                 self.switch_mode(WorkspaceMode::GitHistory, cx);

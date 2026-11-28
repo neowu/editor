@@ -11,6 +11,7 @@ use gpui::HighlightStyle;
 use gpui::SharedString;
 use theme::SyntaxTheme;
 
+// lint: expect(module_cycle)
 use crate::BufferSnapshot;
 use crate::Language;
 use crate::Point;
@@ -72,6 +73,7 @@ impl OutlineSearchEntry {
 
 impl<T: ToPoint> OutlineItem<T> {
     /// Converts to an equivalent outline item, but with parameterized over Points.
+    // lint: expect(module_cycle)
     pub fn to_point(&self, buffer: &BufferSnapshot) -> OutlineItem<Point> {
         OutlineItem {
             depth: self.depth,
@@ -87,13 +89,16 @@ impl<T: ToPoint> OutlineItem<T> {
         }
     }
 
+    // lint: expect(module_cycle)
     pub fn body_range(&self, buffer: &BufferSnapshot) -> Option<Range<Point>> {
         if let Some(range) = self.body_range.as_ref() {
             return Some(range.start.to_point(buffer)..range.end.to_point(buffer));
         }
 
         let range = self.range.start.to_point(buffer)..self.range.end.to_point(buffer);
+        // lint: expect(module_cycle)
         let start_indent = buffer.indent_size_for_line(range.start.row);
+        // lint: expect(module_cycle)
         let node = buffer.syntax_ancestor(range.clone())?;
 
         let mut cursor = node.walk();
@@ -124,9 +129,11 @@ impl<T: ToPoint> OutlineItem<T> {
         let mut start_row = body_node.start_position().row as u32;
         let mut end_row = body_node.end_position().row as u32;
 
+        // lint: expect(module_cycle)
         while start_row < end_row && buffer.indent_size_for_line(start_row) == start_indent {
             start_row += 1;
         }
+        // lint: expect(module_cycle)
         while start_row < end_row && buffer.indent_size_for_line(end_row - 1) == start_indent {
             end_row -= 1;
         }

@@ -362,8 +362,10 @@ impl Editor {
             return FxHashMap::default();
         }
         let buffers = if visible_only {
+            // lint: expect(module_cycle)
             self.visible_buffers(cx)
                 .into_iter()
+                // lint: expect(module_cycle)
                 .filter(|buffer| self.is_lsp_relevant(buffer.read(cx).file(), cx))
                 .collect()
         } else {
@@ -414,6 +416,7 @@ impl Editor {
                 };
 
                 window.focus(&editor.focus_handle(cx), cx);
+                // lint: expect(module_cycle)
                 editor.toggle_code_actions(
                     &ToggleCodeActions { deployed_from: Some(CodeActionSource::RunMenu(row)), quick_launch },
                     window,
@@ -481,6 +484,7 @@ impl Editor {
                     .buffer_snapshot()
                     .buffer_line_for_row(multibuffer_row)
                     .map(|(buffer_snapshot, _)| buffer_snapshot.buffer_id())
+                    // lint: expect(module_cycle)
                     .is_some_and(|buffer_id| self.is_buffer_folded(buffer_id, cx));
                 if buffer_folded {
                     return None;

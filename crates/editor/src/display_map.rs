@@ -69,6 +69,7 @@
 use std::fmt;
 use std::fmt::Formatter;
 
+// lint: expect(module_cycle)
 use crate::split;
 #[macro_use]
 mod dimensions;
@@ -91,6 +92,8 @@ use std::iter;
 use std::num::NonZeroU32;
 use std::ops;
 use std::ops::Add;
+use std::ops::Deref;
+use std::ops::DerefMut;
 use std::ops::Range;
 use std::ops::RangeInclusive;
 use std::ops::Sub;
@@ -119,14 +122,13 @@ pub(crate) use crease_map::Crease;
 pub(crate) use crease_map::CreaseId;
 pub(crate) use crease_map::CreaseMap;
 pub(crate) use crease_map::CreaseSnapshot;
-pub(crate) use fold_map::ChunkRenderer;
-pub(crate) use fold_map::ChunkRendererContext;
-pub(crate) use fold_map::ChunkRendererId;
 pub(crate) use fold_map::Fold;
+use fold_map::FoldId;
 pub(crate) use fold_map::FoldPlaceholder;
 pub(crate) use fold_map::FoldPoint;
 use fold_map::FoldPointCursor;
 use fold_map::FoldSnapshot;
+use gpui::AnyElement;
 use gpui::App;
 use gpui::Context;
 use gpui::Entity;
@@ -195,8 +197,11 @@ use crate::RowExt as _;
 pub(crate) use crate::display_map::fold_map::FoldMap;
 pub(crate) use crate::display_map::inlay_map::InlayMap;
 pub(crate) use crate::display_map::tab_map::TabMap;
+// lint: expect(module_cycle)
 use crate::hover_links::InlayHighlight;
+// lint: expect(module_cycle)
 use crate::inlays::Inlay;
+// lint: expect(module_cycle)
 use crate::movement::TextLayoutDetails;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -241,6 +246,7 @@ pub trait ToDisplayPoint {
 
 type TextHighlights = Arc<FxHashMap<HighlightKey, Arc<(HighlightStyle, Vec<Range<Anchor>>)>>>;
 type SemanticTokensHighlights = Arc<FxHashMap<BufferId, (Arc<[SemanticTokenHighlight]>, Arc<HighlightStyleInterner>)>>;
+// lint: expect(module_cycle)
 type InlayHighlights = TreeMap<HighlightKey, TreeMap<InlayId, (HighlightStyle, InlayHighlight)>>;
 
 /// Whether two text highlight sets paint the same, comparing each key's
@@ -333,8 +339,10 @@ impl Companion {
         bounds: Range<MultiBufferPoint>,
     ) -> Vec<CompanionExcerptPatch> {
         if self.is_rhs(display_map_id) {
+            // lint: expect(module_cycle)
             split::patches_for_rhs_range(companion_snapshot, our_snapshot, bounds)
         } else {
+            // lint: expect(module_cycle)
             split::patches_for_lhs_range(companion_snapshot, our_snapshot, bounds)
         }
     }
@@ -347,8 +355,10 @@ impl Companion {
         point: MultiBufferPoint,
     ) -> Range<MultiBufferPoint> {
         let patches = if self.is_rhs(display_map_id) {
+            // lint: expect(module_cycle)
             split::patches_for_lhs_range(our_snapshot, companion_snapshot, point..point)
         } else {
+            // lint: expect(module_cycle)
             split::patches_for_rhs_range(our_snapshot, companion_snapshot, point..point)
         };
 
@@ -366,8 +376,10 @@ impl Companion {
         point: MultiBufferPoint,
     ) -> Range<MultiBufferPoint> {
         let patches = if self.is_rhs(display_map_id) {
+            // lint: expect(module_cycle)
             split::patches_for_rhs_range(companion_snapshot, our_snapshot, point..point)
         } else {
+            // lint: expect(module_cycle)
             split::patches_for_lhs_range(companion_snapshot, our_snapshot, point..point)
         };
 
@@ -974,15 +986,18 @@ impl DisplayMap {
     pub(crate) fn highlight_inlays(
         &mut self,
         key: HighlightKey,
+        // lint: expect(module_cycle)
         highlights: Vec<InlayHighlight>,
         style: HighlightStyle,
     ) {
         for highlight in highlights {
             let update = self
                 .inlay_highlights
+                // lint: expect(module_cycle)
                 .update(&key, |highlights| highlights.insert(highlight.inlay, (style, highlight.clone())));
             if update.is_none() {
                 self.inlay_highlights
+                    // lint: expect(module_cycle)
                     .insert(key, TreeMap::from_ordered_entries([(highlight.inlay, (style, highlight))]));
             }
         }
@@ -1061,10 +1076,12 @@ impl DisplayMap {
         widths_changed
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn current_inlays(&self) -> slice::Iter<'_, Inlay> {
         self.inlay_map.current_inlays()
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn splice_inlays(&mut self, to_remove: &[InlayId], to_insert: Vec<Inlay>, cx: &mut Context<Self>) {
         if to_remove.is_empty() && to_insert.is_empty() {
             return;
@@ -1158,6 +1175,51 @@ pub(crate) struct HighlightStyles {
 pub(crate) enum ChunkReplacement {
     Renderer(ChunkRenderer),
     Str(SharedString),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum ChunkRendererId {
+    Fold(FoldId),
+    Inlay(InlayId),
+}
+
+/// A recipe for how the chunk should be presented.
+#[derive(Clone)]
+pub(crate) struct ChunkRenderer {
+    /// The id of the renderer associated with this chunk.
+    pub(crate) id: ChunkRendererId,
+    /// Creates a custom element to represent this chunk.
+    pub(crate) render: Arc<dyn Send + Sync + Fn(&mut ChunkRendererContext) -> AnyElement>,
+    /// If true, the element is constrained to the shaped width of the text.
+    pub(crate) constrain_width: bool,
+    /// The width of the element, as measured during the last layout pass.
+    ///
+    /// This is None if the element has not been laid out yet.
+    measured_width: Option<Pixels>,
+}
+
+pub(crate) struct ChunkRendererContext<'a> {
+    pub(crate) context: &'a mut App,
+}
+
+impl Debug for ChunkRenderer {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        f.debug_struct("ChunkRenderer").field("constrain_width", &self.constrain_width).finish()
+    }
+}
+
+impl Deref for ChunkRendererContext<'_> {
+    type Target = App;
+
+    fn deref(&self) -> &Self::Target {
+        self.context
+    }
+}
+
+impl DerefMut for ChunkRendererContext<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.context
+    }
 }
 
 pub(crate) struct HighlightedChunk<'a> {
@@ -1262,6 +1324,7 @@ impl DisplaySnapshot {
         self.companion_display_snapshot.as_deref()
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn inlay_hint_at(&self, point: DisplayPoint) -> Option<(&Inlay, usize)> {
         if point.row() > self.max_point().row()
             || self.is_block_line(point.row())
@@ -1679,6 +1742,7 @@ impl DisplaySnapshot {
     pub(crate) fn layout_row(
         &self,
         display_row: DisplayRow,
+        // lint: expect(module_cycle)
         TextLayoutDetails { text_system, editor_style, rem_size, scroll_anchor: _ }: &TextLayoutDetails,
     ) -> Arc<LineLayout> {
         let mut runs = Vec::new();
@@ -1718,12 +1782,14 @@ impl DisplaySnapshot {
     pub(crate) fn x_for_display_point(
         &self,
         display_point: DisplayPoint,
+        // lint: expect(module_cycle)
         text_layout_details: &TextLayoutDetails,
     ) -> Pixels {
         let line = self.layout_row(display_point.row(), text_layout_details);
         line.x_for_index(display_point.column() as usize)
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn display_column_for_x(&self, display_row: DisplayRow, x: Pixels, details: &TextLayoutDetails) -> u32 {
         let layout_line = self.layout_row(display_row, details);
         layout_line.closest_index_for_x(x) as u32
@@ -2022,7 +2088,7 @@ const fn diagnostic_style(severity: lsp_types::DiagnosticSeverity, colors: &Stat
     }
 }
 
-impl ops::Deref for DisplaySnapshot {
+impl Deref for DisplaySnapshot {
     type Target = BlockSnapshot;
 
     fn deref(&self) -> &Self::Target {

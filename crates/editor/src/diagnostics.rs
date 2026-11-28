@@ -210,8 +210,10 @@ impl Editor {
         let buffer_id = buffer_anchor.buffer_id;
         let snapshot = self.snapshot(window, cx);
         if snapshot.intersects_fold(diagnostic.range.start) {
+            // lint: expect(module_cycle)
             self.unfold_ranges(slice::from_ref(&diagnostic.range), true, false, cx);
         }
+        // lint: expect(module_cycle)
         self.change_selections(SelectionEffects::default(), window, cx, |s| {
             s.select_ranges(vec![diagnostic.range.start..diagnostic.range.start]);
         });

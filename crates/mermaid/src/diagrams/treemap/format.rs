@@ -4,8 +4,8 @@
 //! `src/diagrams/treemap/format.ts`, with JavaScript's `toFixed`, `toExponential`, and
 //! `toPrecision` written out over the exact decimal value of a double.
 
-use crate::svg::builder::js_round;
 use crate::util::chars::is_line_end;
+use crate::util::float::js_round;
 use crate::yaml::push_number;
 
 /// A parsed specifier: the groups of Pele's `RE_SPEC` that change the output.

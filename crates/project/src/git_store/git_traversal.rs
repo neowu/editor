@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::ops::Deref;
 use std::path::Path;
 
-use git::repository::RepoPath;
+use git::RepoPath;
 use git::status::GitSummary;
 use rustc_hash::FxHashMap;
 use sum_tree::Cursor;

@@ -78,9 +78,11 @@ use ui::prelude::rems;
 use ui::prelude::rems_from_px;
 use util::ResultExt as _;
 
+// lint: expect(module_cycle)
 use crate::CodeActionProvider;
 use crate::CodeActionSource;
 use crate::CompletionId;
+// lint: expect(module_cycle)
 use crate::CompletionProvider;
 use crate::DisplayRow;
 use crate::Editor;
@@ -90,6 +92,7 @@ use crate::actions::ConfirmCodeAction;
 use crate::actions::ConfirmCompletion;
 use crate::hover_popover::hover_markdown_style;
 use crate::hover_popover::open_markdown_url;
+// lint: expect(module_cycle)
 use crate::split_words;
 use crate::styled_runs_for_code_label;
 
@@ -139,6 +142,7 @@ pub(crate) enum CodeContextMenu {
 }
 
 impl CodeContextMenu {
+    // lint: expect(module_cycle)
     pub(crate) fn select_first(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
         if self.visible() {
             match self {
@@ -151,6 +155,7 @@ impl CodeContextMenu {
         }
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn select_prev(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
         if self.visible() {
             match self {
@@ -163,6 +168,7 @@ impl CodeContextMenu {
         }
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn select_next(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
         if self.visible() {
             match self {
@@ -175,6 +181,7 @@ impl CodeContextMenu {
         }
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn select_last(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) -> bool {
         if self.visible() {
             match self {
@@ -465,6 +472,7 @@ impl CompletionsMenu {
         }
     }
 
+    // lint: expect(module_cycle)
     fn select_first(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) {
         let entries = self.entries.borrow();
         if entries.is_empty() {
@@ -478,6 +486,7 @@ impl CompletionsMenu {
         }
     }
 
+    // lint: expect(module_cycle)
     fn select_last(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) {
         let entries = self.entries.borrow();
         if entries.is_empty() {
@@ -491,11 +500,13 @@ impl CompletionsMenu {
         }
     }
 
+    // lint: expect(module_cycle)
     fn select_prev(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) {
         let index = if self.scroll_handle.y_flipped() { self.next_match_index() } else { self.prev_match_index() };
         self.update_selection_index(index, provider, cx);
     }
 
+    // lint: expect(module_cycle)
     fn select_next(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) {
         let index = if self.scroll_handle.y_flipped() { self.prev_match_index() } else { self.next_match_index() };
         self.update_selection_index(index, provider, cx);
@@ -504,6 +515,7 @@ impl CompletionsMenu {
     fn update_selection_index(
         &mut self,
         match_index: usize,
+        // lint: expect(module_cycle)
         provider: Option<&dyn CompletionProvider>,
         cx: &mut Context<Editor>,
     ) {
@@ -573,6 +585,7 @@ impl CompletionsMenu {
         }
     }
 
+    // lint: expect(module_cycle)
     fn handle_selection_changed(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) {
         self.scroll_handle.scroll_to_item(self.selected_item, ScrollStrategy::Nearest);
         self.resolve_visible_completions(provider, cx);
@@ -580,6 +593,7 @@ impl CompletionsMenu {
         cx.notify();
     }
 
+    // lint: expect(module_cycle)
     fn resolve_visible_completions(&mut self, provider: Option<&dyn CompletionProvider>, cx: &mut Context<Editor>) {
         if !self.resolve_completions {
             return;
@@ -647,6 +661,7 @@ impl CompletionsMenu {
         }
 
         let resolve_task =
+            // lint: expect(module_cycle)
             provider.resolve_completions(self.buffer.clone(), candidate_ids, Rc::clone(&self.completions), cx);
 
         let completion_id = self.id;
@@ -656,6 +671,7 @@ impl CompletionsMenu {
                     .update(cx, |editor, cx| {
                         // `resolve_completions` modified state affecting display.
                         cx.notify();
+                        // lint: expect(module_cycle)
                         editor.with_completions_menu_matching_id(completion_id, |menu| {
                             if let Some(menu) = menu {
                                 menu.start_markdown_parse_for_nearby_entries(cx);
@@ -993,6 +1009,7 @@ impl CompletionsMenu {
                                     .toggle_state(item_ix == selected_item)
                                     .on_click(cx.listener(move |editor, _event, window, cx| {
                                         cx.stop_propagation();
+                                        // lint: expect(module_cycle)
                                         if let Some(task) = editor.confirm_completion(
                                             &ConfirmCompletion { item_ix: Some(item_ix) },
                                             window,
@@ -1115,6 +1132,7 @@ impl CompletionsMenu {
         query: Arc<str>,
         query_end: text::Anchor,
         buffer: &Entity<Buffer>,
+        // lint: expect(module_cycle)
         provider: Option<Rc<dyn CompletionProvider>>,
         window: &Window,
         cx: &Context<Editor>,
@@ -1127,6 +1145,7 @@ impl CompletionsMenu {
             let matches = matches.await;
             editor
                 .update_in(cx, |editor, _, cx| {
+                    // lint: expect(module_cycle)
                     editor.with_completions_menu_matching_id(id, |this| {
                         if let Some(this) = this {
                             this.set_filter_results(matches, provider, cx);
@@ -1249,6 +1268,7 @@ impl CompletionsMenu {
     pub(crate) fn set_filter_results(
         &mut self,
         match_results: CompletionMatchResults,
+        // lint: expect(module_cycle)
         provider: Option<Rc<dyn CompletionProvider>>,
         cx: &mut Context<Editor>,
     ) {
@@ -1321,6 +1341,7 @@ impl CompletionsMenu {
             let is_snippet = completion.is_snippet_kind();
             let query_start_doesnt_match_split_words = !is_snippet
                 && query_start_lower.is_some_and(|query_char| {
+                    // lint: expect(module_cycle)
                     !split_words(&string_match.string)
                         .any(|word| word.chars().next().and_then(|c| c.to_lowercase().next()) == Some(query_char))
                 });
@@ -1554,6 +1575,7 @@ fn exact_case_match_count(query: &str, string_match: &StringMatch) -> usize {
 #[derive(Clone)]
 pub(crate) struct AvailableCodeAction {
     pub(crate) action: CodeAction,
+    // lint: expect(module_cycle)
     pub(crate) provider: Rc<dyn CodeActionProvider>,
 }
 
@@ -1616,6 +1638,7 @@ impl CodeActionContents {
 #[derive(Clone)]
 pub(crate) enum CodeActionsItem {
     Task(SpawnInTerminal),
+    // lint: expect(module_cycle)
     CodeAction { action: CodeAction, provider: Rc<dyn CodeActionProvider> },
 }
 
@@ -1730,6 +1753,7 @@ impl CodeActionsMenu {
                             )
                             .on_click(cx.listener(move |editor, _, window, cx| {
                                 cx.stop_propagation();
+                                // lint: expect(module_cycle)
                                 if let Some(task) = editor.confirm_code_action(
                                     &ConfirmCodeAction { item_ix: Some(item_ix) },
                                     window,

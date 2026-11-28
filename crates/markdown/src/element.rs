@@ -21,7 +21,7 @@ use ui::prelude::IconName;
 use ui::prelude::IconSize;
 use ui::prelude::IntoElement;
 use ui::prelude::Label;
-use ui::prelude::ParentElement;
+use ui::prelude::ParentElement as _;
 use ui::prelude::Styled;
 use ui::prelude::StyledExt as _;
 use ui::prelude::ToggleState;
@@ -32,6 +32,7 @@ use ui::prelude::px;
 use ui::prelude::rems;
 
 use super::Alignment;
+use super::AnyDiv;
 use super::AnyElement;
 use super::App;
 use super::Arc;
@@ -39,6 +40,7 @@ use super::BlockQuoteKind;
 use super::Bounds;
 use super::Cell;
 use super::Checkbox;
+use super::CheckboxToggleCallback;
 use super::CodeBlock;
 use super::CodeBlockKind;
 use super::CodeBlockMetadata;
@@ -91,7 +93,6 @@ use super::Scrollbars;
 use super::SelectMode;
 use super::Selection;
 use super::SharedString;
-use super::Stateful;
 use super::StrikethroughStyle;
 use super::StyleRefinement;
 use super::TextAlign;
@@ -106,7 +107,6 @@ use super::size;
 
 type UrlHoverCallback = Rc<dyn Fn(Option<SharedString>, &mut Window, &mut App)>;
 type SourceClickCallback = Box<dyn Fn(usize, usize, &mut Window, &mut App) -> bool>;
-pub(crate) type CheckboxToggleCallback = Rc<dyn Fn(Range<usize>, bool, &mut Window, &mut App)>;
 type CodeBlockRenderFn = Rc<dyn Fn(&CodeBlock, &MarkdownStyle, &mut Window, &mut App) -> Option<AnyElement>>;
 
 enum AutoscrollBehavior {
@@ -1800,112 +1800,6 @@ impl IntoElement for MarkdownElement {
 
     fn into_element(self) -> Self::Element {
         self
-    }
-}
-
-pub(crate) enum AnyDiv {
-    Div(Div),
-    Stateful(Stateful<Div>),
-}
-
-impl AnyDiv {
-    pub(crate) fn into_any_element(self) -> AnyElement {
-        match self {
-            Self::Div(div) => div.into_any_element(),
-            Self::Stateful(div) => div.into_any_element(),
-        }
-    }
-}
-
-impl From<Div> for AnyDiv {
-    fn from(value: Div) -> Self {
-        Self::Div(value)
-    }
-}
-
-impl From<Stateful<Div>> for AnyDiv {
-    fn from(value: Stateful<Div>) -> Self {
-        Self::Stateful(value)
-    }
-}
-
-impl Styled for AnyDiv {
-    fn style(&mut self) -> &mut StyleRefinement {
-        match self {
-            Self::Div(div) => div.style(),
-            Self::Stateful(div) => div.style(),
-        }
-    }
-}
-
-impl ParentElement for AnyDiv {
-    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
-        match self {
-            Self::Div(div) => div.extend(elements),
-            Self::Stateful(div) => div.extend(elements),
-        }
-    }
-}
-
-#[derive(Default)]
-pub(crate) struct TableState {
-    alignments: Vec<Alignment>,
-    in_head: bool,
-    pub(crate) in_cell: bool,
-    row_index: usize,
-    col_index: usize,
-}
-
-impl TableState {
-    fn start(&mut self, alignments: Vec<Alignment>) {
-        self.alignments = alignments;
-        self.in_head = false;
-        self.in_cell = false;
-        self.row_index = 0;
-        self.col_index = 0;
-    }
-
-    fn end(&mut self) {
-        self.alignments.clear();
-        self.in_head = false;
-        self.in_cell = false;
-        self.row_index = 0;
-        self.col_index = 0;
-    }
-
-    const fn start_head(&mut self) {
-        self.in_head = true;
-    }
-
-    const fn end_head(&mut self) {
-        self.in_head = false;
-    }
-
-    const fn start_row(&mut self) {
-        self.col_index = 0;
-    }
-
-    const fn end_row(&mut self) {
-        self.row_index += 1;
-    }
-
-    const fn start_cell(&mut self) {
-        self.in_cell = true;
-    }
-
-    const fn end_cell(&mut self) {
-        self.in_cell = false;
-        self.col_index += 1;
-    }
-
-    pub(crate) fn current_cell_alignment(&self) -> Option<Alignment> {
-        if self.alignments.is_empty() {
-            return None;
-        }
-        if self.in_head {
-            return Some(Alignment::Center);
-        }
-        self.alignments.get(self.col_index).copied()
     }
 }
 

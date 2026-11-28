@@ -12,6 +12,7 @@ use text::BufferId;
 
 use super::Editor;
 use super::LspDataKind;
+// lint: expect(module_cycle)
 use crate::inlays::inlay_hints::InlayHintRefreshReason;
 
 impl Editor {
@@ -30,18 +31,26 @@ impl Editor {
         }
 
         if let Some(buffer_id) = for_buffer {
+            // lint: expect(module_cycle)
             self.pull_diagnostics(buffer_id, window, cx);
         }
+        // lint: expect(module_cycle)
         self.refresh_semantic_tokens(for_buffer, false, cx);
+        // lint: expect(module_cycle)
         self.refresh_document_colors(for_buffer, window, cx);
+        // lint: expect(module_cycle)
         self.refresh_document_links(for_buffer, cx);
+        // lint: expect(module_cycle)
         self.refresh_folding_ranges(for_buffer, window, cx);
+        // lint: expect(module_cycle)
         self.refresh_document_symbols(for_buffer, cx);
     }
 
     pub(super) fn lsp_data_buffers(&self, for_buffer: Option<BufferId>, cx: &mut Context<Self>) -> Vec<Entity<Buffer>> {
+        // lint: expect(module_cycle)
         self.visible_buffers(cx)
             .into_iter()
+            // lint: expect(module_cycle)
             .filter(|buffer| self.is_lsp_relevant(buffer.read(cx).file(), cx))
             .chain(for_buffer.and_then(|buffer_id| self.buffer.read(cx).buffer(buffer_id)))
             .filter(|buffer| {
@@ -55,6 +64,7 @@ impl Editor {
 
     fn is_buffer_visible(&self, buffer_id: BufferId, cx: &mut Context<Self>) -> bool {
         self.buffer.read(cx).is_singleton()
+            // lint: expect(module_cycle)
             || self.visible_buffers(cx).iter().any(|buffer| buffer.read(cx).buffer_id() == buffer_id)
     }
 
@@ -122,7 +132,9 @@ impl Editor {
                 self.refresh_document_symbols_tasks.remove(buffer_id);
             }
         }
+        // lint: expect(module_cycle)
         self.remove_invalid_inline_diagnostics(buffer_ids, buffers_removed, &snapshot, cx);
+        // lint: expect(module_cycle)
         self.remove_invalid_document_colors(buffer_ids, buffers_removed, &snapshot, cx);
     }
 
@@ -131,8 +143,10 @@ impl Editor {
             return;
         }
         let visible_buffers: Vec<_> = self
+            // lint: expect(module_cycle)
             .visible_buffers(cx)
             .into_iter()
+            // lint: expect(module_cycle)
             .filter(|buffer| self.is_lsp_relevant(buffer.read(cx).file(), cx))
             .collect();
         for visible_buffer in visible_buffers {
@@ -185,7 +199,9 @@ impl Editor {
 
     fn do_update_data_on_scroll(&mut self, window: &Window, cx: &mut Context<'_, Self>) {
         self.register_visible_buffers(cx);
+        // lint: expect(module_cycle)
         self.refresh_spell_check(cx);
+        // lint: expect(module_cycle)
         self.refresh_inlay_hints(InlayHintRefreshReason::NewLinesShown, cx);
 
         if !self.buffer().read(cx).is_singleton() || self.needs_initial_data_update {
@@ -193,6 +209,7 @@ impl Editor {
             self.update_lsp_data(None, window, cx);
         }
         // Syntax runnables are only known around the viewport.
+        // lint: expect(module_cycle)
         self.refresh_runnables(None, window, cx);
     }
 }

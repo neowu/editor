@@ -41,7 +41,7 @@ use workspace::WorkspaceActions;
 
 use crate::ProjectSearchView;
 use crate::project_search::QuerySeed;
-use crate::text_finder::delegate::PopulateProjectSearch;
+use crate::project_search::text_finder::delegate::PopulateProjectSearch;
 
 actions!(
     text_finder,

@@ -19,6 +19,7 @@ use super::LineWrapper;
 use crate::FontId;
 use crate::GlyphId;
 use crate::Pixels;
+// lint: expect(module_cycle)
 use crate::PlatformTextSystem;
 use crate::Point;
 use crate::SharedString;
@@ -415,6 +416,7 @@ impl WrappedLineLayout {
 
 pub(crate) struct LineLayoutCache {
     state: RefCell<LineLayoutCacheState>,
+    // lint: expect(module_cycle)
     platform_text_system: Arc<dyn PlatformTextSystem>,
     /// Advances when [`TextSystem::add_fonts`] successfully changes the font database.
     font_generation: Arc<AtomicUsize>,
@@ -466,6 +468,7 @@ pub(crate) struct LineLayoutIndex {
 }
 
 impl LineLayoutCache {
+    // lint: expect(module_cycle)
     pub(crate) fn new(platform_text_system: Arc<dyn PlatformTextSystem>, font_generation: Arc<AtomicUsize>) -> Self {
         let cached_font_generation = font_generation.load(Ordering::Acquire);
         Self {
@@ -642,6 +645,7 @@ impl LineLayoutCache {
         }
 
         let text = SharedString::from(text);
+        // lint: expect(module_cycle)
         let mut layout = self.platform_text_system.layout_line(&text, font_size, runs);
         self.shaped_lines.set(self.shaped_lines.get() + 1);
 

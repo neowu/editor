@@ -692,6 +692,7 @@ impl Editor {
             return;
         }
 
+        // lint: expect(module_cycle)
         if self.take_rename(true, window, cx).is_some() {
             return;
         }
@@ -712,6 +713,7 @@ impl Editor {
             && amount.columns(visible_column_count) > 0.
             && let Some(last_position_map) = &self.last_position_map
         {
+            // lint: expect(module_cycle)
             current_position.x += f64::from(self.gutter_dimensions.margin / last_position_map.em_advance);
         }
         let new_position =
@@ -745,6 +747,7 @@ impl Editor {
             DisplayRow((top.row().0 + visible_line_count as u32).saturating_sub(1 + vertical_scroll_margin))
         };
 
+        // lint: expect(module_cycle)
         self.change_selections(SelectionEffects::no_scroll().nav_history(false), window, cx, |s| {
             s.move_with(&mut |map, selection| {
                 let head = selection.head();

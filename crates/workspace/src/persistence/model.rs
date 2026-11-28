@@ -183,6 +183,7 @@ impl SerializedPaneGroup {
             }
             SerializedPaneGroup::Pane(serialized_pane) => {
                 let pane = workspace
+                    // lint: expect(module_cycle)
                     .update_in(cx, |workspace, window, cx| workspace.add_pane(window, cx).downgrade())
                     .log_err()?;
                 let active = serialized_pane.active;
@@ -201,6 +202,7 @@ impl SerializedPaneGroup {
                 } else {
                     let pane = pane.upgrade()?;
                     workspace
+                        // lint: expect(module_cycle)
                         .update_in(cx, |workspace, window, cx| workspace.force_remove_pane(&pane, None, window, cx))
                         .log_err()?;
                     None

@@ -20,10 +20,10 @@ use time::UtcOffset;
 use time::macros::format_description;
 
 use crate::Oid;
+use crate::RepoPath;
+use crate::binary::GitBinary;
 use crate::commit::get_messages;
 use crate::commit::get_tag_names;
-use crate::repository::GitBinary;
-use crate::repository::RepoPath;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Blame {

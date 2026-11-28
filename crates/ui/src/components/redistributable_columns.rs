@@ -12,8 +12,8 @@ use gpui::Length;
 use gpui::Stateful;
 use gpui::WeakEntity;
 
-use super::data_table::table_row::IntoTableRow as _;
-use super::data_table::table_row::TableRow;
+use super::table_row::IntoTableRow as _;
+use super::table_row::TableRow;
 use crate::AnyElement;
 use crate::App;
 use crate::Context;

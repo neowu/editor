@@ -1,3 +1,5 @@
+pub mod text_finder;
+
 use std::any::Any;
 use std::any::TypeId;
 use std::iter::Peekable;
@@ -72,6 +74,7 @@ use project::search::SearchResult;
 use project::search_history::SearchHistoryCursor;
 use rustc_hash::FxHashMap;
 use text::OffsetRangeExt as _;
+use text_finder::TextFinder;
 use ui::CommonAnimationExt as _;
 use ui::IconButtonShape;
 use ui::KeyBinding;
@@ -145,7 +148,6 @@ use crate::search_bar::input_base_styles;
 use crate::search_bar::render_local_action_button;
 use crate::search_bar::render_text_input;
 use crate::search_bar::should_navigate_history;
-use crate::text_finder::TextFinder;
 
 actions!(
     project_search,
@@ -190,7 +192,7 @@ fn split_glob_patterns(text: &str) -> Vec<&str> {
 }
 
 #[derive(Default)]
-pub(crate) struct ActiveSettings(pub(crate) FxHashMap<WeakEntity<Project>, ProjectSearchSettings>);
+struct ActiveSettings(FxHashMap<WeakEntity<Project>, ProjectSearchSettings>);
 
 impl Global for ActiveSettings {}
 
@@ -284,15 +286,15 @@ pub(crate) fn init(workspace_actions: &mut WorkspaceActions, cx: &mut App) {
 
 const SEARCH_ON_TYPE_DEBOUNCE: Duration = Duration::from_millis(250);
 
-pub(crate) struct ProjectSearch {
-    pub(crate) project: Entity<Project>,
+struct ProjectSearch {
+    project: Entity<Project>,
     workspace: WeakEntity<Workspace>,
-    pub(crate) excerpts: Entity<MultiBuffer>,
-    pub(crate) pending_search: Option<Task<Option<SearchResults<SearchResult>>>>,
-    pub(crate) match_ranges: Vec<Range<Anchor>>,
-    pub(crate) active_query: Option<SearchQuery>,
+    excerpts: Entity<MultiBuffer>,
+    pending_search: Option<Task<Option<SearchResults<SearchResult>>>>,
+    match_ranges: Vec<Range<Anchor>>,
+    active_query: Option<SearchQuery>,
     last_search_query_text: Option<String>,
-    pub(crate) search_id: usize,
+    search_id: usize,
     search_state: SearchState,
     phase: SearchPhase,
     reuses_excerpts: bool,
@@ -300,7 +302,7 @@ pub(crate) struct ProjectSearch {
     search_history_cursor: SearchHistoryCursor,
     search_included_history_cursor: SearchHistoryCursor,
     search_excluded_history_cursor: SearchHistoryCursor,
-    pub(crate) project_search_turning_into_text_finder: Arc<AtomicBool>,
+    project_search_turning_into_text_finder: Arc<AtomicBool>,
     _excerpts_subscription: Subscription,
     _workspace_subscription: Option<Subscription>,
 }
@@ -385,13 +387,13 @@ enum InputPanel {
 }
 
 pub struct ProjectSearchView {
-    pub(crate) workspace: WeakEntity<Workspace>,
+    workspace: WeakEntity<Workspace>,
     focus_handle: FocusHandle,
-    pub(crate) entity: Entity<ProjectSearch>,
+    entity: Entity<ProjectSearch>,
     query_editor: Entity<Editor>,
     replacement_editor: Entity<Editor>,
     results_editor: Entity<Editor>,
-    pub(crate) search_options: SearchOptions,
+    search_options: SearchOptions,
     panels_with_errors: FxHashMap<InputPanel, String>,
     active_match_index: Option<usize>,
     search_id: usize,
@@ -408,7 +410,7 @@ pub struct ProjectSearchView {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ProjectSearchSettings {
+struct ProjectSearchSettings {
     search_options: SearchOptions,
     filters_enabled: bool,
 }
@@ -419,7 +421,7 @@ pub struct ProjectSearchBar {
 }
 
 impl ProjectSearch {
-    pub(crate) fn new(project: Entity<Project>, workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
+    fn new(project: Entity<Project>, workspace: WeakEntity<Workspace>, cx: &mut Context<Self>) -> Self {
         let excerpts = cx.new(|_| MultiBuffer::new(language::Capability::ReadWrite));
         let excerpts_subscription = Self::subscribe_to_excerpts(&excerpts, cx);
         let workspace_subscription = Self::subscribe_to_workspace(&workspace, cx);
@@ -578,11 +580,7 @@ impl ProjectSearch {
 
     // At the point this is called the multibuffer has already been filled with
     // plundered results from the text finder
-    pub(crate) fn hook_up_ongoing_search(
-        &mut self,
-        search_results: SearchResults<SearchResult>,
-        cx: &mut Context<Self>,
-    ) {
+    fn hook_up_ongoing_search(&mut self, search_results: SearchResults<SearchResult>, cx: &mut Context<Self>) {
         let project_search_turning_into_text_finder = Arc::clone(&self.project_search_turning_into_text_finder);
 
         self.reuses_excerpts = false;
@@ -1297,7 +1295,7 @@ impl ProjectSearchView {
         cx.notify();
     }
 
-    pub(crate) fn new(
+    fn new(
         workspace: WeakEntity<Workspace>,
         entity: Entity<ProjectSearch>,
         window: &mut Window,
@@ -1874,7 +1872,7 @@ impl ProjectSearchView {
     /// not record parse errors in `panels_with_errors`); invalid globs fall back
     /// to a default (match-all) matcher. Shared with the text finder, which is
     /// backed by the same view.
-    pub(crate) fn file_path_filters(&self, cx: &App) -> (PathMatcher, PathMatcher) {
+    fn file_path_filters(&self, cx: &App) -> (PathMatcher, PathMatcher) {
         if !self.filters_enabled {
             return (PathMatcher::default(), PathMatcher::default());
         }
@@ -1926,7 +1924,7 @@ impl ProjectSearchView {
     }
 
     /// Apply some state (from the textfinder) to the project search UI.
-    pub(crate) fn adopt_text_finder_state(
+    fn adopt_text_finder_state(
         &mut self,
         search_options: SearchOptions,
         active_query: Option<SearchQuery>,
@@ -2158,7 +2156,7 @@ impl ProjectSearchView {
     }
 }
 
-pub(crate) enum QuerySeed {
+enum QuerySeed {
     /// Content of a search bar: already query syntax, with escaping already
     /// applied if it was seeded in regex mode, so it must never be re-escaped.
     /// It's carried over verbatim even if the source search's mode differs.
@@ -2169,7 +2167,7 @@ pub(crate) enum QuerySeed {
 }
 
 impl QuerySeed {
-    pub(crate) fn into_query(self, options: SearchOptions) -> String {
+    fn into_query(self, options: SearchOptions) -> String {
         match self {
             QuerySeed::Query(query) => query,
             QuerySeed::Text(text) if options.contains(SearchOptions::REGEX) => regex::escape(&text),
@@ -2178,11 +2176,7 @@ impl QuerySeed {
     }
 }
 
-pub(crate) fn buffer_search_query(
-    workspace: &Workspace,
-    item: &dyn ItemHandle,
-    cx: &Context<Workspace>,
-) -> Option<String> {
+fn buffer_search_query(workspace: &Workspace, item: &dyn ItemHandle, cx: &Context<Workspace>) -> Option<String> {
     let buffer_search_bar = workspace
         .pane_for(item)
         .and_then(|pane| pane.read(cx).toolbar().read(cx).item_of_type::<BufferSearchBar>())?

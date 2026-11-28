@@ -51,7 +51,7 @@ use super::LocalLspStore;
 use super::LspStore;
 use crate::ProjectPath;
 use crate::ProjectTransaction;
-use crate::lsp_command::file_path_to_lsp_url;
+use crate::lsp_store::lsp_command::file_path_to_lsp_url;
 
 #[derive(Default)]
 pub(super) struct RenamePathsWatchedForServer {
@@ -367,6 +367,7 @@ impl LocalLspStore {
         }
 
         let registrations = self.language_server_dynamic_registrations.entry(language_server_id).or_default();
+        // lint: expect(module_cycle)
         registrations.did_change_watched_files.insert(registration_id.to_owned());
 
         cx.notify();
@@ -382,6 +383,7 @@ impl LocalLspStore {
             return;
         };
 
+        // lint: expect(module_cycle)
         if registrations.did_change_watched_files.remove(registration_id) {
             log::info!(
                 "language server {language_server_id}: unregistered workspace/DidChangeWatchedFiles capability with id {registration_id}"

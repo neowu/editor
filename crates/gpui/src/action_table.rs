@@ -7,8 +7,10 @@ use crate::AnyEntity;
 use crate::App;
 use crate::Context;
 use crate::Entity;
+// lint: expect(module_cycle)
 use crate::Window;
 
+// lint: expect(module_cycle)
 type Handler<V> = Box<dyn Fn(&mut V, &dyn Any, &mut Window, &mut Context<V>) + Send + Sync>;
 type Condition<V> = fn(&V, &App) -> bool;
 
@@ -55,6 +57,7 @@ impl<V: 'static> ActionTable<V> {
     /// Handle `A` on every view the table is attached to.
     pub fn add<A: Action>(
         &mut self,
+        // lint: expect(module_cycle)
         handler: impl Fn(&mut V, &A, &mut Window, &mut Context<V>) + Send + Sync + 'static,
     ) {
         self.insert(None, handler);
@@ -65,6 +68,7 @@ impl<V: 'static> ActionTable<V> {
     pub fn add_if<A: Action>(
         &mut self,
         condition: Condition<V>,
+        // lint: expect(module_cycle)
         handler: impl Fn(&mut V, &A, &mut Window, &mut Context<V>) + Send + Sync + 'static,
     ) {
         let ix = self.conditions.iter().position(|existing| std::ptr::fn_addr_eq(*existing, condition)).unwrap_or_else(
@@ -80,6 +84,7 @@ impl<V: 'static> ActionTable<V> {
     fn insert<A: Action>(
         &mut self,
         condition: Option<u8>,
+        // lint: expect(module_cycle)
         handler: impl Fn(&mut V, &A, &mut Window, &mut Context<V>) + Send + Sync + 'static,
     ) {
         let action_type = TypeId::of::<A>();
@@ -112,6 +117,7 @@ trait AnyActionTable {
     fn condition(&self, ix: usize) -> Option<u8>;
     /// One bit per condition that holds for the view. Reads the view if there are conditions.
     fn conditions(&self, entity: &AnyEntity, cx: &App) -> u64;
+    // lint: expect(module_cycle)
     fn dispatch(&self, ix: usize, entity: &AnyEntity, action: &dyn Any, window: &mut Window, cx: &mut App);
 }
 
@@ -136,6 +142,7 @@ impl<V: 'static> AnyActionTable for ActionTable<V> {
             .fold(0, |mask, (ix, condition)| mask | (u64::from(condition(view, cx)) << ix))
     }
 
+    // lint: expect(module_cycle)
     fn dispatch(&self, ix: usize, entity: &AnyEntity, action: &dyn Any, window: &mut Window, cx: &mut App) {
         let handler = &self.entries[ix].handler;
         view::<V>(entity).update(cx, |view, cx| handler(view, action, window, cx));
@@ -182,6 +189,7 @@ impl DispatchActionTable {
         self.table.condition(ix).is_none_or(|condition| self.conditions & (1 << condition) != 0)
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn dispatch(&self, ix: usize, action: &dyn Any, window: &mut Window, cx: &mut App) {
         self.table.dispatch(ix, &self.entity, action, window, cx);
     }

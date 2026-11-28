@@ -46,13 +46,18 @@ use smallvec::SmallVec;
 use strum::EnumIter;
 
 use crate::Action;
+// lint: expect(module_cycle)
 use crate::AnyWindowHandle;
+// lint: expect(module_cycle)
 use crate::App;
+// lint: expect(module_cycle)
 use crate::AsyncWindowContext;
 use crate::BackgroundExecutor;
 use crate::Bounds;
+// lint: expect(module_cycle)
 use crate::DEFAULT_WINDOW_SIZE;
 use crate::DevicePixels;
+// lint: expect(module_cycle)
 use crate::DispatchEventResult;
 use crate::Font;
 use crate::FontId;
@@ -61,10 +66,13 @@ use crate::FontRun;
 use crate::ForegroundExecutor;
 use crate::GlyphId;
 use crate::Hsla;
+// lint: expect(module_cycle)
 use crate::ImageSource;
+// lint: expect(module_cycle)
 use crate::Keymap;
 use crate::LineLayout;
 use crate::Pixels;
+// lint: expect(module_cycle)
 use crate::PlatformInput;
 use crate::Point;
 use crate::Priority;
@@ -73,13 +81,16 @@ use crate::RenderImage;
 use crate::RenderImageParams;
 use crate::RenderSvgParams;
 use crate::RunnableMeta;
+// lint: expect(module_cycle)
 use crate::Scene;
 use crate::ShapedGlyph;
 use crate::ShapedRun;
 use crate::SharedString;
 use crate::Size;
 use crate::SvgRenderer;
+// lint: expect(module_cycle)
 use crate::Window;
+// lint: expect(module_cycle)
 use crate::WindowControlArea;
 use crate::hash;
 use crate::point;
@@ -153,11 +164,14 @@ pub trait Platform: 'static {
     /// [`Self::displays`] to find out what changed, so calls may be spurious.
     /// The callback runs on the main thread outside of any window update.
     fn on_displays_changed(&self, callback: Box<dyn FnMut()>);
+    // lint: expect(module_cycle)
     fn active_window(&self) -> Option<AnyWindowHandle>;
+    // lint: expect(module_cycle)
     fn window_stack(&self) -> Option<Vec<AnyWindowHandle>> {
         None
     }
 
+    // lint: expect(module_cycle)
     fn open_window(&self, handle: AnyWindowHandle, options: WindowParams) -> Result<Box<dyn PlatformWindow>>;
 
     /// Returns the appearance of the application's windows.
@@ -192,7 +206,9 @@ pub trait Platform: 'static {
     /// Registers the callback invoked when the system resumes from sleep.
     fn on_system_wake(&self, callback: Box<dyn FnMut()>);
 
+    // lint: expect(module_cycle)
     fn set_menus(&self, menus: Vec<Menu>, keymap: &Keymap);
+    // lint: expect(module_cycle)
     fn set_dock_menu(&self, menu: Vec<MenuItem>, keymap: &Keymap);
     fn on_app_menu_action(&self, callback: Box<dyn FnMut(&dyn Action)>);
     fn on_validate_app_menu_command(&self, callback: Box<dyn FnMut(&dyn Action) -> bool>);
@@ -248,6 +264,7 @@ pub trait PlatformDisplay: Debug {
     fn default_bounds(&self) -> Bounds<Pixels> {
         let bounds = self.bounds();
         let center = bounds.center();
+        // lint: expect(module_cycle)
         let clipped_window_size = DEFAULT_WINDOW_SIZE.min(&bounds.size);
 
         let offset = clipped_window_size / 2.0;
@@ -332,6 +349,7 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
         None
     }
     fn on_request_frame(&self, callback: Box<dyn FnMut(RequestFrameOptions)>);
+    // lint: expect(module_cycle)
     fn on_input(&self, callback: Box<dyn FnMut(PlatformInput) -> DispatchEventResult>);
     fn on_active_status_change(&self, callback: Box<dyn FnMut(bool)>);
     /// Registers the callback invoked when [`Self::visibility`] changes. Only
@@ -345,10 +363,13 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
     /// outside of any window update.
     fn on_display_changed(&self, callback: Box<dyn FnMut()>);
     fn on_should_close(&self, callback: Box<dyn FnMut() -> bool>);
+    // lint: expect(module_cycle)
     fn on_hit_test_window_control(&self, callback: Box<dyn FnMut() -> Option<WindowControlArea>>);
     fn on_close(&self, callback: Box<dyn FnOnce()>);
     fn on_appearance_changed(&self, callback: Box<dyn FnMut()>);
+    // lint: expect(module_cycle)
     fn draw(&self, scene: &Scene);
+    // lint: expect(module_cycle)
     fn render_to_image(&self, _scene: &Scene) -> Result<image::RgbaImage> {
         anyhow::bail!("rendering a window to an image is not supported on this platform")
     }
@@ -713,29 +734,35 @@ impl From<TileId> for etagere::AllocId {
 }
 
 pub struct PlatformInputHandler {
+    // lint: expect(module_cycle)
     cx: AsyncWindowContext,
     handler: Box<dyn InputHandler>,
 }
 
 impl PlatformInputHandler {
+    // lint: expect(module_cycle)
     pub(crate) fn new(cx: AsyncWindowContext, handler: Box<dyn InputHandler>) -> Self {
         Self { cx, handler }
     }
 
     pub fn selected_text_range(&mut self, ignore_disabled_input: bool) -> Option<UTF16Selection> {
+        // lint: expect(module_cycle)
         self.cx.update(|window, cx| self.handler.selected_text_range(ignore_disabled_input, window, cx)).ok().flatten()
     }
 
     pub fn marked_text_range(&mut self) -> Option<Range<usize>> {
+        // lint: expect(module_cycle)
         self.cx.update(|window, cx| self.handler.marked_text_range(window, cx)).ok().flatten()
     }
 
     pub fn text_for_range(&mut self, range_utf16: Range<usize>, adjusted: &mut Option<Range<usize>>) -> Option<String> {
+        // lint: expect(module_cycle)
         self.cx.update(|window, cx| self.handler.text_for_range(range_utf16, adjusted, window, cx)).ok().flatten()
     }
 
     pub fn replace_text_in_range(&mut self, replacement_range: Option<Range<usize>>, text: &str) {
         self.cx
+            // lint: expect(module_cycle)
             .update(|window, cx| {
                 self.handler.replace_text_in_range(replacement_range, text, window, cx);
             })
@@ -749,6 +776,7 @@ impl PlatformInputHandler {
         new_selected_range: Option<Range<usize>>,
     ) {
         self.cx
+            // lint: expect(module_cycle)
             .update(|window, cx| {
                 self.handler.replace_and_mark_text_in_range(range_utf16, new_text, new_selected_range, window, cx);
             })
@@ -756,10 +784,12 @@ impl PlatformInputHandler {
     }
 
     pub fn unmark_text(&mut self) {
+        // lint: expect(module_cycle)
         self.cx.update(|window, cx| self.handler.unmark_text(window, cx)).ok();
     }
 
     pub fn bounds_for_range(&mut self, range_utf16: Range<usize>) -> Option<Bounds<Pixels>> {
+        // lint: expect(module_cycle)
         self.cx.update(|window, cx| self.handler.bounds_for_range(range_utf16, window, cx)).ok().flatten()
     }
 
@@ -768,6 +798,7 @@ impl PlatformInputHandler {
         self.handler.apple_press_and_hold_enabled()
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn dispatch_input(&mut self, input: &str, window: &mut Window, cx: &mut App) {
         self.handler.replace_text_in_range(None, input, window, cx);
     }
@@ -803,6 +834,7 @@ impl PlatformInputHandler {
         }
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn selected_bounds(&mut self, window: &mut Window, cx: &mut App) -> Option<Bounds<Pixels>> {
         let marked_range = self.handler.marked_text_range(window, cx);
         let selection = self.handler.selected_text_range(true, window, cx)?;
@@ -813,10 +845,12 @@ impl PlatformInputHandler {
 
     #[allow(unused)]
     pub fn character_index_for_point(&mut self, point: Point<Pixels>) -> Option<usize> {
+        // lint: expect(module_cycle)
         self.cx.update(|window, cx| self.handler.character_index_for_point(point, window, cx)).ok().flatten()
     }
 
     #[allow(dead_code)]
+    // lint: expect(module_cycle)
     pub(crate) fn accepts_text_input(&mut self, window: &mut Window, cx: &mut App) -> bool {
         self.handler.accepts_text_input(window, cx)
     }
@@ -828,8 +862,10 @@ impl PlatformInputHandler {
     /// complete a binding whose prefix already bypassed the IME.
     pub fn query_prefers_ime_for_printable_keys(&mut self) -> bool {
         self.cx
+            // lint: expect(module_cycle)
             .update(|window, cx| {
                 // The next printable key may complete a chord whose prefix bypassed the IME.
+                // lint: expect(module_cycle)
                 !window.has_pending_keystrokes() && self.handler.prefers_ime_for_printable_keys(window, cx)
             })
             .unwrap_or(false)
@@ -860,7 +896,9 @@ pub trait InputHandler: 'static {
     fn selected_text_range(
         &mut self,
         ignore_disabled_input: bool,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &mut App,
     ) -> Option<UTF16Selection>;
 
@@ -868,6 +906,7 @@ pub trait InputHandler: 'static {
     /// Corresponds to [markedRange()](https://developer.apple.com/documentation/appkit/nstextinputclient/1438250-markedrange).
     ///
     /// Return value is in terms of UTF-16 characters, from 0 to the length of the document.
+    // lint: expect(module_cycle)
     fn marked_text_range(&mut self, window: &mut Window, cx: &mut App) -> Option<Range<usize>>;
 
     /// Get the text for the given document range in UTF-16 characters
@@ -878,7 +917,9 @@ pub trait InputHandler: 'static {
         &mut self,
         range_utf16: Range<usize>,
         adjusted_range: &mut Option<Range<usize>>,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &mut App,
     ) -> Option<String>;
 
@@ -890,7 +931,9 @@ pub trait InputHandler: 'static {
         &mut self,
         replacement_range: Option<Range<usize>>,
         text: &str,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &mut App,
     );
 
@@ -905,12 +948,15 @@ pub trait InputHandler: 'static {
         range_utf16: Option<Range<usize>>,
         new_text: &str,
         new_selected_range: Option<Range<usize>>,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &mut App,
     );
 
     /// Remove the IME 'composing' state from the document
     /// Corresponds to [unmarkText()](https://developer.apple.com/documentation/appkit/nstextinputclient/1438239-unmarktext).
+    // lint: expect(module_cycle)
     fn unmark_text(&mut self, window: &mut Window, cx: &mut App);
 
     /// Get the bounds of the given document range in screen coordinates
@@ -920,13 +966,16 @@ pub trait InputHandler: 'static {
     fn bounds_for_range(
         &mut self,
         range_utf16: Range<usize>,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &mut App,
     ) -> Option<Bounds<Pixels>>;
 
     /// Get the character offset for the given point in terms of UTF16 characters.
     ///
     /// Corresponds to [characterIndexForPoint:](https://developer.apple.com/documentation/appkit/nstextinputclient/characterindex(for:)).
+    // lint: expect(module_cycle)
     fn character_index_for_point(&mut self, point: Point<Pixels>, window: &mut Window, cx: &mut App) -> Option<usize>;
 
     /// Allows a given input context to opt into getting raw key repeats instead of
@@ -939,6 +988,7 @@ pub trait InputHandler: 'static {
     }
 
     /// Returns whether this handler is accepting text input to be inserted.
+    // lint: expect(module_cycle)
     fn accepts_text_input(&mut self, _window: &mut Window, _cx: &mut App) -> bool {
         true
     }
@@ -951,6 +1001,7 @@ pub trait InputHandler: 'static {
     /// Defaults to `false`. The editor overrides this based on whether it expects
     /// character input (e.g. Vim insert mode returns `true`, normal mode returns `false`).
     /// The terminal keeps the default `false` so that raw keys reach the terminal process.
+    // lint: expect(module_cycle)
     fn prefers_ime_for_printable_keys(&mut self, _window: &mut Window, _cx: &mut App) -> bool {
         false
     }
@@ -1078,6 +1129,7 @@ impl WindowBounds {
     }
 
     /// Creates a new window bounds that centers the window on the screen.
+    // lint: expect(module_cycle)
     pub fn centered(size: Size<Pixels>, cx: &App) -> Self {
         WindowBounds::Windowed(Bounds::centered(None, size, cx))
     }
@@ -1343,6 +1395,7 @@ pub enum ClipboardEntry {
     /// An image entry.
     Image(Image),
     /// A file entry.
+    // lint: expect(module_cycle)
     ExternalPaths(crate::ExternalPaths),
 }
 
@@ -1376,6 +1429,7 @@ impl ClipboardItem {
         if answer.is_empty() {
             for entry in &self.entries {
                 if let ClipboardEntry::ExternalPaths(paths) = entry {
+                    // lint: expect(module_cycle)
                     for path in &paths.0 {
                         use std::fmt::Write as _;
                         _ = write!(answer, "{}", path.display());
@@ -1594,17 +1648,23 @@ impl Image {
     }
 
     /// Use the GPUI `use_asset` API to make this image renderable.
+    // lint: expect(module_cycle)
     pub fn use_render_image(self: Arc<Self>, window: &mut Window, cx: &mut App) -> Option<Arc<RenderImage>> {
+        // lint: expect(module_cycle)
         ImageSource::Image(self).use_data(None, window, cx).and_then(Result::ok)
     }
 
     /// Use the GPUI `get_asset` API to make this image renderable.
+    // lint: expect(module_cycle)
     pub fn get_render_image(self: Arc<Self>, window: &mut Window, cx: &mut App) -> Option<Arc<RenderImage>> {
+        // lint: expect(module_cycle)
         ImageSource::Image(self).get_data(None, window, cx).and_then(Result::ok)
     }
 
     /// Use the GPUI `remove_asset` API to drop this image, if possible.
+    // lint: expect(module_cycle)
     pub fn remove_asset(self: Arc<Self>, cx: &mut App) {
+        // lint: expect(module_cycle)
         ImageSource::Image(self).remove_asset(cx);
     }
 

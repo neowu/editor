@@ -29,11 +29,13 @@ use slotmap::KeyData;
 use slotmap::SecondaryMap;
 use slotmap::SlotMap;
 
+// lint: expect(module_cycle) an entity is updated through its context
 use super::Context;
 use crate::App;
 use crate::AppContext;
 use crate::GpuiBorrow;
 use crate::VisualContext;
+// lint: expect(module_cycle)
 use crate::Window;
 use crate::util::atomic_incr_if_not_zero;
 
@@ -444,6 +446,7 @@ impl<T: 'static> Entity<T> {
 
     /// Updates the entity referenced by this handle with the given function.
     #[inline]
+    // lint: expect(module_cycle) an entity is updated through its context
     pub fn update<R, C: AppContext>(&self, cx: &mut C, update: impl FnOnce(&mut T, &mut Context<T>) -> R) -> R {
         cx.update_entity(self, update)
     }
@@ -458,6 +461,7 @@ impl<T: 'static> Entity<T> {
     pub fn write<C: AppContext>(&self, cx: &mut C, value: T) {
         self.update(cx, |entity, cx| {
             *entity = value;
+            // lint: expect(module_cycle) an entity is updated through its context
             cx.notify();
         });
     }
@@ -469,6 +473,7 @@ impl<T: 'static> Entity<T> {
     pub fn update_in<R, C: VisualContext>(
         &self,
         cx: &mut C,
+        // lint: expect(module_cycle) an entity is updated through its context
         update: impl FnOnce(&mut T, &mut Window, &mut Context<T>) -> R,
     ) -> C::Result<R> {
         cx.update_window_entity(self, update)
@@ -677,6 +682,7 @@ impl<T: 'static> WeakEntity<T> {
     /// the referenced entity still exists. Returns an error if the entity has
     /// been released.
     #[inline(always)]
+    // lint: expect(module_cycle) an entity is updated through its context
     pub fn update<C, R>(&self, cx: &mut C, update: impl FnOnce(&mut T, &mut Context<T>) -> R) -> Result<R>
     where
         C: AppContext,
@@ -692,6 +698,7 @@ impl<T: 'static> WeakEntity<T> {
     pub fn update_in<C, R>(
         &self,
         cx: &mut C,
+        // lint: expect(module_cycle) an entity is updated through its context
         update: impl FnOnce(&mut T, &mut Window, &mut Context<T>) -> R,
     ) -> Result<R>
     where

@@ -13,6 +13,7 @@ use smallvec::SmallVec;
 use super::FocusHandle;
 use super::FocusId;
 use crate::EntityId;
+// lint: expect(module_cycle)
 use crate::GlobalElementId;
 use crate::SharedString;
 
@@ -29,6 +30,7 @@ pub(crate) struct ElementIdStack {
 
 impl ElementIdStack {
     pub(crate) fn push(&mut self, id: ElementId) {
+        // lint: expect(module_cycle)
         self.hashes.push(crate::extend_path_hash(self.hash(), &id));
         self.ids.push(id);
     }
@@ -45,10 +47,13 @@ impl ElementIdStack {
 
     /// The hash of the whole path on the stack.
     pub(crate) fn hash(&self) -> u64 {
+        // lint: expect(module_cycle)
         self.hashes.last().copied().unwrap_or(crate::EMPTY_PATH_HASH)
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn global_id(&self) -> GlobalElementId {
+        // lint: expect(module_cycle)
         GlobalElementId::with_hash(&self.ids, self.hash())
     }
 }

@@ -923,6 +923,7 @@ mod element {
                 proposed_current_pixel_change -= current_pixel_change;
             }
 
+            // lint: expect(module_cycle)
             workspace.update(cx, |this, cx| this.serialize_workspace(window, cx)).log_err();
             cx.stop_propagation();
             window.refresh();
@@ -1093,6 +1094,7 @@ mod element {
                                 if e.click_count >= 2 {
                                     let mut borrow = flexes.lock();
                                     *borrow = vec![1.; borrow.len()];
+                                    // lint: expect(module_cycle)
                                     workspace.update(cx, |this, cx| this.serialize_workspace(window, cx)).log_err();
 
                                     window.refresh();

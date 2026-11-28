@@ -32,6 +32,7 @@ use text::Rope;
 use util::post_inc;
 
 use crate::CachedLspAdapter;
+// lint: expect(module_cycle)
 use crate::File;
 use crate::Language;
 use crate::LanguageConfig;
@@ -43,6 +44,7 @@ use crate::ManifestName;
 use crate::PLAIN_TEXT;
 use crate::available_languages::AvailableLanguage;
 use crate::available_languages::AvailableLanguages;
+// lint: expect(module_cycle)
 use crate::language_settings::all_language_settings;
 use crate::task_context::ContextProvider;
 
@@ -226,14 +228,19 @@ impl LanguageRegistry {
 
     pub fn language_for_file(
         self: &Arc<Self>,
+        // lint: expect(module_cycle)
         file: &Arc<dyn File>,
         content: Option<&Rope>,
         cx: &App,
     ) -> Option<LanguageId> {
+        // lint: expect(module_cycle)
         let user_file_types = all_language_settings(cx);
+        // lint: expect(module_cycle)
         let filename = file.path().file_name().unwrap_or_else(|| file.file_name(cx));
+        // lint: expect(module_cycle)
         let paths = [Some(file.full_path(cx)), file.file_system_abs_path(cx)];
         let paths = paths.iter().filter_map(Option::as_deref).collect::<SmallVec<[_; 4]>>();
+        // lint: expect(module_cycle)
         self.language_for_file_internal(Some(filename), &paths, content, Some(&user_file_types.file_types))
     }
 

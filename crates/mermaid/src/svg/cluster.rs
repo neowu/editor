@@ -4,11 +4,11 @@
 use std::collections::BTreeMap;
 
 use crate::layout::compound::CNode;
-use crate::svg::builder::js_round;
 use crate::svg::builder::label_svg;
 use crate::svg::builder::push_num;
 use crate::text::icons::IconResolver;
 use crate::text::label::Label;
+use crate::util::float::js_round;
 
 /// The x of every route point, by its rounded y: the edges that cross a cluster's top border.
 pub(crate) type Crossings = BTreeMap<i64, Vec<f64>>;

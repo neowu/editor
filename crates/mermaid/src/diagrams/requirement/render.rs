@@ -15,7 +15,6 @@ use crate::layout::compound::cnode;
 use crate::layout::compound::compound_layout;
 use crate::layout::compound::direction;
 use crate::layout::layered::LayeredOptions;
-use crate::svg::builder;
 use crate::svg::builder::esc;
 use crate::svg::builder::esc_text;
 use crate::svg::builder::label_svg;
@@ -37,6 +36,7 @@ use crate::text::measure;
 use crate::text::measure::BOLD;
 use crate::text::measure::ITALIC;
 use crate::util::chars::is_space;
+use crate::util::float::js_round;
 use crate::yaml::push_number;
 
 const NODE_SEP: f64 = 40.0;
@@ -286,7 +286,7 @@ fn stereotype(text: &str) -> String {
 pub(crate) fn render(model: &RequirementDb, options: &Options) -> Rendered {
     let graph = build_requirement_graph(model);
     let size = options.font_size;
-    let small = builder::js_round(size * 0.875);
+    let small = js_round(size * 0.875);
     let pad = options.padding;
 
     let mut index: Vec<(&str, usize)> = Vec::new();

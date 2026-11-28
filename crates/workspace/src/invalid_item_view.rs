@@ -23,6 +23,7 @@ use ui::Window;
 use ui::h_flex;
 use ui::v_flex;
 
+// lint: expect(module_cycle)
 use crate::Item;
 use crate::OpenWithSystem;
 
@@ -46,6 +47,7 @@ impl InvalidItemView {
     }
 }
 
+// lint: expect(module_cycle)
 impl Item for InvalidItemView {
     type Event = ();
 

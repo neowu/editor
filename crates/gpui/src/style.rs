@@ -16,6 +16,7 @@ use crate::Background;
 use crate::BackgroundTag;
 use crate::BorderStyle;
 use crate::Bounds;
+// lint: expect(module_cycle)
 use crate::ContentMask;
 use crate::Corners;
 use crate::CornersRefinement;
@@ -38,13 +39,16 @@ use crate::Rgba;
 use crate::SharedString;
 use crate::Size;
 use crate::SizeRefinement;
+// lint: expect(module_cycle)
 use crate::Styled;
 use crate::TextRun;
+// lint: expect(module_cycle)
 use crate::Window;
 use crate::black;
 use crate::phi;
 use crate::point;
 use crate::px;
+// lint: expect(module_cycle)
 use crate::quad;
 use crate::rems;
 use crate::size;
@@ -297,6 +301,7 @@ pub struct Style {
     pub grid_location: Option<GridLocation>,
 }
 
+// lint: expect(module_cycle)
 impl Styled for StyleRefinement {
     fn style(&mut self) -> &mut StyleRefinement {
         self
@@ -585,6 +590,7 @@ impl Style {
 
     /// Get the content mask for this element style, based on the given bounds.
     /// If the element does not hide its overflow, this will return `None`.
+    // lint: expect(module_cycle)
     pub(crate) fn overflow_mask(&self, bounds: Bounds<Pixels>, rem_size: Pixels) -> Option<ContentMask<Pixels>> {
         if self.overflow == (Point { x: Overflow::Visible, y: Overflow::Visible }) {
             None
@@ -614,6 +620,7 @@ impl Style {
                 (false, false) => Bounds::from_corners(min, max),
             };
 
+            // lint: expect(module_cycle)
             Some(ContentMask { bounds })
         }
     }
@@ -622,13 +629,17 @@ impl Style {
     pub(crate) fn paint(
         &self,
         bounds: Bounds<Pixels>,
+        // lint: expect(module_cycle)
         window: &mut Window,
         cx: &mut App,
+        // lint: expect(module_cycle)
         continuation: impl FnOnce(&mut Window, &mut App),
     ) {
+        // lint: expect(module_cycle)
         let rem_size = window.rem_size();
         let corner_radii = self.corner_radii.to_pixels(rem_size).clamp_radii_for_quad_size(bounds.size);
 
+        // lint: expect(module_cycle)
         window.paint_drop_shadows(bounds, corner_radii, &self.box_shadow);
 
         let background_color = self.background.as_ref().map(Fill::color);
@@ -642,6 +653,7 @@ impl Style {
                 None => Hsla::default(),
             };
             border_color.a = 0.;
+            // lint: expect(module_cycle)
             window.paint_quad(quad(
                 bounds,
                 corner_radii,
@@ -652,6 +664,7 @@ impl Style {
             ));
         }
 
+        // lint: expect(module_cycle)
         window.paint_inset_shadows(bounds, corner_radii, &self.box_shadow);
 
         continuation(window, cx);
@@ -660,6 +673,7 @@ impl Style {
             let border_widths = self.border_widths.to_pixels(rem_size);
             let mut background = self.border_color.unwrap_or_default();
             background.a = 0.;
+            // lint: expect(module_cycle)
             window.paint_quad(quad(
                 bounds,
                 corner_radii,

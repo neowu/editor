@@ -388,6 +388,7 @@ impl Editor {
                         }
                         if let Some((language_server_id, location)) = hovered_hint_part.location
                             && secondary_held
+                            // lint: expect(module_cycle)
                             && !editor.has_pending_nonempty_selection()
                         {
                             go_to_definition_updated = true;
@@ -582,7 +583,9 @@ impl Editor {
             }),
         };
 
+        // lint: expect(module_cycle)
         let mut visible_excerpts = self.visible_buffer_ranges(cx);
+        // lint: expect(module_cycle)
         visible_excerpts.retain(|(snapshot, _, _)| self.is_lsp_relevant(snapshot.file(), cx));
 
         let mut invalidate_hints_for_buffers = FxHashSet::default();

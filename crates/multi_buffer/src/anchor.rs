@@ -19,6 +19,7 @@ use crate::ExcerptSummary;
 use crate::MultiBufferDimension;
 use crate::MultiBufferOffset;
 use crate::MultiBufferOffsetUtf16;
+// lint: expect(module_cycle)
 use crate::PathKey;
 use crate::PathKeyIndex;
 use crate::find_diff_state;
@@ -47,8 +48,10 @@ pub enum Anchor {
 
 pub(crate) enum AnchorSeekTarget<'a> {
     // buffer no longer exists at its original path key in the multibuffer
+    // lint: expect(module_cycle)
     Missing { path_key: &'a PathKey, buffer_id: BufferId },
     // we have excerpts for the buffer at the expected path key
+    // lint: expect(module_cycle)
     Excerpt { path_key: &'a PathKey, path_key_index: PathKeyIndex, anchor: text::Anchor, snapshot: &'a BufferSnapshot },
     // no excerpts and it's a min or max anchor
     Empty,
@@ -319,6 +322,7 @@ impl Anchor {
     pub fn bias_left(&self, snapshot: &MultiBufferSnapshot) -> Anchor {
         match self {
             Anchor::Min => *self,
+            // lint: expect(module_cycle)
             Anchor::Max => snapshot.anchor_before(snapshot.max_point()),
             Anchor::Excerpt(anchor) => Anchor::Excerpt(anchor.bias_left(snapshot)),
         }
@@ -327,6 +331,7 @@ impl Anchor {
     pub fn bias_right(&self, snapshot: &MultiBufferSnapshot) -> Anchor {
         match self {
             Anchor::Max => *self,
+            // lint: expect(module_cycle)
             Anchor::Min => snapshot.anchor_after(Point::zero()),
             Anchor::Excerpt(anchor) => Anchor::Excerpt(anchor.bias_right(snapshot)),
         }
@@ -342,6 +347,7 @@ impl Anchor {
             + Add<D::TextDimension, Output = D>,
         D::TextDimension: Sub<Output = D::TextDimension> + Ord,
     {
+        // lint: expect(module_cycle)
         snapshot.summary_for_anchor(self)
     }
 

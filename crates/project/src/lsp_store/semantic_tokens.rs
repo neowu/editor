@@ -31,13 +31,13 @@ use text::Unclipped;
 use crate::LanguageServerToQuery;
 use crate::LspStore;
 use crate::LspStoreEvent;
-use crate::lsp_command::SemanticTokensDelta;
-use crate::lsp_command::SemanticTokensEdit;
-use crate::lsp_command::SemanticTokensFull;
-use crate::lsp_command::SemanticTokensResponse;
 use crate::lsp_store::LanguageServerState;
 use crate::lsp_store::document_selector_context_for_language;
 use crate::lsp_store::document_selector_matches;
+use crate::lsp_store::lsp_command::SemanticTokensDelta;
+use crate::lsp_store::lsp_command::SemanticTokensEdit;
+use crate::lsp_store::lsp_command::SemanticTokensFull;
+use crate::lsp_store::lsp_command::SemanticTokensResponse;
 use crate::lsp_store::missing_servers_to_query;
 
 type StylizerKey = (LanguageServerId, LanguageName);

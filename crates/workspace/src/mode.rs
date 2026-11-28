@@ -97,8 +97,10 @@ impl Workspace {
     /// What fills the window above the status bar in `mode`, rendered by that
     /// mode's [`ModeView`].
     fn render_mode(&self, mode: WorkspaceMode, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        // lint: expect(module_cycle)
         self.assign_tab_bar_chrome(mode, window, cx);
         // The header over the sidebar is drawn last, over the panes beside it.
+        // lint: expect(module_cycle)
         let header_overlay = (!self.window_header_in_tab_bar(cx)).then(|| self.render_sidebar_header_overlay(cx));
         match mode {
             WorkspaceMode::Editor => self.render_editor_mode(window, cx),

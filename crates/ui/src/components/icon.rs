@@ -1,4 +1,3 @@
-use gpui::ParentElement as _;
 mod decorated_icon;
 mod icon_decoration;
 
@@ -9,7 +8,6 @@ use std::time::Duration;
 
 pub use decorated_icon::DecoratedIcon;
 use gpui::AnimationElement;
-use gpui::Hsla;
 use gpui::ImgResourceLoader;
 use gpui::IntoElement;
 use gpui::Rems;
@@ -21,7 +19,6 @@ pub use icon_decoration::IconDecoration;
 pub use icon_decoration::IconDecorationKind;
 pub use icons::IconName;
 
-use crate::Indicator;
 use crate::prelude::App;
 use crate::prelude::Color;
 use crate::prelude::DynamicSpacing;
@@ -32,7 +29,6 @@ use crate::prelude::RenderOnce;
 use crate::prelude::SharedString;
 use crate::prelude::Styled as _;
 use crate::prelude::Window;
-use crate::prelude::div;
 use crate::prelude::rems_from_px;
 use crate::traits::transformable::Transformable;
 
@@ -272,44 +268,5 @@ impl RenderOnce for Icon {
                 this.group_hover("", |style| style.text_color(hover_color))
             })
             .into_any_element()
-    }
-}
-
-#[derive(IntoElement)]
-pub(crate) struct IconWithIndicator {
-    icon: Icon,
-    indicator: Option<Indicator>,
-    indicator_border_color: Option<Hsla>,
-}
-
-impl IconWithIndicator {
-    pub(crate) const fn new(icon: Icon, indicator: Option<Indicator>) -> Self {
-        Self { icon, indicator, indicator_border_color: None }
-    }
-
-    pub(crate) const fn indicator_border_color(mut self, color: Option<Hsla>) -> Self {
-        self.indicator_border_color = color;
-        self
-    }
-}
-
-impl RenderOnce for IconWithIndicator {
-    fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
-        let indicator_border_color =
-            self.indicator_border_color.unwrap_or_else(|| theme::theme().colors().elevated_surface_background);
-
-        div().relative().child(self.icon).when_some(self.indicator, |this, indicator| {
-            this.child(
-                div()
-                    .absolute()
-                    .size_2p5()
-                    .border_2()
-                    .border_color(indicator_border_color)
-                    .rounded_full()
-                    .bottom_neg_0p5()
-                    .right_neg_0p5()
-                    .child(indicator),
-            )
-        })
     }
 }

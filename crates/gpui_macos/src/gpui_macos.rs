@@ -6,6 +6,7 @@
 //! Scenes are rendered directly with Metal, and text is shaped and rasterized
 //! with Core Text.
 
+mod carbon;
 mod dispatcher;
 mod display;
 mod display_link;
@@ -37,16 +38,7 @@ use objc2::Encoding;
 use objc2::RefEncode;
 use objc2::class;
 use objc2::msg_send;
-pub(crate) use platform::LMGetKbdType;
 pub use platform::MacPlatform;
-pub(crate) use platform::TISCopyCurrentKeyboardInputSource;
-pub(crate) use platform::TISCopyCurrentKeyboardLayoutInputSource;
-pub(crate) use platform::TISGetInputSourceProperty;
-pub(crate) use platform::UCKeyTranslate;
-pub(crate) use platform::kTISPropertyInputSourceIsASCIICapable;
-pub(crate) use platform::kTISPropertyInputSourceType;
-pub(crate) use platform::kTISPropertyUnicodeKeyLayoutData;
-pub(crate) use platform::kTISTypeKeyboardInputMode;
 pub(crate) use window::MacWindow;
 pub(crate) use window::set_active_window_cursor_style;
 

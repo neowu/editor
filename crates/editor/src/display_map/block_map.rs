@@ -1603,6 +1603,7 @@ pub(crate) fn balancing_block(
         height: my_block.height,
         style: BlockStyle::Spacer,
         render: Arc::new(move |cx| {
+            // lint: expect(module_cycle)
             crate::EditorElement::render_spacer_block(
                 cx.block_id,
                 cx.height,

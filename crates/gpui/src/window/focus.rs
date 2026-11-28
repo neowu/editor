@@ -11,10 +11,10 @@ use parking_lot::RwLockUpgradableReadGuard;
 use slotmap::SlotMap;
 
 use super::Window;
-use crate::Action;
 use crate::App;
 use crate::Entity;
 use crate::EventEmitter;
+// lint: expect(module_cycle)
 use crate::Render;
 use crate::util::atomic_incr_if_not_zero;
 
@@ -144,13 +144,6 @@ impl FocusHandle {
     pub fn contains(&self, other: &Self, window: &Window) -> bool {
         self.id.contains(other.id, window)
     }
-
-    /// Dispatch an action on the element that rendered this focus handle.
-    pub fn dispatch_action(&self, action: &dyn Action, window: &mut Window, cx: &mut App) {
-        if let Some(node_id) = window.rendered_frame.dispatch_tree.focusable_node_id(self.id) {
-            window.dispatch_action_on_node(node_id, action, cx);
-        }
-    }
 }
 
 impl Clone for FocusHandle {
@@ -229,8 +222,10 @@ impl<V: Focusable> Focusable for Entity<V> {
 
 /// ManagedView is a view (like a Modal, Popover, Menu, etc.)
 /// where the lifecycle of the view is handled by another view.
+// lint: expect(module_cycle)
 pub trait ManagedView: Focusable + EventEmitter<DismissEvent> + Render {}
 
+// lint: expect(module_cycle)
 impl<M: Focusable + EventEmitter<DismissEvent> + Render> ManagedView for M {}
 
 /// Emitted by implementers of [`ManagedView`] to indicate the view should be dismissed, such as when a view is presented as a modal.

@@ -22,6 +22,7 @@ use crate::ItemHandle;
 
 pub struct PaneSearchBarCallbacks {
     pub setup_search_bar: fn(&Entity<Toolbar>, &mut Window, &mut App),
+    // lint: expect(module_cycle)
     pub wrap_div_with_search_actions: fn(Div, Entity<crate::Pane>) -> Div,
 }
 

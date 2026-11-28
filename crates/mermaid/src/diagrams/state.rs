@@ -2,7 +2,6 @@
 //! `src/diagrams/state/index.ts`.
 
 mod db;
-mod graph;
 mod lexer;
 mod parser;
 mod render;

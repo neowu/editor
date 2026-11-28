@@ -31,7 +31,7 @@ use crate::InlayId;
 use crate::LspStore;
 use crate::LspStoreEvent;
 use crate::ResolveState;
-use crate::lsp_command::InlayHints;
+use crate::lsp_store::lsp_command::InlayHints;
 
 pub type CacheInlayHints = FxHashMap<LanguageServerId, Vec<(InlayId, InlayHint)>>;
 pub(crate) type CacheInlayHintsTask = Shared<Task<Result<CacheInlayHints, Arc<anyhow::Error>>>>;

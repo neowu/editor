@@ -3,7 +3,7 @@ use std::mem;
 use anyhow::Context as _;
 use anyhow::Result;
 use futures::channel::oneshot;
-use git::repository::RepoPath;
+use git::RepoPath;
 use util::ResultExt as _;
 
 use super::buffer_git_state::DiffBasesChange;

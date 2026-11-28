@@ -1,5 +1,7 @@
+use std::ffi::OsStr;
 use std::io;
 use std::io::ErrorKind;
+use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -38,7 +40,6 @@ use worktree::Worktree;
 use worktree::WorktreeId;
 
 use crate::ProjectPath;
-use crate::git_store;
 use crate::library::library_root;
 
 /// The current paths for a project's worktrees. Each folder path has a corresponding
@@ -656,8 +657,8 @@ impl WorktreeStore {
                 let folder_path = snapshot.abs_path().to_path_buf();
                 let main_path = snapshot
                     .root_repo_common_dir()
-                    .filter(|dir| !git_store::is_submodule_git_dir(dir))
-                    .map(|dir| git_store::repo_identity_path(dir))
+                    .filter(|dir| !is_submodule_git_dir(dir))
+                    .map(|dir| repo_identity_path(dir))
                     .filter(|repo_path| {
                         snapshot.root_repo_is_linked_worktree()
                             || *repo_path == folder_path.as_path()
@@ -685,4 +686,43 @@ impl WorktreeHandle {
             WorktreeHandle::Weak(handle) => handle.upgrade(),
         }
     }
+}
+
+/// Returns the repository's identity path given its common Git directory.
+///
+/// This is the canonical, on-disk path used for project grouping and as the
+/// basis for display names. The goal is to return the directory the user
+/// thinks of as "the project":
+///
+/// - If `common_dir`'s last component starts with `.` (e.g. `.git` for a
+///   normal checkout, or `.bare` for a bare clone), the parent directory is
+///   returned. Both of these are internal Git directories; the parent is the
+///   meaningful project root.
+/// - Otherwise (e.g. `zed.git` for a bare clone), `common_dir` itself is
+///   returned — it is already a meaningful on-disk path.
+pub fn repo_identity_path(common_dir: &Path) -> &Path {
+    let is_dot_entry = common_dir.file_name().is_some_and(|n| n.to_string_lossy().starts_with('.'));
+    if is_dot_entry { common_dir.parent().unwrap_or(common_dir) } else { common_dir }
+}
+
+/// Returns true if `git_dir` is a Git submodule's git directory.
+///
+/// Submodules store their git directory inside the superproject at
+/// `<superproject>/.git/modules/<name>`. Unlike a linked worktree, a submodule
+/// is an independent project whose identity is its own working directory, so its
+/// path must not be resolved to the superproject's `.git/modules/...` directory
+/// (from which the working directory cannot be derived).
+pub(crate) fn is_submodule_git_dir(git_dir: &Path) -> bool {
+    let mut previous_was_git_dir = false;
+    for component in git_dir.components() {
+        if let Component::Normal(name) = component {
+            if previous_was_git_dir && name == OsStr::new("modules") {
+                return true;
+            }
+            previous_was_git_dir = name.to_string_lossy().ends_with(".git");
+        } else {
+            previous_was_git_dir = false;
+        }
+    }
+    false
 }

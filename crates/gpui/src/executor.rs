@@ -22,8 +22,11 @@ use futures::StreamExt as _;
 use futures::channel::mpsc;
 use gpui_util::TryFutureExt as _;
 
+// lint: expect(module_cycle)
 use crate::App;
+// lint: expect(module_cycle)
 use crate::PlatformDispatcher;
+// lint: expect(module_cycle)
 use crate::RunnableVariant;
 
 /// Task priority for background tasks, mapped to the platform's queue priorities.
@@ -108,6 +111,7 @@ impl<T> Future for Task<T> {
 /// for spawning background tasks.
 #[derive(Clone)]
 pub struct BackgroundExecutor {
+    // lint: expect(module_cycle)
     dispatcher: Arc<dyn PlatformDispatcher>,
 }
 
@@ -115,6 +119,7 @@ pub struct BackgroundExecutor {
 /// for spawning tasks on the main thread.
 #[derive(Clone)]
 pub struct ForegroundExecutor {
+    // lint: expect(module_cycle)
     dispatcher: Arc<dyn PlatformDispatcher>,
     not_send: PhantomData<Rc<()>>,
 }
@@ -124,6 +129,7 @@ pub struct ForegroundExecutor {
 /// This trait is automatically implemented for all `Task<Result<T, E>>` types.
 pub trait TaskExt<T, E> {
     /// Run the task to completion in the background and log any errors that occur.
+    // lint: expect(module_cycle)
     fn detach_and_log_err(self, cx: &App);
 }
 
@@ -133,14 +139,17 @@ where
     E: 'static + Display,
 {
     #[track_caller]
+    // lint: expect(module_cycle)
     fn detach_and_log_err(self, cx: &App) {
         let location = Location::caller();
+        // lint: expect(module_cycle)
         cx.foreground_executor().spawn(self.log_tracked_err(*location)).detach();
     }
 }
 
 impl BackgroundExecutor {
     /// Creates a new BackgroundExecutor from the given PlatformDispatcher.
+    // lint: expect(module_cycle)
     pub fn new(dispatcher: Arc<dyn PlatformDispatcher>) -> Self {
         Self { dispatcher }
     }
@@ -163,6 +172,7 @@ impl BackgroundExecutor {
         let dispatcher = Arc::clone(&self.dispatcher);
         let (runnable, task) = async_task::Builder::new()
             .metadata(RunnableMeta { location: Location::caller() })
+            // lint: expect(module_cycle)
             .spawn(move |_| future, move |runnable| dispatcher.dispatch(runnable, priority));
         runnable.schedule();
         Task(TaskState::Spawned(task))
@@ -224,6 +234,7 @@ impl BackgroundExecutor {
         let dispatcher = Arc::clone(&self.dispatcher);
         let (runnable, task) = async_task::Builder::new()
             .metadata(RunnableMeta { location: Location::caller() })
+            // lint: expect(module_cycle)
             .spawn(|_| async {}, move |runnable| dispatcher.dispatch_after(duration, runnable));
         runnable.schedule();
         Task(TaskState::Spawned(task))
@@ -236,12 +247,14 @@ impl BackgroundExecutor {
 
     /// Whether we're on the main thread.
     pub(crate) fn is_main_thread(&self) -> bool {
+        // lint: expect(module_cycle)
         self.dispatcher.is_main_thread()
     }
 }
 
 impl ForegroundExecutor {
     /// Creates a new ForegroundExecutor from the given PlatformDispatcher.
+    // lint: expect(module_cycle)
     pub fn new(dispatcher: Arc<dyn PlatformDispatcher>) -> Self {
         Self { dispatcher, not_send: PhantomData }
     }
@@ -255,6 +268,7 @@ impl ForegroundExecutor {
         let dispatcher = Arc::clone(&self.dispatcher);
         let (runnable, task) = spawn_local_with_source_location(
             future,
+            // lint: expect(module_cycle)
             move |runnable| dispatcher.dispatch_on_main_thread(runnable),
             RunnableMeta { location: Location::caller() },
         );
@@ -321,6 +335,7 @@ fn spawn_local_with_source_location<Fut, S>(
     future: Fut,
     schedule: S,
     metadata: RunnableMeta,
+    // lint: expect(module_cycle)
 ) -> (RunnableVariant, async_task::Task<Fut::Output, RunnableMeta>)
 where
     Fut: Future + 'static,

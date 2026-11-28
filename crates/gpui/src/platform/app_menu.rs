@@ -1,4 +1,5 @@
 use crate::Action;
+// lint: expect(module_cycle)
 use crate::App;
 use crate::Platform;
 use crate::SharedString;
@@ -193,16 +194,22 @@ pub enum OsAction {
     Redo,
 }
 
+// lint: expect(module_cycle)
 pub(crate) fn init_app_menus(platform: &dyn Platform, cx: &App) {
     platform.on_validate_app_menu_command(Box::new({
+        // lint: expect(module_cycle)
         let cx = cx.to_async();
+        // lint: expect(module_cycle)
         move |action| cx.app.upgrade().is_some_and(|app| app.borrow_mut().update(|cx| cx.is_action_available(action)))
     }));
 
     platform.on_app_menu_action(Box::new({
+        // lint: expect(module_cycle)
         let cx = cx.to_async();
         move |action| {
+            // lint: expect(module_cycle)
             if let Some(app) = cx.app.upgrade() {
+                // lint: expect(module_cycle)
                 app.borrow_mut().update(|cx| cx.dispatch_action(action));
             }
         }

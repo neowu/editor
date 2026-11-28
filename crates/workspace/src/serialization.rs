@@ -25,6 +25,7 @@ use super::Workspace;
 use super::persistence;
 use super::restored_active_pane;
 use crate::item::ItemHandle;
+// lint: expect(module_cycle)
 use crate::mode::TerminalLayout;
 use crate::pane_group::Member;
 use crate::pane_group::PaneAxis;
@@ -110,8 +111,10 @@ impl Workspace {
 
         let serialized_workspace = SerializedWorkspace {
             center_group: build_serialized_pane_group(&self.center.root, self, window, cx),
+            // lint: expect(module_cycle)
             docks: self.capture_dock_state(window, cx),
             recent_navigation_history: self.persisted_recent_navigation_history.clone(),
+            // lint: expect(module_cycle)
             terminal: self.terminal_layout_to_save(cx),
             border_color: self.border_color,
         };
@@ -155,7 +158,9 @@ impl Workspace {
                 workspace.border_color = border_color;
                 cx.notify();
                 workspace.persisted_recent_navigation_history = recent_navigation_history;
+                // lint: expect(module_cycle)
                 if matches!(workspace.terminal_layout, TerminalLayout::Pending(_)) {
+                    // lint: expect(module_cycle)
                     workspace.terminal_layout = TerminalLayout::Pending(terminal_layout);
                 }
                 workspace.restoring_workspace = true;
@@ -193,6 +198,7 @@ impl Workspace {
             // Remove old panes from workspace panes list
             workspace.update_in(cx, |workspace, window, cx| {
                 if let Some((center_group, active_pane)) = center_group {
+                    // lint: expect(module_cycle)
                     workspace.remove_panes(workspace.center.root.clone(), window, cx);
 
                     // Swap workspace center group
@@ -214,9 +220,11 @@ impl Workspace {
                     }
 
                     if let Some(active_pane) = restored_active_pane(active_pane, zoomed_pane) {
+                        // lint: expect(module_cycle)
                         workspace.set_active_pane(&active_pane, window, cx);
                         cx.focus_self(window);
                     } else {
+                        // lint: expect(module_cycle)
                         workspace.set_active_pane(&workspace.center.first_pane(), window, cx);
                     }
                 }
@@ -229,6 +237,7 @@ impl Workspace {
                     (&mut workspace.bottom_dock, docks.bottom),
                 ] {
                     dock.update(cx, |dock, cx| {
+                        // lint: expect(module_cycle)
                         dock.restore_serialized_state(serialized_dock.clone(), window, cx);
                     });
                 }
@@ -316,6 +325,7 @@ pub(super) fn open_items(
                         ix,
                         workspace
                             .update_in(cx, |workspace, window, cx| {
+                                // lint: expect(module_cycle)
                                 workspace.open_path(file_project_path, None, true, window, cx)
                             })
                             .log_err()?
@@ -359,6 +369,7 @@ pub async fn restore_workspace(
             )
         })
         .await?
+        // lint: expect(module_cycle)
         .window;
 
     window_handle

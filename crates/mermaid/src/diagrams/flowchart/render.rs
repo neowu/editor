@@ -18,7 +18,6 @@ use crate::layout::compound::compound_layout;
 use crate::layout::compound::direction;
 use crate::layout::compound::shift_layout;
 use crate::layout::layered::LayeredOptions;
-use crate::svg::builder;
 use crate::svg::builder::esc;
 use crate::svg::builder::esc_text;
 use crate::svg::builder::label_svg;
@@ -50,6 +49,7 @@ use crate::text::label::layout_label;
 use crate::text::measure::BOLD;
 use crate::text::measure::ITALIC;
 use crate::util::chars;
+use crate::util::float::js_round;
 use crate::yaml::Value;
 
 const NODE_SEP: f64 = 40.0;
@@ -131,7 +131,7 @@ pub(crate) fn render(db: &FlowDb, config: &Value, options: &Options) -> Rendered
     };
     let graph = graph::build(db, curve);
     let size = options.font_size;
-    let edge_size = builder::js_round(size * 0.875);
+    let edge_size = js_round(size * 0.875);
     let wrap_width = number_option(flow, "wrappingWidth", 200.0);
     let pad = options.padding;
 

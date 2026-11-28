@@ -6,7 +6,6 @@ use super::db::MindmapNode;
 use crate::Options;
 use crate::diagrams::Rendered;
 use crate::svg::builder::esc_text;
-use crate::svg::builder::js_round;
 use crate::svg::builder::label_svg;
 use crate::svg::builder::push_num;
 use crate::svg::root::svg_document;
@@ -19,6 +18,7 @@ use crate::text::icons::IconResolver;
 use crate::text::icons::icon_markup;
 use crate::text::label::layout_label;
 use crate::text::measure::BOLD;
+use crate::util::float::js_round;
 use crate::yaml::Value;
 
 /// Indexed by Mermaid's node type. A node without delimiters is text on a line, except the root.

@@ -1,7 +1,7 @@
 //! Tick steps and values for numeric axes. Port of Pele's `src/diagrams/xychart/ticks.ts`.
 
 use crate::error::push_u32;
-use crate::svg::builder::js_round;
+use crate::util::float::js_round;
 
 /// `10 ** power` for a whole `power`, correctly rounded as V8 computes it.
 fn pow10(power: f64) -> f64 {

@@ -136,12 +136,15 @@ use super::panel_editor_container;
 use super::staging::StageIntent;
 use crate::commit_tooltip;
 use crate::commit_tooltip::CommitTooltip;
+// lint: expect(module_cycle)
 use crate::commit_view::CommitView;
 use crate::git_panel_view_options::GitPanelGroupBy;
 use crate::git_panel_view_options::GitPanelSortBy;
 use crate::git_panel_view_options::GitPanelViewOptions;
 use crate::git_status_icon;
+// lint: expect(module_cycle)
 use crate::project_diff::DeployBranchDiff;
+// lint: expect(module_cycle)
 use crate::project_diff::Diff;
 use crate::render_remote_button;
 
@@ -696,9 +699,11 @@ impl GitPanel {
                                     ))
                                 }),
                         )
+                        // lint: expect(module_cycle)
                         .tooltip(Tooltip::for_action_title_in("View Diff", &Diff, &self.focus_handle))
                         .on_click(|_, _, cx| {
                             cx.defer(|cx| {
+                                // lint: expect(module_cycle)
                                 cx.dispatch_action(&Diff);
                             });
                         }),
@@ -997,6 +1002,7 @@ impl GitPanel {
                             let commit = commit.clone();
                             let repo = active_repository.downgrade();
                             move |_, window, cx| {
+                                // lint: expect(module_cycle)
                                 CommitView::open(
                                     commit.sha.to_string(),
                                     repo.clone(),
@@ -1060,6 +1066,7 @@ impl GitPanel {
                         .style(ButtonStyle::Outlined)
                         .on_click(move |_, _, cx| {
                             cx.defer(move |cx| {
+                                // lint: expect(module_cycle)
                                 cx.dispatch_action(&DeployBranchDiff);
                             });
                         }),

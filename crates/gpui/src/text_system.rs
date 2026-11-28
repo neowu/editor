@@ -57,12 +57,15 @@ use crate::Bounds;
 use crate::DevicePixels;
 use crate::Hsla;
 use crate::Pixels;
+// lint: expect(module_cycle)
 use crate::PlatformTextSystem;
 use crate::Point;
 use crate::Result;
 use crate::SharedString;
 use crate::Size;
+// lint: expect(module_cycle)
 use crate::StrikethroughStyle;
+// lint: expect(module_cycle)
 use crate::UnderlineStyle;
 use crate::point;
 use crate::px;
@@ -89,6 +92,7 @@ pub fn underline_y_offset(line_height: Pixels, ascent: Pixels, descent: Pixels) 
 
 /// The GPUI text rendering sub system.
 pub struct TextSystem {
+    // lint: expect(module_cycle)
     platform_text_system: Arc<dyn PlatformTextSystem>,
     font_ids_by_font: RwLock<FxHashMap<Font, Result<FontId>>>,
     font_metrics: RwLock<FxHashMap<FontId, FontMetrics>>,
@@ -100,6 +104,7 @@ pub struct TextSystem {
 
 impl TextSystem {
     /// Create a new TextSystem with the given platform text system.
+    // lint: expect(module_cycle)
     pub(crate) fn new(platform_text_system: Arc<dyn PlatformTextSystem>) -> Self {
         TextSystem {
             platform_text_system,
@@ -116,6 +121,7 @@ impl TextSystem {
     ///
     /// Includes fonts registered with [`Self::add_fonts`].
     pub fn all_font_names(&self) -> Vec<String> {
+        // lint: expect(module_cycle)
         let mut names = self.platform_text_system.all_font_names();
         names.sort_unstable();
         names.dedup();
@@ -127,6 +133,7 @@ impl TextSystem {
     /// Cached font resolution and line layouts are invalidated after installation.
     /// Layouts already in progress may complete against the previous font set.
     pub fn add_fonts(&self, fonts: Vec<Cow<'static, [u8]>>) -> Result<()> {
+        // lint: expect(module_cycle)
         self.platform_text_system.add_fonts(fonts)?;
         self.font_ids_by_font.write().clear();
         self.font_generation.fetch_add(1, Ordering::Release);
@@ -146,6 +153,7 @@ impl TextSystem {
         if let Some(font_id) = font_id {
             font_id
         } else {
+            // lint: expect(module_cycle)
             let font_id = self.platform_text_system.font_id(font);
             self.font_ids_by_font.write().insert(font.clone(), clone_font_id_result(&font_id));
             font_id
@@ -195,8 +203,10 @@ impl TextSystem {
     pub fn typographic_bounds(&self, font_id: FontId, font_size: Pixels, character: char) -> Result<Bounds<Pixels>> {
         let glyph_id = self
             .platform_text_system
+            // lint: expect(module_cycle)
             .glyph_for_char(font_id, character)
             .with_context(|| format!("glyph not found for character '{character}'"))?;
+        // lint: expect(module_cycle)
         let bounds = self.platform_text_system.typographic_bounds(font_id, glyph_id)?;
         Ok(self.read_metrics(font_id, |metrics| (bounds / metrics.units_per_em as f32 * font_size.0).map(px)))
     }
@@ -205,8 +215,10 @@ impl TextSystem {
     pub fn advance(&self, font_id: FontId, font_size: Pixels, ch: char) -> Result<Size<Pixels>> {
         let glyph_id = self
             .platform_text_system
+            // lint: expect(module_cycle)
             .glyph_for_char(font_id, ch)
             .with_context(|| format!("glyph not found for character '{ch}'"))?;
+        // lint: expect(module_cycle)
         let result = self.platform_text_system.advance(font_id, glyph_id)? / self.units_per_em(font_id) as f32;
 
         Ok(result * font_size)
@@ -217,6 +229,7 @@ impl TextSystem {
     pub fn layout_width(&self, font_id: FontId, font_size: Pixels, ch: char) -> Pixels {
         let mut buffer = [0; 4];
         let buffer = ch.encode_utf8(&mut buffer);
+        // lint: expect(module_cycle)
         self.platform_text_system.layout_line(buffer, font_size, &[FontRun { len: buffer.len(), font_id }]).width
     }
 
@@ -291,6 +304,7 @@ impl TextSystem {
             read(metrics)
         } else {
             let mut lock = RwLockUpgradableReadGuard::upgrade(lock);
+            // lint: expect(module_cycle)
             let metrics = lock.entry(font_id).or_insert_with(|| self.platform_text_system.font_metrics(font_id));
             read(metrics)
         }
@@ -313,6 +327,7 @@ impl TextSystem {
             Ok(*bounds)
         } else {
             let mut raster_bounds = RwLockUpgradableReadGuard::upgrade(raster_bounds);
+            // lint: expect(module_cycle)
             let bounds = self.platform_text_system.glyph_raster_bounds(params)?;
             raster_bounds.insert(params.clone(), bounds);
             Ok(bounds)
@@ -321,11 +336,13 @@ impl TextSystem {
 
     pub(crate) fn rasterize_glyph(&self, params: &RenderGlyphParams) -> Result<(Size<DevicePixels>, Vec<u8>)> {
         let raster_bounds = self.raster_bounds(params)?;
+        // lint: expect(module_cycle)
         self.platform_text_system.rasterize_glyph(params, raster_bounds)
     }
 
     /// Returns the dilation level to use for a glyph painted in the given color.
     pub(crate) fn glyph_dilation_for_color(&self, color: Hsla) -> u8 {
+        // lint: expect(module_cycle)
         self.platform_text_system.glyph_dilation_for_color(color)
     }
 }
@@ -756,8 +773,10 @@ pub struct TextRun {
     /// The background color (if any).
     pub background_color: Option<Hsla>,
     /// The underline style (if any).
+    // lint: expect(module_cycle)
     pub underline: Option<UnderlineStyle>,
     /// The strikethrough style (if any).
+    // lint: expect(module_cycle)
     pub strikethrough: Option<StrikethroughStyle>,
 }
 

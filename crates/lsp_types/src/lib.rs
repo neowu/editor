@@ -241,8 +241,8 @@ pub use moniker::MonikerClientCapabilities;
 pub use moniker::MonikerServerCapabilities;
 
 mod progress;
-pub use progress::ProgressParams;
-pub use progress::ProgressParamsValue;
+pub use notification::ProgressParams;
+pub use notification::ProgressParamsValue;
 pub use progress::ProgressToken;
 pub use progress::WorkDoneProgress;
 pub use progress::WorkDoneProgressCancelParams;

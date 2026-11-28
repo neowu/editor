@@ -61,6 +61,7 @@ use crate::display_map::BlockProperties;
 use crate::display_map::BlockStyle;
 use crate::display_map::HighlightKey;
 use crate::display_map::ToDisplayPoint as _;
+// lint: expect(module_cycle)
 use crate::element::EditorElement;
 use crate::movement;
 use crate::scroll::Autoscroll;
@@ -217,6 +218,7 @@ impl Editor {
                                     div()
                                         .block_mouse_except_scroll()
                                         .pl(cx.anchor_x)
+                                        // lint: expect(module_cycle)
                                         .child(EditorElement::new(
                                             &rename_editor,
                                             EditorStyle {

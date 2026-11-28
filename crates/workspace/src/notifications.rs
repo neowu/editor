@@ -389,6 +389,7 @@ impl Render for LanguageServerPrompt {
                             .on_url_click(|link, window, cx| {
                                 if let Some(workspace) = Workspace::for_window(window, cx) {
                                     workspace.update(cx, |workspace, cx| {
+                                        // lint: expect(module_cycle)
                                         workspace.open_url_or_file(&link, None, window, cx);
                                     });
                                 } else {

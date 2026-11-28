@@ -297,6 +297,7 @@ impl MultiBuffer {
         buffer_anchors.sort_unstable_by(|a, b| a.cmp(b, &snapshot));
 
         snapshot
+            // lint: expect(module_cycle)
             .summaries_for_anchors(buffer_anchors.iter())
             .as_chunks::<2>()
             .0

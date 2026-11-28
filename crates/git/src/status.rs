@@ -14,7 +14,7 @@ use util::ResultExt as _;
 use util::rel_path::RelPath;
 
 use crate::Oid;
-use crate::repository::RepoPath;
+use crate::RepoPath;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum FileStatus {

@@ -26,6 +26,7 @@ use text::BufferId;
 use ui::prelude::h_flex;
 use ui::prelude::v_flex;
 
+use super::BlockLayout;
 use super::EditorElement;
 use super::EditorLayout;
 use super::IndentGuideLayout;
@@ -583,15 +584,4 @@ impl EditorElement {
             }
         }
     }
-}
-
-pub(crate) struct BlockLayout {
-    id: BlockId,
-    x_offset: Pixels,
-    pub(crate) row: Option<DisplayRow>,
-    element: AnyElement,
-    available_space: Size<AvailableSpace>,
-    style: BlockStyle,
-    overlaps_gutter: bool,
-    pub(crate) is_buffer_header: bool,
 }

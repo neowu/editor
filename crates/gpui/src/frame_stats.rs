@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+// lint: expect(module_cycle)
 use crate::Window;
 
 /// Frame timings collected since [`Window::reset_frame_stats`].
@@ -118,14 +119,17 @@ fn millis(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1000.
 }
 
+// lint: expect(module_cycle)
 impl Window {
     /// Start collecting [`FrameStats`] from now on, dropping any collected before.
     pub fn reset_frame_stats(&mut self) {
+        // lint: expect(module_cycle)
         self.frame_stats = Some(Box::default());
     }
 
     /// Frame timings since [`Window::reset_frame_stats`], or `None` if it was never called.
     pub fn frame_stats(&self) -> Option<&FrameStats> {
+        // lint: expect(module_cycle)
         self.frame_stats.as_deref()
     }
 }

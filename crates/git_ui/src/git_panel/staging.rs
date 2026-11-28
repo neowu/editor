@@ -1,8 +1,8 @@
 use std::mem;
 
+use git::RepoPath;
 use git::StageAll;
 use git::UnstageAll;
-use git::repository::RepoPath;
 use git::status::StageStatus;
 use itertools::Itertools as _;
 use project::git_store::Repository;

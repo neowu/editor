@@ -17,6 +17,7 @@ use crate::scroll::ScrollOffset;
 
 impl Editor {
     pub(crate) fn next_screen(&mut self, _: &NextScreen, window: &mut Window, cx: &mut Context<Editor>) {
+        // lint: expect(module_cycle)
         if self.take_rename(true, window, cx).is_some() {
             return;
         }

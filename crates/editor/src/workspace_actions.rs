@@ -467,6 +467,7 @@ impl Editor {
 
         cx.spawn_in(window, async move |_, cx| {
             workspace.update_in(cx, |workspace, window, cx| {
+                // lint: expect(module_cycle)
                 Self::open_locations_in_multibuffer(
                     workspace,
                     locations,
@@ -642,6 +643,7 @@ impl Editor {
                             let Some(buffer_snapshot) = multibuffer_snapshot.as_singleton() else {
                                 return;
                             };
+                            // lint: expect(module_cycle)
                             editor.change_selections(SelectionEffects::scroll(autoscroll), window, cx, |s| {
                                 s.select_ranges(ranges.into_iter().map(|range| {
                                     let range = buffer_snapshot.anchor_before(range.start)

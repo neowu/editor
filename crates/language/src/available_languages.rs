@@ -12,6 +12,7 @@ use text::Rope;
 use unicase::UniCase;
 
 use crate::LanguageId;
+// lint: expect(module_cycle)
 use crate::LanguageLoader;
 use crate::LanguageMatcher;
 use crate::LanguageName;
@@ -23,6 +24,7 @@ pub struct AvailableLanguage {
     pub(super) name: LanguageName,
     pub(super) matcher: Arc<LanguageMatcher>,
     pub(super) hidden: bool,
+    // lint: expect(module_cycle)
     pub(super) load: LanguageLoader,
     pub(super) loaded: bool,
     pub(super) manifest_name: Option<ManifestName>,
@@ -64,6 +66,7 @@ impl AvailableLanguages {
         matcher: Arc<LanguageMatcher>,
         hidden: bool,
         manifest_name: Option<ManifestName>,
+        // lint: expect(module_cycle)
         load: LanguageLoader,
     ) -> bool {
         if let Some(existing_language) = self.0.iter_mut().find(|existing_language| existing_language.name == name) {

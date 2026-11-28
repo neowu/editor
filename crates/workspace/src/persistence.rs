@@ -269,6 +269,7 @@ fn open_project_locations(cx: &App) -> Option<Vec<ProjectLocation>> {
     if workspaces.is_empty() {
         return None;
     }
+    // lint: expect(module_cycle)
     Some(workspaces.iter().filter_map(|workspace| workspace.read(cx).project_location(cx)).collect())
 }
 

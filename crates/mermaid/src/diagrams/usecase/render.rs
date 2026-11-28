@@ -24,7 +24,6 @@ use crate::layout::compound::shift_layout;
 use crate::layout::layered::LayeredOptions;
 use crate::svg::builder::esc;
 use crate::svg::builder::esc_text;
-use crate::svg::builder::js_round;
 use crate::svg::builder::label_svg;
 use crate::svg::builder::push_num;
 use crate::svg::cluster::Crossings;
@@ -44,6 +43,7 @@ use crate::text::label::layout_label;
 use crate::text::measure::BOLD;
 use crate::text::measure::ITALIC;
 use crate::util::chars::is_space;
+use crate::util::float::js_round;
 use crate::yaml::Value;
 use crate::yaml::push_number;
 

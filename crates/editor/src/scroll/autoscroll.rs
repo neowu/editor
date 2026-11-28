@@ -12,6 +12,7 @@ use crate::DisplayPoint;
 use crate::DisplayRow;
 use crate::Editor;
 use crate::EditorMode;
+// lint: expect(module_cycle)
 use crate::LineWithInvisibles;
 use crate::RowExt as _;
 use crate::SelectionEffects;
@@ -277,6 +278,7 @@ impl Editor {
         viewport_width: Pixels,
         scroll_width: Pixels,
         em_advance: Pixels,
+        // lint: expect(module_cycle)
         layouts: &[LineWithInvisibles],
         autoscroll_request: Option<(Autoscroll, bool)>,
         window: &Window,
@@ -320,7 +322,9 @@ impl Editor {
                     let layout = &layouts[head.row().minus(start_row) as usize];
 
                     let mut candidate_left =
+                        // lint: expect(module_cycle)
                         ScrollOffset::from(layout.x_for_index(start_column as usize) + self.gutter_dimensions.margin);
+                    // lint: expect(module_cycle)
                     let mut candidate_right = ScrollOffset::from(layout.x_for_index(end_column as usize)) + em_advance;
 
                     // If the full selection span (with the same padding used below) doesn't
@@ -330,9 +334,11 @@ impl Editor {
                         let head_column = head.column();
                         let head_column_clamped = cmp::min(row_line_len, head_column);
                         candidate_left = ScrollOffset::from(
+                            // lint: expect(module_cycle)
                             layout.x_for_index(head_column as usize) + self.gutter_dimensions.margin,
                         );
                         candidate_right =
+                            // lint: expect(module_cycle)
                             ScrollOffset::from(layout.x_for_index(head_column_clamped as usize)) + em_advance;
                     }
 

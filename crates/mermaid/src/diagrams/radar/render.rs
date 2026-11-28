@@ -7,7 +7,6 @@ use super::model::RadarModel;
 use crate::Options;
 use crate::diagrams::Rendered;
 use crate::svg::builder::esc_text;
-use crate::svg::builder::js_round;
 use crate::svg::builder::label_svg;
 use crate::svg::builder::push_num;
 use crate::svg::root::svg_document;
@@ -15,6 +14,7 @@ use crate::svg::theme::series_color;
 use crate::text::label::Label;
 use crate::text::label::layout_label;
 use crate::text::measure::BOLD;
+use crate::util::float::js_round;
 use crate::yaml::Value;
 use crate::yaml::push_number;
 

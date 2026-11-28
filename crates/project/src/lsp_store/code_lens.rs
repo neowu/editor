@@ -21,8 +21,8 @@ use crate::CodeAction;
 use crate::LspAction;
 use crate::LspStore;
 use crate::LspStoreEvent;
-use crate::lsp_command::GetCodeLens;
 use crate::lsp_store::RunningFetch;
+use crate::lsp_store::lsp_command::GetCodeLens;
 use crate::lsp_store::missing_servers_to_query;
 use crate::lsp_store::next_lsp_fetch_id;
 

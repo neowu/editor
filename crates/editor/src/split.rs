@@ -78,7 +78,9 @@ use crate::EditorEvent;
 use crate::display_map::Companion;
 use crate::display_map::CompanionExcerptPatch;
 use crate::element::SplitSide;
+// lint: expect(module_cycle)
 use crate::split_editor_view::SplitEditorState;
+// lint: expect(module_cycle)
 use crate::split_editor_view::SplitEditorView;
 
 /// Minimum editor width, in columns, for a split diff; narrower diffs show unified.
@@ -495,6 +497,7 @@ pub struct SplittableEditor {
     rhs_editor: Entity<Editor>,
     lhs: Option<LhsEditor>,
     workspace: WeakEntity<Workspace>,
+    // lint: expect(module_cycle)
     split_state: Entity<SplitEditorState>,
     searched_side: Option<SplitSide>,
     /// The preferred diff style.
@@ -618,6 +621,7 @@ impl SplittableEditor {
                 }
             }
         });
+        // lint: expect(module_cycle)
         let split_state = cx.new(|cx| SplitEditorState::new(cx));
         Self {
             diff_view_style: style,
@@ -1451,6 +1455,7 @@ impl Render for SplittableEditor {
         let is_split = self.lhs.is_some();
         let inner = if is_split {
             let style = self.rhs_editor.read(cx).create_style(cx);
+            // lint: expect(module_cycle)
             SplitEditorView::new(cx.entity(), style, self.split_state.clone()).into_any_element()
         } else {
             self.rhs_editor.clone().into_any_element()

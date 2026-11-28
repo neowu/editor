@@ -1,3 +1,4 @@
+// lint: expect(module_cycle)
 use crate::App;
 use crate::BorrowAppContext;
 
@@ -32,11 +33,14 @@ pub trait ReadGlobal {
     /// Returns the global instance of the implementing type.
     ///
     /// Panics if a global for that type has not been assigned.
+    // lint: expect(module_cycle)
     fn global(cx: &App) -> &Self;
 }
 
 impl<T: Global> ReadGlobal for T {
+    // lint: expect(module_cycle)
     fn global(cx: &App) -> &Self {
+        // lint: expect(module_cycle)
         cx.global::<T>()
     }
 }

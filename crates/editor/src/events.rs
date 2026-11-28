@@ -10,6 +10,7 @@ use super::Editor;
 use super::EditorEvent;
 use crate::blink_manager::BlinkManager;
 use crate::display_map::DisplayMap;
+// lint: expect(module_cycle)
 use crate::element::EditorElement;
 use crate::git::blame::GitBlame;
 use crate::hover_popover::hide_hover;
@@ -31,6 +32,7 @@ impl Editor {
         match event {
             multi_buffer::Event::Edited { edited_buffer } => {
                 self.scrollbar_marker_state.dirty = true;
+                // lint: expect(module_cycle)
                 self.active_indent_guides_state.dirty = true;
                 self.fit_gutter_line_number_width(false, cx);
                 self.refresh_active_diagnostics(cx);
@@ -205,6 +207,7 @@ impl Editor {
             if cx.is_cursor_visible()
                 && let Some(position_map) = self.last_position_map.clone()
             {
+                // lint: expect(module_cycle)
                 EditorElement::mouse_moved(
                     self,
                     &MouseMoveEvent {

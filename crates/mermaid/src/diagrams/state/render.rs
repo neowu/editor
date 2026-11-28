@@ -4,8 +4,8 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
 use super::db::StateDb;
-use super::graph::StateEdge;
-use super::graph::StateNode;
+use super::db::graph::StateEdge;
+use super::db::graph::StateNode;
 use crate::Options;
 use crate::diagrams::Rendered;
 use crate::layout::compound::CEdge;
@@ -16,7 +16,6 @@ use crate::layout::compound::compound_layout;
 use crate::layout::compound::direction;
 use crate::layout::layered::LayeredOptions;
 use crate::svg::builder::esc_text;
-use crate::svg::builder::js_round;
 use crate::svg::builder::label_svg;
 use crate::svg::builder::num;
 use crate::svg::builder::push_num;
@@ -36,6 +35,7 @@ use crate::text::label::Label;
 use crate::text::label::layout_label;
 use crate::text::measure::BOLD;
 use crate::text::measure::ITALIC;
+use crate::util::float::js_round;
 use crate::yaml::Value;
 
 const NODE_SEP: f64 = 40.0;

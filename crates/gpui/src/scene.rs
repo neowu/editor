@@ -13,6 +13,7 @@ use crate::AtlasTextureId;
 use crate::AtlasTile;
 use crate::Background;
 use crate::Bounds;
+// lint: expect(module_cycle)
 use crate::ContentMask;
 use crate::Corners;
 use crate::Edges;
@@ -22,6 +23,7 @@ use crate::Point;
 use crate::Radians;
 use crate::ScaledPixels;
 use crate::Size;
+// lint: expect(module_cycle)
 use crate::Transformation;
 use crate::bounds_tree::BoundsTree;
 use crate::point;
@@ -92,7 +94,9 @@ impl Scene {
             if let Some(sprite) = self.monochrome_sprites.get_mut(animation.sprite_index) {
                 sprite.transformation = animation
                     .base
+                    // lint: expect(module_cycle)
                     .turned(animation.period, elapsed)
+                    // lint: expect(module_cycle)
                     .into_matrix(animation.center, animation.scale_factor);
             }
         }
@@ -119,6 +123,7 @@ impl Scene {
 
     pub(crate) fn insert_primitive(&mut self, primitive: impl Into<Primitive>) {
         let mut primitive = primitive.into();
+        // lint: expect(module_cycle)
         let clipped_bounds = primitive.bounds().intersect(&primitive.content_mask().bounds);
 
         if clipped_bounds.is_empty() {
@@ -253,6 +258,7 @@ impl Primitive {
         }
     }
 
+    // lint: expect(module_cycle)
     const fn content_mask(&self) -> &ContentMask<ScaledPixels> {
         match self {
             Primitive::Shadow(shadow) => &shadow.content_mask,
@@ -420,6 +426,7 @@ pub struct Quad {
     pub(crate) order: DrawOrder,
     pub(crate) border_style: BorderStyle,
     pub(crate) bounds: Bounds<ScaledPixels>,
+    // lint: expect(module_cycle)
     pub(crate) content_mask: ContentMask<ScaledPixels>,
     pub(crate) background: Background,
     pub(crate) border_color: Hsla,
@@ -439,6 +446,7 @@ pub struct Underline {
     pub(crate) order: DrawOrder,
     pub(crate) pad: u32, // align to 8 bytes
     pub(crate) bounds: Bounds<ScaledPixels>,
+    // lint: expect(module_cycle)
     pub(crate) content_mask: ContentMask<ScaledPixels>,
     pub(crate) color: Hsla,
     pub(crate) thickness: ScaledPixels,
@@ -458,6 +466,7 @@ pub struct Shadow {
     pub(crate) blur_radius: ScaledPixels,
     pub(crate) bounds: Bounds<ScaledPixels>,
     pub(crate) corner_radii: Corners<ScaledPixels>,
+    // lint: expect(module_cycle)
     pub(crate) content_mask: ContentMask<ScaledPixels>,
     pub(crate) color: Hsla,
     pub(crate) element_bounds: Bounds<ScaledPixels>,
@@ -572,6 +581,7 @@ pub struct MonochromeSprite {
     pub(crate) animation: u32,
     pub(crate) tile: AtlasTile,
     pub(crate) bounds: Bounds<ScaledPixels>,
+    // lint: expect(module_cycle)
     pub(crate) content_mask: ContentMask<ScaledPixels>,
     pub(crate) color: Hsla,
     pub(crate) transformation: TransformationMatrix,
@@ -581,6 +591,7 @@ pub struct MonochromeSprite {
 /// present, so the scene can be presented again without being redrawn.
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct SpriteAnimation {
+    // lint: expect(module_cycle)
     base: Transformation,
     period: Duration,
     center: Point<Pixels>,
@@ -590,6 +601,7 @@ pub(crate) struct SpriteAnimation {
 
 impl SpriteAnimation {
     /// `period` must not be zero.
+    // lint: expect(module_cycle)
     pub(crate) const fn new(base: Transformation, period: Duration, center: Point<Pixels>, scale_factor: f32) -> Self {
         Self { base, period, center, scale_factor, sprite_index: usize::MAX }
     }
@@ -610,6 +622,7 @@ pub struct PolychromeSprite {
     pub(crate) grayscale: PaddedBool32,
     pub(crate) opacity: f32,
     pub(crate) bounds: Bounds<ScaledPixels>,
+    // lint: expect(module_cycle)
     pub(crate) content_mask: ContentMask<ScaledPixels>,
     pub(crate) corner_radii: Corners<ScaledPixels>,
 }
@@ -629,6 +642,7 @@ pub struct Path<P: Clone + Debug + Default + PartialEq> {
     id: PathId,
     pub order: DrawOrder,
     pub bounds: Bounds<P>,
+    // lint: expect(module_cycle)
     pub content_mask: ContentMask<P>,
     pub vertices: Vec<PathVertex<P>>,
     pub color: Background,
@@ -647,6 +661,7 @@ impl Path<Pixels> {
             start,
             current: start,
             bounds: Bounds { origin: start, size: Size::default() },
+            // lint: expect(module_cycle)
             content_mask: ContentMask::default(),
             color: Background::default(),
             contour_count: 0,
@@ -659,6 +674,7 @@ impl Path<Pixels> {
             id: self.id,
             order: self.order,
             bounds: self.bounds.scale(factor),
+            // lint: expect(module_cycle)
             content_mask: self.content_mask.scale(factor),
             vertices: self.vertices.iter().map(|vertex| vertex.scale(factor)).collect(),
             start: self.start.map(|start| start.scale(factor)),
@@ -707,8 +723,11 @@ impl Path<Pixels> {
             .union(&Bounds { origin: xy.1, size: Size::default() })
             .union(&Bounds { origin: xy.2, size: Size::default() });
 
+        // lint: expect(module_cycle)
         self.vertices.push(PathVertex { xy_position: xy.0, st_position: st.0, content_mask: ContentMask::default() });
+        // lint: expect(module_cycle)
         self.vertices.push(PathVertex { xy_position: xy.1, st_position: st.1, content_mask: ContentMask::default() });
+        // lint: expect(module_cycle)
         self.vertices.push(PathVertex { xy_position: xy.2, st_position: st.2, content_mask: ContentMask::default() });
     }
 }
@@ -718,6 +737,7 @@ where
     T: Clone + Debug + Default + PartialEq + PartialOrd + Add<T, Output = T> + Sub<Output = T>,
 {
     pub fn clipped_bounds(&self) -> Bounds<T> {
+        // lint: expect(module_cycle)
         self.bounds.intersect(&self.content_mask.bounds)
     }
 }
@@ -733,6 +753,7 @@ impl From<Path<ScaledPixels>> for Primitive {
 pub struct PathVertex<P: Clone + Debug + Default + PartialEq> {
     pub xy_position: Point<P>,
     pub st_position: Point<f32>,
+    // lint: expect(module_cycle)
     content_mask: ContentMask<P>,
 }
 
@@ -741,6 +762,7 @@ impl PathVertex<Pixels> {
         PathVertex {
             xy_position: self.xy_position.scale(factor),
             st_position: self.st_position,
+            // lint: expect(module_cycle)
             content_mask: self.content_mask.scale(factor),
         }
     }

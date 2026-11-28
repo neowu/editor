@@ -51,6 +51,7 @@ use crate::Event;
 use crate::ModalLayer;
 use crate::Pane;
 use crate::Workspace;
+// lint: expect(module_cycle)
 use crate::docks::DraggedDock;
 use crate::persistence::model::DockData;
 use crate::status_bar::StatusItemView;
@@ -374,6 +375,7 @@ impl Dock {
                     workspace.zoomed_position = None;
                 }
                 cx.emit(Event::ZoomChanged);
+                // lint: expect(module_cycle)
                 workspace.dismiss_zoomed_items_to_reveal(Some(position), window, cx);
             }
         })
@@ -783,6 +785,7 @@ impl Render for Dock {
             let create_resize_handle = || {
                 let handle = div()
                     .id("resize-handle")
+                    // lint: expect(module_cycle)
                     .on_drag(DraggedDock(position), |dock, _, _, cx| {
                         cx.stop_propagation();
                         cx.new(|_| dock.clone())

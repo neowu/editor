@@ -8,10 +8,8 @@ use std::fmt;
 use std::fmt::Formatter;
 use std::fs;
 use std::io::ErrorKind;
-use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
-use std::process::ExitStatus;
 use std::process::Output;
 use std::str::FromStr as _;
 use std::sync::Arc;
@@ -24,7 +22,6 @@ use anyhow::bail;
 use async_channel::Sender;
 use async_macos::command::Command;
 use async_macos::command::Stdio;
-use async_macos::command::new_command;
 use file_content::ByteContent;
 use file_content::decode_byte_header;
 use futures::AsyncWriteExt as _;
@@ -46,15 +43,17 @@ use rustc_hash::FxHashMap;
 use serde::Deserialize;
 use smallvec::SmallVec;
 use text::LineEnding;
-use thiserror::Error;
 use util::ResultExt as _;
 use util::paths;
 use util::rel_path::RelPath;
 use util::shell::ShellKind;
 
 use crate::Oid;
+use crate::RepoPath;
 use crate::SHA256_HEX_LENGTH;
 use crate::SHORT_SHA_LENGTH;
+use crate::binary::GitBinary;
+use crate::binary::GitBinaryCommandError;
 use crate::blame::Blame;
 use crate::commit::CommitDiffObject;
 use crate::commit::CommitDiffObjectKind;
@@ -1209,7 +1208,7 @@ impl GitRepository for RealGitRepository {
                 let new_content = new_object.map(|object| object.content);
                 let old_content = old_object.map(|object| object.content);
 
-                files.push(CommitFile { path: RepoPath(Arc::from(rel_path)), old_content, new_content, is_binary });
+                files.push(CommitFile { path: RepoPath::from_rel_path(rel_path), old_content, new_content, is_binary });
             }
 
             Ok(CommitDiff { files, is_shallow_boundary: false })
@@ -2885,80 +2884,6 @@ fn git_status_args(path_prefixes: &[RepoPath]) -> Vec<OsString> {
     args
 }
 
-pub(crate) struct GitBinary {
-    git_binary_path: PathBuf,
-    working_directory: PathBuf,
-    envs: FxHashMap<String, String>,
-}
-
-impl GitBinary {
-    fn new(git_binary_path: PathBuf, working_directory: PathBuf) -> Self {
-        Self { git_binary_path, working_directory, envs: FxHashMap::default() }
-    }
-
-    fn envs(mut self, envs: FxHashMap<String, String>) -> Self {
-        self.envs = envs;
-        self
-    }
-
-    async fn run<S>(&self, args: &[S]) -> Result<String>
-    where
-        S: AsRef<OsStr>,
-    {
-        let mut stdout = self.run_raw(args).await?;
-        if stdout.ends_with('\n') {
-            stdout.pop();
-        }
-        Ok(stdout)
-    }
-
-    /// Returns the result of the command without trimming the trailing newline.
-    async fn run_raw<S>(&self, args: &[S]) -> Result<String>
-    where
-        S: AsRef<OsStr>,
-    {
-        let mut command = self.build_command(args);
-        let output = command.output().await?;
-        anyhow::ensure!(
-            output.status.success(),
-            GitBinaryCommandError {
-                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-                status: output.status,
-            }
-        );
-        Ok(String::from_utf8(output.stdout)?)
-    }
-
-    pub(crate) fn build_command<S>(&self, args: &[S]) -> Command
-    where
-        S: AsRef<OsStr>,
-    {
-        let mut command = new_command(&self.git_binary_path);
-        command.current_dir(&self.working_directory);
-        // Disabled to stop malicious actors from running arbitrary commands via fsmonitor hooks
-        command.args(["-c", "core.fsmonitor=false"]);
-        // Prepended signature lines would corrupt our --format parsers.
-        command.args(["-c", "log.showSignature=false"]);
-        command.arg("--no-optional-locks");
-        // Internal commands must be non-interactive so background tasks never block on user input.
-        command.arg("--no-pager");
-
-        command.args(args);
-
-        command.envs(&self.envs);
-        command
-    }
-}
-
-#[derive(Error, Debug)]
-#[error("Git command failed:\n{stdout}{stderr}\n")]
-struct GitBinaryCommandError {
-    stdout: String,
-    stderr: String,
-    status: ExitStatus,
-}
-
 /// Always rebase, and let git stash and reapply uncommitted changes itself so
 /// a mid-rebase stop keeps track of them.
 const PULL_ARGS: &[&str] = &["pull", "--rebase", "--autostash"];
@@ -3015,44 +2940,6 @@ async fn run_git_command(
         stdout: String::from_utf8_lossy(&output.stdout).to_string(),
         stderr: String::from_utf8_lossy(&output.stderr).to_string(),
     })
-}
-
-#[derive(Clone, Ord, Hash, PartialOrd, Eq, PartialEq)]
-pub struct RepoPath(Arc<RelPath>);
-
-impl fmt::Debug for RepoPath {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl RepoPath {
-    pub fn new<S: AsRef<str> + ?Sized>(s: &S) -> Result<Self> {
-        let rel_path = RelPath::from_unix_str(s.as_ref())?;
-        Ok(Self::from_rel_path(rel_path))
-    }
-
-    pub fn from_rel_path(path: &RelPath) -> RepoPath {
-        Self(Arc::from(path))
-    }
-
-    pub fn as_std_path(&self) -> &Path {
-        if self.is_empty() { Path::new(".") } else { self.0.as_std_path() }
-    }
-}
-
-impl AsRef<Arc<RelPath>> for RepoPath {
-    fn as_ref(&self) -> &Arc<RelPath> {
-        &self.0
-    }
-}
-
-impl Deref for RepoPath {
-    type Target = RelPath;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
 }
 
 fn parse_branch_input(input: &str) -> Vec<Branch> {

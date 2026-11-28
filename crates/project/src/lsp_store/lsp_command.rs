@@ -88,9 +88,22 @@ use crate::ResolveState;
 use crate::lsp_store;
 use crate::lsp_store::LanguageServerToQuery;
 use crate::lsp_store::LocalLspStore;
-use crate::lsp_store::LspDocumentLink;
-use crate::lsp_store::LspFoldingRange;
 use crate::lsp_store::LspStore;
+
+#[derive(Clone, Debug)]
+pub struct LspDocumentLink {
+    pub range: Range<Anchor>,
+    pub target: Option<SharedString>,
+    pub tooltip: Option<SharedString>,
+    pub(crate) data: Option<serde_json::Value>,
+    pub(crate) resolved: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct LspFoldingRange {
+    pub range: Range<Anchor>,
+    pub collapsed_text: Option<SharedString>,
+}
 
 fn code_action_kind_matches(requested: &CodeActionKind, actual: &CodeActionKind) -> bool {
     let requested_str = requested.as_str();

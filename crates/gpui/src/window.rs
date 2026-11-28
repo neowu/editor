@@ -35,9 +35,12 @@ use smallvec::SmallVec;
 
 use crate::Action;
 use crate::ActionTable;
+// lint: expect(module_cycle)
 use crate::AnyElement;
+// lint: expect(module_cycle)
 use crate::AnyImageCache;
 use crate::AnyTooltip;
+// lint: expect(module_cycle)
 use crate::AnyView;
 use crate::App;
 use crate::AppContext as _;
@@ -59,6 +62,7 @@ use crate::EntityId;
 use crate::EventEmitter;
 use crate::FrameStats;
 use crate::Global;
+// lint: expect(module_cycle)
 use crate::GlobalElementId;
 use crate::InputHandler;
 use crate::IsZero as _;
@@ -78,6 +82,7 @@ use crate::PlatformWindow;
 use crate::Point;
 use crate::PromptButton;
 use crate::PromptLevel;
+// lint: expect(module_cycle)
 use crate::Render;
 use crate::ScaledPixels;
 use crate::Scene;
@@ -85,12 +90,15 @@ use crate::SingleSubscriberSet;
 use crate::Size;
 use crate::Style;
 use crate::Subscription;
+// lint: expect(module_cycle)
 use crate::TabStopMap;
 use crate::TaffyLayoutEngine;
 use crate::Task;
 use crate::TextStyle;
 use crate::TextStyleRefinement;
+// lint: expect(module_cycle)
 use crate::UiElement;
+// lint: expect(module_cycle)
 use crate::UiText;
 use crate::WindowAppearance;
 use crate::WindowBackgroundAppearance;
@@ -100,6 +108,7 @@ use crate::WindowParams;
 use crate::WindowTextSystem;
 use crate::WindowVisibility;
 use crate::point;
+// lint: expect(module_cycle)
 use crate::prelude::IntoElement as _;
 use crate::px;
 use crate::size;
@@ -488,6 +497,7 @@ struct DeferredDraw {
     text_style_stack: Vec<TextStyleRefinement>,
     content_mask: Option<ContentMask<Pixels>>,
     rem_size: Pixels,
+    // lint: expect(module_cycle)
     element: Option<AnyElement>,
     absolute_offset: Point<Pixels>,
     prepaint_range: Range<PrepaintStateIndex>,
@@ -500,7 +510,9 @@ struct DeferredDraw {
 pub(crate) struct Frame {
     pub(crate) focus: Option<FocusId>,
     window_active: bool,
+    // lint: expect(module_cycle)
     element_states: FxHashMap<(GlobalElementId, TypeId), ElementStateBox>,
+    // lint: expect(module_cycle)
     accessed_element_states: Vec<(GlobalElementId, TypeId)>,
     mouse_listeners: Vec<Option<AnyMouseListener>>,
     pub(crate) dispatch_tree: DispatchTree,
@@ -511,8 +523,11 @@ pub(crate) struct Frame {
     input_handlers: Vec<Option<PlatformInputHandler>>,
     tooltip_requests: Vec<Option<TooltipRequest>>,
     cursor_styles: Vec<CursorStyleRequest>,
+    // lint: expect(module_cycle)
     pub(crate) tab_stops: TabStopMap,
+    // lint: expect(module_cycle)
     pub(crate) ui_elements: Vec<UiElement>,
+    // lint: expect(module_cycle)
     pub(crate) ui_texts: Vec<UiText>,
 }
 
@@ -556,6 +571,7 @@ impl Frame {
             tooltip_requests: Vec::new(),
             cursor_styles: Vec::new(),
 
+            // lint: expect(module_cycle)
             tab_stops: TabStopMap::default(),
             ui_elements: Vec::new(),
             ui_texts: Vec::new(),
@@ -574,6 +590,7 @@ impl Frame {
         self.hitboxes.clear();
         self.window_control_hitboxes.clear();
         self.deferred_draws.clear();
+        // lint: expect(module_cycle)
         self.tab_stops.clear();
         self.ui_elements.clear();
         self.ui_texts.clear();
@@ -656,6 +673,7 @@ pub struct Window {
     rem_size_override_stack: SmallVec<[Pixels; 8]>,
     viewport_size: Size<Pixels>,
     layout_engine: Option<TaffyLayoutEngine>,
+    // lint: expect(module_cycle)
     pub(crate) root: Option<AnyView>,
     pub(crate) element_id_stack: ElementIdStack,
     text_style_stack: Vec<TextStyleRefinement>,
@@ -664,6 +682,7 @@ pub struct Window {
     element_opacity: f32,
     content_mask_stack: Vec<ContentMask<Pixels>>,
     requested_autoscroll: Option<Bounds<Pixels>>,
+    // lint: expect(module_cycle)
     pub(crate) image_cache_stack: Vec<AnyImageCache>,
     pub(crate) rendered_frame: Frame,
     pub(crate) next_frame: Frame,
@@ -1197,6 +1216,7 @@ impl Window {
         build_view: impl FnOnce(&mut Window, &mut Context<E>) -> E,
     ) -> Entity<E>
     where
+        // lint: expect(module_cycle)
         E: 'static + Render,
     {
         let view = cx.new(|cx| build_view(self, cx));
@@ -1208,8 +1228,10 @@ impl Window {
     /// Returns the root entity of the window, if it has one.
     pub fn root<E>(&self) -> Option<Option<Entity<E>>>
     where
+        // lint: expect(module_cycle)
         E: 'static + Render,
     {
+        // lint: expect(module_cycle)
         self.root.as_ref().map(|view| view.clone().downcast::<E>().ok())
     }
 
@@ -1281,6 +1303,7 @@ impl Window {
 
     /// Move focus to next tab stop.
     pub fn focus_next(&mut self, cx: &mut App) {
+        // lint: expect(module_cycle)
         if let Some(handle) = self.rendered_frame.tab_stops.next(self.focus.as_ref()) {
             self.focus(&handle, cx);
         }
@@ -1288,6 +1311,7 @@ impl Window {
 
     /// Move focus to previous tab stop.
     pub fn focus_prev(&mut self, cx: &mut App) {
+        // lint: expect(module_cycle)
         if let Some(handle) = self.rendered_frame.tab_stops.prev(self.focus.as_ref()) {
             self.focus(&handle, cx);
         }
@@ -1665,6 +1689,7 @@ impl Window {
 
     /// Acquire a globally unique identifier for the given ElementId.
     /// Only valid for the duration of the provided closure.
+    // lint: expect(module_cycle)
     fn with_global_id<R>(&mut self, element_id: ElementId, f: impl FnOnce(&GlobalElementId, &mut Self) -> R) -> R {
         self.with_id(element_id, |this| {
             let global_id = this.element_id_stack.global_id();
@@ -1904,12 +1929,15 @@ impl Window {
         // stretches to fill the viewport unless explicitly sized, window roots
         // fill the window when their size is `auto`.
         let scale_factor = self.scale_factor();
+        // lint: expect(module_cycle)
         let mut root_element = self.root.as_ref().expect("window has a root view").clone().into_any_element();
+        // lint: expect(module_cycle)
         let root_layout_id = root_element.request_layout(self, cx);
         self.layout_engine
             .as_mut()
             .expect("layout engine is present outside compute_layout")
             .stretch_auto_size_to_fill(root_layout_id, self.viewport_size, scale_factor);
+        // lint: expect(module_cycle)
         root_element.prepaint_as_root(Point::default(), self.viewport_size.into(), self, cx);
 
         self.prepaint_deferred_draws(cx);
@@ -1917,8 +1945,10 @@ impl Window {
         let mut active_drag_element = None;
         let mut tooltip_element = None;
         if let Some(active_drag) = cx.active_drag.take() {
+            // lint: expect(module_cycle)
             let mut element = active_drag.view.clone().into_any_element();
             let offset = self.mouse_position() - active_drag.cursor_offset;
+            // lint: expect(module_cycle)
             element.prepaint_as_root(offset, AvailableSpace::min_size(), self, cx);
             active_drag_element = Some(element);
             cx.active_drag = Some(active_drag);
@@ -1931,19 +1961,23 @@ impl Window {
         // Now actually paint the elements.
         let paint_start = build_start.map(|build_start| (build_start.elapsed(), Instant::now()));
         self.invalidator.set_phase(DrawPhase::Paint);
+        // lint: expect(module_cycle)
         root_element.paint(self, cx);
 
         self.paint_deferred_draws(cx);
 
         if let Some(mut drag_element) = active_drag_element {
+            // lint: expect(module_cycle)
             drag_element.paint(self, cx);
         } else if let Some(mut tooltip_element) = tooltip_element {
+            // lint: expect(module_cycle)
             tooltip_element.paint(self, cx);
         }
 
         paint_start.map(|(build, paint_start)| (build, paint_start.elapsed()))
     }
 
+    // lint: expect(module_cycle)
     fn prepaint_tooltip(&mut self, cx: &mut App) -> Option<AnyElement> {
         // Use indexing instead of iteration to avoid borrowing self for the duration of the loop.
         for tooltip_request_index in (0..self.next_frame.tooltip_requests.len()).rev() {
@@ -1952,8 +1986,10 @@ impl Window {
                 log::error!("Unexpectedly absent TooltipRequest");
                 continue;
             };
+            // lint: expect(module_cycle)
             let mut element = tooltip_request.tooltip.view.clone().into_any_element();
             let mouse_position = tooltip_request.tooltip.mouse_position;
+            // lint: expect(module_cycle)
             let tooltip_size = element.layout_as_root(AvailableSpace::min_size(), self, cx);
 
             let mut tooltip_bounds = Bounds::new(mouse_position + point(px(1.), px(1.)), tooltip_size);
@@ -1991,6 +2027,7 @@ impl Window {
                 continue;
             }
 
+            // lint: expect(module_cycle)
             self.with_absolute_element_offset(tooltip_bounds.origin, |window| element.prepaint(window, cx));
 
             self.tooltip_bounds = Some(TooltipBounds { id: tooltip_request.id, bounds: tooltip_bounds });
@@ -2051,6 +2088,7 @@ impl Window {
                             window.with_rem_size(Some(rem_size), |window| {
                                 window.with_absolute_element_offset(absolute_offset, |window| {
                                     window.with_content_mask(content_mask, |window| {
+                                        // lint: expect(module_cycle)
                                         element.prepaint(window, cx);
                                     });
                                 });
@@ -2099,6 +2137,7 @@ impl Window {
                     self.with_rendered_view(deferred_draw.current_view, |window| {
                         window.with_content_mask(content_mask, |window| {
                             window.with_rem_size(Some(deferred_draw.rem_size), |window| {
+                                // lint: expect(module_cycle)
                                 element.paint(window, cx);
                             });
                         });
@@ -2187,6 +2226,7 @@ impl Window {
             input_handlers_index: self.next_frame.input_handlers.len(),
             cursor_styles_index: self.next_frame.cursor_styles.len(),
             accessed_element_states_index: self.next_frame.accessed_element_states.len(),
+            // lint: expect(module_cycle)
             tab_handle_index: self.next_frame.tab_stops.paint_index(),
             ui_elements_index: self.next_frame.ui_elements.len(),
             ui_texts_index: self.next_frame.ui_texts.len(),
@@ -2216,7 +2256,9 @@ impl Window {
                 .iter()
                 .map(|(id, type_id)| (id.clone(), *type_id)),
         );
+        // lint: expect(module_cycle)
         self.next_frame.tab_stops.replay(
+            // lint: expect(module_cycle)
             &self.rendered_frame.tab_stops.insertion_history[range.start.tab_handle_index..range.end.tab_handle_index],
         );
 
@@ -2443,6 +2485,7 @@ impl Window {
     #[inline(always)]
     pub fn with_element_state<S, R>(
         &mut self,
+        // lint: expect(module_cycle)
         global_id: &GlobalElementId,
         f: impl FnOnce(Option<S>, &mut Self) -> (R, S),
     ) -> R
@@ -2479,6 +2522,7 @@ impl Window {
     /// The second option means 'not yet initialized'.
     pub fn with_optional_element_state<S, R>(
         &mut self,
+        // lint: expect(module_cycle)
         global_id: Option<&GlobalElementId>,
         f: impl FnOnce(Option<Option<S>>, &mut Self) -> (R, Option<S>),
     ) -> R
@@ -2500,8 +2544,10 @@ impl Window {
     #[inline]
     pub(crate) fn with_tab_group<R>(&mut self, index: Option<isize>, f: impl FnOnce(&mut Self) -> R) -> R {
         if let Some(index) = index {
+            // lint: expect(module_cycle)
             self.next_frame.tab_stops.begin_group(index);
             let result = f(self);
+            // lint: expect(module_cycle)
             self.next_frame.tab_stops.end_group();
             result
         } else {
@@ -2519,6 +2565,7 @@ impl Window {
     /// This method should only be called as part of the prepaint phase of element drawing.
     pub fn defer_draw(
         &mut self,
+        // lint: expect(module_cycle)
         element: AnyElement,
         absolute_offset: Point<Pixels>,
         priority: usize,
@@ -2717,6 +2764,7 @@ impl Window {
     }
 
     /// Executes the provided function with the specified image cache.
+    // lint: expect(module_cycle)
     pub(crate) fn with_image_cache<F, R>(&mut self, image_cache: Option<AnyImageCache>, f: F) -> R
     where
         F: FnOnce(&mut Self) -> R,
@@ -2992,8 +3040,10 @@ impl Window {
     #[inline(never)]
     fn take_element_state(
         &mut self,
+        // lint: expect(module_cycle)
         global_id: &GlobalElementId,
         state_type: TypeId,
+        // lint: expect(module_cycle)
     ) -> ((GlobalElementId, TypeId), Option<ElementStateBox>) {
         let key = (global_id.clone(), state_type);
         self.next_frame.accessed_element_states.push(key.clone());
@@ -3005,6 +3055,7 @@ impl Window {
     #[inline(never)]
     fn insert_element_state(
         &mut self,
+        // lint: expect(module_cycle)
         key: (GlobalElementId, TypeId),
         state: ElementStateBox,
     ) -> Option<ElementStateBox> {

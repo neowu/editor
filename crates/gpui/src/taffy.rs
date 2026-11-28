@@ -36,6 +36,7 @@ use crate::Pixels;
 use crate::Point;
 use crate::Size;
 use crate::Style;
+// lint: expect(module_cycle)
 use crate::Window;
 use crate::size;
 use crate::util::ceil_to_device_pixel;
@@ -43,7 +44,9 @@ use crate::util::round_half_toward_zero;
 use crate::util::round_stroke_to_device_pixel;
 use crate::util::round_to_device_pixel;
 
+#[rustfmt::skip]
 pub(crate) type MeasureFn =
+    // lint: expect(module_cycle)
     dyn FnMut(Size<Option<Pixels>>, Size<AvailableSpace>, &mut Window, &mut App) -> Size<Pixels>;
 
 /// What a measure function kept between frames shares with the element it
@@ -79,6 +82,7 @@ enum NodeMeasure<M> {
 /// skips the subtrees whose styles, children and measure functions didn't
 /// change. `M` is the measure function, a parameter so tests can run without
 /// a window.
+// lint: expect(module_cycle)
 pub(crate) struct TaffyLayoutEngine<M = Box<MeasureFn>> {
     taffy: TaffyTree,
     nodes: SecondaryMap<DefaultKey, Node<M>>,
@@ -155,9 +159,11 @@ impl TaffyLayoutEngine {
         &mut self,
         id: LayoutId,
         available_space: Size<AvailableSpace>,
+        // lint: expect(module_cycle)
         window: &mut Window,
         cx: &mut App,
     ) {
+        // lint: expect(module_cycle)
         let scale_factor = window.scale_factor();
         self.compute(id, available_space, scale_factor, |measure, known_dimensions, available_space| {
             measure(known_dimensions, available_space, window, cx)

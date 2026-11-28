@@ -1,7 +1,11 @@
+use gpui::App;
+use gpui::Div;
 use gpui::InteractiveElement as _;
-use gpui::ParentElement as _;
+use gpui::ParentElement;
 use gpui::Refineable as _;
-use gpui::Styled as _;
+use gpui::Stateful;
+use gpui::Styled;
+use gpui::Window;
 use gpui::prelude::FluentBuilder as _;
 use ui::prelude::ElementId;
 use ui::prelude::IntoElement;
@@ -12,13 +16,11 @@ use ui::prelude::px;
 use ui::prelude::rems;
 
 use super::Alignment;
-use super::AnyDiv;
 use super::AnyElement;
 use super::Arc;
 use super::Bounds;
 use super::Cell;
 use super::Checkbox;
-use super::CheckboxToggleCallback;
 use super::Hsla;
 use super::Language;
 use super::Length;
@@ -39,7 +41,6 @@ use super::SourceMapping;
 use super::StyleRefinement;
 use super::StyledText;
 use super::SyntaxTheme;
-use super::TableState;
 use super::TextAlign;
 use super::TextRun;
 use super::TextStyle;
@@ -580,5 +581,113 @@ impl MarkdownElementBuilder {
                 document_end: None,
             },
         }
+    }
+}
+
+pub(crate) type CheckboxToggleCallback = Rc<dyn Fn(Range<usize>, bool, &mut Window, &mut App)>;
+
+pub(crate) enum AnyDiv {
+    Div(Div),
+    Stateful(Stateful<Div>),
+}
+
+impl AnyDiv {
+    fn into_any_element(self) -> AnyElement {
+        match self {
+            Self::Div(div) => div.into_any_element(),
+            Self::Stateful(div) => div.into_any_element(),
+        }
+    }
+}
+
+impl From<Div> for AnyDiv {
+    fn from(value: Div) -> Self {
+        Self::Div(value)
+    }
+}
+
+impl From<Stateful<Div>> for AnyDiv {
+    fn from(value: Stateful<Div>) -> Self {
+        Self::Stateful(value)
+    }
+}
+
+impl Styled for AnyDiv {
+    fn style(&mut self) -> &mut StyleRefinement {
+        match self {
+            Self::Div(div) => div.style(),
+            Self::Stateful(div) => div.style(),
+        }
+    }
+}
+
+impl ParentElement for AnyDiv {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        match self {
+            Self::Div(div) => div.extend(elements),
+            Self::Stateful(div) => div.extend(elements),
+        }
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct TableState {
+    alignments: Vec<Alignment>,
+    pub(crate) in_head: bool,
+    in_cell: bool,
+    pub(crate) row_index: usize,
+    pub(crate) col_index: usize,
+}
+
+impl TableState {
+    pub(crate) fn start(&mut self, alignments: Vec<Alignment>) {
+        self.alignments = alignments;
+        self.in_head = false;
+        self.in_cell = false;
+        self.row_index = 0;
+        self.col_index = 0;
+    }
+
+    pub(crate) fn end(&mut self) {
+        self.alignments.clear();
+        self.in_head = false;
+        self.in_cell = false;
+        self.row_index = 0;
+        self.col_index = 0;
+    }
+
+    pub(crate) const fn start_head(&mut self) {
+        self.in_head = true;
+    }
+
+    pub(crate) const fn end_head(&mut self) {
+        self.in_head = false;
+    }
+
+    pub(crate) const fn start_row(&mut self) {
+        self.col_index = 0;
+    }
+
+    pub(crate) const fn end_row(&mut self) {
+        self.row_index += 1;
+    }
+
+    pub(crate) const fn start_cell(&mut self) {
+        self.in_cell = true;
+    }
+
+    pub(crate) const fn end_cell(&mut self) {
+        self.in_cell = false;
+        self.col_index += 1;
+    }
+
+    pub(crate) fn current_cell_alignment(&self) -> Option<Alignment> {
+        if self.alignments.is_empty() {
+            return None;
+        }
+        if self.in_head {
+            return Some(Alignment::Center);
+        }
+        self.alignments.get(self.col_index).copied()
     }
 }

@@ -41,7 +41,9 @@ use serde::de;
 use taffy::prelude::TaffyGridLine as _;
 use taffy::prelude::TaffyGridSpan as _;
 
+// lint: expect(module_cycle)
 use crate::App;
+// lint: expect(module_cycle)
 use crate::DisplayId;
 
 /// Axis in a 2D cartesian space.
@@ -516,12 +518,15 @@ pub const fn bounds<T: Clone + Debug + Default + PartialEq>(origin: Point<T>, si
 
 impl Bounds<Pixels> {
     /// Generate a centered bounds for the given display or main display if none is provided.
+    // lint: expect(module_cycle)
     pub fn centered(display_id: Option<DisplayId>, size: Size<Pixels>, cx: &App) -> Self {
+        // lint: expect(module_cycle)
         let display = display_id.and_then(|id| cx.find_display(id)).or_else(|| cx.main_display());
 
         display.map_or_else(
             || Bounds { origin: point(px(0.), px(0.)), size },
             |display| {
+                // lint: expect(module_cycle)
                 let visible_bounds = display.visible_bounds();
                 Bounds::centered_at(visible_bounds.center(), size.min(&visible_bounds.size))
             },
@@ -529,11 +534,14 @@ impl Bounds<Pixels> {
     }
 
     /// Generate maximized bounds for the given display or main display if none is provided.
+    // lint: expect(module_cycle)
     pub fn maximized(display_id: Option<DisplayId>, cx: &App) -> Self {
+        // lint: expect(module_cycle)
         let display = display_id.and_then(|id| cx.find_display(id)).or_else(|| cx.main_display());
 
         display.map_or_else(
             || Bounds { origin: point(px(0.), px(0.)), size: size(px(1024.), px(768.)) },
+            // lint: expect(module_cycle)
             |display| display.bounds(),
         )
     }
@@ -2205,7 +2213,9 @@ impl Rems {
         self * rem_size
     }
     /// Convert from pixels to Rem.
+    // lint: expect(module_cycle)
     pub fn from_pixels(length: Pixels, window: &gpui::Window) -> Self {
+        // lint: expect(module_cycle)
         Self(length / window.rem_size())
     }
 }

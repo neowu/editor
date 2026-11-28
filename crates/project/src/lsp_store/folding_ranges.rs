@@ -1,4 +1,3 @@
-use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -8,27 +7,20 @@ use futures::future::Shared;
 use gpui::AppContext as _;
 use gpui::Context;
 use gpui::Entity;
-use gpui::SharedString;
 use gpui::Task;
 use itertools::Itertools as _;
 use language::Buffer;
 use lsp::LanguageServerId;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use text::Anchor;
 
-use crate::lsp_command::GetFoldingRanges;
 use crate::lsp_store::LspStore;
 use crate::lsp_store::LspStoreEvent;
 use crate::lsp_store::RunningFetch;
+use crate::lsp_store::lsp_command::GetFoldingRanges;
+use crate::lsp_store::lsp_command::LspFoldingRange;
 use crate::lsp_store::missing_servers_to_query;
 use crate::lsp_store::next_lsp_fetch_id;
-
-#[derive(Clone, Debug)]
-pub struct LspFoldingRange {
-    pub range: Range<Anchor>,
-    pub collapsed_text: Option<SharedString>,
-}
 
 type FoldingRangeTask = Shared<Task<Result<Vec<LspFoldingRange>, Arc<anyhow::Error>>>>;
 

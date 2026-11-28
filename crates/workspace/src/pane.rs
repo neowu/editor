@@ -119,6 +119,7 @@ use crate::NewFile;
 use crate::Open;
 use crate::OpenInTerminal;
 use crate::OpenTerminal;
+// lint: expect(module_cycle)
 use crate::SplitDirection;
 use crate::ToggleFinder;
 use crate::ToggleZoom;
@@ -134,9 +135,12 @@ use crate::item::SaveOptions;
 use crate::item::TabContentParams;
 use crate::item::TabTooltipContent;
 use crate::item::WeakItemHandle;
+// lint: expect(module_cycle)
 use crate::item_registry::WorkspaceItemBuilder;
+// lint: expect(module_cycle)
 use crate::move_item;
 use crate::notifications::NotifyResultExt as _;
+// lint: expect(module_cycle)
 use crate::preview;
 use crate::toolbar::Toolbar;
 
@@ -417,6 +421,7 @@ pub enum Event {
     ActivateItem { local: bool, focus_changed: bool },
     Remove { focus_on_pane: Option<Entity<Pane>> },
     RemovedItem { item: Box<dyn ItemHandle> },
+    // lint: expect(module_cycle)
     Split { direction: SplitDirection, mode: SplitMode },
     ItemPinned,
     ItemUnpinned,
@@ -474,6 +479,7 @@ pub struct Pane {
     toolbar: Entity<Toolbar>,
     pub(crate) workspace: WeakEntity<Workspace>,
     project: WeakEntity<Project>,
+    // lint: expect(module_cycle)
     drag_split_direction: Option<SplitDirection>,
     #[allow(clippy::type_complexity)]
     can_drop_predicate: Option<Arc<dyn Fn(&dyn Any, &mut Window, &mut App) -> bool>>,
@@ -856,6 +862,7 @@ impl Pane {
         if let Some(workspace) = self.workspace.upgrade() {
             window.defer(cx, move |window, cx| {
                 workspace.update(cx, |workspace, cx| {
+                    // lint: expect(module_cycle)
                     workspace.navigate_tag_history(TagNavigationMode::Older, window, cx).detach_and_log_err(cx);
                 });
             });
@@ -866,6 +873,7 @@ impl Pane {
         if let Some(workspace) = self.workspace.upgrade() {
             window.defer(cx, move |window, cx| {
                 workspace.update(cx, |workspace, cx| {
+                    // lint: expect(module_cycle)
                     workspace.navigate_tag_history(TagNavigationMode::Newer, window, cx).detach_and_log_err(cx);
                 });
             });
@@ -954,6 +962,7 @@ impl Pane {
         suggested_position: Option<usize>,
         window: &mut Window,
         cx: &mut Context<Self>,
+        // lint: expect(module_cycle)
         build_item: WorkspaceItemBuilder,
     ) -> Box<dyn ItemHandle> {
         let mut existing_item = None;
@@ -1402,6 +1411,7 @@ impl Pane {
             cx.defer_in(window, move |this, window, cx| {
                 this.workspace
                     .update(cx, |workspace, cx| {
+                        // lint: expect(module_cycle)
                         let panes = workspace.center.panes();
                         let pane_with_unpinned_tab = panes.iter().find(|pane| {
                             if **pane == &current_pane {
@@ -1985,6 +1995,7 @@ impl Pane {
                     pane.activate_item(item_ix, true, true, window, cx);
                     pane.workspace.update(cx, |workspace, cx| {
                         let lister = DirectoryLister(workspace.project().clone());
+                        // lint: expect(module_cycle)
                         workspace.prompt_for_new_path(lister, Some(suggested_name), window, cx)
                     })
                 })??;
@@ -2049,6 +2060,7 @@ impl Pane {
         }
     }
 
+    // lint: expect(module_cycle)
     pub fn split(&mut self, direction: SplitDirection, mode: SplitMode, cx: &mut Context<Self>) {
         cx.emit(Event::Split { direction, mode });
     }
@@ -2061,6 +2073,7 @@ impl Pane {
         window.defer(cx, move |window, cx| {
             workspace
                 .update(cx, |workspace, cx| {
+                    // lint: expect(module_cycle)
                     preview::open_preview(workspace, item.as_ref(), pane, to_the_side, window, cx);
                 })
                 .ok();
@@ -2124,6 +2137,7 @@ impl Pane {
             };
 
             status_bar.update(cx, move |status_bar, cx| {
+                // lint: expect(module_cycle)
                 status_bar.set_active_pane(&pane, window, cx);
             });
         });
@@ -2203,6 +2217,7 @@ impl Pane {
                 self.workspace
                     .update(cx, |_, cx| {
                         cx.defer_in(window, move |_, window, cx| {
+                            // lint: expect(module_cycle)
                             move_item(&pane, &pane, id, destination_index, should_activate, window, cx);
                         });
                     })
@@ -2413,6 +2428,7 @@ impl Pane {
             let pane = pane.clone();
             let menu_context = menu_context.clone();
             let extra_actions = item_handle.tab_extra_context_menu_actions(window, cx);
+            // lint: expect(module_cycle)
             let has_preview = preview::has_preview(item_handle.as_ref(), cx);
             let item_handle = item_handle.boxed_clone();
             ContextMenu::build(window, cx, move |mut menu, window, cx| {
@@ -2621,6 +2637,7 @@ impl Pane {
                     let item_handle = item_handle.boxed_clone();
                     menu = menu.entry(
                         "Open Preview",
+                        // lint: expect(module_cycle)
                         Some(Box::new(preview::OpenPreview)),
                         window.handler_for(&pane, move |pane, window, cx| {
                             pane.open_preview(item_handle.boxed_clone(), false, window, cx);
@@ -2854,12 +2871,17 @@ impl Pane {
             || relative_cursor.y < size
             || relative_cursor.y > rect.height - size
         {
+            // lint: expect(module_cycle)
             [SplitDirection::Up, SplitDirection::Right, SplitDirection::Down, SplitDirection::Left]
                 .iter()
                 .min_by_key(|side| match side {
+                    // lint: expect(module_cycle)
                     SplitDirection::Up => relative_cursor.y,
+                    // lint: expect(module_cycle)
                     SplitDirection::Right => rect.width - relative_cursor.x,
+                    // lint: expect(module_cycle)
                     SplitDirection::Down => rect.height - relative_cursor.y,
+                    // lint: expect(module_cycle)
                     SplitDirection::Left => relative_cursor.x,
                 })
                 .copied()
@@ -2897,12 +2919,14 @@ impl Pane {
             .update(cx, |_, cx| {
                 cx.defer_in(window, move |workspace, window, cx| {
                     if let Some(split_direction) = split_direction {
+                        // lint: expect(module_cycle)
                         to_pane = workspace.split_pane(to_pane, split_direction, window, cx);
                     }
                     let was_pinned_in_from_pane = from_pane.read_with(cx, |pane, _| {
                         pane.index_for_item_id(item_id).is_some_and(|ix| pane.is_tab_pinned(ix))
                     });
                     let to_pane_old_length = to_pane.read(cx).items.len();
+                    // lint: expect(module_cycle)
                     move_item(&from_pane, &to_pane, item_id, ix, true, window, cx);
                     to_pane.update(cx, |this, _| {
                         if to_pane == from_pane {
@@ -2968,6 +2992,7 @@ impl Pane {
             .update(cx, |_, cx| {
                 cx.defer_in(window, move |workspace, window, cx| {
                     if let Some(project_path) = workspace.project().read(cx).path_for_entry(project_entry_id, cx) {
+                        // lint: expect(module_cycle)
                         let load_path_task = workspace.load_path(project_path.clone(), window, cx);
                         cx.spawn_in(window, async move |workspace, cx| {
                             if let Some((project_entry_id, build_item)) =
@@ -2976,6 +3001,7 @@ impl Pane {
                                 let (to_pane, new_item_handle) = workspace
                                     .update_in(cx, |workspace, window, cx| {
                                         if let Some(split_direction) = split_direction {
+                                            // lint: expect(module_cycle)
                                             to_pane = workspace.split_pane(to_pane, split_direction, window, cx);
                                         }
                                         let new_item_handle = to_pane.update(cx, |pane, cx| {
@@ -3047,6 +3073,7 @@ impl Pane {
             .collect()
     }
 
+    // lint: expect(module_cycle)
     pub const fn drag_split_direction(&self) -> Option<SplitDirection> {
         self.drag_split_direction
     }
@@ -3078,6 +3105,7 @@ pub fn top_row_icon_button(id: impl Into<ElementId>, icon: IconName) -> IconButt
 /// behave the same everywhere. Zoom stays rightmost, so a hidden preview button
 /// doesn't move it. There are no split buttons: panes split by dragging a tab to an edge.
 pub fn render_tab_bar_pane_buttons(pane: &Pane, cx: &mut Context<Pane>) -> Vec<AnyElement> {
+    // lint: expect(module_cycle)
     let mut buttons: Vec<AnyElement> = preview::render_tab_bar_preview_button(pane, cx).into_iter().collect();
     buttons.push(render_tab_bar_zoom_button(pane, cx));
     buttons
@@ -3220,21 +3248,29 @@ static ACTIONS: LazyLock<ActionTable<Pane>> = LazyLock::new(|| {
 
 fn add_actions(t: &mut ActionTable<Pane>) {
     let has_preview: fn(&Pane, &App) -> bool = |pane, _| pane.has_preview;
+    // lint: expect(module_cycle)
     t.add_if(has_preview, |pane, _: &preview::OpenPreview, window, cx| {
         if let Some(item) = pane.active_item() {
             pane.open_preview(item, false, window, cx);
         }
     });
+    // lint: expect(module_cycle)
     t.add_if(has_preview, |pane, _: &preview::OpenPreviewToTheSide, window, cx| {
         if let Some(item) = pane.active_item() {
             pane.open_preview(item, true, window, cx);
         }
     });
+    // lint: expect(module_cycle)
     t.add(|pane, split: &SplitLeft, _, cx| pane.split(SplitDirection::Left, split.mode, cx));
+    // lint: expect(module_cycle)
     t.add(|pane, split: &SplitUp, _, cx| pane.split(SplitDirection::Up, split.mode, cx));
+    // lint: expect(module_cycle)
     t.add(|pane, split: &SplitHorizontal, _, cx| pane.split(SplitDirection::Down, split.mode, cx));
+    // lint: expect(module_cycle)
     t.add(|pane, split: &SplitVertical, _, cx| pane.split(SplitDirection::Right, split.mode, cx));
+    // lint: expect(module_cycle)
     t.add(|pane, split: &SplitRight, _, cx| pane.split(SplitDirection::Right, split.mode, cx));
+    // lint: expect(module_cycle)
     t.add(|pane, split: &SplitDown, _, cx| pane.split(SplitDirection::Down, split.mode, cx));
     t.add(|_, _: &JoinIntoNext, _, cx| cx.emit(Event::JoinIntoNext));
     t.add(|_, _: &JoinAll, _, cx| cx.emit(Event::JoinAll));
@@ -3326,6 +3362,7 @@ impl Render for Pane {
             return div().track_focus(&self.focus_handle(cx));
         }
 
+        // lint: expect(module_cycle)
         self.has_preview = self.active_item().is_some_and(|item| preview::has_preview(item.as_ref(), cx));
 
         v_flex()
@@ -3415,9 +3452,13 @@ impl Render for Pane {
                                 let size = DefiniteLength::Fraction(0.5);
                                 match self.drag_split_direction {
                                     None => div.top_0().right_0().bottom_0().left_0(),
+                                    // lint: expect(module_cycle)
                                     Some(SplitDirection::Up) => div.top_0().left_0().right_0().h(size),
+                                    // lint: expect(module_cycle)
                                     Some(SplitDirection::Down) => div.left_0().bottom_0().right_0().h(size),
+                                    // lint: expect(module_cycle)
                                     Some(SplitDirection::Left) => div.top_0().left_0().bottom_0().w(size),
+                                    // lint: expect(module_cycle)
                                     Some(SplitDirection::Right) => div.top_0().bottom_0().right_0().w(size),
                                 }
                             }),
@@ -3442,6 +3483,7 @@ impl Render for Pane {
                 cx.listener(|pane, _, window, cx| {
                     if let Some(workspace) = pane.workspace.upgrade() {
                         window.defer(cx, move |window, cx| {
+                            // lint: expect(module_cycle)
                             workspace.update(cx, |workspace, cx| workspace.go_back(window, cx).detach_and_log_err(cx));
                         });
                     }
@@ -3453,6 +3495,7 @@ impl Render for Pane {
                     if let Some(workspace) = pane.workspace.upgrade() {
                         window.defer(cx, move |window, cx| {
                             workspace
+                                // lint: expect(module_cycle)
                                 .update(cx, |workspace, cx| workspace.go_forward(window, cx).detach_and_log_err(cx));
                         });
                     }

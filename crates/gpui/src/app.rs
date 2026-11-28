@@ -59,7 +59,9 @@ use crate::Action;
 use crate::ActionRegistry;
 use crate::ActivationPolicy;
 use crate::Any;
+// lint: expect(module_cycle)
 use crate::AnyView;
+// lint: expect(module_cycle)
 use crate::AnyWindowHandle;
 use crate::AppContext;
 use crate::Arena;
@@ -72,13 +74,16 @@ use crate::ClipboardItem;
 use crate::CursorStyle;
 use crate::DisplayId;
 use crate::EventEmitter;
+// lint: expect(module_cycle)
 use crate::FocusHandle;
+// lint: expect(module_cycle)
 use crate::FocusMap;
 use crate::ForegroundExecutor;
 use crate::Global;
 use crate::KeyBinding;
 use crate::Keymap;
 use crate::Keystroke;
+// lint: expect(module_cycle)
 use crate::LayoutId;
 use crate::Menu;
 use crate::MenuItem;
@@ -87,6 +92,7 @@ use crate::Pixels;
 use crate::Platform;
 use crate::PlatformDisplay;
 use crate::Point;
+// lint: expect(module_cycle)
 use crate::Render;
 use crate::RenderImage;
 use crate::Reservation;
@@ -96,10 +102,14 @@ use crate::Subscription;
 use crate::SvgRenderer;
 use crate::Task;
 use crate::TextSystem;
+// lint: expect(module_cycle)
 use crate::Window;
 use crate::WindowAppearance;
+// lint: expect(module_cycle)
 use crate::WindowHandle;
+// lint: expect(module_cycle)
 use crate::WindowId;
+// lint: expect(module_cycle)
 use crate::WindowInvalidator;
 use crate::asset_cache::CachedLoad;
 use crate::hash;
@@ -259,6 +269,7 @@ fn read_displays(platform: &dyn Platform) -> FxHashMap<DisplayId, Option<Duratio
 type Listener = Box<dyn FnMut(&dyn Any, &mut App) -> bool + 'static>;
 type QuitHandler = (Box<dyn FnOnce(&mut App) -> LocalBoxFuture<'static, ()> + 'static>, &'static Location<'static>);
 type ReleaseListener = Box<dyn FnOnce(&mut dyn Any, &mut App) + 'static>;
+// lint: expect(module_cycle)
 type NewEntityListener = Box<dyn FnMut(AnyEntity, &mut Option<&mut Window>, &mut App) + 'static>;
 
 /// Contains the state of the full application, and passed as a reference to a variety of callbacks.
@@ -275,8 +286,11 @@ pub struct App {
     foreground_executor: ForegroundExecutor,
     pub(crate) entities: EntityMap,
     new_entity_observers: SubscriberSet<TypeId, NewEntityListener>,
+    // lint: expect(module_cycle)
     pub(crate) windows: SlotMap<WindowId, Option<Box<Window>>>,
+    // lint: expect(module_cycle)
     window_handles: FxHashMap<WindowId, AnyWindowHandle>,
+    // lint: expect(module_cycle)
     pub(crate) focus_handles: Arc<RwLock<FocusMap>>,
     pub(crate) keymap: Rc<RefCell<Keymap>>,
     /// One listener per action type; registering again replaces the previous one.
@@ -317,13 +331,18 @@ pub struct App {
     // below is plain data, the drop order is insignificant here
     pending_notifications: FxHashSet<EntityId>,
     pending_global_notifications: HashSet<TypeId, TypeIdHashBuilder>,
+    // lint: expect(module_cycle)
     pub(crate) layout_id_buffer: Vec<LayoutId>, // We recycle this memory across layout requests.
     pub(crate) propagate_event: bool,
     pub(crate) ui_snapshots: bool,
+    // lint: expect(module_cycle)
     window_invalidators_by_entity: FxHashMap<EntityId, FxHashMap<WindowId, WindowInvalidator>>,
+    // lint: expect(module_cycle)
     tracked_entities: FxHashMap<WindowId, FxHashSet<EntityId>>,
+    // lint: expect(module_cycle)
     current_window_by_entity: FxHashMap<EntityId, WindowId>,
 
+    // lint: expect(module_cycle)
     window_update_stack: Vec<WindowId>,
     /// Origin of the shared clock that phase-locks synced repeating animations.
     pub(crate) synced_animation_epoch: Instant,
@@ -360,6 +379,7 @@ impl App {
                 windows: SlotMap::with_key(),
                 window_update_stack: Vec::new(),
                 window_handles: FxHashMap::default(),
+                // lint: expect(module_cycle)
                 focus_handles: Arc::new(RwLock::new(FocusMap::default())),
                 keymap: Rc::new(RefCell::new(Keymap::default())),
                 global_action_listeners: HashMap::default(),
@@ -556,13 +576,17 @@ impl App {
 
     pub(crate) fn record_entities_accessed(
         &mut self,
+        // lint: expect(module_cycle)
         window_handle: AnyWindowHandle,
+        // lint: expect(module_cycle)
         invalidator: WindowInvalidator,
         entities: &FxHashSet<EntityId>,
     ) {
+        // lint: expect(module_cycle)
         let mut tracked_entities = mem::take(self.tracked_entities.entry(window_handle.id).or_default());
         for entity in &tracked_entities {
             self.window_invalidators_by_entity.entry(*entity).and_modify(|windows| {
+                // lint: expect(module_cycle)
                 windows.remove(&window_handle.id);
             });
         }
@@ -570,11 +594,14 @@ impl App {
             self.window_invalidators_by_entity
                 .entry(*entity)
                 .or_default()
+                // lint: expect(module_cycle)
                 .insert(window_handle.id, invalidator.clone());
+            // lint: expect(module_cycle)
             self.current_window_by_entity.insert(*entity, window_handle.id);
         }
         tracked_entities.clear();
         tracked_entities.extend(entities.iter().copied());
+        // lint: expect(module_cycle)
         self.tracked_entities.insert(window_handle.id, tracked_entities);
     }
 
@@ -648,6 +675,7 @@ impl App {
     /// Returns handles to all open windows in the application.
     /// Each handle could be downcast to a handle typed for the root view of that window.
     /// To find all windows of a given type, you could filter on.
+    // lint: expect(module_cycle)
     pub fn windows(&self) -> Vec<AnyWindowHandle> {
         self.windows.keys().filter_map(|window_id| self.window_handles.get(&window_id).copied()).collect()
     }
@@ -657,11 +685,13 @@ impl App {
     /// The first window in the returned list is the active/topmost window of the application.
     ///
     /// This method returns None if the platform doesn't implement the method yet.
+    // lint: expect(module_cycle)
     pub fn window_stack(&self) -> Option<Vec<AnyWindowHandle>> {
         self.platform.window_stack()
     }
 
     /// Returns a handle to the window that is currently focused at the platform level, if one exists.
+    // lint: expect(module_cycle)
     pub fn active_window(&self) -> Option<AnyWindowHandle> {
         self.platform.active_window()
     }
@@ -669,29 +699,39 @@ impl App {
     /// Opens a new window with the given option and the root view returned by the given function.
     /// The function is invoked with a `Window`, which can be used to interact with window-specific
     /// functionality.
+    // lint: expect(module_cycle)
     pub fn open_window<V: 'static + Render>(
         &mut self,
         options: crate::WindowOptions,
+        // lint: expect(module_cycle)
         build_root_view: impl FnOnce(&mut Window, &mut App) -> Entity<V>,
+        // lint: expect(module_cycle)
     ) -> Result<WindowHandle<V>> {
         self.update(|cx| {
             let id = cx.windows.insert(None);
+            // lint: expect(module_cycle)
             let handle = WindowHandle::new(id);
+            // lint: expect(module_cycle)
             match Window::new(handle.into(), options, cx) {
                 Ok(mut window) => {
                     cx.window_update_stack.push(id);
                     let root_view = build_root_view(&mut window, cx);
                     cx.window_update_stack.pop();
+                    // lint: expect(module_cycle)
                     window.root.replace(root_view.into());
+                    // lint: expect(module_cycle)
                     window.defer(cx, |window: &mut Window, cx| window.appearance_changed(cx));
 
                     // allow a window to draw at least once before returning
                     // this didn't cause any issues on non windows platforms as it seems we always won the race to on_request_frame
                     // on windows we quite frequently lose the race and return a window that has never rendered, which leads to a crash
                     // where DispatchTree::root_node_id asserts on empty nodes
+                    // lint: expect(module_cycle)
                     let clear = window.draw(cx);
+                    // lint: expect(module_cycle)
                     clear.clear(cx);
 
+                    // lint: expect(module_cycle)
                     cx.window_handles.insert(id, window.handle);
                     cx.windows.get_mut(id).expect("window slot was reserved above").replace(Box::new(window));
                     Ok(handle)
@@ -939,10 +979,14 @@ impl App {
                 }
             } else if self.pending_effects.is_empty() {
                 for window in self.windows.values().filter_map(|window| window.as_deref()) {
+                    // lint: expect(module_cycle)
                     if window.invalidator.is_dirty()
+                        // lint: expect(module_cycle)
                         || window.needs_present.get()
+                        // lint: expect(module_cycle)
                         || !window.next_frame_callbacks.borrow().is_empty()
                     {
+                        // lint: expect(module_cycle)
                         window.platform_window.schedule_frame();
                     }
                 }
@@ -979,6 +1023,7 @@ impl App {
     fn release_dropped_focus_handles(&mut self) {
         let focus_handles = Arc::clone(&self.focus_handles);
         let mut focus_handles = focus_handles.write();
+        // lint: expect(module_cycle)
         let FocusMap { handles, dropped_handles } = &mut *focus_handles;
         if dropped_handles.is_empty() {
             return;
@@ -989,6 +1034,7 @@ impl App {
             .values()
             .filter_map(|window| {
                 let window = window.as_ref()?;
+                // lint: expect(module_cycle)
                 dropped_handles.contains(&window.focus?).then_some(window.handle)
             })
             .collect::<SmallVec<[_; 1]>>();
@@ -998,6 +1044,7 @@ impl App {
         drop(focus_handles);
 
         for window_handle in windows {
+            // lint: expect(module_cycle)
             window_handle.update(self, |_, window, cx| window.blur(cx)).ok();
         }
     }
@@ -1017,7 +1064,9 @@ impl App {
     fn apply_refresh_effect(&mut self) {
         for window in self.windows.values_mut() {
             if let Some(window) = window.as_deref_mut() {
+                // lint: expect(module_cycle)
                 window.refreshing = true;
+                // lint: expect(module_cycle)
                 window.invalidator.set_dirty(true);
             }
         }
@@ -1032,6 +1081,7 @@ impl App {
         callback(self);
     }
 
+    // lint: expect(module_cycle)
     fn apply_entity_created_effect(&mut self, entity: AnyEntity, tid: TypeId, window: Option<WindowId>) {
         // Seed the entity's current window from its creation context so
         // `with_window` resolves correctly before the entity has ever been
@@ -1060,18 +1110,22 @@ impl App {
     /// current window, or if that window has been closed, or if it is
     /// already on the update stack.
     #[inline(always)]
+    // lint: expect(module_cycle)
     pub fn with_window<R>(&mut self, entity_id: EntityId, f: impl FnOnce(&mut Window, &mut App) -> R) -> Option<R> {
         let window_id = *self.current_window_by_entity.get(&entity_id)?;
         self.update_window_id(window_id, |_, window, cx| f(window, cx)).ok()
     }
 
+    // lint: expect(module_cycle)
     fn ensure_window(&mut self, entity_id: EntityId, window: WindowId) {
         self.current_window_by_entity.entry(entity_id).or_insert(window);
     }
 
     #[inline(always)]
+    // lint: expect(module_cycle)
     fn update_window_id<T, F>(&mut self, id: WindowId, update: F) -> Result<T>
     where
+        // lint: expect(module_cycle)
         F: FnOnce(AnyView, &mut Window, &mut App) -> T,
     {
         let mut update = Some(update);
@@ -1229,10 +1283,12 @@ impl App {
     /// The function will be passed a mutable reference to the view along with an appropriate context.
     pub fn observe_new<T: 'static>(
         &self,
+        // lint: expect(module_cycle)
         on_new: impl 'static + Fn(&mut T, Option<&mut Window>, &mut Context<T>),
     ) -> Subscription {
         self.new_entity_observer(
             TypeId::of::<T>(),
+            // lint: expect(module_cycle)
             Box::new(move |any_entity: AnyEntity, window: &mut Option<&mut Window>, cx: &mut App| {
                 any_entity
                     .downcast::<T>()
@@ -1266,14 +1322,18 @@ impl App {
     fn observe_release_in<T>(
         &self,
         handle: &Entity<T>,
+        // lint: expect(module_cycle)
         window: &Window,
+        // lint: expect(module_cycle)
         on_release: impl FnOnce(&mut T, &mut Window, &mut App) + 'static,
     ) -> Subscription
     where
         T: 'static,
     {
+        // lint: expect(module_cycle)
         let window_handle = window.handle;
         self.observe_release(handle, move |entity, cx| {
+            // lint: expect(module_cycle)
             window_handle.update(cx, |_, window, cx| on_release(entity, window, cx)).ok();
         })
     }
@@ -1350,6 +1410,7 @@ impl App {
     pub(crate) fn is_action_available(&mut self, action: &dyn Action) -> bool {
         let action_available = self
             .active_window()
+            // lint: expect(module_cycle)
             .and_then(|window| window.update(self, |_, window, cx| window.is_action_available(action, cx)).ok())
             .unwrap_or(false);
 
@@ -1371,6 +1432,7 @@ impl App {
     /// See [`crate::Action`] for more information on how actions work.
     pub fn dispatch_action(&mut self, action: &dyn Action) {
         if let Some(active_window) = self.active_window() {
+            // lint: expect(module_cycle)
             active_window.update(self, |_, window, cx| window.dispatch_action(action.boxed_clone(), cx)).log_err();
         } else {
             self.dispatch_global_action(action);
@@ -1396,9 +1458,11 @@ impl App {
     }
 
     /// Stops active drag and clears any related effects.
+    // lint: expect(module_cycle)
     pub fn stop_active_drag(&mut self, window: &mut Window) -> bool {
         if self.active_drag.is_some() {
             self.active_drag = None;
+            // lint: expect(module_cycle)
             window.refresh();
             true
         } else {
@@ -1407,9 +1471,11 @@ impl App {
     }
 
     /// Sets the cursor style for the currently active drag operation.
+    // lint: expect(module_cycle)
     pub fn set_active_drag_cursor_style(&mut self, cursor_style: CursorStyle, window: &mut Window) -> bool {
         if let Some(ref mut drag) = self.active_drag {
             drag.cursor_style = Some(cursor_style);
+            // lint: expect(module_cycle)
             window.refresh();
             true
         } else {
@@ -1447,7 +1513,9 @@ impl App {
     /// Obtain a new [`FocusHandle`], which allows you to track and manipulate the keyboard focus
     /// for elements rendered within this window.
     #[track_caller]
+    // lint: expect(module_cycle)
     pub fn focus_handle(&self) -> FocusHandle {
+        // lint: expect(module_cycle)
         FocusHandle::new(&self.focus_handles)
     }
 
@@ -1459,6 +1527,7 @@ impl App {
         // doesn't mean the window is currently rendering the entity. Filter
         // through `tracked_entities` to keep invalidation tight to windows
         // that actually display this entity right now.
+        // lint: expect(module_cycle)
         let live_invalidators: SmallVec<[WindowInvalidator; 2]> = window_invalidators
             .iter()
             .filter(|(window_id, _)| self.tracked_entities.get(window_id).is_some_and(|set| set.contains(&entity_id)))
@@ -1471,6 +1540,7 @@ impl App {
             }
         } else {
             for invalidator in &live_invalidators {
+                // lint: expect(module_cycle)
                 invalidator.invalidate_view(entity_id, self);
             }
         }
@@ -1487,6 +1557,7 @@ impl App {
             let Some(Some(window)) = self.windows.get(*window_id) else {
                 return true;
             };
+            // lint: expect(module_cycle)
             window.rendered_frame.dispatch_tree.view_path_reversed(entity_id).next().is_none()
         })
     }
@@ -1495,14 +1566,17 @@ impl App {
     ///
     /// If the current window is being updated, it will be removed from `App.windows`, you can use `current_window` to specify the current window.
     /// This is a no-op if the image is not in the sprite atlas.
+    // lint: expect(module_cycle)
     pub fn drop_image(&mut self, image: Arc<RenderImage>, current_window: Option<&mut Window>) {
         // remove the texture from all other windows
         for window in self.windows.values_mut().flatten() {
+            // lint: expect(module_cycle)
             _ = window.drop_image(Arc::clone(&image));
         }
 
         // remove the texture from the current window
         if let Some(window) = current_window {
+            // lint: expect(module_cycle)
             _ = window.drop_image(image);
         }
     }
@@ -1510,7 +1584,9 @@ impl App {
     #[inline(never)]
     fn update_window_erased(
         &mut self,
+        // lint: expect(module_cycle)
         window_id: WindowId,
+        // lint: expect(module_cycle)
         update: &mut dyn FnMut(Option<(AnyView, &mut Window, &mut App)>),
     ) {
         self.update(|cx| {
@@ -1519,13 +1595,17 @@ impl App {
                 return;
             };
 
+            // lint: expect(module_cycle)
             let root_view = window.root.clone().expect("window has a root view");
 
+            // lint: expect(module_cycle)
             cx.window_update_stack.push(window.handle.id);
             update(Some((root_view, &mut window, cx)));
+            // lint: expect(module_cycle)
             fn trail(window_id: WindowId, window: Box<Window>, cx: &mut App) -> Option<()> {
                 cx.window_update_stack.pop();
 
+                // lint: expect(module_cycle)
                 if window.removed {
                     cx.window_handles.remove(&window_id);
                     cx.windows.remove(window_id);
@@ -1651,30 +1731,38 @@ impl AppContext for App {
         read(entity, self)
     }
 
+    // lint: expect(module_cycle)
     fn update_window<T, F>(&mut self, handle: AnyWindowHandle, update: F) -> Result<T>
     where
+        // lint: expect(module_cycle)
         F: FnOnce(AnyView, &mut Window, &mut App) -> T,
     {
+        // lint: expect(module_cycle)
         self.update_window_id(handle.id, update)
     }
 
+    // lint: expect(module_cycle)
     fn with_window<R>(&mut self, entity_id: EntityId, f: impl FnOnce(&mut Window, &mut App) -> R) -> Option<R> {
         App::with_window(self, entity_id, f)
     }
 
+    // lint: expect(module_cycle)
     fn read_window<T, R>(&self, window: &WindowHandle<T>, read: impl FnOnce(Entity<T>, &App) -> R) -> Result<R>
     where
         T: 'static,
     {
         let window = self
             .windows
+            // lint: expect(module_cycle)
             .get(window.id)
             .context("window not found")?
             .as_deref()
             .expect("attempted to read a window that is already on the stack");
 
+        // lint: expect(module_cycle)
         let root_view = window.root.clone().expect("window has a root view");
         #[expect(clippy::map_err_ignore, reason = "the error is the unmatched view itself")]
+        // lint: expect(module_cycle)
         let view = root_view.downcast::<T>().map_err(|_| anyhow!("root view's type has changed"))?;
 
         Ok(read(view, self))
@@ -1703,6 +1791,7 @@ pub(crate) enum Effect {
     RefreshWindows,
     NotifyGlobalObservers { global_type: TypeId },
     Defer { callback: Box<dyn FnOnce(&mut App) + 'static> },
+    // lint: expect(module_cycle)
     EntityCreated { entity: AnyEntity, tid: TypeId, window: Option<WindowId> },
 }
 
@@ -1751,6 +1840,7 @@ impl<G: Global> DerefMut for GlobalLease<G> {
 /// within the window.
 pub(crate) struct AnyDrag {
     /// The view used to render this drag.
+    // lint: expect(module_cycle)
     pub(crate) view: AnyView,
 
     /// The value of the dragged item, to be dropped.
@@ -1769,6 +1859,7 @@ pub(crate) struct AnyDrag {
 #[derive(Clone)]
 pub(crate) struct AnyTooltip {
     /// The view used to display the tooltip.
+    // lint: expect(module_cycle)
     pub(crate) view: AnyView,
 
     /// The absolute position of the mouse when the tooltip was deployed.
@@ -1777,6 +1868,7 @@ pub(crate) struct AnyTooltip {
     /// Given the bounds of the tooltip, checks whether the tooltip should still be visible and
     /// updates its state accordingly. This is needed atop the hovered element's mouse move handler
     /// to handle the case where the element is not painted (e.g. via use of `visible_on_hover`).
+    // lint: expect(module_cycle)
     pub(crate) check_visible_and_update: Rc<dyn Fn(Bounds<Pixels>, &mut Window, &mut App) -> bool>,
 }
 

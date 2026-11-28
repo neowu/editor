@@ -18,15 +18,19 @@ use super::GutterDimensions;
 use super::MIN_LINE_NUMBER_DIGITS;
 use crate::display_map::DisplayRow;
 use crate::display_map::DisplaySnapshot;
+// lint: expect(module_cycle)
 use crate::git::blame::GlobalBlameRenderer;
+// lint: expect(module_cycle)
 use crate::scroll::ScrollOffset;
 
 impl Editor {
     pub fn snapshot(&self, window: &Window, cx: &mut App) -> EditorSnapshot {
         let git_blame_gutter_max_author_length = self
+            // lint: expect(module_cycle)
             .render_git_blame_gutter(cx)
             .then(|| {
                 if let Some(blame) = self.blame.as_ref() {
+                    // lint: expect(module_cycle)
                     let max_author_length = blame.update(cx, |blame, cx| blame.max_author_length(cx));
                     Some(max_author_length)
                 } else {
@@ -48,6 +52,7 @@ impl Editor {
             show_code_actions: self.show_code_actions,
             show_runnables: self.show_runnables,
             git_blame_gutter_max_author_length,
+            // lint: expect(module_cycle)
             scroll_anchor: self.scroll_manager.shared_scroll_anchor(cx),
             display_snapshot,
             placeholder_display_snapshot: self
@@ -173,7 +178,9 @@ impl EditorSnapshot {
         self.placeholder_display_snapshot.as_ref().map(|display_map| display_map.text())
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn scroll_position(&self) -> gpui::Point<ScrollOffset> {
+        // lint: expect(module_cycle)
         self.scroll_anchor.scroll_position(&self.display_snapshot)
     }
 
@@ -204,13 +211,16 @@ impl EditorSnapshot {
             };
 
             let git_blame_entries_width = self.git_blame_gutter_max_author_length.map(|max_author_length| {
+                // lint: expect(module_cycle)
                 let renderer = Arc::clone(&cx.global::<GlobalBlameRenderer>().0);
                 const MAX_RELATIVE_TIMESTAMP: &str = "2 years, 11 months ago";
 
+                // lint: expect(module_cycle)
                 let max_char_count = max_author_length.min(renderer.max_author_length())
                     + ::git::SHORT_SHA_LENGTH
                     + MAX_RELATIVE_TIMESTAMP.len();
 
+                // lint: expect(module_cycle)
                 ch_advance * max_char_count + renderer.blame_entry_non_text_width(window, cx)
             });
 

@@ -11,12 +11,7 @@ use crate::text::measure::ITALIC;
 use crate::text::measure::SUB;
 use crate::text::measure::SUP;
 use crate::text::measure::UNDERLINE;
-
-/// Rounds as JavaScript's `Math.round` does: halves toward positive infinity.
-pub(crate) fn js_round(value: f64) -> f64 {
-    let floor = value.floor();
-    if value - floor >= 0.5 { floor + 1.0 } else { floor }
-}
+use crate::util::float::js_round;
 
 /// Whether XML text needs escaping: markup characters, or control characters XML does not allow.
 const fn needs_esc(c: char) -> bool {

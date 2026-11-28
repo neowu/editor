@@ -9,7 +9,6 @@ use super::layout::side_index;
 use crate::Options;
 use crate::diagrams::Rendered;
 use crate::svg::builder::esc_text;
-use crate::svg::builder::js_round;
 use crate::svg::builder::label_svg;
 use crate::svg::builder::push_num;
 use crate::svg::edges::edge_label_svg;
@@ -23,6 +22,7 @@ use crate::text::label::layout_label;
 use crate::text::label::trim_end;
 use crate::text::measure;
 use crate::text::measure::BOLD;
+use crate::util::float::js_round;
 use crate::yaml::Value;
 use crate::yaml::push_number;
 

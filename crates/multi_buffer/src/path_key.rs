@@ -146,6 +146,7 @@ impl MultiBuffer {
             excerpt_ranges.sort_by_key(|range| range.context.start);
             let mut combined_ranges = Vec::new();
             let mut new_ranges = excerpt_ranges.into_iter().peekable();
+            // lint: expect(module_cycle)
             for existing_range in multibuffer_snapshot.excerpts_for_buffer(buffer_snapshot.buffer_id()) {
                 let existing_range = ExcerptRange {
                     context: existing_range.context.to_point(buffer_snapshot),

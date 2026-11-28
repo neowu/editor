@@ -1,9 +1,11 @@
 use std::result;
 
 use serde::de;
+mod binary;
 pub mod blame;
 pub mod commit;
 mod remote;
+mod repo_path;
 pub mod repository;
 pub mod stash;
 pub mod status;
@@ -16,6 +18,7 @@ use std::str::FromStr;
 use anyhow::Result;
 use gpui::Action;
 use gpui::actions;
+pub use repo_path::RepoPath;
 pub use repository::RemoteCommandOutput;
 use serde::Deserialize;
 use serde::Serialize;

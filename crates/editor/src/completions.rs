@@ -340,6 +340,7 @@ impl Editor {
                         .collect();
                     if restored_any_cursor {
                         editor
+                            // lint: expect(module_cycle)
                             .change_selections(SelectionEffects::no_scroll(), window, cx, |s| s.select_anchors(pinned));
                     }
                     editor.refresh_document_highlights(cx);
@@ -849,6 +850,7 @@ impl Editor {
                 snippet.text.clone_from(&new_text);
                 let offset_ranges =
                     ranges.iter().map(|range| range.to_offset(&multibuffer_snapshot)).collect::<Vec<_>>();
+                // lint: expect(module_cycle)
                 editor.insert_snippet(&offset_ranges, snippet, window, cx);
             } else {
                 editor.buffer.update(cx, |multi_buffer, cx| {
@@ -862,6 +864,7 @@ impl Editor {
             }
             linked_edits.apply(cx);
         });
+        // lint: expect(module_cycle)
         self.invalidate_autoclose_regions(&self.selections.disjoint_anchors_arc(), &multibuffer_snapshot);
 
         let show_new_completions_on_confirm =

@@ -274,6 +274,7 @@ impl Workspace {
     fn handle_pane_focused(&mut self, pane: Entity<Pane>, window: &mut Window, cx: &mut Context<Self>) {
         // Terminal panel panes come through here too, but aren't content panes.
         if self.panes.contains(&pane) {
+            // lint: expect(module_cycle)
             self.content_pane_focused(&pane, window, cx);
         }
         self.switch_mode(WorkspaceMode::Editor, cx);
@@ -400,6 +401,7 @@ impl Workspace {
                 serialize_workspace = false;
             }
             pane::Event::RemovedItem { item } => {
+                // lint: expect(module_cycle)
                 if item.project_path(cx).is_some_and(|path| self.is_deleted_history_path(&path, cx)) {
                     pane.update(cx, |pane, _| pane.nav_history_mut().remove_item(item.item_id()));
                 }

@@ -4,11 +4,14 @@
 //! Pele keeps states and classes in `Map`s. Here each is a `Vec` in insertion order with a
 //! `BTreeMap` index for lookups, so iteration order never depends on hashing.
 
+pub(super) mod graph;
+
 use std::collections::BTreeMap;
 use std::mem;
 
-use super::graph::StateGraph;
-use super::graph::build_state_graph;
+use graph::StateGraph;
+use graph::build_state_graph;
+
 use super::types::Description;
 use super::types::Doc;
 use super::types::StateClassDef;
@@ -113,13 +116,13 @@ impl StateDb {
     }
 
     /// The root document's state named `id`.
-    pub(crate) fn state(&self, id: &str) -> Option<&StateStmt> {
+    fn state(&self, id: &str) -> Option<&StateStmt> {
         let &at = self.state_index.get(id)?;
         self.states.get(at)
     }
 
     /// The class definition named `id`.
-    pub(crate) fn class(&self, id: &str) -> Option<&StateClassDef> {
+    fn class(&self, id: &str) -> Option<&StateClassDef> {
         let &at = self.class_index.get(id)?;
         self.classes.get(at)
     }

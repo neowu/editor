@@ -1309,8 +1309,10 @@ impl Editor {
         self.select_next_state = None;
         self.select_prev_state = None;
         self.select_syntax_node_history.try_clear();
+        // lint: expect(module_cycle)
         self.invalidate_autoclose_regions(&selection_anchors, buffer);
         self.snippet_stack.invalidate(&selection_anchors, buffer);
+        // lint: expect(module_cycle)
         self.take_rename(false, window, cx);
 
         let newest_selection = self.selections.newest_anchor();
@@ -1318,6 +1320,7 @@ impl Editor {
         let selection_start = newest_selection.start;
 
         if effects.nav_history.is_none() || effects.nav_history == Some(true) {
+            // lint: expect(module_cycle)
             self.push_to_nav_history(
                 *old_cursor_position,
                 Some(new_cursor_position.to_point(buffer)),
@@ -1406,7 +1409,9 @@ impl Editor {
                     (start..end).to_point(buffer_snapshot)
                 })
                 .collect();
+            // lint: expect(module_cycle)
             self.update_restoration_data(cx, |data| {
+                // lint: expect(module_cycle)
                 data.selections = inmemory_selections;
             });
         }

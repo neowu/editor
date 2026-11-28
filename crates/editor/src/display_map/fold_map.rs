@@ -31,7 +31,6 @@ use multi_buffer::MultiBufferRow;
 use multi_buffer::MultiBufferSnapshot;
 use multi_buffer::RowInfo;
 use multi_buffer::ToOffset;
-use project::InlayId;
 use sum_tree::Bias;
 use sum_tree::Cursor;
 use sum_tree::Dimensions;
@@ -43,6 +42,8 @@ use ui::IntoElement as _;
 use ui::font;
 use util::post_inc;
 
+use super::ChunkRenderer;
+use super::ChunkRendererId;
 use super::Highlights;
 use super::consolidate_edits;
 use super::inlay_map::InlayBufferRows;
@@ -1204,51 +1205,6 @@ pub(crate) struct Chunk<'a> {
     pub(crate) chars: u128,
     /// Bitmap of newline locations in chunk.
     pub(crate) newlines: u128,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum ChunkRendererId {
-    Fold(FoldId),
-    Inlay(InlayId),
-}
-
-/// A recipe for how the chunk should be presented.
-#[derive(Clone)]
-pub(crate) struct ChunkRenderer {
-    /// The id of the renderer associated with this chunk.
-    pub(crate) id: ChunkRendererId,
-    /// Creates a custom element to represent this chunk.
-    pub(crate) render: Arc<dyn Send + Sync + Fn(&mut ChunkRendererContext) -> AnyElement>,
-    /// If true, the element is constrained to the shaped width of the text.
-    pub(crate) constrain_width: bool,
-    /// The width of the element, as measured during the last layout pass.
-    ///
-    /// This is None if the element has not been laid out yet.
-    pub(crate) measured_width: Option<Pixels>,
-}
-
-pub(crate) struct ChunkRendererContext<'a> {
-    pub(crate) context: &'a mut App,
-}
-
-impl fmt::Debug for ChunkRenderer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ChunkRenderer").field("constrain_width", &self.constrain_width).finish()
-    }
-}
-
-impl Deref for ChunkRendererContext<'_> {
-    type Target = App;
-
-    fn deref(&self) -> &Self::Target {
-        self.context
-    }
-}
-
-impl DerefMut for ChunkRendererContext<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.context
-    }
 }
 
 pub(crate) struct FoldChunks<'a> {

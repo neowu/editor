@@ -7,7 +7,6 @@ use crate::diagrams::Rendered;
 use crate::diagrams::common::fit::fit_label;
 use crate::diagrams::common::fit::plain_label;
 use crate::svg::builder::esc_text;
-use crate::svg::builder::js_round;
 use crate::svg::builder::label_svg;
 use crate::svg::builder::push_num;
 use crate::svg::edges::ARROW;
@@ -18,6 +17,7 @@ use crate::svg::theme::series_color;
 use crate::text::label::Label;
 use crate::text::label::trim;
 use crate::text::measure::BOLD;
+use crate::util::float::js_round;
 use crate::yaml::Value;
 use crate::yaml::push_number;
 

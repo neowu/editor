@@ -1,9 +1,9 @@
 pub(super) mod blame;
 
 use ::git::Oid;
+use ::git::RepoPath;
 use ::git::Restore;
 use ::git::blame::BlameEntry;
-use ::git::repository::RepoPath;
 use ::git::status::FileStatus;
 use buffer_diff::BufferDiff;
 use buffer_diff::DiffHunkStatus;

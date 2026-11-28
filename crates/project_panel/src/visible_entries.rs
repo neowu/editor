@@ -398,6 +398,7 @@ impl ProjectPanel {
                 .expanded_dir_ids
                 .get(&worktree_id)
                 .is_some_and(|entries| entries.binary_search(&entry.id).is_ok());
+            // lint: expect(module_cycle)
             if let Some(icon) = Self::entry_icon(entry, is_expanded, cx) {
                 Icon::from_path(icon).preload(cx);
             }
@@ -504,6 +505,7 @@ impl ProjectPanel {
                 for entry in &visible.entries[entry_range] {
                     let status = entry.git_summary;
 
+                    // lint: expect(module_cycle)
                     let mut details = self.details_for_entry(
                         entry,
                         visible.worktree_id,

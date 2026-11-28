@@ -117,6 +117,7 @@ impl ProjectPanel {
         {
             let target_entry_id = self.selection.map(|s| s.entry_id).or(self.state.last_worktree_root_id);
             if let Some(entry_id) = target_entry_id {
+                // lint: expect(module_cycle)
                 self.drop_external_files(external_paths.paths(), entry_id, window, cx);
             }
             return;

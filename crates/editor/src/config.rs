@@ -6,6 +6,7 @@ use super::Context;
 use super::Editor;
 use super::EditorStyle;
 use super::HighlightKey;
+// lint: expect(module_cycle)
 use super::MinimapRowCache;
 use super::MinimapVisibility;
 use super::Pixels;
@@ -57,6 +58,7 @@ impl Editor {
         self.style = Some(style);
         if theme_changed {
             // Laid-out minimap rows and marker quads hold the old colours.
+            // lint: expect(module_cycle)
             self.minimap_rows = MinimapRowCache::default();
             self.scrollbar_marker_state.dirty = true;
             cx.defer_in(window, Self::refresh_theme_colors);

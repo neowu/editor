@@ -24,8 +24,8 @@ use editor::scroll::ScrollOffset;
 use futures::StreamExt as _;
 use futures::stream;
 use git::Oid;
+use git::RepoPath;
 use git::repository::CommitDetails;
-use git::repository::RepoPath;
 use git::status::FileStatus;
 use git::status::StatusCode;
 use git::status::TrackedStatus;
@@ -114,6 +114,7 @@ use workspace::searchable::SearchableItemHandle;
 use crate::commit_details_panel::CommitDetailsEvent;
 use crate::commit_details_panel::CommitDetailsPanel;
 use crate::commit_tooltip;
+// lint: expect(module_cycle)
 use crate::git_graph::OpenAtCommit;
 use crate::git_panel::GitPanel;
 use crate::revision_semantics::RevisionSemanticsProvider;
@@ -1432,6 +1433,7 @@ impl Render for CommitViewToolbar {
                         .tooltip(Tooltip::text("Show in Git History"))
                         .on_click(move |_, window, cx| {
                             window.dispatch_action(
+                                // lint: expect(module_cycle)
                                 Box::new(OpenAtCommit { sha: sha_for_graph.clone(), repo_id: Some(repo_id_for_graph) }),
                                 cx,
                             );
@@ -1481,7 +1483,7 @@ fn shows_sidebar_beside_other_tab(
 #[cfg(test)]
 mod tests {
     use editor::Addon as _;
-    use git::repository::RepoPath;
+    use git::RepoPath;
     use gpui::WeakEntity;
     use project::git_store::CommitFile;
     use rustc_hash::FxHashMap;

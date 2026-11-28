@@ -831,6 +831,7 @@ impl Inner {
     where
         S: AsRef<str>,
     {
+        // lint: expect(module_cycle)
         let prompt = ProjectPanel::build_removal_prompt(names, dirty_buffers);
         let answer = self
             .panel

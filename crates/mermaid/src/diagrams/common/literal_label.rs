@@ -3,13 +3,13 @@
 
 use std::mem;
 
-use crate::svg::builder::js_round;
 use crate::text::label::LINE_HEIGHT;
 use crate::text::label::Label;
 use crate::text::label::Span;
 use crate::text::label::trim_end;
 use crate::text::measure;
 use crate::util::chars::is_space;
+use crate::util::float::js_round;
 
 /// Lays out `text` at font `size` in lines no wider than `room`. Literal labels, including
 /// filenames and protocol fields, keep every character but the spaces a line breaks at. Long

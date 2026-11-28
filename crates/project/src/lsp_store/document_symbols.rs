@@ -22,10 +22,10 @@ use text::PointUtf16;
 use util::ResultExt as _;
 
 use crate::DocumentSymbol;
-use crate::lsp_command::GetDocumentSymbols;
 use crate::lsp_store::LspStore;
 use crate::lsp_store::LspStoreEvent;
 use crate::lsp_store::RunningFetch;
+use crate::lsp_store::lsp_command::GetDocumentSymbols;
 use crate::lsp_store::missing_servers_to_query;
 use crate::lsp_store::next_lsp_fetch_id;
 

@@ -12,7 +12,6 @@ use crate::diagrams::Rendered;
 use crate::diagrams::common::fit_text::fit_text;
 use crate::svg::builder::esc;
 use crate::svg::builder::esc_text;
-use crate::svg::builder::js_round;
 use crate::svg::builder::label_svg;
 use crate::svg::builder::push_num;
 use crate::svg::root::svg_document;
@@ -26,6 +25,7 @@ use crate::text::label::trim;
 use crate::text::measure;
 use crate::text::measure::BOLD;
 use crate::text::measure::ITALIC;
+use crate::util::float::js_round;
 use crate::yaml::Value;
 use crate::yaml::push_number;
 

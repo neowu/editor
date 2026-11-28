@@ -4,6 +4,7 @@ use std::rc::Rc;
 use gpui::Action;
 use gpui::KeyBinding;
 use gpui::KeyBindingContextPredicate;
+use search::project_search::text_finder;
 
 /// Emits bindings straight into gpui `KeyBinding`s. A binding in a deeper context wins; at the same
 /// depth, the later binding wins. Only the US layout is supported, so keys are never remapped.
@@ -169,7 +170,7 @@ pub(super) fn keymap() -> Vec<KeyBinding> {
     k.bind("cmd-e", actions::buffer_search::UseSelectionForFind);
     k.bind("cmd-alt-e", editor::actions::SelectEnclosingSymbol);
     k.bind("alt-enter", editor::actions::OpenSelectionsInMultibuffer);
-    k.bind("alt-cmd-f", search::text_finder::Toggle);
+    k.bind("alt-cmd-f", text_finder::Toggle);
 
     k.group(Some("Editor && multibuffer"));
     k.bind("cmd-up", editor::actions::MoveToStartOfExcerpt);
@@ -200,7 +201,7 @@ pub(super) fn keymap() -> Vec<KeyBinding> {
     k.bind("alt-enter", search::SelectAllMatches);
     k.bind("cmd-f", actions::search::FocusSearch);
     k.bind("cmd-alt-l", search::ToggleSelection);
-    k.bind("alt-cmd-f", search::text_finder::Toggle);
+    k.bind("alt-cmd-f", text_finder::Toggle);
 
     k.group(Some("BufferSearchBar > Editor"));
     k.bind("tab", search::FocusNextField);
@@ -670,11 +671,11 @@ pub(super) fn keymap() -> Vec<KeyBinding> {
     k.bind("tab", picker::MultiSelectNext);
 
     k.group(Some("TextFinder || (TextFinder > Picker > Editor) || (TextFinder > Picker > menu)"));
-    k.bind("alt-cmd-f", search::text_finder::ToProjectSearch);
+    k.bind("alt-cmd-f", text_finder::ToProjectSearch);
     k.bind("tab", picker::MultiSelectNext);
-    k.bind("alt-cmd-[", search::text_finder::Fold);
-    k.bind("alt-cmd-]", search::text_finder::Unfold);
-    k.bind("cmd-shift-enter", search::text_finder::ToggleFoldAll);
+    k.bind("alt-cmd-[", text_finder::Fold);
+    k.bind("alt-cmd-]", text_finder::Unfold);
+    k.bind("cmd-shift-enter", text_finder::ToggleFoldAll);
     k.bind("cmd-j", workspace::pane::SplitDown::default());
     k.bind("cmd-k", workspace::pane::SplitUp::default());
     k.bind("cmd-h", workspace::pane::SplitLeft::default());

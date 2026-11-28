@@ -5,6 +5,7 @@ use derive_more::Deref;
 use derive_more::DerefMut;
 use smallvec::SmallVec;
 
+// lint: expect(module_cycle)
 use crate::App;
 use crate::Bounds;
 use crate::Half as _;
@@ -14,13 +15,18 @@ use crate::Pixels;
 use crate::Point;
 use crate::Result;
 use crate::SharedString;
+// lint: expect(module_cycle)
 use crate::StrikethroughStyle;
+// lint: expect(module_cycle)
 use crate::TextAlign;
+// lint: expect(module_cycle)
 use crate::UnderlineStyle;
+// lint: expect(module_cycle)
 use crate::Window;
 use crate::WrapBoundary;
 use crate::WrappedLineLayout;
 use crate::black;
+// lint: expect(module_cycle)
 use crate::fill;
 use crate::point;
 use crate::px;
@@ -40,9 +46,11 @@ pub struct DecorationRun {
     pub(crate) background_color: Option<Hsla>,
 
     /// The underline style for this run.
+    // lint: expect(module_cycle)
     pub(crate) underline: Option<UnderlineStyle>,
 
     /// The strikethrough style for this run.
+    // lint: expect(module_cycle)
     pub(crate) strikethrough: Option<StrikethroughStyle>,
 }
 
@@ -92,9 +100,12 @@ impl ShapedLine {
         &self,
         origin: Point<Pixels>,
         line_height: Pixels,
+        // lint: expect(module_cycle)
         align: TextAlign,
         align_width: Option<Pixels>,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &mut App,
     ) -> Result<()> {
         self.paint_with_underline_handler(
@@ -104,6 +115,7 @@ impl ShapedLine {
             align_width,
             window,
             cx,
+            // lint: expect(module_cycle)
             |_, origin, width, style, window| window.paint_underline(origin, width, style),
         )
     }
@@ -111,9 +123,11 @@ impl ShapedLine {
     /// Paint each run of non-whitespace characters as a solid block in its
     /// run's color, `height` tall from `origin`'s y. Meant for lines laid out
     /// with [`WindowTextSystem::layout_monospace_line`](crate::WindowTextSystem::layout_monospace_line).
+    // lint: expect(module_cycle)
     pub fn paint_blocks(&self, origin: Point<Pixels>, height: Pixels, opacity: f32, window: &mut Window) {
         for (span, color) in self.block_spans() {
             let bounds = Bounds::new(point(origin.x + span.start, origin.y), size(span.end - span.start, height));
+            // lint: expect(module_cycle)
             window.paint_quad(fill(bounds, color.opacity(opacity)));
         }
     }
@@ -158,13 +172,19 @@ impl ShapedLine {
         &self,
         origin: Point<Pixels>,
         line_height: Pixels,
+        // lint: expect(module_cycle)
         align: TextAlign,
         align_width: Option<Pixels>,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &mut App,
+        // lint: expect(module_cycle)
         mut paint_underline: impl FnMut(Range<usize>, Point<Pixels>, Pixels, &UnderlineStyle, &mut Window),
     ) -> Result<()> {
+        // lint: expect(module_cycle)
         if cx.ui_snapshots_enabled() {
+            // lint: expect(module_cycle)
             window.record_ui_text(
                 &self.text,
                 line_paint_bounds(origin, &self.layout, line_height, align, align_width, &[]),
@@ -189,9 +209,12 @@ impl ShapedLine {
         &self,
         origin: Point<Pixels>,
         line_height: Pixels,
+        // lint: expect(module_cycle)
         align: TextAlign,
         align_width: Option<Pixels>,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &mut App,
     ) -> Result<()> {
         paint_line_background(
@@ -279,10 +302,13 @@ impl LineLayout {
         &self,
         origin: Point<Pixels>,
         line_height: Pixels,
+        // lint: expect(module_cycle)
         align: TextAlign,
         align_width: Option<Pixels>,
         decoration_runs: &[DecorationRun],
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &mut App,
     ) -> Result<()> {
         paint_line(
@@ -295,6 +321,7 @@ impl LineLayout {
             &[],
             window,
             cx,
+            // lint: expect(module_cycle)
             &mut |_, origin, width, style, window| window.paint_underline(origin, width, style),
         )
     }
@@ -308,10 +335,13 @@ impl LineLayout {
         &self,
         origin: Point<Pixels>,
         line_height: Pixels,
+        // lint: expect(module_cycle)
         align: TextAlign,
         align_width: Option<Pixels>,
         decoration_runs: &[DecorationRun],
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &mut App,
     ) -> Result<()> {
         paint_line_background(origin, self, line_height, align, align_width, decoration_runs, &[], window, cx)
@@ -341,9 +371,12 @@ impl WrappedLine {
         &self,
         origin: Point<Pixels>,
         line_height: Pixels,
+        // lint: expect(module_cycle)
         align: TextAlign,
         bounds: Option<Bounds<Pixels>>,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &App,
     ) -> Result<()> {
         let align_width = match bounds {
@@ -351,6 +384,7 @@ impl WrappedLine {
             None => self.layout.wrap_width,
         };
 
+        // lint: expect(module_cycle)
         if cx.ui_snapshots_enabled() {
             let bounds = line_paint_bounds(
                 origin,
@@ -360,6 +394,7 @@ impl WrappedLine {
                 align_width,
                 &self.wrap_boundaries,
             );
+            // lint: expect(module_cycle)
             window.record_ui_text(&self.text, bounds);
         }
         paint_line(
@@ -372,6 +407,7 @@ impl WrappedLine {
             &self.wrap_boundaries,
             window,
             cx,
+            // lint: expect(module_cycle)
             &mut |_, origin, width, style, window| window.paint_underline(origin, width, style),
         )?;
 
@@ -383,9 +419,12 @@ impl WrappedLine {
         &self,
         origin: Point<Pixels>,
         line_height: Pixels,
+        // lint: expect(module_cycle)
         align: TextAlign,
         bounds: Option<Bounds<Pixels>>,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         cx: &App,
     ) -> Result<()> {
         let align_width = match bounds {
@@ -413,15 +452,20 @@ fn paint_line(
     origin: Point<Pixels>,
     layout: &LineLayout,
     line_height: Pixels,
+    // lint: expect(module_cycle)
     align: TextAlign,
     align_width: Option<Pixels>,
     decoration_runs: &[DecorationRun],
     wrap_boundaries: &[WrapBoundary],
+    // lint: expect(module_cycle)
     window: &mut Window,
+    // lint: expect(module_cycle)
     cx: &App,
+    // lint: expect(module_cycle)
     paint_underline: &mut dyn FnMut(Range<usize>, Point<Pixels>, Pixels, &UnderlineStyle, &mut Window),
 ) -> Result<()> {
     let line_bounds = line_paint_bounds(origin, layout, line_height, align, align_width, wrap_boundaries);
+    // lint: expect(module_cycle)
     window.paint_layer(line_bounds, |window| {
         let padding_top = (line_height - layout.ascent - layout.descent) / 2.;
         let baseline_offset = point(px(0.), padding_top + layout.ascent);
@@ -430,8 +474,11 @@ fn paint_line(
         let mut wraps = wrap_boundaries.iter().peekable();
         let mut run_end = 0;
         let mut color = black();
+        // lint: expect(module_cycle)
         let mut current_underline: Option<(Point<Pixels>, UnderlineStyle, Range<usize>)> = None;
+        // lint: expect(module_cycle)
         let mut current_strikethrough: Option<(Point<Pixels>, StrikethroughStyle)> = None;
+        // lint: expect(module_cycle)
         let text_system = Arc::clone(cx.text_system());
         let mut glyph_origin = point(
             aligned_origin_x(origin, align_width.unwrap_or(layout.width), px(0.0), align, layout, wraps.peek()),
@@ -473,6 +520,7 @@ fn paint_line(
                         if glyph_origin.x == strikethrough_origin.x {
                             strikethrough_origin.x -= max_glyph_size.width.half();
                         }
+                        // lint: expect(module_cycle)
                         window.paint_strikethrough(
                             *strikethrough_origin,
                             glyph_origin.x - strikethrough_origin.x,
@@ -498,7 +546,9 @@ fn paint_line(
                 }
                 prev_glyph_position = glyph.position;
 
+                // lint: expect(module_cycle)
                 let mut finished_underline: Option<(Point<Pixels>, UnderlineStyle, Range<usize>)> = None;
+                // lint: expect(module_cycle)
                 let mut finished_strikethrough: Option<(Point<Pixels>, StrikethroughStyle)> = None;
                 if glyph.index >= run_end {
                     let mut style_run = decoration_runs.next();
@@ -525,9 +575,13 @@ fn paint_line(
                             current_underline.get_or_insert_with(|| {
                                 (
                                     point(glyph_origin.x, glyph_origin.y + underline_y_offset),
+                                    // lint: expect(module_cycle)
                                     UnderlineStyle {
+                                        // lint: expect(module_cycle)
                                         color: Some(run_underline.color.unwrap_or(style_run.color)),
+                                        // lint: expect(module_cycle)
                                         thickness: run_underline.thickness,
+                                        // lint: expect(module_cycle)
                                         wavy: run_underline.wavy,
                                     },
                                     style_run_start..style_run_start + style_run.len as usize,
@@ -546,8 +600,11 @@ fn paint_line(
                                         glyph_origin.x,
                                         glyph_origin.y + (((layout.ascent * 0.5) + baseline_offset.y) * 0.5),
                                     ),
+                                    // lint: expect(module_cycle)
                                     StrikethroughStyle {
+                                        // lint: expect(module_cycle)
                                         color: Some(run_strikethrough.color.unwrap_or(style_run.color)),
+                                        // lint: expect(module_cycle)
                                         thickness: run_strikethrough.thickness,
                                     },
                                 )
@@ -580,6 +637,7 @@ fn paint_line(
                     if strikethrough_origin.x == glyph_origin.x {
                         strikethrough_origin.x -= max_glyph_size.width.half();
                     }
+                    // lint: expect(module_cycle)
                     window.paint_strikethrough(
                         strikethrough_origin,
                         glyph_origin.x - strikethrough_origin.x,
@@ -589,10 +647,13 @@ fn paint_line(
 
                 let max_glyph_bounds = Bounds { origin: glyph_origin, size: max_glyph_size };
 
+                // lint: expect(module_cycle)
                 let content_mask = window.content_mask();
+                // lint: expect(module_cycle)
                 if max_glyph_bounds.intersects(&content_mask.bounds) {
                     let vertical_offset = point(px(0.0), glyph.position.y);
                     if glyph.is_emoji {
+                        // lint: expect(module_cycle)
                         window.paint_emoji(
                             glyph_origin + baseline_offset + vertical_offset,
                             run.font_id,
@@ -600,6 +661,7 @@ fn paint_line(
                             layout.font_size,
                         )?;
                     } else {
+                        // lint: expect(module_cycle)
                         window.paint_glyph(
                             glyph_origin + baseline_offset + vertical_offset,
                             run.font_id,
@@ -636,6 +698,7 @@ fn paint_line(
             if last_line_end_x == strikethrough_start.x {
                 strikethrough_start.x -= max_glyph_size.width.half();
             }
+            // lint: expect(module_cycle)
             window.paint_strikethrough(
                 strikethrough_start,
                 last_line_end_x - strikethrough_start.x,
@@ -655,11 +718,14 @@ fn paint_line_background(
     origin: Point<Pixels>,
     layout: &LineLayout,
     line_height: Pixels,
+    // lint: expect(module_cycle)
     align: TextAlign,
     align_width: Option<Pixels>,
     decoration_runs: &[DecorationRun],
     wrap_boundaries: &[WrapBoundary],
+    // lint: expect(module_cycle)
     window: &mut Window,
+    // lint: expect(module_cycle)
     cx: &App,
 ) -> Result<()> {
     // Painting backgrounds walks every glyph and opens a layer, so skip it when there's nothing to paint.
@@ -667,11 +733,13 @@ fn paint_line_background(
         return Ok(());
     }
     let line_bounds = line_paint_bounds(origin, layout, line_height, align, align_width, wrap_boundaries);
+    // lint: expect(module_cycle)
     window.paint_layer(line_bounds, |window| {
         let mut decoration_runs = decoration_runs.iter();
         let mut wraps = wrap_boundaries.iter().peekable();
         let mut run_end = 0;
         let mut current_background: Option<(Point<Pixels>, Hsla)> = None;
+        // lint: expect(module_cycle)
         let text_system = Arc::clone(cx.text_system());
         let mut glyph_origin = point(
             aligned_origin_x(origin, align_width.unwrap_or(layout.width), px(0.0), align, layout, wraps.peek()),
@@ -691,6 +759,7 @@ fn paint_line_background(
                         if glyph_origin.x == background_origin.x {
                             background_origin.x -= max_glyph_size.width.half();
                         }
+                        // lint: expect(module_cycle)
                         window.paint_quad(fill(
                             Bounds {
                                 origin: *background_origin,
@@ -753,6 +822,7 @@ fn paint_line_background(
                     if background_origin.x == glyph_origin.x {
                         background_origin.x -= max_glyph_size.width.half();
                     }
+                    // lint: expect(module_cycle)
                     window.paint_quad(fill(
                         Bounds { origin: background_origin, size: size(width, line_height) },
                         background_color,
@@ -772,6 +842,7 @@ fn paint_line_background(
             if last_line_end_x == background_origin.x {
                 background_origin.x -= max_glyph_size.width.half();
             }
+            // lint: expect(module_cycle)
             window.paint_quad(fill(
                 Bounds { origin: background_origin, size: size(last_line_end_x - background_origin.x, line_height) },
                 background_color,
@@ -786,11 +857,13 @@ fn line_paint_bounds(
     origin: Point<Pixels>,
     layout: &LineLayout,
     line_height: Pixels,
+    // lint: expect(module_cycle)
     align: TextAlign,
     align_width: Option<Pixels>,
     wrap_boundaries: &[WrapBoundary],
 ) -> Bounds<Pixels> {
     let mut bounds = Bounds::new(origin, size(layout.width, line_height * (wrap_boundaries.len() as f32 + 1.)));
+    // lint: expect(module_cycle)
     if align == TextAlign::Left || layout.len == 0 {
         return bounds;
     }
@@ -804,8 +877,11 @@ fn line_paint_bounds(
     for (row, row_end) in row_ends.enumerate() {
         let width = row_end - row_start;
         let offset = match align {
+            // lint: expect(module_cycle)
             TextAlign::Left => Pixels::ZERO,
+            // lint: expect(module_cycle)
             TextAlign::Center => (align_width - width) / 2.,
+            // lint: expect(module_cycle)
             TextAlign::Right => align_width - width,
         };
         bounds = bounds.union(&Bounds::new(
@@ -821,6 +897,7 @@ fn aligned_origin_x(
     origin: Point<Pixels>,
     align_width: Pixels,
     last_glyph_x: Pixels,
+    // lint: expect(module_cycle)
     align: TextAlign,
     layout: &LineLayout,
     wrap_boundary: Option<&&WrapBoundary>,
@@ -834,8 +911,11 @@ fn aligned_origin_x(
     let line_width = end_of_line - last_glyph_x;
 
     match align {
+        // lint: expect(module_cycle)
         TextAlign::Left => origin.x,
+        // lint: expect(module_cycle)
         TextAlign::Center => (origin.x * 2.0 + align_width - line_width) / 2.0,
+        // lint: expect(module_cycle)
         TextAlign::Right => origin.x + align_width - line_width,
     }
 }

@@ -34,12 +34,17 @@ use ui::IntoElement as _;
 use ui::Label;
 use ui::LabelCommon as _;
 
+// lint: expect(module_cycle)
 use crate::ItemNavHistory;
 use crate::Workspace;
 use crate::invalid_item_view::InvalidItemView;
+// lint: expect(module_cycle)
 use crate::item_registry::SerializableItemRegistry;
+// lint: expect(module_cycle)
 use crate::pane;
+// lint: expect(module_cycle)
 use crate::pane::Pane;
+// lint: expect(module_cycle)
 use crate::searchable::SearchableItemHandle;
 
 #[derive(Clone, Copy, Debug)]
@@ -179,6 +184,7 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
         result
     }
 
+    // lint: expect(module_cycle)
     fn set_nav_history(&mut self, _: ItemNavHistory, _window: &mut Window, _: &mut Context<Self>) {}
 
     fn is_dirty(&self, _: &App) -> bool {
@@ -231,6 +237,7 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
         (TypeId::of::<Self>() == type_id).then(|| self_handle.clone().into())
     }
 
+    // lint: expect(module_cycle)
     fn as_searchable(&self, _: &Entity<Self>, _: &App) -> Option<Box<dyn SearchableItemHandle>> {
         None
     }
@@ -266,6 +273,7 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
 
     /// Called when the containing pane receives a drop on the item or the item's tab.
     /// Returns `true` to consume it and suppress the pane's default drop behavior.
+    // lint: expect(module_cycle)
     fn handle_drop(&self, _active_pane: &Pane, _dropped: &dyn Any, _window: &mut Window, _cx: &mut App) -> bool {
         false
     }
@@ -341,6 +349,7 @@ pub trait ItemHandle: 'static + Send {
     fn added_to_pane(
         &self,
         workspace: &mut Workspace,
+        // lint: expect(module_cycle)
         pane: Entity<Pane>,
         window: &mut Window,
         cx: &mut Context<Workspace>,
@@ -376,6 +385,7 @@ pub trait ItemHandle: 'static + Send {
     fn act_as_type(&self, type_id: TypeId, cx: &App) -> Option<AnyEntity>;
     fn to_serializable_item_handle(&self, cx: &App) -> Option<Box<dyn SerializableItemHandle>>;
     fn on_release(&self, cx: &mut App, callback: Box<dyn FnOnce(&mut App) + Send>) -> gpui::Subscription;
+    // lint: expect(module_cycle)
     fn to_searchable_item_handle(&self, cx: &App) -> Option<Box<dyn SearchableItemHandle>>;
     fn show_toolbar(&self, cx: &App) -> bool;
     fn side_card(&self, cx: &App) -> Option<AnyView>;
@@ -385,6 +395,7 @@ pub trait ItemHandle: 'static + Send {
     fn preserve_preview(&self, cx: &App) -> bool;
     fn include_in_nav_history(&self) -> bool;
     fn relay_action(&self, action: Box<dyn Action>, window: &mut Window, cx: &mut App);
+    // lint: expect(module_cycle)
     fn handle_drop(&self, active_pane: &Pane, dropped: &dyn Any, window: &mut Window, cx: &mut App) -> bool;
     fn tab_extra_context_menu_actions(&self, window: &mut Window, cx: &mut App)
     -> Vec<(SharedString, Box<dyn Action>)>;
@@ -492,11 +503,13 @@ impl<T: Item> ItemHandle for Entity<T> {
     fn added_to_pane(
         &self,
         workspace: &mut Workspace,
+        // lint: expect(module_cycle)
         pane: Entity<Pane>,
         window: &mut Window,
         cx: &mut Context<Workspace>,
     ) {
         let weak_item = self.downgrade();
+        // lint: expect(module_cycle)
         let history = pane.read(cx).nav_history_for_item(self);
         self.update(cx, |this, cx| {
             this.set_nav_history(history, window, cx);
@@ -504,6 +517,7 @@ impl<T: Item> ItemHandle for Entity<T> {
         });
 
         if self.to_serializable_item_handle(cx).is_some() {
+            // lint: expect(module_cycle)
             workspace.serialize_workspace(window, cx);
         }
 
@@ -519,12 +533,14 @@ impl<T: Item> ItemHandle for Entity<T> {
                     if let Some(item) = item.to_serializable_item_handle(cx)
                         && item.should_serialize(event, cx)
                     {
+                        // lint: expect(module_cycle)
                         workspace.serialize_workspace(window, cx);
                     }
 
                     T::to_item_events(event, &mut |event| match event {
                         ItemEvent::CloseItem => {
                             pane.update(cx, |pane, cx| {
+                                // lint: expect(module_cycle)
                                 pane.close_item_by_id(item.item_id(), crate::SaveIntent::Close, window, cx)
                             })
                             .detach_and_log_err(cx);
@@ -534,15 +550,18 @@ impl<T: Item> ItemHandle for Entity<T> {
                             workspace.update_item_dirty_state(item, window, cx);
 
                             pane.update(cx, |_, cx| {
+                                // lint: expect(module_cycle)
                                 cx.emit(pane::Event::ChangeItemTitle);
                                 cx.notify();
                             });
                         }
 
                         ItemEvent::UpdateActivePath => {
+                            // lint: expect(module_cycle)
                             if &pane == workspace.active_pane()
                                 && pane
                                     .read(cx)
+                                    // lint: expect(module_cycle)
                                     .active_item()
                                     .is_some_and(|active_item| active_item.item_id() == item.item_id())
                             {
@@ -551,6 +570,7 @@ impl<T: Item> ItemHandle for Entity<T> {
                         }
 
                         ItemEvent::Edit => {
+                            // lint: expect(module_cycle)
                             pane.update(cx, |pane, cx| pane.handle_item_edit(item.item_id(), cx));
                         }
                     });
@@ -597,6 +617,7 @@ impl<T: Item> ItemHandle for Entity<T> {
         }
 
         cx.defer_in(window, |workspace, window, cx| {
+            // lint: expect(module_cycle)
             workspace.serialize_workspace(window, cx);
         });
     }
@@ -685,6 +706,7 @@ impl<T: Item> ItemHandle for Entity<T> {
         cx.observe_release(self, move |_, cx| callback(cx))
     }
 
+    // lint: expect(module_cycle)
     fn to_searchable_item_handle(&self, cx: &App) -> Option<Box<dyn SearchableItemHandle>> {
         self.read(cx).as_searchable(self, cx)
     }
@@ -710,6 +732,7 @@ impl<T: Item> ItemHandle for Entity<T> {
     }
 
     fn to_serializable_item_handle(&self, cx: &App) -> Option<Box<dyn SerializableItemHandle>> {
+        // lint: expect(module_cycle)
         SerializableItemRegistry::view_to_serializable_item_handle(self.to_any_view(), cx)
     }
 
@@ -730,6 +753,7 @@ impl<T: Item> ItemHandle for Entity<T> {
 
     /// Called when the containing pane receives a drop on the item or the item's tab.
     /// Returns `true` if the item handled it and the pane should skip its default drop behavior.
+    // lint: expect(module_cycle)
     fn handle_drop(&self, active_pane: &Pane, dropped: &dyn Any, window: &mut Window, cx: &mut App) -> bool {
         self.update(cx, |this, cx| this.handle_drop(active_pane, dropped, window, cx))
     }
@@ -787,6 +811,7 @@ pub trait ProjectItem: Item {
 
     fn for_project_item(
         project: Entity<Project>,
+        // lint: expect(module_cycle)
         pane: Option<&Pane>,
         item: Entity<Self::Item>,
         window: &mut Window,

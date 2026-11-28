@@ -279,3 +279,9 @@ fn low64(number: &[u32]) -> u64 {
 fn low32(value: u64) -> u32 {
     u32::try_from(value & 0xffff_ffff).unwrap_or(0)
 }
+
+/// Rounds as JavaScript's `Math.round` does: halves toward positive infinity.
+pub(crate) fn js_round(value: f64) -> f64 {
+    let floor = value.floor();
+    if value - floor >= 0.5 { floor + 1.0 } else { floor }
+}

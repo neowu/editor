@@ -25,6 +25,7 @@ mod folding_ranges;
 mod formatting;
 mod inlay_hints;
 pub mod log_store;
+pub(crate) mod lsp_command;
 pub mod lsp_ext_command;
 pub mod rust_analyzer_ext;
 mod semantic_tokens;
@@ -54,6 +55,7 @@ use capabilities::completion_trigger_characters_for_buffer;
 use capabilities::document_selector_context_for_language;
 use capabilities::document_selector_matches;
 use capabilities::lsp_command_allowed_for_buffer;
+use capabilities::text_document_capabilities_for_buffer;
 use clock::Global;
 pub use completions::CompletionDocumentation;
 pub use diagnostics::DiagnosticSummary;
@@ -61,11 +63,9 @@ pub(crate) use diagnostics::WorkspaceRefreshTask;
 use diagnostics::lsp_workspace_diagnostics_refresh;
 pub use document_links::BufferDocumentLinks;
 pub use document_links::DocumentLinkId;
-pub use document_links::LspDocumentLink;
 pub use document_links::ResolvedDocumentLink;
 use file_watchers::LanguageServerWatchedPaths;
 use file_watchers::RenamePathsWatchedForServer;
-pub use folding_ranges::LspFoldingRange;
 pub use formatting::LspFormatTarget;
 use fs::Fs;
 use futures::FutureExt as _;
@@ -107,6 +107,7 @@ use language::Unclipped;
 use language::lsp_to_symbol_kind;
 use language::point_to_lsp;
 use language::range_from_lsp;
+use lsp::AdapterServerCapabilities;
 use lsp::LSP_REQUEST_TIMEOUT;
 use lsp::LanguageServer;
 use lsp::LanguageServerBinary;
@@ -114,6 +115,18 @@ use lsp::LanguageServerId;
 use lsp::LanguageServerName;
 use lsp::LanguageServerSelector;
 use lsp::LspRequestFuture as _;
+use lsp_command::GetDeclarations;
+use lsp_command::GetDefinitions;
+use lsp_command::GetHover;
+use lsp_command::GetImplementations;
+use lsp_command::GetReferences;
+use lsp_command::GetTypeDefinitions;
+use lsp_command::InlayHints;
+use lsp_command::LinkedEditingRange;
+use lsp_command::LspCommand;
+pub use lsp_command::LspDocumentLink;
+pub use lsp_command::LspFoldingRange;
+use lsp_command::file_path_to_lsp_url;
 pub use lsp_store::inlay_hints::CacheInlayHints;
 pub(crate) use lsp_store::inlay_hints::CacheInlayHintsTask;
 pub use lsp_store::inlay_hints::InvalidationStrategy;
@@ -166,16 +179,6 @@ use crate::Symbol;
 use crate::buffer_store::BufferStore;
 use crate::buffer_store::BufferStoreEvent;
 use crate::environment::ProjectEnvironment;
-use crate::lsp_command::GetDeclarations;
-use crate::lsp_command::GetDefinitions;
-use crate::lsp_command::GetHover;
-use crate::lsp_command::GetImplementations;
-use crate::lsp_command::GetReferences;
-use crate::lsp_command::GetTypeDefinitions;
-use crate::lsp_command::InlayHints;
-use crate::lsp_command::LinkedEditingRange;
-use crate::lsp_command::LspCommand;
-use crate::lsp_command::file_path_to_lsp_url;
 use crate::lsp_store;
 use crate::lsp_store::folding_ranges::FoldingRangeData;
 use crate::lsp_store::semantic_tokens::SemanticTokenConfig;
@@ -1046,6 +1049,36 @@ fn lsp_pull_cancelled_with_retrigger(error: &anyhow::Error) -> bool {
 }
 
 impl LspStore {
+    fn update_last_formatting_failure<T>(&mut self, formatting_result: &Result<T>) {
+        match &formatting_result {
+            Ok(_) => self.last_formatting_failure = None,
+            Err(error) => {
+                let error_string = format!("{error:#}");
+                log::error!("Formatting failed: {error_string}");
+                self.last_formatting_failure.replace(error_string.lines().join(" "));
+            }
+        }
+    }
+
+    fn text_document_capability_matches_for_server(
+        &self,
+        buffer: &Entity<Buffer>,
+        server_id: LanguageServerId,
+        method: &str,
+        mut check: impl FnMut(AdapterServerCapabilities<'_>) -> bool,
+        cx: &mut App,
+    ) -> bool {
+        let local = &self.local;
+        buffer.update(cx, |buffer, cx| {
+            let Some((adapter, server)) =
+                local.language_servers_for_buffer(buffer, cx).find(|(_, server)| server.server_id() == server_id)
+            else {
+                return false;
+            };
+            text_document_capabilities_for_buffer(local, method, buffer, adapter, server).any(&mut check)
+        })
+    }
+
     // todo: always `Some`; inline `self.local` at call sites
     pub(crate) fn new_local(
         buffer_store: Entity<BufferStore>,
@@ -2314,7 +2347,7 @@ impl LspStore {
         self.local.buffers_opened_in_servers.get(&buffer_id)
     }
 
-    pub(crate) fn language_server_for_local_buffer<'a>(
+    fn language_server_for_local_buffer<'a>(
         &'a self,
         buffer: &'a Buffer,
         server_id: LanguageServerId,
@@ -2918,7 +2951,7 @@ async fn populate_labels_for_symbols(
     }
 }
 
-pub(crate) fn collapse_newlines(text: &str, separator: &str) -> String {
+fn collapse_newlines(text: &str, separator: &str) -> String {
     text.lines().map(str::trim).filter(|line| !line.is_empty()).join(separator)
 }
 

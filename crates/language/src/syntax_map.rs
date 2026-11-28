@@ -47,6 +47,7 @@ use tree_sitter::QueryPredicateArg;
 use tree_sitter::StreamingIterator as _;
 
 use crate::CaptureId;
+// lint: expect(module_cycle)
 use crate::File;
 use crate::Grammar;
 use crate::InjectionConfig;
@@ -515,6 +516,7 @@ impl SyntaxSnapshot {
     pub(crate) fn reparse(
         &mut self,
         text: &BufferSnapshot,
+        // lint: expect(module_cycle)
         file: Option<&dyn File>,
         registry: Option<Arc<LanguageRegistry>>,
         root_language: Arc<Language>,
@@ -525,6 +527,7 @@ impl SyntaxSnapshot {
     pub(crate) fn reparse_with_timeout(
         &mut self,
         text: &BufferSnapshot,
+        // lint: expect(module_cycle)
         file: Option<&dyn File>,
         registry: Option<Arc<LanguageRegistry>>,
         root_language: Arc<Language>,
@@ -536,6 +539,7 @@ impl SyntaxSnapshot {
     fn reparse_(
         &mut self,
         text: &BufferSnapshot,
+        // lint: expect(module_cycle)
         file: Option<&dyn File>,
         registry: Option<Arc<LanguageRegistry>>,
         root_language: Arc<Language>,
@@ -589,6 +593,7 @@ impl SyntaxSnapshot {
     fn reparse_with_ranges(
         &mut self,
         text: &BufferSnapshot,
+        // lint: expect(module_cycle)
         file: Option<&dyn File>,
         root_language: Arc<Language>,
         invalidated_ranges: Vec<Range<usize>>,
@@ -597,6 +602,7 @@ impl SyntaxSnapshot {
     ) -> Result<(), ParseTimeout> {
         log::trace!(
             "reparse. file:{:?}, invalidated ranges:{:?}",
+            // lint: expect(module_cycle)
             file.map(File::path),
             LogOffsetRanges(&invalidated_ranges, text),
         );

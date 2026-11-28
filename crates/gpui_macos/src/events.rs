@@ -35,11 +35,11 @@ use objc2_app_kit::NSEventType;
 use objc2_core_foundation::CFData;
 use objc2_core_graphics::CGKeyCode;
 
-use crate::LMGetKbdType;
-use crate::TISCopyCurrentKeyboardLayoutInputSource;
-use crate::TISGetInputSourceProperty;
-use crate::UCKeyTranslate;
-use crate::kTISPropertyUnicodeKeyLayoutData;
+use crate::carbon::LMGetKbdType;
+use crate::carbon::TISCopyCurrentKeyboardLayoutInputSource;
+use crate::carbon::TISGetInputSourceProperty;
+use crate::carbon::UCKeyTranslate;
+use crate::carbon::kTISPropertyUnicodeKeyLayoutData;
 use crate::ns::id;
 
 /// AppKit function-key characters as UTF-16 code units, usable in patterns.

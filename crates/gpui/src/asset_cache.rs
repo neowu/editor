@@ -12,7 +12,9 @@ use std::sync::Arc;
 use futures::TryFutureExt as _;
 use rustc_hash::FxHashSet;
 
+// lint: expect(module_cycle)
 use crate::App;
+// lint: expect(module_cycle)
 use crate::EntityId;
 use crate::SharedString;
 use crate::Task;
@@ -24,14 +26,18 @@ pub(crate) struct CachedLoad<T> {
 }
 
 enum CachedLoadState<T> {
+    // lint: expect(module_cycle)
     Loading(FxHashSet<EntityId>),
     Loaded(T),
 }
 
 impl<T: Clone + Send + 'static> CachedLoad<T> {
+    // lint: expect(module_cycle)
     pub(crate) fn new(future: impl Future<Output = T> + Send + 'static, cx: &App) -> Self {
         let state = Rc::new(RefCell::new(CachedLoadState::Loading(FxHashSet::default())));
+        // lint: expect(module_cycle)
         let task = cx.background_executor().spawn(future);
+        // lint: expect(module_cycle)
         let task = cx.spawn({
             let state = Rc::downgrade(&state);
             async move |cx| {
@@ -43,8 +49,10 @@ impl<T: Clone + Send + 'static> CachedLoad<T> {
                 let CachedLoadState::Loading(views) = previous else {
                     unreachable!("a cached load completes only once");
                 };
+                // lint: expect(module_cycle)
                 cx.update(|cx| {
                     for view in views {
+                        // lint: expect(module_cycle)
                         cx.notify(view);
                     }
                 });
@@ -60,6 +68,7 @@ impl<T: Clone + Send + 'static> CachedLoad<T> {
         }
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn use_by(&self, view: EntityId) -> Option<T> {
         match &mut *self.state.borrow_mut() {
             CachedLoadState::Loading(views) => {
@@ -101,6 +110,7 @@ pub trait Asset: 'static {
     type Output: Clone + Send;
 
     /// Load the asset asynchronously.
+    // lint: expect(module_cycle)
     fn load(source: Self::Source, cx: &mut App) -> impl Future<Output = Self::Output> + Send + 'static;
 }
 
@@ -117,6 +127,7 @@ where
 
     type Output = T::Output;
 
+    // lint: expect(module_cycle)
     fn load(source: Self::Source, cx: &mut App) -> impl Future<Output = Self::Output> + Send + 'static {
         let load = T::load(source, cx);
         load.inspect_err(|e| log::error!("Failed to load asset: {e:?}"))

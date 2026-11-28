@@ -5,7 +5,6 @@ use std::borrow::Cow;
 use std::iter;
 use std::mem;
 
-use crate::svg::builder::js_round;
 use crate::text::entities::decode;
 use crate::text::icons::IconResolver;
 use crate::text::icons::icon_markup;
@@ -18,6 +17,7 @@ use crate::text::measure::UNDERLINE;
 use crate::util::chars::has;
 use crate::util::chars::is_space;
 use crate::util::chars::is_word;
+use crate::util::float::js_round;
 
 /// A run of text in one style, or an icon.
 #[derive(Clone, Debug, Default, PartialEq)]

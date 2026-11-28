@@ -22,7 +22,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 pub use actions::install_actions;
-pub(crate) use blocks::BlockLayout;
 use blocks::RenderBlocksOutput;
 use buffer_diff::DiffHunkStatus;
 use buffer_diff::DiffHunkStatusKind;
@@ -67,14 +66,13 @@ use gutter::Gutter;
 use gutter::mark_active_rows;
 pub(crate) use header::header_jump_data;
 pub(crate) use header::render_buffer_header;
-use inline_diagnostics::DiagnosticUnderline;
-use inline_diagnostics::PointDiagnostic;
 use language::IndentGuideSettings;
 use language::LanguageAwareStyling;
 use language::language_settings::WHITESPACE_SPACE;
 use language::language_settings::WHITESPACE_TAB;
 use line::LineFragment;
 pub(crate) use line::LineWithInvisibles;
+use line::PointDiagnostic;
 pub(crate) use minimap::MinimapInputs;
 use minimap::MinimapLayout;
 pub(crate) use minimap::MinimapRowCache;
@@ -97,6 +95,7 @@ use ui::utils::merge_highlight_backgrounds;
 use workspace::item::Item as _;
 use workspace::item::ItemBufferKind;
 
+use crate::BlockId;
 use crate::CodeActionSource;
 use crate::ConflictsOurs;
 use crate::ConflictsOursMarker;
@@ -124,6 +123,7 @@ use crate::ToPoint as _;
 use crate::code_context_menus::CodeActionsMenu;
 use crate::column_pixels;
 use crate::display_map::Block;
+use crate::display_map::BlockStyle;
 use crate::display_map::DisplaySnapshot;
 use crate::display_map::EditorMargins;
 use crate::display_map::ToDisplayPoint as _;
@@ -2843,6 +2843,17 @@ fn drawn_buffer_ids(row_infos: &[RowInfo]) -> Vec<BufferId> {
         }
     }
     buffer_ids
+}
+
+pub(crate) struct BlockLayout {
+    id: BlockId,
+    x_offset: Pixels,
+    row: Option<DisplayRow>,
+    element: AnyElement,
+    available_space: Size<AvailableSpace>,
+    style: BlockStyle,
+    overlaps_gutter: bool,
+    is_buffer_header: bool,
 }
 
 #[cfg(test)]

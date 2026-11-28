@@ -2,7 +2,7 @@ use anyhow::Result;
 use buffer_diff::BufferDiff;
 use futures::FutureExt as _;
 use futures::future::LocalBoxFuture;
-use git::repository::RepoPath;
+use git::RepoPath;
 use git::status::DiffTreeType;
 use git::status::FileStatus;
 use git::status::StatusCode;

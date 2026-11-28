@@ -7,8 +7,8 @@ use std::time::Instant;
 
 use file_icons::FileIcons;
 use git::Oid;
+use git::RepoPath;
 use git::repository::CommitFileStatus;
-use git::repository::RepoPath;
 use git::status::FileStatus;
 use git::status::StatusCode;
 use git::status::TrackedStatus;
@@ -85,9 +85,13 @@ use ui::prelude::h_flex;
 use ui::prelude::v_flex;
 use util::ResultExt as _;
 
+// lint: expect(module_cycle)
 use crate::git_graph;
+// lint: expect(module_cycle)
 use crate::git_graph::GitGraph;
+// lint: expect(module_cycle)
 use crate::git_graph::ToggleChangedFilesView;
+// lint: expect(module_cycle)
 use crate::git_graph::format_timestamp;
 use crate::git_panel::INDENT_GUIDE_LEFT_OFFSET;
 use crate::git_panel::LIST_ITEM_HEIGHT;
@@ -319,6 +323,7 @@ impl CommitDetailsPanel {
         let highlight = self.search_highlight.clone();
         message.update(cx, |message, cx| {
             let ranges = highlight.map_or_default(|(query, case_sensitive)| {
+                // lint: expect(module_cycle)
                 git_graph::search_match_ranges(message.source(), &query, case_sensitive)
             });
             if ranges.is_empty() {
@@ -339,6 +344,7 @@ impl CommitDetailsPanel {
             }
             _ => ("Loading…".into(), "".into(), None),
         };
+        // lint: expect(module_cycle)
         let date_string = commit_timestamp.map_or_default(format_timestamp);
         let full_sha: SharedString = sha.to_string().into();
         let short_sha: SharedString = full_sha.chars().take(7).collect::<String>().into();
@@ -389,6 +395,7 @@ impl CommitDetailsPanel {
                 )
                 .children((!self.ref_names.is_empty()).then(|| {
                     h_flex().gap_1().flex_wrap().justify_center().children(self.ref_names.iter().map(|name| {
+                        // lint: expect(module_cycle)
                         let is_head = GitGraph::is_head_ref(name, head_branch_name.as_ref());
                         let name_for_menu = name.clone();
                         let this = cx.weak_entity();
@@ -525,6 +532,7 @@ impl CommitDetailsPanel {
             .toggle_state(is_tree_view)
             .tooltip({
                 let tooltip = if is_tree_view { "Show Flat View" } else { "Show Tree View" };
+                // lint: expect(module_cycle)
                 move |_, cx| Tooltip::for_action(tooltip, &ToggleChangedFilesView, cx)
             })
             .on_click(cx.listener(|this, _, _window, cx| this.toggle_view_mode(cx)));

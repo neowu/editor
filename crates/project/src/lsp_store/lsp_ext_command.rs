@@ -25,11 +25,11 @@ use text::PointUtf16;
 use text::ToPointUtf16 as _;
 
 use crate::LocationLink;
-use crate::lsp_command::LspCommand;
-use crate::lsp_command::file_path_to_lsp_url;
-use crate::lsp_command::location_link_from_lsp;
 use crate::lsp_store::LanguageServerToQuery;
 use crate::lsp_store::LspStore;
+use crate::lsp_store::lsp_command::LspCommand;
+use crate::lsp_store::lsp_command::file_path_to_lsp_url;
+use crate::lsp_store::lsp_command::location_link_from_lsp;
 use crate::make_lsp_text_document_position;
 use crate::make_text_document_identifier;
 

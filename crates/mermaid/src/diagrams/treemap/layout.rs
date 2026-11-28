@@ -1,7 +1,7 @@
 //! Squarified treemap layout. Port of Pele's `src/diagrams/treemap/layout.ts`.
 
 use super::model::TreemapNode;
-use crate::svg::builder::js_round;
+use crate::util::float::js_round;
 
 /// A node's rectangle. Boxes link to their parent and children by index into one list.
 #[derive(Clone, Debug)]

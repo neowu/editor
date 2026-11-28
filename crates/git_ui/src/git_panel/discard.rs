@@ -1,8 +1,8 @@
 use futures::future;
 use git::DeleteUntrackedFiles;
+use git::RepoPath;
 use git::RestoreFile;
 use git::RestoreTrackedFiles;
-use git::repository::RepoPath;
 use git_ui_core::notifications::show_error_toast;
 use gpui::PromptLevel;
 use gpui::TaskExt as _;

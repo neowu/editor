@@ -96,11 +96,14 @@ use crate::WorktreeId;
 use crate::diagnostic_set::DiagnosticEntry;
 use crate::diagnostic_set::DiagnosticEntryRef;
 pub use crate::diagnostic_set::DiagnosticSet;
+// lint: expect(module_cycle)
 use crate::language_settings::LanguageSettings;
 use crate::outline::OutlineItem;
 use crate::row_chunk::RowChunkId;
 use crate::row_chunk::RowChunks;
+// lint: expect(module_cycle)
 use crate::runnable;
+// lint: expect(module_cycle)
 use crate::runnable::RunnableRange;
 use crate::syntax_map::MAX_BYTES_TO_QUERY;
 use crate::syntax_map::SyntaxLayer;
@@ -112,6 +115,7 @@ use crate::syntax_map::SyntaxMapMatches;
 use crate::syntax_map::SyntaxSnapshot;
 use crate::syntax_map::ToTreeSitterPoint as _;
 use crate::syntax_map::flattened_highlight_regions;
+// lint: expect(module_cycle)
 use crate::text_diff::text_diff;
 
 /// Indicate whether a [`Buffer`] has permissions to edit.
@@ -170,6 +174,7 @@ pub struct Buffer {
     has_unsaved_edits: Cell<(clock::Global, bool)>,
     changed_buffer_sets: Vec<rc::Weak<RefCell<FxHashSet<BufferId>>>>,
     _subscriptions: Vec<gpui::Subscription>,
+    // lint: expect(module_cycle)
     resolved_settings: Option<Arc<LanguageSettings>>,
     tree_sitter_data: Arc<TreeSitterData>,
     fallback_highlighter: Option<Arc<FallbackHighlighter>>,
@@ -224,6 +229,7 @@ pub struct BufferSnapshot {
     file: Option<Arc<dyn File>>,
     non_text_state_update_count: usize,
     pub capability: Capability,
+    // lint: expect(module_cycle)
     resolved_settings: Option<Arc<LanguageSettings>>,
 }
 
@@ -654,7 +660,9 @@ impl Buffer {
         this
     }
 
+    // lint: expect(module_cycle)
     fn compute_resolved_settings(&self, cx: &App) -> Arc<LanguageSettings> {
+        // lint: expect(module_cycle)
         LanguageSettings::resolve_uncached(self, None, cx)
     }
 
@@ -669,6 +677,7 @@ impl Buffer {
         }
     }
 
+    // lint: expect(module_cycle)
     pub(crate) const fn resolved_settings(&self) -> Option<&Arc<LanguageSettings>> {
         self.resolved_settings.as_ref()
     }
@@ -1432,6 +1441,7 @@ impl Buffer {
             let mut new_text = new_text.as_ref().to_owned();
             let line_ending = LineEnding::detect(&new_text);
             LineEnding::normalize(&mut new_text);
+            // lint: expect(module_cycle)
             let edits = text_diff(&old_text, &new_text);
             Diff { base_version, line_ending, edits }
         })
@@ -2248,6 +2258,7 @@ impl BufferSnapshot {
     /// and language preferences.
     pub fn language_indent_size_at<T: ToOffset>(&self, position: T, cx: &App) -> IndentSize {
         let settings = self.settings_at(position, cx);
+        // lint: expect(module_cycle)
         if settings.hard_tabs { IndentSize::tab() } else { IndentSize::spaces(settings.tab_size.get()) }
     }
 
@@ -2760,6 +2771,7 @@ impl BufferSnapshot {
         })
     }
 
+    // lint: expect(module_cycle)
     pub(crate) const fn resolved_settings(&self) -> Option<&Arc<LanguageSettings>> {
         self.resolved_settings.as_ref()
     }
@@ -2775,7 +2787,9 @@ impl BufferSnapshot {
     }
 
     /// Returns the settings for the language at the given location.
+    // lint: expect(module_cycle)
     pub fn settings_at<'a, D: ToOffset>(&'a self, position: D, cx: &'a App) -> Arc<LanguageSettings> {
+        // lint: expect(module_cycle)
         LanguageSettings::for_buffer_snapshot(self, Some(position.to_offset(self)), cx)
     }
 
@@ -3453,7 +3467,9 @@ impl BufferSnapshot {
         (spell, nospell)
     }
 
+    // lint: expect(module_cycle)
     pub fn runnable_ranges(&self, offset_range: Range<usize>) -> impl Iterator<Item = RunnableRange> + '_ {
+        // lint: expect(module_cycle)
         runnable::runnable_ranges(self, offset_range)
     }
 

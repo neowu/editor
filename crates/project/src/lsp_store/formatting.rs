@@ -18,7 +18,6 @@ use gpui::Context;
 use gpui::Entity;
 use gpui::Task;
 use gpui::WeakEntity;
-use itertools::Itertools as _;
 use language::Buffer;
 use language::CachedLspAdapter;
 use language::Diff;
@@ -60,9 +59,9 @@ use crate::CodeAction;
 use crate::ProjectItem as _;
 use crate::ProjectTransaction;
 use crate::biome;
-use crate::lsp_command::GetCodeActions;
-use crate::lsp_command::OnTypeFormatting;
-use crate::lsp_command::file_path_to_lsp_url;
+use crate::lsp_store::lsp_command::GetCodeActions;
+use crate::lsp_store::lsp_command::OnTypeFormatting;
+use crate::lsp_store::lsp_command::file_path_to_lsp_url;
 
 pub enum LspFormatTarget {
     Buffers,
@@ -1212,17 +1211,6 @@ impl LspStore {
 
                 result
             })
-        }
-    }
-
-    pub(super) fn update_last_formatting_failure<T>(&mut self, formatting_result: &Result<T>) {
-        match &formatting_result {
-            Ok(_) => self.last_formatting_failure = None,
-            Err(error) => {
-                let error_string = format!("{error:#}");
-                log::error!("Formatting failed: {error_string}");
-                self.last_formatting_failure.replace(error_string.lines().join(" "));
-            }
         }
     }
 }

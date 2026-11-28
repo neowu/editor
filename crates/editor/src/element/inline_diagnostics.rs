@@ -1,19 +1,15 @@
 use std::cmp;
-use std::collections::BTreeSet;
 use std::ops::Range;
 use std::ptr;
 
 use gpui::AnyElement;
 use gpui::App;
 use gpui::AvailableSpace;
-use gpui::Bounds;
 use gpui::Element as _;
 use gpui::InteractiveElement as _;
 use gpui::ParentElement as _;
 use gpui::Pixels;
-use gpui::ScaledPixels;
 use gpui::Styled as _;
-use gpui::UnderlineStyle;
 use gpui::Window;
 use gpui::point;
 use language::Diagnostic;
@@ -22,7 +18,6 @@ use multi_buffer::ExcerptRange;
 use multi_buffer::MultiBufferSnapshot;
 use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
-use smallvec::SmallVec;
 use sum_tree::Bias;
 use text::ToPoint as _;
 use ui::prelude::Color;
@@ -32,6 +27,7 @@ use super::CreaseTrailerLayout;
 use super::EditorElement;
 use super::EditorLayout;
 use super::LineWithInvisibles;
+use super::PointDiagnostic;
 use crate::DisplayPoint;
 use crate::DisplayRow;
 use crate::EditorSnapshot;
@@ -43,109 +39,6 @@ use crate::ToPoint as _;
 use crate::display_map::ToDisplayPoint as _;
 use crate::scroll::ScrollOffset;
 use crate::scroll::ScrollPixelOffset;
-
-#[derive(Debug, Clone, Copy)]
-pub(super) struct PointDiagnostic {
-    pub(super) column: u32,
-    underline: UnderlineStyle,
-    pub(super) severity: lsp_types::DiagnosticSeverity,
-}
-
-pub(super) struct DiagnosticUnderline {
-    pub(super) origin: gpui::Point<Pixels>,
-    pub(super) width: Pixels,
-    pub(super) style: UnderlineStyle,
-    pub(super) bounds: Bounds<ScaledPixels>,
-    pub(super) span: Range<ScaledPixels>,
-    pub(super) severity: lsp_types::DiagnosticSeverity,
-    pub(super) is_point: bool,
-}
-
-impl DiagnosticUnderline {
-    pub(super) fn point(
-        diagnostic: &PointDiagnostic,
-        origin: gpui::Point<Pixels>,
-        width: Pixels,
-        window: &Window,
-    ) -> Self {
-        let bounds = window.underline_bounds(origin, width, &diagnostic.underline);
-        Self {
-            origin,
-            width,
-            style: diagnostic.underline,
-            bounds,
-            span: bounds.left()..bounds.right(),
-            severity: diagnostic.severity,
-            is_point: true,
-        }
-    }
-
-    fn paint(&self, span: Range<ScaledPixels>, window: &mut Window) {
-        window.paint_underline_with_exclusions(
-            self.origin,
-            self.width,
-            &self.style,
-            &[self.bounds.left()..span.start, span.end..self.bounds.right()],
-        );
-    }
-
-    pub(super) fn paint_all(underlines: &[Self], window: &mut Window) {
-        if underlines.is_empty() {
-            return;
-        }
-        let mask = window.content_mask().bounds;
-        let scale = window.scale_factor();
-        let left = ScaledPixels((f32::from(mask.left()) * scale).floor());
-        let top = ScaledPixels((f32::from(mask.top()) * scale).floor());
-        let right = ScaledPixels((f32::from(mask.right()) * scale).ceil()).max(left);
-        let bottom = ScaledPixels((f32::from(mask.bottom()) * scale).ceil()).max(top);
-        let mask = Bounds::from_corners(point(left, top), point(right, bottom));
-        let mut events = SmallVec::<[_; 8]>::new();
-        for (index, underline) in underlines.iter().enumerate() {
-            let bounds = underline.bounds.intersect(&mask);
-            let start = underline.span.start.max(bounds.left());
-            let end = underline.span.end.min(bounds.right());
-            if !bounds.is_empty() && start < end {
-                events.push((start, true, index));
-                events.push((end, false, index));
-            }
-        }
-        events.sort_unstable();
-
-        let mut active = BTreeSet::new();
-        let mut previous = None;
-        let mut visible: Option<(usize, Range<ScaledPixels>)> = None;
-        for (position, is_start, index) in events {
-            if let Some(start) = previous
-                && start < position
-                && let Some(&(_, _, winner)) = active.first()
-            {
-                if let Some((current, span)) = visible.as_mut()
-                    && *current == winner
-                    && span.end == start
-                {
-                    span.end = position;
-                } else {
-                    if let Some((current, span)) = visible.take() {
-                        underlines[current].paint(span, window);
-                    }
-                    visible = Some((winner, start..position));
-                }
-            }
-            let underline = &underlines[index];
-            let key = (underline.severity, underline.is_point, index);
-            if is_start {
-                active.insert(key);
-            } else {
-                active.remove(&key);
-            }
-            previous = Some(position);
-        }
-        if let Some((winner, span)) = visible {
-            underlines[winner].paint(span, window);
-        }
-    }
-}
 
 impl EditorElement {
     pub(super) fn layout_inline_diagnostics(

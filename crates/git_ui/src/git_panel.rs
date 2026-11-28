@@ -18,12 +18,12 @@ use file_icons::FileIcons;
 use futures::channel::oneshot::Canceled;
 use git::Amend;
 use git::Commit;
+use git::RepoPath;
 use git::ToggleCommitEditor;
 use git::ToggleFillCommitEditor;
 use git::ViewFile;
 use git::repository::GitCommitTemplate;
 use git::repository::LogSource;
-use git::repository::RepoPath;
 use git::stash::GitStash;
 use git::status::DiffStat;
 use git::status::FileStatus;
@@ -91,13 +91,18 @@ use workspace::dock::PanelEvent;
 use workspace::dock::SIDEBAR_MIN_WIDTH;
 use workspace::notifications::NotifyTaskExt as _;
 
+// lint: expect(module_cycle)
 use crate::git_graph;
 use crate::git_panel_view_options::GitPanelGroupBy;
 use crate::git_panel_view_options::GitPanelSortBy;
 use crate::git_panel_view_options::GitPanelViewOptions;
+// lint: expect(module_cycle)
 use crate::project_diff::ProjectDiff;
+// lint: expect(module_cycle)
 use crate::solo_diff_view::SoloDiffView;
+// lint: expect(module_cycle)
 use crate::staged_diff::StagedDiff;
+// lint: expect(module_cycle)
 use crate::unstaged_diff::UnstagedDiff;
 
 mod commit;
@@ -850,11 +855,13 @@ impl GitPanel {
             let target = Self::diff_target_for_section(self.section_for_entry_index(selected_index));
 
             if target == DiffTarget::Uncommitted
+                // lint: expect(module_cycle)
                 && let Some(project_diff) = workspace.read(cx).active_item_as::<ProjectDiff>(cx)
                 && let Some(project_path) = project_diff.read(cx).active_project_path(cx)
                 && Some(&entry.repo_path) == git_repo.read(cx).project_path_to_repo_path(&project_path, cx).as_ref()
             {
                 project_diff.focus_handle(cx).focus(window, cx);
+                // lint: expect(module_cycle)
                 project_diff.update(cx, |project_diff, cx| project_diff.autoscroll(cx));
                 return None;
             }
@@ -862,12 +869,15 @@ impl GitPanel {
             self.workspace
                 .update(cx, |workspace, cx| match target {
                     DiffTarget::Uncommitted => {
+                        // lint: expect(module_cycle)
                         ProjectDiff::deploy_at(workspace, Some(entry.clone()), window, cx);
                     }
                     DiffTarget::Staged => {
+                        // lint: expect(module_cycle)
                         StagedDiff::deploy_at(workspace, Some(entry.clone()), window, cx);
                     }
                     DiffTarget::Unstaged => {
+                        // lint: expect(module_cycle)
                         UnstagedDiff::deploy_at(workspace, Some(entry.clone()), window, cx);
                     }
                 })
@@ -883,6 +893,7 @@ impl GitPanel {
             return;
         };
         for entry in self.effective_status_entries() {
+            // lint: expect(module_cycle)
             SoloDiffView::open_or_focus(entry, repository.clone(), self.workspace.clone(), window, cx)
                 .detach_and_notify_err(self.workspace.clone(), window, cx);
         }
@@ -921,6 +932,7 @@ impl GitPanel {
             let repository_id = repository.read(cx).id;
             self.workspace
                 .update(cx, |workspace, cx| {
+                    // lint: expect(module_cycle)
                     git_graph::open_or_reuse_graph(
                         workspace,
                         repository_id,
@@ -942,6 +954,7 @@ impl GitPanel {
             .update(cx, |workspace, cx| {
                 for entry in entries {
                     if !entry.status.is_created() {
+                        // lint: expect(module_cycle)
                         git_graph::open_or_reuse_graph(
                             workspace,
                             repository_id,
@@ -1018,6 +1031,7 @@ impl GitPanel {
         };
         if let Some(workspace) = self.workspace.upgrade() {
             workspace.update(cx, |workspace, cx| {
+                // lint: expect(module_cycle)
                 StagedDiff::deploy_at(workspace, entry, window, cx);
             });
         }
@@ -1031,6 +1045,7 @@ impl GitPanel {
         };
         if let Some(workspace) = self.workspace.upgrade() {
             workspace.update(cx, |workspace, cx| {
+                // lint: expect(module_cycle)
                 UnstagedDiff::deploy_at(workspace, entry, window, cx);
             });
         }

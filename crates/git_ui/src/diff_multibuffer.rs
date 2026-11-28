@@ -16,7 +16,7 @@ use editor::scroll::Autoscroll;
 use futures::FutureExt as _;
 use futures::StreamExt as _;
 use futures::stream;
-use git::repository::RepoPath;
+use git::RepoPath;
 use git::status::FileStatus;
 use gpui::App;
 use gpui::AppContext as _;

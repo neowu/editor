@@ -44,12 +44,14 @@ use ui::ParentElement as _;
 use ui::Styled as _;
 use ui::div;
 
+use super::ChunkRendererId;
 use super::Highlights;
 use super::custom_highlights::CustomHighlightsChunks;
-use super::fold_map::ChunkRendererId;
 use crate::ChunkRenderer;
 use crate::HighlightStyles;
+// lint: expect(module_cycle)
 use crate::inlays::Inlay;
+// lint: expect(module_cycle)
 use crate::inlays::InlayContent;
 
 /// Decides where the [`Inlay`]s should be displayed.
@@ -57,6 +59,7 @@ use crate::inlays::InlayContent;
 /// See the [`display_map` module documentation](crate::display_map) for more information.
 pub(crate) struct InlayMap {
     snapshot: InlaySnapshot,
+    // lint: expect(module_cycle)
     inlays: Vec<Inlay>,
 }
 
@@ -78,6 +81,7 @@ impl Deref for InlaySnapshot {
 #[derive(Clone, Debug)]
 enum Transform {
     Isomorphic(MBTextSummary),
+    // lint: expect(module_cycle)
     Inlay(Inlay),
 }
 
@@ -89,6 +93,7 @@ impl sum_tree::Item for Transform {
             Transform::Isomorphic(summary) => TransformSummary { input: *summary, output: *summary },
             Transform::Inlay(inlay) => TransformSummary {
                 input: MBTextSummary::default(),
+                // lint: expect(module_cycle)
                 output: MBTextSummary::from(inlay.text().summary()),
             },
         }
@@ -334,6 +339,7 @@ impl<'a> Iterator for InlayChunks<'a> {
                 let mut inlay_style_and_highlight = None;
                 if let Some(inlay_highlights) = self.highlights.inlay_highlights {
                     for (_, inlay_id_to_data) in inlay_highlights.iter() {
+                        // lint: expect(module_cycle)
                         let style_and_highlight = inlay_id_to_data.get(&inlay.id);
                         if style_and_highlight.is_some() {
                             inlay_style_and_highlight = style_and_highlight;
@@ -343,11 +349,14 @@ impl<'a> Iterator for InlayChunks<'a> {
                 }
 
                 let mut renderer = None;
+                // lint: expect(module_cycle)
                 let mut highlight_style = match inlay.id {
                     InlayId::Hint(_) => self.highlight_styles.inlay_hint,
                     InlayId::Color(_) => {
+                        // lint: expect(module_cycle)
                         if let InlayContent::Color(color) = inlay.content {
                             renderer = Some(ChunkRenderer {
+                                // lint: expect(module_cycle)
                                 id: ChunkRendererId::Inlay(inlay.id),
                                 render: Arc::new(move |_| {
                                     div()
@@ -378,6 +387,7 @@ impl<'a> Iterator for InlayChunks<'a> {
                 let next_inlay_highlight_endpoint;
                 let offset_in_inlay = self.output_offset - self.transforms.start().0;
                 if let Some((style, highlight)) = inlay_style_and_highlight {
+                    // lint: expect(module_cycle)
                     let range = &highlight.range;
                     if offset_in_inlay < range.start {
                         next_inlay_highlight_endpoint = range.start - offset_in_inlay;
@@ -394,6 +404,7 @@ impl<'a> Iterator for InlayChunks<'a> {
                 let inlay_chunks = self.inlay_chunks.get_or_insert_with(|| {
                     let start = offset_in_inlay;
                     let end = cmp::min(self.max_output_offset, self.transforms.end().0) - self.transforms.start().0;
+                    // lint: expect(module_cycle)
                     let chunks = inlay.text().chunks_in_range(start..end);
                     text::ChunkWithBitmaps(chunks)
                 });
@@ -591,15 +602,18 @@ impl InlayMap {
                 let new_start = InlayOffset(new_transforms.summary().output.len);
 
                 let start_ix = match self.inlays.binary_search_by(|probe| {
+                    // lint: expect(module_cycle)
                     probe.position.to_offset(&buffer_snapshot).cmp(&buffer_edit.new.start).then(Ordering::Greater)
                 }) {
                     Ok(ix) | Err(ix) => ix,
                 };
 
                 for inlay in &self.inlays[start_ix..] {
+                    // lint: expect(module_cycle)
                     if !inlay.position.is_valid(&buffer_snapshot) {
                         continue;
                     }
+                    // lint: expect(module_cycle)
                     let buffer_offset = inlay.position.to_offset(&buffer_snapshot);
                     if buffer_offset > buffer_edit.new.end {
                         break;
@@ -651,13 +665,16 @@ impl InlayMap {
         }
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn splice(&mut self, to_remove: &[InlayId], to_insert: Vec<Inlay>) -> (InlaySnapshot, Vec<InlayEdit>) {
         let snapshot = &mut self.snapshot;
         let mut edits = BTreeSet::new();
 
         self.inlays.retain(|inlay| {
+            // lint: expect(module_cycle)
             let retain = !to_remove.contains(&inlay.id);
             if !retain {
+                // lint: expect(module_cycle)
                 let offset = inlay.position.to_offset(&snapshot.buffer);
                 edits.insert(offset);
             }
@@ -666,12 +683,15 @@ impl InlayMap {
 
         for inlay_to_insert in to_insert {
             // Avoid inserting empty inlays.
+            // lint: expect(module_cycle)
             if inlay_to_insert.text().is_empty() {
                 continue;
             }
 
+            // lint: expect(module_cycle)
             let offset = inlay_to_insert.position.to_offset(&snapshot.buffer);
             match self.inlays.binary_search_by(|probe| {
+                // lint: expect(module_cycle)
                 probe.position.cmp(&inlay_to_insert.position, &snapshot.buffer).then(Ordering::Less)
             }) {
                 Ok(ix) | Err(ix) => {
@@ -688,6 +708,7 @@ impl InlayMap {
         (snapshot, edits)
     }
 
+    // lint: expect(module_cycle)
     pub(crate) fn current_inlays(&self) -> slice::Iter<'_, Inlay> {
         self.inlays.iter()
     }
@@ -707,6 +728,7 @@ impl InlaySnapshot {
                 InlayPoint(start.1.0 + (buffer_end - buffer_start))
             }
             Some(Transform::Inlay(inlay)) => {
+                // lint: expect(module_cycle)
                 let overshoot = inlay.text().offset_to_point(overshoot);
                 InlayPoint(start.1.0 + overshoot)
             }
@@ -735,6 +757,7 @@ impl InlaySnapshot {
                 InlayOffset(start.1.0 + (buffer_offset_end - buffer_offset_start))
             }
             Some(Transform::Inlay(inlay)) => {
+                // lint: expect(module_cycle)
                 let overshoot = inlay.text().point_to_offset(overshoot);
                 InlayOffset(start.1.0 + overshoot)
             }
@@ -775,6 +798,7 @@ impl InlaySnapshot {
                 Some(Transform::Isomorphic(_)) => {
                     if offset == cursor.end().0 {
                         while let Some(Transform::Inlay(inlay)) = cursor.next_item() {
+                            // lint: expect(module_cycle)
                             if inlay.position.bias() == Bias::Right {
                                 break;
                             }
@@ -786,6 +810,7 @@ impl InlaySnapshot {
                     return InlayOffset(cursor.start().1.0 + overshoot);
                 }
                 Some(Transform::Inlay(inlay)) => {
+                    // lint: expect(module_cycle)
                     if inlay.position.bias() == Bias::Left {
                         cursor.next();
                     } else {
@@ -823,6 +848,7 @@ impl InlaySnapshot {
                 Some(Transform::Isomorphic(transform)) => {
                     if cursor.start().0 == point {
                         if let Some(Transform::Inlay(inlay)) = cursor.prev_item() {
+                            // lint: expect(module_cycle)
                             if inlay.position.bias() == Bias::Left {
                                 return point;
                             } else if bias == Bias::Left {
@@ -837,6 +863,7 @@ impl InlaySnapshot {
                         }
                     } else if cursor.end().0 == point {
                         if let Some(Transform::Inlay(inlay)) = cursor.next_item() {
+                            // lint: expect(module_cycle)
                             if inlay.position.bias() == Bias::Right {
                                 return point;
                             } else if bias == Bias::Right {
@@ -863,18 +890,22 @@ impl InlaySnapshot {
                     }
                 }
                 Some(Transform::Inlay(inlay)) => {
+                    // lint: expect(module_cycle)
                     if point == cursor.start().0 && inlay.position.bias() == Bias::Right {
                         match cursor.prev_item() {
                             Some(Transform::Inlay(inlay)) => {
+                                // lint: expect(module_cycle)
                                 if inlay.position.bias() == Bias::Left {
                                     return point;
                                 }
                             }
                             _ => return point,
                         }
+                    // lint: expect(module_cycle)
                     } else if point == cursor.end().0 && inlay.position.bias() == Bias::Left {
                         match cursor.next_item() {
                             Some(Transform::Inlay(inlay)) => {
+                                // lint: expect(module_cycle)
                                 if inlay.position.bias() == Bias::Right {
                                     return point;
                                 }
@@ -909,6 +940,7 @@ impl InlaySnapshot {
         let mut cursor = self.transforms.cursor::<Dimensions<InlayPoint, Point>>(());
         cursor.seek(&point, Bias::Left);
         match cursor.item() {
+            // lint: expect(module_cycle)
             Some(Transform::Inlay(inlay)) => Some(inlay.position.bias()),
             _ => None,
         }
@@ -936,6 +968,7 @@ impl InlaySnapshot {
             Some(Transform::Inlay(inlay)) => {
                 let suffix_start = overshoot;
                 let suffix_end = cmp::min(cursor.end().0, range.end).0 - cursor.start().0.0;
+                // lint: expect(module_cycle)
                 summary = MBTextSummary::from(inlay.text().cursor(suffix_start).summary::<TextSummary>(suffix_end));
                 cursor.next();
             }
@@ -954,6 +987,7 @@ impl InlaySnapshot {
                 }
                 Some(Transform::Inlay(inlay)) => {
                     let prefix_end = overshoot;
+                    // lint: expect(module_cycle)
                     summary += inlay.text().cursor(0).summary::<TextSummary>(prefix_end);
                 }
                 None => {}
@@ -1041,6 +1075,7 @@ impl InlaySnapshot {
                 break;
             }
             if let Transform::Inlay(inlay) = transform
+                // lint: expect(module_cycle)
                 && inlay.id == inlay_id
             {
                 return Some(cursor.start().1..cursor.end().1);
@@ -1050,9 +1085,11 @@ impl InlaySnapshot {
         None
     }
 
+    // lint: expect(module_cycle)
     pub(super) fn inlay_hint_at_offset(&self, offset: InlayOffset) -> Option<(&Inlay, usize)> {
         let (start, _, transform) = self.transforms.find::<InlayOffset, _>((), &offset, Bias::Right);
         match transform {
+            // lint: expect(module_cycle)
             Some(Transform::Inlay(inlay)) if matches!(inlay.id, InlayId::Hint(_)) => Some((inlay, offset - start)),
             _ => None,
         }
@@ -1077,6 +1114,7 @@ impl InlayPointCursor<'_> {
                 Some(Transform::Isomorphic(_)) => {
                     if point == cursor.end().0 {
                         while let Some(Transform::Inlay(inlay)) = cursor.next_item() {
+                            // lint: expect(module_cycle)
                             if bias == Bias::Left && inlay.position.bias() == Bias::Right {
                                 break;
                             }
@@ -1088,6 +1126,7 @@ impl InlayPointCursor<'_> {
                     return InlayPoint(cursor.start().1.0 + overshoot);
                 }
                 Some(Transform::Inlay(inlay)) => {
+                    // lint: expect(module_cycle)
                     if inlay.position.bias() == Bias::Left || bias == Bias::Right {
                         cursor.next();
                     } else {

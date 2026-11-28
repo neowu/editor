@@ -46,7 +46,7 @@ use crate::CompletionDisplayOptions;
 use crate::CompletionResponse;
 use crate::CompletionSource;
 use crate::CoreCompletion;
-use crate::lsp_command::GetCompletions;
+use crate::lsp_store::lsp_command::GetCompletions;
 
 fn resolve_word_completion(snapshot: &BufferSnapshot, completion: &mut Completion) {
     let CompletionSource::BufferWord { word_range, resolved } = &mut completion.source else {

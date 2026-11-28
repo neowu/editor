@@ -552,6 +552,7 @@ impl Editor {
             }
         });
         if changed {
+            // lint: expect(module_cycle)
             self.invalidate_add_selection_goals_after_change(Some(&previous));
         }
 
@@ -677,7 +678,9 @@ impl Editor {
                 (start..end).to_point(buffer_snapshot)
             })
             .collect();
+        // lint: expect(module_cycle)
         self.update_restoration_data(cx, |data| {
+            // lint: expect(module_cycle)
             data.folds = inmemory_folds;
         });
     }
@@ -759,6 +762,7 @@ impl Editor {
 
         cx.notify();
         self.scrollbar_marker_state.dirty = true;
+        // lint: expect(module_cycle)
         self.active_indent_guides_state.dirty = true;
     }
 }

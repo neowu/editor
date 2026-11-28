@@ -197,6 +197,7 @@ impl Workspace {
         };
         // A header row of its own, where the other modes' tab bars sit, so the
         // window header and the card tops stay put when switching modes.
+        // lint: expect(module_cycle)
         self.mode_container(cx).child(self.render_sidebar_header(cx)).child(content)
     }
 

@@ -1,9 +1,9 @@
 use anyhow::Result;
 use editor::hover_markdown_style;
+use git::RepoPath;
 use git::blame::BlameEntry;
 use git::commit::ParsedCommitMessage;
 use git::repository::CommitSummary;
-use git::repository::RepoPath;
 use git_ui_core::notifications::show_error_toast;
 use gpui::App;
 use gpui::AppContext as _;
@@ -57,6 +57,7 @@ use ui::prelude::v_flex;
 use ui::tooltip_container;
 use workspace::Workspace;
 
+// lint: expect(module_cycle)
 use crate::commit_view::CommitView;
 
 #[derive(Clone, Debug)]
@@ -276,6 +277,7 @@ impl Render for CommitTooltip {
                                                         .color(Color::Muted),
                                                 )
                                                 .on_click(move |_, window, cx| {
+                                                    // lint: expect(module_cycle)
                                                     CommitView::open_revealing(
                                                         commit_summary.sha.to_string(),
                                                         repo.downgrade(),
@@ -412,8 +414,8 @@ pub(crate) fn fetch_unshallow(
 #[cfg(test)]
 mod tests {
     use git::Oid;
+    use git::RepoPath;
     use git::blame::BlameEntry;
-    use git::repository::RepoPath;
 
     use super::blamed_repo_path;
 

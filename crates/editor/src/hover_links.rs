@@ -38,6 +38,7 @@ use crate::EditorSnapshot;
 use crate::GotoDefinitionKind;
 use crate::HighlightKey;
 use crate::Navigated;
+// lint: expect(module_cycle)
 use crate::PointForPosition;
 use crate::SelectPhase;
 
@@ -159,6 +160,7 @@ pub(crate) fn exclude_link_to_position(
 impl Editor {
     pub(crate) fn update_hovered_link(
         &mut self,
+        // lint: expect(module_cycle)
         point_for_position: PointForPosition,
         hint_glyph: Option<DisplayPoint>,
         mouse_position: Option<gpui::Point<Pixels>>,
@@ -168,6 +170,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         let hovered_link_modifier = modifiers.secondary();
+        // lint: expect(module_cycle)
         if !hovered_link_modifier || self.has_pending_selection() {
             self.hide_hovered_link(cx);
             return;
@@ -178,6 +181,7 @@ impl Editor {
             return;
         }
 
+        // lint: expect(module_cycle)
         match point_for_position.as_valid() {
             Some(point) if hint_glyph.is_none() => {
                 let trigger_point = TriggerPoint::Text(
@@ -187,6 +191,7 @@ impl Editor {
                 show_link_definition(modifiers.shift, self, trigger_point, snapshot, window, cx);
             }
             _ => {
+                // lint: expect(module_cycle)
                 self.update_inlay_link_and_hover_points(
                     snapshot,
                     hint_glyph,
@@ -207,6 +212,7 @@ impl Editor {
 
     pub(crate) fn handle_click_hovered_link(
         &mut self,
+        // lint: expect(module_cycle)
         point: PointForPosition,
         modifiers: Modifiers,
         window: &mut Window,
@@ -215,7 +221,9 @@ impl Editor {
         let kind = if modifiers.shift { GotoDefinitionKind::Type } else { GotoDefinitionKind::Symbol };
         let split = modifiers.alt;
         let snapshot = self.snapshot(window, cx);
+        // lint: expect(module_cycle)
         let position = snapshot.buffer_snapshot().anchor_before(point.next_valid.to_point(&snapshot.display_snapshot));
+        // lint: expect(module_cycle)
         let origin = self.navigation_entry(position, cx);
         let cached = self.hovered_link_state.take();
         self.hide_hovered_link(cx);
@@ -231,10 +239,14 @@ impl Editor {
                     || (self.lsp_data_enabled() && matches!(link, HoverLink::LspLocation(..)))
             });
         }
+        // lint: expect(module_cycle)
         if refresh && point.as_valid().is_some() {
+            // lint: expect(module_cycle)
             self.select(SelectPhase::Begin { position: point.next_valid, add: false, click_count: 1 }, window, cx);
         }
+        // lint: expect(module_cycle)
         self.select(SelectPhase::End, window, cx);
+        // lint: expect(module_cycle)
         let Some((buffer, anchor)) = self.semantics_position(position, cx) else {
             return;
         };
@@ -254,6 +266,7 @@ impl Editor {
             },
             HoverLink::Url(..) | HoverLink::LspLocation(..) => true,
         });
+        // lint: expect(module_cycle)
         let definitions = (refresh && self.lsp_data_enabled() && point.as_valid().is_some())
             .then(|| self.semantics_provider.as_ref()?.definitions(&buffer, anchor, kind, cx))
             .flatten();
@@ -297,6 +310,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // lint: expect(module_cycle)
         let navigation = self.navigate_to_hover_links(Some(kind), links, origin, split, window, cx);
         cx.spawn_in(window, async move |editor, cx| {
             if navigation.await.log_err().unwrap_or(Navigated::No) == Navigated::Yes {
@@ -304,6 +318,7 @@ impl Editor {
             }
             let fallback = editor
                 .update_in(cx, |editor, window, cx| {
+                    // lint: expect(module_cycle)
                     editor.lsp_data_enabled().then(|| editor.go_to_declaration_or_references(window, cx))
                 })
                 .ok()
@@ -524,6 +539,7 @@ pub(crate) fn show_link_definition(
                                 editor.highlight_text(HighlightKey::HoveredLinkState, vec![text_range], style, cx);
                             }
                             RangeInEditor::Inlay(highlight) => {
+                                // lint: expect(module_cycle)
                                 editor.highlight_inlays(HighlightKey::HoveredLinkState, vec![highlight], style, cx);
                             }
                         }
@@ -686,6 +702,7 @@ impl ResolvedFileTarget {
                             return;
                         };
                         let point = buffer.read(cx).snapshot().point_from_external_input(row, col);
+                        // lint: expect(module_cycle)
                         editor.go_to_singleton_buffer_point_silently(point, window, cx);
                     })
                     .log_err();

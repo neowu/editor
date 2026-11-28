@@ -21,6 +21,7 @@ use crate::DisplayRow;
 use crate::EditorStyle;
 use crate::ToOffset as _;
 use crate::ToPoint as _;
+// lint: expect(module_cycle)
 use crate::scroll::SharedScrollAnchor;
 
 /// Defines search strategy for items in `movement` module.
@@ -38,6 +39,7 @@ pub(crate) struct TextLayoutDetails {
     pub(crate) text_system: Rc<WindowTextSystem>,
     pub(crate) editor_style: EditorStyle,
     pub(crate) rem_size: Pixels,
+    // lint: expect(module_cycle)
     pub(crate) scroll_anchor: SharedScrollAnchor,
 }
 

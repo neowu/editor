@@ -10,25 +10,35 @@ use futures::FutureExt as _;
 use gpui_util::Deferred;
 
 use super::App;
+// lint: expect(module_cycle) spawned futures get the async form of this context
 use super::AsyncWindowContext;
 use super::Entity;
+// lint: expect(module_cycle)
 use crate::AnyView;
+// lint: expect(module_cycle)
 use crate::AnyWindowHandle;
 use crate::AppContext;
+// lint: expect(module_cycle) spawned futures get the async form of this context
 use crate::AsyncApp;
 use crate::Effect;
 use crate::EntityId;
 use crate::EventEmitter;
+// lint: expect(module_cycle)
 use crate::FocusHandle;
+// lint: expect(module_cycle)
 use crate::FocusOutEvent;
+// lint: expect(module_cycle)
 use crate::Focusable;
 use crate::Global;
 use crate::Reservation;
 use crate::Subscription;
 use crate::Task;
 use crate::WeakEntity;
+// lint: expect(module_cycle)
 use crate::WeakFocusHandle;
+// lint: expect(module_cycle)
 use crate::Window;
+// lint: expect(module_cycle)
 use crate::WindowHandle;
 
 /// The app context, with specialized behavior for the given entity.
@@ -208,6 +218,7 @@ impl<'a, T: 'static> Context<'a, T> {
     pub fn spawn<AsyncFn, R>(&self, f: AsyncFn) -> Task<R>
     where
         T: 'static,
+        // lint: expect(module_cycle) spawned futures get the async form of this context
         AsyncFn: AsyncFnOnce(WeakEntity<T>, &mut AsyncApp) -> R + 'static,
         R: 'static,
     {
@@ -223,9 +234,12 @@ impl<'a, T: 'static> Context<'a, T> {
     #[inline(always)]
     pub fn listener<E: ?Sized>(
         &self,
+        // lint: expect(module_cycle)
         listener: impl Fn(&mut T, &E, &mut Window, &mut Context<T>) + 'static,
+        // lint: expect(module_cycle)
     ) -> impl Fn(&E, &mut Window, &mut App) + 'static {
         let view = self.entity().downgrade();
+        // lint: expect(module_cycle)
         move |event: &E, window: &mut Window, cx: &mut App| {
             invoke_listener(&view, window, cx, &|view, window, cx| {
                 listener(view, event, window, cx);
@@ -237,9 +251,12 @@ impl<'a, T: 'static> Context<'a, T> {
     /// See `listener` for more details.
     pub fn processor<E, R>(
         &self,
+        // lint: expect(module_cycle)
         f: impl Fn(&mut T, E, &mut Window, &mut Context<T>) -> R + 'static,
+        // lint: expect(module_cycle)
     ) -> impl Fn(E, &mut Window, &mut App) -> R + 'static {
         let view = self.entity();
+        // lint: expect(module_cycle)
         move |e: E, window: &mut Window, cx: &mut App| view.update(cx, |view, cx| f(view, e, window, cx))
     }
 
@@ -253,19 +270,23 @@ impl<'a, T: 'static> Context<'a, T> {
     }
 
     /// Sets a given callback to be run on the next frame.
+    // lint: expect(module_cycle)
     pub fn on_next_frame(&self, window: &mut Window, f: impl FnOnce(&mut T, &mut Window, &mut Context<T>) + 'static)
     where
         T: 'static,
     {
         let view = self.entity();
+        // lint: expect(module_cycle)
         window.on_next_frame(move |window, cx| view.update(cx, |view, cx| f(view, window, cx)));
     }
 
     /// Schedules the given function to be run at the end of the current effect cycle, allowing entities
     /// that are currently on the stack to be returned to the app.
+    // lint: expect(module_cycle)
     pub fn defer_in(&mut self, window: &Window, f: impl FnOnce(&mut T, &mut Window, &mut Context<T>) + 'static) {
         let view = self.weak_entity();
         let entity_id = self.entity_id();
+        // lint: expect(module_cycle)
         self.ensure_window(entity_id, window.handle.id);
         self.app.defer(move |cx| {
             cx.with_window(entity_id, |window, cx| {
@@ -278,7 +299,9 @@ impl<'a, T: 'static> Context<'a, T> {
     pub fn observe_in<V2>(
         &mut self,
         observed: &Entity<V2>,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         mut on_notify: impl FnMut(&mut T, Entity<V2>, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription
     where
@@ -289,6 +312,7 @@ impl<'a, T: 'static> Context<'a, T> {
         let observed = observed.downgrade();
         let observer = self.weak_entity();
         let observer_id = self.entity_id();
+        // lint: expect(module_cycle)
         self.ensure_window(observer_id, window.handle.id);
         self.new_observer(observed_id, Box::new(move |cx| invoke_observer_in(&observer, &observed, cx, &mut on_notify)))
     }
@@ -299,7 +323,9 @@ impl<'a, T: 'static> Context<'a, T> {
     pub fn subscribe_in<Emitter, Evt>(
         &mut self,
         emitter: &Entity<Emitter>,
+        // lint: expect(module_cycle)
         window: &Window,
+        // lint: expect(module_cycle)
         mut on_event: impl FnMut(&mut T, &Entity<Emitter>, &Evt, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription
     where
@@ -309,6 +335,7 @@ impl<'a, T: 'static> Context<'a, T> {
         let emitter = emitter.downgrade();
         let subscriber = self.weak_entity();
         let subscriber_id = self.entity_id();
+        // lint: expect(module_cycle)
         self.ensure_window(subscriber_id, window.handle.id);
         self.new_subscription(
             emitter.entity_id(),
@@ -325,7 +352,9 @@ impl<'a, T: 'static> Context<'a, T> {
     /// invalid, if the window was closed before the view was released.
     pub fn on_release_in(
         &mut self,
+        // lint: expect(module_cycle)
         window: &Window,
+        // lint: expect(module_cycle)
         on_release: impl FnOnce(&mut T, &mut Window, &mut App) + 'static,
     ) -> Subscription {
         let entity = self.entity();
@@ -336,7 +365,9 @@ impl<'a, T: 'static> Context<'a, T> {
     pub fn observe_release_in<T2>(
         &self,
         observed: &Entity<T2>,
+        // lint: expect(module_cycle)
         window: &Window,
+        // lint: expect(module_cycle)
         mut on_release: impl FnMut(&mut T, &mut T2, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription
     where
@@ -352,11 +383,14 @@ impl<'a, T: 'static> Context<'a, T> {
     /// Register a callback to be invoked when the window is resized.
     pub fn observe_window_bounds(
         &self,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         mut callback: impl FnMut(&mut T, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription {
         let view = self.weak_entity();
         window
+            // lint: expect(module_cycle)
             .bounds_observers
             .insert(Box::new(move |window, cx| view.update(cx, |view, cx| callback(view, window, cx)).is_ok()))
     }
@@ -364,11 +398,14 @@ impl<'a, T: 'static> Context<'a, T> {
     /// Register a callback to be invoked when the window is activated or deactivated.
     pub fn observe_window_activation(
         &self,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         mut callback: impl FnMut(&mut T, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription {
         let view = self.weak_entity();
         window
+            // lint: expect(module_cycle)
             .activation_observers
             .insert(Box::new(move |window, cx| view.update(cx, |view, cx| callback(view, window, cx)).is_ok()))
     }
@@ -376,11 +413,14 @@ impl<'a, T: 'static> Context<'a, T> {
     /// Register a callback to be invoked when the window's pending input changes.
     pub fn observe_pending_input(
         &self,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         mut callback: impl FnMut(&mut T, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription {
         let view = self.weak_entity();
         window
+            // lint: expect(module_cycle)
             .pending_input_observers
             .insert(Box::new(move |window, cx| view.update(cx, |view, cx| callback(view, window, cx)).is_ok()))
     }
@@ -389,15 +429,22 @@ impl<'a, T: 'static> Context<'a, T> {
     /// Returns a subscription and persists until the subscription is dropped.
     pub fn on_focus(
         &mut self,
+        // lint: expect(module_cycle)
         handle: &FocusHandle,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         mut listener: impl FnMut(&mut T, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription {
         let view = self.weak_entity();
+        // lint: expect(module_cycle)
         let focus_id = handle.id;
+        // lint: expect(module_cycle)
         let (subscription, activate) = window.new_focus_listener(Box::new(move |event, window, cx| {
             view.update(cx, |view, cx| {
+                // lint: expect(module_cycle)
                 if event.previous_focus_path.last() != Some(&focus_id)
+                    // lint: expect(module_cycle)
                     && event.current_focus_path.last() == Some(&focus_id)
                 {
                     listener(view, window, cx);
@@ -414,14 +461,20 @@ impl<'a, T: 'static> Context<'a, T> {
     /// Returns a subscription and persists until the subscription is dropped.
     pub fn on_focus_in(
         &mut self,
+        // lint: expect(module_cycle)
         handle: &FocusHandle,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         mut listener: impl FnMut(&mut T, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription {
         let view = self.weak_entity();
+        // lint: expect(module_cycle)
         let focus_id = handle.id;
+        // lint: expect(module_cycle)
         let (subscription, activate) = window.new_focus_listener(Box::new(move |event, window, cx| {
             view.update(cx, |view, cx| {
+                // lint: expect(module_cycle)
                 if event.is_focus_in(focus_id) {
                     listener(view, window, cx);
                 }
@@ -436,15 +489,22 @@ impl<'a, T: 'static> Context<'a, T> {
     /// Returns a subscription and persists until the subscription is dropped.
     pub fn on_blur(
         &mut self,
+        // lint: expect(module_cycle)
         handle: &FocusHandle,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         mut listener: impl FnMut(&mut T, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription {
         let view = self.weak_entity();
+        // lint: expect(module_cycle)
         let focus_id = handle.id;
+        // lint: expect(module_cycle)
         let (subscription, activate) = window.new_focus_listener(Box::new(move |event, window, cx| {
             view.update(cx, |view, cx| {
+                // lint: expect(module_cycle)
                 if event.previous_focus_path.last() == Some(&focus_id)
+                    // lint: expect(module_cycle)
                     && event.current_focus_path.last() != Some(&focus_id)
                 {
                     listener(view, window, cx);
@@ -462,11 +522,14 @@ impl<'a, T: 'static> Context<'a, T> {
     /// Returns a subscription and persists until the subscription is dropped.
     pub fn on_focus_lost(
         &mut self,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         mut listener: impl FnMut(&mut T, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription {
         let view = self.weak_entity();
         let (subscription, activate) = window
+            // lint: expect(module_cycle)
             .focus_lost_listeners
             .insert_pending(Box::new(move |window, cx| view.update(cx, |view, cx| listener(view, window, cx)).is_ok()));
         self.defer(|_| activate());
@@ -477,18 +540,27 @@ impl<'a, T: 'static> Context<'a, T> {
     /// Returns a subscription and persists until the subscription is dropped.
     pub fn on_focus_out(
         &mut self,
+        // lint: expect(module_cycle)
         handle: &FocusHandle,
+        // lint: expect(module_cycle)
         window: &mut Window,
+        // lint: expect(module_cycle)
         mut listener: impl FnMut(&mut T, FocusOutEvent, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription {
         let view = self.weak_entity();
+        // lint: expect(module_cycle)
         let focus_id = handle.id;
+        // lint: expect(module_cycle)
         let (subscription, activate) = window.new_focus_listener(Box::new(move |event, window, cx| {
             view.update(cx, |view, cx| {
+                // lint: expect(module_cycle)
                 if let Some(blurred_id) = event.previous_focus_path.last().copied()
+                    // lint: expect(module_cycle)
                     && event.is_focus_out(focus_id)
                 {
+                    // lint: expect(module_cycle)
                     let event = FocusOutEvent {
+                        // lint: expect(module_cycle)
                         blurred: WeakFocusHandle { id: blurred_id, handles: Arc::downgrade(&cx.focus_handles) },
                     };
                     listener(view, event, window, cx);
@@ -506,21 +578,27 @@ impl<'a, T: 'static> Context<'a, T> {
     /// The returned future will be polled on the main thread.
     #[track_caller]
     #[inline(always)]
+    // lint: expect(module_cycle)
     pub fn spawn_in<AsyncFn, R>(&self, window: &Window, f: AsyncFn) -> Task<R>
     where
         R: 'static,
+        // lint: expect(module_cycle) spawned futures get the async form of this context
         AsyncFn: AsyncFnOnce(WeakEntity<T>, &mut AsyncWindowContext) -> R + 'static,
     {
         let view = self.weak_entity();
+        // lint: expect(module_cycle)
         window.spawn(self, async move |cx| f(view, cx).await)
     }
 
     /// Register a callback to be invoked when the given global state changes.
     pub fn observe_global_in<G: Global>(
         &mut self,
+        // lint: expect(module_cycle)
         window: &Window,
+        // lint: expect(module_cycle)
         mut f: impl FnMut(&mut T, &mut Window, &mut Context<T>) + 'static,
     ) -> Subscription {
+        // lint: expect(module_cycle)
         let window_handle = window.handle;
         let view = self.weak_entity();
         let (subscription, activate) = self.global_observers.insert_pending(
@@ -534,6 +612,7 @@ impl<'a, T: 'static> Context<'a, T> {
                 // nested update, or already closed), skip this notification but
                 // keep the observer alive so it can fire on future changes.
                 let Ok(entity_alive) =
+                    // lint: expect(module_cycle)
                     window_handle.update(cx, |_, window, cx| view.update(cx, |view, cx| f(view, window, cx)).is_ok())
                 else {
                     return true;
@@ -546,11 +625,14 @@ impl<'a, T: 'static> Context<'a, T> {
     }
 
     /// Move focus to the current view, assuming it implements [`Focusable`].
+    // lint: expect(module_cycle)
     pub fn focus_self(&mut self, window: &mut Window)
     where
+        // lint: expect(module_cycle)
         T: Focusable,
     {
         let view = self.entity();
+        // lint: expect(module_cycle)
         window.defer(self, move |window, cx| view.read(cx).focus_handle(cx).focus(window, cx));
     }
 }
@@ -617,19 +699,23 @@ impl<T> AppContext for Context<'_, T> {
     }
 
     #[inline]
+    // lint: expect(module_cycle)
     fn update_window<R, F>(&mut self, window: AnyWindowHandle, update: F) -> Result<R>
     where
+        // lint: expect(module_cycle)
         F: FnOnce(AnyView, &mut Window, &mut App) -> R,
     {
         self.app.update_window(window, update)
     }
 
     #[inline]
+    // lint: expect(module_cycle)
     fn with_window<R>(&mut self, entity_id: EntityId, f: impl FnOnce(&mut Window, &mut App) -> R) -> Option<R> {
         self.app.with_window(entity_id, f)
     }
 
     #[inline]
+    // lint: expect(module_cycle)
     fn read_window<U, R>(&self, window: &WindowHandle<U>, read: impl FnOnce(Entity<U>, &App) -> R) -> Result<R>
     where
         U: 'static,
@@ -702,6 +788,7 @@ fn invoke_observer_in<T: 'static, W: 'static>(
     observer: &WeakEntity<T>,
     observed: &WeakEntity<W>,
     cx: &mut App,
+    // lint: expect(module_cycle)
     on_notify: &mut dyn FnMut(&mut T, Entity<W>, &mut Window, &mut Context<T>),
 ) -> bool {
     let Some((observer, observed)) = observer.upgrade().zip(observed.upgrade()) else {
@@ -721,6 +808,7 @@ fn invoke_subscriber_in<T: 'static, Emitter: 'static, Event: 'static>(
     emitter: &WeakEntity<Emitter>,
     event: &dyn Any,
     cx: &mut App,
+    // lint: expect(module_cycle)
     on_event: &mut dyn FnMut(&mut T, &Entity<Emitter>, &Event, &mut Window, &mut Context<T>),
 ) -> bool {
     let Some((subscriber, emitter)) = subscriber.upgrade().zip(emitter.upgrade()) else {
@@ -738,8 +826,10 @@ fn invoke_subscriber_in<T: 'static, Emitter: 'static, Event: 'static>(
 #[inline(never)]
 fn invoke_listener<T: 'static>(
     view: &WeakEntity<T>,
+    // lint: expect(module_cycle)
     window: &mut Window,
     cx: &mut App,
+    // lint: expect(module_cycle)
     listener: &dyn Fn(&mut T, &mut Window, &mut Context<T>),
 ) {
     view.update(cx, |view, cx| listener(view, window, cx)).ok();
