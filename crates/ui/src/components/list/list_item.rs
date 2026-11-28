@@ -383,8 +383,7 @@ impl RenderOnce for ListItem {
                                     )
                                 }),
                         ),
-                        // lint: expect(wildcard_match) only some variants matter here
-                        _ => this,
+                        EndSlotVisibility::Always | EndSlotVisibility::OnHover => this,
                     }),
             )
     }

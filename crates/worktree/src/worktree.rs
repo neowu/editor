@@ -2227,8 +2227,7 @@ impl File {
     pub const fn project_entry_id(&self) -> Option<ProjectEntryId> {
         match self.disk_state {
             DiskState::Deleted => None,
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => self.entry_id,
+            DiskState::New | DiskState::Present { .. } | DiskState::Historic { .. } => self.entry_id,
         }
     }
 }

@@ -333,8 +333,10 @@ impl<E: Element> Drawable<E> {
                 self.phase = ElementDrawPhase::RequestLayout { layout_id, global_id, request_layout };
                 layout_id
             }
-            // lint: expect(wildcard_match) only a few variants of `ElementDrawPhase` matter here
-            _ => panic!("must call request_layout only once"),
+            ElementDrawPhase::RequestLayout { .. }
+            | ElementDrawPhase::LayoutComputed { .. }
+            | ElementDrawPhase::Prepaint { .. }
+            | ElementDrawPhase::Painted => panic!("must call request_layout only once"),
         }
     }
 
@@ -380,8 +382,10 @@ impl<E: Element> Drawable<E> {
                 self.phase = ElementDrawPhase::Painted;
                 (request_layout, prepaint)
             }
-            // lint: expect(wildcard_match) only a few variants of `ElementDrawPhase` matter here
-            _ => panic!("must call prepaint before paint"),
+            ElementDrawPhase::Start
+            | ElementDrawPhase::RequestLayout { .. }
+            | ElementDrawPhase::LayoutComputed { .. }
+            | ElementDrawPhase::Painted => panic!("must call prepaint before paint"),
         }
     }
 

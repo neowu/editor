@@ -1309,8 +1309,7 @@ impl CompletionsMenu {
 
             let sort_text = match &completion.source {
                 CompletionSource::Lsp { lsp_completion, .. } => lsp_completion.sort_text.as_deref(),
-                // lint: expect(wildcard_match) only some variants matter here
-                _ => None,
+                CompletionSource::Custom | CompletionSource::BufferWord { .. } => None,
             };
 
             let (sort_kind, sort_label) = completion.sort_key();

@@ -363,8 +363,7 @@ impl ReservedSpace {
     fn needs_space_reserved(&self, max_offset: Pixels) -> bool {
         match self {
             Self::Track => !max_offset.is_zero(),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => false,
+            Self::None | Self::Thumb => false,
         }
     }
 }
@@ -544,8 +543,7 @@ impl VisibilityState {
                 animation_duration: if *showing { SCROLLBAR_SHOW_DURATION } else { SCROLLBAR_HIDE_DURATION },
                 showing: *showing,
             }),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            Self::Visible | Self::Hidden | Self::Disabled => None,
         }
     }
 
@@ -561,8 +559,7 @@ impl VisibilityState {
                 }
             }
             Self::Animating { delta, .. } => *delta = new_delta,
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => {}
+            Self::Visible | Self::ThumbHidden | Self::Hidden | Self::Disabled => {}
         }
     }
 
@@ -578,8 +575,7 @@ impl VisibilityState {
             Self::Animating { showing: false, delta: progress } => {
                 Self::Animating { showing: true, delta: DELTA_MAX - progress }
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => self.clone(),
+            Self::Visible | Self::Animating { .. } | Self::Disabled => self.clone(),
         }
     }
 }
@@ -1225,8 +1221,9 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
                         ThumbState::Hover(hovered_axis) if hovered_axis == axis => {
                             (colors.scrollbar_thumb_hover_background, true)
                         }
-                        // lint: expect(wildcard_match) only some variants matter here
-                        _ => (colors.scrollbar_thumb_background, false),
+                        ThumbState::Inactive | ThumbState::Hover(..) | ThumbState::Dragging(..) => {
+                            (colors.scrollbar_thumb_background, false)
+                        }
                     };
 
                     let blend_color =
@@ -1398,25 +1395,25 @@ impl<T: ScrollableHandle> Element for ScrollbarElement<T> {
                                 cx.stop_propagation();
                             }
                         }
-                        // lint: expect(wildcard_match) only some variants matter here
-                        _ => state.update(cx, |state, cx| match state.update_parent_hovered(window) {
-                            hover @ (ParentHoverEvent::Entered | ParentHoverEvent::Within)
-                                if event.pressed_button.is_none() =>
-                            {
-                                if matches!(hover, ParentHoverEvent::Entered) {
-                                    state.show_scrollbars(window, cx);
+                        ThumbState::Inactive | ThumbState::Hover(..) | ThumbState::Dragging(..) => {
+                            state.update(cx, |state, cx| match state.update_parent_hovered(window) {
+                                hover @ (ParentHoverEvent::Entered | ParentHoverEvent::Within)
+                                    if event.pressed_button.is_none() =>
+                                {
+                                    if matches!(hover, ParentHoverEvent::Entered) {
+                                        state.show_scrollbars(window, cx);
+                                    }
+                                    state.update_hovered_thumb(event.position, window, cx);
+                                    if state.thumb_state != ThumbState::Inactive {
+                                        cx.stop_propagation();
+                                    }
                                 }
-                                state.update_hovered_thumb(event.position, window, cx);
-                                if state.thumb_state != ThumbState::Inactive {
-                                    cx.stop_propagation();
+                                ParentHoverEvent::Exited => {
+                                    state.set_thumb_state(ThumbState::Inactive, window, cx);
                                 }
-                            }
-                            ParentHoverEvent::Exited => {
-                                state.set_thumb_state(ThumbState::Inactive, window, cx);
-                            }
-                            // lint: expect(wildcard_match) only some variants matter here
-                            _ => {}
-                        }),
+                                ParentHoverEvent::Within | ParentHoverEvent::Entered | ParentHoverEvent::Outside => {}
+                            });
+                        }
                     }
                 }
             });

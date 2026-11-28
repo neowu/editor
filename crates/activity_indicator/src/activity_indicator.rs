@@ -253,8 +253,7 @@ impl ActivityIndicator {
                     None => false,
                 }
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => true,
+            LanguageServerStatusUpdate::Binary(..) | LanguageServerStatusUpdate::Health(..) => true,
         });
     }
 
@@ -306,8 +305,10 @@ impl ActivityIndicator {
             DeferredScanMessage::Dismissed if !has_deferred_scan_dirs => {
                 self.deferred_scan_message = DeferredScanMessage::Undetected;
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => {}
+            DeferredScanMessage::Undetected
+            | DeferredScanMessage::Pending
+            | DeferredScanMessage::Shown { .. }
+            | DeferredScanMessage::Dismissed => {}
         }
     }
 

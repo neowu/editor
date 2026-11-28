@@ -1057,8 +1057,7 @@ impl Render for LspLogToolbarItemView {
                                 }),
                         )
                     }
-                    // lint: expect(wildcard_match) only some variants matter here
-                    _ => div(),
+                    LogKind::Rpc | LogKind::ServerInfo => div(),
                 },
             )))
             .child(Button::new("clear_log_button", "Clear").on_click(cx.listener(|this, _, window, cx| {

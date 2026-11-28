@@ -1040,8 +1040,7 @@ impl Editor {
 
         match &mut pending_mode {
             SelectMode::Word(range) | SelectMode::Line(range) => *range = current_selection,
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => {}
+            SelectMode::Character | SelectMode::All => {}
         }
 
         let effects = SelectionEffects::no_scroll();

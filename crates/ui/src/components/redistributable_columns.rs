@@ -389,8 +389,7 @@ pub fn redistribute_hidden_widths(widths: &TableRow<Length>, hidden: Option<&Tab
             Length::Definite(DefiniteLength::Fraction(fraction)) if !is_column_hidden(hidden, idx) => {
                 Length::Definite(DefiniteLength::Fraction(fraction * scale))
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            other => *other,
+            other @ (Length::Definite(..) | Length::Auto) => *other,
         })
         .collect();
     TableRow::from_vec(scaled, widths.cols())

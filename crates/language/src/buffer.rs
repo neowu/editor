@@ -390,8 +390,7 @@ impl DiskState {
         match self {
             DiskState::Deleted => true,
             DiskState::Historic { was_deleted } => *was_deleted,
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => false,
+            DiskState::New | DiskState::Present { .. } => false,
         }
     }
 }

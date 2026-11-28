@@ -738,8 +738,7 @@ fn case_group_key(name: &str, order: SortOrder) -> u8 {
             }
         }
         SortOrder::Lower if first.is_uppercase() => 1,
-        // lint: expect(wildcard_match) only some variants matter here
-        _ => 0,
+        SortOrder::Default | SortOrder::Lower | SortOrder::Unicode => 0,
     }
 }
 

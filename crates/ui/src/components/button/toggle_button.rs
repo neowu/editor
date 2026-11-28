@@ -218,8 +218,7 @@ impl<T: ButtonBuilder, const COLS: usize, const ROWS: usize> RenderOnce for Togg
     fn render(self, _window: &mut Window, _: &mut App) -> impl IntoElement {
         let custom_height = match self.size {
             ToggleButtonGroupSize::Custom(height) => Some(height),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            ToggleButtonGroupSize::Default | ToggleButtonGroupSize::Medium | ToggleButtonGroupSize::Large => None,
         };
 
         let entries = self.rows.into_iter().enumerate().map(|(row_index, row)| {

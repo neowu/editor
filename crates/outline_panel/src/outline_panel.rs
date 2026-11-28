@@ -942,8 +942,7 @@ fn is_parent_row(entry: &PanelEntry, worktree_id: WorktreeId, parent_path: &RelP
             folded_dirs.worktree_id == worktree_id
                 && folded_dirs.entries.last().is_some_and(|dir| dir.path.as_ref() == parent_path)
         }
-        // lint: expect(wildcard_match) only some variants matter here
-        _ => false,
+        PanelEntry::Fs(..) | PanelEntry::Outline(..) | PanelEntry::Search(..) => false,
     }
 }
 
@@ -1352,8 +1351,10 @@ impl OutlinePanel {
                         external_file.buffer_id == excerpt.context.start.buffer_id
                             && external_file.excerpts.contains(excerpt)
                     }
-                    // lint: expect(wildcard_match) only some variants matter here
-                    _ => false,
+                    PanelEntry::Fs(..)
+                    | PanelEntry::FoldedDirs(..)
+                    | PanelEntry::Outline(..)
+                    | PanelEntry::Search(..) => false,
                 }),
                 PanelEntry::Outline(OutlineEntry::Outline(outline)) => previous_entries.find(|entry| {
                     if let PanelEntry::Outline(OutlineEntry::Excerpt(excerpt)) = entry {
@@ -1456,8 +1457,9 @@ impl OutlinePanel {
             PanelEntry::Fs(FsEntry::Directory(FsEntryDirectory { worktree_id, entry: directory_entry, .. })) => {
                 (*worktree_id, Some(directory_entry))
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => return false,
+            PanelEntry::Fs(..) | PanelEntry::FoldedDirs(..) | PanelEntry::Outline(..) | PanelEntry::Search(..) => {
+                return false;
+            }
         };
         let Some(directory_entry) = directory_entry else {
             return false;
@@ -1887,8 +1889,10 @@ impl OutlinePanel {
                                     || !(excerpt.contains(&range.start, &snapshot)
                                         || excerpt.contains(&range.end, &snapshot))
                             }
-                            // lint: expect(wildcard_match) only some variants matter here
-                            _ => true,
+                            CollapsedEntry::Dir(..)
+                            | CollapsedEntry::File(..)
+                            | CollapsedEntry::ExternalFile(..)
+                            | CollapsedEntry::Outline(..) => true,
                         });
                     }
                 }
@@ -1896,8 +1900,7 @@ impl OutlinePanel {
                     FsEntry::File(file) if file.buffer_id == buffer_id => {
                         Some(ProjectPath { worktree_id: file.worktree_id, path: Arc::clone(&file.entry.path) })
                     }
-                    // lint: expect(wildcard_match) only some variants matter here
-                    _ => None,
+                    FsEntry::ExternalFile(..) | FsEntry::Directory(..) | FsEntry::File(..) => None,
                 });
                 let reveal_buffer_contents = matches!(entry, PanelEntry::Outline(_) | PanelEntry::Search(_));
                 if reveal_buffer_contents {
@@ -2314,8 +2317,7 @@ impl OutlinePanel {
     ) -> Stateful<Div> {
         let is_deleted = match &rendered_entry {
             PanelEntry::Fs(FsEntry::File(file)) => file.is_deleted,
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => false,
+            PanelEntry::Fs(..) | PanelEntry::FoldedDirs(..) | PanelEntry::Outline(..) | PanelEntry::Search(..) => false,
         };
         div()
             .text_ui(cx)
@@ -2581,8 +2583,10 @@ impl OutlinePanel {
                         CollapsedEntry::Dir(worktree_id, path) => {
                             directories.contains_key(&ProjectPath { worktree_id: *worktree_id, path: Arc::clone(path) })
                         }
-                        // lint: expect(wildcard_match) only some variants matter here
-                        _ => true,
+                        CollapsedEntry::File(..)
+                        | CollapsedEntry::ExternalFile(..)
+                        | CollapsedEntry::Excerpt(..)
+                        | CollapsedEntry::Outline(..) => true,
                     });
                     unfolded_dirs.retain(|worktree_id, paths| {
                         paths.retain(|path| {
@@ -2905,8 +2909,9 @@ impl OutlinePanel {
                         None
                     }
                 }
-                // lint: expect(wildcard_match) only some variants matter here
-                _ => None,
+                PanelEntry::Fs(..) | PanelEntry::FoldedDirs(..) | PanelEntry::Outline(..) | PanelEntry::Search(..) => {
+                    None
+                }
             })?,
         };
         Some(closest_container)
@@ -3119,8 +3124,7 @@ impl OutlinePanel {
                                     .buffers
                                     .get(&outline.buffer_id())
                                     .is_some_and(BufferOutlines::should_fetch_outlines),
-                                // lint: expect(wildcard_match) only some variants matter here
-                                _ => false,
+                                PanelEntry::Fs(..) | PanelEntry::FoldedDirs(..) | PanelEntry::Search(..) => false,
                             };
                             outline_panel.select_entry(new_selected_entry, false, window, cx);
                             if awaiting_outlines {
@@ -3151,8 +3155,7 @@ impl OutlinePanel {
                 (directory.worktree_id, &directory.entry.path, directory.first_buffer_id)
             }
             PanelEntry::FoldedDirs(group) => (group.worktree_id, &group.entries.last()?.path, group.first_buffer_id),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => return None,
+            PanelEntry::Fs(..) | PanelEntry::Outline(..) | PanelEntry::Search(..) => return None,
         };
         let mut first_section = None;
         let mut current_section = None;
@@ -3173,8 +3176,7 @@ impl OutlinePanel {
                     selected_section = current_section;
                     break;
                 }
-                // lint: expect(wildcard_match) only some variants matter here
-                _ => {}
+                FsEntry::ExternalFile(..) | FsEntry::Directory(..) | FsEntry::File(..) => {}
             }
         }
         let selected_section = selected_section.or(first_section)?;
@@ -3189,8 +3191,7 @@ impl OutlinePanel {
                     && group.first_buffer_id == selected_section
                     && group.entries.iter().any(|entry| entry.path == *path)
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => false,
+            PanelEntry::Fs(..) | PanelEntry::Outline(..) | PanelEntry::Search(..) => false,
         })
     }
 
@@ -3589,8 +3590,7 @@ impl OutlinePanel {
                 PanelEntry::Fs(fs_entry) => {
                     let candidate_label = match fs_entry {
                         FsEntry::Directory(directory) => directory.entry.path.file_name().map(str::to_owned),
-                        // lint: expect(wildcard_match) only some variants matter here
-                        _ => self.fs_entry_label(fs_entry, cx),
+                        FsEntry::ExternalFile(..) | FsEntry::File(..) => self.fs_entry_label(fs_entry, cx),
                     };
                     if let Some(file_name) = candidate_label {
                         state.match_candidates.push(StringMatchCandidate::new(id, &file_name));
@@ -3718,8 +3718,7 @@ impl OutlinePanel {
             if changed {
                 let previous_matches = match &mut self.mode {
                     ItemsDisplayMode::Search(current) if current.kind == kind => current.matches.drain(..).collect(),
-                    // lint: expect(wildcard_match) only some variants matter here
-                    _ => FxHashMap::default(),
+                    ItemsDisplayMode::Search(..) | ItemsDisplayMode::Outline => FxHashMap::default(),
                 };
                 self.mode = ItemsDisplayMode::Search(SearchState::new(
                     kind,
@@ -4231,8 +4230,7 @@ impl OutlinePanel {
                 {
                     Some(file.buffer_id)
                 }
-                // lint: expect(wildcard_match) only some variants matter here
-                _ => None,
+                FsEntry::ExternalFile(..) | FsEntry::Directory(..) | FsEntry::File(..) => None,
             })
             .collect()
     }

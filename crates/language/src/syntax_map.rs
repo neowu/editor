@@ -1021,8 +1021,7 @@ impl SyntaxSnapshot {
                     SyntaxLayerContent::Parsed { language, .. } if include_hidden || !language.config.hidden => {
                         Some(language)
                     }
-                    // lint: expect(wildcard_match) only some variants matter here
-                    _ => None,
+                    SyntaxLayerContent::Parsed { .. } | SyntaxLayerContent::Pending { .. } => None,
                 };
                 cursor.next();
                 if info.is_some() {

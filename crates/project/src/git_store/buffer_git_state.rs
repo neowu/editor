@@ -137,8 +137,7 @@ impl DiffOperations for GitDiffOperations {
                 let secondary_diff = diff.read(cx).secondary_diff().context("diff has no unstaged secondary")?;
                 project.stage_hunks(buffer, secondary_diff, buffer_ranges, cx)
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => Ok(()),
+            DiffKind::Staged | DiffKind::SinceOid(..) => Ok(()),
         });
         result.and_then(|result| result).log_err();
     }
@@ -156,8 +155,7 @@ impl DiffOperations for GitDiffOperations {
                 let buffer = buffer.context("uncommitted diff has no worktree buffer")?;
                 project.unstage_uncommitted_hunks(buffer, diff, buffer_ranges, cx)
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => Ok(()),
+            DiffKind::Unstaged | DiffKind::SinceOid(..) => Ok(()),
         });
         result.and_then(|result| result).log_err();
     }

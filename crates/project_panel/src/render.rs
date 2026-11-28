@@ -863,8 +863,9 @@ impl ProjectPanel {
     pub(super) fn entry_icon(entry: &Entry, is_expanded: bool, cx: &App) -> Option<SharedString> {
         match entry.kind {
             EntryKind::File => FileIcons::get_icon(entry.path.as_std_path(), cx),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => FileIcons::get_folder_icon(is_expanded, entry.path.as_std_path(), cx),
+            EntryKind::UnloadedDir | EntryKind::PendingDir | EntryKind::Dir => {
+                FileIcons::get_folder_icon(is_expanded, entry.path.as_std_path(), cx)
+            }
         }
     }
 

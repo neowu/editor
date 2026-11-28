@@ -252,8 +252,7 @@ impl Editor {
                 }
                 ResolvedPath::AbsPath { .. } => true,
             },
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => true,
+            HoverLink::Url(..) | HoverLink::LspLocation(..) => true,
         });
         let definitions = (refresh && self.lsp_data_enabled() && point.as_valid().is_some())
             .then(|| self.semantics_provider.as_ref()?.definitions(&buffer, anchor, kind, cx))
@@ -327,8 +326,7 @@ pub(crate) fn show_link_definition(
 ) {
     let preferred_kind = match trigger_point {
         TriggerPoint::Text(_) if !shift_held => GotoDefinitionKind::Symbol,
-        // lint: expect(wildcard_match) only some variants matter here
-        _ => GotoDefinitionKind::Type,
+        TriggerPoint::Text(..) | TriggerPoint::InlayHint(..) => GotoDefinitionKind::Type,
     };
 
     let (mut hovered_link_state, is_cached) = if let Some(existing) = editor.hovered_link_state.take() {

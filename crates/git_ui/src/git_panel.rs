@@ -316,16 +316,17 @@ impl GitListEntry {
         match self {
             GitListEntry::Status(entry) => Some(entry),
             GitListEntry::TreeStatus(entry) => Some(&entry.entry),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            GitListEntry::Directory(..) | GitListEntry::Header(..) | GitListEntry::EmptySection(..) => None,
         }
     }
 
     const fn directory_entry(&self) -> Option<&GitTreeDirEntry> {
         match self {
             GitListEntry::Directory(entry) => Some(entry),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            GitListEntry::Status(..)
+            | GitListEntry::TreeStatus(..)
+            | GitListEntry::Header(..)
+            | GitListEntry::EmptySection(..) => None,
         }
     }
 
@@ -334,8 +335,7 @@ impl GitListEntry {
         match self {
             GitListEntry::Directory(dir) => dir.depth,
             GitListEntry::TreeStatus(status) => status.depth,
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => 0,
+            GitListEntry::Status(..) | GitListEntry::Header(..) | GitListEntry::EmptySection(..) => 0,
         }
     }
 
@@ -1527,8 +1527,10 @@ impl GitPanel {
             GitListEntry::Directory(directory) => {
                 self.stage_status_for_directory(directory, repo) == StageStatus::Staged
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            entry => entry.status_entry().is_some_and(|status_entry| {
+            entry @ (GitListEntry::Status(..)
+            | GitListEntry::TreeStatus(..)
+            | GitListEntry::Header(..)
+            | GitListEntry::EmptySection(..)) => entry.status_entry().is_some_and(|status_entry| {
                 GitPanel::stage_status_for_entry(status_entry, repo) == StageStatus::Staged
             }),
         }

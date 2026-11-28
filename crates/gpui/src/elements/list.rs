@@ -952,8 +952,7 @@ impl StateInner {
                 ListMeasuringBehavior::Measure(has_measured) if !has_measured => {
                     self.layout_all_items(item_width, render_item, window, cx);
                 }
-                // lint: expect(wildcard_match) only some variants matter here
-                _ => {}
+                ListMeasuringBehavior::Measure(..) | ListMeasuringBehavior::Visible => {}
             }
 
             let mut layout_response =

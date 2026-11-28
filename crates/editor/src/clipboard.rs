@@ -242,8 +242,7 @@ impl Editor {
 
         let clipboard_image = item.entries().iter().find_map(|entry| match entry {
             ClipboardEntry::Image(image) if !image.bytes.is_empty() => Some(image),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            ClipboardEntry::String(..) | ClipboardEntry::Image(..) | ClipboardEntry::ExternalPaths(..) => None,
         });
 
         if let Some(image) = clipboard_image {
@@ -290,8 +289,7 @@ impl Editor {
 
         let clipboard_string = item.entries().iter().find_map(|entry| match entry {
             ClipboardEntry::String(s) => Some(s),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            ClipboardEntry::Image(..) | ClipboardEntry::ExternalPaths(..) => None,
         });
         match clipboard_string {
             Some(clipboard_string) => self.do_paste(
@@ -418,8 +416,7 @@ impl Editor {
 
         let entry_metadata = item.entries().first().and_then(|entry| match entry {
             ClipboardEntry::String(entry) => entry.metadata_json::<Vec<ClipboardSelection>>(),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            ClipboardEntry::Image(..) | ClipboardEntry::ExternalPaths(..) => None,
         });
 
         let can_append = selection_count == 1 && first_selection_is_empty;
@@ -546,8 +543,7 @@ impl Editor {
         let clipboard_text = cx.read_from_clipboard().and_then(|item| {
             item.entries().iter().find_map(|entry| match entry {
                 ClipboardEntry::String(text) => Some(text.text().clone()),
-                // lint: expect(wildcard_match) only some variants matter here
-                _ => None,
+                ClipboardEntry::Image(..) | ClipboardEntry::ExternalPaths(..) => None,
             })
         });
 

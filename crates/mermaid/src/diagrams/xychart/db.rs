@@ -180,8 +180,7 @@ impl XyChartDb {
             XAxis::Band { categories, .. } if values.len() > categories.len() => {
                 values.get(..categories.len()).unwrap_or(values)
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => values,
+            XAxis::Band { .. } | XAxis::Linear(..) => values,
         };
         if !self.has_set_y_axis {
             for &value in values {

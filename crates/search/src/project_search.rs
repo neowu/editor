@@ -973,21 +973,21 @@ impl Render for ProjectSearchView {
                 SearchState::Running { activity: SearchActivity::WaitingForScan, .. } => "Loading project…",
                 SearchState::Running { activity: SearchActivity::Searching, .. } => "Searching…",
                 SearchState::Completed(SearchCompletion::NoResults) => "No Results",
-                // lint: expect(wildcard_match) only some variants matter here
-                _ => "Search All Files",
+                SearchState::Idle | SearchState::Completed(..) => "Search All Files",
             };
 
             let heading_text = div().justify_center().child(Label::new(heading_text).size(LabelSize::Large));
 
             let page_content: Option<AnyElement> = match model.search_state {
                 SearchState::Idle => Some(self.landing_text_minor(cx).into_any_element()),
-                _ if model.search_state.no_results_so_far() => Some(
-                    Label::new("No results found in this project for the provided query")
-                        .size(LabelSize::Small)
-                        .into_any_element(),
-                ),
-                // lint: expect(wildcard_match) only some variants matter here
-                _ => None,
+                SearchState::Running { .. } | SearchState::Completed(..) if model.search_state.no_results_so_far() => {
+                    Some(
+                        Label::new("No results found in this project for the provided query")
+                            .size(LabelSize::Small)
+                            .into_any_element(),
+                    )
+                }
+                SearchState::Running { .. } | SearchState::Completed(..) => None,
             };
 
             let page_content = page_content.map(|text| div().child(text));

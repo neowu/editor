@@ -504,8 +504,7 @@ impl Entry {
     const fn as_branch(&self) -> Option<&Branch> {
         match self {
             Entry::Branch { branch, .. } => Some(branch),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            Entry::NewUrl { .. } | Entry::NewBranch { .. } | Entry::NewRemoteName { .. } => None,
         }
     }
 
@@ -1053,8 +1052,7 @@ impl PickerDelegate for BranchListDelegate {
     fn no_matches_text(&self, _window: &mut Window, _cx: &mut App) -> Option<SharedString> {
         match self.state {
             PickerState::CreateRemote(_) => Some(SharedString::new_static("Remote name can't be empty")),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            PickerState::List | PickerState::NewRemote | PickerState::NewBranch => None,
         }
     }
 

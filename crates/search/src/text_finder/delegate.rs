@@ -276,8 +276,7 @@ impl InProgressSearch {
             mem::swap(self, &mut placeholder);
             match placeholder {
                 InProgressSearch::Disconnected(results_stream) => Some(results_stream),
-                // lint: expect(wildcard_match) only some variants matter here
-                _ => unreachable!("guarded with matches! above"),
+                InProgressSearch::Connected(..) | InProgressSearch::None => unreachable!("guarded with matches! above"),
             }
         } else {
             None
@@ -290,8 +289,9 @@ impl InProgressSearch {
         if matches!(self, InProgressSearch::Connected(_)) {
             match mem::replace(self, InProgressSearch::None) {
                 InProgressSearch::Connected(task) => Some(task),
-                // lint: expect(wildcard_match) only some variants matter here
-                _ => unreachable!("guarded with matches! above"),
+                InProgressSearch::Disconnected(..) | InProgressSearch::None => {
+                    unreachable!("guarded with matches! above")
+                }
             }
         } else {
             None

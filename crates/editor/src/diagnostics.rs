@@ -169,8 +169,7 @@ impl Editor {
         let after = Self::diagnostics_after_cursor(&buffer, selection.start, severity);
         let active_group_id = match &self.active_diagnostics {
             ActiveDiagnostic::Group(group) => Some(group.group_id),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            ActiveDiagnostic::None | ActiveDiagnostic::All => None,
         };
 
         let mut cursor_on_active = false;
@@ -234,8 +233,7 @@ impl Editor {
             {
                 Some(active_group.group_id)
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            ActiveDiagnostic::None | ActiveDiagnostic::All | ActiveDiagnostic::Group(..) => None,
         };
 
         let before = Self::diagnostics_before_cursor(buffer, selection.start, severity);
@@ -333,8 +331,7 @@ impl Editor {
     pub(super) const fn active_diagnostic_group_id(&self) -> Option<usize> {
         match &self.active_diagnostics {
             ActiveDiagnostic::Group(group) => Some(group.group_id),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            ActiveDiagnostic::None | ActiveDiagnostic::All => None,
         }
     }
 

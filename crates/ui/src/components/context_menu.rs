@@ -1151,8 +1151,7 @@ impl ContextMenu {
                 .get(&ix)
                 .copied()
                 .map(|bounds| (open_submenu.entity.clone(), bounds)),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            SubmenuState::Closed | SubmenuState::Open(..) => None,
         };
 
         div()
@@ -1616,8 +1615,7 @@ impl Render for ContextMenu {
             {
                 Some(open_submenu.entity.read(cx).focus_handle.clone())
             }
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            SubmenuState::Closed | SubmenuState::Open(..) => None,
         };
 
         let aside = self.documentation_aside.clone();

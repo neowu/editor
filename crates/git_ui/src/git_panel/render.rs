@@ -1431,8 +1431,7 @@ impl GitPanel {
         let message = match section {
             Section::Staged => "No staged changes yet",
             Section::Unstaged => "No unstaged changes",
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => "No changes",
+            Section::Conflict | Section::Tracked | Section::New => "No changes",
         };
         h_flex()
             .h(self.list_item_height())

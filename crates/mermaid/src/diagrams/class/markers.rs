@@ -21,8 +21,7 @@ pub(crate) fn class_marker_trim(r#type: RelationEnd) -> f64 {
         RelationEnd::Type(0 | 2) => DIAMOND,
         RelationEnd::Type(4) => 2.0 * RING,
         RelationEnd::Type(3) => marker_trim("arrow_point"),
-        // lint: expect(wildcard_match) only some variants matter here
-        _ => 0.0,
+        RelationEnd::None | RelationEnd::Type(..) => 0.0,
     }
 }
 
@@ -78,8 +77,7 @@ pub(crate) fn class_marker(r#type: RelationEnd, x: f64, y: f64, dx: f64, dy: f64
             out.push_str("\" r=\"5\"/>");
         }
         RelationEnd::Type(3) => out = marker("arrow_point", x, y, dx, dy, color),
-        // lint: expect(wildcard_match) only some variants matter here
-        _ => {}
+        RelationEnd::None | RelationEnd::Type(..) => {}
     }
     out
 }

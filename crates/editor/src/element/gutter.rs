@@ -541,8 +541,9 @@ impl EditorElement {
                                 Corners::all(1. * line_height),
                                 *status,
                             ),
-                            // lint: expect(wildcard_match) only some variants matter here
-                            _ => (hunk_hitbox.bounds, color, Corners::all(px(0.)), *status),
+                            DiffHunkStatusKind::Added | DiffHunkStatusKind::Modified | DiffHunkStatusKind::Deleted => {
+                                (hunk_hitbox.bounds, color, Corners::all(px(0.)), *status)
+                            }
                         }
                     }),
                 };

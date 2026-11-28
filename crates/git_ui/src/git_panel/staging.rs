@@ -39,8 +39,7 @@ impl StageIntent {
         match section {
             Section::Staged => StageIntent::Unstage,
             Section::Unstaged => StageIntent::Stage,
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => StageIntent::Toggle,
+            Section::Conflict | Section::Tracked | Section::New => StageIntent::Toggle,
         }
     }
 

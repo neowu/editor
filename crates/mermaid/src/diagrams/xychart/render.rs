@@ -332,8 +332,7 @@ pub(crate) fn render(model: &XyChartDb, config: &Value, options: &Options) -> Re
         XAxis::Band { categories, .. } if on(category_conf, "showLabel", true) => {
             categories.iter().map(|category| text(Some(category), small, wrap_at)).collect()
         }
-        // lint: expect(wildcard_match) only some variants matter here
-        _ => Vec::new(),
+        XAxis::Band { .. } | XAxis::Linear(..) => Vec::new(),
     };
     let mut category_width = 0.0;
     let mut category_height = 0.0;

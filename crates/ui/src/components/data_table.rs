@@ -557,8 +557,7 @@ impl RenderOnce for Table {
                     cx,
                 )),
             ),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => (None, None),
+            ColumnWidthConfig::Static { .. } | ColumnWidthConfig::Redistributable { .. } => (None, None),
         };
 
         let table = div()

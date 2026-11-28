@@ -79,8 +79,7 @@ fn editor(theme: &Theme) -> Div {
         let marker = match row {
             Row::Added => c.version_control_added,
             Row::Deleted => c.version_control_deleted,
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => c.editor_gutter_background,
+            Row::Plain | Row::Active | Row::Highlighted => c.editor_gutter_background,
         };
         let number = if *row == Row::Active { c.editor_active_line_number } else { c.editor_line_number };
         let (text, highlights) = line(theme, row_bg, spans);

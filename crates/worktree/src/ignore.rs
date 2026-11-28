@@ -45,8 +45,10 @@ impl IgnoreStack {
     pub(crate) fn append(self, kind: IgnoreKind, ignore: Arc<Gitignore>) -> Self {
         let top = match self.top.as_ref() {
             IgnoreStackEntry::All => Arc::clone(&self.top),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => Arc::new(match kind {
+            IgnoreStackEntry::None
+            | IgnoreStackEntry::Global { .. }
+            | IgnoreStackEntry::RepoExclude { .. }
+            | IgnoreStackEntry::Some { .. } => Arc::new(match kind {
                 IgnoreKind::Gitignore(abs_base_path) => {
                     IgnoreStackEntry::Some { abs_base_path, ignore, parent: Arc::clone(&self.top) }
                 }

@@ -1595,8 +1595,7 @@ impl FileFinderDelegate {
 
         let start_icon = match path_match {
             Match::CreateNew(_) => Some(Icon::new(IconName::Plus).size(IconSize::Small)),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => (|| {
+            Match::History { .. } | Match::Search(..) | Match::Absolute(..) => (|| {
                 let abs_path = path_match.abs_path(&self.project, cx)?;
                 let file_name = abs_path.file_name()?;
                 let icon = FileIcons::get_icon(file_name.as_ref(), cx)?;

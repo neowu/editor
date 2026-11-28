@@ -334,8 +334,7 @@ impl Element for Img {
                                     let height_px = abs_length.to_pixels(window.rem_size());
                                     Length::Definite(px(image_size.width.0 * height_px.0 / image_size.height.0).into())
                                 }
-                                // lint: expect(wildcard_match) only some variants matter here
-                                _ => Length::Definite(image_size.width.into()),
+                                Length::Definite(..) | Length::Auto => Length::Definite(image_size.width.into()),
                             };
                         }
 
@@ -345,8 +344,7 @@ impl Element for Img {
                                     let width_px = abs_length.to_pixels(window.rem_size());
                                     Length::Definite(px(image_size.height.0 * width_px.0 / image_size.width.0).into())
                                 }
-                                // lint: expect(wildcard_match) only some variants matter here
-                                _ => Length::Definite(image_size.height.into()),
+                                Length::Definite(..) | Length::Auto => Length::Definite(image_size.height.into()),
                             };
                         }
 

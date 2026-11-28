@@ -644,8 +644,7 @@ impl EditorElement {
             .iter()
             .filter_map(|(hunk, _)| match hunk {
                 DisplayDiffHunk::Unfolded { word_diffs, status, .. } if status.is_modified() => Some(word_diffs),
-                // lint: expect(wildcard_match) only some variants matter here
-                _ => None,
+                DisplayDiffHunk::Folded { .. } | DisplayDiffHunk::Unfolded { .. } => None,
             })
             .flatten()
             .filter(|word_diff| word_diff.start < visible_end && word_diff.end > visible_start)
@@ -795,8 +794,7 @@ impl EditorElement {
                 // too would have to be redrawn on every cursor move.
                 let show_active_line_background = match layout.mode {
                     EditorMode::Full { show_active_line_background, .. } => show_active_line_background,
-                    // lint: expect(wildcard_match) only some variants matter here
-                    _ => false,
+                    EditorMode::SingleLine | EditorMode::AutoHeight { .. } | EditorMode::Minimap { .. } => false,
                 };
                 let mut active_rows = layout.active_rows.iter().peekable();
                 while let Some((start_row, contains_non_empty_selection)) = active_rows.next() {
@@ -1154,8 +1152,7 @@ impl EditorElement {
             // We currently use single-line and auto-height editors in UI contexts,
             // so we don't want to scale everything with the buffer font size, as it
             // ends up looking off.
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            EditorMode::SingleLine | EditorMode::AutoHeight { .. } | EditorMode::Full { .. } => None,
         }
     }
 

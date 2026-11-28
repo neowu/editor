@@ -170,8 +170,7 @@ impl FileStatus {
                 (tracked.index_status, tracked.worktree_status),
                 (StatusCode::Modified, _) | (_, StatusCode::Modified)
             ),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => false,
+            FileStatus::Untracked | FileStatus::Ignored | FileStatus::Unmerged(..) => false,
         }
     }
 
@@ -182,8 +181,7 @@ impl FileStatus {
                 (StatusCode::Added, _) | (_, StatusCode::Added)
             ),
             FileStatus::Untracked => true,
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => false,
+            FileStatus::Ignored | FileStatus::Unmerged(..) => false,
         }
     }
 

@@ -290,8 +290,7 @@ impl SearchState {
     fn confirmed_query(&self) -> Option<&str> {
         match &self.state {
             QueryState::Confirmed((query, _)) => Some(query.as_str()),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            QueryState::Pending(..) | QueryState::Empty => None,
         }
     }
 }
@@ -3527,8 +3526,7 @@ impl Item for GitGraph {
         });
         let path_history_path = match &self.log_source {
             LogSource::Path(path) => Some(path.as_unix_str().to_owned()),
-            // lint: expect(wildcard_match) only some variants matter here
-            _ => None,
+            LogSource::All | LogSource::Branch(..) | LogSource::Sha(..) => None,
         };
 
         Some(TabTooltipContent::Custom(Box::new(Tooltip::element({
