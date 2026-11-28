@@ -7,8 +7,6 @@ edition.workspace = true
 path = "src/watch.rs"
 
 [dependencies]
-arc-swap = "1"
-futures.workspace = true
 parking_lot.workspace = true
 
 [lints]
